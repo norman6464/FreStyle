@@ -16,12 +16,11 @@ import (
 // TestUserDailyActivityRepository_Increment_Integration は日次サマリーの upsert 加算を
 // 実 Postgres で固定する。初回は delta で INSERT、2 回目以降は各カウンタへ加算する。
 func TestUserDailyActivityRepository_Increment_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "user_daily_activities")
+	testsupport.TruncateAll(t, sqlDB, "user_daily_activities")
 
 	day1 := time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)
 	day2 := time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC)
@@ -73,12 +72,11 @@ func TestUserDailyActivityRepository_Increment_Integration(t *testing.T) {
 
 // TestUserDailyActivityRepository_ListByUser_Integration は範囲取得の境界と昇順を固定する。
 func TestUserDailyActivityRepository_ListByUser_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "user_daily_activities")
+	testsupport.TruncateAll(t, sqlDB, "user_daily_activities")
 
 	d10 := time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC)
 	d11 := time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)

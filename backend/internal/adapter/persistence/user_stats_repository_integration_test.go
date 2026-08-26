@@ -4,12 +4,12 @@ package persistence_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // score_cards は AI 評価スコアの旧テーブルで AutoMigrate 管理ではない（対応 domain 構造体は撤去済）。
@@ -30,26 +30,28 @@ CREATE TABLE IF NOT EXISTS score_cards (
     created_at          timestamptz
 )`
 
-func ensureScoreCards(t *testing.T, db *gorm.DB) {
+func ensureScoreCards(t *testing.T, db *sql.DB) {
 	t.Helper()
-	require.NoError(t, db.Exec(createScoreCardsDDL).Error)
-	require.NoError(t, db.Exec(`TRUNCATE score_cards RESTART IDENTITY`).Error)
+	_, err := db.Exec(createScoreCardsDDL)
+	require.NoError(t, err)
+	_, err = db.Exec(`TRUNCATE score_cards RESTART IDENTITY`)
+	require.NoError(t, err)
 }
 
 // TestUserStatsRepository_Integration は score_cards からの提出数(COUNT)・平均スコア(AVG)集計を
 // 実 Postgres で固定する。user_id での絞り込み・NULL スコアの扱い・0 件時の COALESCE を検証する。
 func TestUserStatsRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserStatsRepository(sqlDB)
 	ctx := context.Background()
-	ensureScoreCards(t, db)
+	ensureScoreCards(t, sqlDB)
 
 	insert := func(userID uint64, score any) {
-		require.NoError(t, db.Exec(
-			`INSERT INTO score_cards (user_id, overall_score, created_at) VALUES (?, ?, NOW())`,
+		_, err := sqlDB.Exec(
+			`INSERT INTO score_cards (user_id, overall_score, created_at) VALUES ($1, $2, NOW())`,
 			userID, score,
-		).Error)
+		)
+		require.NoError(t, err)
 	}
 
 	// user 7: 80 / 90 / 100 → count=3, avg=90。他ユーザー(user 8)の 50 は混ざらない。
@@ -67,7 +69,7 @@ func TestUserStatsRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("小数平均も保つ", func(t *testing.T) {
-		ensureScoreCards(t, db)
+		ensureScoreCards(t, sqlDB)
 		insert(9, 70)
 		insert(9, 75)
 		stats, err := repo.Compute(ctx, 9)
@@ -77,7 +79,7 @@ func TestUserStatsRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("行はあるがスコアが全て NULL なら AVG は NULL→COALESCE で 0、COUNT は行数", func(t *testing.T) {
-		ensureScoreCards(t, db)
+		ensureScoreCards(t, sqlDB)
 		insert(10, nil)
 		insert(10, nil)
 		stats, err := repo.Compute(ctx, 10)
@@ -87,7 +89,7 @@ func TestUserStatsRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("1 件も無いユーザーは count=0 / avg=0", func(t *testing.T) {
-		ensureScoreCards(t, db)
+		ensureScoreCards(t, sqlDB)
 		stats, err := repo.Compute(ctx, 7)
 		require.NoError(t, err)
 		require.Equal(t, 0, stats.TotalSessions)

@@ -19,7 +19,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // kbIntegrationTables は結合テストが触るナレッジ基盤のテーブル（TRUNCATE 対象）。
@@ -41,9 +40,9 @@ type kbEnv struct {
 	router      *gin.Engine
 }
 
-func newKbEnv(t *testing.T, gormDB *gorm.DB, sqlDB *sql.DB, slug string) *kbEnv {
+func newKbEnv(t *testing.T, sqlDB *sql.DB, slug string) *kbEnv {
 	t.Helper()
-	testsupport.TruncateAll(t, gormDB, kbIntegrationTables...)
+	testsupport.TruncateAll(t, sqlDB, kbIntegrationTables...)
 
 	env := &kbEnv{
 		pages:       persistence.NewKnowledgeBaseRepository(sqlDB),
@@ -166,12 +165,10 @@ func (e *kbEnv) joinWorkspace(t *testing.T, userID uint64, role domain.GrantRole
 }
 
 func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 
 	t.Run("編集者はページを作って本文を保存し取得できる", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		env.joinWorkspace(t, alice, domain.GrantRoleEditor)
 		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "root")
@@ -203,7 +200,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("閲覧だけの役割は書き込みが403で読み取りは通る", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleEditor)
@@ -219,7 +216,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("所属していないワークスペースは404", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "root")
@@ -238,7 +235,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("ページの例外で隠した親の子はツリーに現れない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -276,7 +273,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("存在しないページと隠したページの応答が同じ", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -298,7 +295,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("編集を外した相手は改名できないが閲覧はできる", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -317,7 +314,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("移動先の親に編集権限が無ければ移せない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -341,7 +338,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("アーカイブした子孫はツリーから消え復帰で戻る", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "root")
@@ -364,7 +361,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("スペース全員宛ての例外が残るサブツリーの別スペースへの移動は409", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
@@ -400,7 +397,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("見えない子を持つ親はアーカイブできない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -439,7 +436,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("編集できない子を持つ親はアーカイブできず復帰もできない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -478,7 +475,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("役割が無いメンバーは何も見えない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		carol := kbInsertUser(t, sqlDB, "carol")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)

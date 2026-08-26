@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // bootstrapSuperAdminLockKeyForTest は repository が「最初の運営管理者を作る」経路の直列化に
@@ -27,21 +27,21 @@ const bootstrapSuperAdminLockKeyForTest int64 = 7_419_063
 var userTxTables = []string{"users", "user_oidc_identities", "companies", "workspaces"}
 
 // userUpdatedAt はユーザーの updated_at を DB から直接読む。
-func userUpdatedAt(t *testing.T, db *gorm.DB, id uint64) time.Time {
+func userUpdatedAt(t *testing.T, db *sql.DB, id uint64) time.Time {
 	t.Helper()
 	var ts time.Time
-	require.NoError(t, db.Raw(`SELECT updated_at FROM users WHERE id = ?`, id).Scan(&ts).Error)
+	require.NoError(t, db.QueryRow(`SELECT updated_at FROM users WHERE id = $1`, id).Scan(&ts))
 	return ts
 }
 
 // countActiveSuperAdmins は論理削除されていない super_admin の人数を返す。
-func countActiveSuperAdmins(t *testing.T, db *gorm.DB) int64 {
+func countActiveSuperAdmins(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
 	var n int64
-	require.NoError(t, db.Raw(
+	require.NoError(t, db.QueryRow(
 		`SELECT count(*) FROM users u JOIN roles r ON r.id = u.role_id
-		 WHERE r.name = ? AND u.deleted_at IS NULL`, string(domain.RoleSuperAdmin),
-	).Scan(&n).Error)
+		 WHERE r.name = $1 AND u.deleted_at IS NULL`, string(domain.RoleSuperAdmin),
+	).Scan(&n))
 	return n
 }
 
@@ -55,13 +55,12 @@ func countActiveSuperAdmins(t *testing.T, db *gorm.DB) int64 {
 // ロックがトランザクションの外（別接続）へ出ると直列化は成立しないので、ここでは
 // 「同時に来ても 1 人しか作られない」ことを実際に走らせて確かめる。
 func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("同時に来ても作られる運営管理者は 1 人だけ", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 
 		const workers = 8
 		start := make(chan struct{})
@@ -94,11 +93,11 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, wins, "created=true を返したのは 1 本だけであるべき")
-		require.Equal(t, int64(1), countActiveSuperAdmins(t, db), "運営管理者は 1 人だけ作られる")
+		require.Equal(t, int64(1), countActiveSuperAdmins(t, sqlDB), "運営管理者は 1 人だけ作られる")
 	})
 
 	t.Run("ロックを外から握っているあいだ作成は待たされる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 
 		blocker, err := sqlDB.BeginTx(ctx, nil)
 		require.NoError(t, err)
@@ -128,11 +127,11 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("ロック解放後も作成が終わらない")
 		}
-		require.Equal(t, int64(1), countActiveSuperAdmins(t, db))
+		require.Equal(t, int64(1), countActiveSuperAdmins(t, sqlDB))
 	})
 
 	t.Run("既に運営管理者が居れば作らず created=false", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "first@example.com", Name: "先客", Role: domain.RoleSuperAdmin,
 		}, domain.OidcProviderCognito, "first-sub"))
@@ -142,18 +141,18 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 		}, domain.OidcProviderCognito, "second-sub")
 		require.NoError(t, err)
 		require.False(t, created)
-		require.Equal(t, int64(1), countActiveSuperAdmins(t, db))
+		require.Equal(t, int64(1), countActiveSuperAdmins(t, sqlDB))
 
 		// 作られていないので identity も残らない。
 		var n int64
-		require.NoError(t, db.Raw(
-			`SELECT count(*) FROM user_oidc_identities WHERE subject = ?`, "second-sub",
-		).Scan(&n).Error)
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT count(*) FROM user_oidc_identities WHERE subject = $1`, "second-sub",
+		).Scan(&n))
 		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("論理削除された運営管理者は人数に数えない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := &domain.User{Email: "gone@example.com", Name: "退任", Role: domain.RoleSuperAdmin}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "gone-sub"))
 		require.NoError(t, repo.SoftDelete(ctx, u.ID))
@@ -166,19 +165,19 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 	})
 
 	t.Run("super_admin 以外の role はエラーで何も作らない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		created, err := repo.CreateFirstSuperAdminWithOidcIdentity(ctx, &domain.User{
 			Email: "trainee@example.com", Name: "研修生", Role: domain.RoleTrainee,
 		}, domain.OidcProviderCognito, "trainee-sub")
 		require.Error(t, err)
 		require.False(t, created)
 		var n int64
-		require.NoError(t, db.Raw(`SELECT count(*) FROM users`).Scan(&n).Error)
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM users`).Scan(&n))
 		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("identity の失敗で users 行ごと巻き戻る", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		// 空 subject は CHECK 違反。users 行だけが残る（＝ログイン不能な孤児）状態を作らない。
 		created, err := repo.CreateFirstSuperAdminWithOidcIdentity(ctx, &domain.User{
 			Email: "orphan@example.com", Name: "孤児", Role: domain.RoleSuperAdmin,
@@ -186,30 +185,29 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, created)
 		var n int64
-		require.NoError(t, db.Raw(`SELECT count(*) FROM users`).Scan(&n).Error)
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM users`).Scan(&n))
 		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("会社に属していれば workspace_id も同じトランザクションで埋まる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
-		insertCompany(t, db, 1, "会社 A", true, true)
-		runStartupBackfill(ctx, t, db)
-		ws1 := companyWorkspaceID(t, db, 1)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
+		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
 		cid := uint64(1)
 		u := &domain.User{Email: "boot-ws@example.com", Name: "運営", Role: domain.RoleSuperAdmin, CompanyID: &cid}
 		created, err := repo.CreateFirstSuperAdminWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "boot-ws")
 		require.NoError(t, err)
 		require.True(t, created)
-		require.Equal(t, ws1, userWorkspaceID(t, db, u.ID))
+		require.Equal(t, ws1, userWorkspaceID(t, sqlDB, u.ID))
 	})
 }
 
 // TestUserRepositoryWrites_Integration は users の書き込み経路（オフボーディングの芯である
 // UpdateActive / SoftDelete を含む）の契約を実 PostgreSQL で固定する。
 func TestUserRepositoryWrites_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
@@ -225,7 +223,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	}
 
 	t.Run("作成直後は有効（is_active=true）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "active@example.com", "active-1")
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
@@ -233,9 +231,9 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateActive(false) は即時に効き FindActiveByEmail から消える", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "off@example.com", "off-1")
-		before := userUpdatedAt(t, db, u.ID)
+		before := userUpdatedAt(t, sqlDB, u.ID)
 
 		require.NoError(t, repo.UpdateActive(ctx, u.ID, false))
 
@@ -245,7 +243,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		byEmail, err := repo.FindActiveByEmail(ctx, "off@example.com")
 		require.NoError(t, err)
 		require.Nil(t, byEmail, "無効化されたユーザーはログイン経路から引けない")
-		require.NotEqual(t, before, userUpdatedAt(t, db, u.ID), "updated_at が進む")
+		require.NotEqual(t, before, userUpdatedAt(t, sqlDB, u.ID), "updated_at が進む")
 
 		// 戻せる。
 		require.NoError(t, repo.UpdateActive(ctx, u.ID, true))
@@ -255,12 +253,12 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateActive は存在しないユーザーで domain.ErrNotFound", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		require.ErrorIs(t, repo.UpdateActive(ctx, 999999, false), domain.ErrNotFound)
 	})
 
 	t.Run("SoftDelete は identity を解放し、二度目は domain.ErrNotFound", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "bye@example.com", "bye-1")
 
 		require.NoError(t, repo.SoftDelete(ctx, u.ID))
@@ -272,7 +270,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, bySub)
 		var n int64
-		require.NoError(t, db.Raw(`SELECT count(*) FROM user_oidc_identities WHERE user_id = ?`, u.ID).Scan(&n).Error)
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM user_oidc_identities WHERE user_id = $1`, u.ID).Scan(&n))
 		require.Equal(t, int64(0), n, "identity は解放される")
 
 		require.ErrorIs(t, repo.SoftDelete(ctx, u.ID), domain.ErrNotFound)
@@ -280,9 +278,9 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateName / UpdateRole は指定列だけを更新する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "rename@example.com", "rename-1")
-		before := userUpdatedAt(t, db, u.ID)
+		before := userUpdatedAt(t, sqlDB, u.ID)
 
 		require.NoError(t, repo.UpdateName(ctx, u.ID, "新しい名前"))
 		got, err := repo.FindByID(ctx, u.ID)
@@ -290,7 +288,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.Equal(t, "新しい名前", got.Name)
 		require.Equal(t, "rename@example.com", got.Email, "email は触らない")
 		require.True(t, got.IsActive, "is_active は触らない")
-		require.NotEqual(t, before, userUpdatedAt(t, db, u.ID))
+		require.NotEqual(t, before, userUpdatedAt(t, sqlDB, u.ID))
 
 		require.NoError(t, repo.UpdateRole(ctx, u.ID, domain.RoleCompanyAdmin))
 		got, err = repo.FindByID(ctx, u.ID)
@@ -302,7 +300,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateAiChatEnabled は true / false / nil を往復できる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "ai@example.com", "ai-1")
 
 		got, err := repo.FindByID(ctx, u.ID)
@@ -324,9 +322,9 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByCompanyID は会社で絞り id 昇順・論理削除を除く", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
-		insertCompany(t, db, 1, "会社 A", true, true)
-		insertCompany(t, db, 2, "会社 B", true, true)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
+		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		insertCompany(t, sqlDB, 2, "会社 B", true, true)
 		c1, c2 := uint64(1), uint64(2)
 		a := &domain.User{Email: "m1@example.com", Name: "m1", Role: domain.RoleTrainee, CompanyID: &c1}
 		b := &domain.User{Email: "m2@example.com", Name: "m2", Role: domain.RoleTrainee, CompanyID: &c1}
@@ -354,7 +352,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("CognitoSubjectByUserID は subject を返し、無ければ空文字", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "sub@example.com", "sub-1")
 
 		got, err := repo.CognitoSubjectByUserID(ctx, u.ID)
@@ -367,7 +365,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 	})
 
 	t.Run("EnsureOidcIdentity は他人が持つ subject を奪わない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, userTxTables...)
+		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		owner := newTrainee(t, "owner@example.com", "shared-subject")
 		other := newTrainee(t, "other@example.com", "other-subject")
 

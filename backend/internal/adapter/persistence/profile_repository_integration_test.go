@@ -14,16 +14,19 @@ import (
 
 // TestProfileRepository_Integration は sqlc 化した FindByUserID（round-trip / not-found）を実 Postgres で検証する。
 func TestProfileRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewProfileRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("FindByUserID は profile を返す", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "profiles")
-		require.NoError(t, db.WithContext(ctx).Create(&domain.Profile{
-			UserID: 7, Bio: "自己紹介", AvatarURL: "https://example.com/a.png", StatusMessage: "active",
-		}).Error)
+		testsupport.TruncateAll(t, sqlDB, "profiles")
+		_, err := sqlDB.ExecContext(
+			ctx,
+			`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+			 VALUES ($1, $2, $3, $4, now())`,
+			7, "自己紹介", "https://example.com/a.png", "active",
+		)
+		require.NoError(t, err)
 
 		got, err := repo.FindByUserID(ctx, 7)
 		require.NoError(t, err)
@@ -35,7 +38,7 @@ func TestProfileRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("未作成は (nil, nil)", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "profiles")
+		testsupport.TruncateAll(t, sqlDB, "profiles")
 		got, err := repo.FindByUserID(ctx, 999)
 		require.NoError(t, err)
 		require.Nil(t, got)
@@ -46,11 +49,10 @@ func TestProfileRepository_Integration(t *testing.T) {
 // 未作成なら作成し、既存なら user_id 単位で 1 行を更新する（重複行を作らない）。
 // updated_at が書き戻されることも確認する（GORM Save 相当）。
 func TestProfileRepository_Upsert_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewProfileRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "profiles")
+	testsupport.TruncateAll(t, sqlDB, "profiles")
 
 	// 1) 未作成 → 作成される。
 	p := &domain.Profile{UserID: 42, Bio: "v1", AvatarURL: "a1", StatusMessage: "s1"}
@@ -75,6 +77,6 @@ func TestProfileRepository_Upsert_Integration(t *testing.T) {
 	require.Equal(t, "s2", got.StatusMessage)
 
 	var cnt int64
-	require.NoError(t, db.Table("profiles").Where("user_id = ?", 42).Count(&cnt).Error)
+	require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM profiles WHERE user_id = $1`, 42).Scan(&cnt))
 	require.Equal(t, int64(1), cnt, "user_id 単位の upsert なので行は 1 つ")
 }

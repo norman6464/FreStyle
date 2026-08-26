@@ -16,16 +16,15 @@ import (
 // TestExerciseSubmissionRepository_Integration は提出履歴の作成・一覧（絞り込みと並び順）・
 // 正解/提出の有無判定を実 Postgres で固定する。
 func TestExerciseSubmissionRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewExerciseSubmissionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "exercise_submissions")
+	testsupport.TruncateAll(t, sqlDB, "exercise_submissions")
 
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	t.Run("Create は採番 ID を書き戻し全フィールドを保存する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "exercise_submissions")
+		testsupport.TruncateAll(t, sqlDB, "exercise_submissions")
 		s := &domain.ExerciseSubmission{
 			UserID: 7, ExerciseKind: domain.ExerciseKindMaster, ExerciseID: 100,
 			SubmittedCode: "print(1)", Stdout: "1", Stderr: "", ExitCode: 0,
@@ -46,7 +45,7 @@ func TestExerciseSubmissionRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByUserAndExercise は user/exercise/kind で絞り submitted_at desc, id desc", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "exercise_submissions")
+		testsupport.TruncateAll(t, sqlDB, "exercise_submissions")
 		// 同一 user/exercise/kind の 3 件。うち 2 件は submitted_at 同着 → id 降順で解決。
 		mk := func(kind string, exID uint64, at time.Time, correct bool) *domain.ExerciseSubmission {
 			return &domain.ExerciseSubmission{
@@ -77,7 +76,7 @@ func TestExerciseSubmissionRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("HasSolved は正解提出があるときだけ true", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "exercise_submissions")
+		testsupport.TruncateAll(t, sqlDB, "exercise_submissions")
 		// 不正解だけ → false。
 		require.NoError(t, repo.Create(ctx, &domain.ExerciseSubmission{
 			UserID: 7, ExerciseKind: domain.ExerciseKindMaster, ExerciseID: 100,
@@ -111,7 +110,7 @@ func TestExerciseSubmissionRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("HasAttempted は未提出なら false", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "exercise_submissions")
+		testsupport.TruncateAll(t, sqlDB, "exercise_submissions")
 		attempted, err := repo.HasAttempted(ctx, 7, 100, domain.ExerciseKindMaster)
 		require.NoError(t, err)
 		require.False(t, attempted)

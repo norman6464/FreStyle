@@ -46,18 +46,21 @@ func docTenantGet(t *testing.T, r *gin.Engine, path string) *httptest.ResponseRe
 // TestDocumentTenantIsolation_Integration は「公開文書は同一会社の中でだけ読める」を実 PostgreSQL で固定する。
 // 会社をまたいだ閲覧は、読み取りエンドポイントのどれからも成立しないこと（取得・一覧の両方）を見る。
 func TestDocumentTenantIsolation_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "rich_documents", "user_oidc_identities", "users", "companies")
+	testsupport.TruncateAll(t, sqlDB, "rich_documents", "user_oidc_identities", "users", "companies")
 
 	userRepo := persistence.NewUserRepository(sqlDB)
 	docRepo := persistence.NewRichDocumentRepository(sqlDB)
 
 	mkCompany := func(name string) uint64 {
-		c := &domain.Company{Name: name, IsActive: true}
-		require.NoError(t, db.Create(c).Error)
-		return c.ID
+		var id uint64
+		require.NoError(t, sqlDB.QueryRowContext(
+			ctx,
+			`INSERT INTO companies (name, is_active, created_at, updated_at)
+			 VALUES ($1, true, now(), now()) RETURNING id`, name,
+		).Scan(&id))
+		return id
 	}
 	mkUser := func(sub, email string, companyID *uint64) *domain.User {
 		u := &domain.User{Email: email, Role: domain.RoleTrainee, CompanyID: companyID, IsActive: true}

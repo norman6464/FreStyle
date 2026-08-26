@@ -38,13 +38,11 @@ func workspaceScopeOf(ctx context.Context, t *testing.T, f kbPermFixture, userID
 // 見ないまま**ページを名指しする操作**に使うと必ず緩い側へ倒れるので、
 // 「ページ単位の答えと食い違わないこと」と「食い違ってよい範囲」の両方をここで固定する。
 func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	t.Run("非メンバーは何もできない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 
 		assert.Equal(t, domain.ScopePermission{}, scopeOf(ctx, t, f, f.spaceA, f.alice),
 			"principal が無い相手には役割が 1 つも届かない")
@@ -52,7 +50,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("所属しただけで役割が無ければ何もできない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		f.principalFor(ctx, t, f.alice)
 
 		assert.Equal(t, domain.ScopePermission{}, scopeOf(ctx, t, f, f.spaceA, f.alice),
@@ -60,7 +58,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("ワークスペースのgrantは配下の全スペースに届く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
 		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleEditor)
 		require.NoError(t, err)
@@ -86,7 +84,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				f := setupKBPermission(t, gormDB, sqlDB)
+				f := setupKBPermission(t, sqlDB)
 				alice := f.principalFor(ctx, t, f.alice)
 				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, tc.workspace)
 				require.NoError(t, err)
@@ -102,7 +100,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("グループ経由の役割も届く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
 		f.principalFor(ctx, t, f.bob)
 		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "開発チーム")
@@ -120,7 +118,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("グループ経由の役割はワークスペース単位の判定にも届く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
 		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "管理チーム")
 		require.NoError(t, err)
@@ -133,7 +131,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("スペース全員の主体経由の役割も届く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		f.principalFor(ctx, t, f.alice)
 		everyone := f.everyoneOf(ctx, t, f.spaceA)
 		f.grantSpace(ctx, t, f.spaceA, everyone.ID, domain.GrantRoleEditor)
@@ -147,7 +145,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("スペース全員の主体はワークスペース単位の判定には数えない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		f.principalFor(ctx, t, f.alice)
 		everyone := f.everyoneOf(ctx, t, f.spaceA)
 		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, everyone.ID, domain.GrantRoleAdmin)
@@ -160,7 +158,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("別テナントのスペースIDでは役割を返さない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
 		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
 		require.NoError(t, err)
@@ -183,7 +181,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 		// ここが割れると「ページは編集できるのに直下に作れない」（逆も）になる。
 		for _, role := range domain.ValidGrantRoles {
 			t.Run(string(role), func(t *testing.T) {
-				f := setupKBPermission(t, gormDB, sqlDB)
+				f := setupKBPermission(t, sqlDB)
 				alice := f.principalFor(ctx, t, f.alice)
 				f.grantSpace(ctx, t, f.spaceA, alice.ID, role)
 				page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
@@ -201,7 +199,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 		// この口の限界をそのまま固定する。ページに deny があってもスペースの既定は editor のまま
 		// 返る（例外の層を集めていないため）。だから**ページを名指しする操作に使ってはいけない**。
 		// 呼び出し側がそれを守っていることは handler の結合テストが確かめる。
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
 		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
@@ -216,13 +214,11 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 // TestKnowledgeBaseMemberWorkspaces_Integration は所属ワークスペース一覧を実 PostgreSQL で固定する。
 // ナレッジ基盤で唯一テナントを跨いで読む口なので、絞り込みが緩むと全テナントが漏れる。
 func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	t.Run("所属しているものだけをslug順で返す", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		// slug が昇順にならない順で所属させ、並びがクエリ側で決まることを見る。
 		_, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.alice)
 		require.NoError(t, err)
@@ -237,7 +233,7 @@ func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 	})
 
 	t.Run("所属していないワークスペースは漏らさない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
 		// bob は別テナントだけ。alice の一覧に混ざってはいけない。
@@ -255,7 +251,7 @@ func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 	})
 
 	t.Run("ユーザー以外の主体は所属として数えない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		// グループやスペース全員の主体は「誰かの所属」ではない。
 		_, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "開発チーム")
 		require.NoError(t, err)
@@ -268,7 +264,7 @@ func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 	})
 
 	t.Run("所属を消すと一覧から消える", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		principal, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
 		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, principal.ID))

@@ -23,8 +23,7 @@ const rdDoc = `{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"c
 // TestRichDocumentRepository_Integration は rich_documents の CRUD・jsonb 往復・楽観ロック・制約を
 // 実 Postgres で固定する。
 func TestRichDocumentRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	userRepo := persistence.NewUserRepository(sqlDB)
 	repo := persistence.NewRichDocumentRepository(sqlDB)
 	ctx := context.Background()
@@ -38,7 +37,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	}
 
 	t.Run("Create → FindByID で jsonb が意味的に往復する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-1", "rd1@example.com")
 
 		doc := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "メモ", Doc: rdDoc, Revision: 1}
@@ -71,7 +70,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Create は int32 を超える revision / schema_version を切り詰めず保存する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-bigint", "rdbigint@example.com")
 
 		// revision / schema_version は bigint 列。パラメータを int4 に落とすと
@@ -90,7 +89,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateWithRevision は版一致時のみ更新し revision を +1 する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-2", "rd2@example.com")
 		doc := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "v1", Doc: rdDoc, Revision: 1}
 		require.NoError(t, repo.Create(ctx, doc))
@@ -108,7 +107,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateWithRevision は版不一致で ErrRichDocumentConflict", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-3", "rd3@example.com")
 		doc := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "v1", Doc: rdDoc, Revision: 1}
 		require.NoError(t, repo.Create(ctx, doc))
@@ -120,14 +119,14 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateWithRevision は存在しない ID で ErrRichDocumentNotFound", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents")
 		ghost := &domain.RichDocument{ID: "31400a07-297e-8057-884b-c05dbdf9fa53", Title: "x", SchemaVersion: 1, Doc: rdDoc}
 		err := repo.UpdateWithRevision(ctx, ghost, 1)
 		require.ErrorIs(t, err, repository.ErrRichDocumentNotFound)
 	})
 
 	t.Run("SoftDelete は所有者のみ・以後 FindByID から外れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-4", "rd4@example.com")
 		doc := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "d", Doc: rdDoc, Revision: 1}
 		require.NoError(t, repo.Create(ctx, doc))
@@ -142,26 +141,26 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("DB 制約: doc が type='doc' でなければ CHECK で拒否される", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-5", "rd5@example.com")
-		err := db.Exec(
+		_, err := sqlDB.Exec(
 			`INSERT INTO rich_documents (id, owner_id, kind, title, doc, revision, created_at, updated_at)
-			 VALUES (gen_random_uuid(), ?, 'note', 't', '{"type":"paragraph"}'::jsonb, 1, now(), now())`, owner,
-		).Error
+			 VALUES (gen_random_uuid(), $1, 'note', 't', '{"type":"paragraph"}'::jsonb, 1, now(), now())`, owner,
+		)
 		require.ErrorContains(t, err, "ck_rich_documents_doc")
 	})
 
 	t.Run("DB 制約: 存在しない owner_id は FK で拒否される", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
-		err := db.Exec(
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
+		_, err := sqlDB.Exec(
 			`INSERT INTO rich_documents (id, owner_id, kind, title, doc, revision, created_at, updated_at)
 			 VALUES (gen_random_uuid(), 424242, 'note', 't', '{"type":"doc"}'::jsonb, 1, now(), now())`,
-		).Error
+		)
 		require.ErrorContains(t, err, "fk_rich_documents_owner")
 	})
 
 	t.Run("DB 制約: title は 200 文字まで許可し 201 文字で CHECK 違反", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-title", "rdtitle@example.com")
 
 		// char_length ベースなので多バイト文字でも文字数で数える（200 は成功）。
@@ -175,7 +174,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("NUL(U+0000)を含む doc は class22 として ErrRichDocumentInvalidData に翻訳される", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-nul", "rdnul@example.com")
 
 		// jsonb は U+0000 のエスケープを格納できず 22P05（class 22）を返す。repository が
@@ -194,7 +193,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByOwner は owner で絞り・論理削除除外・更新日降順・kind フィルタ・doc本体なし", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 		owner := mkOwner(t, "rd-list", "rdlist@example.com")
 		other := mkOwner(t, "rd-list-other", "rdlistother@example.com")
 
@@ -216,12 +215,14 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 		// ここで検証したいのは「更新日降順」なので、時刻を明示的に置いて時計差を排除する。
 		// owner_id で絞るのは、将来このサブテストの前に別の前提データが置かれても
 		// 無関係な行の updated_at まで書き換えないようにするため。
-		require.NoError(t, db.Exec(
-			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = ?`, owner,
-		).Error)
-		require.NoError(t, db.Exec(
-			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = ?`, n1.ID,
-		).Error)
+		_, err := sqlDB.Exec(
+			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = $1`, owner,
+		)
+		require.NoError(t, err)
+		_, err = sqlDB.Exec(
+			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = $1`, n1.ID,
+		)
+		require.NoError(t, err)
 
 		// 全 kind（owner のみ・削除除外）
 		all, err := repo.ListByOwner(ctx, owner, "")

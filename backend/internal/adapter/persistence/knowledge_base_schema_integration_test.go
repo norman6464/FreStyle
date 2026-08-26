@@ -41,12 +41,10 @@ var kbTables = []string{
 // このテーブル群は GORM を通さないため、テストも database/sql の生 SQL で書く
 // （repository は段 1-b で追加する）。
 func TestKnowledgeBaseSchema_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	db, err := gormDB.DB()
-	require.NoError(t, err)
+	db := testsupport.OpenTestDB(t)
 
 	t.Run("別ワークスペースの space にはページを紐づけられない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceB := createSpace(t, db, wsB, "eng")
@@ -57,7 +55,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("別ワークスペースのページは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceA := createSpace(t, db, wsA, "eng")
@@ -72,7 +70,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// fk_pages_space の CASCADE で親が消え、続けて親の CASCADE が別スペースに残るはずの
 	// 子ページまで道連れにする。
 	t.Run("同じワークスペースでも別スペースのページは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		spaceA := createSpace(t, db, ws, "aaa")
 		spaceB := createSpace(t, db, ws, "bbb")
@@ -93,7 +91,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 
 	// スペースの削除で消えるのはそのスペースのページだけ。別スペースの木は残る。
 	t.Run("スペースの削除は別スペースのページを巻き込まない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		spaceA := createSpace(t, db, ws, "aaa")
 		spaceB := createSpace(t, db, ws, "bbb")
@@ -109,7 +107,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("別ワークスペースのブロックは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceA := createSpace(t, db, wsA, "eng")
@@ -125,7 +123,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// ブロックの木は 1 ページの中で閉じる。別ページのブロックを親にできると、そのページを消したときに
 	// 親の ON DELETE CASCADE が別ページの本文まで道連れにする。
 	t.Run("同じワークスペースでも別ページのブロックは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		pageA := createPage(t, db, ws, space, nil, "V")
@@ -138,7 +136,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 
 	// page_paths は 1 行で 2 ページを組にするため、単独 FK 2 本では別ワークスペースの組を防げない。
 	t.Run("page_paths は別ワークスペースのページを組にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceA := createSpace(t, db, wsA, "eng")
@@ -158,7 +156,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// closure table の depth は 1 行だけで判定できる範囲を DB で守る
 	// （祖先の連鎖に抜けが無いかといった複数行の整合は行を書く側の責務）。
 	t.Run("page_paths の depth は自己行だけが 0 で負にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
@@ -183,7 +181,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 
 	// 壊れた snapshot は読み取りキャッシュとしてそのまま返り、エディタがページを開けなくなる。
 	t.Run("page_snapshots.doc は ProseMirror の doc に限られる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -197,7 +195,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("自分自身を親にはできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -216,7 +214,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("同じ親の中で position が重複すると弾かれる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
@@ -238,7 +236,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// parent_id が NULL の行同士は UNIQUE 索引では衝突しない（NULL は互いに別物として扱われる）ため、
 	// ルート直下はスペース / ページを軸にした部分 UNIQUE で守っている。その効きを固定する。
 	t.Run("ルート直下でも position の重複は弾かれる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 
@@ -259,7 +257,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// 並びは「同じ親の中」でだけ意味を持つ。uq_blocks_page_position はページ直下（parent_id IS NULL）
 	// だけを見る部分索引で、その述語を外すと親の違う子ブロック同士まで position を奪い合う。
 	t.Run("同じページでも親が違えば子ブロックは同じ position を取れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -272,7 +270,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("アーカイブ済みページは position の一意性から外れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 
@@ -287,7 +285,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// uq_pages_parent_position が守っており、その WHERE archived_at IS NULL を外すと
 	// アーカイブ済みの子が並びを占有し続けて position を再利用できなくなる。
 	t.Run("親ページ配下でもアーカイブ済みは position の一意性から外れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
@@ -300,7 +298,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("親ページの物理削除で子孫と派生テーブルが CASCADE で消える", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
@@ -323,7 +321,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("識別子の一意性と形式", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		createSpace(t, db, ws, "eng")
 
@@ -368,7 +366,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 
 	// position が空文字だと順序として意味を持たない（fracindex は空文字を返さない）。
 	t.Run("position は空文字にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -381,7 +379,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	})
 
 	t.Run("blocks の attrs は既定 {} で object に限られる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -410,7 +408,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// 分数インデックスは「文字列の辞書順 = 並び順」が前提。Go はバイト比較で判断するので、
 	// DB の ORDER BY も同じ順序（C コレーション）でなければ並びが食い違う。
 	t.Run("position は Go のバイト順と同じ順序で並ぶ", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
@@ -431,7 +429,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 
 	// 実際に fracindex で採番したキーを流し込み、DB の ORDER BY が挿入した論理順と一致することを見る。
 	t.Run("fracindex で採番したキーで並び替えが表現できる", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -461,7 +459,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// TruncateAll がナレッジ基盤の全テーブル（骨格 + 権限）を掃除できていること。
 	// 掃除漏れがあるとサブテスト同士が前のデータを引きずり、UNIQUE 違反として顕在化する。
 	t.Run("TruncateAll がナレッジ基盤のテーブルを掃除する", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -473,7 +471,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 			require.NotZerof(t, countRows(t, db, table), "%s に検証用の行が入っていること", table)
 		}
 
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 
 		for _, table := range kbTables {
 			require.Zerof(t, countRows(t, db, table), "%s が掃除されていません", table)
@@ -484,7 +482,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// （CREATE ... IF NOT EXISTS だけで冪等にしており、DO ブロックによる張り替えは持ち込まない）。
 	// スキーマそのものを見るので、この DB を使う他のサブテストの後（最後）に置く。
 	t.Run("DDL を繰り返し適用しても落ちない", func(t *testing.T) {
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, db, kbTables...)
 		// OpenTestDB で 1 回適用済みなので、ここで 2 回足して計 3 回。
 		require.NoError(t, database.ApplyKnowledgeBaseSchema(t.Context(), db))
 		require.NoError(t, database.ApplyKnowledgeBaseSchema(t.Context(), db))

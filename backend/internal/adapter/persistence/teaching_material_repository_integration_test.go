@@ -18,8 +18,7 @@ import (
 // TestTeachingMaterialRepository_CountByCourseForCompany_Integration は
 // course_id ごとの件数集計 (company 絞り込み / published フィルタ) を実 Postgres で検証する。
 func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
@@ -30,7 +29,7 @@ func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testi
 		}
 	}
 
-	testsupport.TruncateAll(t, db, "course_chapters")
+	testsupport.TruncateAll(t, sqlDB, "course_chapters")
 
 	// company 1: course 10 に published 2 + draft 1、course 20 に published 1
 	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-pub-1", true)))
@@ -62,12 +61,11 @@ func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testi
 // TestTeachingMaterialRepository_UpdateDocWithRevision_Integration は
 // リッチ本文（tiptap JSON）の jsonb 往復と revision 楽観ロックを実 Postgres で検証する。
 func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "course_chapters")
+	testsupport.TruncateAll(t, sqlDB, "course_chapters")
 	m := &domain.TeachingMaterial{
 		CompanyID: 1, CourseID: 10, CreatedByUserID: 1,
 		Title: "章", OrderInCourse: 1, IsPublished: true,
@@ -106,8 +104,7 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 // （一覧の doc 除外・並び順・published フィルタ・not-found シグナル・Update の列選択と updated_at 更新・
 // 物理削除）を実 Postgres で固定する。GORM→sqlc 移行の前後で同一であることを保証する土台。
 func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
@@ -119,7 +116,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	}
 
 	t.Run("Create は id 採番・既定 revision/schema_version=1・created_at を現在時刻で埋める", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.NotZero(t, m.ID)
@@ -130,14 +127,14 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Create は sort_order=0 のとき既定 100 を当てる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "章", 0, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.Equal(t, 100, m.OrderInCourse) // GORM default:100 相当
 	})
 
 	t.Run("Create は int32 を超える revision / schema_version / sort_order を切り詰めず保存する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		// revision / schema_version / sort_order はいずれも bigint 列。パラメータを int4 に
 		// 落とすとこの値は負数へ巻き戻り、エラーも出ないまま別の値が保存される。
 		const beyondInt32 = math.MaxInt32 + 1
@@ -154,7 +151,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("GetByID は本文 doc を含めて返し、未存在は domain.ErrNotFound", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		// doc を入れてから GetByID で本文込みで往復することを確認する。
@@ -173,7 +170,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByCourse は sort_order 昇順・published フィルタ・doc 本体なし", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		c3 := mk(1, 10, "c3", 3, true)
 		c1 := mk(1, 10, "c1", 1, true)
 		c2 := mk(1, 10, "c2", 2, false) // draft
@@ -203,7 +200,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByCompany は会社で絞り・published フィルタ・更新日降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		a := mk(1, 10, "a", 1, true)
 		b := mk(1, 20, "b", 1, false) // draft
 		foreign := mk(2, 10, "foreign", 1, true)
@@ -215,8 +212,10 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		_, err := repo.UpdateDocWithRevision(ctx, a.ID, `{"type":"doc","content":[]}`, 1)
 		require.NoError(t, err)
 		// updated_at を明示的に置いて降順を固定する（Go 時計と DB 時計の差でフレークしないように）。
-		require.NoError(t, db.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = ?`, b.ID).Error)
-		require.NoError(t, db.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = ?`, a.ID).Error)
+		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = $1`, b.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = $1`, a.ID)
+		require.NoError(t, err)
 
 		pub, err := repo.ListByCompany(ctx, 1, false)
 		require.NoError(t, err)
@@ -232,14 +231,15 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Update は title/sort_order/is_published を書き・不変列を保ち・updated_at を進める", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "旧", 1, false)
 		require.NoError(t, repo.Create(ctx, m))
 		// doc を入れて revision を 2 に進めておく（Update が doc/revision を触らないことの確認用）。
 		_, err := repo.UpdateDocWithRevision(ctx, m.ID, `{"type":"doc","content":[]}`, 1)
 		require.NoError(t, err)
 		// updated_at を過去に固定してから Update で now() に進むことを見る。
-		require.NoError(t, db.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2020-01-01 00:00:00+00' WHERE id = ?`, m.ID).Error)
+		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2020-01-01 00:00:00+00' WHERE id = $1`, m.ID)
+		require.NoError(t, err)
 
 		m.Title = "新"
 		m.OrderInCourse = 5
@@ -260,7 +260,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Update は存在しない id で domain.ErrNotFound を返す（黙って成功にしない）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		// 巻き添えで他の行が書き換わらないことも同時に見るため 1 件だけ残しておく。
 		keep := mk(1, 10, "残す", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
@@ -275,7 +275,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Update は取得後に消えた章でも domain.ErrNotFound を返す", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		// usecase は Update の前に GetByID する。その隙に行が消える競合を再現する。
@@ -286,7 +286,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Delete / DeleteByCourse は存在しない id でも冪等に nil（後条件は満たされている）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		keep := mk(1, 20, "keep", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
 
@@ -301,7 +301,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Delete は 1 件を物理削除する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.NoError(t, repo.Delete(ctx, m.ID))
@@ -310,7 +310,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("DeleteByCourse はコース配下を全削除し他コースは残す", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "course_chapters")
+		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		a1 := mk(1, 10, "a1", 1, true)
 		a2 := mk(1, 10, "a2", 2, true)
 		keep := mk(1, 20, "keep", 1, true)

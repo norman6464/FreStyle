@@ -15,13 +15,12 @@ import (
 
 // TestNoteRepository_Integration は NoteRepository の所有権スコープと並び順を実 Postgres で検証する。
 func TestNoteRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewNoteRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("ListByUserID は自分の note だけを updated_at DESC で返す", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "notes")
+		testsupport.TruncateAll(t, sqlDB, "notes")
 
 		older := &domain.Note{UserID: 7, Title: "older", UpdatedAt: time.Now().Add(-time.Hour)}
 		newer := &domain.Note{UserID: 7, Title: "newer", UpdatedAt: time.Now()}
@@ -38,7 +37,7 @@ func TestNoteRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Delete は user_id スコープで他人の note を消さない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "notes")
+		testsupport.TruncateAll(t, sqlDB, "notes")
 
 		mine := &domain.Note{UserID: 7, Title: "mine"}
 		theirs := &domain.Note{UserID: 8, Title: "theirs"}
@@ -58,7 +57,7 @@ func TestNoteRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Update は内容を保存する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "notes")
+		testsupport.TruncateAll(t, sqlDB, "notes")
 
 		n := &domain.Note{UserID: 7, Title: "before", Content: "x"}
 		require.NoError(t, repo.Create(ctx, n))
@@ -74,11 +73,10 @@ func TestNoteRepository_Integration(t *testing.T) {
 // TestNoteRepository_Timestamps_Integration は Create が created_at / updated_at を now で埋め、
 // Update が updated_at を進めつつ created_at を保つこと（GORM autoTime 相当）を固定する。
 func TestNoteRepository_Timestamps_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewNoteRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "notes")
+	testsupport.TruncateAll(t, sqlDB, "notes")
 
 	before := time.Now().Add(-time.Second)
 	n := &domain.Note{UserID: 7, Title: "before", Content: "x"}

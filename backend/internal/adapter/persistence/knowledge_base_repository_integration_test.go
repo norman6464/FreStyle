@@ -88,9 +88,7 @@ func treeShape(nodes []*usecase.PageTreeNode) string {
 }
 
 func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
 	uc := newKbUseCases(repo)
 	ctx := context.Background()
@@ -98,7 +96,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 	// setup は各サブテストの冒頭で呼ぶ共通初期化（ワークスペース + スペース 2 つ）。
 	setup := func(t *testing.T) (ws, spaceA, spaceB string) {
 		t.Helper()
-		testsupport.TruncateAll(t, gormDB, kbTables...)
+		testsupport.TruncateAll(t, sqlDB, kbTables...)
 		ws = createWorkspace(t, sqlDB, "ws-main")
 		spaceA = createSpace(t, sqlDB, ws, "aaa")
 		spaceB = createSpace(t, sqlDB, ws, "bbb")
@@ -541,14 +539,12 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 // 通ることを固定する回帰テスト。extended protocol では型の取り違えが OID で救われてしまい、
 // ローカル / CI の既定接続では原理的に検出できない（段 1-a で確定した欠陥の再発防止）。
 func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDBSimpleProtocol(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDBSimpleProtocol(t)
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
 	uc := newKbUseCases(repo)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, gormDB, kbTables...)
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
 	ws := createWorkspace(t, sqlDB, "ws-simple")
 	space := createSpace(t, sqlDB, ws, "eng")
 	page := mustCreatePage(ctx, t, uc, ws, space, nil, "simple-protocol")

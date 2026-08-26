@@ -20,13 +20,11 @@ import (
 // ここが崩れると誰も入れないワークスペースが残る（全経路の middleware が所属を確かめ、
 // 非メンバーには 404 を返すため、作成者にも見えない）。
 func TestKnowledgeBaseProvisionWorkspace_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	t.Run("作成者はメンバーになりadminになる", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		provisioner := persistence.NewWorkspaceProvisioner(sqlDB)
 
 		ws, err := provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
@@ -57,7 +55,7 @@ func TestKnowledgeBaseProvisionWorkspace_Integration(t *testing.T) {
 	})
 
 	t.Run("slugの重複は業務上の衝突として返す", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		provisioner := persistence.NewWorkspaceProvisioner(sqlDB)
 
 		// setupKBPermission が作った "perm-main" と同じ slug。
@@ -72,7 +70,7 @@ func TestKnowledgeBaseProvisionWorkspace_Integration(t *testing.T) {
 	})
 
 	t.Run("途中で失敗したらワークスペースの行も残らない", func(t *testing.T) {
-		setupKBPermission(t, gormDB, sqlDB)
+		setupKBPermission(t, sqlDB)
 		provisioner := persistence.NewWorkspaceProvisioner(sqlDB)
 
 		// 存在しないユーザーを作成者にすると principals の FK で落ちる。
@@ -92,13 +90,11 @@ func TestKnowledgeBaseProvisionWorkspace_Integration(t *testing.T) {
 
 // TestKnowledgeBaseCreateSpace_Integration はスペース作成を実 PostgreSQL で固定する。
 func TestKnowledgeBaseCreateSpace_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	t.Run("作ったスペースは同じワークスペースから引ける", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		space := &domain.Space{WorkspaceID: f.ws, Key: "ops", Name: "運用部"}
 		require.NoError(t, f.pages.CreateSpace(ctx, space))
 		require.NotEmpty(t, space.ID)
@@ -113,7 +109,7 @@ func TestKnowledgeBaseCreateSpace_Integration(t *testing.T) {
 	})
 
 	t.Run("keyの重複は同じワークスペース内でだけ衝突する", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		// setupKBPermission が f.ws に "aaa" を作っている。
 		dup := &domain.Space{WorkspaceID: f.ws, Key: "aaa", Name: "重複"}
 		assert.ErrorIs(t, f.pages.CreateSpace(ctx, dup), repository.ErrSpaceKeyTaken)
@@ -124,7 +120,7 @@ func TestKnowledgeBaseCreateSpace_Integration(t *testing.T) {
 	})
 
 	t.Run("存在しないワークスペースには作れない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		missing := &domain.Space{WorkspaceID: newID(), Key: "ghost", Name: "亡霊"}
 		assert.ErrorIs(t, f.pages.CreateSpace(ctx, missing), repository.ErrWorkspaceNotFound)
 

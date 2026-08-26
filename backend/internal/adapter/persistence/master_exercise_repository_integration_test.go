@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
@@ -11,18 +12,58 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
+
+// insertMasterExerciseSQL は master_exercises へ 1 行入れる（repository を介さず前提データを置く）。
+// 末尾に id 列を足した派生も同じ引数順で使えるよう、列と値をこの順で固定する。
+const insertMasterExerciseSQL = `INSERT INTO master_exercises
+	(slug, language, sort_order, category, title, description, starter_code,
+	 hint_text, expected_output, mode, explanation, difficulty, is_published, chapter_id,
+	 created_at, updated_at)
+ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())`
+
+// insertMasterExercise は 1 行入れて、採番された id を ex へ書き戻す（id 指定時はその値を使う）。
+// mode / difficulty は列に既定値があり、ゼロ値のまま書くと既定と違う行になるのでここで補う。
+func insertMasterExercise(ctx context.Context, t *testing.T, db *sql.DB, ex *domain.MasterExercise) {
+	t.Helper()
+	mode := ex.Mode
+	if mode == "" {
+		mode = domain.ExerciseModeExecute
+	}
+	difficulty := ex.Difficulty
+	if difficulty == 0 {
+		difficulty = 1
+	}
+	var chapterID any
+	if ex.ChapterID != nil {
+		chapterID = int64(*ex.ChapterID)
+	}
+	args := []any{
+		ex.Slug, ex.Language, ex.SortOrder, ex.Category, ex.Title, ex.Description, ex.StarterCode,
+		ex.HintText, ex.ExpectedOutput, mode, ex.Explanation, difficulty, ex.IsPublished, chapterID,
+	}
+	if ex.ID == 0 {
+		require.NoError(t, db.QueryRowContext(ctx, insertMasterExerciseSQL+` RETURNING id`, args...).Scan(&ex.ID))
+		return
+	}
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO master_exercises
+			(slug, language, sort_order, category, title, description, starter_code,
+			 hint_text, expected_output, mode, explanation, difficulty, is_published, chapter_id,
+			 created_at, updated_at, id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now(), $15)`,
+		append(args, ex.ID)...)
+	require.NoError(t, err)
+}
 
 // TestMasterExerciseRepository_ListWithStatusByLanguage_Integration は、3 クエリを 1 本の
 // LEFT JOIN + FILTER に統合した一覧クエリを実 Postgres で検証する。
 func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	exRepo := persistence.NewMasterExerciseRepository(sqlDB)
 	subRepo := persistence.NewExerciseSubmissionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
+	testsupport.TruncateAll(t, sqlDB, "master_exercises", "exercise_submissions")
 
 	// 問題: php-1(公開) / php-2(公開) / go-1(公開) / draft-1(非公開) を用意。
 	exercises := []domain.MasterExercise{
@@ -32,12 +73,13 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 		{Slug: "draft-1", Language: "php", Title: "Draft", SortOrder: 4, IsPublished: false},
 	}
 	for i := range exercises {
-		require.NoError(t, db.WithContext(ctx).Create(&exercises[i]).Error)
+		insertMasterExercise(ctx, t, sqlDB, &exercises[i])
 	}
-	// is_published は GORM タグ `default:true` のため、bool ゼロ値 (false) を Create に渡しても
-	// 「未指定」とみなされ DB 側で true になる。draft-1 を明示的に非公開へ更新して非公開除外を検証する。
-	require.NoError(t, db.WithContext(ctx).Model(&domain.MasterExercise{}).
-		Where("slug = ?", "draft-1").Update("is_published", false).Error)
+	// is_published は列の既定値が true。draft-1 を明示的に非公開へ更新して非公開除外を検証する。
+	_, err := sqlDB.ExecContext(ctx,
+		`UPDATE master_exercises SET is_published = $1, updated_at = now() WHERE slug = $2`,
+		false, "draft-1")
+	require.NoError(t, err)
 	php1ID := exercises[0].ID
 
 	// 提出: php-1 に user7 正解 + user7 不正解 + user8 正解（総提出3 / 正解 distinct 2）。
@@ -99,9 +141,8 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 
 // seedMasterExercisesForContract は単純取得系（ListByLanguage / GetByID / GetBySlug /
 // SummaryByLanguage）の検証データを用意し、slug → id の対応を返す。
-// is_published は GORM タグ `default:true` のため bool ゼロ値では非公開にならない。
-// 非公開にしたい行は Create 後に明示 UPDATE する（既存テストと同じ手当て）。
-func seedMasterExercisesForContract(t *testing.T, db *gorm.DB, ctx context.Context) map[string]uint64 {
+// is_published は列の既定値が true なので、非公開にしたい行は INSERT 後に明示 UPDATE する。
+func seedMasterExercisesForContract(t *testing.T, db *sql.DB, ctx context.Context) map[string]uint64 {
 	t.Helper()
 	rows := []domain.MasterExercise{
 		// sort_order 同値（10）で 2 件置き、id 昇順のタイブレークが効くことを見る。
@@ -113,23 +154,24 @@ func seedMasterExercisesForContract(t *testing.T, db *gorm.DB, ctx context.Conte
 	}
 	ids := make(map[string]uint64, len(rows))
 	for i := range rows {
-		require.NoError(t, db.WithContext(ctx).Create(&rows[i]).Error)
+		insertMasterExercise(ctx, t, db, &rows[i])
 		ids[rows[i].Slug] = rows[i].ID
 	}
-	require.NoError(t, db.WithContext(ctx).Model(&domain.MasterExercise{}).
-		Where("slug = ?", "php-draft").Update("is_published", false).Error)
+	_, err := db.ExecContext(ctx,
+		`UPDATE master_exercises SET is_published = $1, updated_at = now() WHERE slug = $2`,
+		false, "php-draft")
+	require.NoError(t, err)
 	return ids
 }
 
 // TestMasterExerciseRepository_ReadContract_Integration は単純取得系の契約
 // （言語フィルタ / 非公開除外 / 並び順とタイブレーク / 未存在の not found）を実 Postgres で固定する。
 func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewMasterExerciseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
-	ids := seedMasterExercisesForContract(t, db, ctx)
+	testsupport.TruncateAll(t, sqlDB, "master_exercises", "exercise_submissions")
+	ids := seedMasterExercisesForContract(t, sqlDB, ctx)
 
 	t.Run("ListByLanguage は言語で絞り非公開を除く", func(t *testing.T) {
 		rows, err := repo.ListByLanguage(ctx, "php")
@@ -202,13 +244,12 @@ func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
 // TestMasterExerciseRepository_SummaryByLanguage_Integration は言語別集計の契約
 // （公開分だけ数える / 正解済みは問題単位で 1 / 他人の提出は数えない / 言語昇順）を固定する。
 func TestMasterExerciseRepository_SummaryByLanguage_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewMasterExerciseRepository(sqlDB)
 	subRepo := persistence.NewExerciseSubmissionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
-	ids := seedMasterExercisesForContract(t, db, ctx)
+	testsupport.TruncateAll(t, sqlDB, "master_exercises", "exercise_submissions")
+	ids := seedMasterExercisesForContract(t, sqlDB, ctx)
 
 	// user7: php-a を 2 回正解（問題単位では 1 件）+ php-b を不正解のみ。
 	// user8: php-z を正解（user7 の集計には出ない）。

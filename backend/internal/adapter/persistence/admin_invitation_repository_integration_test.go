@@ -19,26 +19,26 @@ import (
 // （token・有効期限・status の判定、ID 検索の not-found、status 遷移、token 秘匿）を
 // 実 Postgres で固定する。移行で認可判定が緩まないことの根拠にする。
 func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "invitations")
+	testsupport.TruncateAll(t, sqlDB, "invitations")
 
 	future := time.Now().UTC().Add(time.Hour)
 	past := time.Now().UTC().Add(-time.Hour)
 
 	// 直接 INSERT で status / expires_at / token を作り込む。
 	insert := func(id uint64, company uint64, email, status, token string, expires time.Time) {
-		require.NoError(t, db.Exec(
+		_, err := sqlDB.Exec(
 			`INSERT INTO invitations (id, company_id, email, role, name, status, token, expires_at, created_at)
-			 VALUES (?, ?, ?, ?, 'n', ?, ?, ?, NOW())`,
+			 VALUES ($1, $2, $3, $4, 'n', $5, $6, $7, NOW())`,
 			id, company, email, domain.RoleCompanyAdmin, status, token, expires,
-		).Error)
+		)
+		require.NoError(t, err)
 	}
 
 	t.Run("FindPendingByToken は pending かつ未期限切れのみ返す", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "invitations")
+		testsupport.TruncateAll(t, sqlDB, "invitations")
 		insert(1, 1, "ok@example.com", domain.InvitationStatusPending, "tok-ok", future)
 		insert(2, 1, "exp@example.com", domain.InvitationStatusPending, "tok-expired", past)
 		insert(3, 1, "acc@example.com", domain.InvitationStatusAccepted, "tok-accepted", future)
@@ -62,7 +62,7 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	})
 
 	t.Run("FindByID は該当なし・id=0 で nil,nil", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "invitations")
+		testsupport.TruncateAll(t, sqlDB, "invitations")
 		insert(10, 2, "byid@example.com", domain.InvitationStatusAccepted, "tok-byid", future)
 
 		got, err := repo.FindByID(ctx, 10)
@@ -81,7 +81,7 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateStatus は対象 1 行だけ status を変える", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "invitations")
+		testsupport.TruncateAll(t, sqlDB, "invitations")
 		insert(20, 1, "a@example.com", domain.InvitationStatusPending, "tok-a", future)
 		insert(21, 1, "b@example.com", domain.InvitationStatusPending, "tok-b", future)
 
@@ -101,7 +101,7 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	})
 
 	t.Run("FindPendingByEmail は pending のみ返し expires は問わない（token とは非対称）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "invitations")
+		testsupport.TruncateAll(t, sqlDB, "invitations")
 		// pending だが期限切れでも email 検索では返る（GORM 版に expires フィルタは無い）。
 		insert(30, 1, "pend@example.com", domain.InvitationStatusPending, "tok-30", past)
 		insert(31, 1, "done@example.com", domain.InvitationStatusAccepted, "tok-31", future)
@@ -117,7 +117,7 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	})
 
 	t.Run("token は JSON へ露出しない（秘匿）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "invitations")
+		testsupport.TruncateAll(t, sqlDB, "invitations")
 		insert(40, 1, "secret@example.com", domain.InvitationStatusPending, "super-secret-token", future)
 		got, err := repo.FindPendingByToken(ctx, "super-secret-token")
 		require.NoError(t, err)

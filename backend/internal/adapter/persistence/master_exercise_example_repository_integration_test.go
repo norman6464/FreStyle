@@ -15,11 +15,10 @@ import (
 // TestMasterExerciseExampleRepository_ListByExerciseID_Integration は、sqlc 生成クエリ（生 SQL）に
 // 置き換えた ListByExerciseID を実 Postgres で検証する。GORM の *sql.DB を共有して動くことの担保。
 func TestMasterExerciseExampleRepository_ListByExerciseID_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewMasterExerciseExampleRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "master_exercise_examples")
+	testsupport.TruncateAll(t, sqlDB, "master_exercise_examples")
 
 	// order_index を意図的に降順で投入し、クエリ側で order_index 昇順に並ぶことを確認する。
 	seed := []domain.MasterExerciseExample{
@@ -28,7 +27,13 @@ func TestMasterExerciseExampleRepository_ListByExerciseID_Integration(t *testing
 		{ExerciseID: 99, OrderIndex: 1, InputText: "x", ExpectedOutput: "X"},
 	}
 	for i := range seed {
-		require.NoError(t, db.WithContext(ctx).Create(&seed[i]).Error)
+		_, err := sqlDB.ExecContext(
+			ctx,
+			`INSERT INTO master_exercise_examples (exercise_id, order_index, input_text, expected_output, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, now(), now())`,
+			seed[i].ExerciseID, seed[i].OrderIndex, seed[i].InputText, seed[i].ExpectedOutput,
+		)
+		require.NoError(t, err)
 	}
 
 	rows, err := repo.ListByExerciseID(ctx, 10)
@@ -44,11 +49,10 @@ func TestMasterExerciseExampleRepository_ListByExerciseID_Integration(t *testing
 // まとめて取得する ListByExerciseIDs（N+1 回避）を実 Postgres で検証する。
 // exercise_id ごとに map 化され、各スライスは (order_index, id) 昇順に並ぶことを固定する。
 func TestMasterExerciseExampleRepository_ListByExerciseIDs_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewMasterExerciseExampleRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "master_exercise_examples")
+	testsupport.TruncateAll(t, sqlDB, "master_exercise_examples")
 
 	seed := []domain.MasterExerciseExample{
 		{ExerciseID: 10, OrderIndex: 2, InputText: "b", ExpectedOutput: "B"},
@@ -57,7 +61,13 @@ func TestMasterExerciseExampleRepository_ListByExerciseIDs_Integration(t *testin
 		{ExerciseID: 99, OrderIndex: 1, InputText: "z", ExpectedOutput: "Z"}, // 要求しない問題
 	}
 	for i := range seed {
-		require.NoError(t, db.WithContext(ctx).Create(&seed[i]).Error)
+		_, err := sqlDB.ExecContext(
+			ctx,
+			`INSERT INTO master_exercise_examples (exercise_id, order_index, input_text, expected_output, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, now(), now())`,
+			seed[i].ExerciseID, seed[i].OrderIndex, seed[i].InputText, seed[i].ExpectedOutput,
+		)
+		require.NoError(t, err)
 	}
 
 	got, err := repo.ListByExerciseIDs(ctx, []uint64{10, 20})

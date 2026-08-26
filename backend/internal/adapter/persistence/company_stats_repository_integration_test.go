@@ -16,15 +16,22 @@ import (
 // TestCompanyStatsRepository_Integration は CountMembersByCompany の集計（FILTER）と、
 // 論理削除済み / 会社未所属の除外を実 Postgres で検証する。
 func TestCompanyStatsRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	counter := persistence.NewCompanyStatsRepository(sqlDB)
 	userRepo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "users", "companies")
+	testsupport.TruncateAll(t, sqlDB, "users", "companies")
 
-	require.NoError(t, db.Create(&domain.Company{ID: 1, Name: "C1"}).Error)
-	require.NoError(t, db.Create(&domain.Company{ID: 2, Name: "C2"}).Error)
+	for _, c := range []struct {
+		id   uint64
+		name string
+	}{{1, "C1"}, {2, "C2"}} {
+		_, err := sqlDB.Exec(
+			`INSERT INTO companies (id, name, created_at, updated_at) VALUES ($1, $2, now(), now())`,
+			c.id, c.name,
+		)
+		require.NoError(t, err)
+	}
 
 	c1 := uint64(1)
 	c2 := uint64(2)

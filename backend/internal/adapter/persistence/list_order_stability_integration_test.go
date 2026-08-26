@@ -56,11 +56,10 @@ func collectAllPages(t *testing.T, exRepo repository.MasterExerciseRepository, l
 // TestMasterExerciseListOrder_TiedSortOrder_Integration は sort_order 同着でも
 // OFFSET ページングが重複・欠落を起こさないことを検証する。
 func TestMasterExerciseListOrder_TiedSortOrder_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	exRepo := persistence.NewMasterExerciseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
+	testsupport.TruncateAll(t, sqlDB, "master_exercises", "exercise_submissions")
 
 	// php 40 件 / go 5 件とも sort_order を全行 1 に揃えて同着を作る。ID は降順に投入して
 	// 「物理順 ≠ 期待順（ID 昇順）」にする。
@@ -84,7 +83,7 @@ func TestMasterExerciseListOrder_TiedSortOrder_Integration(t *testing.T) {
 				SortOrder:   1,
 				IsPublished: true,
 			}
-			require.NoError(t, db.WithContext(ctx).Create(&row).Error)
+			insertMasterExercise(ctx, t, sqlDB, &row)
 		}
 	}
 	insert(phpIDs, domain.ExerciseLanguagePhp)
@@ -153,12 +152,14 @@ func TestMasterExerciseListOrder_TiedSortOrder_Integration(t *testing.T) {
 
 	t.Run("sort_order が異なる行の並び（仕様）は変わらない", func(t *testing.T) {
 		// タイブレークは同着の解決だけを担う。sort_order が違えば従来どおり sort_order が優先される。
-		require.NoError(t, db.WithContext(ctx).Model(&domain.MasterExercise{}).
-			Where("id = ?", uint64(140)).Update("sort_order", 0).Error)
-		defer func() {
-			require.NoError(t, db.WithContext(ctx).Model(&domain.MasterExercise{}).
-				Where("id = ?", uint64(140)).Update("sort_order", 1).Error)
-		}()
+		setSortOrder := func(sortOrder int) {
+			_, err := sqlDB.ExecContext(ctx,
+				`UPDATE master_exercises SET sort_order = $1, updated_at = now() WHERE id = $2`,
+				sortOrder, uint64(140))
+			require.NoError(t, err)
+		}
+		setSortOrder(0)
+		defer setSortOrder(1)
 
 		rows, err := exRepo.ListByLanguage(ctx, domain.ExerciseLanguagePhp)
 		require.NoError(t, err)
@@ -181,12 +182,11 @@ func requireNoDuplicates(t *testing.T, ids []uint64) {
 // TestRichDocumentListOrder_TiedUpdatedAt_Integration は updated_at が同値でも
 // ListByOwner の並びが常に同じになることを検証する。
 func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	userRepo := persistence.NewUserRepository(sqlDB)
 	repo := persistence.NewRichDocumentRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+	testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 
 	owner := &domain.User{Email: "rd-tie@example.com", Role: domain.RoleTrainee}
 	require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, owner, domain.OidcProviderCognito, "rd-tie"))
@@ -200,8 +200,9 @@ func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
 	}
 	// updated_at を明示的に同値へ揃えて同着を作る。owner_id で絞り、後続でこのテストの前に
 	// 別の前提データが置かれても無関係な行を書き換えないようにする。
-	require.NoError(t, db.WithContext(ctx).
-		Exec(`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = ?`, owner.ID).Error)
+	_, err := sqlDB.ExecContext(ctx,
+		`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = $1`, owner.ID)
+	require.NoError(t, err)
 
 	want := make([]string, len(created))
 	copy(want, created)
@@ -237,8 +238,9 @@ func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
 	t.Run("updated_at が異なる行の並び（仕様）は変わらない", func(t *testing.T) {
 		// 一番古い id の行だけを新しくすると、id 降順に関係なく先頭へ来る。
 		oldest := created[0]
-		require.NoError(t, db.WithContext(ctx).
-			Exec(`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-06-01 00:00:00+00' WHERE id = ?`, oldest).Error)
+		_, err := sqlDB.ExecContext(ctx,
+			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-06-01 00:00:00+00' WHERE id = $1`, oldest)
+		require.NoError(t, err)
 
 		rows, err := repo.ListByOwner(ctx, owner.ID, "")
 		require.NoError(t, err)
@@ -249,19 +251,19 @@ func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
 // TestListOrderTieBreaks_Integration は横断調査で見つかった残りの一覧クエリについて、
 // ソートキー同着時の並びが一意に決まることを検証する。
 func TestListOrderTieBreaks_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 	// 同着を作るための固定時刻（DB / ホストの時計に依存させない）。
 	tie := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	t.Run("notes: updated_at 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "notes")
+		testsupport.TruncateAll(t, sqlDB, "notes")
 		repo := persistence.NewNoteRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ { // id 昇順に投入 → 期待は降順
-			require.NoError(t, db.WithContext(ctx).Create(&domain.Note{
-				ID: i, UserID: 7, Title: "tie", CreatedAt: tie, UpdatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO notes (id, user_id, title, content, is_public, created_at, updated_at)
+				 VALUES ($1, 7, 'tie', '', false, $2, $2)`, i, tie)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListByUserID(ctx, 7)
 		require.NoError(t, err)
@@ -269,12 +271,13 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("companies: name 同着は id 昇順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "companies")
+		testsupport.TruncateAll(t, sqlDB, "companies")
 		repo := persistence.NewCompanyRepository(sqlDB)
 		for _, id := range []uint64{4, 3, 2, 1} { // id 降順に投入 → 期待は昇順
-			require.NoError(t, db.WithContext(ctx).Create(&domain.Company{
-				ID: id, Name: "同名株式会社", CreatedAt: tie, UpdatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO companies (id, name, created_at, updated_at) VALUES ($1, '同名株式会社', $2, $2)`,
+				id, tie)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListAll(ctx)
 		require.NoError(t, err)
@@ -286,13 +289,15 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("company_applications: created_at 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "company_applications")
+		testsupport.TruncateAll(t, sqlDB, "company_applications")
 		repo := persistence.NewCompanyApplicationRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ {
-			require.NoError(t, db.WithContext(ctx).Create(&domain.CompanyApplication{
-				ID: i, CompanyName: "c", ApplicantName: "a", Email: "a@example.com",
-				Status: domain.CompanyApplicationStatusPending, CreatedAt: tie, UpdatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO company_applications
+				   (id, company_name, applicant_name, email, message, status, created_at, updated_at)
+				 VALUES ($1, 'c', 'a', 'a@example.com', '', $2, $3, $3)`,
+				i, domain.CompanyApplicationStatusPending, tie)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListAll(ctx)
 		require.NoError(t, err)
@@ -304,13 +309,15 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("invitations: created_at 同着は id 降順（一覧・単一取得とも）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "invitations")
+		testsupport.TruncateAll(t, sqlDB, "invitations")
 		repo := persistence.NewAdminInvitationRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ {
-			require.NoError(t, db.WithContext(ctx).Create(&domain.AdminInvitation{
-				ID: i, CompanyID: 1, Email: "inv@example.com", Role: domain.RoleTrainee,
-				Status: domain.InvitationStatusPending, ExpiresAt: tie.Add(24 * time.Hour), CreatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO invitations
+				   (id, company_id, email, role, name, status, token, expires_at, created_at)
+				 VALUES ($1, 1, 'inv@example.com', $2, '', $3, NULL, $4, $5)`,
+				i, domain.RoleTrainee, domain.InvitationStatusPending, tie.Add(24*time.Hour), tie)
+			require.NoError(t, err)
 		}
 		all, err := repo.ListAll(ctx)
 		require.NoError(t, err)
@@ -328,12 +335,13 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("ai_chat_sessions: created_at 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "ai_chat_sessions")
+		testsupport.TruncateAll(t, sqlDB, "ai_chat_sessions")
 		repo := persistence.NewAiChatSessionRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ {
-			require.NoError(t, db.WithContext(ctx).Create(&domain.AiChatSession{
-				ID: i, UserID: 7, Title: "tie", CreatedAt: tie, UpdatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO ai_chat_sessions (id, user_id, title, session_type, scenario_id, created_at, updated_at)
+				 VALUES ($1, 7, 'tie', '', NULL, $2, $2)`, i, tie)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListByUserID(ctx, 7)
 		require.NoError(t, err)
@@ -345,13 +353,14 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("learning_reports: period_to 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "learning_reports")
+		testsupport.TruncateAll(t, sqlDB, "learning_reports")
 		repo := persistence.NewLearningReportRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ {
-			require.NoError(t, db.WithContext(ctx).Create(&domain.LearningReport{
-				ID: i, UserID: 7, PeriodFrom: tie.Add(-7 * 24 * time.Hour), PeriodTo: tie,
-				Status: domain.LearningReportStatusReady, CreatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO learning_reports (id, user_id, period_from, period_to, status, s3_key, created_at)
+				 VALUES ($1, 7, $2, $3, $4, '', $3)`,
+				i, tie.Add(-7*24*time.Hour), tie, domain.LearningReportStatusReady)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListByUserID(ctx, 7)
 		require.NoError(t, err)
@@ -363,14 +372,15 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("user_chapter_views: last_viewed_at 同着は chapter_id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "user_chapter_views")
+		testsupport.TruncateAll(t, sqlDB, "user_chapter_views")
 		repo := persistence.NewUserChapterViewRepository(sqlDB)
 		// UpsertView は NOW() で書くので同着を作れない。同値の last_viewed_at を直接投入する。
 		for i := uint64(1); i <= 4; i++ {
-			require.NoError(t, db.WithContext(ctx).Create(&domain.UserChapterView{
-				UserID: 7, TeachingMaterialID: i, CourseID: 10,
-				FirstViewedAt: tie, LastViewedAt: tie, ViewCount: 1,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO user_chapter_views
+				   (user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
+				 VALUES (7, $1, 10, $2, $2, 1)`, i, tie)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListRecentByUser(ctx, 7, 10)
 		require.NoError(t, err)
@@ -393,12 +403,13 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("user_chapter_progress: ORDER BY 無しにせず id 昇順で固定する", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "user_chapter_progress")
+		testsupport.TruncateAll(t, sqlDB, "user_chapter_progress")
 		repo := persistence.NewLessonProgressRepository(sqlDB)
 		for _, id := range []uint64{4, 3, 2, 1} { // id 降順に投入 → 期待は昇順
-			require.NoError(t, db.WithContext(ctx).Create(&domain.UserLessonProgress{
-				ID: id, UserID: 7, TeachingMaterialID: id, CourseID: 10, CompletedAt: tie, CreatedAt: tie,
-			}).Error)
+			_, err := sqlDB.ExecContext(ctx,
+				`INSERT INTO user_chapter_progress (id, user_id, chapter_id, course_id, completed_at, created_at)
+				 VALUES ($1, 7, $1, 10, $2, $2)`, id, tie)
+			require.NoError(t, err)
 		}
 		rows, err := repo.ListByUser(ctx, 7)
 		require.NoError(t, err)

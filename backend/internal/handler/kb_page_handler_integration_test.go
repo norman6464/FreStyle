@@ -376,11 +376,18 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
 
 		// 「このスペースの全員」宛ての例外。別スペースへ移ると行だけが残って評価されなくなる。
+		//
+		// mode を allow にしてあるのは、deny だと**動かす本人まで締め出される**ため。
+		// space_all は「そのスペースの全員」なので、ワークスペースのメンバーは全員それを
+		// 自分の主体として持つ（権限クエリの mine CTE）。deny を張ると alice 自身が
+		// 子を見られなくなり、サブツリーの編集検査に先に引っかかって 403 になる
+		// （それはそれで正しい応答だが、この test で見たいのは移動先スペースの検査）。
+		// allow なら alice は許可リストに載っている側なので通り、行は space_all 宛てのまま残る。
 		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
 		require.NoError(t, err)
 		_, err = env.permissions.UpsertPageRestriction(
 			t.Context(), env.workspaceID, child.ID, everyone.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
+			domain.CapabilityView, domain.RestrictionModeAllow,
 		)
 		require.NoError(t, err)
 
@@ -605,6 +612,45 @@ func TestKnowledgeBaseMovePermission_Integration(t *testing.T) {
 			env.workspaceID, child, dest,
 		).Scan(&depth))
 		assert.Equal(t, 2, depth, "子から見て移動先は 2 段上の祖先になる")
+	})
+
+	t.Run("スペース全員宛てのdenyは動かす本人も締め出す", func(t *testing.T) {
+		// space_all は「そのスペースの全員」なので、ワークスペースのメンバーは全員それを
+		// 自分の主体として持つ。子に deny を張ると、張った admin 自身もその子を見られなくなり、
+		// 親の移動はサブツリーの検査で止まる。
+		//
+		// これは意図した結果。見えない子孫を巻き込む移動を断るのがこの検査の役目で、
+		// 「自分で張った例外だから自分は例外」という抜け道は作らない
+		// （権限は誰が張ったかではなく、いま誰に何が届いているかだけで決まる）。
+		env := newKbEnv(t, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+		e := env.as(alice)
+
+		created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parent+`","title":"子"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var child kbPageResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+
+		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
+		require.NoError(t, err)
+		_, err = env.permissions.UpsertPageRestriction(
+			t.Context(), env.workspaceID, child.ID, everyone.ID,
+			domain.CapabilityView, domain.RestrictionModeDeny,
+		)
+		require.NoError(t, err)
+
+		otherSpace := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, otherSpace, alice, "a0", "移動先")
+
+		before := kbDumpTreeState(t, sqlDB, env.workspaceID)
+		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/move", `{"parentId":"`+dest+`"}`)
+
+		assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String(),
+			"移動先スペースの検査（409）より手前で断る")
+		assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID))
 	})
 
 	t.Run("同一スペース内の移動でも子孫を見る", func(t *testing.T) {

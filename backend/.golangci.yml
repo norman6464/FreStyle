@@ -58,13 +58,26 @@ linters:
       - path: cmd/(archlint|apispec-lint|naminglint|slicelint)/
         linters:
           - gosec
-      # persistence の id 境界は DB が bigint(int64)、domain が uint64。値は採番シーケンス
-      # 由来で常に非負・int64 範囲内のため、int64↔uint64 変換の overflow(G115)は誤検知。
-      # sqlc 生成コードへの段階移行で各 repository に現れるため persistence 配下で除外する。
+      # persistence の id 境界は DB が bigint(int64)、domain が uint64。**向きで扱いを分ける。**
+      #
+      # DB → domain（int64 → uint64）だけを除外する。読み出した値は bigint の採番
+      # シーケンス由来で常に非負なので、uint64 へ広げても値は変わらない。
+      # sqlc 生成コードへの段階移行で各 repository に現れるため path で括る。
+      #
+      # 逆向き（domain → DB / uint64 → int64）は除外しない。こちらは math.MaxInt64 を
+      # 超える値が負数へ巻き戻る本物の縮小変換で、ユーザー ID を URL から uint64 として
+      # 受ける経路（ナレッジ基盤の権限 API）では利用者が指定した値がそのまま届く。
+      # 必ず toInt64ID(ids.go) を通すこと。この除外を 'G115' へ戻すと検出が消える。
       - path: internal/adapter/persistence/
         linters:
           - gosec
-        text: 'G115'
+        text: 'G115: integer overflow conversion int64 -> uint64'
+      # 件数・LIMIT の int → int32 は id 境界とは別件。どちらも呼び出し側が
+      # リテラル（limit=5 / 各カウント 1）を渡すだけで外部入力が届かないため除外する。
+      - path: internal/adapter/persistence/(user_chapter_views|user_daily_activity)_repository\.go
+        linters:
+          - gosec
+        text: 'G115: integer overflow conversion int -> int32'
       # テストのディレクトリ権限(G301) / Cookie 属性(G124) / ダミー認証情報(G101)は
       # 検証用途であり実害がないため除外。
       - path: _test\.go

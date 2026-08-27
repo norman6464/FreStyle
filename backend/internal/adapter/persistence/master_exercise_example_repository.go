@@ -36,7 +36,15 @@ func toDomainExample(row sqlcgen.MasterExerciseExample) domain.MasterExerciseExa
 }
 
 func (r *masterExerciseExampleRepository) ListByExerciseID(ctx context.Context, exerciseID uint64) ([]domain.MasterExerciseExample, error) {
-	rows, err := sqlcgen.New(r.db).ListMasterExerciseExamplesByExerciseID(ctx, int64(exerciseID))
+	// master_exercises.id は bigint（int64）で、domain の id は uint64。
+	// int64(exerciseID) と素で書くと math.MaxInt64 を超える値が負数へ巻き戻り、
+	// 別の演習の例が返り得る。範囲外の id を持つ演習は存在し得ないので 0 件で返す
+	// （クエリを投げても 0 行になる入力で、下のループが作る値と同じ）。
+	exID, ok := toInt64ID(exerciseID)
+	if !ok {
+		return []domain.MasterExerciseExample{}, nil // 存在し得ない exercise_id = 0 件
+	}
+	rows, err := sqlcgen.New(r.db).ListMasterExerciseExamplesByExerciseID(ctx, exID)
 	if err != nil {
 		return nil, err
 	}

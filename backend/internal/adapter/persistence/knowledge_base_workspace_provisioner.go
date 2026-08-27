@@ -24,6 +24,15 @@ func NewWorkspaceProvisioner(db *sql.DB) repository.WorkspaceProvisioner {
 func (p *workspaceProvisioner) ProvisionWorkspace(
 	ctx context.Context, in repository.WorkspaceProvisionInput,
 ) (*domain.Workspace, error) {
+	// principals.user_id は bigint（int64）で、domain のユーザー ID は uint64。
+	// int64(in.OwnerUserID) と素で書くと math.MaxInt64 を超える値が負数へ巻き戻り、
+	// 作成者とは無関係な user_id で主体を作ってしまう。範囲外の id を持つユーザーは
+	// users に存在し得ず、users への FK でどのみち 1 行も書けないので、
+	// トランザクションに入る前にエラーで止める（nil を返すと作成できたと誤認される）。
+	ownerID, ok := toInt64ID(in.OwnerUserID)
+	if !ok {
+		return nil, outOfRangeIDError("user_id", in.OwnerUserID)
+	}
 	wsID, err := kbNewID()
 	if err != nil {
 		return nil, err
@@ -60,7 +69,7 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 		ID:          principalID,
 		WorkspaceID: wsID,
 		Kind:        string(domain.PrincipalKindUser),
-		UserID:      sql.NullInt64{Int64: int64(in.OwnerUserID), Valid: true},
+		UserID:      sql.NullInt64{Int64: ownerID, Valid: true},
 	}); err != nil {
 		return nil, err
 	}

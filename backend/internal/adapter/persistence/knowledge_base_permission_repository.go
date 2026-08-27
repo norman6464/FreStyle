@@ -313,20 +313,27 @@ func (r *knowledgeBasePermissionRepository) FindUserPrincipal(ctx context.Contex
 	return &p, nil
 }
 
+// DeletePrincipal は主体を 1 件消す。
+//
+// 主体を消すと、その主体に張られていた grant も FK の CASCADE で消える。つまりこれは
+// 「ワークスペースの admin を 1 人減らし得る操作」でもあるので、grant の取り消しと
+// まったく同じ検査を、同じトランザクションの中で通す（withLastAdminGuard の doc を参照）。
 func (r *knowledgeBasePermissionRepository) DeletePrincipal(ctx context.Context, workspaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return repository.ErrPrincipalNotFound
 	}
-	n, err := r.q.DeletePrincipal(ctx, sqlcgen.DeletePrincipalParams{WorkspaceID: wsID, ID: prID})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return repository.ErrPrincipalNotFound
-	}
-	return nil
+	return r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		n, err := qtx.DeletePrincipal(ctx, sqlcgen.DeletePrincipalParams{WorkspaceID: wsID, ID: prID})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return repository.ErrPrincipalNotFound
+		}
+		return nil
+	})
 }
 
 func (r *knowledgeBasePermissionRepository) IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error) {
@@ -384,38 +391,117 @@ func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Contex
 	return err
 }
 
+// UpsertWorkspaceGrant はワークスペース全体の既定の役割を 1 行に揃える。
+//
+// admin を**与える**向きは admin を減らさないので検査も行ロックも要らない（素で書く）。
+// admin から他の役割へ**落とす**向きは、行が消えないだけで「admin を外す」操作そのものなので、
+// 取り消し・メンバー削除とまったく同じ検査を同じトランザクションで通す。
 func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return nil, repository.ErrPrincipalNotFound
 	}
-	row, err := r.q.UpsertWorkspaceGrant(ctx, sqlcgen.UpsertWorkspaceGrantParams{
+	params := sqlcgen.UpsertWorkspaceGrantParams{
 		WorkspaceID: wsID,
 		PrincipalID: prID,
 		Role:        string(role),
-	})
-	if err != nil {
+	}
+	if role == domain.GrantRoleAdmin {
+		row, err := r.q.UpsertWorkspaceGrant(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		g := toDomainWorkspaceGrant(row)
+		return &g, nil
+	}
+	var g domain.WorkspaceGrant
+	if err := r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		row, err := qtx.UpsertWorkspaceGrant(ctx, params)
+		if err != nil {
+			return err
+		}
+		g = toDomainWorkspaceGrant(row)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	g := toDomainWorkspaceGrant(row)
 	return &g, nil
 }
 
 // DeleteWorkspaceGrant はワークスペース権限を 1 件取り消す。
 // RemoveGroupMember と同じ理由で 0 行削除は成功のまま（「権限が無い状態」が事後条件で、
 // 元から無ければ既に満たされている）。取り消しの再実行を 404 にしない。
+//
+// ただし「ユーザーの admin が 0 人になる取り消し」だけは冪等では済まないので、
+// withLastAdminGuard を通して同じトランザクションの中で断る。
 func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return nil
 	}
-	_, err := r.q.DeleteWorkspaceGrant(ctx, sqlcgen.DeleteWorkspaceGrantParams{
-		WorkspaceID: wsID,
-		PrincipalID: prID,
+	return r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		_, err := qtx.DeleteWorkspaceGrant(ctx, sqlcgen.DeleteWorkspaceGrantParams{
+			WorkspaceID: wsID,
+			PrincipalID: prID,
+		})
+		return err
 	})
-	return err
+}
+
+// withLastAdminGuard は「この主体から admin を外す」操作を 1 トランザクションで包み、
+// ユーザーの admin が 0 人になる場合は repository.ErrLastWorkspaceAdmin を返して
+// mutate を一度も呼ばない。
+//
+// # なぜここまでするのか
+//
+// ワークスペースの admin が 0 人になると、そのワークスペースの権限を変えられる人は
+// API のどこにも居なくなる。ナレッジ基盤は「アプリの super_admin なら通る」という
+// 抜け道を意図的に持たないため、**元 admin を含めて誰も復旧できない**（DB を直接
+// 触るしかない）。逆に「最後の 1 人は自分を外せない」で詰まる場面は、先に別の誰かへ
+// admin を渡せば必ず解ける。取り返しがつかない側だけを禁じる。
+//
+// # なぜ検査を手前（usecase）に置くだけでは足りないのか
+//
+// 手前の CanRemoveWorkspaceAdminUseCase は読み取りだけで、そのあとの書き換えは別の
+// トランザクションになる。admin 2 人をほぼ同時に外す 2 本の要求は、両方ともその検査を
+// 通り抜けて両方とも成功し得る（実測: 2 本同時に流すと 60 回中 59 回 admin が 0 人になった）。
+//
+// # なぜ「検査を DELETE の EXISTS へ畳んで単一文にする」だけでは足りないのか
+//
+// PostgreSQL の既定は READ COMMITTED で、EXISTS の副問い合わせは行をロックしない。
+// 2 つのトランザクションが互いの admin 行を「まだ在る」と見たまま、それぞれ相手を
+// 消せてしまう。実測でもこの形は明示トランザクションを重ねると admin 0 人を再現した。
+// LockWorkspaceAdminGrantsForRemoval が FOR UPDATE で admin 行をロックし、そのロックを
+// 書き換えと同じトランザクションが握り続けることで初めて塞がる。
+func (r *knowledgeBasePermissionRepository) withLastAdminGuard(
+	ctx context.Context,
+	workspaceID, principalID uuid.UUID,
+	mutate func(qtx *sqlcgen.Queries) error,
+) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	qtx := r.q.WithTx(tx)
+
+	guard, err := qtx.LockWorkspaceAdminGrantsForRemoval(ctx, sqlcgen.LockWorkspaceAdminGrantsForRemovalParams{
+		WorkspaceID: workspaceID,
+		PrincipalID: principalID,
+	})
+	if err != nil {
+		return err
+	}
+	// 元から admin ではない相手なら、この操作で admin は 1 人も減らない。
+	if guard.TargetIsAdmin && !guard.OtherUserAdminRemains {
+		return repository.ErrLastWorkspaceAdmin
+	}
+	if err := mutate(qtx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *knowledgeBasePermissionRepository) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {

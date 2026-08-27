@@ -23,6 +23,20 @@ var ErrShareLinkNotFound = errors.New("share link not found")
 // DB 障害と区別できない（再試行すべきだと誤解する）。
 var ErrUserNotFound = errors.New("user not found")
 
+// ErrLastWorkspaceAdmin は「ユーザーの admin が 1 人も残らなくなる操作」を断ったときに返す。
+//
+// ナレッジ基盤の権限は principals / grants / restrictions だけで閉じており、
+// 「アプリの super_admin なら通る」という抜け道を意図的に持たない（domain/grant.go）。
+// その裏返しとして、ワークスペースの admin が 0 人になった瞬間、そのワークスペースの
+// 権限を変えられる人は API のどこにも居なくなる。**元 admin を含めて誰も復旧できず、
+// DB を直接触るしか手が無い。** 逆に「最後の 1 人は自分を外せない」で詰まる場面は、
+// 先に別の誰かへ admin を渡せば必ず解ける。取り返しがつかない側を禁じる。
+//
+// このセンチネルは repository（＝ 実際に行を書き換える層）が返す。手前の usecase
+// （CanRemoveWorkspaceAdminUseCase）も同じ判定を持つが、あちらは操作の前に読むだけなので
+// 競合を防げない。最後の砦は書き込みと同じトランザクションで判定するこちら側にある。
+var ErrLastWorkspaceAdmin = errors.New("last workspace admin cannot be removed")
+
 // ErrPrincipalGroupNameTaken はグループ名が同じワークスペースで使用済みのときに返す。
 // 名前はワークスペース内で一意（uq_principals_group_name）で、同名が 2 つあると
 // 権限を張る先を人が選べなくなる。
@@ -102,6 +116,10 @@ type KnowledgeBasePermissionRepository interface {
 	// （印は page_allow_lists が持ち、主体を参照しない）。載っていた人が居なくなった段は
 	// 「誰も載っていない許可リスト」＝ 誰にも見えない状態になる。閉じる側へ倒すのは、
 	// オフボーディング 1 回で祖先の限定公開が第三者に開くのを避けるため。
+	//
+	// grant も CASCADE で消えるので、これはワークスペースの admin を減らし得る操作でもある。
+	// ユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も消さない
+	// （判定・ロック・削除はすべて同じトランザクション）。
 	DeletePrincipal(ctx context.Context, workspaceID, principalID string) error
 	// IsWorkspaceMember はユーザーがワークスペースのメンバーかを返す。
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
@@ -118,8 +136,11 @@ type KnowledgeBasePermissionRepository interface {
 	RemoveGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error
 
 	// UpsertWorkspaceGrant はワークスペース全体での既定の役割を与える（同じ主体には 1 行だけ）。
+	// admin から他の役割へ落とす向きは「admin を外す」操作なので、それでユーザーの admin が
+	// 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない（判定は書き込みと同じトランザクション）。
 	UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error)
 	// DeleteWorkspaceGrant はワークスペース全体での既定の役割を剥がす（冪等）。
+	// これでユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない。
 	DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error
 	// ListWorkspaceGrants はワークスペースの grant 一覧を返す。
 	ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error)

@@ -202,6 +202,11 @@ func respondKbPermissionOperationErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, repository.ErrPrincipalGroupNameTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "group_name_taken"})
+	case errors.Is(err, repository.ErrLastWorkspaceAdmin):
+		// 手前の検査（requireNotLastWorkspaceAdmin）と同じ 409 に落とす。
+		// そちらを通り抜けた競合を repository が最後に断ったときだけここへ来るので、
+		// 呼び出し側から見た応答は「先に断られた」ときと区別が付かない。
+		c.JSON(http.StatusConflict, errorResponse{Error: "last_workspace_admin"})
 	default:
 		respondKbPermissionErr(c, err)
 	}

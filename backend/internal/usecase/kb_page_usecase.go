@@ -60,10 +60,32 @@ func (u *CreatePageUseCase) Execute(ctx context.Context, in CreatePageInput) (*d
 	if utf8.RuneCountInString(in.Title) > kbPageTitleMaxLen {
 		return nil, errors.New("title is too long")
 	}
-	if _, err := u.repo.FindSpace(ctx, in.WorkspaceID, in.SpaceID); err != nil {
-		return nil, err
-	}
-	if in.ParentID != nil {
+	// 親があるときは **スペースを引かない**。
+	//
+	// 引くと、応答の差から「URL に書いた spaceID のスペースが実在するか」が分かってしまう。
+	// 落ちる順序がそのまま応答になるため:
+	//
+	//	実在しない ID → FindSpace が ErrSpaceNotFound → 404 not_found
+	//	実在する別の ID → FindSpace は通り、親との不一致 → 400 parent_space_mismatch
+	//
+	// この差は、他の 3 経路が塞いでいるものを作成経路だけで開ける。スペース一覧は
+	// 閲覧できないスペースを 1 件も返さず、ツリー取得は未存在も不可視も同じ応答に揃え、
+	// handler の requireSpacePermission は両方 404 に畳んでいる。
+	//
+	// 親があるなら引く必要も無い。**親が在ることがスペースが在ることの証明**で、
+	// しかも handler が親の編集権限を先に確かめているので、呼び出し側は既にその親を
+	// 見えている（＝そのスペースの実在は本人にとって既知）。
+	// 残る仕事は「URL のスペースが親のスペースと同じか」の文字列比較だけで、
+	// 実在しない ID も別の実在する ID も同じ 400 に落ちる。
+	//
+	// 親が無いときは比較する相手がいないので、これまでどおり引いて確かめる。
+	// そちらは handler の requireSpacePermission が先に通っており、不在も無権限も
+	// 同じ 404 に畳まれているので差は生まれない。
+	if in.ParentID == nil {
+		if _, err := u.repo.FindSpace(ctx, in.WorkspaceID, in.SpaceID); err != nil {
+			return nil, err
+		}
+	} else {
 		parent, err := u.repo.FindPage(ctx, in.WorkspaceID, *in.ParentID)
 		if err != nil {
 			return nil, err

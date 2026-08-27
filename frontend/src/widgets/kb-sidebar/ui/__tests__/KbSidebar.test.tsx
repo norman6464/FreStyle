@@ -123,9 +123,17 @@ function stubRowRect(row: HTMLElement) {
  * jsdom に DragEvent が無いぶん素の Event に落ちて clientY が届かず、
  * 落下先が必ず「中央（子として）」になってしまう（実測で確認）。
  */
+function rowOf(title: string): HTMLElement {
+  // 行そのものは役割を持たない（木として名乗らない）。題名のリンクから辿る。
+  const link = screen.getByRole('link', { name: title });
+  const row = link.parentElement;
+  if (!row) throw new Error('row not found: ' + title);
+  return row;
+}
+
 function dragRowOnto(fromTitle: string, toTitle: string, clientY: number) {
-  const from = screen.getByRole('treeitem', { name: fromTitle });
-  const to = screen.getByRole('treeitem', { name: toTitle });
+  const from = rowOf(fromTitle);
+  const to = rowOf(toTitle);
   stubRowRect(to);
   fireEvent.dragStart(from, { dataTransfer: { setData: vi.fn(), effectAllowed: '' } });
   const withPosition = (type: string) => {
@@ -325,18 +333,18 @@ describe('KbSidebar', () => {
     );
   });
 
-  it('行の読み上げ名を題名で固定する', async () => {
-    // 名前の決まり方を行の中身に任せておくと、次に何かを足したときに黙って変わる。
-    //
-    // 計算後の名前で確かめても意味が無い（実測では aria-label の有無にかかわらず
-    // 「設計メモ」になる）ので、**明示しているという事実そのもの**を固定する。
+  it('木としては名乗らない（矢印キーを用意していないため）', async () => {
+    // role="tree" を名乗ると矢印キーでの移動を約束することになるが、行の中に
+    // リンクと操作ボタンが同居しているぶん、それは Tab とは別の操作体系になる。
+    // 名乗りだけ残すのは嘘なので、名乗らないことを固定する。
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    const row = screen.getByRole('treeitem', { name: '設計メモ' });
-
-    expect(row).toHaveAttribute('aria-label', '設計メモ');
-    expect(row).toHaveAttribute('aria-level', '1');
+    // 木としては名乗らないので、段の深さは入れ子の ul が表す。
+    // いま開いているページは aria-current が表す。
+    expect(screen.getByRole('link', { name: '設計メモ' })).toBeInTheDocument();
+    expect(screen.queryByRole('tree')).not.toBeInTheDocument();
+    expect(screen.queryByRole('treeitem')).not.toBeInTheDocument();
   });
 
   describe('作る・名前を変える', () => {
@@ -598,6 +606,127 @@ describe('KbSidebar', () => {
     });
   });
 
+  describe('キーボードだけで動かす', () => {
+    const threeRoots = () =>
+      hoisted.fetchPageTree.mockResolvedValue(
+        tree([
+          { id: 'p1', title: 'ページ A' },
+          { id: 'p2', title: 'ページ B' },
+          { id: 'p3', title: 'ページ C' },
+        ]),
+      );
+
+    /** openMenu は行の ⋯ を押してメニューを開く（Tab で届く素のボタン）。 */
+    const openMenu = (title: string) =>
+      fireEvent.click(screen.getByRole('button', { name: `${title} の操作` }));
+
+    it('上へ移動は、ひとつ上の兄弟の手前へ送る', async () => {
+      threeRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      openMenu('ページ B');
+      fireEvent.click(screen.getByRole('button', { name: '上へ移動' }));
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', {
+          parentId: '',
+          beforePageId: 'p1',
+        }),
+      );
+    });
+
+    it('下へ移動は、ひとつ下の兄弟の直後へ送る', async () => {
+      threeRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      openMenu('ページ B');
+      fireEvent.click(screen.getByRole('button', { name: '下へ移動' }));
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', {
+          parentId: '',
+          afterPageId: 'p3',
+        }),
+      );
+    });
+
+    it('ひとつ内側へは、ひとつ上の兄弟の子にする', async () => {
+      threeRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      openMenu('ページ B');
+      fireEvent.click(screen.getByRole('button', { name: 'ひとつ内側へ' }));
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', { parentId: 'p1' }),
+      );
+    });
+
+    it('ひとつ外側へは、親の直後へ出す', async () => {
+      hoisted.fetchPageTree.mockResolvedValue(
+        tree([{ id: 'p1', title: '親ページ', children: ['p1-child'] }]),
+      );
+      renderSidebar();
+      await screen.findByText('親ページ');
+      fireEvent.click(screen.getByRole('button', { name: '親ページ を開く' }));
+      await screen.findByText('p1-child');
+
+      openMenu('p1-child');
+      fireEvent.click(screen.getByRole('button', { name: 'ひとつ外側へ' }));
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p1-child', {
+          parentId: '',
+          afterPageId: 'p1',
+        }),
+      );
+    });
+
+    it('動かせない向きは項目自体を出さない', async () => {
+      // 押しても何も起きない項目を並べない。キーボードだけの人には
+      // これが唯一の並べ替えの手段なので、押せるものだけを見せる。
+      threeRoots();
+      renderSidebar();
+      await screen.findByText('ページ A');
+
+      openMenu('ページ A');
+
+      expect(screen.queryByRole('button', { name: '上へ移動' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'ひとつ内側へ' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'ひとつ外側へ' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '下へ移動' })).toBeInTheDocument();
+    });
+
+    it('ドラッグと同じ経路を通るので、失敗の扱いも同じ', async () => {
+      threeRoots();
+      hoisted.movePage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      openMenu('ページ B');
+      fireEvent.click(screen.getByRole('button', { name: '上へ移動' }));
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith('error', '移動できませんでした'),
+      );
+      const titles = screen.getAllByRole('link').map((link) => link.textContent);
+      expect(titles).toEqual(['ページ A', 'ページ B', 'ページ C']);
+    });
+
+    it('アーカイブ済みでは移動の項目を出さない', async () => {
+      threeRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+      await screen.findByText('ページ B');
+
+      expect(screen.queryByRole('button', { name: 'ページ B の操作' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('ドラッグで動かす', () => {
     const twoRoots = () =>
       hoisted.fetchPageTree.mockResolvedValue(
@@ -656,7 +785,7 @@ describe('KbSidebar', () => {
       dragRowOnto('ページ A', 'ページ B', 90);
 
       await waitFor(() => {
-        const titles = screen.getAllByRole('treeitem').map((row) => row.getAttribute('aria-label'));
+        const titles = screen.getAllByRole('link').map((link) => link.textContent);
         expect(titles).toEqual(['ページ B', 'ページ A']);
       });
     });
@@ -673,7 +802,7 @@ describe('KbSidebar', () => {
       await waitFor(() =>
         expect(hoisted.showToast).toHaveBeenCalledWith('error', '移動できませんでした'),
       );
-      const titles = screen.getAllByRole('treeitem').map((row) => row.getAttribute('aria-label'));
+      const titles = screen.getAllByRole('link').map((link) => link.textContent);
       expect(titles).toEqual(['ページ A', 'ページ B']);
     });
 
@@ -729,7 +858,8 @@ describe('KbSidebar', () => {
       dragRowOnto('ページ B', 'ページ A', 50);
 
       await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
-      expect(screen.getByRole('treeitem', { name: 'ページ B' })).toHaveAttribute('aria-level', '2');
+      // 段の深さは入れ子の ul が表す。B が A の中の一覧に入っていること。
+      expect(screen.getByRole('list', { name: 'ページ A の中' })).toHaveTextContent('ページ B');
     });
 
     it('移動中に重ねて落としても、2 本目は投げない', async () => {
@@ -774,8 +904,8 @@ describe('KbSidebar', () => {
         failMove(new Error('boom'));
       });
 
-      expect(screen.getByRole('treeitem', { name: 'アーカイブの行' })).toBeInTheDocument();
-      expect(screen.queryByRole('treeitem', { name: 'ページ A' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'アーカイブの行' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'ページ A' })).not.toBeInTheDocument();
     });
 
     it('アーカイブ済みでは並べ替えを受け付けない', async () => {

@@ -1055,10 +1055,14 @@ definitions:
         example: 0198a000-0000-7000-8000-000000000005
         type: string
       parentId:
+        description: |-
+          ParentID を省くと、いまと同じスペースの直下（ルート）へ移す。
+
+          省けるようにしたのはドラッグのため。入れ子になったページを最上段へ戻すのは
+          基本の操作で、これが無いと「入れることはできるが出せない」ドラッグになる。
+          判断はスペースの編集権限で行う（ページの例外の層が無い段なので、そこが正しい単位）。
         example: 0198a000-0000-7000-8000-000000000003
         type: string
-    required:
-    - parentId
     type: object
   internal_handler.kbPageContentResponse:
     properties:
@@ -4220,7 +4224,7 @@ paths:
         name: pageId
         required: true
         type: string
-      - description: 移動 先 の 親
+      - description: 移動 先 の 親 と 位置 (parentId を 省く と スペース 直下)
         in: body
         name: body
         required: true

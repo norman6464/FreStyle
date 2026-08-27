@@ -449,6 +449,114 @@ func Test_ナレッジ基盤権限API_共有リンク検証は知らないトー
 	assert.JSONEq(t, kbDenied, w.Body.String())
 }
 
+// kbVerifyWithXFF は共有リンク検証を、X-Forwarded-For を毎回変えて叩く。
+//
+// gin の ClientIP() は XFF の最左を読み、このリポジトリは SetTrustedProxies を
+// 呼んでいない（gin の既定は全 IP を信頼する）。つまり **要求元は攻撃者が自由に名乗れる**。
+// 「IP を変えれば上限を抜けられるのか」を、その前提のまま再現するためのヘルパ。
+func kbVerifyWithXFF(t *testing.T, f kbPermFixture, token, xff string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, kbShareLinkVerifyPath,
+		strings.NewReader(`{"token":"`+token+`"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.7:1234"
+	req.Header.Set("X-Forwarded-For", xff)
+	w := httptest.NewRecorder()
+	f.router.ServeHTTP(w, req)
+	return w
+}
+
+func Test_ナレッジ基盤権限API_共有リンク検証はIPを変えても頭打ちになる(t *testing.T) {
+	// パスワード付きリンクのパスワードは人が選ぶ短い値で、総当たりに弱い。
+	// 上限の鍵を IP に取ると攻撃者が鍵ごと変えられるので、鍵はリンクそのものに取っている。
+	// ここで固定するのは「IP を毎回変えても、同じリンクへの試行は必ず頭打ちになる」こと。
+	f := newKbPermFixture(t, 0, nil)
+
+	codes := make([]int, 0, kbShareLinkVerifyBurst+5)
+	for i := 0; i < kbShareLinkVerifyBurst+5; i++ {
+		w := kbVerifyWithXFF(t, f, f.shareToken, "203.0.113."+strconv.Itoa(i))
+		codes = append(codes, w.Code)
+	}
+	for i := 0; i < kbShareLinkVerifyBurst; i++ {
+		require.Equal(t, http.StatusOK, codes[i], "burst 内は通る: %v", codes)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, codes[kbShareLinkVerifyBurst],
+		"IP を変えても同じリンクへの試行は頭打ちになる: %v", codes)
+	last := kbVerifyWithXFF(t, f, f.shareToken, "192.0.2.250")
+	assert.Equal(t, http.StatusTooManyRequests, last.Code)
+	assert.Equal(t, "60", last.Header().Get("Retry-After"))
+}
+
+func Test_ナレッジ基盤権限API_共有リンクの上限は別のリンクを巻き込まない(t *testing.T) {
+	// 上限が「リンク 1 本ごと」であることの裏側。1 本を叩き切っても、他のリンクを
+	// 受け取った人は開ける（鍵がリンクなので、巻き添えが起きるとしたらここ）。
+	f := newKbPermFixture(t, 0, nil)
+	other := "another-token-for-test"
+	_, err := f.perms.CreateShareLink(context.Background(), repository.ShareLinkWrite{
+		WorkspaceID:     kbWorkspaceID,
+		PageID:          kbChildPageID,
+		Capability:      domain.CapabilityView,
+		TokenHash:       kbTestTokenHash(other),
+		CreatedByUserID: kbUserID,
+	})
+	require.NoError(t, err)
+
+	for i := 0; i < kbShareLinkVerifyBurst+3; i++ {
+		kbVerifyWithXFF(t, f, f.shareToken, "203.0.113."+strconv.Itoa(i))
+	}
+	require.Equal(t, http.StatusTooManyRequests,
+		kbVerifyWithXFF(t, f, f.shareToken, "203.0.113.99").Code, "1 本目は頭打ち")
+	assert.Equal(t, http.StatusOK,
+		kbVerifyWithXFF(t, f, other, "203.0.113.99").Code, "別のリンクは巻き添えにならない")
+}
+
+func Test_ナレッジ基盤権限API_存在しないトークンは上限の的にならない(t *testing.T) {
+	// 鍵は要求ごとに変えられる（トークンは攻撃者が名乗る値）ので、実在しないリンクの
+	// 鍵まで limiter に残すと、でたらめなトークンを投げ続けるだけで中身を太らせられる。
+	// 実在しないトークンは 1 回ごとに鍵ごと捨てるので、何度投げても 404 のまま
+	// （パスワードの総当たりには実在するトークンが要るので、これで守りは緩まない）。
+	f := newKbPermFixture(t, 0, nil)
+	for i := 0; i < kbShareLinkVerifyBurst+10; i++ {
+		w := kbVerifyWithXFF(t, f, "unknown-"+strconv.Itoa(i), "203.0.113."+strconv.Itoa(i))
+		require.Equal(t, http.StatusNotFound, w.Code, "%d 回目", i+1)
+	}
+	// 実在するリンクの上限は 1 つも減っていない。
+	assert.Equal(t, http.StatusOK, kbVerifyWithXFF(t, f, f.shareToken, "192.0.2.1").Code)
+}
+
+func Test_ナレッジ基盤権限API_同じ存在しないトークンでも上限の的にならない(t *testing.T) {
+	f := newKbPermFixture(t, 0, nil)
+	for i := 0; i < kbShareLinkVerifyBurst+10; i++ {
+		w := kbVerifyWithXFF(t, f, "always-unknown", "203.0.113."+strconv.Itoa(i))
+		require.Equal(t, http.StatusNotFound, w.Code, "%d 回目", i+1)
+	}
+}
+
+func Test_ナレッジ基盤権限API_メンバー追加はユーザー単位で頭打ちになる(t *testing.T) {
+	// この口は users.id をそのまま受け取り、200 と 404 の差で実在が分かる。
+	// ワークスペースは誰でも作れて作った本人が admin になるので、放っておくと
+	// 全ログインユーザーが使えるユーザー ID の走査器になる。
+	// 鍵は検証済み JWT 由来のユーザー ID なので、XFF を変えても抜けられない。
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/members/"
+
+	call := func(userID int, xff string) int {
+		req := httptest.NewRequest(http.MethodPut, base+strconv.Itoa(userID), nil)
+		req.RemoteAddr = "198.51.100.7:1234"
+		req.Header.Set("X-Forwarded-For", xff)
+		w := httptest.NewRecorder()
+		f.router.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	for i := 0; i < kbAddMemberBurst; i++ {
+		require.NotEqual(t, http.StatusTooManyRequests, call(1000+i, "203.0.113."+strconv.Itoa(i)),
+			"burst 内は通る: %d 回目", i+1)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, call(2000, "203.0.113.200"),
+		"IP を変えても同じユーザーなら頭打ちになる")
+}
+
 func Test_ナレッジ基盤権限API_未知の役割は400(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	w := f.do(t, http.MethodPut,

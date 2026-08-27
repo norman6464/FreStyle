@@ -404,6 +404,10 @@ func Test_ナレッジ基盤権限API_ページを名指しする入口は結果
 				want = &got
 				// 認可の前に対象を読まないこと自体も押さえる（読むと必ず回数が結果で揺れる）。
 				assert.Equal(t, 0, got.findPage, "認可より先にページを読まない")
+				// **絶対値も固定する。** 一致だけを見ると、入口が権限を一切引かずに
+				// 一律拒否する退行（全ケース 0 回）でも通ってしまう。
+				assert.Equal(t, map[string]int{"PageSpaceScopeFactsForUser": 1}, got.permReads,
+					"引くのはページ経由の 1 回だけ")
 				return
 			}
 			assert.Equal(t, *want, got, "結果が違っても引く回数と内訳は同じであること")

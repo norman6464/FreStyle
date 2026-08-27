@@ -4764,7 +4764,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 配列)。",
+                "description": "スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hiddenChildCount は その 段 の 直下 に ある 閲覧 でき ない ページ の 件数 で、 題名 は 返さ ない。",
                 "produces": [
                     "application/json"
                 ],
@@ -4792,10 +4792,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_handler.kbPageTreeResponse"
-                            }
+                            "$ref": "#/definitions/internal_handler.kbPageTreeRootResponse"
                         }
                     },
                     "401": {
@@ -8010,8 +8007,29 @@ const docTemplate = `{
                         "$ref": "#/definitions/internal_handler.kbPageTreeResponse"
                     }
                 },
+                "hiddenChildCount": {
+                    "description": "HiddenChildCount はこのページの直下にある、閲覧できないページの数。\n題名は出さない（件数だけ）。判断の理由は ListViewablePagesOutput の doc に書いてある。",
+                    "type": "integer",
+                    "example": 0
+                },
                 "page": {
                     "$ref": "#/definitions/internal_handler.kbPageResponse"
+                }
+            }
+        },
+        "internal_handler.kbPageTreeRootResponse": {
+            "type": "object",
+            "properties": {
+                "hiddenChildCount": {
+                    "description": "HiddenChildCount はスペース直下にある、閲覧できないページの数。\n1 件も見えないスペースでは必ず 0（存在しないスペースと撃ち分けないため）。",
+                    "type": "integer",
+                    "example": 0
+                },
+                "pages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.kbPageTreeResponse"
+                    }
                 }
             }
         },

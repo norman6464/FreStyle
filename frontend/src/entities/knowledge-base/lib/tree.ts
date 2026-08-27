@@ -37,8 +37,8 @@ export type KbTreeEntry = KbTreeRow | KbHiddenRow;
  * flattenKbTree は木を、いま開いている段だけの平らな行の並びに変換する。
  *
  * 閉じている行の子孫は結果に入らない（描かないものは行にしない）。
- * 兄弟順は backend が position 順で返したものをそのまま保つ。ここで並べ替えないこと
- * （分数インデックスの辞書順が正で、フロントで再現すると必ずずれる）。
+ * 兄弟順は backend が返した配列の順序をそのまま保つ。ここで並べ替えないこと
+ * （並び順のキーは意図的に返ってこない。配列の順序だけが正）。
  */
 export function flattenKbTree(
   nodes: KbPageTreeNode[],

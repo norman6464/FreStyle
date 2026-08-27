@@ -487,6 +487,21 @@ func Test_ナレッジ基盤ツリー_見える根が無いときは存在しな
 		"存在しないスペースの応答と 1 バイトも変わらないこと")
 }
 
+func Test_ナレッジ基盤ツリー_並び順のキーを応答に出さない(t *testing.T) {
+	// 分数インデックスの整数部は末尾追加のたびに 1 ずつ増える。a0 と a3 が見えて
+	// a1 a2 が見えなければ、その間に 2 枚あることがそのまま読める。
+	// hasHiddenChildren を有無に落として枚数を伏せた意味が、この 1 項目で消える。
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	assert.NotContains(t, w.Body.String(), `"position"`)
+	// fixture は a0 / a2 を使っている（間が空いている＝伏せた 1 枚が読める形）。
+	assert.NotContains(t, w.Body.String(), `"a0"`)
+	assert.NotContains(t, w.Body.String(), `"a2"`)
+}
+
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet,

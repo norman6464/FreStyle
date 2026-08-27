@@ -69,11 +69,22 @@ const maxKnowledgeBaseBodyBytes = (1 << 20) + (64 << 10) // 1 MiB + 64 KiB
 // workspaceId は載せない。ワークスペースは URL の slug と現在のユーザーの所属から決まる
 // サーバ側の関心事で、クライアントが指定に使う値ではないため（内部 UUID を配って
 // 「次はこれを送ればいい」と誤解させない）。
+// position（並び順のキー）は**返さない**。
+//
+// 分数インデックスの整数部は末尾追加のたびに 1 ずつ増えるので、a0 と a3 が見えて a1 a2 が
+// 見えなければ、その間に 2 枚あることがそのまま読める。hasHiddenChildren を有無に落として
+// 枚数を伏せた意味が、この 1 項目で消える。
+//
+// 返さなくても困らない。並び順は backend が position 順に並べた配列として渡しており、
+// 移動 API（kbMovePageRequest）は parentId だけを受けて位置はサーバが決める。
+// クライアントがキーの値を必要とする経路が無い。
+//
+// 将来「A と B の間に入れる」が要るようになっても、渡すのは隣のページの **ID** にする。
+// 生のキーを往復させると、この漏れが戻ってくる。
 type kbPageResponse struct {
 	ID              string     `json:"id"              example:"0198a000-0000-7000-8000-000000000003"`
 	SpaceID         string     `json:"spaceId"         example:"0198a000-0000-7000-8000-000000000002"`
 	ParentID        *string    `json:"parentId,omitempty"`
-	Position        string     `json:"position"        example:"a0"`
 	Title           string     `json:"title"           example:"設計メモ"`
 	CreatedByUserID uint64     `json:"createdByUserId" example:"42"`
 	ArchivedAt      *time.Time `json:"archivedAt,omitempty"`
@@ -86,7 +97,6 @@ func toKbPageResponse(p *domain.Page) kbPageResponse {
 		ID:              p.ID,
 		SpaceID:         p.SpaceID,
 		ParentID:        p.ParentID,
-		Position:        p.Position,
 		Title:           p.Title,
 		CreatedByUserID: p.CreatedByUserID,
 		ArchivedAt:      p.ArchivedAt,

@@ -38,7 +38,6 @@ function page(id: string, title = id): KbPage {
   return {
     id,
     spaceId: 'space-1',
-    position: 'a0',
     title,
     createdByUserId: 1,
     createdAt: '2026-08-01T00:00:00Z',

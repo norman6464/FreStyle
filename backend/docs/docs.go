@@ -7954,10 +7954,6 @@ const docTemplate = `{
                 "parentId": {
                     "type": "string"
                 },
-                "position": {
-                    "type": "string",
-                    "example": "a0"
-                },
                 "spaceId": {
                     "type": "string",
                     "example": "0198a000-0000-7000-8000-000000000002"

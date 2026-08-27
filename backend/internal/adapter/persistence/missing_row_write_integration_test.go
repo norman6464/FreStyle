@@ -23,7 +23,7 @@ const missingID uint64 = 9_000_000_000
 // missingRowTables は下の表で触るテーブル。TRUNCATE で毎回まっさらにしてから叩く
 // （既存行に偶然当たって「0 行ではなかった」ことを見落とさないため）。
 var missingRowTables = []string{
-	"notes", "notifications", "courses", "course_chapters", "ai_chat_sessions",
+	"notes", "notifications", "courses", "course_chapters",
 	"invitations", "company_applications", "companies", "users",
 }
 
@@ -44,7 +44,6 @@ type missingRowCase struct {
 //	利用者の画面には保存済みと表示されるのに DB には何も書かれていない、という
 //	取り違えがそのまま外へ出る。ここを domain.ErrNotFound に畳んで 404 に揃える。
 func missingRowWriteCases() []missingRowCase {
-	enabled := true
 	return []missingRowCase{
 		{
 			name: "ノートの削除",
@@ -79,18 +78,6 @@ func missingRowWriteCases() []missingRowCase {
 			},
 		},
 		{
-			name: "AI チャットセッションのタイトル更新",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewAiChatSessionRepository(db).UpdateTitle(ctx, missingID, "新しいタイトル")
-			},
-		},
-		{
-			name: "AI チャットセッションの削除",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewAiChatSessionRepository(db).Delete(ctx, missingID)
-			},
-		},
-		{
 			name: "招待の status 更新",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewAdminInvitationRepository(db).
@@ -105,21 +92,9 @@ func missingRowWriteCases() []missingRowCase {
 			},
 		},
 		{
-			name: "会社の AI 有効化フラグ更新",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCompanyRepository(db).UpdateAiChatEnabled(ctx, missingID, true)
-			},
-		},
-		{
 			name: "会社の有効/無効更新",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewCompanyRepository(db).UpdateActive(ctx, missingID, false)
-			},
-		},
-		{
-			name: "従業員の AI 利用可否更新",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewUserRepository(db).UpdateAiChatEnabled(ctx, missingID, &enabled)
 			},
 		},
 		{

@@ -36,9 +36,8 @@ CREATE TABLE IF NOT EXISTS workspaces (
     slug       varchar(64) NOT NULL,
     name       varchar(200) NOT NULL,
     -- テナントの設定。今は companies の同名列が正本で、ここはその写し（移行期間だけ NULL 可）。
-    -- companies を畳んだあとはこの 2 列が正本になり、NOT NULL DEFAULT true へ締める。
+    -- companies を畳んだあとはこの列が正本になり、NOT NULL DEFAULT true へ締める。
     -- 「NULL = まだ写していない」と「値がある = 写し済み」を区別したいので、既定値は今は置かない。
-    ai_chat_enabled_for_trainees boolean,
     is_active  boolean,
     -- GORM の autoCreateTime / autoUpdateTime は使わないため、DB 側の既定値で必ず埋まるようにする。
     created_at timestamptz NOT NULL DEFAULT now(),

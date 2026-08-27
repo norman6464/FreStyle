@@ -13,7 +13,6 @@ type UserDailyActivityIncrement struct {
 	ExerciseCount int
 	CorrectCount  int
 	LessonCount   int
-	AiChatCount   int
 	NoteCount     int
 }
 

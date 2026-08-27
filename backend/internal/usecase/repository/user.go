@@ -35,8 +35,6 @@ type UserRepository interface {
 	// EnsureOidcIdentity は OIDC identity（provider + subject）を無ければ作る（冪等）。
 	// 既存ユーザーのセルフヒール（provider 追加・張り直し）で呼ばれる。
 	EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error
-	// UpdateAiChatEnabled は AI チャットの個別上書きを更新する（nil で会社設定に従う）。
-	UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error
 	// UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → 利用不可）。
 	UpdateActive(ctx context.Context, userID uint64, active bool) error
 	// SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。認証時にも除外される。

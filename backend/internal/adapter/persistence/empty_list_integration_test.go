@@ -32,12 +32,6 @@ type listCase struct {
 func listCases() []listCase {
 	return []listCase{
 		{
-			name: "AI チャットのセッション一覧",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewAiChatSessionRepository(db).ListByUserID(ctx, noSuchID)
-			},
-		},
-		{
 			name:     "監査ログ一覧",
 			truncate: []string{"audit_events"},
 			call: func(ctx context.Context, db *sql.DB) (any, error) {

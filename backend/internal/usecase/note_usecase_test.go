@@ -4,9 +4,22 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
+
+// nopActivityRepo は UserDailyActivityRepository の何もしない stub。
+type nopActivityRepo struct{}
+
+func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
+	return nil
+}
+
+func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time) ([]domain.UserDailyActivity, error) {
+	return nil, nil
+}
 
 type stubNoteRepo struct {
 	rows          []domain.Note

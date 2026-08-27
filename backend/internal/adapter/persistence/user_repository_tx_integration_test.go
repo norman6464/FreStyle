@@ -191,7 +191,7 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 
 	t.Run("会社に属していれば workspace_id も同じトランザクションで埋まる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
@@ -299,32 +299,11 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.True(t, got.IsActive, "is_active は触らない")
 	})
 
-	t.Run("UpdateAiChatEnabled は true / false / nil を往復できる", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, userTxTables...)
-		u := newTrainee(t, "ai@example.com", "ai-1")
-
-		got, err := repo.FindByID(ctx, u.ID)
-		require.NoError(t, err)
-		require.Nil(t, got.AiChatEnabled, "既定は NULL（会社設定に従う）")
-
-		for _, want := range []bool{true, false} {
-			require.NoError(t, repo.UpdateAiChatEnabled(ctx, u.ID, &want))
-			got, err = repo.FindByID(ctx, u.ID)
-			require.NoError(t, err)
-			require.NotNil(t, got.AiChatEnabled)
-			require.Equal(t, want, *got.AiChatEnabled)
-		}
-
-		require.NoError(t, repo.UpdateAiChatEnabled(ctx, u.ID, nil))
-		got, err = repo.FindByID(ctx, u.ID)
-		require.NoError(t, err)
-		require.Nil(t, got.AiChatEnabled, "nil で NULL（会社設定に従う）へ戻る")
-	})
 
 	t.Run("ListByCompanyID は会社で絞り id 昇順・論理削除を除く", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
-		insertCompany(t, sqlDB, 2, "会社 B", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
 		c1, c2 := uint64(1), uint64(2)
 		a := &domain.User{Email: "m1@example.com", Name: "m1", Role: domain.RoleTrainee, CompanyID: &c1}
 		b := &domain.User{Email: "m2@example.com", Name: "m2", Role: domain.RoleTrainee, CompanyID: &c1}

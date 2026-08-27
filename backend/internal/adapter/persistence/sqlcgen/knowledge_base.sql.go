@@ -206,7 +206,7 @@ func (q *Queries) GetSpace(ctx context.Context, arg GetSpaceParams) (Space, erro
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 
-SELECT id, slug, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM workspaces
+SELECT id, slug, name, is_active, created_at, updated_at FROM workspaces
 WHERE id = $1
 `
 
@@ -229,7 +229,6 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 		&i.ID,
 		&i.Slug,
 		&i.Name,
-		&i.AiChatEnabledForTrainees,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -238,7 +237,7 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, slug, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM workspaces
+SELECT id, slug, name, is_active, created_at, updated_at FROM workspaces
 WHERE slug = $1
 `
 
@@ -251,7 +250,6 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.ID,
 		&i.Slug,
 		&i.Name,
-		&i.AiChatEnabledForTrainees,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -441,7 +439,7 @@ func (q *Queries) InsertSpace(ctx context.Context, arg InsertSpaceParams) (Space
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO workspaces (id, slug, name)
 VALUES ($1, $2, $3)
-RETURNING id, slug, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at
+RETURNING id, slug, name, is_active, created_at, updated_at
 `
 
 type InsertWorkspaceParams struct {
@@ -459,7 +457,6 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 		&i.ID,
 		&i.Slug,
 		&i.Name,
-		&i.AiChatEnabledForTrainees,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,

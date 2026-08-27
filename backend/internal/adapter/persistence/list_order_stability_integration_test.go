@@ -334,23 +334,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 		require.Equal(t, uint64(4), one.ID)
 	})
 
-	t.Run("ai_chat_sessions: created_at 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "ai_chat_sessions")
-		repo := persistence.NewAiChatSessionRepository(sqlDB)
-		for i := uint64(1); i <= 4; i++ {
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO ai_chat_sessions (id, user_id, title, session_type, scenario_id, created_at, updated_at)
-				 VALUES ($1, 7, 'tie', '', NULL, $2, $2)`, i, tie)
-			require.NoError(t, err)
-		}
-		rows, err := repo.ListByUserID(ctx, 7)
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, []uint64{4, 3, 2, 1}, ids)
-	})
 
 	t.Run("learning_reports: period_to 同着は id 降順", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "learning_reports")

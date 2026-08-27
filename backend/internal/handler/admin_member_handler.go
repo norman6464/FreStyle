@@ -16,23 +16,20 @@ import (
 // アカウントの有効/無効・論理削除・学習状況サマリーを扱う。
 type AdminMemberHandler struct {
 	list            *usecase.ListCompanyMembersUseCase
-	update          *usecase.UpdateMemberAiAccessUseCase
 	setActive       *usecase.SetMemberActiveUseCase
 	softDelete      *usecase.SoftDeleteMemberUseCase
 	learningSummary *usecase.GetCompanyLearningSummaryUseCase
 }
 
-// NewAdminMemberHandler は一覧 / AI 更新 / 有効無効 / 論理削除 / 学習サマリー usecase を注入して handler を返す。
+// NewAdminMemberHandler は一覧 / 有効無効 / 論理削除 / 学習サマリー usecase を注入して handler を返す。
 func NewAdminMemberHandler(
 	list *usecase.ListCompanyMembersUseCase,
-	update *usecase.UpdateMemberAiAccessUseCase,
 	setActive *usecase.SetMemberActiveUseCase,
 	softDelete *usecase.SoftDeleteMemberUseCase,
 	learningSummary *usecase.GetCompanyLearningSummaryUseCase,
 ) *AdminMemberHandler {
 	return &AdminMemberHandler{
 		list:            list,
-		update:          update,
 		setActive:       setActive,
 		softDelete:      softDelete,
 		learningSummary: learningSummary,
@@ -45,8 +42,6 @@ type memberResponse struct {
 	Email string          `json:"email"`
 	Name  string          `json:"name"`
 	Role  domain.RoleName `json:"role"`
-	// AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。
-	AiChatEnabled *bool `json:"aiChatEnabled"`
 	// IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。
 	IsActive bool `json:"isActive"`
 }
@@ -57,7 +52,6 @@ func toMemberResponse(u domain.User) memberResponse {
 		Email:         u.Email,
 		Name:          u.Name,
 		Role:          u.Role,
-		AiChatEnabled: u.AiChatEnabled,
 		IsActive:      u.IsActive,
 	}
 }
@@ -120,61 +114,6 @@ func (h *AdminMemberHandler) LearningSummary(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, summary)
-}
-
-type updateMemberAiRequest struct {
-	// Enabled は AI 利用可否の個別上書き。null（未指定）で会社設定に従う状態へ戻す。
-	Enabled *bool `json:"enabled"`
-}
-
-// UpdateAiAccess は自社の従業員の AI 利用可否を個別に更新する。
-//
-//	@Summary      従業員の AI 利用可否を個別更新
-//	@Description  自社の従業員の AI 利用可否を個別に上書きする（null で会社設定に従う）。別会社の従業員は更新できない。company_admin / super_admin のみ。
-//	@Tags         admin
-//	@Accept       json
-//	@Produce      json
-//	@Param        userId  path  string  true  "従業員の数値 ID"
-//	@Param        body    body  updateMemberAiRequest  true  "enabled (null=会社設定に従う)"
-//	@Success      204
-//	@Failure      400  {object}  errorResponse  "バリデーション失敗"
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      403  {object}  errorResponse  "管理者以外 / 別会社の従業員"
-//	@Failure      404  {object}  errorResponse  "対象の従業員が存在しない"
-//	@Failure      500  {object}  errorResponse  "内部エラー"
-//	@Router       /admin/members/{userId}/ai-access [patch]
-//	@Security     CookieAuth
-func (h *AdminMemberHandler) UpdateAiAccess(c *gin.Context) {
-	actor := middleware.CurrentUserFromContext(c)
-	if !isAdminActor(actor) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	userID, err := strconv.ParseUint(c.Param("userId"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-		return
-	}
-	var req updateMemberAiRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if err := h.update.Execute(c.Request.Context(), actor, userID, req.Enabled); err != nil {
-		if errors.Is(err, usecase.ErrMemberNotInActorCompany) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-		// 1 行も更新できなかった（= 確認と更新のあいだに従業員が消えた）。
-		// 以前は 0 件でも 204 を返しており、設定が保存されていないのに保存済みに見えていた。
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "member_not_found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-		return
-	}
-	c.Status(http.StatusNoContent)
 }
 
 // memberOpErrorStatus は従業員の停止/削除 usecase のエラーを HTTP ステータスにマップする。

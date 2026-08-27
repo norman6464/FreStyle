@@ -57,7 +57,6 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.Han
 	memberRepo := persistence.NewUserRepository(deps.db)
 	memberHandler := NewAdminMemberHandler(
 		usecase.NewListCompanyMembersUseCase(memberRepo),
-		usecase.NewUpdateMemberAiAccessUseCase(memberRepo),
 		usecase.NewSetMemberActiveUseCase(memberRepo),
 		usecase.NewSoftDeleteMemberUseCase(memberRepo),
 		usecase.NewGetCompanyLearningSummaryUseCase(persistence.NewCompanyLearningActivityRepository(deps.db)),
@@ -65,7 +64,6 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.Han
 	g.GET("/admin/members", memberHandler.List)
 	// company_admin のホーム用: 自社メンバーの学習状況サマリー(FRESTYLE-103)。
 	g.GET("/admin/members/learning-summary", memberHandler.LearningSummary)
-	g.PATCH("/admin/members/:userId/ai-access", memberHandler.UpdateAiAccess)
 	// 従業員アカウントの有効/無効（停止）と論理削除（super_admin は全社 / company_admin は自社）。
 	g.PATCH("/admin/members/:userId/active", audit, memberHandler.SetActive)
 	g.DELETE("/admin/members/:userId", audit, memberHandler.Delete)

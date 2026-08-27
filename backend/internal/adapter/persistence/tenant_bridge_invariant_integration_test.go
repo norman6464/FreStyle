@@ -115,8 +115,7 @@ func requireTenantInvariants(t *testing.T, db *sql.DB) {
 	// (3) テナント設定は移行中 companies が正本。写し先がずれたまま残っていない。
 	require.Zero(t, tenantCount(t, db,
 		`SELECT count(*) FROM workspaces w JOIN companies c ON c.workspace_id = w.id
-		 WHERE w.ai_chat_enabled_for_trainees IS DISTINCT FROM c.ai_chat_enabled_for_trainees
-		    OR w.is_active IS DISTINCT FROM c.is_active`),
+		 WHERE w.is_active IS DISTINCT FROM c.is_active`),
 		"会社の設定がワークスペースへ写っていない")
 }
 
@@ -140,8 +139,8 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 
 	t.Run("再実行しても DB の状態が 1 列も変わらない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
-		insertCompany(t, sqlDB, 2, "会社 B", false, false)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", false)
 		// バックフィル前に作られたユーザー（workspace_id がまだ空の状態）を混ぜる。
 		insertTraineeIn(ctx, t, sqlDB, 1, "sub-a")
 		insertTraineeIn(ctx, t, sqlDB, 2, "sub-b")
@@ -163,14 +162,14 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 
 	t.Run("既にワークスペースが紐づいた会社は作り直しも指し替えもしない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "手で紐付けた会社", true, true)
-		insertCompany(t, sqlDB, 2, "まだ紐付いていない会社", true, true)
+		insertCompany(t, sqlDB, 1, "手で紐付けた会社", true)
+		insertCompany(t, sqlDB, 2, "まだ紐付いていない会社", true)
 
 		// 運用や先行移行で既に用意されたワークスペース。自動採番とは違う slug / name を持つ。
 		manual := uuid.New()
 		_, err := sqlDB.Exec(
-			`INSERT INTO workspaces (id, slug, name, ai_chat_enabled_for_trainees, is_active)
-			 VALUES ($1, 'handmade-workspace', '手で付けた名前', true, true)`, manual,
+			`INSERT INTO workspaces (id, slug, name, is_active)
+			 VALUES ($1, 'handmade-workspace', '手で付けた名前', true)`, manual,
 		)
 		require.NoError(t, err)
 		_, err = sqlDB.Exec(`UPDATE companies SET workspace_id = $1 WHERE id = 1`, manual)
@@ -192,13 +191,13 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 
 	t.Run("バックフィル後に会社が増えても次の起動で追随する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "先にあった会社", true, true)
+		insertCompany(t, sqlDB, 1, "先にあった会社", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		before := captureTenantSnapshot(t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
 		// 起動後に新しい会社と、その所属ユーザーが増える。
-		insertCompany(t, sqlDB, 2, "後から増えた会社", false, true)
+		insertCompany(t, sqlDB, 2, "後から増えた会社", true)
 		newUser := insertTraineeIn(ctx, t, sqlDB, 2, "sub-late")
 
 		runStartupBackfill(ctx, t, sqlDB)
@@ -215,8 +214,8 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 
 	t.Run("写し先がずれても次の起動で companies に合わせて直る", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
-		insertCompany(t, sqlDB, 2, "会社 B", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
 		userA := insertTraineeIn(ctx, t, sqlDB, 1, "sub-drift-a")
 		userB := insertTraineeIn(ctx, t, sqlDB, 2, "sub-drift-b")
 		runStartupBackfill(ctx, t, sqlDB)
@@ -226,12 +225,12 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		// 旧タスクの書き込みや手作業で写し側だけがずれた状態を作る。
 		// 正本は companies なので、次の起動で companies の値に戻らなければならない。
 		_, err := sqlDB.Exec(
-			`UPDATE workspaces SET ai_chat_enabled_for_trainees = false, is_active = false WHERE id = $1`,
+			`UPDATE workspaces SET is_active = false WHERE id = $1`,
 			ws1.UUID,
 		)
 		require.NoError(t, err)
 		_, err = sqlDB.Exec(
-			`UPDATE workspaces SET ai_chat_enabled_for_trainees = NULL, is_active = NULL WHERE id = $1`,
+			`UPDATE workspaces SET is_active = NULL WHERE id = $1`,
 			ws2.UUID,
 		)
 		require.NoError(t, err)
@@ -250,7 +249,7 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 
 	t.Run("未所属ユーザーはワークスペースへ流し込まれない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "唯一の会社", true, true)
+		insertCompany(t, sqlDB, 1, "唯一の会社", true)
 		root := insertTraineeIn(ctx, t, sqlDB, 1, "sub-root")
 		// 会社から外れた（未所属になった）ユーザー。既定のテナントへ寄せてはいけない。
 		_, err := sqlDB.Exec(

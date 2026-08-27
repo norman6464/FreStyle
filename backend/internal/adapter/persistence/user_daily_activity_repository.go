@@ -29,7 +29,6 @@ func toDomainUserDailyActivity(row sqlcgen.UserDailyActivity) domain.UserDailyAc
 		CorrectCount:  int(row.CorrectCount),
 		// LessonCount は列 chapter_count に対応する（JSON は互換のため lessonCount）。
 		LessonCount: int(row.ChapterCount),
-		AiChatCount: int(row.AiChatCount),
 		NoteCount:   int(row.NoteCount),
 	}
 }
@@ -55,7 +54,6 @@ func (r *userDailyActivityRepository) Increment(
 		ExerciseCount: int32(delta.ExerciseCount),
 		CorrectCount:  int32(delta.CorrectCount),
 		ChapterCount:  int32(delta.LessonCount),
-		AiChatCount:   int32(delta.AiChatCount),
 		NoteCount:     int32(delta.NoteCount),
 	})
 }

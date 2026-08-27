@@ -18,7 +18,7 @@ WITH agg AS (
     MAX(a.activity_date)::date AS last_active_date,
     SUM(
       CASE WHEN a.activity_date >= $3
-           THEN a.exercise_count + a.chapter_count + a.ai_chat_count + a.note_count
+           THEN a.exercise_count + a.chapter_count + a.note_count
            ELSE 0 END
     )::bigint AS recent_activity_count
   FROM user_daily_activities a

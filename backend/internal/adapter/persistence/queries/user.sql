@@ -9,7 +9,7 @@
 -- name: GetUserByCognitoSub :one
 -- OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
 -- 正は user_oidc_identities（provider='cognito' の subject）。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -20,14 +20,14 @@ WHERE u.deleted_at IS NULL
 
 -- name: GetUserByID :one
 -- 内部 ID で 1 ユーザーを引く（論理削除は除外）。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL;
 
 -- name: ListUsersByRole :many
 -- role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE r.name = $1 AND u.deleted_at IS NULL
@@ -35,7 +35,7 @@ ORDER BY u.id ASC;
 
 -- name: ListUsersByCompanyID :many
 -- 会社単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
@@ -52,7 +52,7 @@ ORDER BY u.id ASC;
 -- 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
 -- ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
 -- 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::text, E'\t\n\x0B\f\r '))
@@ -90,20 +90,20 @@ WHERE r.name = $1 AND u.deleted_at IS NULL;
 -- 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
 -- UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
 INSERT INTO users (
-  email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  email, password_hash, name, company_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8)
 RETURNING id, created_at, updated_at;
 
 -- name: InsertUserWithID :one
 -- id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
 -- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 INSERT INTO users (
-  id, email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  id, email, password_hash, name, company_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
 RETURNING id, created_at, updated_at;
 
 -- name: InsertOidcIdentityIfAbsent :execrows
@@ -128,17 +128,6 @@ DELETE FROM user_oidc_identities WHERE user_id = $1;
 UPDATE users SET workspace_id = c.workspace_id
 FROM companies c
 WHERE users.id = $1 AND users.company_id = c.id;
-
--- name: UpdateUserAiChatEnabled :execrows
--- AI チャットの個別上書きを更新する（NULL で会社設定に従う）。他の列は触らない。
--- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
---
--- :exec ではなく :execrows にしている理由（この下の 3 つも同じ）:
---   :exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
---   成功なので、存在しない user を更新しようとしても呼び出し側には成功として見え、
---   handler は 200 / 204 を返す。利用者には保存済みと見えて実際は保存されていない。
---   :execrows は実際に書き換わった行数（RowsAffected）を返すので 0 件を not-found にできる。
-UPDATE users SET ai_chat_enabled = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpdateUserActive :execrows
 -- アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。

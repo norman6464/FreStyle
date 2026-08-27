@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -57,6 +59,17 @@ func publishedSetup(materialID, companyID, courseID uint64) (*mockMaterialRepo, 
 		ID: courseID, CompanyID: companyID, IsPublished: true,
 	}})
 	return mat, crs
+}
+
+// nopActivityRepo は UserDailyActivityRepository の何もしない stub。
+type nopActivityRepo struct{}
+
+func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
+	return nil
+}
+
+func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time) ([]domain.UserDailyActivity, error) {
+	return nil, nil
 }
 
 func Test_レッスン完了_自社の公開教材はcourse_idを解決して記録する(t *testing.T) {

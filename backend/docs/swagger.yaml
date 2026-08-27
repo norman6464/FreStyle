@@ -19,55 +19,6 @@ definitions:
       status:
         type: string
     type: object
-  github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage:
-    properties:
-      attachments:
-        items:
-          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Attachment'
-        type: array
-      content:
-        type: string
-      createdAt:
-        type: string
-      messageId:
-        type: string
-      role:
-        type: string
-      sessionId:
-        type: integer
-    type: object
-  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: integer
-      scenarioId:
-        type: integer
-      sessionType:
-        type: string
-      title:
-        type: string
-      updatedAt:
-        type: string
-      userId:
-        type: integer
-    type: object
-  github_com_norman6464_FreStyle_backend_internal_domain.Attachment:
-    properties:
-      contentType:
-        type: string
-      filename:
-        type: string
-      format:
-        type: string
-      key:
-        type: string
-      kind:
-        type: string
-      sizeBytes:
-        type: integer
-    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent:
     properties:
       action:
@@ -98,11 +49,6 @@ definitions:
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Company:
     properties:
-      aiChatEnabledForTrainees:
-        description: |-
-          AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。
-          company_admin / super_admin が /company/settings で切り替える。
-        type: boolean
       createdAt:
         type: string
       id:
@@ -359,21 +305,6 @@ definitions:
     - RoleSuperAdmin
     - RoleCompanyAdmin
     - RoleTrainee
-  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote:
-    properties:
-      content:
-        type: string
-      createdAt:
-        type: string
-      id:
-        type: integer
-      sessionId:
-        type: integer
-      updatedAt:
-        type: string
-      userId:
-        type: integer
-    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial:
     properties:
       companyId:
@@ -423,8 +354,6 @@ definitions:
     properties:
       activityDate:
         type: string
-      aiChatCount:
-        type: integer
       correctCount:
         type: integer
       exerciseCount:
@@ -633,29 +562,11 @@ definitions:
       stderr:
         type: string
     type: object
-  github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL:
-    properties:
-      expiresIn:
-        type: integer
-      key:
-        type: string
-      uploadUrl:
-        type: string
-    type: object
   github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats:
     properties:
       solvedUsers:
         type: integer
       totalSubmissions:
-        type: integer
-    type: object
-  internal_handler.aiChatAttachmentUploadURLRequest:
-    properties:
-      contentType:
-        type: string
-      filename:
-        type: string
-      sizeBytes:
         type: integer
     type: object
   internal_handler.chapterDetailResponse:
@@ -719,11 +630,6 @@ definitions:
         type: string
     required:
     - code
-    type: object
-  internal_handler.companySettingsResponse:
-    properties:
-      aiChatEnabledForTrainees:
-        type: boolean
     type: object
   internal_handler.courseRequest:
     properties:
@@ -793,17 +699,6 @@ definitions:
     - applicantName
     - companyName
     - email
-    type: object
-  internal_handler.createSessionReq:
-    properties:
-      scenarioId:
-        type: integer
-      sessionType:
-        type: string
-      title:
-        type: string
-    required:
-    - title
     type: object
   internal_handler.documentCreateReq:
     properties:
@@ -1338,11 +1233,6 @@ definitions:
     type: object
   internal_handler.meResponse:
     properties:
-      aiChatEnabledForTrainees:
-        description: AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H
-          と一致させる）。
-        example: true
-        type: boolean
       companyId:
         example: 1
         type: integer
@@ -1374,9 +1264,6 @@ definitions:
     type: object
   internal_handler.memberResponse:
     properties:
-      aiChatEnabled:
-        description: AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。
-        type: boolean
       email:
         type: string
       id:
@@ -1460,11 +1347,6 @@ definitions:
     - month
     - year
     type: object
-  internal_handler.sessionNoteUpsertReq:
-    properties:
-      content:
-        type: string
-    type: object
   internal_handler.setCompanyActiveRequest:
     properties:
       active:
@@ -1478,34 +1360,6 @@ definitions:
         type: boolean
     required:
     - active
-    type: object
-  internal_handler.sseAttachmentRequest:
-    properties:
-      contentType:
-        type: string
-      filename:
-        type: string
-      key:
-        type: string
-      sizeBytes:
-        type: integer
-    type: object
-  internal_handler.sseRequestBody:
-    properties:
-      attachments:
-        items:
-          $ref: '#/definitions/internal_handler.sseAttachmentRequest'
-        type: array
-      content:
-        type: string
-      scenarioId:
-        type: integer
-      scene:
-        type: string
-      sessionId:
-        type: integer
-      sessionType:
-        type: string
     type: object
   internal_handler.submitExerciseRequest:
     properties:
@@ -1556,20 +1410,6 @@ definitions:
     required:
     - status
     type: object
-  internal_handler.updateCompanySettingsRequest:
-    properties:
-      aiChatEnabledForTrainees:
-        description: bool の必須を binding:"required" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。
-        type: boolean
-    required:
-    - aiChatEnabledForTrainees
-    type: object
-  internal_handler.updateMemberAiRequest:
-    properties:
-      enabled:
-        description: Enabled は AI 利用可否の個別上書き。null（未指定）で会社設定に従う状態へ戻す。
-        type: boolean
-    type: object
   internal_handler.updateProfileReq:
     properties:
       avatarUrl:
@@ -1586,13 +1426,6 @@ definitions:
         type: string
       status:
         type: string
-    type: object
-  internal_handler.updateSessionTitleReq:
-    properties:
-      title:
-        type: string
-    required:
-    - title
     type: object
 info:
   contact:
@@ -2053,54 +1886,6 @@ paths:
       summary: 従業員アカウントの有効/無効を切り替え
       tags:
       - admin
-  /admin/members/{userId}/ai-access:
-    patch:
-      consumes:
-      - application/json
-      description: 自社の従業員の AI 利用可否を個別に上書きする（null で会社設定に従う）。別会社の従業員は更新できない。company_admin
-        / super_admin のみ。
-      parameters:
-      - description: 従業員の数値 ID
-        in: path
-        name: userId
-        required: true
-        type: string
-      - description: enabled (null=会社設定に従う)
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.updateMemberAiRequest'
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: バリデーション失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 管理者以外 / 別会社の従業員
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 対象の従業員が存在しない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: 内部エラー
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 従業員の AI 利用可否を個別更新
-      tags:
-      - admin
   /admin/members/learning-summary:
     get:
       description: 在籍 trainee 数・今日/直近 7 日に学習した人数・直近アクティブメンバー(最大 5 名)を返す。company_admin
@@ -2129,294 +1914,6 @@ paths:
       summary: 自社メンバーの学習状況サマリー
       tags:
       - admin
-  /ai-chat/attachments/upload-url:
-    post:
-      consumes:
-      - application/json
-      description: ai-chat/{userId}/{uuid}.{ext} の キー で S3 PUT 用 presigned URL を 発行。
-        contentType は image/png 等 の 許容 セット のみ。 sizeBytes 上限 (image 5MB / document
-        4.5MB) も 事前 検証。
-      parameters:
-      - description: filename / contentType / sizeBytes
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.aiChatAttachmentUploadURLRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL'
-        "400":
-          description: バリデーション 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "413":
-          description: サイズ 上限 超過
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "415":
-          description: 未 サポート MIME
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: S3 presigner 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "503":
-          description: 添付 アップロード 機能 が 設定 されて いない (dev/stub)
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット 添付 PUT 署名 URL
-      tags:
-      - ai-chat
-  /ai-chat/sessions:
-    get:
-      description: current user の AI チャット セッション を 新しい 順 で 返す。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
-            type: array
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット セッション 一覧
-      tags:
-      - ai-chat
-    post:
-      consumes:
-      - application/json
-      description: current user 名義 で 新規 セッション を 作成。 IDOR 対策 で userId は body から 受け取らない。
-      parameters:
-      - description: title 必須
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.createSessionReq'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
-        "400":
-          description: バリデーション
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット セッション 作成
-      tags:
-      - ai-chat
-  /ai-chat/sessions/{id}:
-    delete:
-      description: 指定 id の セッション を 削除。 所有者 検証 込み。
-      parameters:
-      - description: セッション ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: 成功 (本文 なし)
-        "400":
-          description: id 不正
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 他人 の セッション
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: セッション が ない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット セッション 削除
-      tags:
-      - ai-chat
-    get:
-      description: 指定 id の セッション を 返す。
-      parameters:
-      - description: セッション ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
-        "400":
-          description: id 不正
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: セッション が ない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット セッション 詳細
-      tags:
-      - ai-chat
-    put:
-      consumes:
-      - application/json
-      description: 指定 id の セッション の title を 更新。
-      parameters:
-      - description: セッション ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: title 必須
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.updateSessionTitleReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
-        "400":
-          description: バリデーション
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: セッション が ない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット セッション タイトル 更新
-      tags:
-      - ai-chat
-  /ai-chat/sessions/{id}/messages:
-    get:
-      description: 指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
-      parameters:
-      - description: セッション ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage'
-            type: array
-        "400":
-          description: id 不正
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DynamoDB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット メッセージ 一覧
-      tags:
-      - ai-chat
-  /ai-chat/stream:
-    post:
-      consumes:
-      - application/json
-      description: Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE
-        の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session
-        / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は
-        通常 の application/json で 返る。
-      parameters:
-      - description: sessionId / content / scene / sessionType / scenarioId / attachments
-          (最大 4 件)
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.sseRequestBody'
-      produces:
-      - text/event-stream
-      responses:
-        "200":
-          description: SSE stream (text/event-stream)
-          schema:
-            type: string
-        "400":
-          description: バリデーション (application/json)
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証 (application/json)
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "503":
-          description: Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: AI チャット SSE ストリーミング
-      tags:
-      - ai-chat
   /auth/cognito/login:
     post:
       consumes:
@@ -2738,76 +2235,6 @@ paths:
       summary: 企業利用申請（公開 / 認証不要）
       tags:
       - company-applications
-  /company/settings:
-    get:
-      description: 自社の trainee への AI チャット有効化フラグを返す。company_admin / super_admin のみ。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_handler.companySettingsResponse'
-        "400":
-          description: 会社未所属
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 管理者以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 会社が存在しない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 会社設定 取得 (AI 有効化)
-      tags:
-      - company
-    put:
-      consumes:
-      - application/json
-      description: 自社の trainee への AI チャット有効化フラグを更新する。company_admin / super_admin のみ。
-      parameters:
-      - description: aiChatEnabledForTrainees
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.updateCompanySettingsRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_handler.companySettingsResponse'
-        "400":
-          description: バリデーション / 会社未所属
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 管理者以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 会社が存在しない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 会社設定 更新 (AI 有効化)
-      tags:
-      - company
   /courses:
     get:
       description: current user の role / company で 自動 フィルタ。 trainee は published のみ、
@@ -5473,83 +4900,6 @@ paths:
       summary: プロフィール 画像 PUT 署名 URL
       tags:
       - profile
-  /sessions/{sessionId}/note:
-    get:
-      description: |-
-        AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
-        所有者 本人 の ノート のみ 返す。 他人 の ノート は 存在 を 漏らさ ない ため 404 と する。
-      parameters:
-      - description: AI チャット セッション ID
-        in: path
-        name: sessionId
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
-        "400":
-          description: 不正 な sessionId / DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 未 作成
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: セッション ノート 取得
-      tags:
-      - session-notes
-    put:
-      consumes:
-      - application/json
-      description: |-
-        指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。
-        書き込め る の は 自分 が 所有 する セッション だけ。 他人 の セッション と 存在 し ない セッション は 同じ 404 に 揃える (応答 差 で セッション の 実在 を 判別 さ せ ない)。
-      parameters:
-      - description: AI チャット セッション ID
-        in: path
-        name: sessionId
-        required: true
-        type: integer
-      - description: content (userId は current user 固定 / body で 受け取らない)
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.sessionNoteUpsertReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
-        "400":
-          description: バリデーション or DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: セッション が 無い / 自分 の セッション で ない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: セッション ノート 作成 / 更新
-      tags:
-      - session-notes
   /teaching-materials:
     get:
       deprecated: true

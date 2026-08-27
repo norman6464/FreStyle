@@ -98,7 +98,7 @@ func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int32, erro
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
 
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -109,17 +109,16 @@ WHERE u.deleted_at IS NULL
 `
 
 type GetUserByCognitoSubRow struct {
-	ID            int64
-	Email         string
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	RoleName      string
+	ID        int64
+	Email     string
+	Name      string
+	CompanyID sql.NullInt64
+	RoleID    int32
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
+	RoleName  string
 }
 
 // users の読み出し（FRESTYLE-311 正規化完了）。旧カラム users.role / users.cognito_sub は
@@ -140,7 +139,6 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 		&i.Name,
 		&i.CompanyID,
 		&i.RoleID,
-		&i.AiChatEnabled,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -151,24 +149,23 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
 `
 
 type GetUserByIDRow struct {
-	ID            int64
-	Email         string
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	RoleName      string
+	ID        int64
+	Email     string
+	Name      string
+	CompanyID sql.NullInt64
+	RoleID    int32
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
+	RoleName  string
 }
 
 // 内部 ID で 1 ユーザーを引く（論理削除は除外）。
@@ -181,7 +178,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.Name,
 		&i.CompanyID,
 		&i.RoleID,
-		&i.AiChatEnabled,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -215,23 +211,22 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  email, password_hash, name, company_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8)
 RETURNING id, created_at, updated_at
 `
 
 type InsertUserParams struct {
-	Email         string
-	PasswordHash  sql.NullString
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
+	Email        string
+	PasswordHash sql.NullString
+	Name         string
+	CompanyID    sql.NullInt64
+	RoleID       int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    sql.NullTime
 }
 
 type InsertUserRow struct {
@@ -250,7 +245,6 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 		arg.Name,
 		arg.CompanyID,
 		arg.RoleID,
-		arg.AiChatEnabled,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.DeletedAt,
@@ -262,24 +256,23 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  id, email, password_hash, name, company_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
 RETURNING id, created_at, updated_at
 `
 
 type InsertUserWithIDParams struct {
-	ID            int64
-	Email         string
-	PasswordHash  sql.NullString
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
+	ID           int64
+	Email        string
+	PasswordHash sql.NullString
+	Name         string
+	CompanyID    sql.NullInt64
+	RoleID       int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    sql.NullTime
 }
 
 type InsertUserWithIDRow struct {
@@ -298,7 +291,6 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 		arg.Name,
 		arg.CompanyID,
 		arg.RoleID,
-		arg.AiChatEnabled,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.DeletedAt,
@@ -309,7 +301,7 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 }
 
 const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B\f\r '))
@@ -317,18 +309,17 @@ WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B
 `
 
 type ListActiveUsersByEmailRow struct {
-	ID            int64
-	Email         string
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	PasswordHash  sql.NullString
-	RoleName      string
+	ID           int64
+	Email        string
+	Name         string
+	CompanyID    sql.NullInt64
+	RoleID       int32
+	IsActive     bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    sql.NullTime
+	PasswordHash sql.NullString
+	RoleName     string
 }
 
 // email で有効ユーザーを引く（論理削除・無効化は除外）。ローカルのパスワードログイン専用で、
@@ -356,7 +347,6 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 			&i.Name,
 			&i.CompanyID,
 			&i.RoleID,
-			&i.AiChatEnabled,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -378,7 +368,7 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 }
 
 const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
@@ -386,17 +376,16 @@ ORDER BY u.id ASC
 `
 
 type ListUsersByCompanyIDRow struct {
-	ID            int64
-	Email         string
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	RoleName      string
+	ID        int64
+	Email     string
+	Name      string
+	CompanyID sql.NullInt64
+	RoleID    int32
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
+	RoleName  string
 }
 
 // 会社単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
@@ -415,7 +404,6 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 			&i.Name,
 			&i.CompanyID,
 			&i.RoleID,
-			&i.AiChatEnabled,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -436,7 +424,7 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE r.name = $1 AND u.deleted_at IS NULL
@@ -444,17 +432,16 @@ ORDER BY u.id ASC
 `
 
 type ListUsersByRoleRow struct {
-	ID            int64
-	Email         string
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	RoleName      string
+	ID        int64
+	Email     string
+	Name      string
+	CompanyID sql.NullInt64
+	RoleID    int32
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
+	RoleName  string
 }
 
 // role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
@@ -473,7 +460,6 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 			&i.Name,
 			&i.CompanyID,
 			&i.RoleID,
-			&i.AiChatEnabled,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -532,32 +518,6 @@ type UpdateUserActiveParams struct {
 // アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。
 func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActiveParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateUserActive, arg.ID, arg.IsActive)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const updateUserAiChatEnabled = `-- name: UpdateUserAiChatEnabled :execrows
-UPDATE users SET ai_chat_enabled = $2, updated_at = now() WHERE id = $1
-`
-
-type UpdateUserAiChatEnabledParams struct {
-	ID            int64
-	AiChatEnabled sql.NullBool
-}
-
-// AI チャットの個別上書きを更新する（NULL で会社設定に従う）。他の列は触らない。
-// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
-//
-// :exec ではなく :execrows にしている理由（この下の 3 つも同じ）:
-//
-//	:exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
-//	成功なので、存在しない user を更新しようとしても呼び出し側には成功として見え、
-//	handler は 200 / 204 を返す。利用者には保存済みと見えて実際は保存されていない。
-//	:execrows は実際に書き換わった行数（RowsAffected）を返すので 0 件を not-found にできる。
-func (q *Queries) UpdateUserAiChatEnabled(ctx context.Context, arg UpdateUserAiChatEnabledParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserAiChatEnabled, arg.ID, arg.AiChatEnabled)
 	if err != nil {
 		return 0, err
 	}

@@ -12,16 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type AiChatSession struct {
-	ID          int64
-	UserID      int64
-	Title       string
-	SessionType string
-	ScenarioID  sql.NullInt64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
 type AuditEvent struct {
 	ID         int64
 	ActorID    int64
@@ -46,13 +36,12 @@ type Block struct {
 }
 
 type Company struct {
-	ID                       int64
-	Name                     string
-	AiChatEnabledForTrainees bool
-	IsActive                 bool
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
-	WorkspaceID              uuid.NullUUID
+	ID          int64
+	Name        string
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	WorkspaceID uuid.NullUUID
 }
 
 type CompanyApplication struct {
@@ -308,15 +297,6 @@ type ScoreCard struct {
 	CreatedAt          sql.NullTime
 }
 
-type SessionNote struct {
-	ID        int64
-	SessionID int64
-	UserID    int64
-	Content   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 type ShareLink struct {
 	ID              uuid.UUID
 	WorkspaceID     uuid.UUID
@@ -352,18 +332,17 @@ type SpaceGrant struct {
 }
 
 type User struct {
-	ID            int64
-	Email         string
-	PasswordHash  sql.NullString
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int32
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	WorkspaceID   uuid.NullUUID
+	ID           int64
+	Email        string
+	PasswordHash sql.NullString
+	Name         string
+	CompanyID    sql.NullInt64
+	RoleID       int32
+	IsActive     bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    sql.NullTime
+	WorkspaceID  uuid.NullUUID
 }
 
 type UserChapterProgress struct {
@@ -390,7 +369,6 @@ type UserDailyActivity struct {
 	ExerciseCount int32
 	CorrectCount  int32
 	ChapterCount  int32
-	AiChatCount   int32
 	NoteCount     int32
 }
 
@@ -404,13 +382,12 @@ type UserOidcIdentity struct {
 }
 
 type Workspace struct {
-	ID                       uuid.UUID
-	Slug                     string
-	Name                     string
-	AiChatEnabledForTrainees sql.NullBool
-	IsActive                 sql.NullBool
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
+	ID        uuid.UUID
+	Slug      string
+	Name      string
+	IsActive  sql.NullBool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type WorkspaceGrant struct {

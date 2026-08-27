@@ -14,14 +14,14 @@ import (
 )
 
 // workspaceSettings は写し先（workspaces）のテナント設定を読む。
-func workspaceSettings(t *testing.T, db *sql.DB, companyID int64) (aiChat, active sql.NullBool) {
+func workspaceSettings(t *testing.T, db *sql.DB, companyID int64) (active sql.NullBool) {
 	t.Helper()
 	require.NoError(t, db.QueryRow(
-		`SELECT w.ai_chat_enabled_for_trainees, w.is_active
+		`SELECT w.is_active
 		 FROM workspaces w JOIN companies c ON c.workspace_id = w.id
 		 WHERE c.id = $1`, companyID,
-	).Scan(&aiChat, &active))
-	return aiChat, active
+	).Scan(&active))
+	return active
 }
 
 // blockWorkspaceWrites は workspaces への「false を書く」更新を必ず失敗させる CHECK 制約を
@@ -30,7 +30,7 @@ func blockWorkspaceWrites(t *testing.T, db *sql.DB) {
 	t.Helper()
 	_, err := db.Exec(
 		`ALTER TABLE workspaces ADD CONSTRAINT tmp_ck_workspaces_no_false
-		 CHECK (is_active IS NOT FALSE AND ai_chat_enabled_for_trainees IS NOT FALSE)`,
+		 CHECK (is_active IS NOT FALSE)`,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -55,7 +55,7 @@ func TestCompanyRepositoryMirrorAtomicity_Integration(t *testing.T) {
 
 	t.Run("UpdateActive: 写しに失敗したら会社の更新も巻き戻る", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		blockWorkspaceWrites(t, sqlDB)
 
@@ -64,50 +64,30 @@ func TestCompanyRepositoryMirrorAtomicity_Integration(t *testing.T) {
 		got, err := repo.FindByID(ctx, 1)
 		require.NoError(t, err)
 		require.True(t, got.IsActive, "companies 側の更新も巻き戻っている")
-		_, active := workspaceSettings(t, sqlDB, 1)
+		active := workspaceSettings(t, sqlDB, 1)
 		require.Equal(t, sql.NullBool{Bool: true, Valid: true}, active)
-	})
-
-	t.Run("UpdateAiChatEnabled: 写しに失敗したら会社の更新も巻き戻る", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
-		runStartupBackfill(ctx, t, sqlDB)
-		blockWorkspaceWrites(t, sqlDB)
-
-		require.Error(t, repo.UpdateAiChatEnabled(ctx, 1, false))
-
-		got, err := repo.FindByID(ctx, 1)
-		require.NoError(t, err)
-		require.True(t, got.AiChatEnabledForTrainees, "companies 側の更新も巻き戻っている")
-		aiChat, _ := workspaceSettings(t, sqlDB, 1)
-		require.Equal(t, sql.NullBool{Bool: true, Valid: true}, aiChat)
 	})
 
 	t.Run("成功時は companies と workspaces が同時に更新される", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 
 		require.NoError(t, repo.UpdateActive(ctx, 1, false))
-		require.NoError(t, repo.UpdateAiChatEnabled(ctx, 1, false))
 
 		got, err := repo.FindByID(ctx, 1)
 		require.NoError(t, err)
 		require.False(t, got.IsActive)
-		require.False(t, got.AiChatEnabledForTrainees)
-		aiChat, active := workspaceSettings(t, sqlDB, 1)
-		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, aiChat)
+		active := workspaceSettings(t, sqlDB, 1)
 		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active)
 	})
 
 	// 期待値を「0 件更新で成功」から not-found へ更新した理由:
-	//   UpdateActive だけが件数を見て、UpdateAiChatEnabled は見ないという非対称を残していた。
-	//   件数を見ない側は、会社行が無くても handler が 200 と要求どおりの値を返すため、
-	//   管理者の画面では設定が切り替わったように見えて実際は何も保存されていない
-	//   （次に開いたときだけ元へ戻り、どこで失われたのか分からない）。2 つの更新で結末を揃える。
-	t.Run("存在しない会社への設定更新はどちらも not-found", func(t *testing.T) {
+	//   会社行が無くても handler が 200 と要求どおりの値を返すと、管理者の画面では設定が
+	//   切り替わったように見えて実際は何も保存されていない（次に開いたときだけ元へ戻り、
+	//   どこで失われたのか分からない）。0 件更新は not-found として返す。
+	t.Run("存在しない会社への設定更新は not-found", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		require.ErrorIs(t, repo.UpdateAiChatEnabled(ctx, 999, false), domain.ErrNotFound)
 		require.ErrorIs(t, repo.UpdateActive(ctx, 999, false), domain.ErrNotFound)
 	})
 }

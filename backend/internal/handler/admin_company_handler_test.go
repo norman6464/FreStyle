@@ -43,7 +43,6 @@ func (f *fakeCompanyRepo) FindByID(context.Context, uint64) (*domain.Company, er
 	return nil, f.err
 }
 
-func (f *fakeCompanyRepo) UpdateAiChatEnabled(context.Context, uint64, bool) error { return nil }
 func (f *fakeCompanyRepo) UpdateActive(_ context.Context, id uint64, active bool) error {
 	f.activeCalled = true
 	f.gotActiveID = id

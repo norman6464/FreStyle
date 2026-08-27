@@ -20,9 +20,6 @@ type User struct {
 	// この既定値は、ローリングデプロイ中の旧コード（role_id を書かない INSERT）を
 	// NOT NULL 違反で壊さないための安全弁で、起動時バックフィルが role 文字列と同期する。
 	RoleID int32 `json:"-"`
-	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
-	// true/false = この user 個別に強制 ON/OFF（company_admin が従業員ごとに設定）。
-	AiChatEnabled *bool `json:"aiChatEnabled,omitempty"`
 	// IsActive はユーザーアカウントの有効/無効。false（無効）にすると、このユーザーは
 	// ログイン/利用不可になる（middleware で弾く）。super_admin / company_admin が個別に停止できる。
 	IsActive  bool       `json:"isActive"`

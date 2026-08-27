@@ -45,7 +45,7 @@ func (u *GetDailyStreakUseCase) Execute(ctx context.Context, userID uint64) (*Ge
 	// 学習ありの日を日単位で集める（判定条件は computeStreak と同じ）。
 	daySet := make(map[string]time.Time, len(activities))
 	for _, a := range activities {
-		if a.ExerciseCount+a.LessonCount+a.AiChatCount+a.NoteCount > 0 {
+		if a.ExerciseCount+a.LessonCount+a.NoteCount > 0 {
 			d := a.ActivityDate.UTC().Truncate(24 * time.Hour)
 			daySet[d.Format("2006-01-02")] = d
 		}

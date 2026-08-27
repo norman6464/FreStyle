@@ -332,6 +332,10 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		assert.True(t, f.permFor(ctx, t, pageA.ID, f.alice).CanEdit,
 			"スペースに viewer を張るだけでワークスペース管理者を締め出せてはいけない")
 
+		// 取り消す前に別の admin を用意する。ユーザーの admin が 0 人になる取り消しは
+		// repository が断るので、そこで落ちると本題（役割の合成規則）が確かめられない。
+		keepAdmin(ctx, t, f, f.bob)
+
 		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID))
 		got := f.permFor(ctx, t, pageA.ID, f.alice)
 		assert.True(t, got.CanView, "スペースの viewer が残る")
@@ -974,6 +978,8 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		}))
 		assert.True(t, f.permFor(ctx, t, page.ID, f.alice).CanEdit, "解除すれば既定へ戻る")
 
+		// 取り消す前に別の admin を用意する（0 人になる取り消しは repository が断る）。
+		keepAdmin(ctx, t, f, f.bob)
 		require.NoError(t, usecase.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
 			usecase.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: alice.ID}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.alice).CanView)
@@ -1393,6 +1399,19 @@ func shareLinkPermFunc(ctx context.Context, t *testing.T, f kbPermFixture) func(
 		require.NoError(t, err)
 		return *got
 	}
+}
+
+// keepAdmin は userID をワークスペースの admin にする。
+//
+// 「最後の admin は外せない」は repository が書き込みと同じトランザクションで守っている。
+// admin の取り消しそのものが本題でないテストは、先に 2 人目を用意してからでないと
+// その検査に引っかかって、確かめたかったこと（役割の合成規則など）へ辿り着けない。
+func keepAdmin(ctx context.Context, t *testing.T, f kbPermFixture, userID uint64) {
+	t.Helper()
+	p, err := f.perm.EnsureUserPrincipal(ctx, f.ws, userID)
+	require.NoError(t, err)
+	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, p.ID, domain.GrantRoleAdmin)
+	require.NoError(t, err)
 }
 
 // pageIDs はページの ID だけを取り出す（一覧の比較用）。

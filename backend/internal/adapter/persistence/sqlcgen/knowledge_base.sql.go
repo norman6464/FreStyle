@@ -723,6 +723,89 @@ func (q *Queries) SetPagePosition(ctx context.Context, arg SetPagePositionParams
 	return result.RowsAffected()
 }
 
+const siblingPositionsAround = `-- name: SiblingPositionsAround :one
+WITH anchor AS (
+    SELECT a."position"
+    FROM pages a
+    WHERE a.workspace_id = $1
+      AND a.id = $5
+      AND a.space_id = $2
+      AND a.parent_id IS NOT DISTINCT FROM $3
+      AND a.archived_at IS NULL
+      AND a.id <> $4
+)
+SELECT
+    EXISTS (SELECT 1 FROM anchor) AS found,
+    COALESCE((SELECT anchor."position" FROM anchor), '')::text AS anchor_position,
+    COALESCE((SELECT max(p."position")
+       FROM pages p, anchor
+      WHERE p.workspace_id = $1
+        AND p.space_id = $2
+        AND p.parent_id IS NOT DISTINCT FROM $3
+        AND p.archived_at IS NULL
+        AND p.id <> $4
+        AND p."position" < anchor."position"), '')::text AS prev_position,
+    COALESCE((SELECT min(p."position")
+       FROM pages p, anchor
+      WHERE p.workspace_id = $1
+        AND p.space_id = $2
+        AND p.parent_id IS NOT DISTINCT FROM $3
+        AND p.archived_at IS NULL
+        AND p.id <> $4
+        AND p."position" > anchor."position"), '')::text AS next_position
+`
+
+type SiblingPositionsAroundParams struct {
+	WorkspaceID  uuid.UUID
+	SpaceID      uuid.UUID
+	ParentID     uuid.NullUUID
+	MovingPageID uuid.UUID
+	AnchorPageID uuid.UUID
+}
+
+type SiblingPositionsAroundRow struct {
+	Found          bool
+	AnchorPosition string
+	PrevPosition   string
+	NextPosition   string
+}
+
+// 「ある兄弟のすぐ前／すぐ後ろに入れる」ための、前後の並び順キーを返す。
+//
+// ドラッグで落とした位置を表すのに使う。**クライアントは並び順のキーを持たない**
+// （応答に入れていない。整数部が兄弟の通し番号になるので、飛びから伏せた枚数が読めるため）。
+// 代わりに「どの兄弟の隣か」をページの ID で受け取り、キーの計算はここから先で行う。
+//
+// 3 つとも NULL なら、anchor_page_id はその親の現役の子ではない（存在しない・別の親・
+// 別スペース・アーカイブ済みのいずれか）。呼び出し側はまとめて「兄弟ではない」に落とす。
+//
+// moving_page_id を必ず除くのは、動かす当人がまだその並びに居るため。除かないと
+// 自分自身との中間値を計算することになり、動かないか、隣とキーが衝突する。
+//
+// 伏せられている兄弟も隣人として数える。利用者からは見えないが並びには居るので、
+// 除くとキーが既存の行と衝突する。どのキーになったかは応答に出ないので漏れない。
+// 端が無いことは NULL ではなく空文字で表す。fracindex.Between が「空文字＝そちら側に
+// 隣がいない」という約束なので、そのまま渡せる形に揃える。
+// anchor が兄弟だったかは found で別に返す（空文字だけでは「先頭に入れる」と
+// 「兄弟ではない」を区別できない）。
+func (q *Queries) SiblingPositionsAround(ctx context.Context, arg SiblingPositionsAroundParams) (SiblingPositionsAroundRow, error) {
+	row := q.db.QueryRowContext(ctx, siblingPositionsAround,
+		arg.WorkspaceID,
+		arg.SpaceID,
+		arg.ParentID,
+		arg.MovingPageID,
+		arg.AnchorPageID,
+	)
+	var i SiblingPositionsAroundRow
+	err := row.Scan(
+		&i.Found,
+		&i.AnchorPosition,
+		&i.PrevPosition,
+		&i.NextPosition,
+	)
+	return i, err
+}
+
 const unarchivePageSubtree = `-- name: UnarchivePageSubtree :execrows
 UPDATE pages
 SET archived_at = NULL, updated_at = now()

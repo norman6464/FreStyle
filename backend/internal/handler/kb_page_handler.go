@@ -182,6 +182,8 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, usecase.ErrPageParentSpaceMismatch):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "parent_space_mismatch"})
+	case errors.Is(err, usecase.ErrPageAnchorNotSibling):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "anchor_not_sibling"})
 	case errors.Is(err, usecase.ErrPageDocInvalid), errors.Is(err, usecase.ErrPageDocUnknownNodeType):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_document"})
 	default:
@@ -532,6 +534,14 @@ func (h *KnowledgeBasePageHandler) Rename(c *gin.Context) {
 // 権限で判断する必要があり、その口がまだ無い。
 type kbMovePageRequest struct {
 	ParentID string `json:"parentId" binding:"required" example:"0198a000-0000-7000-8000-000000000003"`
+	// AfterPageID / BeforePageID は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。
+	// どちらも空なら末尾。**両方を指定することはできない。**
+	//
+	// 並び順のキーそのものを受け取らないのは、そもそも返していないため
+	// （キーの整数部は兄弟の通し番号になるので、飛びから伏せた枚数が読める）。
+	// 「先頭に置く」は「最初の兄弟の手前（beforePageId）」として表す。
+	AfterPageID  string `json:"afterPageId,omitempty"  example:"0198a000-0000-7000-8000-000000000004"`
+	BeforePageID string `json:"beforePageId,omitempty" example:"0198a000-0000-7000-8000-000000000005"`
 }
 
 // Move はページ（と子孫）を別の親の下へ移す。動かすページと移動先の親の両方に編集権限が要る。
@@ -617,10 +627,32 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
 		return
 	}
+	// 位置の指定は前後どちらか一方だけ。両方あると、どちらを採ったかで結果が変わるのに
+	// 呼び出し側からは分からない。黙って片方を採らず、断る。
+	if req.AfterPageID != "" && req.BeforePageID != "" {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	anchor := req.AfterPageID
+	anchorBefore := false
+	if req.BeforePageID != "" {
+		anchor = req.BeforePageID
+		anchorBefore = true
+	}
+	// 隣に指定したページは**閲覧できなければならない**。
+	//
+	// 確かめずに通すと、「その ID が移動先の子か」を成功と 400 の差で言い当てられる
+	// （移動先を編集できれば誰でも叩ける）。閲覧できるページなら、そこに在ることは
+	// 既に分かっているので新しくは漏れない。閲覧できなければ他と同じ 404 に畳まれる。
+	if anchor != "" && !h.requirePagePermission(c, scope, anchor, domain.CapabilityView) {
+		return
+	}
 	page, err := h.move.Execute(c.Request.Context(), usecase.MovePageInput{
-		WorkspaceID: scope.workspaceID,
-		PageID:      pageID,
-		NewParentID: &req.ParentID,
+		WorkspaceID:  scope.workspaceID,
+		PageID:       pageID,
+		NewParentID:  &req.ParentID,
+		Anchor:       anchor,
+		AnchorBefore: anchorBefore,
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)

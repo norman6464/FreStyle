@@ -396,6 +396,13 @@ func (m *mockKnowledgeBaseRepo) ListActivePagesBySpace(ctx context.Context, work
 	return rows, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) SiblingPositionsAround(
+	ctx context.Context, workspaceID, spaceID string, parentID *string, anchorPageID, movingPageID string,
+) (bool, string, string, string, error) {
+	args := m.Called(ctx, workspaceID, spaceID, parentID, anchorPageID, movingPageID)
+	return args.Bool(0), args.String(1), args.String(2), args.String(3), args.Error(4)
+}
+
 func (m *mockKnowledgeBaseRepo) LastActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceID, parentID)
 	return args.String(0), args.Error(1)

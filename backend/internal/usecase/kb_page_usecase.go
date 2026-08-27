@@ -21,6 +21,12 @@ var (
 	// ErrPageParentSpaceMismatch は指定スペースと親ページの所属スペースが食い違うときに返す。
 	// ページの木はスペースの中で閉じる（DB の複合 FK と同じ規則を入口でも検証する）。
 	ErrPageParentSpaceMismatch = errors.New("parent page belongs to a different space")
+	// ErrPageAnchorNotSibling は、移動で指定された「隣のページ」が移動先の現役の子で
+	// なかったときに返す。不在・別の親・別スペース・アーカイブ済みを区別しない。
+	//
+	// 黙って末尾へ落とさないのは、**利用者が落とした場所と違う場所に入り、しかも
+	// 成功したように見える**ため。断って、やり直せるようにする。
+	ErrPageAnchorNotSibling = errors.New("anchor page is not a sibling under the destination")
 	// ErrPageCycle は自分自身または自分の子孫の下への移動に返す（木が壊れる）。
 	ErrPageCycle = errors.New("cannot move a page under itself or its descendant")
 )

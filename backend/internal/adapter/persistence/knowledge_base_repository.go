@@ -274,6 +274,41 @@ func (r *knowledgeBaseRepository) ListActivePagesBySpace(ctx context.Context, wo
 	return pages, nil
 }
 
+func (r *knowledgeBaseRepository) SiblingPositionsAround(
+	ctx context.Context, workspaceID, spaceID string, parentID *string, anchorPageID, movingPageID string,
+) (bool, string, string, string, error) {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	parent, ok3 := kbNullID(parentID)
+	anchorID, ok4 := kbParseID(anchorPageID)
+	// movingPageID が空なら「除くものが無い」。どのページの ID とも一致しない値を渡して、
+	// 除外の条件をそのまま無効化する（条件を組み替えて分岐を増やさない）。
+	movingID := uuid.Nil
+	ok5 := true
+	if movingPageID != "" {
+		movingID, ok5 = kbParseID(movingPageID)
+	}
+	if !ok || !ok2 || !ok3 || !ok4 || !ok5 {
+		// UUID ですらない値はどの兄弟にも一致しない。**エラーにはしない**
+		// （見つからなかったときと同じ扱い。撃ち分けると応答の作られ方が変わる）。
+		return false, "", "", "", nil
+	}
+	row, err := r.q.SiblingPositionsAround(ctx, sqlcgen.SiblingPositionsAroundParams{
+		WorkspaceID:  wsID,
+		SpaceID:      spID,
+		ParentID:     parent,
+		AnchorPageID: anchorID,
+		MovingPageID: movingID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, "", "", "", nil
+	}
+	if err != nil {
+		return false, "", "", "", err
+	}
+	return row.Found, row.PrevPosition, row.AnchorPosition, row.NextPosition, nil
+}
+
 func (r *knowledgeBaseRepository) LastActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string) (string, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)

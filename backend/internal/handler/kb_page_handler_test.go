@@ -597,6 +597,126 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みの一覧(t *testing.
 	})
 }
 
+func Test_ナレッジ基盤移動_落とした位置に置く(t *testing.T) {
+	movePath := func(pageID string) string {
+		return "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + pageID + "/move"
+	}
+	// 兄弟を 3 枚（a0 / a1 / a2）用意して、その中へ dest を差し込む。
+	setup := func(t *testing.T) kbFixture {
+		t.Helper()
+		f := newKbFixture(kbCanEdit, kbUserID)
+		for i, id := range []string{"sib-a", "sib-b", "sib-c"} {
+			parent := kbRootPageID
+			f.pages.addPage(domain.Page{
+				ID: id, WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, ParentID: &parent,
+				Position: "a" + string(rune('1'+i)), Title: id, CreatedByUserID: kbUserID,
+			})
+		}
+		return f
+	}
+	positionOf := func(f kbFixture, id string) string { return f.pages.pages[id].Position }
+
+	t.Run("指定した兄弟の直後に入る", func(t *testing.T) {
+		f := setup(t)
+		body := `{"parentId":"` + kbRootPageID + `","afterPageId":"sib-a"}`
+
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID), body)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		got := positionOf(f, kbDestPageID)
+		assert.Greater(t, got, positionOf(f, "sib-a"))
+		assert.Less(t, got, positionOf(f, "sib-b"))
+	})
+
+	t.Run("指定した兄弟の手前に入る（先頭もこれで表す）", func(t *testing.T) {
+		f := setup(t)
+		body := `{"parentId":"` + kbRootPageID + `","beforePageId":"sib-a"}`
+
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID), body)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		assert.Less(t, positionOf(f, kbDestPageID), positionOf(f, "sib-a"))
+	})
+
+	t.Run("他の兄弟のキーは書き換えない", func(t *testing.T) {
+		// 分数インデックスの効能そのもの。整数の連番なら以降を全部ずらすことになる。
+		f := setup(t)
+		before := map[string]string{
+			"sib-a": positionOf(f, "sib-a"),
+			"sib-b": positionOf(f, "sib-b"),
+			"sib-c": positionOf(f, "sib-c"),
+		}
+
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID),
+			`{"parentId":"`+kbRootPageID+`","afterPageId":"sib-a"}`)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		for id, pos := range before {
+			assert.Equal(t, pos, positionOf(f, id), "動くのは 1 行だけ: %s", id)
+		}
+	})
+
+	t.Run("位置を指定しなければ末尾（これまでの挙動）", func(t *testing.T) {
+		f := setup(t)
+
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID), `{"parentId":"`+kbRootPageID+`"}`)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		assert.Greater(t, positionOf(f, kbDestPageID), positionOf(f, "sib-c"))
+	})
+
+	t.Run("前後の両方を指定したら断る", func(t *testing.T) {
+		// どちらを採ったかで結果が変わるのに、呼び出し側からは分からない。
+		f := setup(t)
+		body := `{"parentId":"` + kbRootPageID + `","afterPageId":"sib-a","beforePageId":"sib-b"}`
+
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID), body)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.JSONEq(t, `{"error":"invalid_request"}`, w.Body.String())
+	})
+
+	t.Run("兄弟でないページを隣に指定したら断る（末尾へ落とさない）", func(t *testing.T) {
+		// 黙って末尾へ落とすと、利用者が落とした場所と違う場所に入り、しかも成功に見える。
+		f := setup(t)
+		before := positionOf(f, kbDestPageID)
+
+		// root 自身は root の子ではない（スペース直下）ので、移動先 root の兄弟ではない。
+		body := `{"parentId":"` + kbRootPageID + `","afterPageId":"` + kbRootPageID + `"}`
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID), body)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.JSONEq(t, `{"error":"anchor_not_sibling"}`, w.Body.String())
+		assert.Equal(t, before, positionOf(f, kbDestPageID), "断ったら何も書き換わらない")
+	})
+
+	t.Run("自分自身を隣に指定したら断る", func(t *testing.T) {
+		// 動かす当人は隣人の計算から必ず除く。除かないと自分自身との中間値を計算し、
+		// 「自分の隣に自分を置く」という意味のない成功になる。
+		f := setup(t)
+		body := `{"parentId":"` + kbRootPageID + `","afterPageId":"sib-a"}`
+		require.Equal(t, http.StatusOK, f.do(t, http.MethodPost, movePath("sib-b"), body).Code)
+
+		w := f.do(t, http.MethodPost, movePath("sib-b"),
+			`{"parentId":"`+kbRootPageID+`","afterPageId":"sib-b"}`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.JSONEq(t, `{"error":"anchor_not_sibling"}`, w.Body.String())
+	})
+
+	t.Run("閲覧できないページを隣に指定したら404", func(t *testing.T) {
+		// 確かめずに通すと、「その ID が移動先の子か」を成功と 400 の差で言い当てられる。
+		f := setup(t)
+		f.perms.setPagePermission("sib-a", kbUserID, kbNoPerm)
+		body := `{"parentId":"` + kbRootPageID + `","afterPageId":"sib-a"}`
+
+		w := f.do(t, http.MethodPost, movePath(kbDestPageID), body)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.JSONEq(t, `{"error":"not_found"}`, w.Body.String())
+	})
+}
+
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet,

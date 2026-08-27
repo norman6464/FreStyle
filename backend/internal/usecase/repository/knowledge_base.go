@@ -89,6 +89,22 @@ type KnowledgeBaseRepository interface {
 	// LastActiveSiblingPosition は兄弟（parentID が nil ならスペース直下）の末尾 position を返す。
 	// 兄弟がいなければ空文字（fracindex.Between の「端」表現）。
 	LastActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string) (string, error)
+	// SiblingPositionsAround は「ある兄弟の隣に入れる」ための前後の並び順キーを返す。
+	//
+	// ドラッグで落とした位置を表すのに使う。**クライアントは並び順のキーを持たない**ので
+	// （応答に入れていない。整数部が兄弟の通し番号になるため、飛びから伏せた枚数が読める）、
+	// 位置は「どの兄弟の隣か」をページの ID で受け取り、キーの計算はこちら側で閉じる。
+	//
+	// found が false なら anchorPageID はその親の現役の子ではない（不在・別の親・
+	// 別スペース・アーカイブ済みを区別しない）。前後の端が無いことは空文字で表す
+	// （fracindex.Between の約束と同じ）。
+	//
+	// movingPageID は必ず除く。動かす当人がまだその並びに居るので、除かないと
+	// 自分自身との中間値を計算することになる。空文字なら「除くものが無い」
+	// （まだ並びに居ないものを差し込むとき用）。
+	SiblingPositionsAround(
+		ctx context.Context, workspaceID, spaceID string, parentID *string, anchorPageID, movingPageID string,
+	) (found bool, prev, anchorPos, next string, err error)
 	// HasActiveSiblingPosition は excludePageID 以外の現役の兄弟が position を使用中かを返す
 	// （アーカイブ復帰時の衝突検出用）。
 	HasActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string, position, excludePageID string) (bool, error)

@@ -132,6 +132,94 @@ func (f kbPermFixture) viewablePageIDs(ctx context.Context, t *testing.T, spaceI
 	return pageIDs(out.Pages)
 }
 
+func TestKnowledgeBaseSiblingPositionsAround_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	t.Run("隣り合うキーを返し、端は空文字にする", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "根")
+		a := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "A")
+		b := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "B")
+		c := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "C")
+
+		found, prev, at, next, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, b.ID, "")
+		require.NoError(t, err)
+
+		assert.True(t, found)
+		assert.Equal(t, a.Position, prev)
+		assert.Equal(t, b.Position, at)
+		assert.Equal(t, c.Position, next)
+
+		// 先頭は手前が空文字（fracindex.Between の「端」）。
+		_, prevOfFirst, _, _, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, a.ID, "")
+		require.NoError(t, err)
+		assert.Empty(t, prevOfFirst)
+
+		// 末尾は次が空文字。
+		_, _, _, nextOfLast, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, c.ID, "")
+		require.NoError(t, err)
+		assert.Empty(t, nextOfLast)
+	})
+
+	t.Run("動かす当人は隣人に数えない", func(t *testing.T) {
+		// 除かないと自分自身との中間値を計算することになる。
+		f := setupKBPermission(t, sqlDB)
+		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "根")
+		a := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "A")
+		b := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "B")
+		c := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "C")
+
+		// B を動かしながら A の隣を尋ねると、A の次は C になる（B は居ないものとして扱う）。
+		_, _, _, next, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, a.ID, b.ID)
+		require.NoError(t, err)
+		assert.Equal(t, c.Position, next)
+
+		// 自分自身を隣に指定したら「兄弟ではない」。
+		found, _, _, _, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, b.ID, b.ID)
+		require.NoError(t, err)
+		assert.False(t, found)
+	})
+
+	t.Run("別の親・別スペース・アーカイブ済み・不在をまとめて「兄弟ではない」にする", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "根")
+		other := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "別の親")
+		underOther := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &other.ID, "別の親の子")
+		inSpaceB := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceB, nil, "別スペース")
+		archived := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "アーカイブ")
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, archived.ID))
+
+		for _, id := range []string{
+			underOther.ID,
+			inSpaceB.ID,
+			archived.ID,
+			"0198a000-0000-7000-8000-0000000000ff",
+			"not-a-uuid",
+		} {
+			found, _, _, _, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, id, "")
+			require.NoError(t, err, "id=%s", id)
+			assert.False(t, found, "id=%s は root の現役の子ではない", id)
+		}
+	})
+
+	t.Run("伏せられている兄弟も並びには居るので隣人に数える", func(t *testing.T) {
+		// 見えないだけで並びには居る。除くとキーが既存の行と衝突する。
+		// このクエリは権限を一切見ない（見せるかどうかは呼び出し側の話）。
+		f := setupKBPermission(t, sqlDB)
+		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "根")
+		a := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "A")
+		hidden := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "伏せる")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+		f.restrict(ctx, t, hidden.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		_, _, _, next, err := f.pages.SiblingPositionsAround(ctx, f.ws, f.spaceA, &root.ID, a.ID, "")
+		require.NoError(t, err)
+		assert.Equal(t, hidden.Position, next, "権限に関わらず並びの隣を返す")
+	})
+}
+
 func TestKnowledgeBaseArchivedViewFacts_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()

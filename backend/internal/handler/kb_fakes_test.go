@@ -171,8 +171,70 @@ func (f *kbFakePages) pagesInSpace(workspaceID, spaceID string, archived bool) [
 	return out
 }
 
-func (f *kbFakePages) LastActiveSiblingPosition(_ context.Context, _, _ string, _ *string) (string, error) {
-	return "", nil
+// LastActiveSiblingPosition は現役の兄弟の末尾キーを返す（兄弟がいなければ空文字）。
+// 本番と同じ値を返さないと、「末尾に足す」経路のテストが実際には何も確かめない。
+func (f *kbFakePages) LastActiveSiblingPosition(
+	_ context.Context, workspaceID, spaceID string, parentID *string,
+) (string, error) {
+	last := ""
+	for _, p := range f.pages {
+		if p.WorkspaceID != workspaceID || p.SpaceID != spaceID || p.ArchivedAt != nil {
+			continue
+		}
+		if (p.ParentID == nil) != (parentID == nil) {
+			continue
+		}
+		if p.ParentID != nil && *p.ParentID != *parentID {
+			continue
+		}
+		if p.Position > last {
+			last = p.Position
+		}
+	}
+	return last, nil
+}
+
+// SiblingPositionsAround は本番と同じく「その親の現役の子」に限って隣を探す。
+// 動かす当人は必ず除く（自分自身との中間値を計算しないため）。
+// 伏せられている兄弟も並びには居るので数える（本番のクエリは権限を見ない）。
+func (f *kbFakePages) SiblingPositionsAround(
+	_ context.Context, workspaceID, spaceID string, parentID *string, anchorPageID, movingPageID string,
+) (bool, string, string, string, error) {
+	siblings := make([]domain.Page, 0, len(f.pages))
+	for _, p := range f.pages {
+		if p.WorkspaceID != workspaceID || p.SpaceID != spaceID || p.ArchivedAt != nil {
+			continue
+		}
+		if p.ID == movingPageID {
+			continue
+		}
+		if (p.ParentID == nil) != (parentID == nil) {
+			continue
+		}
+		if p.ParentID != nil && *p.ParentID != *parentID {
+			continue
+		}
+		siblings = append(siblings, *p)
+	}
+	anchorPos := ""
+	for _, p := range siblings {
+		if p.ID == anchorPageID {
+			anchorPos = p.Position
+		}
+	}
+	if anchorPos == "" {
+		return false, "", "", "", nil
+	}
+	prev, next := "", ""
+	for _, p := range siblings {
+		if p.Position < anchorPos && p.Position > prev {
+			prev = p.Position
+		}
+		if p.Position > anchorPos && (next == "" || p.Position < next) {
+			next = p.Position
+		}
+	}
+	return true, prev, anchorPos, next, nil
 }
 
 func (f *kbFakePages) HasActiveSiblingPosition(_ context.Context, _, _ string, _ *string, _, _ string) (bool, error) {

@@ -74,6 +74,55 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 ORDER BY "position" DESC
 LIMIT 1;
 
+-- name: SiblingPositionsAround :one
+-- 「ある兄弟のすぐ前／すぐ後ろに入れる」ための、前後の並び順キーを返す。
+--
+-- ドラッグで落とした位置を表すのに使う。**クライアントは並び順のキーを持たない**
+-- （応答に入れていない。整数部が兄弟の通し番号になるので、飛びから伏せた枚数が読めるため）。
+-- 代わりに「どの兄弟の隣か」をページの ID で受け取り、キーの計算はここから先で行う。
+--
+-- 3 つとも NULL なら、anchor_page_id はその親の現役の子ではない（存在しない・別の親・
+-- 別スペース・アーカイブ済みのいずれか）。呼び出し側はまとめて「兄弟ではない」に落とす。
+--
+-- moving_page_id を必ず除くのは、動かす当人がまだその並びに居るため。除かないと
+-- 自分自身との中間値を計算することになり、動かないか、隣とキーが衝突する。
+--
+-- 伏せられている兄弟も隣人として数える。利用者からは見えないが並びには居るので、
+-- 除くとキーが既存の行と衝突する。どのキーになったかは応答に出ないので漏れない。
+WITH anchor AS (
+    SELECT a."position"
+    FROM pages a
+    WHERE a.workspace_id = sqlc.arg(workspace_id)
+      AND a.id = sqlc.arg(anchor_page_id)
+      AND a.space_id = sqlc.arg(space_id)
+      AND a.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
+      AND a.archived_at IS NULL
+      AND a.id <> sqlc.arg(moving_page_id)
+)
+-- 端が無いことは NULL ではなく空文字で表す。fracindex.Between が「空文字＝そちら側に
+-- 隣がいない」という約束なので、そのまま渡せる形に揃える。
+-- anchor が兄弟だったかは found で別に返す（空文字だけでは「先頭に入れる」と
+-- 「兄弟ではない」を区別できない）。
+SELECT
+    EXISTS (SELECT 1 FROM anchor) AS found,
+    COALESCE((SELECT anchor."position" FROM anchor), '')::text AS anchor_position,
+    COALESCE((SELECT max(p."position")
+       FROM pages p, anchor
+      WHERE p.workspace_id = sqlc.arg(workspace_id)
+        AND p.space_id = sqlc.arg(space_id)
+        AND p.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
+        AND p.archived_at IS NULL
+        AND p.id <> sqlc.arg(moving_page_id)
+        AND p."position" < anchor."position"), '')::text AS prev_position,
+    COALESCE((SELECT min(p."position")
+       FROM pages p, anchor
+      WHERE p.workspace_id = sqlc.arg(workspace_id)
+        AND p.space_id = sqlc.arg(space_id)
+        AND p.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
+        AND p.archived_at IS NULL
+        AND p.id <> sqlc.arg(moving_page_id)
+        AND p."position" > anchor."position"), '')::text AS next_position;
+
 -- name: HasActiveSiblingPosition :one
 -- 指定 position を持つ現役の兄弟が既にいるか（アーカイブ復帰時の衝突検出用）。
 -- 部分 UNIQUE（uq_pages_parent_position / uq_pages_space_position）は現役だけを守るため、

@@ -28,6 +28,47 @@ type MovePageInput struct {
 	// ルートへ移す。NewParentID があるときは親の所属スペースが移動先になる
 	// （指定があれば親と一致することを検証する）。
 	NewSpaceID string
+	// Anchor は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。
+	// 空なら末尾（これまでの挙動）。
+	//
+	// 並び順のキーを client から受け取らないのは、そもそも渡していないため。
+	// キーの整数部は兄弟の通し番号になるので、飛びから伏せた枚数が読める。
+	// 「どの兄弟の隣か」だけを受け取り、キーの計算はサーバー側に閉じる。
+	Anchor string
+	// AnchorBefore が true なら Anchor の**手前**、false なら**直後**に置く。
+	// 「先頭に置く」は「最初の兄弟の手前」として表す（専用の値を作らない）。
+	AnchorBefore bool
+}
+
+// placementPosition は移動先での並び順のキーを決める。
+//
+// Anchor が空なら末尾に足す（これまでの挙動）。Anchor があれば、その兄弟の手前／直後に
+// 収まるキーを、隣り合う 2 つの中間値として計算する。**動く行は 1 つだけ**で、
+// 他の兄弟のキーは書き換えない（整数の連番なら以降を全部ずらすことになる）。
+func (u *MovePageUseCase) placementPosition(ctx context.Context, in MovePageInput, targetSpaceID string) (string, error) {
+	if in.Anchor == "" {
+		last, err := u.repo.LastActiveSiblingPosition(ctx, in.WorkspaceID, targetSpaceID, in.NewParentID)
+		if err != nil {
+			return "", err
+		}
+		return fracindex.Between(last, "")
+	}
+
+	found, prev, anchorPos, next, err := u.repo.SiblingPositionsAround(
+		ctx, in.WorkspaceID, targetSpaceID, in.NewParentID, in.Anchor, in.PageID,
+	)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		// 指定された隣が、その親の現役の子ではない。**末尾へ落とさない** —
+		// 利用者が落とした場所と違う場所に入り、しかも成功したように見える。
+		return "", ErrPageAnchorNotSibling
+	}
+	if in.AnchorBefore {
+		return fracindex.Between(prev, anchorPos)
+	}
+	return fracindex.Between(anchorPos, next)
 }
 
 func (u *MovePageUseCase) Execute(ctx context.Context, in MovePageInput) (*domain.Page, error) {
@@ -78,11 +119,7 @@ func (u *MovePageUseCase) Execute(ctx context.Context, in MovePageInput) (*domai
 		}
 	}
 
-	last, err := u.repo.LastActiveSiblingPosition(ctx, in.WorkspaceID, targetSpaceID, in.NewParentID)
-	if err != nil {
-		return nil, err
-	}
-	pos, err := fracindex.Between(last, "")
+	pos, err := u.placementPosition(ctx, in, targetSpaceID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,6 @@
 import { type Editor, useEditorState } from '@tiptap/react';
 import { getEditorCommands, type EditorCommand } from './editorCommands';
+import LinkFormatControl from './LinkFormatControl';
 
 // バブルメニューが出す操作はマーク（太字…）とブロック変換（見出し・リスト…）に絞る。
 // 挿入系・履歴系はスラッシュメニュー / キーボードに委ねる（後続）。
@@ -80,6 +81,11 @@ export default function FormatMenuBar({ editor }: { editor: Editor }) {
           disabled={!states[index].enabled}
         />
       ))}
+      {/*
+        リンクだけは URL の入力を伴うため記述子（EDITOR_COMMANDS）では表せない。
+        マーク操作の並びの末尾に、入力欄を持つ専用コントロールとして置く。
+      */}
+      <LinkFormatControl editor={editor} />
     </div>
   );
 }

@@ -3,10 +3,12 @@ import Code from '@tiptap/extension-code';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Heading from '@tiptap/extension-heading';
 import Image from '@tiptap/extension-image';
+import { Link } from '@tiptap/extension-link';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
+import { isAllowedLinkHref, sanitizeLinkHref } from './linkSafety';
 
 /**
  * lowlight のインスタンス（highlight.js の common 言語 37 種を登録）。
@@ -24,6 +26,91 @@ export const lowlight = createLowlight(common);
  */
 const CombinableCode = Code.extend({ excludes: '' });
 
+/**
+ * リンクを描画するときに必ず付ける固定属性。
+ *
+ * - `target="_blank"`: 書きかけの本文があるタブを潰さないよう、別タブで開く。
+ * - `rel="noopener"`: 開いた先から `window.opener` 越しに元のタブを別ページへ差し替えられる
+ *   （reverse tabnabbing ＝ 偽のログイン画面へのすり替え）のを防ぐ。
+ * - `rel="noreferrer"`: 遷移先に Referer（＝社内ページの URL）を渡さない。
+ * - `rel="nofollow"`: 利用者が自由に書ける外部リンクへ検索評価を渡さない（スパム対策）。
+ *
+ * 要点は、これらを **doc の attrs に持たせず、描画のたびに固定で付ける**こと。
+ * tiptap の既定は target / rel を「マークの属性」として doc に保存するため、
+ * `<a href="…" rel="" target="_self">` を貼り付けるだけでその値が保存され、
+ * たった 1 行の細工で上の防御が外れてしまう。描画時に固定すれば、保存内容が何であれ必ず付く。
+ */
+const LINK_RENDER_ATTRIBUTES: Record<string, string> = {
+  target: '_blank',
+  rel: 'noopener noreferrer nofollow',
+};
+
+/**
+ * SafeLink はリンクマーク（`link`）。href に許可スキームを明示した形で固めてある。
+ *
+ * リンクの href は利用者が自由に書けるので、そのまま通すと `javascript:alert(1)` のような
+ * 「押すとスクリプトが走る URL」を仕込めてしまう（XSS）。塞ぐべき経路は 3 つあり、
+ * 1 つでも空いていれば残りを固めても意味がない。
+ *
+ *   1. 入力（打ち込み・autolink）    → `isAllowedUri` を差し替えて Link 拡張の全判定を自前にする
+ *   2. 貼り付け（HTML の取り込み）   → `href` の `parseHTML` でも同じ関数を通す
+ *   3. 保存・再読込の往復             → doc JSON 側を `sanitizeDocLinks`（linkSafety.ts）で洗う。
+ *                                       これは RichTextEditor と md2doc が担当する
+ *
+ * ここで押さえるのは 1 と 2、そして「表示の最後の砦」としての `renderHTML`。
+ * 3 は doc JSON が API 経由で丸ごと差し込めるため、エディタの入力経路だけを見ても塞げない。
+ */
+const SafeLink = Link.configure({
+  // 入力経路: URL を打って空白などで区切ると自動でリンクになる。
+  autolink: true,
+  // `[文字](URL)` という Markdown 記法も入力・貼り付けから拾う（href の可否は isAllowedUri が見る）。
+  markdownLinks: true,
+  // スキームを省いて `example.com` と書かれたときに補うスキーム。既定は 'http' なので https にする。
+  defaultProtocol: 'https',
+  // protocols は linkify に「これも URL として認識してよい」と教える口であって、安全判定ではない。
+  // 判定は下の isAllowedUri（＝ ALLOWED_LINK_PROTOCOLS）へ一本化したいのでここは空のままにする。
+  protocols: [],
+  // 【安全判定の一本化】tiptap の既定判定を丸ごと差し替える。
+  // 既定は ftp/ftps/callto/sms/cid/xmpp なども、さらに「スキームが無い文字列」も通す。
+  // つまり許可範囲がライブラリの都合で決まり、版が上がると黙って広がりうる。
+  // Link 拡張は入力・貼り付け・setLink/toggleLink・HTML 解析・描画のすべてでこの関数を呼ぶので、
+  // ここを自前の許可リストに差し替えれば、経路ごとの取りこぼしが起きにくくなる。
+  isAllowedUri: (uri) => isAllowedLinkHref(uri),
+  // 編集中にリンクを踏んで画面が飛ぶのを防ぐ（クリックはキャレット移動として扱う）。
+  // 読み取り専用（editable=false）では tiptap のクリックハンドラが降りるので、素の <a> として開く。
+  openOnClick: false,
+}).extend({
+  addAttributes() {
+    // 既定の Link は href / target / rel / class / title を doc に保存する。
+    // target / rel / class は保存せず描画時に固定する（LINK_RENDER_ATTRIBUTES のコメント参照）ので、
+    // doc に残すのは href と title だけにする。保存する値が減るほど、細工できる余地も減る。
+    return {
+      href: {
+        default: null,
+        // 貼り付けた HTML から href を読む経路。ここでも同じ関数を通し、
+        // 通らない値は null にして「href の無いリンク」に落とす（マーク自体は
+        // 親の parseHTML ルールが isAllowedUri で弾くので、実際には二重の壁になる）。
+        parseHTML: (element) => sanitizeLinkHref(element.getAttribute('href')),
+      },
+      title: { default: null },
+    };
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const href = sanitizeLinkHref(HTMLAttributes.href);
+    if (href === null) {
+      // 表示経路の最後の砦。万一 doc に許可できない href が残っていても <a> にはしない。
+      // href="" の <a> にすると「押せるのにどこへも行かない要素」が残るため、span で出す。
+      return ['span', {}, 0];
+    }
+    const attributes: Record<string, string> = { ...LINK_RENDER_ATTRIBUTES, href };
+    if (typeof HTMLAttributes.title === 'string' && HTMLAttributes.title !== '') {
+      attributes.title = HTMLAttributes.title;
+    }
+    return ['a', attributes, 0];
+  },
+});
+
 /** createSchemaExtensions の組み立てオプション。 */
 export interface CreateSchemaExtensionsOptions {
   /** 画像ノードをスキーマに含めるか（既定 true）。 */
@@ -38,6 +125,11 @@ export interface CreateSchemaExtensionsOptions {
  * 同一スキーマで doc(JSON) を扱うための単一ソース。変換器は本ファイルを jsdom なしの Node から
  * 直接 import するため、ここには React・CSS・DOM 依存を（推移的にも）置かないこと。
  * NodeView・input rule・プレースホルダ等の表示/入力の挙動は editorExtensions.ts 側で上掛けする。
+ *
+ * ノード/マークを足すときに、エディタ側だけへ足してはいけない理由はここにある。
+ * 例えばリンクをエディタにだけ足すと、教材の `[文字](URL)` は変換器側でマークを持てず
+ * ただの文字列になり、同じ文書がエディタと教材で別物に見える（逆に変換器にだけ足すと、
+ * 教材が生成した doc をエディタが開けない）。スキーマは必ずこの factory に 1 か所で置く。
  */
 export function createSchemaExtensions(
   options: CreateSchemaExtensionsOptions = {},
@@ -45,10 +137,12 @@ export function createSchemaExtensions(
   const { image = true } = options;
 
   const extensions: Extensions = [
-    // StarterKit の code は排他指定、heading は levels 無制限、codeBlock はハイライトなしのため
-    // それぞれ無効化し、スキーマを決める拡張へ差し替える。
-    StarterKit.configure({ heading: false, code: false, codeBlock: false }),
+    // StarterKit の code は排他指定、heading は levels 無制限、codeBlock はハイライトなし、
+    // link は許可スキームが tiptap 既定任せのため、それぞれ無効化してこちらの拡張へ差し替える。
+    StarterKit.configure({ heading: false, code: false, codeBlock: false, link: false }),
     CombinableCode,
+    // リンク。href の許可スキームを明示した SafeLink（エディタと教材変換器で同じ判定を使う）。
+    SafeLink,
     // 見出しは 1〜3 のみ（エディタ UI・教材の章構造とも 3 段で揃える）。
     Heading.configure({ levels: [1, 2, 3] }),
     // 構文ハイライト付きコードブロック。ノード名は 'codeBlock' のまま既存 doc と互換。

@@ -140,6 +140,22 @@ describe('markdownToDoc', () => {
     expect(image.attrs?.src).toBe('https://example.com/x.png');
   });
 
+  it('Markdown のリンクを link マーク（href）へ変換する', () => {
+    const doc = markdownToDoc('[公式サイト](https://example.com/a)\n');
+    const [paragraph] = findNodes(doc, 'paragraph');
+    expect(paragraph.content?.[0].text).toBe('公式サイト');
+    expect(paragraph.content?.[0].marks).toEqual([
+      { type: 'link', attrs: { href: 'https://example.com/a', title: null } },
+    ]);
+  });
+
+  it('許可できないスキームのリンクはマークを外して文字だけ残す（教材からも危険な href を入れない）', () => {
+    const doc = markdownToDoc('[押して](javascript:alert(1))\n');
+    const [paragraph] = findNodes(doc, 'paragraph');
+    expect(paragraph.content?.[0].text).toBe('押して');
+    expect(paragraph.content?.[0].marks).toBeUndefined();
+  });
+
   it('変換結果はアプリスキーマの Node.check() を通る', () => {
     const md = [
       '# 章',

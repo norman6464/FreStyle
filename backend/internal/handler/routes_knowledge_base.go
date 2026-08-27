@@ -30,12 +30,13 @@ const (
 // ワークスペースは URL の slug から middleware が解決するので、ルートはすべて
 // /kb/workspaces/:workspaceSlug 以下に置き、その middleware を通す group に登録する
 // （通し忘れたルートはテナント未確定のまま handler に入るため、group をここ 1 箇所に閉じる）。
-func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
+func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps, audit gin.HandlerFunc) {
 	registerKnowledgeBaseRoutesWith(
 		g,
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewKnowledgeBasePermissionRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
+		audit,
 	)
 }
 
@@ -54,11 +55,21 @@ func registerKnowledgeBasePublicRoutes(g *gin.RouterGroup, deps *routeDeps) {
 // registerKnowledgeBaseRoutesWith は repository を受け取ってルートと middleware を組み立てる。
 // 本番の wiring とテストが同じ 1 箇所を通るようにするために切り出してある
 // （テストがルート表を書き写すと、本番だけ middleware が抜けた配線ミスを見逃す）。
+//
+// audit は権限を変える操作を監査ログに残す middleware（router で生成して admin 系と共有する）。
+// 「誰がいつ誰に admin を与えたか / 誰をワークスペースから外したか」は、あとから
+// 追えなければ意味が無い。掛けるのは**変更する経路だけ**で、一覧のような読み取りには掛けない
+// （記録するのは成功した変更操作、という admin 系と同じ扱いに揃える）。
+//
+// 記録に残るのは actor（誰が）と c.FullPath()（どのルートを）で、**ルートのパターン**であって
+// 実際の URL ではない。ボディも記録しない。したがって共有リンクのトークンやパスワードは
+// 監査ログに入らない（どちらもボディで受けている）。
 func registerKnowledgeBaseRoutesWith(
 	g *gin.RouterGroup,
 	pages repository.KnowledgeBaseRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
 	provisioner repository.WorkspaceProvisioner,
+	audit gin.HandlerFunc,
 ) {
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(permissions),
@@ -151,18 +162,20 @@ func registerKnowledgeBaseRoutesWith(
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。
+	// 変更する経路にはすべて audit を挟む（誰がいつ権限を動かしたかを残す）。
+	// 一覧（GET）には掛けない — 記録するのは成功した変更操作だけ。
 	//
 	// 既定の権限（grant）— ワークスペース全体とスペース単位の 2 段。
-	kb.PUT("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.GrantWorkspaceRole)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.RevokeWorkspaceRole)
-	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.GrantSpaceRole)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.RevokeSpaceRole)
+	kb.PUT("/kb/workspaces/:workspaceSlug/grants/:principalId", audit, gh.GrantWorkspaceRole)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/grants/:principalId", audit, gh.RevokeWorkspaceRole)
+	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", audit, gh.GrantSpaceRole)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", audit, gh.RevokeSpaceRole)
 
 	// ページ以下だけ既定を上書きする例外（restriction）。
 	// URL が (ページ, 主体, ケイパビリティ) を指すのは、それが DB の主キーそのもので、
 	// PUT / DELETE が同じ 1 行を指すため。
-	kb.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", gh.SetPageRestriction)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", gh.ClearPageRestriction)
+	kb.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", audit, gh.SetPageRestriction)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", audit, gh.ClearPageRestriction)
 
 	// 権限を張る相手（principals）の出し入れ。
 	// メンバー追加だけは回数に上限を置く。この口は users.id をそのまま受け取り、
@@ -175,18 +188,20 @@ func registerKnowledgeBaseRoutesWith(
 	// 権限モデルの外側の設計判断になる（同意なく他人を自分のワークスペースへ入れられる、
 	// という別の問題も同じところに根がある）。ここで掛けるのは速度の頭打ちまで。
 	kb.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
-		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.AddMember)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)
-	kb.POST("/kb/workspaces/:workspaceSlug/groups", mh.CreateGroup)
-	kb.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.AddGroupMember)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.RemoveGroupMember)
-	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/principals/everyone", mh.EnsureSpaceEveryone)
+		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), audit, mh.AddMember)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", audit, mh.RemoveMember)
+	kb.POST("/kb/workspaces/:workspaceSlug/groups", audit, mh.CreateGroup)
+	kb.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", audit, mh.AddGroupMember)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", audit, mh.RemoveGroupMember)
+	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/principals/everyone", audit, mh.EnsureSpaceEveryone)
 
-	// 共有リンク（発行・一覧・失効）。検証だけは未認証なので
+	// 共有リンク（発行・一覧・失効）。発行と失効は「誰が見られるか」を変える操作なので
+	// 監査に残す。応答に載る平文トークンは記録されない（残るのはルートのパターンだけ）。
+	// 検証だけは未認証なので
 	// registerKnowledgeBasePublicRoutesWith 側に置く。
 	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.ListShareLinks)
-	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.IssueShareLink)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links/:shareLinkId", sh.RevokeShareLink)
+	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", audit, sh.IssueShareLink)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links/:shareLinkId", audit, sh.RevokeShareLink)
 }
 
 // registerKnowledgeBasePublicRoutesWith は認証不要のルートを組み立てる。

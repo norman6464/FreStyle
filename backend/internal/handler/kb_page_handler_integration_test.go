@@ -64,7 +64,7 @@ func (e *kbEnv) as(userID uint64) *kbEnv {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner)
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, (&kbAuditRecorder{}).handler())
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じ位置関係にしないと「未認証でも通ること」を確かめられない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), e.pages, e.permissions)

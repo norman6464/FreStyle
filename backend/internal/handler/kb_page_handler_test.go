@@ -39,12 +39,29 @@ var (
 	kbNoPerm  = domain.PagePermission{}
 )
 
+// kbAuditRecorder は監査ログの記録先（本番の RecordAuditEventUseCase の代わり）。
+//
+// 権限操作 API に監査 middleware が本当に掛かっているかは、ルートを実際に叩いて
+// 記録が 1 件増えることでしか確かめられない（掛け忘れは配線の穴で、handler 単体を
+// 見ても分からない）。
+type kbAuditRecorder struct {
+	entries []middleware.AuditEntry
+}
+
+// handler は記録先をこのレコーダにした監査 middleware を返す。
+func (r *kbAuditRecorder) handler() gin.HandlerFunc {
+	return middleware.AuditLog(func(_ context.Context, e middleware.AuditEntry) {
+		r.entries = append(r.entries, e)
+	})
+}
+
 // kbFixture は fake repository と、本番と同じ wiring で組んだルータの組。
 type kbFixture struct {
 	pages       *kbFakePages
 	perms       *kbFakePerms
 	provisioner *kbFakeProvisioner
 	router      *gin.Engine
+	audit       *kbAuditRecorder
 }
 
 // newKbFixture はワークスペース 2 つ・スペース 1 つ・ページ 3 つ（root / child / dest）の
@@ -84,12 +101,13 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 		})
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
-	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner)
+	audit := &kbAuditRecorder{}
+	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner, audit.handler())
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms)
-	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, router: r}
+	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, router: r, audit: audit}
 }
 
 func (f kbFixture) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {

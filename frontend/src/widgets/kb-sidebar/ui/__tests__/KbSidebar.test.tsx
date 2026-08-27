@@ -13,6 +13,8 @@ const hoisted = vi.hoisted(() => ({
   archivePage: vi.fn(),
   unarchivePage: vi.fn(),
   movePage: vi.fn(),
+  createWorkspace: vi.fn(),
+  createSpace: vi.fn(),
   showToast: vi.fn(),
 }));
 
@@ -38,6 +40,8 @@ vi.mock('@/entities/knowledge-base', async () => {
       archivePage: hoisted.archivePage,
       unarchivePage: hoisted.unarchivePage,
       movePage: hoisted.movePage,
+      createWorkspace: hoisted.createWorkspace,
+      createSpace: hoisted.createSpace,
     },
   };
 });
@@ -108,6 +112,8 @@ beforeEach(() => {
   hoisted.archivePage.mockResolvedValue(undefined);
   hoisted.unarchivePage.mockResolvedValue(undefined);
   hoisted.movePage.mockResolvedValue(page('p1'));
+  hoisted.createWorkspace.mockResolvedValue(workspace('new', '新しい会社'));
+  hoisted.createSpace.mockResolvedValue(space('new-space', '新しい区画'));
 });
 
 /** 行の矩形を固定して、落とす位置（上端 / 中央 / 下端）を狙えるようにする。 */
@@ -285,13 +291,82 @@ describe('KbSidebar', () => {
     expect(await screen.findByText('設計メモ')).toBeInTheDocument();
   });
 
-  it('所属が無いときは、壊れているのではなく招待が要ると伝える', async () => {
-    hoisted.fetchWorkspaces.mockResolvedValue([]);
+  describe('ここから始める', () => {
+    it('所属が無いときは、行き止まりにせずワークスペースを作らせる', async () => {
+      // 作る手段が無いと、API があってもサイドバーには永久にたどり着けない
+      // （実際そうなっていた）。
+      hoisted.fetchWorkspaces.mockResolvedValue([]);
+      renderSidebar();
+      await screen.findByText(/まだワークスペースがありません/);
 
-    renderSidebar();
+      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+        target: { value: 'Acme 社' },
+      });
+      fireEvent.change(screen.getByLabelText('URL に使う短い名前（英数字）'), {
+        target: { value: 'acme' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
 
-    expect(await screen.findByText(/招待してもらってください/)).toBeInTheDocument();
-    expect(hoisted.fetchSpaces).not.toHaveBeenCalled();
+      await waitFor(() =>
+        // repository へは slug という名前で渡る（URL に出るのは slug なので、口の側はそう呼ぶ）。
+        expect(hoisted.createWorkspace).toHaveBeenCalledWith({ slug: 'acme', name: 'Acme 社' }),
+      );
+    });
+
+    it('スペースが無いときも行き止まりにしない', async () => {
+      // ワークスペースを作っただけではスペースは付いてこない。
+      hoisted.fetchSpaces.mockResolvedValue([]);
+      renderSidebar();
+      await screen.findByText(/まだスペースがありません/);
+
+      fireEvent.change(screen.getByLabelText('スペースの名前'), { target: { value: '開発部' } });
+      fireEvent.change(screen.getByLabelText('短い名前（英数字）'), { target: { value: 'eng' } });
+      fireEvent.click(screen.getByRole('button', { name: 'スペースを作る' }));
+
+      await waitFor(() =>
+        expect(hoisted.createSpace).toHaveBeenCalledWith('acme', { key: 'eng', name: '開発部' }),
+      );
+    });
+
+    it('名前から短い名前の下書きを作るが、書き換えられる', async () => {
+      // 日本語の名前からは何も残らないので、自動生成だけに頼ると先へ進めない。
+      hoisted.fetchWorkspaces.mockResolvedValue([]);
+      renderSidebar();
+      await screen.findByText(/まだワークスペースがありません/);
+
+      const keyField = screen.getByLabelText('URL に使う短い名前（英数字）');
+      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+        target: { value: 'Acme Corp' },
+      });
+      expect(keyField).toHaveValue('acme-corp');
+
+      fireEvent.change(keyField, { target: { value: 'acme' } });
+      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+        target: { value: 'Acme Corp 2' },
+      });
+      expect(keyField).toHaveValue('acme');
+    });
+
+    it('作成に失敗したら知らせを出し、入力は消さない', async () => {
+      // 消すと打ち直しになるうえ、何が悪かったのかも分からない。
+      hoisted.fetchWorkspaces.mockResolvedValue([]);
+      hoisted.createWorkspace.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText(/まだワークスペースがありません/);
+
+      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+        target: { value: 'Acme 社' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith(
+          'error',
+          'ワークスペースを作成できませんでした',
+        ),
+      );
+      expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('Acme 社');
+    });
   });
 
   it('ワークスペースの取得に失敗したら理由を出して再試行できる', async () => {

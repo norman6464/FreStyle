@@ -242,6 +242,42 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
    * 取得済みの木は**捨てる**。同じスペースでも中身がまったく別なので、残しておくと
    * 切り替えた直後だけ前のスコープの木が見える。開いていたスペース（open）は保つ。
    */
+  /**
+   * ワークスペースを作る。**失敗は握り潰さず投げる。**
+   *
+   * 作った本人が admin になるので、続けてスペースを作れる。作ったら一覧を取り直し、
+   * そのワークスペースへ切り替える（作ってから自分で選び直させない）。
+   */
+  const createWorkspace = useCallback(
+    async (input: { key: string; name: string }): Promise<KbWorkspace> => {
+      const workspace = await KnowledgeBaseRepository.createWorkspace({
+        slug: input.key,
+        name: input.name,
+      });
+      setWorkspaces((prev) => [...prev, workspace]);
+      setActiveSlug(workspace.slug);
+      return workspace;
+    },
+    [],
+  );
+
+  /**
+   * スペースを作る。**失敗は握り潰さず投げる。**
+   *
+   * 作ったら一覧に足して開いておく。取り直さないのは、いま作ったものが必ず含まれると
+   * 分かっているため（サーバーが返した行をそのまま足す）。
+   */
+  const createSpace = useCallback(
+    async (input: { key: string; name: string }): Promise<KbSpace> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      const space = await KnowledgeBaseRepository.createSpace(activeSlug, input);
+      setSpaces((prev) => [...prev, space]);
+      setSpaceStates((prev) => ({ ...prev, [space.id]: emptySpaceState(true) }));
+      return space;
+    },
+    [activeSlug, setSpaceStates],
+  );
+
   const setArchivedMode = useCallback((next: boolean) => {
     // 切り替え前に投げた要求を採用しない（古いスコープの木が後から届く）。
     generation.current += 1;
@@ -446,6 +482,8 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     archivePage,
     unarchivePage,
     movePage,
+    createWorkspace,
+    createSpace,
     archivedMode,
     setArchivedMode,
   };

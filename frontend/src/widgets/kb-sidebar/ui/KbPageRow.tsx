@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { ChevronRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import { KbPageGroupIcon, KbPageIcon } from '@/shared/ui/icons/kb';
 import type { KbTreeRow } from '@/entities/knowledge-base';
 
 /** 1 段下がるごとの字下げ幅（px）。三角の幅とほぼ同じにして、段が目で追えるようにする。 */
@@ -25,6 +26,13 @@ export interface KbPageRowProps {
  */
 export default function KbPageRow({ row, workspaceSlug, active, onToggle }: KbPageRowProps) {
   const { page, depth, hasChildren, expanded } = row;
+
+  // 子を持つページはフォルダ、持たないページは紙。
+  //
+  // 見える子が居るかで選ぶので、**伏せた子しか居ないページは紙のまま**になる。
+  // ここでフォルダにすると、開閉の三角が無いのにフォルダ、という食い違った行になり、
+  // さらに「この下に何かある」ことを形からも二重に漏らす。
+  const Icon = hasChildren ? KbPageGroupIcon : KbPageIcon;
 
   return (
     <li role="none">
@@ -61,7 +69,7 @@ export default function KbPageRow({ row, workspaceSlug, active, onToggle }: KbPa
             active ? 'font-medium' : 'text-[var(--color-text-primary)]'
           }`}
         >
-          <DocumentTextIcon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden="true" />
+          <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
           <span className="truncate">{page.title}</span>
         </Link>
       </div>

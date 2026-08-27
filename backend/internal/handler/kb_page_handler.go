@@ -99,29 +99,29 @@ func toKbPageResponse(p *domain.Page) kbPageResponse {
 type kbPageTreeResponse struct {
 	Page     kbPageResponse       `json:"page"`
 	Children []kbPageTreeResponse `json:"children"`
-	// HiddenChildCount はこのページの直下にある、閲覧できないページの数。
-	// 題名は出さない（件数だけ）。判断の理由は ListViewablePagesOutput の doc に書いてある。
-	HiddenChildCount int `json:"hiddenChildCount" example:"0"`
+	// HasHiddenChildren はこのページの直下に、閲覧できないページが在るか。
+	// 枚数も題名も出さない。理由は ListViewablePagesOutput の doc に書いてある。
+	HasHiddenChildren bool `json:"hasHiddenChildren" example:"false"`
 }
 
 // kbPageTreeRootResponse はツリー取得の応答全体。
 //
-// 配列ではなく object にしてあるのは、**スペース直下**の伏せた件数を載せる場所が要るため。
+// 配列ではなく object にしてあるのは、**スペース直下**にも同じ印を載せる場所が要るため。
 // 「見えない子が居る」ことを段ごとに示す以上、いちばん上の段だけ示せないのは筋が通らない。
 type kbPageTreeRootResponse struct {
 	Pages []kbPageTreeResponse `json:"pages"`
-	// HiddenChildCount はスペース直下にある、閲覧できないページの数。
-	// 1 件も見えないスペースでは必ず 0（存在しないスペースと撃ち分けないため）。
-	HiddenChildCount int `json:"hiddenChildCount" example:"0"`
+	// HasHiddenChildren はスペース直下に、閲覧できないページが在るか。
+	// 1 件も見えないスペースでは必ず false（存在しないスペースと撃ち分けないため）。
+	HasHiddenChildren bool `json:"hasHiddenChildren" example:"false"`
 }
 
-func toKbPageTreeResponse(nodes []*usecase.PageTreeNode, hidden map[string]int) []kbPageTreeResponse {
+func toKbPageTreeResponse(nodes []*usecase.PageTreeNode, hidden map[string]bool) []kbPageTreeResponse {
 	out := make([]kbPageTreeResponse, 0, len(nodes))
 	for _, n := range nodes {
 		out = append(out, kbPageTreeResponse{
-			Page:             toKbPageResponse(&n.Page),
-			Children:         toKbPageTreeResponse(n.Children, hidden),
-			HiddenChildCount: hidden[n.Page.ID],
+			Page:              toKbPageResponse(&n.Page),
+			Children:          toKbPageTreeResponse(n.Children, hidden),
+			HasHiddenChildren: hidden[n.Page.ID],
 		})
 	}
 	return out
@@ -296,7 +296,7 @@ func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 // Tree はスペース配下の、そのユーザーが閲覧できるページを木構造で返す。
 //
 //	@Summary      ナレッジ 基盤 の ページ ツリー
-//	@Description  スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hiddenChildCount は その 段 の 直下 に ある 閲覧 でき ない ページ の 件数 で、 題名 は 返さ ない。
+//	@Description  スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hasHiddenChildren は その 段 の 直下 に 閲覧 でき ない ページ が 在る か で、 枚数 も 題名 も 返さ ない。
 //	@Tags         knowledge-base
 //	@Produce      json
 //	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
@@ -329,8 +329,8 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	// タイトルは伏せたまま「その下に何かがある」ことだけがツリーの形から漏れる。
 	tree := usecase.BuildPageTree(viewable.Pages, usecase.PageTreeOrphanHidden)
 	c.JSON(http.StatusOK, kbPageTreeRootResponse{
-		Pages:            toKbPageTreeResponse(tree, viewable.HiddenChildCount),
-		HiddenChildCount: viewable.HiddenChildCount[usecase.HiddenChildrenRootKey],
+		Pages:             toKbPageTreeResponse(tree, viewable.HasHiddenChildren),
+		HasHiddenChildren: viewable.HasHiddenChildren[usecase.HiddenChildrenRootKey],
 	})
 }
 

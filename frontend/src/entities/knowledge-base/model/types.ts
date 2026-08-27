@@ -48,28 +48,32 @@ export interface KbPage {
 /**
  * ツリーの 1 ノード。
  *
- * hiddenChildCount は「この段の直下にある、自分には見えないページの数」。
- * 題名は返ってこない（件数だけ）。0 のときは何も示さない。
+ * hasHiddenChildren は「この段の直下に、自分には見えないページが在るか」。
+ * **枚数も題名も返ってこない。**
  *
  * 見えないページをただ消すと、木に穴が空いた理由が分からず「壊れている」と読まれるので、
- * 居ることだけを示す。なお**見えない親の配下は件数にも入らない**（backend 側で数えていない。
- * 数えると「見えない枝の中に何枚あるか」まで漏れるため）。
+ * 居ることだけを示す。枚数を出さないのは、利用者にとって「2 枚」と「7 枚」の差が行動を
+ * 何も変えないのに、伏せた量に比例して漏れる情報が増えるため。
+ *
+ * なお**見えない親の配下は印にも出ない**（backend 側で見ていない。見ると
+ * 「見えない枝の中にも何かある」ことまで漏れるため）。
  */
 export interface KbPageTreeNode {
   page: KbPage;
   children: KbPageTreeNode[];
-  hiddenChildCount: number;
+  hasHiddenChildren: boolean;
 }
 
 /**
  * ツリー取得の応答全体。
  *
- * hiddenChildCount はスペース直下で伏せた件数。**1 件も見えないスペースでは必ず 0** になる
- * （存在しないスペースと撃ち分けると、スペース ID の総当たりで実在が分かってしまうため）。
+ * hasHiddenChildren はスペース直下に見えないページが在るか。
+ * **1 件も見えないスペースでは必ず false** になる（存在しないスペースと撃ち分けると、
+ * 応答の差からスペース ID の実在を数え上げられてしまうため）。
  */
 export interface KbPageTree {
   pages: KbPageTreeNode[];
-  hiddenChildCount: number;
+  hasHiddenChildren: boolean;
 }
 
 /**

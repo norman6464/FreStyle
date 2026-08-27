@@ -877,7 +877,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, carolPages.Pages, "非メンバーには 1 枚も見えない")
-		assert.Empty(t, carolPages.HiddenChildCount, "件数も返さない（存在が漏れる）")
+		assert.Empty(t, carolPages.HasHiddenChildren, "印も返さない（実在が漏れる）")
 	})
 
 	t.Run("一覧はdenyと所属グループとケイパビリティを1ページ解決と同じに畳む", func(t *testing.T) {

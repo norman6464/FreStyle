@@ -109,25 +109,30 @@ type ListViewablePagesInput struct {
 	UserID      uint64
 }
 
-// HiddenChildrenRootKey は ListViewablePagesOutput.HiddenChildCount で
+// HiddenChildrenRootKey は ListViewablePagesOutput.HasHiddenChildren で
 // 「スペース直下（親を持たない段）」を指すキー。ページ ID は必ず非空なので衝突しない。
 const HiddenChildrenRootKey = ""
 
-// ListViewablePagesOutput は閲覧できるページと、その各段で伏せた件数の組。
+// ListViewablePagesOutput は閲覧できるページと、「その段に見えない子が居るか」の組。
 //
-// HiddenChildCount は「**見えている**段の直下にある、見えない子の数」。キーは親ページの ID で、
-// スペース直下の分は HiddenChildrenRootKey に入る。0 件の段はキーごと入らない。
+// HasHiddenChildren のキーは親ページの ID で、スペース直下の分は HiddenChildrenRootKey に入る。
+// 居ない段はキーごと入らない。
 //
-// なぜ件数を出すのか: 見えない子を黙って消すと、木に穴が空いた理由が利用者に分からず
-// 「壊れている」と読まれる。件数だけを出し、題名は出さない。
+// なぜ知らせるのか: 見えない子を黙って消すと、木に穴が空いた理由が利用者に分からず
+// 「壊れている」と読まれる。居ることだけを知らせ、題名は出さない。
 //
-// これは意図的な情報開示であることを明記しておく。件数からは「自分に見えていないページが
-// 何枚あるか」が分かる（題名・作成者・更新日時は分からない）。伏せた側の意図を部分的に
-// 損なうので、開示を止めるならこの map を作らないか、handler 側で 0/1 に丸める
-// （どちらも 1 箇所の変更で足りるように、数える処理をここへ閉じてある）。
+// # なぜ枚数ではなく有無なのか
+//
+// 利用者にとって「2 枚」と「7 枚」の差は行動を何も変えない（知りたいのは「ここに見えない
+// ものがある」だけ）。一方で枚数を出すと、伏せた量に比例して漏れる情報が増える
+// （例: 採用の記録のスペースで「12 ページ」と出れば、採用の動きの規模が読める）。
+// 得るものが定数で、失うものが伏せた量に比例するので、割に合わない。
+//
+// **枚数はどこにも作らない。** 数えてから丸めるのではなく、最初の 1 枚で true にして打ち切る。
+// 変数として存在しなければ、うっかり応答に載る経路も生まれない。
 type ListViewablePagesOutput struct {
-	Pages            []domain.Page
-	HiddenChildCount map[string]int
+	Pages             []domain.Page
+	HasHiddenChildren map[string]bool
 }
 
 func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewablePagesInput) (ListViewablePagesOutput, error) {
@@ -154,27 +159,28 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 		}
 	}
 
-	// 1 件も見えないなら件数も返さない。
+	// 1 件も見えないなら、見えない子の有無も返さない。
 	//
-	// ここを外すと実在オラクルが開く。ツリー取得は「存在しないスペース」と「中身が 1 件も
-	// 見えないスペース」を撃ち分けないことになっているが、前者は 0 件・後者は N 件を返して
-	// しまい、スペース ID の総当たりで実在が分かる。
+	// ここを外すと、応答の差から**そのスペースが実在するかどうか**が分かってしまう。
+	// ツリー取得は「存在しないスペース」と「中身が 1 件も見えないスペース」を撃ち分けない
+	// ことになっているが、前者は false・後者は true を返してしまい、スペース ID を
+	// 総当たりするだけで実在を数え上げられる（存在の有無そのものが他人の情報）。
 	//
 	// 逆に 1 件でも見えていれば、スペースの実在はその時点で既に分かっている。だから
-	// 「見えている段の直下に何枚伏せてあるか」を足しても、実在については何も増えない。
-	// 件数を出してよい条件は **利用者が既にその段を見ていること** であり、スペース直下は
+	// 「見えている段の直下に伏せたものが在るか」を足しても、実在については何も増えない。
+	// 知らせてよい条件は **利用者が既にその段を見ていること** であり、スペース直下は
 	// 見えるページが 1 枚も無い場合に限りその足場が無い。
 	if len(pages) == 0 {
-		return ListViewablePagesOutput{Pages: pages, HiddenChildCount: map[string]int{}}, nil
+		return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: map[string]bool{}}, nil
 	}
 
-	hidden := make(map[string]int)
+	hidden := make(map[string]bool)
 	for _, row := range rows {
 		if viewable[row.Page.ID] {
 			continue
 		}
 		if row.Page.ParentID == nil {
-			hidden[HiddenChildrenRootKey]++
+			hidden[HiddenChildrenRootKey] = true
 			continue
 		}
 		// 親も見えないなら数えない。数えると「見えない枝の中に何枚あるか」まで漏れ、
@@ -183,10 +189,10 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 		if !viewable[*row.Page.ParentID] {
 			continue
 		}
-		hidden[*row.Page.ParentID]++
+		hidden[*row.Page.ParentID] = true
 	}
 
-	return ListViewablePagesOutput{Pages: pages, HiddenChildCount: hidden}, nil
+	return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: hidden}, nil
 }
 
 // CanEditPageSubtreeUseCase は「このユーザーは、このページと全子孫を編集できるか」に答える。

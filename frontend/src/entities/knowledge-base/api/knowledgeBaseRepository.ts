@@ -41,7 +41,7 @@ const KnowledgeBaseRepository = {
     // pages が欠けた応答（想定外）でも描画側が落ちないよう、配列だけは必ず用意する。
     return {
       pages: toArray(res.data?.pages),
-      hiddenChildCount: res.data?.hiddenChildCount ?? 0,
+      hasHiddenChildren: res.data?.hasHiddenChildren ?? false,
     };
   },
 

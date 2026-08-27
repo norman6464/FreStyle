@@ -34,7 +34,7 @@ export default function KbSpaceSection({
 }: KbSpaceSectionProps) {
   const open = state?.open ?? false;
   const entries = state?.tree ? flattenKbTree(state.tree.pages, expandedPageIds) : [];
-  const hiddenAtRoot = state?.tree?.hiddenChildCount ?? 0;
+  const hiddenAtRoot = state?.tree?.hasHiddenChildren ?? false;
 
   return (
     <section className="mb-1">
@@ -77,7 +77,7 @@ export default function KbSpaceSection({
             </div>
           )}
 
-          {!state?.loading && !state?.error && entries.length === 0 && hiddenAtRoot === 0 && (
+          {!state?.loading && !state?.error && entries.length === 0 && !hiddenAtRoot && (
             <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">ページがありません</p>
           )}
 
@@ -94,20 +94,16 @@ export default function KbSpaceSection({
                     onToggle={onTogglePage}
                   />
                 ) : (
-                  <KbHiddenChildrenRow
-                    key={`hidden-${entry.parentId}`}
-                    depth={entry.depth}
-                    count={entry.count}
-                  />
+                  <KbHiddenChildrenRow key={`hidden-${entry.parentId}`} depth={entry.depth} />
                 ),
               )}
             </ul>
           )}
 
-          {/* スペース直下で伏せた件数。1 件も見えないスペースでは backend が必ず 0 を返す。 */}
-          {hiddenAtRoot > 0 && (
+          {/* スペース直下の印。1 件も見えないスペースでは backend が必ず false を返す。 */}
+          {hiddenAtRoot && (
             <p className="px-2 py-0.5 text-xs text-[var(--color-text-muted)]">
-              {hiddenAtRoot} ページは表示できません
+              表示できないページがあります
             </p>
           )}
         </div>

@@ -99,7 +99,7 @@ func registerKnowledgeBaseRoutesWith(
 	gate := newKbPermissionGate(
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
 		usecase.NewCheckSpacePermissionUseCase(permissions),
-		usecase.NewFindPageUseCase(pages),
+		usecase.NewCheckPageSpacePermissionUseCase(permissions),
 	)
 	canRemoveAdmin := usecase.NewCanRemoveWorkspaceAdminUseCase(permissions)
 
@@ -228,7 +228,7 @@ func registerKnowledgeBasePublicRoutesWith(
 		newKbPermissionGate(
 			usecase.NewCheckWorkspacePermissionUseCase(permissions),
 			usecase.NewCheckSpacePermissionUseCase(permissions),
-			usecase.NewFindPageUseCase(pages),
+			usecase.NewCheckPageSpacePermissionUseCase(permissions),
 		),
 		usecase.NewIssueShareLinkUseCase(permissions),
 		usecase.NewRevokeShareLinkUseCase(permissions),

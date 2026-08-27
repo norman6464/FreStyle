@@ -8,6 +8,66 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// CheckPageSpacePermissionUseCase は「このユーザーは、**このページが属するスペース**で
+// 既定で何ができるか」に答える。ページを名指しする権限操作の入口で使う。
+//
+// CheckSpacePermissionUseCase との違いは、スペース ID を引数で受けずページから引くこと。
+// 手間を省くためではなく、**問い合わせの回数を一定にする**ため。以前は
+// 「ページを引く → スペースの実在を確かめる → 役割を集める」の 3 段で、どれも同じ 404 を
+// 返すのに落ちる段によって DB の往復が 0 / 1 / 3 回に分かれ、応答のバイト列を揃えても
+// 返るまでの時間から「そのページ ID が実在するか」が読めた。
+//
+// **ページ単位の例外は見ていない**（CheckSpacePermissionUseCase と同じ制限）。
+// ページの閲覧・編集の可否をこれで決めてはいけない。権限そのものを変える操作の入口
+// （admin かどうか）にだけ使う — 例外はページの閲覧・編集にしか効かず、admin かどうかは
+// スペースの既定だけで決まるため。
+//
+// 判定規則は domain.ResolveScopePermission にあり、ここには写経しない。
+type CheckPageSpacePermissionUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewCheckPageSpacePermissionUseCase(r repository.KnowledgeBasePermissionRepository) *CheckPageSpacePermissionUseCase {
+	return &CheckPageSpacePermissionUseCase{repo: r}
+}
+
+type CheckPageSpacePermissionInput struct {
+	WorkspaceID string
+	PageID      string
+	UserID      uint64
+}
+
+// CheckPageSpacePermissionOutput は判定結果と、ページが属するスペースの ID。
+//
+// SpaceID は通ったときだけ意味を持つ。**通らなかったときは空文字**で、それが
+// 「ページが無い」なのか「役割が無い」なのかは呼び出し側からは分からない（分かってはいけない）。
+type CheckPageSpacePermissionOutput struct {
+	SpaceID    string
+	Permission domain.ScopePermission
+}
+
+func (u *CheckPageSpacePermissionUseCase) Execute(
+	ctx context.Context, in CheckPageSpacePermissionInput,
+) (*CheckPageSpacePermissionOutput, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.UserID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	// PageID が空でもエラーにせず repository へ渡す。空文字は UUID として解釈できないので
+	// 見つからなかったときと同じ空が返り、拒否へ落ちる。ここで別のエラーにすると、
+	// 空文字だけ応答の作られ方が変わる。
+	facts, err := u.repo.PageSpaceScopeFactsForUser(ctx, in.WorkspaceID, in.PageID, in.UserID)
+	if err != nil {
+		return nil, err
+	}
+	return &CheckPageSpacePermissionOutput{
+		SpaceID:    facts.SpaceID,
+		Permission: domain.ResolveScopePermission(facts.Facts),
+	}, nil
+}
+
 // CheckSpacePermissionUseCase は「このユーザーはこのスペースで既定で何ができるか」に答える。
 //
 // ページを名指しできない操作（スペース直下へのページ作成）の入口で使う。

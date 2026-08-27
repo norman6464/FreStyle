@@ -68,16 +68,16 @@ import (
 type kbPermissionGate struct {
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase
 	checkSpace     *usecase.CheckSpacePermissionUseCase
-	findPage       *usecase.FindPageUseCase
+	checkPageSpace *usecase.CheckPageSpacePermissionUseCase
 }
 
 // newKbPermissionGate は権限操作 API 共通の認可判定を組み立てる。
 func newKbPermissionGate(
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	checkSpace *usecase.CheckSpacePermissionUseCase,
-	findPage *usecase.FindPageUseCase,
+	checkPageSpace *usecase.CheckPageSpacePermissionUseCase,
 ) *kbPermissionGate {
-	return &kbPermissionGate{checkWorkspace: checkWorkspace, checkSpace: checkSpace, findPage: findPage}
+	return &kbPermissionGate{checkWorkspace: checkWorkspace, checkSpace: checkSpace, checkPageSpace: checkPageSpace}
 }
 
 // respondKbPermissionDenied は権限操作 API の唯一の拒否応答。
@@ -152,19 +152,30 @@ func (g *kbPermissionGate) requireSpaceAdmin(c *gin.Context, scope kbRequestScop
 // 順序は「ページを引く → スペースの admin か」。スペースを知らないと認可できないので
 // 先に引くしかないが、引いた結果（不在）と認可の結果（無権限）は同じ応答に落ちるので、
 // ページの実在は漏れない。読むのはメタ情報だけ（FindPageUseCase）で本文は読まない。
+// requirePageAdmin は「そのページが属するスペースの admin か」を確かめ、通ればスペース ID を返す。
+//
+// **DB への問い合わせは 1 回だけ。** 以前は「ページを引く → スペースの実在を確かめる →
+// 役割を集める」の 3 段で、どれも同じ 404 を返すのに落ちる段によって往復が 0 / 1 / 3 回に
+// 分かれていた。応答のバイト列を揃えても、返るまでの時間から「そのページ ID が実在するか」が
+// 読める。このファイルの冒頭が「認可を先に、対象に触るのは後」と書いているのに、
+// ページの経路だけがその約束を守れていなかった。
+//
+// いまは「ページが無い」も「役割が無い」も同じ空が返り、どちらも下の 1 行で拒否に落ちる。
 func (g *kbPermissionGate) requirePageAdmin(c *gin.Context, scope kbRequestScope, pageID string) (string, bool) {
-	page, err := g.findPage.Execute(c.Request.Context(), usecase.FindPageInput{
+	out, err := g.checkPageSpace.Execute(c.Request.Context(), usecase.CheckPageSpacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
+		UserID:      scope.userID,
 	})
 	if err != nil {
 		respondKbPermissionErr(c, err)
 		return "", false
 	}
-	if !g.requireSpaceAdmin(c, scope, page.SpaceID) {
+	if !out.Permission.CanManage {
+		respondKbPermissionDenied(c)
 		return "", false
 	}
-	return page.SpaceID, true
+	return out.SpaceID, true
 }
 
 // respondKbPermissionErr は認可判定の途中で起きたエラーを応答へ落とす。

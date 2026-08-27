@@ -376,11 +376,18 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
 
 		// 「このスペースの全員」宛ての例外。別スペースへ移ると行だけが残って評価されなくなる。
+		//
+		// mode を allow にしてあるのは、deny だと**動かす本人まで締め出される**ため。
+		// space_all は「そのスペースの全員」なので、ワークスペースのメンバーは全員それを
+		// 自分の主体として持つ（権限クエリの mine CTE）。deny を張ると alice 自身が
+		// 子を見られなくなり、サブツリーの編集検査に先に引っかかって 403 になる
+		// （それはそれで正しい応答だが、この test で見たいのは移動先スペースの検査）。
+		// allow なら alice は許可リストに載っている側なので通り、行は space_all 宛てのまま残る。
 		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
 		require.NoError(t, err)
 		_, err = env.permissions.UpsertPageRestriction(
 			t.Context(), env.workspaceID, child.ID, everyone.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
+			domain.CapabilityView, domain.RestrictionModeAllow,
 		)
 		require.NoError(t, err)
 
@@ -492,5 +499,192 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
 		assert.JSONEq(t, `[]`, tree.Body.String())
+	})
+}
+
+// kbDumpTreeState はサブツリーの配置を決める列を丸ごと写し取る。
+//
+// 移動が書き換えるのは pages.parent_id / pages."position" / pages.space_id と
+// closure（page_paths）の 4 つだけなので、この文字列が前後で一致すれば
+// 「何も書き換わっていない」と言える。個別に assert を並べるより、
+// 見落としが起きにくい（列が増えたらここへ足す）。
+func kbDumpTreeState(t *testing.T, db *sql.DB, workspaceID string) string {
+	t.Helper()
+	var pages string
+	require.NoError(t, db.QueryRow(
+		`SELECT COALESCE(string_agg(
+		     id::text || '|' || COALESCE(parent_id::text, '-') || '|' || "position" || '|' || space_id::text,
+		     E'\n' ORDER BY id), '')
+		 FROM pages WHERE workspace_id = $1`, workspaceID,
+	).Scan(&pages))
+	var paths string
+	require.NoError(t, db.QueryRow(
+		`SELECT COALESCE(string_agg(
+		     page_id::text || '|' || ancestor_id::text || '|' || depth::text,
+		     E'\n' ORDER BY page_id, depth), '')
+		 FROM page_paths WHERE workspace_id = $1`, workspaceID,
+	).Scan(&paths))
+	return pages + "\n--\n" + paths
+}
+
+// TestKnowledgeBaseMovePermission_Integration は「移動は根 1 枚の権限しか見ていない」
+// 穴が塞がっていることを実 PostgreSQL で確かめる。
+//
+// 移動はサブツリーごと動くので、子孫それぞれの祖先の並びが変わる。ページの例外は
+// 経路の上から効くため、祖先が変われば子孫の実効権限も変わる。操作者から見えない
+// 子孫の権限が本人の知らないうちに書き換わる、というのが塞ぐ相手。
+//
+// 判定はアーカイブ / 復帰と同じ（サブツリー全体を編集できなければ 403 subtree_forbidden）。
+// closure まで含めて「断ったら何も書き換わらない」ことを見るので結合テストに置く
+// （page_paths は fake が持っていない）。
+func TestKnowledgeBaseMovePermission_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+
+	// setup は 親(root) → 子(child) と、移動先(dest) を用意して bob の principal を返す。
+	// bob はワークスペース全体では editor（root と dest は編集できる）。
+	setup := func(t *testing.T, env *kbEnv, alice, bob uint64) (string, string, string, *domain.Principal) {
+		t.Helper()
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a2", "移動先")
+
+		adminEnv := env.as(alice)
+		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
+			`{"parentId":"`+root+`","title":"子"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var child kbPageResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+		return root, child.ID, dest, bobPrincipal
+	}
+
+	cases := map[string]domain.Capability{
+		"編集だけ外した子": domain.CapabilityEdit,
+		"閲覧ごと外した子": domain.CapabilityView,
+	}
+	for name, capability := range cases {
+		t.Run(name+"を持つ親は移動できず何も書き換わらない", func(t *testing.T) {
+			env := newKbEnv(t, sqlDB, "acme")
+			alice := kbInsertUser(t, sqlDB, "alice")
+			bob := kbInsertUser(t, sqlDB, "bob")
+			root, child, dest, bobPrincipal := setup(t, env, alice, bob)
+
+			_, err := env.permissions.UpsertPageRestriction(
+				t.Context(), env.workspaceID, child, bobPrincipal.ID,
+				capability, domain.RestrictionModeDeny,
+			)
+			require.NoError(t, err)
+
+			before := kbDumpTreeState(t, sqlDB, env.workspaceID)
+			e := env.as(bob)
+			w := e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`)
+
+			assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+			assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
+			assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID),
+				"断ったなら parent_id / position / page_paths のどれも動かない")
+		})
+	}
+
+	t.Run("子孫まで編集できるなら通ってclosureも張り替わる", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		bob := kbInsertUser(t, sqlDB, "bob")
+		root, child, dest, _ := setup(t, env, alice, bob)
+
+		e := env.as(bob)
+		w := e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		// 例外が 1 つも無いのが普通の状態なので、通常の移動まで止めない。
+		var parentID string
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT parent_id::text FROM pages WHERE workspace_id = $1 AND id = $2`,
+			env.workspaceID, root,
+		).Scan(&parentID))
+		assert.Equal(t, dest, parentID)
+
+		// 子の祖先に移動先が加わる（＝ 継承の経路が変わる）。これがそのまま
+		// 「見えない子孫の権限が変わる」の中身で、だから移動でも子孫を見る。
+		var depth int
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT depth FROM page_paths WHERE workspace_id = $1 AND page_id = $2 AND ancestor_id = $3`,
+			env.workspaceID, child, dest,
+		).Scan(&depth))
+		assert.Equal(t, 2, depth, "子から見て移動先は 2 段上の祖先になる")
+	})
+
+	t.Run("スペース全員宛てのdenyは動かす本人も締め出す", func(t *testing.T) {
+		// space_all は「そのスペースの全員」なので、ワークスペースのメンバーは全員それを
+		// 自分の主体として持つ。子に deny を張ると、張った admin 自身もその子を見られなくなり、
+		// 親の移動はサブツリーの検査で止まる。
+		//
+		// これは意図した結果。見えない子孫を巻き込む移動を断るのがこの検査の役目で、
+		// 「自分で張った例外だから自分は例外」という抜け道は作らない
+		// （権限は誰が張ったかではなく、いま誰に何が届いているかだけで決まる）。
+		env := newKbEnv(t, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+		e := env.as(alice)
+
+		created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parent+`","title":"子"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var child kbPageResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+
+		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
+		require.NoError(t, err)
+		_, err = env.permissions.UpsertPageRestriction(
+			t.Context(), env.workspaceID, child.ID, everyone.ID,
+			domain.CapabilityView, domain.RestrictionModeDeny,
+		)
+		require.NoError(t, err)
+
+		otherSpace := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, otherSpace, alice, "a0", "移動先")
+
+		before := kbDumpTreeState(t, sqlDB, env.workspaceID)
+		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/move", `{"parentId":"`+dest+`"}`)
+
+		assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String(),
+			"移動先スペースの検査（409）より手前で断る")
+		assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID))
+	})
+
+	t.Run("同一スペース内の移動でも子孫を見る", func(t *testing.T) {
+		// ErrPageMoveVoidsSpaceRestriction が塞いでいるのはスペースをまたぐ移動だけ。
+		// 同一スペース内で親を付け替える移動には、子孫の権限を見る経路がこれしかない。
+		env := newKbEnv(t, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		bob := kbInsertUser(t, sqlDB, "bob")
+		root, child, dest, bobPrincipal := setup(t, env, alice, bob)
+
+		var spaceIDs int
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT count(DISTINCT space_id) FROM pages WHERE workspace_id = $1`,
+			env.workspaceID,
+		).Scan(&spaceIDs))
+		require.Equal(t, 1, spaceIDs, "前提: 移動元も移動先も同じスペース")
+
+		_, err := env.permissions.UpsertPageRestriction(
+			t.Context(), env.workspaceID, child, bobPrincipal.ID,
+			domain.CapabilityEdit, domain.RestrictionModeDeny,
+		)
+		require.NoError(t, err)
+
+		e := env.as(bob)
+		require.Equal(t, http.StatusForbidden,
+			e.do(t, http.MethodPatch, e.pagePath(child), `{"title":"改訂"}`).Code,
+			"子を直接改名すると 403")
+		assert.Equal(t, http.StatusForbidden,
+			e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`).Code,
+			"親の移動経由でも同じ判定になる（アーカイブと揃えてある）")
+
+		// 全部編集できる管理者は通る（移動が常に失敗する締め方にはしない）。
+		adminEnv := env.as(alice)
+		assert.Equal(t, http.StatusOK,
+			adminEnv.do(t, http.MethodPost, adminEnv.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`).Code)
 	})
 }

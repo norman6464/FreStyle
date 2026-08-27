@@ -243,6 +243,7 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 		http.MethodGet + " " + kbRoutePattern(kbTreePath):    true,
 		http.MethodGet + " " + kbWorkspacesPath:              true,
 		http.MethodPost + " " + kbWorkspacesPath:             true,
+		http.MethodGet + " " + kbRoutePattern(kbSpacesPath):  true,
 		http.MethodPost + " " + kbRoutePattern(kbSpacesPath): true,
 	}
 	for _, e := range kbEndpoints {
@@ -986,4 +987,57 @@ func Test_ナレッジ基盤権限_editのdenyは閲覧を残したまま書き�
 	w := f.do(t, http.MethodPatch,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, `{"title":"改訂"}`)
 	assert.Equal(t, http.StatusForbidden, w.Code, "祖先で編集を外された子も書き込めない")
+}
+
+func Test_ナレッジ基盤移動_配下に編集できないページがあれば何も書き換えず403(t *testing.T) {
+	// 移動はサブツリーごと動くので、子孫の祖先の並びが変わる ＝ そこから継承される
+	// 権限が変わる。操作者から見えない子孫の権限が、本人の知らないうちに書き換わる状態を塞ぐ。
+	// アーカイブと同じ判定に揃えてある（片方だけ緩いと、結局そちらから同じ結果を作れる）。
+	cases := map[string]domain.Capability{
+		"編集だけ外した子": domain.CapabilityEdit,
+		"閲覧ごと外した子": domain.CapabilityView,
+	}
+	for name, capability := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newKbFixture(kbCanEdit, kbUserID)
+			kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), capability, domain.RestrictionModeDeny)
+
+			w := f.do(t, http.MethodPost,
+				"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/move",
+				`{"parentId":"`+kbDestPageID+`"}`)
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+			assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
+			// 断ったなら何も書き換わっていないこと。移動が触るのは parent_id / position
+			// （と closure）だけなので、その 2 つが元のままであることを見る。
+			assert.Nil(t, f.pages.pages[kbRootPageID].ParentID, "根はスペース直下のまま")
+			assert.Equal(t, "a0", f.pages.pages[kbRootPageID].Position, "並び順も動かない")
+			assert.Equal(t, kbRootPageID, *f.pages.pages[kbChildPageID].ParentID,
+				"触れない子の親も動かない")
+		})
+	}
+}
+
+func Test_ナレッジ基盤移動_子孫まで編集できるなら通る(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/move",
+		`{"parentId":"`+kbDestPageID+`"}`)
+
+	require.Equal(t, http.StatusOK, w.Code, "例外が無いのが普通なので、通常の運用は止めない")
+	require.NotNil(t, f.pages.pages[kbRootPageID].ParentID)
+	assert.Equal(t, kbDestPageID, *f.pages.pages[kbRootPageID].ParentID)
+}
+
+func Test_ナレッジ基盤移動_サブツリーの権限確認が失敗したら500で何も書き換えない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.subtreeFactsErr = errors.New("db down")
+
+	w := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/move",
+		`{"parentId":"`+kbDestPageID+`"}`)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Nil(t, f.pages.pages[kbRootPageID].ParentID, "確認できないなら動かさない")
 }

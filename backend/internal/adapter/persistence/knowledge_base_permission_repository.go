@@ -1032,6 +1032,62 @@ func (r *knowledgeBasePermissionRepository) WorkspacePermissionFactsForUser(
 	return &domain.ScopeFacts{Roles: toGrantRoles(roles)}, nil
 }
 
+func (r *knowledgeBasePermissionRepository) ListWorkspaceSpaceScopeFacts(
+	ctx context.Context, workspaceID string, userID uint64,
+) ([]repository.SpaceWithScopeFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		// 解釈できないワークスペース ID は 1 行にも一致しない。0 件と同じ空スライスを返す
+		// （nil を返さないのは JSON で null にしないため。cmd/slicelint が検査している）。
+		return []repository.SpaceWithScopeFacts{}, nil
+	}
+	// bigint に収まらない userID はどの主体にも一致しない ＝ 役割を 1 つも持たない。
+	// ここは一覧の材料なので、空スライス（＝ 1 件も見えない）が拒否側の答えになる。
+	//
+	// 「全スペースを Roles 空で返す」ではなく空にするのは、見えないスペースの key / name を
+	// 呼び出し側へ渡さないため（ListSubtreePagePermissionFacts と同じ判断）。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []repository.SpaceWithScopeFacts{}, nil
+	}
+	rows, err := r.q.ListWorkspaceSpaceScopeFacts(ctx, sqlcgen.ListWorkspaceSpaceScopeFactsParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	// クエリは (スペース × 届いている役割) の直積を返すので、スペース単位に畳み直す。
+	// 役割が 1 つも無いスペースは LEFT JOIN の右が NULL の 1 行として来る（＝ Roles は空のまま）。
+	//
+	// どれを採るかの規則はここでは決めない（domain.StrongestGrantRole の仕事）。
+	// ここでやるのは行を集めることだけ。
+	out := make([]repository.SpaceWithScopeFacts, 0, len(rows))
+	indexBySpace := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		i, seen := indexBySpace[row.ID]
+		if !seen {
+			i = len(out)
+			indexBySpace[row.ID] = i
+			out = append(out, repository.SpaceWithScopeFacts{
+				Space: toDomainSpace(sqlcgen.Space{
+					ID:          row.ID,
+					WorkspaceID: row.WorkspaceID,
+					Key:         row.Key,
+					Name:        row.Name,
+					CreatedAt:   row.CreatedAt,
+					UpdatedAt:   row.UpdatedAt,
+				}),
+				Facts: domain.ScopeFacts{Roles: []domain.GrantRole{}},
+			})
+		}
+		if row.Role.Valid {
+			out[i].Facts.Roles = append(out[i].Facts.Roles, domain.GrantRole(row.Role.String))
+		}
+	}
+	return out, nil
+}
+
 // toGrantRoles は SQL が返した役割の文字列を domain の型へ移すだけの変換。
 // どれを採るかの規則（最も強いものを採る）はここでは決めず、domain.StrongestGrantRole に任せる。
 func toGrantRoles(rows []string) []domain.GrantRole {

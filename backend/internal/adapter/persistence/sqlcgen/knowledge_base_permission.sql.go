@@ -1159,6 +1159,122 @@ func (q *Queries) ListWorkspaceScopeGrantRoles(ctx context.Context, arg ListWork
 	return items, nil
 }
 
+const listWorkspaceSpaceScopeFacts = `-- name: ListWorkspaceSpaceScopeFacts :many
+WITH me AS (
+    SELECT p.id
+    FROM principals p
+    WHERE p.workspace_id = $1
+      AND p.kind = 'user' AND p.user_id = $2
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = $1
+),
+roles AS (
+    -- (a) ワークスペース全体の grant は配下の全スペースへ届く。
+    SELECT s.id AS space_id, wg."role"
+    FROM spaces s
+    JOIN workspace_grants wg
+      ON wg.workspace_id = $1
+     AND wg.principal_id IN (SELECT id FROM mine)
+    WHERE s.workspace_id = $1
+    UNION
+    -- (b) スペース単位の grant のうち、自分 / 所属グループ宛てのもの。
+    SELECT sg.space_id, sg."role"
+    FROM space_grants sg
+    WHERE sg.workspace_id = $1
+      AND sg.principal_id IN (SELECT id FROM mine)
+    UNION
+    -- (c) スペース単位の grant のうち、そのスペース自身の「全員」宛てのもの。
+    -- sa.space_id = sg.space_id で結ぶので、別スペースの「全員」宛て grant は混ざらない。
+    -- EXISTS (me) は非メンバーを弾く（所属していない相手は「全員」に含まれない）。
+    SELECT sg.space_id, sg."role"
+    FROM space_grants sg
+    JOIN principals sa
+      ON sa.workspace_id = $1 AND sa.id = sg.principal_id
+     AND sa.kind = 'space_all' AND sa.space_id = sg.space_id
+    WHERE sg.workspace_id = $1
+      AND EXISTS (SELECT 1 FROM me)
+)
+SELECT s.id, s.workspace_id, s.key, s.name, s.created_at, s.updated_at, r."role"
+FROM spaces s
+LEFT JOIN roles r ON r.space_id = s.id
+WHERE s.workspace_id = $1
+ORDER BY s."key", r."role"
+`
+
+type ListWorkspaceSpaceScopeFactsParams struct {
+	WorkspaceID uuid.UUID
+	UserID      sql.NullInt64
+}
+
+type ListWorkspaceSpaceScopeFactsRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Key         string
+	Name        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Role        sql.NullString
+}
+
+// ワークスペース配下のスペース全件と、それぞれで呼び出し元に届いている「既定の役割」を
+// 1 回のクエリで返す（サイドバーがスペースを列挙するための土台）。
+//
+// 返すのは事実だけ。「その役割で中身を見てよいか」は domain.ResolveScopePermission が決め、
+// 呼び出し側（ListViewableSpacesUseCase）が見えないスペースをふるい落とす。
+// ここで役割を畳んだり WHERE で絞ったりしないのは、ページ 1 枚の解決・スペース 1 つの解決と
+// 同じ規則を 1 箇所（domain）だけに置くため。SQL 側にも規則を書くと、片方だけ直したときに
+// 「スペースを開けるのに一覧に出ない」というずれ方をする。
+//
+// スペースを 1 件も落とさずに返す（LEFT JOIN）のが要点。役割の届いていないスペースを
+// SQL 側で消してしまうと、ふるいが SQL と domain の 2 箇所に散る。事実として
+// 「役割が 1 つも無い」（role が NULL の行）まで返し、判定は 1 箇所に集める。
+// 同じ作りの先例が ListSpacePageViewFacts（スペース配下の全ページを返して domain がふるう）。
+//
+// N+1 を作らない。スペースごとに ListSpaceScopeGrantRoles を投げると、
+// サイドバーを開くたびにスペース数だけ往復する。
+//
+// mine（自分に効く主体）の作り方は ListSpaceScopeGrantRoles と同じだが、
+// 「そのスペースの全員（kind='space_all'）」だけは mine に混ぜられない。あれはスペース 1 つに
+// 紐づく主体で、対象スペースが 1 つに決まっているときしか「自分」に畳めないため
+// （混ぜると、どこか 1 つのスペースの space_all 宛て grant が全スペースへ効く）。
+// ここでは grant の側でスペースを突き合わせる（下の (c)）。
+func (q *Queries) ListWorkspaceSpaceScopeFacts(ctx context.Context, arg ListWorkspaceSpaceScopeFactsParams) ([]ListWorkspaceSpaceScopeFactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceSpaceScopeFacts, arg.WorkspaceID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceSpaceScopeFactsRow{}
+	for rows.Next() {
+		var i ListWorkspaceSpaceScopeFactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Key,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockWorkspaceAdminGrantsForRemoval = `-- name: LockWorkspaceAdminGrantsForRemoval :one
 WITH admin_grants AS MATERIALIZED (
     SELECT wg.principal_id, p.kind

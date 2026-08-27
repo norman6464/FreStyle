@@ -5,6 +5,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -167,5 +168,207 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 		assert.Equal(t, hidden.Code, missing.Code)
 		assert.Equal(t, hidden.Body.String(), missing.Body.String(),
 			"見えないスペースと存在しないスペースの応答は同じにする")
+	})
+}
+
+// spacesPath はスペースの一覧 / 作成のパス。
+func (e *kbEnv) spacesPath() string {
+	return "/api/v2/kb/workspaces/" + e.slug + "/spaces"
+}
+
+// listSpaces はスペース一覧を叩いて key を並べて返す（順序も検証したいので key のまま）。
+func (e *kbEnv) listSpaces(t *testing.T, userID uint64) (*httptest.ResponseRecorder, []string) {
+	t.Helper()
+	w := e.as(userID).do(t, http.MethodGet, e.spacesPath(), "")
+	if w.Code != http.StatusOK {
+		return w, nil
+	}
+	var got []kbSpaceResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	keys := make([]string, 0, len(got))
+	for _, s := range got {
+		keys = append(keys, s.Key)
+	}
+	return w, keys
+}
+
+// TestKnowledgeBaseListSpacesAPI_Integration はスペース一覧を実 PostgreSQL で確かめる。
+//
+// この口はサイドバーの入口で、返す中身がそのまま「誰に何を見せるか」になる。
+// 権限のふるいは domain 側にあるが、**そこへ渡す事実を集めるのは SQL** なので、
+// 事実の集め方（どの grant が届くか）は本物の DB でしか確かめられない。
+func TestKnowledgeBaseListSpacesAPI_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+
+	t.Run("役割の届いているスペースだけがkey順で返る", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		ops := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		kbInsertSpace(t, sqlDB, env.workspaceID, "hr")
+
+		// 所属だけさせて、ワークスペース全体の grant は張らない。
+		// これを張ると全スペースに届いてしまい、ふるいが効いているか分からなくなる。
+		bob := kbInsertUser(t, sqlDB, "bob")
+		bobPrincipal, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, bob)
+		require.NoError(t, err)
+		_, err = env.permissions.UpsertSpaceGrant(
+			t.Context(), env.workspaceID, ops, bobPrincipal.ID, domain.GrantRoleViewer,
+		)
+		require.NoError(t, err)
+
+		w, keys := env.listSpaces(t, bob)
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Equal(t, []string{"ops"}, keys, "grant が届いているスペースだけ")
+		assert.NotContains(t, w.Body.String(), "hr", "権限の無いスペースは名前も漏らさない")
+		assert.NotContains(t, w.Body.String(), "eng")
+	})
+
+	t.Run("役割ごとに見え方が変わらない", func(t *testing.T) {
+		// viewer から admin まで、閲覧できる役割ならどれでも一覧に出る
+		// （出す / 出さないの境目は「役割が 1 つも無いか」であって役割の強さではない）。
+		for _, role := range []domain.GrantRole{
+			domain.GrantRoleViewer, domain.GrantRoleCommenter,
+			domain.GrantRoleEditor, domain.GrantRoleAdmin,
+		} {
+			t.Run(string(role), func(t *testing.T) {
+				env := newKbEnv(t, sqlDB, "acme")
+				kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+				user := kbInsertUser(t, sqlDB, "u")
+				principal, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, user)
+				require.NoError(t, err)
+				_, err = env.permissions.UpsertSpaceGrant(
+					t.Context(), env.workspaceID, env.spaceID, principal.ID, role,
+				)
+				require.NoError(t, err)
+
+				_, keys := env.listSpaces(t, user)
+
+				assert.Equal(t, []string{"eng"}, keys)
+			})
+		}
+	})
+
+	t.Run("ワークスペース全体のadminには全スペースが見える", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+
+		_, keys := env.listSpaces(t, alice)
+
+		assert.Equal(t, []string{"eng", "ops"}, keys, "ワークスペースの grant は配下の全スペースへ届く")
+	})
+
+	t.Run("グループ経由の役割も届く", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		carol := kbInsertUser(t, sqlDB, "carol")
+		carolPrincipal, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, carol)
+		require.NoError(t, err)
+		group, err := env.permissions.CreateGroupPrincipal(t.Context(), env.workspaceID, "開発チーム")
+		require.NoError(t, err)
+		require.NoError(t, env.permissions.AddGroupMember(
+			t.Context(), env.workspaceID, group.ID, carolPrincipal.ID,
+		))
+		_, err = env.permissions.UpsertSpaceGrant(
+			t.Context(), env.workspaceID, env.spaceID, group.ID, domain.GrantRoleEditor,
+		)
+		require.NoError(t, err)
+
+		_, keys := env.listSpaces(t, carol)
+
+		assert.Equal(t, []string{"eng"}, keys, "所属グループ宛ての grant も自分に届く")
+	})
+
+	t.Run("スペース全員宛ての役割はそのスペースにだけ効く", func(t *testing.T) {
+		// kind='space_all' の主体はスペース 1 つに紐づく。これを「自分」に畳んで
+		// 全スペースへ効かせると、1 つのスペースの公開設定がテナント全体に波及する。
+		env := newKbEnv(t, sqlDB, "acme")
+		ops := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		dave := kbInsertUser(t, sqlDB, "dave")
+		_, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, dave)
+		require.NoError(t, err)
+		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, ops)
+		require.NoError(t, err)
+		_, err = env.permissions.UpsertSpaceGrant(
+			t.Context(), env.workspaceID, ops, everyone.ID, domain.GrantRoleViewer,
+		)
+		require.NoError(t, err)
+
+		w, keys := env.listSpaces(t, dave)
+
+		assert.Equal(t, []string{"ops"}, keys, "全員宛ての grant を張ったスペースだけ")
+		assert.NotContains(t, w.Body.String(), "eng", "別スペースには波及しない")
+	})
+
+	t.Run("非メンバーはスペース全員宛ての役割でも見えない", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
+		require.NoError(t, err)
+		_, err = env.permissions.UpsertSpaceGrant(
+			t.Context(), env.workspaceID, env.spaceID, everyone.ID, domain.GrantRoleViewer,
+		)
+		require.NoError(t, err)
+		stranger := kbInsertUser(t, sqlDB, "stranger")
+
+		w, _ := env.listSpaces(t, stranger)
+
+		assert.Equal(t, http.StatusNotFound, w.Code,
+			"所属していない相手は middleware で止まる（「全員」に含まれない）")
+	})
+
+	t.Run("スペースが0件でも空配列", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		_, err := sqlDB.Exec(`DELETE FROM spaces WHERE workspace_id = $1`, env.workspaceID)
+		require.NoError(t, err)
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+
+		w, _ := env.listSpaces(t, alice)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `[]`, w.Body.String(), "null ではなく空配列")
+	})
+
+	t.Run("役割が1件も無いメンバーには空配列", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		nobody := kbInsertUser(t, sqlDB, "nobody")
+		_, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, nobody)
+		require.NoError(t, err)
+
+		w, _ := env.listSpaces(t, nobody)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `[]`, w.Body.String(),
+			"所属しているだけでは中身は見えない（スペースの実在も漏らさない）")
+	})
+
+	t.Run("存在しないワークスペースと権限の無いワークスペースの応答が同じ", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		kbInsertWorkspace(t, sqlDB, "rival")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		e := env.as(alice)
+
+		unknown := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/no-such-workspace/spaces", "")
+		foreign := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/rival/spaces", "")
+
+		assert.Equal(t, http.StatusNotFound, unknown.Code)
+		assert.Equal(t, unknown.Code, foreign.Code)
+		assert.Equal(t, unknown.Body.String(), foreign.Body.String(),
+			"slug の総当たりで他社テナントの実在が分からないこと")
+	})
+
+	t.Run("別テナントのスペースは混ざらない", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		rival := kbInsertWorkspace(t, sqlDB, "rival")
+		kbInsertSpace(t, sqlDB, rival, "secret")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+
+		w, keys := env.listSpaces(t, alice)
+
+		assert.Equal(t, []string{"eng"}, keys)
+		assert.NotContains(t, w.Body.String(), "secret")
 	})
 }

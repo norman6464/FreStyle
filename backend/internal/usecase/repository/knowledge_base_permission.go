@@ -65,6 +65,22 @@ type PageWithPermissionFacts struct {
 	Facts  domain.PagePermissionFacts
 }
 
+// SpaceWithScopeFacts は 1 スペースと、その入れ物に対する実効権限を決める事実の組。
+// ListWorkspaceSpaceScopeFacts が返す（判定は domain.ResolveScopePermission が行う）。
+//
+// ページの事実（PageWithViewFacts / PageWithPermissionFacts）と型を分けているのは、
+// 集めた事実が違うため。入れ物にはページ単位の例外（page_restrictions）の層が無く、
+// ここにあるのは grants で届いた「既定の役割」だけ。同じ型に載せると
+// 「例外を見ていない」ことが「例外が無い」に化ける（domain.ScopeFacts の説明を参照）。
+//
+// スペース本体を持つのは、これが一覧の材料そのものだから（呼び出し側は key / name を返す）。
+// 事実の側で見えないスペースをふるい落とすのは呼び出し側の責務で、
+// この型が返ってきた時点ではまだ「見せてよいスペース」に絞られていない。
+type SpaceWithScopeFacts struct {
+	Space domain.Space
+	Facts domain.ScopeFacts
+}
+
 // ShareLinkWrite は共有リンクの発行に渡す値。
 //
 // ID と PrincipalID を持たないのは、どちらも採番が repository の責務のため
@@ -216,6 +232,21 @@ type KnowledgeBasePermissionRepository interface {
 	// 役割 0 個 ＝ 何もできない（fail-closed）に自然と倒れるため。
 	// 呼び出し側は middleware が slug から解決したワークスペースを渡す。
 	WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error)
+	// ListWorkspaceSpaceScopeFacts はワークスペース配下のスペース全件と、それぞれで
+	// 呼び出し元に届いている役割（事実）を 1 回のクエリで返す。判定は
+	// domain.ResolveScopePermission が行う。
+	//
+	// **返り値はまだ「見せてよいスペース」ではない。** 役割が 1 つも届いていないスペースも
+	// Roles が空のまま含まれる。ふるい落とすのは呼び出し側（ListViewableSpacesUseCase）で、
+	// ここで絞らないのは判定規則を domain の 1 箇所に閉じるため。
+	//
+	// スペースごとに SpacePermissionFactsForUser を呼ぶ（N+1）ことはしない。
+	// サイドバーはワークスペースを開くたびにこの一覧を引くので、スペース数だけ往復すると
+	// そのまま画面の待ち時間になる。
+	//
+	// ワークスペースの実在は確かめない。無ければスペースが 1 件も無く、空スライスに倒れる
+	// （WorkspacePermissionFactsForUser が実在を確かめないのと同じ理由）。
+	ListWorkspaceSpaceScopeFacts(ctx context.Context, workspaceID string, userID uint64) ([]SpaceWithScopeFacts, error)
 	// ListSubtreePagePermissionFacts はサブツリー（対象ページ自身 + 全子孫）の各ページと、
 	// その実効権限を決める事実を 1 回のクエリで返す。アーカイブ済みのページも含む。
 	// ページとその子孫をまとめて書き換える操作が、根 1 枚の権限だけで通らないようにするための口。

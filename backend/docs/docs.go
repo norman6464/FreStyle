@@ -3959,7 +3959,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。",
+                "description": "ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。",
                 "consumes": [
                     "application/json"
                 ],
@@ -4015,7 +4015,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "編集 権限 が 無い",
+                        "description": "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -4478,6 +4478,59 @@ const docTemplate = `{
             }
         },
         "/kb/workspaces/{workspaceSlug}/spaces": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。 閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages で 取る)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の スペース 一覧",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.kbSpaceResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "ワークスペース が 無い か 未 所属",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {

@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArchiveBoxIcon } from '@heroicons/react/24/outline';
+import { useToast } from '@/shared/lib/hooks/useToast';
+import KbCreateForm from './KbCreateForm';
 import { useKnowledgeBaseTree } from '../model/useKnowledgeBaseTree';
 import KbWorkspaceSwitcher from './KbWorkspaceSwitcher';
 import KbSpaceSection from './KbSpaceSection';
@@ -22,6 +24,7 @@ export interface KbSidebarProps {
  */
 export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProps) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const {
     workspaces,
     workspacesLoading,
@@ -37,6 +40,8 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     retrySpace,
     expandedPageIds,
     togglePage,
+    createWorkspace,
+    createSpace,
     createPage,
     renamePage,
     archivePage,
@@ -68,10 +73,27 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
       )}
 
       {!workspacesLoading && !workspacesError && workspaces.length === 0 && (
-        // 所属が無いと API は全部 404 になる。「壊れている」ではなく「まだ居ない」と伝える。
-        <p className="px-2 py-4 text-xs leading-relaxed text-[var(--color-text-muted)]">
-          所属しているワークスペースがありません。管理者に招待してもらってください。
-        </p>
+        // 所属が無いと API は全部 404 になる。「壊れている」ではなく「ここから始める」と伝える。
+        //
+        // **入口をここに置くのが要点。** 作る手段が無いと、ワークスペースを作る API が
+        // あってもサイドバーには永久にたどり着けない（実際そうなっていた）。
+        <div>
+          <p className="px-2 pt-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+            まだワークスペースがありません。作るとページを置けるようになります。
+          </p>
+          <KbCreateForm
+            what="ワークスペース"
+            keyLabel="URL に使う短い名前（英数字）"
+            onCreate={async (input) => {
+              try {
+                await createWorkspace(input);
+              } catch {
+                showToast('error', 'ワークスペースを作成できませんでした');
+                throw new Error('create workspace failed');
+              }
+            }}
+          />
+        </div>
       )}
 
       <div className="mt-2 min-h-0 flex-1">
@@ -88,9 +110,25 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
         )}
 
         {!spacesLoading && !spacesError && activeSlug && spaces.length === 0 && (
-          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
-            見られるスペースがありません。
-          </p>
+          // ワークスペースを作っただけではスペースは付いてこない。ここでも入口を出す
+          // （出さないと「見られるスペースがありません」で行き止まりになる）。
+          <div>
+            <p className="px-2 pt-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
+              まだスペースがありません。部署や個人ごとの区画を作ります。
+            </p>
+            <KbCreateForm
+              what="スペース"
+              keyLabel="短い名前（英数字）"
+              onCreate={async (input) => {
+                try {
+                  await createSpace(input);
+                } catch {
+                  showToast('error', 'スペースを作成できませんでした');
+                  throw new Error('create space failed');
+                }
+              }}
+            />
+          </div>
         )}
 
         {activeSlug &&

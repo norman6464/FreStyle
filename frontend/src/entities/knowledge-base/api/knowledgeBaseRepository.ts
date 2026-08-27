@@ -53,6 +53,27 @@ const KnowledgeBaseRepository = {
   },
 
   /**
+   * ワークスペースを作る。作った本人がそのワークスペースの admin になる。
+   *
+   * slug は**テナントをまたいで一意**なので、使われていれば 409 で返る
+   * （FRESTYLE-385 でこの応答自体を見直す予定）。**失敗は例外として投げる。**
+   */
+  async createWorkspace(input: { slug: string; name: string }): Promise<KbWorkspace> {
+    const res = await apiClient.post<KbWorkspace>(KNOWLEDGE_BASE.workspaces, input);
+    return res.data;
+  },
+
+  /**
+   * スペースを作る。ワークスペースの admin だけが叩ける。
+   *
+   * key はワークスペース内で一意。**失敗は例外として投げる。**
+   */
+  async createSpace(workspaceSlug: string, input: { key: string; name: string }): Promise<KbSpace> {
+    const res = await apiClient.post<KbSpace>(KNOWLEDGE_BASE.spaces(workspaceSlug), input);
+    return res.data;
+  },
+
+  /**
    * ページを作る。parentId を省くとスペース直下、渡すとその子として作る。
    *
    * **失敗は例外として投げる**（axios がそうする）。ここで握り潰して null や false を返すと、

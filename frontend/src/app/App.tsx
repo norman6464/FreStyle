@@ -29,6 +29,7 @@ const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ defa
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
 const AskAiPage = lazyWithReload(() => import('@/pages/ask-ai').then((m) => ({ default: m.AskAiPage })), 'AskAiPage');
 const NotesPage = lazyWithReload(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })), 'NotesPage');
+const KnowledgeBasePage = lazyWithReload(() => import('@/pages/knowledge-base').then((m) => ({ default: m.KnowledgeBasePage })), 'KnowledgeBasePage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const LearningReportPage = lazyWithReload(() => import('@/pages/learning-report').then((m) => ({ default: m.LearningReportPage })), 'LearningReportPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
@@ -114,6 +115,14 @@ export default function App() {
         {/* 静的ルート（markdown-help）はルータのランキングで :noteId より優先される。 */}
         <Route path="/notes/markdown-help" element={<MarkdownSyntaxHelpPage />} />
         <Route path="/notes/:noteId" element={<NotesPage />} />
+        {/*
+          ナレッジ基盤（workspaces → spaces → pages の木）。/notes とは別系統で、
+          あちらは所有者スコープの平らな一覧、こちらは付与と例外で解決する木。
+          slug だけならスペース一覧まで、pageId まであれば本文も出す。
+        */}
+        <Route path="/kb" element={<KnowledgeBasePage />} />
+        <Route path="/kb/:workspaceSlug" element={<KnowledgeBasePage />} />
+        <Route path="/kb/:workspaceSlug/pages/:pageId" element={<KnowledgeBasePage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />

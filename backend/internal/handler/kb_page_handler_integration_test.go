@@ -195,8 +195,9 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		var nodes []kbPageTreeResponse
-		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &nodes))
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
+		nodes := body.Pages
 		require.Len(t, nodes, 1)
 		require.Len(t, nodes[0].Children, 1)
 		assert.Equal(t, page.ID, nodes[0].Children[0].Page.ID)
@@ -265,8 +266,9 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		e := env.as(bob)
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		var nodes []kbPageTreeResponse
-		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &nodes))
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
+		nodes := body.Pages
 		require.Len(t, nodes, 1, "隠した親も、その子も根に浮かない")
 		assert.Equal(t, open, nodes[0].Page.ID)
 
@@ -353,12 +355,13 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, e.do(t, http.MethodPost, e.pagePath(root)+"/archive", "").Code)
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		assert.JSONEq(t, `[]`, tree.Body.String())
+		assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, tree.Body.String())
 
 		require.Equal(t, http.StatusOK, e.do(t, http.MethodPost, e.pagePath(root)+"/unarchive", "").Code)
 		tree = e.do(t, http.MethodGet, e.pagesPath(), "")
-		var nodes []kbPageTreeResponse
-		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &nodes))
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
+		nodes := body.Pages
 		require.Len(t, nodes, 1)
 		assert.Len(t, nodes[0].Children, 1, "一緒にアーカイブした子も戻る")
 	})
@@ -438,8 +441,9 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		// 管理者のツリーからも消えていない（見えないページを黙って消せない）。
 		tree := adminEnv.do(t, http.MethodGet, adminEnv.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		var nodes []kbPageTreeResponse
-		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &nodes))
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
+		nodes := body.Pages
 		require.Len(t, nodes, 1)
 		require.Len(t, nodes[0].Children, 1)
 		assert.Equal(t, child.ID, nodes[0].Children[0].Page.ID)
@@ -498,7 +502,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(root), "").Code)
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		assert.JSONEq(t, `[]`, tree.Body.String())
+		assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, tree.Body.String())
 	})
 }
 

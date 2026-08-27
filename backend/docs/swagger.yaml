@@ -1112,8 +1112,27 @@ definitions:
         items:
           $ref: '#/definitions/internal_handler.kbPageTreeResponse'
         type: array
+      hiddenChildCount:
+        description: |-
+          HiddenChildCount はこのページの直下にある、閲覧できないページの数。
+          題名は出さない（件数だけ）。判断の理由は ListViewablePagesOutput の doc に書いてある。
+        example: 0
+        type: integer
       page:
         $ref: '#/definitions/internal_handler.kbPageResponse'
+    type: object
+  internal_handler.kbPageTreeRootResponse:
+    properties:
+      hiddenChildCount:
+        description: |-
+          HiddenChildCount はスペース直下にある、閲覧できないページの数。
+          1 件も見えないスペースでは必ず 0（存在しないスペースと撃ち分けないため）。
+        example: 0
+        type: integer
+      pages:
+        items:
+          $ref: '#/definitions/internal_handler.kbPageTreeResponse'
+        type: array
     type: object
   internal_handler.kbPrincipalResponse:
     properties:
@@ -4724,7 +4743,8 @@ paths:
     get:
       description: スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限
         が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら
-        も 空 配列)。
+        も 空 の pages)。 hiddenChildCount は その 段 の 直下 に ある 閲覧 でき ない ページ の 件数 で、 題名 は
+        返さ ない。
       parameters:
       - description: ワークスペース の slug
         in: path
@@ -4742,9 +4762,7 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/internal_handler.kbPageTreeResponse'
-            type: array
+            $ref: '#/definitions/internal_handler.kbPageTreeRootResponse'
         "401":
           description: 未 認証
           schema:

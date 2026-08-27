@@ -126,10 +126,10 @@ func (f kbPermFixture) restrict(
 // 1 ページずつの解決と答えが割れないことを確かめるのに使う。
 func (f kbPermFixture) viewablePageIDs(ctx context.Context, t *testing.T, spaceID string, userID uint64) []string {
 	t.Helper()
-	pages, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
+	out, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
 		usecase.ListViewablePagesInput{WorkspaceID: f.ws, SpaceID: spaceID, UserID: userID})
 	require.NoError(t, err)
-	return pageIDs(pages)
+	return pageIDs(out.Pages)
 }
 
 func TestKnowledgeBasePermission_Integration(t *testing.T) {
@@ -862,21 +862,22 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 			WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.bob,
 		})
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{root.ID, open.ID}, pageIDs(bobPages), "秘密の木は丸ごと落ちる")
+		assert.ElementsMatch(t, []string{root.ID, open.ID}, pageIDs(bobPages.Pages), "秘密の木は丸ごと落ちる")
 
 		alicePages, err := listUC.Execute(ctx, usecase.ListViewablePagesInput{
 			WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.alice,
 		})
 		require.NoError(t, err)
 		assert.ElementsMatch(t,
-			[]string{root.ID, open.ID, secret.ID, secretChild.ID}, pageIDs(alicePages),
+			[]string{root.ID, open.ID, secret.ID, secretChild.ID}, pageIDs(alicePages.Pages),
 			"許可された人には子孫まで見える")
 
 		carolPages, err := listUC.Execute(ctx, usecase.ListViewablePagesInput{
 			WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.carol,
 		})
 		require.NoError(t, err)
-		assert.Empty(t, carolPages, "非メンバーには 1 枚も見えない")
+		assert.Empty(t, carolPages.Pages, "非メンバーには 1 枚も見えない")
+		assert.Empty(t, carolPages.HiddenChildCount, "件数も返さない（存在が漏れる）")
 	})
 
 	t.Run("一覧はdenyと所属グループとケイパビリティを1ページ解決と同じに畳む", func(t *testing.T) {

@@ -12,6 +12,7 @@ const hoisted = vi.hoisted(() => ({
   renamePage: vi.fn(),
   archivePage: vi.fn(),
   unarchivePage: vi.fn(),
+  movePage: vi.fn(),
   showToast: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ vi.mock('@/entities/knowledge-base', async () => {
       renamePage: hoisted.renamePage,
       archivePage: hoisted.archivePage,
       unarchivePage: hoisted.unarchivePage,
+      movePage: hoisted.movePage,
     },
   };
 });
@@ -105,7 +107,35 @@ beforeEach(() => {
   );
   hoisted.archivePage.mockResolvedValue(undefined);
   hoisted.unarchivePage.mockResolvedValue(undefined);
+  hoisted.movePage.mockResolvedValue(page('p1'));
 });
+
+/** 行の矩形を固定して、落とす位置（上端 / 中央 / 下端）を狙えるようにする。 */
+function stubRowRect(row: HTMLElement) {
+  row.getBoundingClientRect = () =>
+    ({ top: 0, height: 100, left: 0, right: 0, bottom: 100, width: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+}
+
+/**
+ * dragRowOnto は from の行を to の行の指定位置へドラッグして落とす。
+ *
+ * dragOver / drop は **MouseEvent として作る**。fireEvent.drop(el, { clientY }) だと
+ * jsdom に DragEvent が無いぶん素の Event に落ちて clientY が届かず、
+ * 落下先が必ず「中央（子として）」になってしまう（実測で確認）。
+ */
+function dragRowOnto(fromTitle: string, toTitle: string, clientY: number) {
+  const from = screen.getByRole('treeitem', { name: fromTitle });
+  const to = screen.getByRole('treeitem', { name: toTitle });
+  stubRowRect(to);
+  fireEvent.dragStart(from, { dataTransfer: { setData: vi.fn(), effectAllowed: '' } });
+  const withPosition = (type: string) => {
+    const event = new MouseEvent(type, { bubbles: true, clientY });
+    Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: '' } });
+    return event;
+  };
+  fireEvent(to, withPosition('dragover'));
+  fireEvent(to, withPosition('drop'));
+}
 
 describe('KbSidebar', () => {
   it('先頭のスペースを開いて木を出す', async () => {
@@ -565,6 +595,141 @@ describe('KbSidebar', () => {
       await waitFor(() =>
         expect(hoisted.showToast).toHaveBeenCalledWith('error', '復帰できませんでした'),
       );
+    });
+  });
+
+  describe('ドラッグで動かす', () => {
+    const twoRoots = () =>
+      hoisted.fetchPageTree.mockResolvedValue(
+        tree([{ id: 'p1', title: 'ページ A' }, { id: 'p2', title: 'ページ B' }]),
+      );
+
+    it('行の下端に落とすと、その直後の兄弟として送る', async () => {
+      twoRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p1', {
+          parentId: '',
+          afterPageId: 'p2',
+        }),
+      );
+    });
+
+    it('行の上端に落とすと、その手前の兄弟として送る', async () => {
+      twoRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ B', 'ページ A', 10);
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', {
+          parentId: '',
+          beforePageId: 'p1',
+        }),
+      );
+    });
+
+    it('行の中央に落とすと、その行の子として送る', async () => {
+      twoRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ B', 'ページ A', 50);
+
+      await waitFor(() =>
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', { parentId: 'p1' }),
+      );
+    });
+
+    it('返事を待たずに画面が動く', async () => {
+      // ドラッグは即座に動かないと使えない。
+      twoRoots();
+      hoisted.movePage.mockImplementationOnce(() => new Promise(() => {}));
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+
+      await waitFor(() => {
+        const titles = screen.getAllByRole('treeitem').map((row) => row.getAttribute('aria-label'));
+        expect(titles).toEqual(['ページ B', 'ページ A']);
+      });
+    });
+
+    it('断られたら元の並びへ戻し、知らせを出す', async () => {
+      // 戻せないと、画面と DB が食い違ったまま利用者が次の操作をする。
+      twoRoots();
+      hoisted.movePage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith('error', '移動できませんでした'),
+      );
+      const titles = screen.getAllByRole('treeitem').map((row) => row.getAttribute('aria-label'));
+      expect(titles).toEqual(['ページ A', 'ページ B']);
+    });
+
+    it('巻き戻しで木を取り直さない', async () => {
+      // 取り直すと失敗が見えないまま画面だけ整い、間に別の操作が挟まると
+      // どちらが正か分からなくなる。
+      twoRoots();
+      hoisted.movePage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('ページ B');
+      const before = hoisted.fetchPageTree.mock.calls.length;
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+
+      await waitFor(() => expect(hoisted.showToast).toHaveBeenCalled());
+      expect(hoisted.fetchPageTree.mock.calls.length).toBe(before);
+    });
+
+    it('成功しても木を取り直さない', async () => {
+      // どの兄弟の隣かで指定しているので、サーバーの並びとこちらの並びは割れない。
+      twoRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+      const before = hoisted.fetchPageTree.mock.calls.length;
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+
+      await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
+      expect(hoisted.fetchPageTree.mock.calls.length).toBe(before);
+    });
+
+    it('自分の子孫の中へは動かさない（サーバーへも投げない）', async () => {
+      hoisted.fetchPageTree.mockResolvedValue(
+        tree([{ id: 'p1', title: '親ページ', children: ['p1-child'] }]),
+      );
+      renderSidebar();
+      await screen.findByText('親ページ');
+      fireEvent.click(screen.getByRole('button', { name: '親ページ を開く' }));
+      await screen.findByText('p1-child');
+
+      dragRowOnto('親ページ', 'p1-child', 50);
+
+      await waitFor(() => expect(hoisted.showToast).toHaveBeenCalled());
+      expect(hoisted.movePage).not.toHaveBeenCalled();
+    });
+
+    it('アーカイブ済みでは並べ替えを受け付けない', async () => {
+      twoRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+
+      expect(hoisted.movePage).not.toHaveBeenCalled();
     });
   });
 

@@ -4,6 +4,7 @@ import { KbPageGroupIcon, KbPageIcon } from '@/shared/ui/icons/kb';
 import KbRowActions from './KbRowActions';
 import KbInlineRename from './KbInlineRename';
 import type { KbTreeRow } from '@/entities/knowledge-base';
+import { dropZoneFromEvent, type KbDropZone } from '../model/dropZone';
 
 /** 1 段下がるごとの字下げ幅（px）。三角の幅とほぼ同じにして、段が目で追えるようにする。 */
 export const KB_INDENT_PX = 14;
@@ -28,6 +29,16 @@ export interface KbPageRowProps {
   /** アーカイブ済みを見ているか。行に出す操作がまるごと変わる。 */
   archivedMode: boolean;
   onUnarchive: (pageId: string) => void;
+  /** ドラッグでの並べ替えを受け付けるか（アーカイブ済みでは受け付けない）。 */
+  draggable: boolean;
+  /** いまこの行を掴んでいるか。 */
+  dragging: boolean;
+  onDragStart: (pageId: string) => void;
+  onDragEnd: () => void;
+  /** この行のどこに落とそうとしているか。落としていないときは null。 */
+  dropZone: KbDropZone | null;
+  onDragOverRow: (pageId: string, zone: KbDropZone) => void;
+  onDropOnRow: (pageId: string, zone: KbDropZone) => void;
 }
 
 /**
@@ -50,6 +61,13 @@ export default function KbPageRow({
   onArchive,
   archivedMode,
   onUnarchive,
+  draggable,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  dropZone,
+  onDragOverRow,
+  onDropOnRow,
 }: KbPageRowProps) {
   const { page, depth, hasChildren, expanded, parentArchived } = row;
 
@@ -59,6 +77,17 @@ export default function KbPageRow({
   // ここでフォルダにすると、開閉の三角が無いのにフォルダ、という食い違った行になり、
   // さらに「この下に何かある」ことを形からも二重に漏らす。
   const Icon = hasChildren ? KbPageGroupIcon : KbPageIcon;
+
+  // 落下先を線と枠で描き分ける。並べ替え（上下の線）と入れ子（枠）は別の操作なので、
+  // 見た目でも別にする。同じ強調にすると、どちらになるのか落とすまで分からない。
+  const dropClass =
+    dropZone === 'into'
+      ? 'ring-1 ring-inset ring-brand-400'
+      : dropZone === 'before'
+        ? 'border-t-2 border-brand-400'
+        : dropZone === 'after'
+          ? 'border-b-2 border-brand-400'
+          : '';
 
   return (
     <li role="none">
@@ -74,9 +103,29 @@ export default function KbPageRow({
         // 名前の決まり方を行の中身に任せておくと、次に何かを足したときに黙って変わる。
         // 明示しておけば、中に何を置いても名前は題名のまま。
         aria-label={page.title}
+        draggable={draggable && !renaming}
+        onDragStart={(event) => {
+          // text/plain を入れておかないと Firefox がドラッグを開始しない。
+          event.dataTransfer.setData('text/plain', page.id);
+          event.dataTransfer.effectAllowed = 'move';
+          onDragStart(page.id);
+        }}
+        onDragEnd={onDragEnd}
+        onDragOver={(event) => {
+          if (!draggable) return;
+          // 既定の動作を止めないと drop が起きない（ブラウザの決まり）。
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          onDragOverRow(page.id, dropZoneFromEvent(event.currentTarget.getBoundingClientRect(), event.clientY));
+        }}
+        onDrop={(event) => {
+          if (!draggable) return;
+          event.preventDefault();
+          onDropOnRow(page.id, dropZoneFromEvent(event.currentTarget.getBoundingClientRect(), event.clientY));
+        }}
         className={`group flex items-center gap-1 rounded-md pr-1 transition-colors ${
           active ? 'bg-brand-500/10 text-brand-600' : 'hover:bg-surface-2'
-        }`}
+        } ${dragging ? 'opacity-40' : ''} ${dropClass}`}
         style={{ paddingLeft: depth * KB_INDENT_PX }}
       >
         {hasChildren ? (

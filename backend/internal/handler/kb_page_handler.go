@@ -23,6 +23,7 @@ type KnowledgeBasePageHandler struct {
 	canEditSubtree *usecase.CanEditPageSubtreeUseCase
 	listViewable   *usecase.ListViewablePagesUseCase
 	get            *usecase.GetPageUseCase
+	findPage       *usecase.FindPageUseCase
 	create         *usecase.CreatePageUseCase
 	rename         *usecase.RenamePageUseCase
 	move           *usecase.MovePageUseCase
@@ -38,6 +39,7 @@ func NewKnowledgeBasePageHandler(
 	canEditSubtree *usecase.CanEditPageSubtreeUseCase,
 	listViewable *usecase.ListViewablePagesUseCase,
 	get *usecase.GetPageUseCase,
+	findPage *usecase.FindPageUseCase,
 	create *usecase.CreatePageUseCase,
 	rename *usecase.RenamePageUseCase,
 	move *usecase.MovePageUseCase,
@@ -51,6 +53,7 @@ func NewKnowledgeBasePageHandler(
 		canEditSubtree: canEditSubtree,
 		listViewable:   listViewable,
 		get:            get,
+		findPage:       findPage,
 		create:         create,
 		rename:         rename,
 		move:           move,
@@ -533,7 +536,12 @@ func (h *KnowledgeBasePageHandler) Rename(c *gin.Context) {
 // parentId が必須なのは作成と同じ理由。スペース直下へ移す操作は移動先スペースに対する
 // 権限で判断する必要があり、その口がまだ無い。
 type kbMovePageRequest struct {
-	ParentID string `json:"parentId" binding:"required" example:"0198a000-0000-7000-8000-000000000003"`
+	// ParentID を省くと、いまと同じスペースの直下（ルート）へ移す。
+	//
+	// 省けるようにしたのはドラッグのため。入れ子になったページを最上段へ戻すのは
+	// 基本の操作で、これが無いと「入れることはできるが出せない」ドラッグになる。
+	// 判断はスペースの編集権限で行う（ページの例外の層が無い段なので、そこが正しい単位）。
+	ParentID string `json:"parentId,omitempty" example:"0198a000-0000-7000-8000-000000000003"`
 	// AfterPageID / BeforePageID は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。
 	// どちらも空なら末尾。**両方を指定することはできない。**
 	//
@@ -553,7 +561,7 @@ type kbMovePageRequest struct {
 //	@Produce      json
 //	@Param        workspaceSlug  path      string             true  "ワークスペース の slug"
 //	@Param        pageId         path      string             true  "ページ ID (UUID)"
-//	@Param        body           body      kbMovePageRequest  true  "移動 先 の 親"
+//	@Param        body           body      kbMovePageRequest  true  "移動 先 の 親 と 位置 (parentId を 省く と スペース 直下)"
 //	@Success      200            {object}  kbPageResponse
 //	@Failure      400            {object}  errorResponse  "バリデーション エラー / スペース 不一致"
 //	@Failure      401            {object}  errorResponse  "未 認証"
@@ -622,10 +630,34 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// 移動先の親も編集できなければならない。動かすページの権限だけで通すと、
+	// 移動先も編集できなければならない。動かすページの権限だけで通すと、
 	// 自分が書けないサブツリーへページを差し込めてしまう。
-	if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
-		return
+	//
+	// 親を指定したときは**その親ページ**の編集権限、省いたとき（スペース直下へ戻す）は
+	// **そのスペース**の編集権限で判断する。作成の入口と同じ分け方で、理由も同じ —
+	// ページの例外（page_restrictions）は経路の上から効くので、親を持つ移動を
+	// スペースの判定で通すと、親で deny されている相手がその下に差し込める。
+	// 逆にスペース直下には例外の層が無いので、そこはスペースの権限が正しい単位。
+	var newParentID *string
+	if req.ParentID != "" {
+		if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
+			return
+		}
+		newParentID = &req.ParentID
+	} else {
+		// 動かすページ自身の所属スペースへ戻す（スペースをまたぐ移動はこの口では扱わない）。
+		// ページの編集権限は上で確かめてあるので、ここで読んでも実在は新しく漏れない。
+		moving, err := h.findPage.Execute(c.Request.Context(), usecase.FindPageInput{
+			WorkspaceID: scope.workspaceID,
+			PageID:      pageID,
+		})
+		if err != nil {
+			respondKnowledgeBaseErr(c, err)
+			return
+		}
+		if !h.requireSpacePermission(c, scope, moving.SpaceID, domain.CapabilityEdit) {
+			return
+		}
 	}
 	// 位置の指定は前後どちらか一方だけ。両方あると、どちらを採ったかで結果が変わるのに
 	// 呼び出し側からは分からない。黙って片方を採らず、断る。
@@ -650,7 +682,7 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	page, err := h.move.Execute(c.Request.Context(), usecase.MovePageInput{
 		WorkspaceID:  scope.workspaceID,
 		PageID:       pageID,
-		NewParentID:  &req.ParentID,
+		NewParentID:  newParentID,
 		Anchor:       anchor,
 		AnchorBefore: anchorBefore,
 	})

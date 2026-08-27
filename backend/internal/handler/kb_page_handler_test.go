@@ -597,6 +597,37 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みの一覧(t *testing.
 	})
 }
 
+func Test_ナレッジ基盤移動_親を省くとスペース直下へ戻る(t *testing.T) {
+	movePath := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/move"
+
+	t.Run("親を省くとスペース直下へ移る", func(t *testing.T) {
+		// 入れ子になったページを最上段へ戻すのはドラッグの基本操作。これが無いと
+		// 「入れることはできるが出せない」ドラッグになる。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		// スペース直下へ戻す判断はスペースの権限で行うので、そちらも editor にする。
+		f.perms.scopeRoles[kbScopeKey{scopeID: kbSpaceID, userID: kbUserID}] = domain.GrantRoleEditor
+		require.NotNil(t, f.pages.pages[kbChildPageID].ParentID)
+
+		w := f.do(t, http.MethodPost, movePath, `{}`)
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Nil(t, f.pages.pages[kbChildPageID].ParentID, "スペース直下へ移っている")
+		assert.Equal(t, kbSpaceID, f.pages.pages[kbChildPageID].SpaceID, "スペースは変わらない")
+	})
+
+	t.Run("スペースを編集できなければ断る", func(t *testing.T) {
+		// スペース直下には例外の層が無いので、そこはスペースの権限が正しい単位。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		// スペースでは閲覧しかできない相手にする（ページの編集権限は上の fixture で持つ）。
+		f.perms.scopeRoles[kbScopeKey{scopeID: kbSpaceID, userID: kbUserID}] = domain.GrantRoleViewer
+
+		w := f.do(t, http.MethodPost, movePath, `{}`)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.NotNil(t, f.pages.pages[kbChildPageID].ParentID, "断ったら何も書き換わらない")
+	})
+}
+
 func Test_ナレッジ基盤移動_落とした位置に置く(t *testing.T) {
 	movePath := func(pageID string) string {
 		return "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + pageID + "/move"
@@ -830,12 +861,6 @@ func Test_ナレッジ基盤API_入力の検証(t *testing.T) {
 			body:   `{"doc":{"type":"doc","content":[{"type":"未知のノード"}]}}`,
 			status: http.StatusBadRequest,
 		},
-		{
-			name: "移動にparentIdが無ければ400", method: http.MethodPost,
-			path:   "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/move",
-			body:   `{}`,
-			status: http.StatusBadRequest,
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -953,6 +978,7 @@ func Test_ナレッジ基盤API_middlewareを通らないルートは成功し�
 		usecase.NewCanEditPageSubtreeUseCase(perms),
 		usecase.NewListViewablePagesUseCase(perms),
 		usecase.NewGetPageUseCase(pages),
+		usecase.NewFindPageUseCase(pages),
 		usecase.NewCreatePageUseCase(pages),
 		usecase.NewRenamePageUseCase(pages),
 		usecase.NewMovePageUseCase(pages),

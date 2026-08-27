@@ -3,6 +3,8 @@ import {
   KnowledgeBaseRepository,
   collectKbAncestorIds,
   replaceKbPageInTree,
+  moveKbPageInTree,
+  type KbDropTarget,
   type KbPage,
   type KbPageTree,
   type KbSpace,
@@ -257,6 +259,70 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     [activeSlug, loadSpaceTree],
   );
 
+  /**
+   * ドラッグで動かす。**先に画面を動かし、断られたら元の並びへ戻す。**
+   *
+   * ドラッグは即座に動かないと使えないが、サーバーは拒否しうる（権限・競合・循環）。
+   * だから先に動かす。ただし**戻せる形でしか動かさない**こと — 戻せないと、画面と
+   * DB が食い違ったまま利用者が次の操作をする。
+   *
+   * 巻き戻しは木の取り直しではなく、**動かす前の木をそのまま書き戻す**。取り直すと
+   * 失敗が見えないまま画面だけ整い、しかも取り直しの間に別の操作が挟まると
+   * どちらが正か分からなくなる。
+   *
+   * 成功しても取り直さない。サーバーが受け入れた並びは、こちらが先に描いたものと同じ
+   * （どの兄弟の隣かで指定しているので、解釈が割れる余地が無い）。
+   *
+   * **失敗は握り潰さず投げる。** 巻き戻しはここで済ませるが、知らせるのは呼び出し側。
+   */
+  const movePage = useCallback(
+    async (spaceId: string, pageId: string, target: KbDropTarget): Promise<void> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+
+      // 動かす前の木を控える。これが唯一の巻き戻し先。
+      let previous: KbPageTree | null = null;
+      let moved = false;
+      setSpaceStates((prev) => {
+        const current = prev[spaceId];
+        if (!current?.tree) return prev;
+        const pages = moveKbPageInTree(current.tree.pages, pageId, target);
+        if (!pages) return prev;
+        previous = current.tree;
+        moved = true;
+        return { ...prev, [spaceId]: { ...current, tree: { ...current.tree, pages } } };
+      });
+      // 動かせない指定（自分自身・自分の子孫の中）は、サーバーへ投げる前に断る。
+      if (!moved) throw new Error('invalid drop target');
+
+      // 落下先を API の言葉へ移す。**並び順のキーは送らない**（そもそも持っていない）。
+      const request =
+        target.kind === 'into'
+          ? { parentId: target.pageId }
+          : {
+              parentId: parentIdOf(previous, target.pageId) ?? '',
+              ...(target.kind === 'before'
+                ? { beforePageId: target.pageId }
+                : { afterPageId: target.pageId }),
+            };
+
+      try {
+        await KnowledgeBaseRepository.movePage(activeSlug, pageId, request);
+      } catch (error) {
+        // 動かす前の並びへ戻す。取り直さない。
+        const restore = previous;
+        if (restore) {
+          setSpaceStates((prev) => {
+            const current = prev[spaceId];
+            if (!current) return prev;
+            return { ...prev, [spaceId]: { ...current, tree: restore } };
+          });
+        }
+        throw error;
+      }
+    },
+    [activeSlug],
+  );
+
   const togglePage = useCallback((pageId: string) => {
     setExpandedPageIds((prev) => {
       const next = new Set(prev);
@@ -343,9 +409,24 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     renamePage,
     archivePage,
     unarchivePage,
+    movePage,
     archivedMode,
     setArchivedMode,
   };
+}
+
+/** parentIdOf は木の中でそのページの親の ID を返す（スペース直下なら null）。 */
+function parentIdOf(tree: KbPageTree | null, pageId: string): string | null {
+  if (!tree) return null;
+  const walk = (nodes: KbPageTree['pages'], parentId: string | null): string | null | undefined => {
+    for (const node of nodes) {
+      if (node.page.id === pageId) return parentId;
+      const found = walk(node.children, node.page.id);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+  return walk(tree.pages, null) ?? null;
 }
 
 /** 新しく作ったページの題名。作った直後にその場で書き換えられる。 */

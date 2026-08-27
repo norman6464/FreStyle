@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { flattenKbTree, type KbPage, type KbSpace } from '@/entities/knowledge-base';
+import { flattenKbTree, type KbDropTarget, type KbPage, type KbSpace } from '@/entities/knowledge-base';
+import { toDropTarget, type KbDropZone } from '../model/dropZone';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import type { KbSpaceState } from '../model/useKnowledgeBaseTree';
 import KbPageRow from './KbPageRow';
@@ -26,6 +27,8 @@ export interface KbSpaceSectionProps {
   onUnarchivePage: (spaceId: string, pageId: string) => Promise<void>;
   /** アーカイブ済みを見ているか。 */
   archivedMode: boolean;
+  /** ドラッグで動かす。**先に画面が動き、断られたら元へ戻る。失敗は投げてくる。** */
+  onMovePage: (spaceId: string, pageId: string, target: KbDropTarget) => Promise<void>;
 }
 
 /**
@@ -60,12 +63,17 @@ export default function KbSpaceSection({
   onArchivePage,
   onUnarchivePage,
   archivedMode,
+  onMovePage,
 }: KbSpaceSectionProps) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   // 作った直後のページは、そのまま題名を書き換えられる状態で出す
   // （「無題」のまま置き去りにされるのを減らす）。
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
+  // 掴んでいる行と、いま指している落下先。ドラッグの間だけの見た目の状態で、
+  // 木そのものには触らない（動かすのは落としたとき）。
+  const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ pageId: string; zone: KbDropZone } | null>(null);
 
   const open = state?.open ?? false;
   const entries = state?.tree ? flattenKbTree(state.tree.pages, expandedPageIds) : [];
@@ -106,6 +114,23 @@ export default function KbSpaceSection({
       await onUnarchivePage(space.id, pageId);
     } catch {
       showToast('error', '復帰できませんでした');
+    }
+  };
+
+  const endDrag = () => {
+    setDraggingPageId(null);
+    setDropAt(null);
+  };
+
+  const dropOnRow = async (pageId: string, zone: KbDropZone) => {
+    const moving = draggingPageId;
+    endDrag();
+    if (!moving || moving === pageId) return;
+    try {
+      await onMovePage(space.id, moving, toDropTarget(zone, pageId));
+    } catch {
+      // 並びは model 側で動かす前へ戻っている。ここは知らせるだけ。
+      showToast('error', '移動できませんでした');
     }
   };
 
@@ -186,6 +211,18 @@ export default function KbSpaceSection({
                     onArchive={(pageId) => void archivePage(pageId)}
                     archivedMode={archivedMode}
                     onUnarchive={(pageId) => void unarchivePage(pageId)}
+                    // アーカイブ済みでは並べ替えを受け付けない（現役に戻してから）。
+                    draggable={!archivedMode}
+                    dragging={entry.page.id === draggingPageId}
+                    onDragStart={setDraggingPageId}
+                    onDragEnd={endDrag}
+                    dropZone={
+                      dropAt?.pageId === entry.page.id && draggingPageId !== entry.page.id
+                        ? dropAt.zone
+                        : null
+                    }
+                    onDragOverRow={(pageId, zone) => setDropAt({ pageId, zone })}
+                    onDropOnRow={(pageId, zone) => void dropOnRow(pageId, zone)}
                   />
                 ) : (
                   <KbHiddenChildrenRow key={`hidden-${entry.parentId}`} depth={entry.depth} />

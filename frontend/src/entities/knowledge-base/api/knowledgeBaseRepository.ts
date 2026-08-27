@@ -79,6 +79,24 @@ const KnowledgeBaseRepository = {
   },
 
   /**
+   * ページを（子孫ごと）動かす。**失敗は例外として投げる。**
+   *
+   * parentId を空にするとスペース直下へ戻す。位置は隣のページの ID で表す
+   * （並び順のキーは持っていない。応答に入っていないため）。
+   */
+  async movePage(
+    workspaceSlug: string,
+    pageId: string,
+    input: { parentId: string; beforePageId?: string; afterPageId?: string },
+  ): Promise<KbPage> {
+    const res = await apiClient.post<KbPage>(
+      `${KNOWLEDGE_BASE.page(workspaceSlug, pageId)}/move`,
+      input,
+    );
+    return res.data;
+  },
+
+  /**
    * ページを（子孫ごと）アーカイブする。冪等。**失敗は例外として投げる。**
    */
   async archivePage(workspaceSlug: string, pageId: string): Promise<void> {

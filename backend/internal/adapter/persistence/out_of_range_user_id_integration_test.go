@@ -55,7 +55,7 @@ type decoyFixture struct {
 // おとりを作るのは setupKBPermission（alice / bob / carol を採番する）のあと。
 // createUser は users_id_seq を max(id)+1 へ合わせ直すので、負の id が最大値の
 // 状態で呼ばれるとシーケンスを負の値へ setval しようとして落ちる。
-func setupDecoy(t *testing.T, sqlDB *sql.DB) decoyFixture {
+func setupDecoy(ctx context.Context, t *testing.T, sqlDB *sql.DB) decoyFixture {
 	t.Helper()
 	f := setupKBPermission(t, sqlDB)
 
@@ -80,7 +80,6 @@ func setupDecoy(t *testing.T, sqlDB *sql.DB) decoyFixture {
 		f.ws, decoyUserID,
 	).Scan(&principalID))
 
-	ctx := context.Background()
 	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, principalID, domain.GrantRoleAdmin)
 	require.NoError(t, err)
 	_, err = f.perm.UpsertSpaceGrant(ctx, f.ws, f.spaceA, principalID, domain.GrantRoleAdmin)
@@ -112,7 +111,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	ctx := context.Background()
 
 	t.Run("前提: 巻き戻り先のおとりは実在し全権を持つ", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		// 素の変換なら当たってしまう値であることを、テスト自身が示しておく。
 		require.Greater(t, wrappedUserID(), uint64(math.MaxInt64),
@@ -133,7 +132,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("所属判定は非メンバーへ倒れる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		member, err := f.perm.IsWorkspaceMember(ctx, f.ws, wrappedUserID())
 
@@ -142,7 +141,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("主体の取得はnot foundへ倒れる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		_, err := f.perm.FindUserPrincipal(ctx, f.ws, wrappedUserID())
 
@@ -151,7 +150,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("所属ワークスペースの一覧は0件になる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		got, err := f.perm.ListMemberWorkspaces(ctx, wrappedUserID())
 
@@ -161,7 +160,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("ページの実効権限は閲覧も編集も不可になる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		facts, err := f.perm.PagePermissionFactsForUser(ctx, f.ws, f.pageID, wrappedUserID())
 
@@ -174,7 +173,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("閲覧できるページの一覧は0件になる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		rows, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.spaceA, wrappedUserID())
 
@@ -188,7 +187,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("スペースの実効権限はすべて不可になる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		facts, err := f.perm.SpacePermissionFactsForUser(ctx, f.ws, f.spaceA, wrappedUserID())
 
@@ -200,7 +199,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("ワークスペースの実効権限はすべて不可になる", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		facts, err := f.perm.WorkspacePermissionFactsForUser(ctx, f.ws, wrappedUserID())
 
@@ -212,7 +211,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("サブツリーの一括編集は許可されない", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		rows, err := f.perm.ListSubtreePagePermissionFacts(ctx, f.ws, f.pageID, wrappedUserID())
 		require.NoError(t, err)
@@ -227,7 +226,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("メンバー追加は成功を返さない", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 
 		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, wrappedUserID())
 
@@ -238,7 +237,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("共有リンクの発行は成功を返さない", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 		hash := sha256.Sum256([]byte("token-" + newID()))
 
 		_, err := f.perm.CreateShareLink(ctx, repository.ShareLinkWrite{
@@ -256,7 +255,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("ページ作成は成功を返さない", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 		before := countPages(t, sqlDB, f.ws)
 
 		err := f.pages.CreatePage(ctx, &domain.Page{
@@ -274,7 +273,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	})
 
 	t.Run("ワークスペース作成は成功を返さない", func(t *testing.T) {
-		f := setupDecoy(t, sqlDB)
+		f := setupDecoy(ctx, t, sqlDB)
 		slug := "wrapped-owner-" + newID()[:8]
 
 		_, err := persistence.NewWorkspaceProvisioner(f.db).ProvisionWorkspace(ctx,

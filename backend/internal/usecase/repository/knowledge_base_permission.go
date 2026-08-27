@@ -51,6 +51,12 @@ var ErrPrincipalGroupNameTaken = errors.New("principal group name is already tak
 type PageWithViewFacts struct {
 	Page  domain.Page
 	Facts domain.PageViewFacts
+	// ParentArchived は親がアーカイブ済みか（親を持たない行は false）。
+	//
+	// これは**事実**で、判断ではない。「復帰できるか」の規則は UnarchivePageUseCase が
+	// 持っている（親がアーカイブ中なら断る）。ここで canRestore のような名前にすると、
+	// 同じ規則が 2 箇所に置かれて必ずずれる。
+	ParentArchived bool
 }
 
 // PageWithPermissionFacts は 1 ページの ID と、その実効権限を決める事実の組。
@@ -216,10 +222,13 @@ type KnowledgeBasePermissionRepository interface {
 	// PagePermissionFactsForPrincipal は共有リンクの来訪者（kind='share_link' の主体）として
 	// 同じ事実を集める。既定（リンクの capability）は呼び出し側が facts に載せる。
 	PagePermissionFactsForPrincipal(ctx context.Context, workspaceID, pageID, principalID string) (*domain.PagePermissionFacts, error)
-	// ListSpacePageViewFacts はスペース配下の現役ページ全件と、その閲覧の事実を
+	// ListSpacePageViewFacts はスペース配下のページ全件と、その閲覧の事実を
+	// archived で現役／アーカイブ済みを切り替える（false で現役）。アーカイブ用に
+	// 別のクエリを持たないのは、権限の事実を組み立てる部分を写経しないため
+	// （同じ判断が 2 箇所にあると必ずずれる）。
 	// 1 回のクエリで返す（ページごとに問い合わせない）。編集の事実は集めないので、
 	// 編集可否をここから出さないこと（返す型がそれを表している）。
-	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]PageWithViewFacts, error)
+	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]PageWithViewFacts, error)
 	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める。
 	// 判定は domain.ResolveScopePermission が行う。スペースが無い・別ワークスペースなら
 	// ErrSpaceNotFound。

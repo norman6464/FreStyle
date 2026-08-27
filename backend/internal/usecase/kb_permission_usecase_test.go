@@ -81,7 +81,7 @@ func Test_閲覧可能ページ一覧_見えないページを落とす(t *testi
 	visible := domain.Page{ID: "p1", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "見える"}
 	hidden := domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "隠れる"}
 	repo := &mockKBPermissionRepo{}
-	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).
 		Return([]repository.PageWithViewFacts{
 			{Page: visible, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
 			{Page: hidden, Facts: domain.PageViewFacts{
@@ -133,7 +133,7 @@ func Test_閲覧可能ページ一覧_見えない親の下は数えない(t *te
 		},
 	}
 	repo := &mockKBPermissionRepo{}
-	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).Return(rows, nil)
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).Return(rows, nil)
 
 	out, err := usecase.NewListViewablePagesUseCase(repo).
 		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
@@ -156,7 +156,7 @@ func Test_閲覧可能ページ一覧_見える根が無いなら有無も返さ
 	child := domain.Page{ID: "child", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: strPtr("root"), Title: "見える子"}
 
 	repo := &mockKBPermissionRepo{}
-	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).
 		Return([]repository.PageWithViewFacts{
 			{Page: root, Facts: domain.PageViewFacts{
 				Role: kbGrantRole(domain.GrantRoleViewer),
@@ -181,7 +181,7 @@ func Test_閲覧可能ページ一覧_1件も見えないなら有無も返さ�
 		View: &domain.RestrictionFacts{HasAllowList: true},
 	}
 	repo := &mockKBPermissionRepo{}
-	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).
 		Return([]repository.PageWithViewFacts{
 			{Page: domain.Page{ID: "p1", WorkspaceID: kbWS, SpaceID: kbSpace}, Facts: deny},
 			{Page: domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace}, Facts: deny},

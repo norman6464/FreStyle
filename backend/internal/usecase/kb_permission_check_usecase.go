@@ -107,6 +107,9 @@ type ListViewablePagesInput struct {
 	WorkspaceID string
 	SpaceID     string
 	UserID      uint64
+	// Archived が true ならアーカイブ済みのページを返す（既定は現役）。
+	// 権限の見方は現役とまったく同じ — 同じクエリの絞り込みだけが変わる。
+	Archived bool
 }
 
 // HiddenChildrenRootKey は ListViewablePagesOutput.HasHiddenChildren で
@@ -133,6 +136,12 @@ const HiddenChildrenRootKey = ""
 type ListViewablePagesOutput struct {
 	Pages             []domain.Page
 	HasHiddenChildren map[string]bool
+	// ParentArchived は「親がアーカイブ済み」のページの ID。事実であって判断ではない。
+	//
+	// アーカイブ済みの一覧で、その行を復帰できるかを呼び出し側が決めるのに使う
+	// （規則は UnarchivePageUseCase が持つ: 親がアーカイブ中なら断る）。
+	// 現役の一覧では常に空（現役ページの親がアーカイブ済みになることは無い）。
+	ParentArchived map[string]bool
 }
 
 func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewablePagesInput) (ListViewablePagesOutput, error) {
@@ -145,17 +154,21 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 	if in.UserID == 0 {
 		return ListViewablePagesOutput{}, errors.New("userID is required")
 	}
-	rows, err := u.repo.ListSpacePageViewFacts(ctx, in.WorkspaceID, in.SpaceID, in.UserID)
+	rows, err := u.repo.ListSpacePageViewFacts(ctx, in.WorkspaceID, in.SpaceID, in.UserID, in.Archived)
 	if err != nil {
 		return ListViewablePagesOutput{}, err
 	}
 
 	pages := make([]domain.Page, 0, len(rows))
 	viewable := make(map[string]bool, len(rows))
+	parentArchived := make(map[string]bool)
 	for _, row := range rows {
 		if domain.ResolvePageView(row.Facts) {
 			viewable[row.Page.ID] = true
 			pages = append(pages, row.Page)
+			if row.ParentArchived {
+				parentArchived[row.Page.ID] = true
+			}
 		}
 	}
 
@@ -190,7 +203,7 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 		}
 	}
 	if !hasVisibleRoot {
-		return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: map[string]bool{}}, nil
+		return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: map[string]bool{}, ParentArchived: parentArchived}, nil
 	}
 
 	hidden := make(map[string]bool)
@@ -211,7 +224,7 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 		hidden[*row.Page.ParentID] = true
 	}
 
-	return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: hidden}, nil
+	return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: hidden, ParentArchived: parentArchived}, nil
 }
 
 // CanEditPageSubtreeUseCase は「このユーザーは、このページと全子孫を編集できるか」に答える。

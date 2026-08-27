@@ -531,6 +531,72 @@ func Test_ナレッジ基盤作成_URLのスペースが実在するかを応答
 	assert.JSONEq(t, `{"error":"parent_space_mismatch"}`, onExisting.Body.String())
 }
 
+func Test_ナレッジ基盤ツリー_アーカイブ済みの一覧(t *testing.T) {
+	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
+	archivedPath := kbFill(kbTreePath, kbWorkspaceSlug, "") + "?archived=true"
+
+	t.Run("既定では現役だけを返す", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.pages[kbDestPageID].ArchivedAt = &at
+
+		w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		require.Len(t, body.Pages, 1)
+		assert.Equal(t, kbRootPageID, body.Pages[0].Page.ID)
+	})
+
+	t.Run("アーカイブの根は、親が現役でも一覧に出る", func(t *testing.T) {
+		// アーカイブの根の親は現役なので、この一覧には入らない＝必ず孤児になる。
+		// 現役の一覧と同じく落としてしまうと、1 件も出なくなる。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.pages[kbChildPageID].ArchivedAt = &at
+
+		w := f.do(t, http.MethodGet, archivedPath, "")
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		require.Len(t, body.Pages, 1)
+		assert.Equal(t, kbChildPageID, body.Pages[0].Page.ID)
+		assert.False(t, body.Pages[0].ParentArchived, "親が現役なので復帰できる側")
+	})
+
+	t.Run("一緒にアーカイブされた子孫は根の下に入り、親がアーカイブ済みだと分かる", func(t *testing.T) {
+		// 何を巻き込んで復帰するのかが、開けば分かる。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.pages[kbRootPageID].ArchivedAt = &at
+		f.pages.pages[kbChildPageID].ArchivedAt = &at
+
+		w := f.do(t, http.MethodGet, archivedPath, "")
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		require.Len(t, body.Pages, 1)
+		assert.Equal(t, kbRootPageID, body.Pages[0].Page.ID)
+		assert.False(t, body.Pages[0].ParentArchived, "根は復帰できる")
+		require.Len(t, body.Pages[0].Children, 1)
+		assert.Equal(t, kbChildPageID, body.Pages[0].Children[0].Page.ID)
+		assert.True(t, body.Pages[0].Children[0].ParentArchived, "子だけを復帰させることはできない")
+	})
+
+	t.Run("権限の見方は現役とまったく同じ", func(t *testing.T) {
+		// 別のクエリにすると、片方だけ直して食い違う形をわざわざ作ることになる。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.pages[kbChildPageID].ArchivedAt = &at
+		f.perms.setPagePermission(kbChildPageID, kbUserID, kbNoPerm)
+
+		w := f.do(t, http.MethodGet, archivedPath, "")
+		require.Equal(t, http.StatusOK, w.Code)
+
+		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, w.Body.String(),
+			"見えないページはアーカイブ済みでも出ない")
+	})
+}
+
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet,

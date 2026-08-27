@@ -112,6 +112,10 @@ type kbPageTreeResponse struct {
 	// HasHiddenChildren はこのページの直下に、閲覧できないページが在るか。
 	// 枚数も題名も出さない。理由は ListViewablePagesOutput の doc に書いてある。
 	HasHiddenChildren bool `json:"hasHiddenChildren" example:"false"`
+	// ParentArchived は親がアーカイブ済みか。アーカイブ済みの一覧でだけ意味を持つ
+	// （現役の一覧では常に false）。**事実であって判断ではない** — 復帰できるかの規則は
+	// 「親がアーカイブ中なら断る」で、それを持つのは UnarchivePageUseCase。
+	ParentArchived bool `json:"parentArchived" example:"false"`
 }
 
 // kbPageTreeRootResponse はツリー取得の応答全体。
@@ -125,13 +129,14 @@ type kbPageTreeRootResponse struct {
 	HasHiddenChildren bool `json:"hasHiddenChildren" example:"false"`
 }
 
-func toKbPageTreeResponse(nodes []*usecase.PageTreeNode, hidden map[string]bool) []kbPageTreeResponse {
+func toKbPageTreeResponse(nodes []*usecase.PageTreeNode, hidden, parentArchived map[string]bool) []kbPageTreeResponse {
 	out := make([]kbPageTreeResponse, 0, len(nodes))
 	for _, n := range nodes {
 		out = append(out, kbPageTreeResponse{
 			Page:              toKbPageResponse(&n.Page),
-			Children:          toKbPageTreeResponse(n.Children, hidden),
+			Children:          toKbPageTreeResponse(n.Children, hidden, parentArchived),
 			HasHiddenChildren: hidden[n.Page.ID],
+			ParentArchived:    parentArchived[n.Page.ID],
 		})
 	}
 	return out
@@ -311,6 +316,7 @@ func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 //	@Produce      json
 //	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
 //	@Param        spaceId        path      string  true  "スペース ID (UUID)"
+//	@Param        archived       query     bool    false "true で アーカイブ 済み の 一覧 に 切り替える"
 //	@Success      200            {object}  kbPageTreeRootResponse
 //	@Failure      401            {object}  errorResponse  "未 認証"
 //	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
@@ -322,11 +328,16 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// archived=true でアーカイブ済みの一覧に切り替える。**別の口にしない**のは、
+	// 権限の見方が現役とまったく同じだから（違うのは対象の絞り込みだけ）。
+	// 口を分けると、片方だけ直して食い違う形をわざわざ作ることになる。
+	archived := c.Query("archived") == "true"
 	// ページごとに権限を引くと N+1 になるので、一覧はまとめて 1 回で解決する。
 	viewable, err := h.listViewable.Execute(c.Request.Context(), usecase.ListViewablePagesInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     c.Param("spaceId"),
 		UserID:      scope.userID,
+		Archived:    archived,
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)
@@ -337,9 +348,22 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	//
 	// 見えない親の子は根へ昇格させない（PageTreeOrphanHidden）。昇格させると、隠した親の
 	// タイトルは伏せたまま「その下に何かがある」ことだけがツリーの形から漏れる。
-	tree := usecase.BuildPageTree(viewable.Pages, usecase.PageTreeOrphanHidden)
+	// 孤児（親が一覧に無いページ）の扱いは、どちらの一覧かで変える。
+	//
+	// 現役では落とす。昇格させると「見えない親の下に何かがある」ことがツリーの形から漏れる。
+	//
+	// アーカイブ済みでは根へ昇格させる。**アーカイブの根は必ず孤児になる**（その親は
+	// 現役なので、この一覧には入らない）ため、落とすと 1 件も出なくなる。
+	// 昇格させても現役のような漏れは起きない — 昇格した行が「親が現役の根」なのか
+	// 「親もアーカイブ済みだが自分には見えない」のかは、応答から区別が付かない。
+	// 前者だけが復帰できるので、その違いは parentArchived という事実として返す。
+	policy := usecase.PageTreeOrphanHidden
+	if archived {
+		policy = usecase.PageTreeOrphanAsRoot
+	}
+	tree := usecase.BuildPageTree(viewable.Pages, policy)
 	c.JSON(http.StatusOK, kbPageTreeRootResponse{
-		Pages:             toKbPageTreeResponse(tree, viewable.HasHiddenChildren),
+		Pages:             toKbPageTreeResponse(tree, viewable.HasHiddenChildren, viewable.ParentArchived),
 		HasHiddenChildren: viewable.HasHiddenChildren[usecase.HiddenChildrenRootKey],
 	})
 }

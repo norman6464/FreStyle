@@ -81,6 +81,15 @@ export const COMMAND_ITEMS: CommandItem[] = [
     keywords: ['note', 'メモ', 'ノート'],
   },
   {
+    id: 'nav-kb',
+    label: 'ナレッジ',
+    description: 'ナレッジに移動',
+    icon: DocumentTextIcon,
+    category: 'ページ移動',
+    action: { type: 'navigate', path: '/kb' },
+    keywords: ['kb', 'knowledge', 'ナレッジ', 'wiki', 'ドキュメント', '共有'],
+  },
+  {
     id: 'nav-profile',
     label: 'プロフィール',
     description: 'プロフィールに移動',

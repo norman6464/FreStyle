@@ -27,11 +27,16 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
   { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: '/notes' },
+  // ナレッジ（/kb）はノートとは別の系統。ノートは自分のための平らな一覧、こちらは
+  // 共有される木で、権限が付く。当面は 2 つ並ぶ（設計の「置く」— 移行は期限を決めてから）。
+  { id: 'kb', label: 'ナレッジ', to: '/kb', matchPrefix: '/kb' },
   { id: 'reports', label: 'レポート', to: '/reports', matchExact: true },
 ];
 
-// super_admin は企業管理に専念するロールなので学習系メニューは出さない（ホームのみ）。
-const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home']);
+// super_admin は企業管理に専念するロールなので**学習系**メニューは出さない。
+// ナレッジは学習系ではなく書きもの・共有の面なので出す（運用の手順や決めごとを
+// 書き残すのは、むしろ管理する側の仕事になる）。
+const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'kb']);
 
 export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
   { label: '概況', to: '/admin/dashboard', matchPrefix: '/admin/dashboard', allowedRoles: ['super_admin'] },

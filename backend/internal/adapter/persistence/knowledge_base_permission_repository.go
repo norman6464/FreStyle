@@ -747,14 +747,20 @@ func (r *knowledgeBasePermissionRepository) ListPageShareLinks(ctx context.Conte
 
 func (r *knowledgeBasePermissionRepository) PagePermissionFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*domain.PagePermissionFacts, error) {
 	// bigint に収まらない userID は principals のどの行にも一致しない。クエリ側で言えば
-	// me / mine の CTE が空になる状態で、そのとき SQL が返す事実は
+	// me / mine の CTE が空になる状態で、そのとき SQL が返す自分についての事実は
 	// is_member=false / grant_rank=0 / denied_anywhere=false / allowed_at_nearest=false。
-	// これは domain.PagePermissionFacts のゼロ値（Member=false / Role=nil /
-	// View=nil / Edit=nil）と同じ意味で、非メンバーが得る事実とも一致する。
+	// つまり Member=false / Role=nil で、非メンバーが得るものと同じ。
 	//
-	// この値を domain.ResolvePagePermission に通すと、既定は roleAllows(nil) = false、
-	// 例外は nil なので resolveCapability(false, nil) = false。CanView / CanEdit とも
-	// false になり、確実に拒否側へ倒れる（CanEdit は CanView を含むので二重に閉じる）。
+	// ゼロ値で返すので View / Edit は nil（経路に制限が無い）になる。ページ側に制限が
+	// 張られていれば実際のクエリは非 nil を返すが、そこは違っていて構わない。
+	// domain.ResolvePagePermission に通したときの答えがどちらも同じだからで、
+	// 既定が roleAllows(nil) = false である以上、resolveCapability は
+	// 例外が nil でも（deny / 許可リストで）非 nil でも false を返す。
+	// CanEdit は CanView を含むのでさらに閉じる。拒否側へ倒れることが確実に決まる。
+	//
+	// ページの実在は確かめない（確かめる術がクエリしか無く、その入力がここでは作れない）。
+	// 存在しないページを名指しされたときの応答が 404 ではなく 403 になるが、
+	// どちらも拒否で、ページの実在を漏らす向きでもない。
 	uid, uok := toInt64ID(userID)
 	if !uok {
 		return &domain.PagePermissionFacts{}, nil

@@ -66,21 +66,6 @@ func existingIndexNames(ctx context.Context, tx *sql.Tx) (map[string]bool, error
 	return names, nil
 }
 
-// indexExists は指定名の索引が search_path 上に在るかを返す。
-// CREATE INDEX を出す前の事前チェック用（実行してしまうとスキップされてもロックを取るため）。
-func indexExists(ctx context.Context, db Executor, name string) (bool, error) {
-	var n int64
-	if err := db.QueryRowContext(
-		ctx,
-		`SELECT count(*) FROM pg_indexes
-		  WHERE schemaname = ANY (current_schemas(false)) AND indexname = $1`,
-		name,
-	).Scan(&n); err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
 // createIndexRe は CREATE INDEX 文から索引名を取り出す。
 var createIndexRe = regexp.MustCompile(`(?is)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?("[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)`)
 

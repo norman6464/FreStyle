@@ -27,11 +27,16 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
   { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: '/notes' },
+  // ナレッジ（/kb）はノートとは別の系統。ノートは自分のための平らな一覧、こちらは
+  // 共有される木で、権限が付く。当面は 2 つ並ぶ（設計の「置く」— 移行は期限を決めてから）。
+  { id: 'kb', label: 'ナレッジ', to: '/kb', matchPrefix: '/kb' },
   { id: 'reports', label: 'レポート', to: '/reports', matchExact: true },
 ];
 
-// super_admin は企業管理に専念するロールなので学習系メニューは出さない（ホームのみ）。
-const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home']);
+// super_admin は企業管理に専念するロールなので**学習系**メニューは出さない。
+// ナレッジは学習系ではなく書きもの・共有の面なので出す（運用の手順や決めごとを
+// 書き残すのは、むしろ管理する側の仕事になる）。
+const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'kb']);
 
 export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
   { label: '概況', to: '/admin/dashboard', matchPrefix: '/admin/dashboard', allowedRoles: ['super_admin'] },
@@ -42,10 +47,18 @@ export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
   { label: '監査ログ', to: '/admin/audit', matchPrefix: '/admin/audit', allowedRoles: ['super_admin'] },
 ];
 
-/** navActive は現在の pathname がその項目を指しているかを判定する。 */
+/**
+ * navActive は現在の pathname がその項目を指しているかを判定する。
+ *
+ * matchPrefix は**パスの区切りまで見る**。素の startsWith だと `/kb` が `/kb-other` にも、
+ * `/notes` が `/notes-foo` にも一致し、名前が前方一致するだけの無関係な画面でナビが光る。
+ * 一致してよいのは、そのものか、`/` で続く下の階層だけ。
+ */
 export function navActive(item: NavItem, pathname: string): boolean {
   if (item.matchExact) return pathname === item.to;
-  if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
+  if (item.matchPrefix) {
+    return pathname === item.matchPrefix || pathname.startsWith(`${item.matchPrefix}/`);
+  }
   return pathname === item.to;
 }
 

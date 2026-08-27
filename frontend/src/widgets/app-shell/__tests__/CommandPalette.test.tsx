@@ -70,6 +70,22 @@ describe('CommandPalette', () => {
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
+  it('ナレッジが表示され、クリックで /kb へ移動する', () => {
+    renderPalette();
+    fireEvent.click(screen.getByText('ナレッジ'));
+    expect(mockNavigate).toHaveBeenCalledWith('/kb');
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('英語キーワード knowledge でナレッジに絞り込める', () => {
+    renderPalette();
+    fireEvent.change(screen.getByPlaceholderText('コマンドを検索...'), {
+      target: { value: 'knowledge' },
+    });
+    expect(screen.getByText('ナレッジ')).toBeInTheDocument();
+    expect(screen.queryByText('ホーム')).not.toBeInTheDocument();
+  });
+
   it('背景オーバーレイをクリックするとパレットが閉じる', () => {
     renderPalette();
     fireEvent.click(screen.getByTestId('command-palette-overlay'));

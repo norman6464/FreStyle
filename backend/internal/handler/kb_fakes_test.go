@@ -367,6 +367,10 @@ type kbFakePerms struct {
 	scopeFactsErr error
 	// listWorkspacesErr は所属ワークスペース一覧を失敗させる（500 経路の確認用）。
 	listWorkspacesErr error
+	// revokeGrantErr は grant の取り消しを失敗させる。
+	// 本物の repository が「最後の admin」を書き込みと同じトランザクションで断る経路
+	// （競合で手前の検査をすり抜けたとき）を、fake でも再現するために使う。
+	revokeGrantErr error
 }
 
 // kbScopeKey は入れ物（ワークスペース ID / スペース ID）と利用者の組。
@@ -891,6 +895,9 @@ func (f *kbFakePerms) UpsertWorkspaceGrant(
 
 // DeleteWorkspaceGrant は 0 行削除でも成功のまま（本番と同じく取り消しは冪等）。
 func (f *kbFakePerms) DeleteWorkspaceGrant(_ context.Context, workspaceID, principalID string) error {
+	if f.revokeGrantErr != nil {
+		return f.revokeGrantErr
+	}
 	delete(f.grants, kbGrantKey{scopeID: workspaceID, principalID: principalID})
 	f.mirrorGrant(workspaceID, principalID, nil)
 	return nil

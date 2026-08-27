@@ -383,6 +383,24 @@ func Test_ナレッジ基盤権限API_admin2人目が居れば外せる(t *testi
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func Test_ナレッジ基盤権限API_競合で断られた取り消しも409(t *testing.T) {
+	// 手前の検査（CanRemoveWorkspaceAdminUseCase）は読み取りだけなので、admin 2 人を
+	// ほぼ同時に外す要求は両方ともそこを通り抜ける。実際に 0 人を止めているのは
+	// repository 側で、判定と書き換えを同じトランザクションに入れて断る。
+	// そのときの応答が「先に断られた」ときと同じ 409 であることを固定する
+	// （撃ち分けると、呼び出し側は競合かどうかで別の分岐を持たされる）。
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	ctx := context.Background()
+	_, err := f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, f.targetPrincipalID, domain.GrantRoleAdmin)
+	require.NoError(t, err) // 手前の検査は通る（admin は 2 人）
+	f.perms.revokeGrantErr = repository.ErrLastWorkspaceAdmin
+
+	w := f.do(t, http.MethodDelete,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/grants/"+f.callerPrincipalID, "")
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.JSONEq(t, `{"error":"last_workspace_admin"}`, w.Body.String())
+}
+
 func Test_ナレッジ基盤権限API_共有リンクは発行時の1回だけトークンを返す(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/share-links"

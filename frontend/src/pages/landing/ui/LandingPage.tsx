@@ -112,7 +112,6 @@ export default function LandingPage() {
           setAuthData({
             isAdmin: !!me.isAdmin,
             role: me.role ?? null,
-            aiChatEnabledForTrainees: me.aiChatEnabledForTrainees ?? true,
           }),
         );
       })

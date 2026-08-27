@@ -25,7 +25,6 @@ import StatsSkeleton from './StatsSkeleton';
  * ロール別にカードセットを出し分け:
  *   - super_admin   : 管理系のみ
  *   - company_admin : 管理 + 学習機能（AI はテナント設定に関わらず常時表示）
- *   - trainee       : 学習機能のみ。aiChatEnabledForTrainees が false なら AI カードを非表示
  *
  * 表示タイミング:
  *   学習者向けはメニューカードとパーソナライズ統計（右サイドバー）を **同時に** 出す。
@@ -39,12 +38,10 @@ import StatsSkeleton from './StatsSkeleton';
  */
 export default function MenuPage() {
   const role = useAppSelector((state) => state.auth.role);
-  const aiEnabled = useAppSelector((state) => state.auth.aiChatEnabledForTrainees);
   const isSuperAdmin = role === 'super_admin';
   const isTrainee = role === 'trainee';
   const isCompanyAdmin = role === 'company_admin';
   const roleUnresolved = role === null;
-  const showAi = !isTrainee || aiEnabled;
 
   // サイドバーの中身はロールで出し分ける(FRESTYLE-103):
   //   trainee = 自分の学習統計 / company_admin = 自社メンバーの学習状況 / super_admin = なし。
@@ -131,15 +128,6 @@ export default function MenuPage() {
               </FeatureSection>
 
               <FeatureSection title="ツール">
-                {showAi && (
-                  <FeatureCard
-                    to="/chat/ask-ai"
-                    icon={ChatBubbleBottomCenterTextIcon}
-                    title="AI チャット"
-                    description="質問・要約・コード補助など自由に対話できます。"
-                    color="brand"
-                  />
-                )}
                 <FeatureCard
                   to="/notes"
                   icon={DocumentTextIcon}

@@ -35,7 +35,6 @@ function renderGate(gate: ReactNode, auth: Auth) {
         loading: auth.loading ?? false,
         isAdmin: auth.isAdmin ?? false,
         role: auth.role ?? null,
-        aiChatEnabledForTrainees: true,
       },
     },
   });

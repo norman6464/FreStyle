@@ -35,11 +35,11 @@ const sampleSummary: CompanyLearningSummary = {
   ],
 };
 
-function renderMenu(role: string | null, aiChatEnabledForTrainees = true) {
+function renderMenu(role: string | null) {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { role, aiChatEnabledForTrainees } as never,
+      auth: { role } as never,
     },
   });
   const view = render(
@@ -105,13 +105,12 @@ describe('MenuPage', () => {
     expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
   });
 
-  it('company_admin は学習・ツール・管理セクションと AI カードを表示する', () => {
+  it('company_admin は学習・ツール・管理セクションを表示する', () => {
     mockUseCompanyLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
     renderMenu('company_admin');
 
     expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('コース')).toBeInTheDocument();
-    expect(screen.getByText('AI チャット')).toBeInTheDocument();
     expect(screen.getByText('従業員一覧')).toBeInTheDocument();
   });
 
@@ -132,14 +131,6 @@ describe('MenuPage', () => {
 
     expect(screen.queryByText('コース')).not.toBeInTheDocument();
     expect(screen.queryByText('メンバーの学習状況')).not.toBeInTheDocument();
-  });
-
-  it('trainee で AI 無効のとき AI チャットカードを出さない', () => {
-    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
-    renderMenu('trainee', false);
-
-    expect(screen.getByText('ノート')).toBeInTheDocument();
-    expect(screen.queryByText('AI チャット')).not.toBeInTheDocument();
   });
 
   it('統計取得に失敗してもメニューは表示し、サイドバー統計は出さない', () => {

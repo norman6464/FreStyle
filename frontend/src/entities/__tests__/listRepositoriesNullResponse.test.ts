@@ -6,7 +6,6 @@ vi.mock('@/shared/api/axios', () => ({
 
 import apiClient from '@/shared/api/axios';
 // 各 Slice の Public API（index.ts）経由で参照する（FSD の境界ルール / CLAUDE.md §2.5）。
-import { AiChatRepository } from '@/entities/ai-chat';
 import { AuditRepository } from '@/entities/audit';
 import { CompanyRepository, CompanyApplicationRepository } from '@/entities/company';
 import { CourseRepository, LessonProgressRepository } from '@/entities/course';
@@ -34,8 +33,6 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
   });
 
   const cases: ReadonlyArray<readonly [string, () => Promise<unknown[]>]> = [
-    ['AI チャットのセッション一覧', () => AiChatRepository.getSessions()],
-    ['AI チャットのメッセージ一覧', () => AiChatRepository.getMessages(1)],
     ['監査ログ一覧', () => AuditRepository.list()],
     ['会社一覧', () => CompanyRepository.list()],
     ['会社の統計一覧', () => CompanyRepository.listStats()],
@@ -52,7 +49,7 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
   ];
 
   it('正規化対象の全経路を網羅している', () => {
-    expect(cases).toHaveLength(15);
+    expect(cases).toHaveLength(13);
   });
 
   it.each(cases)('%s は null でも空配列になる', async (_name, call) => {

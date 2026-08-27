@@ -1,17 +1,14 @@
 import { useState } from 'react';
-import { useAppSelector } from '@/shared/lib/store';
-import { UserCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon } from '@heroicons/react/24/outline';
 
 import ProfilePage from './ProfilePage';
-import CompanyAiSettings from './CompanyAiSettings';
 
 /**
  * SettingsPage — `/settings` 配下の設定ページ。
  *
  * 左に設定カテゴリのサブメニュー、 右に選択中カテゴリのコンテンツ。
- * 「プロフィール」は全ロール、「AI エージェント」は company_admin / super_admin のみ表示する。
  */
-type SectionId = 'profile' | 'ai';
+type SectionId = 'profile';
 
 interface Section {
   id: SectionId;
@@ -20,15 +17,8 @@ interface Section {
 }
 
 export default function SettingsPage() {
-  const role = useAppSelector((state) => state.auth.role);
-  const isCompanyManager = role === 'company_admin' || role === 'super_admin';
-
-  // 表示するセクション（AI 設定は管理者のみ）。
   const sections: Section[] = [
     { id: 'profile', label: 'プロフィール', icon: UserCircleIcon },
-    ...(isCompanyManager
-      ? [{ id: 'ai' as const, label: 'AI エージェント', icon: SparklesIcon }]
-      : []),
   ];
 
   const [activeSection, setActiveSection] = useState<SectionId>('profile');
@@ -70,7 +60,6 @@ export default function SettingsPage() {
         </div>
 
         {activeSection === 'profile' && <ProfilePage />}
-        {activeSection === 'ai' && isCompanyManager && <CompanyAiSettings />}
       </div>
     </div>
   );

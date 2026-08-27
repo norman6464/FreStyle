@@ -43,18 +43,6 @@ export const PROFILE = {
   meStats: `${API_V2}/users/me/stats`,
 } as const;
 
-/** AI チャット（セッション CRUD + SSE ストリーミング + 添付ファイル） */
-export const AI_CHAT = {
-  sessions: `${API_V2}/ai-chat/sessions`,
-  session: (sessionId: number | string) => `${API_V2}/ai-chat/sessions/${sessionId}`,
-  sessionMessages: (sessionId: number | string) =>
-    `${API_V2}/ai-chat/sessions/${sessionId}/messages`,
-  /** POST /ai-chat/stream — SSE ストリーミング送信 */
-  stream: `${API_V2}/ai-chat/stream`,
-  /** POST /ai-chat/attachments/upload-url — 添付ファイル PUT 用 presigned URL */
-  attachmentUploadUrl: `${API_V2}/ai-chat/attachments/upload-url`,
-} as const;
-
 /** リッチ文書（rich_documents・tiptap JSON）。owner スコープ・楽観ロック（revision）。 */
 export const DOCUMENTS = {
   /** GET(一覧) / POST(作成) — /api/v2/documents。一覧は ?kind= で絞り込み可 */
@@ -135,7 +123,6 @@ export const ADMIN = {
   members: `${API_V2}/admin/members`,
   /** GET /api/v2/admin/members/learning-summary — 自社メンバーの学習状況サマリー（company_admin のホーム用）*/
   membersLearningSummary: `${API_V2}/admin/members/learning-summary`,
-  memberAiAccess: (userId: number | string) => `${API_V2}/admin/members/${userId}/ai-access`,
   /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
   memberActive: (userId: number | string) => `${API_V2}/admin/members/${userId}/active`,
   /** DELETE /api/v2/admin/members/:userId — 従業員の論理削除 */
@@ -214,12 +201,6 @@ export const COMPANY_APPLICATIONS = {
     `${API_V2}/admin/company-applications/${id}/status`,
 } as const;
 
-/** 会社設定（company_admin / super_admin が自社の設定を取得・更新）*/
-export const COMPANY_SETTINGS = {
-  /** GET / PUT /api/v2/company/settings */
-  base: `${API_V2}/company/settings`,
-} as const;
-
 /** ダッシュボード（streak / 活動カレンダー / 章閲覧履歴）*/
 export const DASHBOARD = {
   /** GET /api/v2/me/dashboard — ログインユーザーの学習サマリー */
@@ -259,4 +240,4 @@ export const KNOWLEDGE_BASE = {
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}`,
 } as const;
 
-// WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。
+// WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

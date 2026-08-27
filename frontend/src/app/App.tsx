@@ -27,7 +27,6 @@ const LandingPage = lazyWithReload(() => import('@/pages/landing').then((m) => (
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
-const AskAiPage = lazyWithReload(() => import('@/pages/ask-ai').then((m) => ({ default: m.AskAiPage })), 'AskAiPage');
 const NotesPage = lazyWithReload(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })), 'NotesPage');
 const KnowledgeBasePage = lazyWithReload(() => import('@/pages/knowledge-base').then((m) => ({ default: m.KnowledgeBasePage })), 'KnowledgeBasePage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
@@ -109,8 +108,6 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
         <Route path="/profile/me" element={<SettingsPage />} />
-        <Route path="/chat/ask-ai" element={<AskAiPage />} />
-        <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
         <Route path="/notes" element={<NotesPage />} />
         {/* 静的ルート（markdown-help）はルータのランキングで :noteId より優先される。 */}
         <Route path="/notes/markdown-help" element={<MarkdownSyntaxHelpPage />} />

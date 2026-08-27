@@ -57,8 +57,6 @@ export interface UserInfo {
   companyId?: number | null;
   /** /auth/me が返す表示名（招待時に displayName として登録された値） */
   displayName?: string;
-  /** 自社が trainee の AI エージェント機能を有効にしているか。 */
-  aiChatEnabledForTrainees?: boolean;
 }
 
 class AuthRepository {

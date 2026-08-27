@@ -6,12 +6,6 @@ import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminMembers } from '../model/useAdminMembers';
 import { Member } from '@/entities/member';
 
-// AI 利用可否の 3 状態 ↔ select の値。
-function aiValue(m: Member): 'inherit' | 'on' | 'off' {
-  if (m.aiChatEnabled === null) return 'inherit';
-  return m.aiChatEnabled ? 'on' : 'off';
-}
-
 function roleLabel(role: string): string {
   switch (role) {
     case 'super_admin':
@@ -27,12 +21,10 @@ function roleLabel(role: string): string {
 
 /**
  * AdminMembersPage — `/admin/members`。company_admin / super_admin 向けの従業員一覧。
- * 各従業員の AI 利用可否を「会社設定に従う / 有効 / 無効」で個別に設定できる
- * （会社一括設定は従来どおり別途残る。個別設定が会社設定を上書きする）。
- * 通過条件はルート側の RequireRole が持つ。
+ * アカウントの有効/無効（停止）と削除ができる。通過条件はルート側の RequireRole が持つ。
  */
 export default function AdminMembersPage() {
-  const { members, loading, error, updatingId, setAiAccess, setActive, remove } = useAdminMembers();
+  const { members, loading, error, updatingId, setActive, remove } = useAdminMembers();
   const [query, setQuery] = useState('');
 
   // 氏名・メールアドレス・役割で部分一致（大文字小文字を無視）フィルタ。
@@ -51,7 +43,7 @@ export default function AdminMembersPage() {
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-4xl mx-auto">
       <PageIntro
         title="管理: 従業員一覧"
-        description="自社の従業員の一覧です。AI 利用可否の個別設定に加え、アカウントの有効/無効（停止）と削除ができます。無効化された従業員はログイン/利用不可になります。"
+        description="自社の従業員の一覧です。アカウントの有効/無効（停止）と削除ができます。無効化された従業員はログイン/利用不可になります。"
       />
 
       <FormMessage message={error ? { type: 'error', text: error } : null} />
@@ -82,7 +74,6 @@ export default function AdminMembersPage() {
                 <th className="px-4 py-2 font-medium whitespace-nowrap">氏名</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">メールアドレス</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">役割</th>
-                <th className="px-4 py-2 font-medium whitespace-nowrap">AI 利用</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">状態</th>
                 <th className="px-4 py-2 font-medium whitespace-nowrap">操作</th>
               </tr>
@@ -93,22 +84,6 @@ export default function AdminMembersPage() {
                   <td className="px-4 py-2 text-[var(--color-text-primary)]">{m.displayName || '—'}</td>
                   <td className="px-4 py-2 text-[var(--color-text-muted)]">{m.email}</td>
                   <td className="px-4 py-2 text-[var(--color-text-muted)] whitespace-nowrap">{roleLabel(m.role)}</td>
-                  <td className="px-4 py-2">
-                    <select
-                      aria-label={`${m.displayName || m.email} の AI 利用可否`}
-                      value={aiValue(m)}
-                      disabled={updatingId === m.id || m.role !== 'trainee'}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setAiAccess(m.id, v === 'inherit' ? null : v === 'on');
-                      }}
-                      className="px-2 py-1 rounded-md bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] focus:outline-none focus:border-brand-500 disabled:opacity-50"
-                    >
-                      <option value="inherit">会社設定に従う</option>
-                      <option value="on">有効（個別ON）</option>
-                      <option value="off">無効（個別OFF）</option>
-                    </select>
-                  </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {m.isActive ? (
                       <span className="text-emerald-600">有効</span>

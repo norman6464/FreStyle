@@ -48,11 +48,6 @@ export interface AuthState {
    * 未認証 / 未確定は null。
    */
   role: string | null;
-  /**
-   * 自社が trainee の AI エージェント機能を有効にしているか（/auth/me 由来）。
-   * trainee のサイドバー「AI」表示判定に使う。未取得 / 会社未所属 / 管理者は true。
-   */
-  aiChatEnabledForTrainees: boolean;
 }
 
 /** SNSプロバイダー */
@@ -65,7 +60,6 @@ export interface UserDailyActivity {
   exerciseCount: number;
   correctCount: number;
   lessonCount: number;
-  aiChatCount: number;
   noteCount: number;
 }
 

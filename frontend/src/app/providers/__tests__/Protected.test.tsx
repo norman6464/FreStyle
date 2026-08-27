@@ -54,8 +54,8 @@ describe('Protected', () => {
     expect(screen.queryByText('保護されたコンテンツ')).not.toBeInTheDocument();
   });
 
-  // super_admin が trainee 向けルート (/chat/ask-ai 等) にアクセスしたら /admin/companies に飛ばす。
-  it('role=super_admin が /chat/ask-ai にアクセスすると /admin/companies にリダイレクト', () => {
+  // super_admin が trainee 向けルート (/notes 等) にアクセスしたら /admin/companies に飛ばす。
+  it('role=super_admin が /notes にアクセスすると /admin/companies にリダイレクト', () => {
     const store = configureStore({
       reducer: { auth: authReducer },
       preloadedState: {
@@ -69,13 +69,13 @@ describe('Protected', () => {
     });
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={['/chat/ask-ai']}>
+        <MemoryRouter initialEntries={['/notes']}>
           <Routes>
             <Route
-              path="/chat/ask-ai"
+              path="/notes"
               element={
                 <Protected>
-                  <div>AI チャット画面</div>
+                  <div>ノート画面</div>
                 </Protected>
               }
             />
@@ -85,7 +85,7 @@ describe('Protected', () => {
       </Provider>,
     );
     expect(screen.getByText('会社一覧')).toBeInTheDocument();
-    expect(screen.queryByText('AI チャット画面')).not.toBeInTheDocument();
+    expect(screen.queryByText('ノート画面')).not.toBeInTheDocument();
   });
 
   // super_admin でも /admin 配下は通る。
@@ -121,7 +121,7 @@ describe('Protected', () => {
   });
 
   // trainee は trainee ルートにアクセス可能。
-  it('role=trainee は /chat/ask-ai にアクセスできる', () => {
+  it('role=trainee は /notes にアクセスできる', () => {
     const store = configureStore({
       reducer: { auth: authReducer },
       preloadedState: {
@@ -135,13 +135,13 @@ describe('Protected', () => {
     });
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={['/chat/ask-ai']}>
+        <MemoryRouter initialEntries={['/notes']}>
           <Routes>
             <Route
-              path="/chat/ask-ai"
+              path="/notes"
               element={
                 <Protected>
-                  <div>AI チャット画面</div>
+                  <div>ノート画面</div>
                 </Protected>
               }
             />
@@ -149,6 +149,6 @@ describe('Protected', () => {
         </MemoryRouter>
       </Provider>,
     );
-    expect(screen.getByText('AI チャット画面')).toBeInTheDocument();
+    expect(screen.getByText('ノート画面')).toBeInTheDocument();
   });
 });

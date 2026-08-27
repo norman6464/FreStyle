@@ -37,22 +37,6 @@ export function useAdminMembers() {
     load();
   }, [load]);
 
-  // AI 利用可否を個別更新する。enabled=null で会社設定に従う状態へ戻す。
-  const setAiAccess = useCallback(
-    async (userId: number, enabled: boolean | null) => {
-      setUpdatingId(userId);
-      // 楽観的に反映し、失敗したら再取得して整合を取る。
-      setMembers((prev) => prev.map((m) => (m.id === userId ? { ...m, aiChatEnabled: enabled } : m)));
-      try {
-        await AdminMemberRepository.updateAiAccess(userId, enabled);
-      } catch {
-        await load();
-      } finally {
-        setUpdatingId(null);
-      }
-    },
-    [load],
-  );
 
   // アカウントの有効/無効を切り替える。楽観的更新 + 失敗時ロールバック。
   const setActive = useCallback(
@@ -86,5 +70,5 @@ export function useAdminMembers() {
     }
   }, []);
 
-  return { members, loading, error, updatingId, setAiAccess, setActive, remove, reload: load };
+  return { members, loading, error, updatingId, setActive, remove, reload: load };
 }

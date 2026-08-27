@@ -428,6 +428,15 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
+                /** @description 申請が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
                 /** @description DB 更新失敗 */
                 500: {
                     headers: {
@@ -965,606 +974,6 @@ export interface paths {
                 };
             };
         };
-        trace?: never;
-    };
-    "/admin/members/{userId}/ai-access": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * 従業員の AI 利用可否を個別更新
-         * @description 自社の従業員の AI 利用可否を個別に上書きする（null で会社設定に従う）。別会社の従業員は更新できない。company_admin / super_admin のみ。
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 従業員の数値 ID */
-                    userId: string;
-                };
-                cookie?: never;
-            };
-            /** @description enabled (null=会社設定に従う) */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.updateMemberAiRequest"];
-                };
-            };
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description バリデーション失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 管理者以外 / 別会社の従業員 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 内部エラー */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/ai-chat/attachments/upload-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * AI チャット 添付 PUT 署名 URL
-         * @description ai-chat/{userId}/{uuid}.{ext} の キー で S3 PUT 用 presigned URL を 発行。 contentType は image/png 等 の 許容 セット のみ。 sizeBytes 上限 (image 5MB / document 4.5MB) も 事前 検証。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description filename / contentType / sizeBytes */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.aiChatAttachmentUploadURLRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL"];
-                    };
-                };
-                /** @description バリデーション 失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description サイズ 上限 超過 */
-                413: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 サポート MIME */
-                415: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description S3 presigner 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 添付 アップロード 機能 が 設定 されて いない (dev/stub) */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ai-chat/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * AI チャット セッション 一覧
-         * @description current user の AI チャット セッション を 新しい 順 で 返す。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"][];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /**
-         * AI チャット セッション 作成
-         * @description current user 名義 で 新規 セッション を 作成。 IDOR 対策 で userId は body から 受け取らない。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description title 必須 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.createSessionReq"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"];
-                    };
-                };
-                /** @description バリデーション */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ai-chat/sessions/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * AI チャット セッション 詳細
-         * @description 指定 id の セッション を 返す。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description セッション ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"];
-                    };
-                };
-                /** @description id 不正 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description セッション が ない */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        /**
-         * AI チャット セッション タイトル 更新
-         * @description 指定 id の セッション の title を 更新。
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description セッション ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            /** @description title 必須 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.updateSessionTitleReq"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"];
-                    };
-                };
-                /** @description バリデーション */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        /**
-         * AI チャット セッション 削除
-         * @description 指定 id の セッション を 削除。 所有者 検証 込み。
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description セッション ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description 成功 (本文 なし) */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description id 不正 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 他人 の セッション */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description セッション が ない */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ai-chat/sessions/{id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * AI チャット メッセージ 一覧
-         * @description 指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description セッション ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage"][];
-                    };
-                };
-                /** @description id 不正 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DynamoDB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ai-chat/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * AI チャット SSE ストリーミング
-         * @description Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は 通常 の application/json で 返る。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description sessionId / content / scene / sessionType / scenarioId / attachments (最大 4 件) */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.sseRequestBody"];
-                };
-            };
-            responses: {
-                /** @description SSE stream (text/event-stream) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/event-stream": string;
-                    };
-                };
-                /** @description バリデーション (application/json) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 (application/json) */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description Bedrock / DynamoDB 未 設定 (dev/stub、 application/json) */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/auth/cognito/login": {
@@ -2218,136 +1627,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/company/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 会社設定 取得 (AI 有効化)
-         * @description 自社の trainee への AI チャット有効化フラグを返す。company_admin / super_admin のみ。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.companySettingsResponse"];
-                    };
-                };
-                /** @description 会社未所属 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 管理者以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 会社が存在しない */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        /**
-         * 会社設定 更新 (AI 有効化)
-         * @description 自社の trainee への AI チャット有効化フラグを更新する。company_admin / super_admin のみ。
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description aiChatEnabledForTrainees */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.updateCompanySettingsRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.companySettingsResponse"];
-                    };
-                };
-                /** @description バリデーション / 会社未所属 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 管理者以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/courses": {
         parameters: {
             query?: never;
@@ -2885,6 +2164,317 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 自分 の リッチ 文書 一覧
+         * @description current user が所有する文書を更新日降順で返す (doc 本体は含まない)。 kind で絞り込み可 (note / course-chapter)。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 用途 で 絞り込み (note / course-chapter) */
+                    kind?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.documentSummaryResponse"][];
+                    };
+                };
+                /** @description 不正 な kind */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * リッチ 文書 の 作成
+         * @description current user 名義 で 新規 文書 を 作る。 doc は tiptap の JSON (type='doc')。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 作成 内容 (kind/title/doc 必須) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.documentCreateReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.documentResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * リッチ 文書 の 取得
+         * @description id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ ず 404)。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 文書 ID (UUID) */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.documentResponse"];
+                    };
+                };
+                /** @description 不正 な ID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 権限 無し */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * リッチ 文書 の 更新
+         * @description 所有者 のみ 更新 できる (他人 の 文書 は 存在 を 漏らさ ず 404)。 revision が 現在 値 と 一致 する とき だけ 更新 し +1 する。 不一致 は 409。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 文書 ID (UUID) */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 更新 内容 (title/doc/revision 必須) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.documentUpdateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.documentResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 権限 無し */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 版 不一致 (楽観 ロック) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * リッチ 文書 の 削除
+         * @description 所有者 の 文書 を 論理 削除 する。 他人 の 文書 は 消せ ない (404)。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 文書 ID (UUID) */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不正 な ID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 権限 無し */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/embeds/oembed": {
         parameters: {
             query?: never;
@@ -3417,6 +3007,2207 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/share-links/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ナレッジ 基盤 の 共有 リンク 検証
+         * @description 受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を 返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は 含め ない。 総当たり と パスワード 推測 を 抑える ため、 リンク 1 本 あたり の 試行 回数 に 上限 が ある (要求 元 の IP を 変え て も 頭打ち に なる)。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description トークン と (必要 なら) パスワード */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbVerifyShareLinkRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbVerifiedShareLinkResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description パスワード が 必要 / 一致 し ない */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description その トークン の リンク は 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 失効 済み / 期限 切れ */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ナレッジ 基盤 の 所属 ワークスペース 一覧
+         * @description ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ナレッジ 基盤 API が URL に 使う slug を 知る ため の 入口。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbWorkspaceResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * ナレッジ 基盤 の ワークスペース 作成
+         * @description ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 作成 内容 (slug/name 必須) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbCreateWorkspaceRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbWorkspaceResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description slug が 使用 済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/grants/{principalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の ワークスペース 権限 付与
+         * @description ワークスペース 全体 で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 全 スペース に 効く。 呼べる の は ワークスペース の admin だけ。 権限 が 無い 場合 と 対象 (ワークスペース / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。 admin を 外す 向き の 変更 で、 ユーザー の admin が 1 人 も 残ら なく なる とき は 409。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["internal_handler.kbGrantRoleRequest"];
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbWorkspaceGrantResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 最後 の admin を 外す 操作 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * ナレッジ 基盤 の ワークスペース 権限 取り消し
+         * @description ワークスペース 全体 で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る (誰 も 権限 を 変え られ ない ワークスペース は API から 復旧 でき ない ため)。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消し 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 最後 の admin を 外す 操作 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ナレッジ 基盤 の グループ 作成
+         * @description 権限 を まとめ て 張る ため の グループ (kind='group' の 主体) を 作る。 名前 は ワークスペース 内 で 一意 (同名 が 2 つ ある と 権限 を 張る 先 を 人 が 選べ ない)。 グループ の 入れ子 は 作れ ない。 呼べる の は ワークスペース の admin だけ。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                };
+                cookie?: never;
+            };
+            /** @description グループ 名 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbCreateGroupRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPrincipalResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description グループ 名 が 使用 済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/groups/{groupPrincipalId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の グループ メンバー 追加
+         * @description グループ に ユーザー を 加える。 加える 相手 を 主体 ID で は なく ユーザー ID で 受ける の は、 この 入口 から グループ の 入れ子 を 作ら せ ない ため (DB 側 も 複合 FK で member を kind='user' に 固定 し て いる)。 対象 が ワークスペース の メンバー で なけれ ば 主体 が 無い の で 404。 呼べる の は ワークスペース の admin だけ。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description グループ の 主体 ID (UUID) */
+                    groupPrincipalId: string;
+                    /** @description ユーザー ID */
+                    userId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 追加 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description バリデーション エラー / 主体 の 種類 違い */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * ナレッジ 基盤 の グループ メンバー 削除
+         * @description グループ から ユーザー を 外す。 元 から 載っ て い なけれ ば 何 も せ ず 成功 する (冪等)。 グループ 宛て の admin は 「最後 の admin」 の 数 に 入れ て い ない の で、 この 操作 が 409 に なる こと は ない。 呼べる の は ワークスペース の admin だけ。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description グループ の 主体 ID (UUID) */
+                    groupPrincipalId: string;
+                    /** @description ユーザー ID */
+                    userId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の メンバー 追加
+         * @description ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が 唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー ID 空間 の 走査 を 抑える ため、 呼び出し 元 の ユーザー 単位 で 回数 に 上限 が ある。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ユーザー ID */
+                    userId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPrincipalResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * ナレッジ 基盤 の メンバー 削除
+         * @description ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / 例外 / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ユーザー ID */
+                    userId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 最後 の admin を 外す 操作 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ナレッジ 基盤 の ページ 取得
+         * @description ページ の メタ 情報 と 本文 (ProseMirror doc) を 返す。 閲覧 権限 が 無い ページ は 存在 し ない ページ と 同じ 404。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageDocResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * ナレッジ 基盤 の ページ 改名
+         * @description タイトル だけ を 変更 する。 編集 権限 が 要る。 アーカイブ 済み ページ は 変更 でき ない (409)。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            /** @description 新しい タイトル */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbRenamePageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 編集 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description アーカイブ 済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ナレッジ 基盤 の ページ アーカイブ
+         * @description ページ と その 子孫 を まとめて ツリー から 隠す。 対象 の ページ だけ で なく 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も し ない)。 これ は 意図 し た 設計 で、 同じ ページ を 直接 改名 する 場合 と 判定 を 揃える ため。 既に アーカイブ 済み なら 何 も し ない (冪等)。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description アーカイブ 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の ページ 本文 置き換え
+         * @description ページ の 本文 (ProseMirror doc) を 丸ごと 置き換える。 編集 権限 が 要る。 保存 さ れる の は 行 スキーマ から 組み立て 直し た 正規 形 で、 レスポンス は その 正規 形 を 返す。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            /** @description 本文 (ProseMirror doc) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbReplaceContentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageContentResponse"];
+                    };
+                };
+                /** @description バリデーション エラー / doc が 壊れ て いる */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 編集 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description アーカイブ 済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ナレッジ 基盤 の ページ 移動
+         * @description ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            /** @description 移動 先 の 親 と 位置 (parentId を 省く と スペース 直下) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbMovePageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageResponse"];
+                    };
+                };
+                /** @description バリデーション エラー / スペース 不一致 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/restrictions/{principalId}/{capability}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の ページ 例外 設定
+         * @description ページ と その 子孫 に だけ 効く 例外 を 1 行 設定 する。 mode=deny は 名指し し た 主体 だけ を 外す (ほか の 人 の 既定 は 変わら ない)。 mode=allow は その ページ の その ケイパビリティ を 「載っ て いる 主体 だけ」 の 限定 公開 に 切り替える。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ。 閲覧 権限 は 要求 し ない (自分 を deny し た ページ の 例外 を 自分 で 戻せ なく なる ため)。 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                    /** @description ケイパビリティ (view / edit) */
+                    capability: string;
+                };
+                cookie?: never;
+            };
+            /** @description 例外 の 向き (allow / deny) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbSetRestrictionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageRestrictionResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * ナレッジ 基盤 の ページ 例外 解除
+         * @description ページ に 張ら れ た 例外 を 1 行 解除 する。 元 から 無い 行 に 対し て も 成功 する (冪等)。 消し た の が 最後 の allow 行 なら 限定 公開 も 畳ま れ、 解決 は より 遠い 祖先 の 制限 → grant の 既定 へ 戻る。 deny 行 の 解除 で は 限定 公開 を 畳ま ない。 呼べる の は その ページ が 属する スペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                    /** @description ケイパビリティ (view / edit) */
+                    capability: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 解除 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ナレッジ 基盤 の 共有 リンク 一覧
+         * @description ページ に 発行 済み の 共有 リンク を 失効 済み も 含め て 返す。 トークン は 発行 時 の 1 回 しか 返ら ない の で、 ここ に は 出 ない (DB に も SHA-256 しか 無い)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbShareLinkResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * ナレッジ 基盤 の 共有 リンク 発行
+         * @description ページ と その 子孫 を ログイン 不要 で 開ける URL を 発行 する。 応答 の token は 平文 で、 返る の は この 1 回 だけ (DB に は SHA-256 しか 残ら ない)。 失う と 再 発行 に なる。 パスワード を 付ける と 開く 際 に 必要 に なる (値 は 応答 に も ログ に も 出 ない)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            /** @description 発行 内容 (capability 必須 / password / expiresAt は 任意) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbIssueShareLinkRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbIssuedShareLinkResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links/{shareLinkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * ナレッジ 基盤 の 共有 リンク 失効
+         * @description 共有 リンク を 失効 さ せる。 行 は 消さ ず revoked_at を 立てる の で、 誰 が いつ 止め た か は 残る。 既に 失効 済み なら 何 も せ ず 成功 する (冪等)。 URL の ページ に 属さ ない リンク ID を 渡し た 場合 は 権限 が 無い の と 同じ 404 (ページ の 権限 で 判断 する 以上、 別 の スペース の リンク を この 口 から 止め られ て は なら ない)。 呼べる の は その ページ が 属する スペース の admin だけ。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                    /** @description 共有 リンク ID (UUID) */
+                    shareLinkId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 失効 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ナレッジ 基盤 の ページ 復帰
+         * @description アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 アーカイブ と 同じ く 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 親 が アーカイブ 中 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/spaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ナレッジ 基盤 の スペース 一覧
+         * @description ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。 閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages で 取る)。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbSpaceResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ワークスペース が 無い か 未 所属 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * ナレッジ 基盤 の スペース 作成
+         * @description ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は ワークスペース 内 で 一意。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                };
+                cookie?: never;
+            };
+            /** @description 作成 内容 (key/name 必須) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbCreateSpaceRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbSpaceResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ワークスペース の admin で は ない */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ワークスペース が 無い か 未 所属 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description key が 使用 済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の スペース 権限 付与
+         * @description スペース で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。 スペース 単位 の grant で ワークスペース の admin が 降格 する こと は ない (最も 強い 役割 を 採る)。 権限 が 無い 場合 と 対象 (スペース / 主体) が 存在 し ない 場合 は 同じ 404。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description スペース ID (UUID) */
+                    spaceId: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["internal_handler.kbGrantRoleRequest"];
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbSpaceGrantResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * ナレッジ 基盤 の スペース 権限 取り消し
+         * @description スペース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description スペース ID (UUID) */
+                    spaceId: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消し 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ナレッジ 基盤 の ページ ツリー
+         * @description スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hasHiddenChildren は その 段 の 直下 に 閲覧 でき ない ページ が 在る か で、 枚数 も 題名 も 返さ ない。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description true で アーカイブ 済み の 一覧 に 切り替える */
+                    archived?: boolean;
+                };
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description スペース ID (UUID) */
+                    spaceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageTreeRootResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ワークスペース が 無い か 未 所属 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * ナレッジ 基盤 の ページ 作成
+         * @description parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description スペース ID (UUID) */
+                    spaceId: string;
+                };
+                cookie?: never;
+            };
+            /** @description 作成 内容 (parentId/title 必須) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbCreatePageRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 親 を 編集 する 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description スペース / 親 が 無い か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 親 が アーカイブ 済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/principals/everyone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ナレッジ 基盤 の スペース 全員 主体 の 用意
+         * @description 「既定 で チーム 全員 が 編集 できる」 を grant 1 行 で 表す ため の 主体 (kind='space_all') を 用意 し て 返す。 既に あれ ば それ を 返す (冪等)。 スペース 作成 時 に は 作ら ない 設計 な の で、 権限 を 張る 直前 に この API で ID を 得る。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description スペース ID (UUID) */
+                    spaceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPrincipalResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -3970,7 +5761,9 @@ export interface paths {
         get?: never;
         /**
          * ノート 更新
-         * @description 指定 note を 更新。 所有者 検証 を usecase 層 で 行い、 他人 の note は 403。
+         * @description 指定 note を 更新。 更新 できる の は current user 所有 の note だけ。
+         *     他人 の note と 存在 し ない note は 撃ち 分け ず、 どちら も 同じ 404 (同一 本文) を 返す。
+         *     応答 の 差 で ID の 実在 を 数え 上げ られる (存在 オラクル) の を 防ぐ ため。
          */
         put: {
             parameters: {
@@ -4016,8 +5809,8 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 他人 の note */
-                403: {
+                /** @description 他人 の note or 存在 し ない note (区別 し ない) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4031,6 +5824,7 @@ export interface paths {
         /**
          * ノート 削除
          * @description current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。
+         *     他人 の note と 存在 し ない note に は 同じ 404 (同じ 本文) を 返し、 応答 から ID の 実在 が 分から ない よう に する。
          */
         delete: {
             parameters: {
@@ -4062,6 +5856,15 @@ export interface paths {
                 };
                 /** @description 未 認証 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 自分 の note が 無い (他人 の note・存在 し ない id も 同じ 応答) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4260,7 +6063,7 @@ export interface paths {
         head?: never;
         /**
          * 通知 単一 既読 化
-         * @description 指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
+         * @description 指定 通知 を 既読 に する (所有者 検証 込み)。 1 行 も 既読 化 でき なかっ た 場合 は 404 (他人 の 通知 と 存在 し ない id は 同じ 応答)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
          */
         patch: {
             parameters: {
@@ -4292,6 +6095,15 @@ export interface paths {
                 };
                 /** @description 未 認証 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 自分 の 通知 が 無い (他人 の 通知・存在 し ない id も 同じ 応答) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4421,6 +6233,15 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
+                /** @description 対象 user が 存在 し ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
             };
         };
         post?: never;
@@ -4498,125 +6319,6 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/sessions/{sessionId}/note": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * セッション ノート 取得
-         * @description AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
-         *     所有者 本人 の ノート のみ 返す。 他人 の ノート は 存在 を 漏らさ ない ため 404 と する。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description AI チャット セッション ID */
-                    sessionId: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
-                    };
-                };
-                /** @description 不正 な sessionId / DB 失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 作成 */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        /**
-         * セッション ノート 作成 / 更新
-         * @description 指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description AI チャット セッション ID */
-                    sessionId: number;
-                };
-                cookie?: never;
-            };
-            /** @description content (userId は current user 固定 / body で 受け取らない) */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.sessionNoteUpsertReq"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
-                    };
-                };
-                /** @description バリデーション or DB 失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4941,6 +6643,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teaching-materials/{id}/doc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 章 リッチ 本文 更新
+         * @description tiptap の doc JSON を revision 楽観 ロック で 保存 する。 不一致 は 409。 canManage のみ。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 章 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description doc と expectedRevision */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.updateChapterDocRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.chapterDetailResponse"];
+                    };
+                };
+                /** @description doc が 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 章 が 見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 版 不一致 (他 で 更新 済み) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teaching-materials/{id}/view": {
         parameters: {
             query?: never;
@@ -5082,31 +6876,6 @@ export interface components {
             role?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
             status?: string;
         };
-        "github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage": {
-            attachments?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Attachment"][];
-            content?: string;
-            createdAt?: string;
-            messageId?: string;
-            role?: string;
-            sessionId?: number;
-        };
-        "github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession": {
-            createdAt?: string;
-            id?: number;
-            scenarioId?: number;
-            sessionType?: string;
-            title?: string;
-            updatedAt?: string;
-            userId?: number;
-        };
-        "github_com_norman6464_FreStyle_backend_internal_domain.Attachment": {
-            contentType?: string;
-            filename?: string;
-            format?: string;
-            key?: string;
-            kind?: string;
-            sizeBytes?: number;
-        };
         "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
             /** @description Action は「METHOD ルートパターン」（例: "PATCH /api/v2/admin/companies/:id/active"）。 */
             action?: string;
@@ -5124,11 +6893,6 @@ export interface components {
             stdout?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
-            /**
-             * @description AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。
-             *     company_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。
-             */
-            aiChatEnabledForTrainees?: boolean;
             createdAt?: string;
             id?: number;
             /**
@@ -5269,24 +7033,18 @@ export interface components {
         };
         /** @enum {string} */
         "github_com_norman6464_FreStyle_backend_internal_domain.RoleName": "super_admin" | "company_admin" | "trainee";
-        "github_com_norman6464_FreStyle_backend_internal_domain.SessionNote": {
-            content?: string;
-            createdAt?: string;
-            id?: number;
-            sessionId?: number;
-            updatedAt?: string;
-            userId?: number;
-        };
         "github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial": {
             companyId?: number;
-            content?: string;
-            /** @description NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。 */
             courseId?: number;
             createdAt?: string;
             createdByUserId?: number;
             id?: number;
             isPublished?: boolean;
             orderInCourse?: number;
+            /** @description Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。 */
+            revision?: number;
+            /** @description SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。 */
+            schemaVersion?: number;
             title?: string;
             updatedAt?: string;
         };
@@ -5304,7 +7062,6 @@ export interface components {
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity": {
             activityDate?: string;
-            aiChatCount?: number;
             correctCount?: number;
             exerciseCount?: number;
             /**
@@ -5424,19 +7181,25 @@ export interface components {
             passed?: boolean;
             stderr?: string;
         };
-        "github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL": {
-            expiresIn?: number;
-            key?: string;
-            uploadUrl?: string;
-        };
         "github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats": {
             solvedUsers?: number;
             totalSubmissions?: number;
         };
-        "internal_handler.aiChatAttachmentUploadURLRequest": {
-            contentType?: string;
-            filename?: string;
-            sizeBytes?: number;
+        "internal_handler.chapterDetailResponse": {
+            companyId?: number;
+            courseId?: number;
+            createdAt?: string;
+            createdByUserId?: number;
+            doc?: number[];
+            id?: number;
+            isPublished?: boolean;
+            orderInCourse?: number;
+            /** @description Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。 */
+            revision?: number;
+            /** @description SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。 */
+            schemaVersion?: number;
+            title?: string;
+            updatedAt?: string;
         };
         "internal_handler.codeExecuteRequest": {
             code: string;
@@ -5452,9 +7215,6 @@ export interface components {
             code: string;
             /** @description InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。 */
             invitationToken?: string;
-        };
-        "internal_handler.companySettingsResponse": {
-            aiChatEnabledForTrainees?: boolean;
         };
         "internal_handler.courseRequest": {
             /**
@@ -5492,9 +7252,59 @@ export interface components {
             email: string;
             message?: string;
         };
-        "internal_handler.createSessionReq": {
-            scenarioId?: number;
-            sessionType?: string;
+        "internal_handler.documentCreateReq": {
+            doc: Record<string, never>;
+            isPublic?: boolean;
+            kind: string;
+            schemaVersion?: number;
+            title: string;
+        };
+        "internal_handler.documentResponse": {
+            /** @example 1 */
+            companyId?: number;
+            createdAt?: string;
+            doc?: Record<string, never>;
+            /** @example 31400a07-297e-8057-884b-c05dbdf9fa53 */
+            id?: string;
+            /** @example false */
+            isPublic?: boolean;
+            /** @example note */
+            kind?: string;
+            /** @example 42 */
+            ownerId?: number;
+            /** @example 1 */
+            revision?: number;
+            /** @example 1 */
+            schemaVersion?: number;
+            /** @example 学習メモ */
+            title?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.documentSummaryResponse": {
+            /** @example 1 */
+            companyId?: number;
+            createdAt?: string;
+            /** @example 31400a07-297e-8057-884b-c05dbdf9fa53 */
+            id?: string;
+            /** @example false */
+            isPublic?: boolean;
+            /** @example note */
+            kind?: string;
+            /** @example 42 */
+            ownerId?: number;
+            /** @example 1 */
+            revision?: number;
+            /** @example 1 */
+            schemaVersion?: number;
+            /** @example 学習メモ */
+            title?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.documentUpdateReq": {
+            doc: Record<string, never>;
+            isPublic?: boolean;
+            revision: number;
+            schemaVersion?: number;
             title: string;
         };
         "internal_handler.errorResponse": {
@@ -5529,6 +7339,240 @@ export interface components {
         "internal_handler.issueUploadURLReq": {
             contentType?: string;
         };
+        "internal_handler.kbCreateGroupRequest": {
+            /** @example 開発チーム */
+            name: string;
+        };
+        "internal_handler.kbCreatePageRequest": {
+            /**
+             * @description ParentID が空文字（未指定）ならスペース直下に作る。
+             * @example 0198a000-0000-7000-8000-000000000003
+             */
+            parentId?: string;
+            /** @example 設計メモ */
+            title: string;
+        };
+        "internal_handler.kbCreateSpaceRequest": {
+            /** @example eng */
+            key: string;
+            /** @example 開発部 */
+            name: string;
+        };
+        "internal_handler.kbCreateWorkspaceRequest": {
+            /** @example Acme 社 */
+            name: string;
+            /** @example acme */
+            slug: string;
+        };
+        "internal_handler.kbGrantRoleRequest": {
+            /**
+             * @description Role は domain.ValidGrantRoles のいずれか。既知でない値は usecase が弾く。
+             * @example editor
+             */
+            role: string;
+        };
+        "internal_handler.kbIssueShareLinkRequest": {
+            /**
+             * @description Capability はリンク経由でできることの既定（view / edit）。
+             * @example view
+             */
+            capability: string;
+            /** @description ExpiresAt が未指定なら無期限。過去の時刻は usecase が弾く。 */
+            expiresAt?: string;
+            /** @description Password が空でなければパスワード付きにする。応答にもログにも出さない。 */
+            password?: string;
+        };
+        "internal_handler.kbIssuedShareLinkResponse": {
+            link?: components["schemas"]["internal_handler.kbShareLinkResponse"];
+            /**
+             * @description Token は共有 URL に載せる平文トークン。
+             * @example 3q2-7uMBEjRWeJq83vzMzQ
+             */
+            token?: string;
+        };
+        "internal_handler.kbMovePageRequest": {
+            /**
+             * @description AfterPageID / BeforePageID は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。
+             *     どちらも空なら末尾。**両方を指定することはできない。**
+             *
+             *     並び順のキーそのものを受け取らないのは、そもそも返していないため
+             *     （キーの整数部は兄弟の通し番号になるので、飛びから伏せた枚数が読める）。
+             *     「先頭に置く」は「最初の兄弟の手前（beforePageId）」として表す。
+             * @example 0198a000-0000-7000-8000-000000000004
+             */
+            afterPageId?: string;
+            /** @example 0198a000-0000-7000-8000-000000000005 */
+            beforePageId?: string;
+            /**
+             * @description ParentID を省くと、いまと同じスペースの直下（ルート）へ移す。
+             *
+             *     省けるようにしたのはドラッグのため。入れ子になったページを最上段へ戻すのは
+             *     基本の操作で、これが無いと「入れることはできるが出せない」ドラッグになる。
+             *     判断はスペースの編集権限で行う（ページの例外の層が無い段なので、そこが正しい単位）。
+             * @example 0198a000-0000-7000-8000-000000000003
+             */
+            parentId?: string;
+        };
+        "internal_handler.kbPageContentResponse": {
+            builtAt?: string;
+            doc?: Record<string, never>;
+        };
+        "internal_handler.kbPageDocResponse": {
+            doc?: Record<string, never>;
+            page?: components["schemas"]["internal_handler.kbPageResponse"];
+        };
+        "internal_handler.kbPageResponse": {
+            archivedAt?: string;
+            createdAt?: string;
+            /** @example 42 */
+            createdByUserId?: number;
+            /** @example 0198a000-0000-7000-8000-000000000003 */
+            id?: string;
+            parentId?: string;
+            /** @example 0198a000-0000-7000-8000-000000000002 */
+            spaceId?: string;
+            /** @example 設計メモ */
+            title?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.kbPageRestrictionResponse": {
+            /** @example view */
+            capability?: string;
+            createdAt?: string;
+            /** @example deny */
+            mode?: string;
+            /** @example 0198a000-0000-7000-8000-000000000003 */
+            pageId?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            principalId?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.kbPageTreeResponse": {
+            children?: components["schemas"]["internal_handler.kbPageTreeResponse"][];
+            /**
+             * @description HasHiddenChildren はこのページの直下に、閲覧できないページが在るか。
+             *     枚数も題名も出さない。理由は ListViewablePagesOutput の doc に書いてある。
+             * @example false
+             */
+            hasHiddenChildren?: boolean;
+            page?: components["schemas"]["internal_handler.kbPageResponse"];
+            /**
+             * @description ParentArchived は親がアーカイブ済みか。アーカイブ済みの一覧でだけ意味を持つ
+             *     （現役の一覧では常に false）。**事実であって判断ではない** — 復帰できるかの規則は
+             *     「親がアーカイブ中なら断る」で、それを持つのは UnarchivePageUseCase。
+             * @example false
+             */
+            parentArchived?: boolean;
+        };
+        "internal_handler.kbPageTreeRootResponse": {
+            /**
+             * @description HasHiddenChildren はスペース直下に、閲覧できないページが在るか。
+             *     1 件も見えないスペースでは必ず false（存在しないスペースと撃ち分けないため）。
+             * @example false
+             */
+            hasHiddenChildren?: boolean;
+            pages?: components["schemas"]["internal_handler.kbPageTreeResponse"][];
+        };
+        "internal_handler.kbPrincipalResponse": {
+            createdAt?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            id?: string;
+            /** @example user */
+            kind?: string;
+            /**
+             * @description Name は kind=group のときだけ入る。
+             * @example 開発チーム
+             */
+            name?: string;
+            /** @description SpaceID は kind=space_all のときだけ入る。 */
+            spaceId?: string;
+            /**
+             * @description UserID は kind=user のときだけ入る。
+             * @example 42
+             */
+            userId?: number;
+        };
+        "internal_handler.kbRenamePageRequest": {
+            /** @example 設計メモ (改訂) */
+            title: string;
+        };
+        "internal_handler.kbReplaceContentRequest": {
+            doc: Record<string, never>;
+        };
+        "internal_handler.kbSetRestrictionRequest": {
+            /**
+             * @description Mode は allow（限定公開の許可リストへ載せる）か deny（この主体だけ外す）。
+             * @example deny
+             */
+            mode: string;
+        };
+        "internal_handler.kbShareLinkResponse": {
+            /**
+             * @description Capability はリンク経由でできることの既定（view / edit）。
+             * @example view
+             */
+            capability?: string;
+            createdAt?: string;
+            /** @example 42 */
+            createdByUserId?: number;
+            expiresAt?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000c */
+            id?: string;
+            /** @example 0198a000-0000-7000-8000-000000000003 */
+            pageId?: string;
+            /**
+             * @description RequiresPassword はパスワード付きのリンクか。
+             * @example false
+             */
+            requiresPassword?: boolean;
+            revokedAt?: string;
+        };
+        "internal_handler.kbSpaceGrantResponse": {
+            createdAt?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            principalId?: string;
+            /** @example editor */
+            role?: string;
+            /** @example 0198a000-0000-7000-8000-000000000002 */
+            spaceId?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.kbSpaceResponse": {
+            createdAt?: string;
+            /** @example 0198a000-0000-7000-8000-000000000002 */
+            id?: string;
+            /** @example eng */
+            key?: string;
+            /** @example 開発部 */
+            name?: string;
+        };
+        "internal_handler.kbVerifiedShareLinkResponse": {
+            /** @example view */
+            capability?: string;
+            expiresAt?: string;
+            /** @example 0198a000-0000-7000-8000-000000000003 */
+            pageId?: string;
+        };
+        "internal_handler.kbVerifyShareLinkRequest": {
+            /** @description Password はパスワード付きリンクのときに要る。 */
+            password?: string;
+            token: string;
+        };
+        "internal_handler.kbWorkspaceGrantResponse": {
+            createdAt?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            principalId?: string;
+            /** @example editor */
+            role?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.kbWorkspaceResponse": {
+            createdAt?: string;
+            /** @example Acme 社 */
+            name?: string;
+            /** @example acme */
+            slug?: string;
+        };
         "internal_handler.markLessonCompleteRequest": {
             teachingMaterialId: number;
         };
@@ -5547,11 +7591,6 @@ export interface components {
             title?: string;
         };
         "internal_handler.meResponse": {
-            /**
-             * @description AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H と一致させる）。
-             * @example true
-             */
-            aiChatEnabledForTrainees?: boolean;
             /** @example 1 */
             companyId?: number;
             createdAt?: string;
@@ -5574,8 +7613,6 @@ export interface components {
             updatedAt?: string;
         };
         "internal_handler.memberResponse": {
-            /** @description AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。 */
-            aiChatEnabled?: boolean;
             email?: string;
             id?: number;
             /** @description IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。 */
@@ -5614,55 +7651,32 @@ export interface components {
             month: number;
             year: number;
         };
-        "internal_handler.sessionNoteUpsertReq": {
-            content?: string;
-        };
         "internal_handler.setCompanyActiveRequest": {
             active: boolean;
         };
         "internal_handler.setMemberActiveRequest": {
             active: boolean;
         };
-        "internal_handler.sseAttachmentRequest": {
-            contentType?: string;
-            filename?: string;
-            key?: string;
-            sizeBytes?: number;
-        };
-        "internal_handler.sseRequestBody": {
-            attachments?: components["schemas"]["internal_handler.sseAttachmentRequest"][];
-            content?: string;
-            scenarioId?: number;
-            scene?: string;
-            sessionId?: number;
-            sessionType?: string;
-        };
         "internal_handler.submitExerciseRequest": {
             code: string;
         };
         "internal_handler.teachingMaterialCreateRequest": {
-            content?: string;
             courseId: number;
             isPublished?: boolean;
             orderInCourse?: number;
             title?: string;
         };
         "internal_handler.teachingMaterialUpdateRequest": {
-            content?: string;
             isPublished?: boolean;
             orderInCourse?: number;
             title?: string;
         };
+        "internal_handler.updateChapterDocRequest": {
+            doc: number[];
+            expectedRevision: number;
+        };
         "internal_handler.updateCompanyApplicationStatusReq": {
             status: string;
-        };
-        "internal_handler.updateCompanySettingsRequest": {
-            /** @description bool の必須を binding:"required" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。 */
-            aiChatEnabledForTrainees: boolean;
-        };
-        "internal_handler.updateMemberAiRequest": {
-            /** @description Enabled は AI 利用可否の個別上書き。null（未指定）で会社設定に従う状態へ戻す。 */
-            enabled?: boolean;
         };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;
@@ -5676,13 +7690,17 @@ export interface components {
             iconUrl?: string;
             status?: string;
         };
-        "internal_handler.updateSessionTitleReq": {
-            title: string;
-        };
     };
     responses: never;
     parameters: never;
-    requestBodies: never;
+    requestBodies: {
+        /** @description 役割 (admin / editor / commenter / viewer) */
+        "internal_handler.kbGrantRoleRequest": {
+            content: {
+                "application/json": components["schemas"]["internal_handler.kbGrantRoleRequest"];
+            };
+        };
+    };
     headers: never;
     pathItems: never;
 }

@@ -33,4 +33,4 @@ export { default as ProfileStatsSection } from './ui/ProfileStatsSection';
 
 // 認証状態の Redux slice。reducer は app 側の configureStore が組み立てる。
 export { default as authReducer } from './model/authSlice';
-export { setAuthData, clearAuth, finishLoading, setAiChatEnabledForTrainees } from './model/authSlice';
+export { setAuthData, clearAuth, finishLoading } from './model/authSlice';

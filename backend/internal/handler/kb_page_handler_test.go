@@ -600,6 +600,22 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みの一覧(t *testing.
 func Test_ナレッジ基盤移動_親を省くとスペース直下へ戻る(t *testing.T) {
 	movePath := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/move"
 
+	// snapshot は「断ったら何も書き換わらない」を確かめるための控え。ParentID だけを見ると、
+	// 親が別のページに変わっても position がずれても通ってしまう。
+	type snapshot struct {
+		parentID string
+		spaceID  string
+		position string
+	}
+	take := func(f kbFixture) snapshot {
+		p := f.pages.pages[kbChildPageID]
+		parent := ""
+		if p.ParentID != nil {
+			parent = *p.ParentID
+		}
+		return snapshot{parentID: parent, spaceID: p.SpaceID, position: p.Position}
+	}
+
 	t.Run("親を省くとスペース直下へ移る", func(t *testing.T) {
 		// 入れ子になったページを最上段へ戻すのはドラッグの基本操作。これが無いと
 		// 「入れることはできるが出せない」ドラッグになる。
@@ -615,17 +631,26 @@ func Test_ナレッジ基盤移動_親を省くとスペース直下へ戻る(t 
 		assert.Equal(t, kbSpaceID, f.pages.pages[kbChildPageID].SpaceID, "スペースは変わらない")
 	})
 
-	t.Run("スペースを編集できなければ断る", func(t *testing.T) {
-		// スペース直下には例外の層が無いので、そこはスペースの権限が正しい単位。
-		f := newKbFixture(kbCanEdit, kbUserID)
-		// スペースでは閲覧しかできない相手にする（ページの編集権限は上の fixture で持つ）。
-		f.perms.scopeRoles[kbScopeKey{scopeID: kbSpaceID, userID: kbUserID}] = domain.GrantRoleViewer
+	// スペース直下には例外の層が無いので、そこはスペースの権限が正しい単位。
+	deniedCases := []struct {
+		name string
+		role domain.GrantRole
+	}{
+		{"閲覧しかできない", domain.GrantRoleViewer},
+		{"コメントしかできない", domain.GrantRoleCommenter},
+	}
+	for _, tc := range deniedCases {
+		t.Run("スペースを編集できなければ断る／"+tc.name, func(t *testing.T) {
+			f := newKbFixture(kbCanEdit, kbUserID)
+			f.perms.scopeRoles[kbScopeKey{scopeID: kbSpaceID, userID: kbUserID}] = tc.role
+			before := take(f)
 
-		w := f.do(t, http.MethodPost, movePath, `{}`)
+			w := f.do(t, http.MethodPost, movePath, `{}`)
 
-		assert.Equal(t, http.StatusForbidden, w.Code)
-		assert.NotNil(t, f.pages.pages[kbChildPageID].ParentID, "断ったら何も書き換わらない")
-	})
+			assert.Equal(t, http.StatusForbidden, w.Code)
+			assert.Equal(t, before, take(f), "断ったら親・スペース・並び順のどれも書き換わらない")
+		})
+	}
 }
 
 func Test_ナレッジ基盤移動_落とした位置に置く(t *testing.T) {

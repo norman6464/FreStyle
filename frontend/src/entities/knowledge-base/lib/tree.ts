@@ -209,6 +209,9 @@ export function moveKbPageInTree(
   if (pageId === target.pageId) return null;
   const found = findNode(nodes, pageId);
   if (!found) return null;
+  // 落下先が木に無ければ何もしない。**確かめずに進めると、取り除いたあと差し込む先が
+  // 見つからず、動かしたページと子孫が木から消える**（画面から丸ごと居なくなる）。
+  if (!findNode(nodes, target.pageId)) return null;
   // 自分の子孫が落下先なら、動かすと木が根から切り離される。
   if (findNode(found.node.children, target.pageId)) return null;
   return insertNode(removeNode(nodes, pageId), found.node, target);

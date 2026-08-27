@@ -217,4 +217,13 @@ describe('moveKbPageInTree', () => {
   it('木に無いページは動かせない', () => {
     expect(moveKbPageInTree(tree, 'unknown', { kind: 'into', pageId: 'a' })).toBeNull();
   });
+
+  it.each(['before', 'after', 'into'] as const)(
+    '落下先が木に無ければ何もしない（%s）',
+    (kind) => {
+      // 確かめずに進めると、取り除いたあと差し込む先が見つからず、
+      // 動かしたページと子孫が木から消える。
+      expect(moveKbPageInTree(tree, 'b', { kind, pageId: 'unknown' })).toBeNull();
+    },
+  );
 });

@@ -51,7 +51,35 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
   const [spacesLoading, setSpacesLoading] = useState(false);
   const [spacesError, setSpacesError] = useState<string | null>(null);
 
-  const [spaceStates, setSpaceStates] = useState<Record<string, KbSpaceState>>({});
+  const [spaceStates, setSpaceStatesRaw] = useState<Record<string, KbSpaceState>>({});
+  // いまの spaceStates を同期して持つ控え。
+  //
+  // useState の更新関数は**呼んだその場では走らない**（次の描画で走る）。その中で
+  // 結果を外の変数へ書き出して直後に読むと、まだ書かれていないことがある。
+  // 実際、移動の可否をその形で判定していて、たまたま動いていただけだった。
+  // 読みたいときは ref を読む。更新関数は state を作るだけに保つ。
+  const spaceStatesRef = useRef<Record<string, KbSpaceState>>({});
+  const setSpaceStates = useCallback(
+    (update: (prev: Record<string, KbSpaceState>) => Record<string, KbSpaceState>) => {
+      const next = update(spaceStatesRef.current);
+      spaceStatesRef.current = next;
+      setSpaceStatesRaw(next);
+    },
+    [],
+  );
+  /** setTree はそのスペースの木だけを差し替える。 */
+  const setTree = useCallback(
+    (spaceId: string, tree: KbPageTree | null) => {
+      setSpaceStates((prev) => {
+        const current = prev[spaceId];
+        if (!current) return prev;
+        return { ...prev, [spaceId]: { ...current, tree } };
+      });
+    },
+    [setSpaceStates],
+  );
+  // 移動が走っているスペース。同じスペースの移動を重ねないための札。
+  const movingSpaces = useRef<Set<string>>(new Set());
   // アーカイブ済みを見ているか。**ワークスペース全体で 1 つ**の切り替えにしてある。
   // スペースごとに持たせると「いまどちらを見ているのか」が場所によって変わり、
   // 木を置き換えるという体験が成立しない（設計の「必要なときだけ木を置き換える」）。
@@ -111,7 +139,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     // そこを開くと別ワークスペースの spaceId で木を取りに行く。
     setSpaces([]);
     setSpacesError(null);
-    setSpaceStates({});
+    setSpaceStates(() => ({}));
     setExpandedPageIds(new Set());
 
     KnowledgeBaseRepository.fetchSpaces(activeSlug)
@@ -120,7 +148,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
         setSpaces(list);
         setSpacesError(null);
         // 先頭のスペースだけ開いておく（何も開いていない画面は「壊れている」と読まれる）。
-        if (list[0]) setSpaceStates({ [list[0].id]: emptySpaceState(true) });
+        if (list[0]) setSpaceStates(() => ({ [list[0].id]: emptySpaceState(true) }));
       })
       .catch(() => {
         if (token !== generation.current) return;
@@ -130,7 +158,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
       .finally(() => {
         if (token === generation.current) setSpacesLoading(false);
       });
-  }, [activeSlug]);
+  }, [activeSlug, setSpaceStates]);
 
   useEffect(() => {
     loadSpaces();
@@ -167,7 +195,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
           }));
         });
     },
-    [activeSlug],
+    [activeSlug, setSpaceStates],
   );
 
   // 開いていて、まだ取っていないスペースを取りに行く。
@@ -206,7 +234,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
       if (current) return { ...prev, [spaceId]: { ...current, open: !current.open } };
       return { ...prev, [spaceId]: emptySpaceState(true) };
     });
-  }, []);
+  }, [setSpaceStates]);
 
   /**
    * 現役とアーカイブ済みを切り替える。
@@ -228,7 +256,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
       }
       return cleared;
     });
-  }, []);
+  }, [setSpaceStates]);
 
   /**
    * ページを（子孫ごと）アーカイブする。**失敗は握り潰さず投げる。**
@@ -278,21 +306,31 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
   const movePage = useCallback(
     async (spaceId: string, pageId: string, target: KbDropTarget): Promise<void> => {
       if (!activeSlug) throw new Error('workspace is not selected');
+      // 同じスペースで移動が走っている間は次を受け付けない。
+      //
+      // 重ねると、1 本目が失敗したときに戻す先が 2 本目の結果の上になり、どちらが正か
+      // 決められなくなる（2 本目は 1 本目の結果の上に積まれているため）。
+      // 直列にすれば「巻き戻し先は必ず自分が動かす前」という約束が保てる。
+      if (movingSpaces.current.has(spaceId)) throw new Error('move already in flight');
+
+      const current = spaceStatesRef.current[spaceId];
+      if (!current?.tree) throw new Error('invalid drop target');
+      const pages = moveKbPageInTree(current.tree.pages, pageId, target);
+      // 動かせない指定（自分自身・自分の子孫の中・落下先が無い）は、投げる前に断る。
+      if (!pages) throw new Error('invalid drop target');
 
       // 動かす前の木を控える。これが唯一の巻き戻し先。
-      let previous: KbPageTree | null = null;
-      let moved = false;
-      setSpaceStates((prev) => {
-        const current = prev[spaceId];
-        if (!current?.tree) return prev;
-        const pages = moveKbPageInTree(current.tree.pages, pageId, target);
-        if (!pages) return prev;
-        previous = current.tree;
-        moved = true;
-        return { ...prev, [spaceId]: { ...current, tree: { ...current.tree, pages } } };
-      });
-      // 動かせない指定（自分自身・自分の子孫の中）は、サーバーへ投げる前に断る。
-      if (!moved) throw new Error('invalid drop target');
+      const previous = current.tree;
+      const optimistic = { ...current.tree, pages };
+      movingSpaces.current.add(spaceId);
+      setTree(spaceId, optimistic);
+      // 子として入れたときは、その段を開いておく。開かないと、動かしたページが
+      // 畳まれた段の中に入り、成功したのに画面から消えたように見える。
+      if (target.kind === 'into') {
+        setExpandedPageIds((prev) =>
+          prev.has(target.pageId) ? prev : new Set([...prev, target.pageId]),
+        );
+      }
 
       // 落下先を API の言葉へ移す。**並び順のキーは送らない**（そもそも持っていない）。
       const request =
@@ -308,19 +346,17 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
       try {
         await KnowledgeBaseRepository.movePage(activeSlug, pageId, request);
       } catch (error) {
-        // 動かす前の並びへ戻す。取り直さない。
-        const restore = previous;
-        if (restore) {
-          setSpaceStates((prev) => {
-            const current = prev[spaceId];
-            if (!current) return prev;
-            return { ...prev, [spaceId]: { ...current, tree: restore } };
-          });
+        // 自分が描いた木がまだ表示されているときだけ戻す。別のものに変わっていたら
+        // （スコープの切り替え・取り直し）、そちらのほうが新しいので触らない。
+        if (spaceStatesRef.current[spaceId]?.tree === optimistic) {
+          setTree(spaceId, previous);
         }
         throw error;
+      } finally {
+        movingSpaces.current.delete(spaceId);
       }
     },
-    [activeSlug],
+    [activeSlug, setTree],
   );
 
   const togglePage = useCallback((pageId: string) => {
@@ -379,7 +415,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
       });
       return page;
     },
-    [activeSlug],
+    [activeSlug, setSpaceStates],
   );
 
   const retrySpace = useCallback(

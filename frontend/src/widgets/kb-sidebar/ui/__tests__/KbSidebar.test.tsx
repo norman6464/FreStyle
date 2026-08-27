@@ -720,6 +720,64 @@ describe('KbSidebar', () => {
       expect(hoisted.movePage).not.toHaveBeenCalled();
     });
 
+    it('子として落としたら、その段を開いて動かしたページを見せる', async () => {
+      // 畳まれた段の中に入ると、成功したのに画面から消えたように見える。
+      twoRoots();
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ B', 'ページ A', 50);
+
+      await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
+      expect(screen.getByRole('treeitem', { name: 'ページ B' })).toHaveAttribute('aria-level', '2');
+    });
+
+    it('移動中に重ねて落としても、2 本目は投げない', async () => {
+      // 重ねると、1 本目が失敗したときの戻し先が 2 本目の結果の上になり、
+      // どちらが正か決められなくなる。
+      twoRoots();
+      hoisted.movePage.mockImplementationOnce(() => new Promise(() => {}));
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+      await waitFor(() => expect(hoisted.movePage).toHaveBeenCalledTimes(1));
+
+      dragRowOnto('ページ B', 'ページ A', 10);
+
+      await waitFor(() => expect(hoisted.showToast).toHaveBeenCalled());
+      expect(hoisted.movePage).toHaveBeenCalledTimes(1);
+    });
+
+    it('スコープが切り替わったあとの失敗では、新しい木を巻き戻さない', async () => {
+      // 自分が描いた木がもう表示されていないなら、そちらのほうが新しい。
+      twoRoots();
+      let failMove: (reason: Error) => void = () => {};
+      hoisted.movePage.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failMove = reject;
+          }),
+      );
+      renderSidebar();
+      await screen.findByText('ページ B');
+
+      dragRowOnto('ページ A', 'ページ B', 90);
+      await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
+
+      // アーカイブ済みへ切り替える（木が丸ごと別のものになる）。
+      hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'z', title: 'アーカイブの行' }]));
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+      await screen.findByText('アーカイブの行');
+
+      await act(async () => {
+        failMove(new Error('boom'));
+      });
+
+      expect(screen.getByRole('treeitem', { name: 'アーカイブの行' })).toBeInTheDocument();
+      expect(screen.queryByRole('treeitem', { name: 'ページ A' })).not.toBeInTheDocument();
+    });
+
     it('アーカイブ済みでは並べ替えを受け付けない', async () => {
       twoRoots();
       renderSidebar();

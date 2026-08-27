@@ -64,7 +64,7 @@ describe('Header', () => {
   });
 
   it('非 admin には管理ドロップダウンを出さない', () => {
-    renderHeader({ role: 'trainee', isAdmin: false, aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee', isAdmin: false });
     expect(screen.queryByRole('button', { name: '管理' })).not.toBeInTheDocument();
   });
 

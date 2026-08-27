@@ -54,6 +54,13 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
   // スペースごとに持たせると「いまどちらを見ているのか」が場所によって変わり、
   // 木を置き換えるという体験が成立しない（設計の「必要なときだけ木を置き換える」）。
   const [archivedMode, setArchivedModeState] = useState(false);
+  // 木を取りに行く関数が**常に「いまのスコープ」で取る**ようにするための控え。
+  //
+  // state を直接読むと、その関数を作った時点のスコープが閉じ込められる。書き換えの
+  // 完了後に木を取り直す経路（アーカイブ・復帰）は await をまたぐので、その間に
+  // 切り替えられると**古いスコープで取りに行き、その結果が新しい表示に入る**。
+  // ref から読めば、誰がいつ呼んでも取りに行く先はいまのスコープになる。
+  const archivedModeRef = useRef(false);
   const [expandedPageIds, setExpandedPageIds] = useState<ReadonlySet<string>>(new Set());
 
   // 切り替えを速く繰り返したときに、古い応答が新しい表示を上書きするのを防ぐ。
@@ -137,7 +144,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
         [spaceId]: { ...(prev[spaceId] ?? emptySpaceState(true)), loading: true, error: null },
       }));
 
-      KnowledgeBaseRepository.fetchPageTree(activeSlug, spaceId, { archived: archivedMode })
+      KnowledgeBaseRepository.fetchPageTree(activeSlug, spaceId, { archived: archivedModeRef.current })
         .then((tree) => {
           if (token !== generation.current) return;
           setSpaceStates((prev) => ({
@@ -158,7 +165,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
           }));
         });
     },
-    [activeSlug, archivedMode],
+    [activeSlug],
   );
 
   // 開いていて、まだ取っていないスペースを取りに行く。
@@ -208,6 +215,8 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
   const setArchivedMode = useCallback((next: boolean) => {
     // 切り替え前に投げた要求を採用しない（古いスコープの木が後から届く）。
     generation.current += 1;
+    // ref を先に更新する。この後の取り直しは必ず新しいスコープで走る。
+    archivedModeRef.current = next;
     setArchivedModeState(next);
     setExpandedPageIds(new Set());
     setSpaceStates((prev) => {

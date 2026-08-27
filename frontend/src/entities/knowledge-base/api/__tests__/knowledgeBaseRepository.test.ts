@@ -143,6 +143,32 @@ describe('KnowledgeBaseRepository', () => {
     });
   });
 
+  describe('archivePage / unarchivePage', () => {
+    it('archivePage は POST /archive を叩く', async () => {
+      mockPost.mockResolvedValue({ data: undefined });
+
+      await KnowledgeBaseRepository.archivePage('acme', 'p1');
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p1/archive');
+    });
+
+    it('unarchivePage は POST /unarchive を叩き、戻ったページを返す', async () => {
+      mockPost.mockResolvedValue({ data: { id: 'p1', title: '戻った' } });
+
+      const restored = await KnowledgeBaseRepository.unarchivePage('acme', 'p1');
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p1/unarchive');
+      expect(restored.title).toBe('戻った');
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('boom'));
+
+      await expect(KnowledgeBaseRepository.archivePage('acme', 'p1')).rejects.toThrow();
+      await expect(KnowledgeBaseRepository.unarchivePage('acme', 'p1')).rejects.toThrow();
+    });
+  });
+
   it('fetchPage は slug と pageId を URL に埋める', async () => {
     mockGet.mockResolvedValue({ data: { page: { id: 'p1' }, doc: { type: 'doc' } } });
 

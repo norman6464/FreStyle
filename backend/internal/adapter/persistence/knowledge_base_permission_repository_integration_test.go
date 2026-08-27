@@ -192,6 +192,9 @@ func TestKnowledgeBaseArchivedViewFacts_Integration(t *testing.T) {
 			})
 		require.NoError(t, err)
 
+		// 先に両方が一覧に出ていることを確かめる。map の引きは**鍵が無くても false** を返すので、
+		// 根が欠落していても「復帰できる側」の検査だけは通ってしまう。
+		assert.ElementsMatch(t, []string{root.ID, child.ID}, pageIDs(out.Pages))
 		assert.False(t, out.ParentArchived[root.ID], "根は復帰できる側")
 		assert.True(t, out.ParentArchived[child.ID], "子だけを復帰させることはできない")
 	})

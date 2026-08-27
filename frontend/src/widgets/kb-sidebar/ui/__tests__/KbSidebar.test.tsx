@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import KbSidebar from '../KbSidebar';
@@ -70,11 +70,11 @@ function tree(
   hiddenAtRoot = false,
 ): KbPageTree {
   return {
-    pages: nodes.map((n) => ({
-      page: page(n.id, n.title),
-      hasHiddenChildren: n.hidden ?? false,
-      parentArchived: n.parentArchived ?? false,
-      children: (n.children ?? []).map((childId) => ({
+    pages: nodes.map((node) => ({
+      page: page(node.id, node.title),
+      hasHiddenChildren: node.hidden ?? false,
+      parentArchived: node.parentArchived ?? false,
+      children: (node.children ?? []).map((childId) => ({
         page: page(childId),
         hasHiddenChildren: false,
         // 一緒にアーカイブされた子は、その子だけを戻すことはできない。
@@ -503,6 +503,40 @@ describe('KbSidebar', () => {
       await waitFor(() =>
         expect(hoisted.fetchPageTree.mock.calls.length).toBeGreaterThan(before),
       );
+    });
+
+    it('操作中に切り替えても、取り直しは新しいスコープで走る', async () => {
+      // アーカイブの完了は await をまたぐ。その間に切り替えられたとき、書き換えを
+      // 始めた時点のスコープで取りに行くと、**古い木が新しい表示に入る**。
+      let finishArchive: () => void = () => {};
+      hoisted.archivePage.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishArchive = resolve;
+          }),
+      );
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブ' }));
+      await waitFor(() => expect(hoisted.archivePage).toHaveBeenCalled());
+
+      // まだ終わっていないうちに切り替える。
+      openArchive();
+      await waitFor(() =>
+        expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: true }),
+      );
+      hoisted.fetchPageTree.mockClear();
+
+      await act(async () => {
+        finishArchive();
+      });
+
+      await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalled());
+      for (const call of hoisted.fetchPageTree.mock.calls) {
+        expect(call[2]).toEqual({ archived: true });
+      }
     });
 
     it('アーカイブに失敗したら知らせを出す', async () => {

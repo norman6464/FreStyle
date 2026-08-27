@@ -25,10 +25,12 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     workspaces,
     workspacesLoading,
     workspacesError,
+    retryWorkspaces,
     activeSlug,
     spaces,
     spacesLoading,
     spacesError,
+    retrySpaces,
     spaceStates,
     toggleSpace,
     retrySpace,
@@ -48,7 +50,14 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
       {workspacesLoading && (
         <p className="px-2 py-2 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
       )}
-      {workspacesError && <p className="px-2 py-2 text-xs text-red-600">{workspacesError}</p>}
+      {workspacesError && (
+        <div className="px-2 py-2 text-xs text-red-600">
+          <p>{workspacesError}</p>
+          <button type="button" onClick={retryWorkspaces} className="mt-0.5 underline hover:no-underline">
+            再試行
+          </button>
+        </div>
+      )}
 
       {!workspacesLoading && !workspacesError && workspaces.length === 0 && (
         // 所属が無いと API は全部 404 になる。「壊れている」ではなく「まだ居ない」と伝える。
@@ -61,7 +70,14 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
         {spacesLoading && (
           <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
         )}
-        {spacesError && <p className="px-2 py-1 text-xs text-red-600">{spacesError}</p>}
+        {spacesError && (
+          <div className="px-2 py-1 text-xs text-red-600">
+            <p>{spacesError}</p>
+            <button type="button" onClick={retrySpaces} className="mt-0.5 underline hover:no-underline">
+              再試行
+            </button>
+          </div>
+        )}
 
         {!spacesLoading && !spacesError && activeSlug && spaces.length === 0 && (
           <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">

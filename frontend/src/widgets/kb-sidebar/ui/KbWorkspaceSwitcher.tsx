@@ -38,8 +38,17 @@ export default function KbWorkspaceSwitcher({
       }
       setOpen(false);
     };
+    // Escape で閉じる。開いたものを閉じる手段がキーボードから無いのは、
+    // 役割を名乗る名乗らないに関わらず困る。
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', onDocumentMouseDown);
-    return () => document.removeEventListener('mousedown', onDocumentMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocumentMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   // 所属が 1 つしか無いなら切り替える先が無いので、押せる見た目にしない。
@@ -56,7 +65,6 @@ export default function KbWorkspaceSwitcher({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="menu"
         aria-expanded={open}
         className="flex w-full items-center gap-1 rounded-md px-2 py-2 text-left hover:bg-surface-2"
       >
@@ -67,19 +75,20 @@ export default function KbWorkspaceSwitcher({
       </button>
 
       {open && (
-        // listbox ではなく menu にしてある。listbox の option は**対話要素を含められない**ので、
-        // option の中にボタンを置くと、支援技術からは押せるものが見えない
-        // （押下の判定も親の option には来ない）。ここでは押せるもの自体を menuitem にする。
+        // ARIA の役割は付けない。**素のボタンの一覧**として出す。
+        //
+        // listbox は option の中に対話要素を置けず（押下の判定が親に来ない）、menu は矢印キー・
+        // Home / End での移動を約束してしまう。どちらも実装しないまま名乗ると、
+        // 支援技術には「そう操作できる」と伝わるのに実際には動かない、という嘘になる。
+        // 素のボタンなら Tab で辿れて、名乗りと実際が一致する。
         <ul
-          role="menu"
           aria-label="ワークスペース"
           className="absolute left-0 right-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-surface-3 bg-surface-1 py-1 shadow-lg"
         >
           {workspaces.map((workspace) => (
-            <li key={workspace.slug} role="none">
+            <li key={workspace.slug}>
               <button
                 type="button"
-                role="menuitem"
                 aria-current={workspace.slug === activeSlug}
                 onClick={() => {
                   onSelect(workspace.slug);

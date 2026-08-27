@@ -54,40 +54,48 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
   // 「最後に投げた要求」だけを採用する（AbortController でも良いが、採用可否だけなら世代番号で足りる）。
   const generation = useRef(0);
 
-  // 所属ワークスペースの一覧（1 回だけ）。
-  useEffect(() => {
-    let alive = true;
+  // 所属ワークスペースの一覧。
+  //
+  // 取りに行く処理を effect の中に直接書かず関数に切り出してあるのは、**失敗したときに
+  // 同じ経路でやり直せるようにする**ため。effect の中に閉じ込めると、依存が変わらない限り
+  // 二度と走らず、利用者は画面を再読み込みするしか手が無くなる。
+  const loadWorkspaces = useCallback(() => {
     setWorkspacesLoading(true);
+    setWorkspacesError(null);
     KnowledgeBaseRepository.fetchWorkspaces()
       .then((list) => {
-        if (!alive) return;
         setWorkspaces(list);
         setWorkspacesError(null);
         // URL が何も指していなければ先頭を開く。所属が 0 件なら選ばない。
         setActiveSlug((current) => current ?? list[0]?.slug ?? null);
       })
       .catch(() => {
-        if (!alive) return;
         setWorkspacesError('ワークスペースを読み込めませんでした');
       })
       .finally(() => {
-        if (alive) setWorkspacesLoading(false);
+        setWorkspacesLoading(false);
       });
-    return () => {
-      alive = false;
-    };
   }, []);
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, [loadWorkspaces]);
 
   // URL 側が変わったら追従する（戻る / 進むでも表示が合う）。
   useEffect(() => {
     if (workspaceSlug) setActiveSlug(workspaceSlug);
   }, [workspaceSlug]);
 
-  // 選んでいるワークスペースのスペース一覧。切り替えたら木の状態も捨てる。
-  useEffect(() => {
+  // 選んでいるワークスペースのスペース一覧。
+  const loadSpaces = useCallback(() => {
     if (!activeSlug) return;
     const token = ++generation.current;
     setSpacesLoading(true);
+    // **古い一覧を先に捨てる。** 残したまま新しい応答を待つと、その間だけ
+    // 「前のワークスペースのスペース」と「新しい slug」が組み合わさって表示され、
+    // そこを開くと別ワークスペースの spaceId で木を取りに行く。
+    setSpaces([]);
+    setSpacesError(null);
     setSpaceStates({});
     setExpandedPageIds(new Set());
 
@@ -108,6 +116,10 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
         if (token === generation.current) setSpacesLoading(false);
       });
   }, [activeSlug]);
+
+  useEffect(() => {
+    loadSpaces();
+  }, [loadSpaces]);
 
   /** 1 スペース分の木を取りに行く。開いたとき・再試行のときだけ呼ぶ。 */
   const loadSpaceTree = useCallback(
@@ -201,11 +213,13 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     workspaces,
     workspacesLoading,
     workspacesError,
+    retryWorkspaces: loadWorkspaces,
     activeSlug,
     selectWorkspace: setActiveSlug,
     spaces,
     spacesLoading,
     spacesError,
+    retrySpaces: loadSpaces,
     spaceStates,
     toggleSpace,
     retrySpace,

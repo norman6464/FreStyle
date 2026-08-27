@@ -172,6 +172,45 @@ describe('KbSidebar', () => {
     expect(hoisted.fetchSpaces).not.toHaveBeenCalled();
   });
 
+  it('ワークスペースの取得に失敗したら理由を出して再試行できる', async () => {
+    // 一度だけ走る effect の中に閉じ込めると、失敗後は画面を再読み込みするしか手が無くなる。
+    hoisted.fetchWorkspaces.mockRejectedValueOnce(new Error('boom'));
+    renderSidebar();
+
+    expect(await screen.findByText('ワークスペースを読み込めませんでした')).toBeInTheDocument();
+
+    hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社')]);
+    fireEvent.click(screen.getByRole('button', { name: '再試行' }));
+
+    expect(await screen.findByText('設計メモ')).toBeInTheDocument();
+  });
+
+  it('ワークスペースを切り替えたら、前のスペースを先に捨てる', async () => {
+    // 残したまま新しい応答を待つと、その間だけ「前のワークスペースのスペース」と
+    // 「新しい slug」が組み合わさって表示され、そこを開くと別ワークスペースの
+    // spaceId で木を取りに行ってしまう。
+    hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部')]);
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/kb/acme']}>
+        <KbSidebar workspaceSlug="acme" />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('button', { name: '開発部' });
+
+    // 切り替え先の一覧は保留にして、待っている間の表示を確かめる。
+    hoisted.fetchSpaces.mockImplementationOnce(() => new Promise(() => {}));
+    rerender(
+      <MemoryRouter initialEntries={['/kb/beta']}>
+        <KbSidebar workspaceSlug="beta" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: '開発部' })).not.toBeInTheDocument(),
+    );
+  });
+
   it('ワークスペースを切り替えると URL も変わる', async () => {
     // 状態だけ変えると、再読み込みや共有で別の場所が開く。
     hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社'), workspace('beta', 'Beta 社')]);
@@ -192,7 +231,7 @@ describe('KbSidebar', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: /Acme 社/ }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Beta 社' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Beta 社' }));
 
     await waitFor(() => expect(path).toBe('/kb/beta'));
   });

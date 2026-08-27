@@ -243,7 +243,7 @@ func (h *KnowledgeBasePageHandler) requireSpacePermission(
 }
 
 // requireSubtreeEditPermission はページと全子孫の編集権限を確かめる。満たさなければ
-// レスポンスを書いて false を返す。子孫ごと書き換える操作（アーカイブ / 復帰）だけが通す。
+// レスポンスを書いて false を返す。子孫ごと影響が及ぶ操作（アーカイブ / 復帰 / 移動）が通す。
 //
 // 根 1 枚だけを見ないのは、同じ「編集」の判定が経路で食い違わないようにするため。
 // 子孫には親と違う例外を張れるので、根だけで通すと、直接 rename すれば 403 になる子を
@@ -255,6 +255,10 @@ func (h *KnowledgeBasePageHandler) requireSpacePermission(
 // 引き換えに、断ること自体が「この下に触れないページがある」という粒度の粗い信号になる
 // （どのページかは分からない）。ページの実在を隠す規則との衝突は承知のうえで、
 // 見えないページを黙って書き換えられる方を重く見た。
+//
+// 問い合わせはページ数によらず 1 回（CanEditPageSubtreeUseCase がサブツリーの事実を
+// まとめて集め、domain.ResolvePagePermission に 1 ページずつ通す）。判定規則を
+// ここへ写経しないこと — 写せば「直接触ると 403 なのに経由すると通る」が復活する。
 func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 	c *gin.Context, scope kbRequestScope, pageID string,
 ) bool {
@@ -480,7 +484,7 @@ type kbMovePageRequest struct {
 // Move はページ（と子孫）を別の親の下へ移す。動かすページと移動先の親の両方に編集権限が要る。
 //
 //	@Summary      ナレッジ 基盤 の ページ 移動
-//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
+//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -490,7 +494,7 @@ type kbMovePageRequest struct {
 //	@Success      200            {object}  kbPageResponse
 //	@Failure      400            {object}  errorResponse  "バリデーション エラー / スペース 不一致"
 //	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い"
+//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
 //	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
 //	@Failure      409            {object}  errorResponse  "アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動"
 //	@Failure      500            {object}  errorResponse  "DB 失敗"
@@ -503,6 +507,50 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	}
 	pageID := c.Param("pageId")
 	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	// 根の権限を先に見るのは応答を撃ち分けないため（閲覧できない根は 404 のまま）。
+	// そのうえで子孫まで確かめる。
+	//
+	// # なぜ移動でも子孫を見るのか
+	//
+	// 移動はサブツリーごと動く。動いた瞬間、**子孫それぞれの祖先の並びが変わる**。
+	// ページの例外（page_restrictions / page_allow_lists）は経路の上から効くので、
+	// 祖先が変われば子孫の実効権限も変わる — 限定公開だったページが移動先の既定で
+	// 開いたり、逆に見えていた相手から消えたりする。操作者はその子孫を見られないので、
+	// **自分が何を open / close したのか分からないまま権限を書き換えることになる。**
+	// 権限を変える操作は例外なく admin の gate（kb_permission_gate.go）を通すのに、
+	// 移動だけがその外側から同じ結果を作れてしまう、というのがこの穴の正体。
+	//
+	// # なぜアーカイブと同じ判定に揃えたのか（移動特有の事情を検討したうえで）
+	//
+	// 「全部できるか、何もしないか」の性質が移動でもそのまま成り立つ。移動は
+	// pages / page_paths / 子孫の space_id を repository の 1 トランザクションで
+	// まとめて付け替える操作で、**部分的な移動という中間状態が存在しない**
+	// （子孫を置き去りにすれば木が根から切れる）。アーカイブを閉じる側へ倒した論拠が
+	// そのまま使えるので、判定を分ける理由が無い。分ければ「アーカイブなら断られるのに
+	// 移動なら通る」という、経路で食い違う状態を自分から作ることになる。
+	//
+	// 移動はアーカイブより頻度が高い（ドラッグで動かせるようになれば特に）。これは
+	// 緩める理由ではなく締める理由になる — 穴を踏む回数がそのまま増えるため。
+	// 費用も同じで、増えるのはアーカイブと同一のクエリ 1 回だけ（実測: 5,000 ページの
+	// サブツリーで 3.0 ms、最悪ケースでも 174 ms）。
+	//
+	// 断ること自体が「この下に触れないページがある」という粒度の粗い信号になる点も
+	// アーカイブと同じで、同じ理由で許容する（どのページかまでは分からない）。
+	//
+	// # 断ったときに何も書き換わらないこと
+	//
+	// この検査は読み取りだけで、通らなければ**移動の usecase を呼ばずに return する**。
+	// parent_id / position / page_paths を触るのは repository.MovePage だけなので、
+	// ここで返した時点でどのテーブルにも書き込みは起きていない。
+	//
+	// # 同一スペース内の移動もここを通る
+	//
+	// repository.ErrPageMoveVoidsSpaceRestriction が塞いでいるのはスペースをまたぐ
+	// 移動だけ（「スペース全員」宛ての例外が移動先で失効する場合）。同一スペース内で
+	// 親を付け替える移動には、子孫の権限を見る経路がこれ以外に無い。
+	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
 	limitKnowledgeBaseBody(c)

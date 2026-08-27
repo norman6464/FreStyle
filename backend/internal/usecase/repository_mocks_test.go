@@ -479,6 +479,12 @@ func (m *mockKBPermissionRepo) SpacePermissionFactsForUser(ctx context.Context, 
 	return f, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) PageSpaceScopeFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*repository.PageScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, userID)
+	f, _ := args.Get(0).(*repository.PageScopeFacts)
+	return f, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error) {
 	args := m.Called(ctx, workspaceID, userID)
 	f, _ := args.Get(0).(*domain.ScopeFacts)

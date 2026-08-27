@@ -139,6 +139,34 @@ describe('KbSidebar', () => {
     expect(await screen.findByText('p1-child')).toBeInTheDocument();
   });
 
+  it('伏せた件数は、開いた段の子より後ろに出す', async () => {
+    // 平らにした配列では親の要素が子より先に来るので、ページの行に混ぜると
+    // 件数が子より前に出る。読み順として最後の子の後ろが正しい。
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([{ id: 'p1', title: '設計メモ', hidden: 2, children: ['p1-child'] }]),
+    );
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ を開く' }));
+    await screen.findByText('p1-child');
+
+    const text = document.body.textContent ?? '';
+    expect(text.indexOf('p1-child')).toBeLessThan(text.indexOf('2 ページは表示できません'));
+  });
+
+  it('閉じている段では伏せた件数を出さない', async () => {
+    // 見える子も出していないのに伏せた分だけ出すと、閉じているのに何か書いてある行になる。
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([{ id: 'p1', title: '設計メモ', hidden: 2, children: ['p1-child'] }]),
+    );
+
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    expect(screen.queryByText('2 ページは表示できません')).not.toBeInTheDocument();
+  });
+
   it('現在位置のページの祖先を自動で開く', async () => {
     // リンクを辿って開いたページが、閉じた枝の中に隠れたままにならないこと。
     hoisted.fetchPageTree.mockResolvedValue(

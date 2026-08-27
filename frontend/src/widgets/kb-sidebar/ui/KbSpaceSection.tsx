@@ -2,6 +2,7 @@ import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { flattenKbTree, type KbSpace } from '@/entities/knowledge-base';
 import type { KbSpaceState } from '../model/useKnowledgeBaseTree';
 import KbPageRow from './KbPageRow';
+import KbHiddenChildrenRow from './KbHiddenChildrenRow';
 
 export interface KbSpaceSectionProps {
   space: KbSpace;
@@ -32,7 +33,7 @@ export default function KbSpaceSection({
   onRetry,
 }: KbSpaceSectionProps) {
   const open = state?.open ?? false;
-  const rows = state?.tree ? flattenKbTree(state.tree.pages, expandedPageIds) : [];
+  const entries = state?.tree ? flattenKbTree(state.tree.pages, expandedPageIds) : [];
   const hiddenAtRoot = state?.tree?.hiddenChildCount ?? 0;
 
   return (
@@ -76,22 +77,30 @@ export default function KbSpaceSection({
             </div>
           )}
 
-          {!state?.loading && !state?.error && rows.length === 0 && hiddenAtRoot === 0 && (
+          {!state?.loading && !state?.error && entries.length === 0 && hiddenAtRoot === 0 && (
             <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">ページがありません</p>
           )}
 
-          {rows.length > 0 && (
+          {entries.length > 0 && (
             // 平らな配列だが aria-level で段を伝えるので、木として読み上げられる。
             <ul role="tree" aria-label={`${space.name} のページ`} className="space-y-px">
-              {rows.map((row) => (
-                <KbPageRow
-                  key={row.page.id}
-                  row={row}
-                  workspaceSlug={workspaceSlug}
-                  active={row.page.id === activePageId}
-                  onToggle={onTogglePage}
-                />
-              ))}
+              {entries.map((entry) =>
+                entry.kind === 'page' ? (
+                  <KbPageRow
+                    key={entry.page.id}
+                    row={entry}
+                    workspaceSlug={workspaceSlug}
+                    active={entry.page.id === activePageId}
+                    onToggle={onTogglePage}
+                  />
+                ) : (
+                  <KbHiddenChildrenRow
+                    key={`hidden-${entry.parentId}`}
+                    depth={entry.depth}
+                    count={entry.count}
+                  />
+                ),
+              )}
             </ul>
           )}
 

@@ -7,16 +7,32 @@ import type { KbPage, KbPageTreeNode } from '../model/types';
  * キーボード操作（上下移動）と仮想スクロールがそのまま素直に書ける。木の形は depth が持つ。
  */
 export interface KbTreeRow {
+  kind: 'page';
   page: KbPage;
   /** 0 がスペース直下。1 段下がるごとに 1 増える。 */
   depth: number;
   /** 見える子を持つか。**伏せた子しか居ない場合は false**（開いても何も出ないため）。 */
   hasChildren: boolean;
-  /** この行の直下で伏せた件数。0 なら何も示さない。 */
-  hiddenChildCount: number;
   /** いま開いているか。子を持たない行では常に false。 */
   expanded: boolean;
 }
+
+/**
+ * 「この段に、自分には見えないページが n 枚ある」ことだけを示す行。
+ *
+ * ページの行とは別の要素にしてある。ページの行の中に混ぜると、
+ * **子より前**に出てしまう（平らにした配列では、親の要素が子より先に来るため）。
+ * 伏せた分は最後の子の後ろに来るのが読み順として正しい。
+ */
+export interface KbHiddenRow {
+  kind: 'hidden';
+  /** どの段の直下か。スペース直下は null。 */
+  parentId: string | null;
+  depth: number;
+  count: number;
+}
+
+export type KbTreeEntry = KbTreeRow | KbHiddenRow;
 
 /**
  * flattenKbTree は木を、いま開いている段だけの平らな行の並びに変換する。
@@ -29,23 +45,32 @@ export function flattenKbTree(
   nodes: KbPageTreeNode[],
   expandedIds: ReadonlySet<string>,
   depth = 0,
-): KbTreeRow[] {
-  const rows: KbTreeRow[] = [];
+): KbTreeEntry[] {
+  const entries: KbTreeEntry[] = [];
   for (const node of nodes) {
     const hasChildren = node.children.length > 0;
     const expanded = hasChildren && expandedIds.has(node.page.id);
-    rows.push({
-      page: node.page,
-      depth,
-      hasChildren,
-      hiddenChildCount: node.hiddenChildCount,
-      expanded,
-    });
+    entries.push({ kind: 'page', page: node.page, depth, hasChildren, expanded });
+
     if (expanded) {
-      rows.push(...flattenKbTree(node.children, expandedIds, depth + 1));
+      entries.push(...flattenKbTree(node.children, expandedIds, depth + 1));
+    }
+
+    // 伏せた件数は、その段の中身の**最後**に置く。
+    //
+    // 閉じている段では出さない。閉じた段の中身は見える子も出していないのだから、
+    // 伏せた分だけを出すと「閉じているのに何かが書いてある」行になる。
+    // 見える子が 1 枚も無い段は開けないので、そこは閉じている扱いにせず出す。
+    if (node.hiddenChildCount > 0 && (expanded || !hasChildren)) {
+      entries.push({
+        kind: 'hidden',
+        parentId: node.page.id,
+        depth: depth + 1,
+        count: node.hiddenChildCount,
+      });
     }
   }
-  return rows;
+  return entries;
 }
 
 /**

@@ -104,7 +104,7 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	u := toDomainUser(userRow{
 		ID: row.ID, Email: row.Email, Name: row.Name,
 		CompanyID: row.CompanyID, RoleID: row.RoleID,
-		IsActive: row.IsActive,
+		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 		RoleName: row.RoleName,
 	})
@@ -241,15 +241,15 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			return fmt.Errorf("user id %d が int64 の範囲外です", user.ID)
 		}
 		row, err := q.InsertUserWithID(ctx, sqlcgen.InsertUserWithIDParams{
-			ID:            fixedID,
-			Email:         params.Email,
-			PasswordHash:  params.PasswordHash,
-			Name:          params.Name,
-			CompanyID:     params.CompanyID,
-			RoleID:        params.RoleID,
-			CreatedAt:     params.CreatedAt,
-			UpdatedAt:     params.UpdatedAt,
-			DeletedAt:     params.DeletedAt,
+			ID:           fixedID,
+			Email:        params.Email,
+			PasswordHash: params.PasswordHash,
+			Name:         params.Name,
+			CompanyID:    params.CompanyID,
+			RoleID:       params.RoleID,
+			CreatedAt:    params.CreatedAt,
+			UpdatedAt:    params.UpdatedAt,
+			DeletedAt:    params.DeletedAt,
 		})
 		if err != nil {
 			return err
@@ -408,7 +408,6 @@ func ensureOidcIdentityTx(ctx context.Context, q *sqlcgen.Queries, userID uint64
 	}
 	return nil
 }
-
 
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
 // 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。

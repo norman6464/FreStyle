@@ -114,7 +114,6 @@ func (r *fakeUserRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.Us
 	return nil, nil
 }
 
-
 // fakeInvitationRepo は AdminInvitationRepository の最小スタブ。
 // FindPendingByEmail / FindPendingByToken の振る舞いをカスタムにしてテストする。
 type fakeInvitationRepo struct {

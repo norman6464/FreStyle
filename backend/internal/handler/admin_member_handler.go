@@ -48,11 +48,11 @@ type memberResponse struct {
 
 func toMemberResponse(u domain.User) memberResponse {
 	return memberResponse{
-		ID:            u.ID,
-		Email:         u.Email,
-		Name:          u.Name,
-		Role:          u.Role,
-		IsActive:      u.IsActive,
+		ID:       u.ID,
+		Email:    u.Email,
+		Name:     u.Name,
+		Role:     u.Role,
+		IsActive: u.IsActive,
 	}
 }
 

@@ -38,7 +38,6 @@ func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) 
 func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error)  { return nil, nil }
 
 func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
-func (s *stubUsers) UpdateAiChatEnabled(context.Context, uint64, *bool) error       { return nil }
 func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }
 func (s *stubUsers) UpdateRole(context.Context, uint64, domain.RoleName) error      { return nil }
 func (s *stubUsers) UpdateCompanyID(context.Context, uint64, uint64) error          { return nil }
@@ -55,8 +54,7 @@ func (s *stubCompanies) ListAll(context.Context) ([]domain.Company, error) { ret
 func (s *stubCompanies) FindByID(context.Context, uint64) (*domain.Company, error) {
 	return s.company, s.err
 }
-func (s *stubCompanies) UpdateAiChatEnabled(context.Context, uint64, bool) error { return nil }
-func (s *stubCompanies) UpdateActive(context.Context, uint64, bool) error        { return nil }
+func (s *stubCompanies) UpdateActive(context.Context, uint64, bool) error { return nil }
 
 func runCurrentUser(t *testing.T, users *stubUsers, companies *stubCompanies) (*httptest.ResponseRecorder, *gin.Context) {
 	t.Helper()

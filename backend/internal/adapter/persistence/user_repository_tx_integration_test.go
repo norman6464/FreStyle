@@ -299,7 +299,6 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.True(t, got.IsActive, "is_active は触らない")
 	})
 
-
 	t.Run("ListByCompanyID は会社で絞り id 昇順・論理削除を除く", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)

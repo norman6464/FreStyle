@@ -13,7 +13,6 @@
 
 | 機能 | 概要 |
 |---|---|
-| **AI チャット** | Bedrock を介した汎用 AI チャット。質問・要約・コードレビュー依頼など自由対話。Markdown レンダリング + ストリーミング表示 |
 | **コード学習** | 演習問題を解きながら手を動かしてプログラミングを学ぶ。Monaco Editor + 言語サンドボックス（PHP / Go / bash / **SQL**）。SQL は同居の使い捨て PostgreSQL に対し非 superuser で実行し方言を正確に再現 |
 | **学習コース** | CompanyAdmin が作成した Markdown 教材をコース単位で閲覧。trainee は各教材を「完了にする」でチェックでき、コースごとの進捗バー（完了数 / 全体）で到達度を可視化 |
 | **ノート** | 学習ログ・振り返りメモを残せる。画像添付に対応 |
@@ -30,13 +29,13 @@
 
 ## システム構成（全体像）
 
-ユーザーのブラウザから、フロントエンド（静的配信）とバックエンド（API / SSE）に分かれて届き、バックエンドが各データストア・AI・認証サービスを束ねます。
+ユーザーのブラウザから、フロントエンド（静的配信）とバックエンド（API）に分かれて届き、バックエンドが各データストア・認証サービスを束ねます。
 
-![FreStyle システム構成: ブラウザ → フロント(React/CloudFront+S3) / バックエンド(Go/ALB+ECS) → Supabase・DynamoDB・SQS・Bedrock・SES・Cognito](./architecture/readme-system.png)
+![FreStyle システム構成: ブラウザ → フロント(React/CloudFront+S3) / バックエンド(Go/ALB+ECS) → Supabase・SQS・SES・Cognito](./architecture/readme-system.png)
 
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind。ビルド成果物を **CloudFront + S3** で配信。
 - **バックエンド**: Go / Gin / GORM。**ALB + ECS Fargate**（+ コード実行用の `code-runner` サイドカー）。
-- **データ / 連携**: メイン DB は **Supabase(PostgreSQL)**、AI チャット履歴は **DynamoDB**、非同期は **SQS**、AI は **Bedrock(Claude)**、メールは **SES**、認証は **Cognito(JWT を HttpOnly Cookie)**。
+- **データ / 連携**: メイン DB は **Supabase(PostgreSQL)**、非同期は **SQS**、メールは **SES**、認証は **Cognito(JWT を HttpOnly Cookie)**。
 
 > 図のソース: [`architecture/readme-system.drawio`](architecture/readme-system.drawio)（draw.io で編集 → `drawio --export` で再生成）。AWS リソースレベルの詳細図は下の「[AWSアーキテクチャ構成図](#awsアーキテクチャ構成図)」を参照。
 
@@ -100,7 +99,7 @@
 | ECS Fargate スペック | 0.25 vCPU / 0.5 GB（最小） |
 | ランタイム | Go（静的バイナリ）/ Gin |
 | スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL・ナレッジ基盤は明示 DDL）|
-| 永続化 | クエリは読み書きとも sqlc 生成コード（生 SQL）が主体・GORM は接続と AutoMigrate に残る（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
+| 永続化 | クエリは読み書きとも sqlc 生成コード（生 SQL）が主体・GORM は接続と AutoMigrate に残る（PostgreSQL）/ AWS SDK v2（S3・SQS）|
 
 ## AWSアーキテクチャ構成図
 
@@ -121,7 +120,7 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 | **handler** | `internal/handler` | Gin で HTTP / SSE を受け、認証情報を取得して usecase を呼び、JSON を返す | usecase / domain |
 | **usecase** | `internal/usecase` | 1 ユースケース = 1 struct。`Execute(ctx, in)` でビジネスロジックを実行 | domain / repository（**interface のみ**）|
 | **repository(port)** | `internal/usecase/repository` | usecase が依存する永続化の**抽象（interface）** | domain |
-| **repository(impl)** | `internal/adapter/persistence` | sqlc 生成コード（生 SQL）で読み書き / DynamoDB / S3 など | domain |
+| **repository(impl)** | `internal/adapter/persistence` | sqlc 生成コード（生 SQL）で読み書き / S3 など | domain |
 | **infra** | `internal/infra/*` | 外部 SDK ラッパ（bedrock / ses / cognito / database） | domain |
 | **domain** | `internal/domain` | エンティティ + ビジネスルール定数。**どの層にも依存しない** | （なし）|
 

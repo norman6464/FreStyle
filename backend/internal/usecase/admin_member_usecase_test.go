@@ -31,4 +31,3 @@ func Test_会社メンバー一覧ユースケース(t *testing.T) {
 		assert.Empty(t, members)
 	})
 }
-

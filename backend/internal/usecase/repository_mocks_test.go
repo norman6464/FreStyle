@@ -69,7 +69,6 @@ func (m *mockUserRepo) CognitoSubjectByUserID(ctx context.Context, userID uint64
 	return args.String(0), args.Error(1)
 }
 
-
 func (m *mockUserRepo) UpdateActive(ctx context.Context, userID uint64, active bool) error {
 	return m.Called(ctx, userID, active).Error(0)
 }
@@ -254,7 +253,6 @@ func (m *mockCompanyRepo) FindByID(ctx context.Context, id uint64) (*domain.Comp
 	c, _ := args.Get(0).(*domain.Company)
 	return c, args.Error(1)
 }
-
 
 func (m *mockCompanyRepo) UpdateActive(ctx context.Context, companyID uint64, active bool) error {
 	return m.Called(ctx, companyID, active).Error(0)

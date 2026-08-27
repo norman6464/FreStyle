@@ -82,7 +82,6 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	registerDashboardRoutes(authed, deps)
 	registerDailyGoalsRoutes(authed, deps)
 	registerKnowledgeBaseRoutes(authed, deps, audit)
-	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 	return r
 }
 

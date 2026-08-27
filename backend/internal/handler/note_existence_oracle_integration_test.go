@@ -210,4 +210,3 @@ func TestNoteExistenceOracle_Integration(t *testing.T) {
 		require.Equal(t, http.StatusOK, code, string(body))
 	})
 }
-

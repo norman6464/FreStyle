@@ -334,7 +334,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 		require.Equal(t, uint64(4), one.ID)
 	})
 
-
 	t.Run("learning_reports: period_to 同着は id 降順", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "learning_reports")
 		repo := persistence.NewLearningReportRepository(sqlDB)

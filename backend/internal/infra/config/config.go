@@ -52,10 +52,10 @@ type Config struct {
 	// （例: http://127.0.0.1:9000）。未設定なら in-process サンドボックスで実行する。
 	CodeRunnerURL string
 
-	Cognito  CognitoConfig
-	S3       S3Config
-	SES      SESConfig
-	SMTP     SMTPConfig
+	Cognito CognitoConfig
+	S3      S3Config
+	SES     SESConfig
+	SMTP    SMTPConfig
 }
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。

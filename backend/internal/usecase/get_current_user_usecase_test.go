@@ -29,10 +29,6 @@ func (s *stubUserRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.Us
 	return nil, s.err
 }
 
-func (s *stubUserRepo) UpdateAiChatEnabled(_ context.Context, _ uint64, _ *bool) error {
-	return s.err
-}
-
 func (s *stubUserRepo) CreateWithOidcIdentity(_ context.Context, _ *domain.User, _, _ string) error {
 	return s.err
 }

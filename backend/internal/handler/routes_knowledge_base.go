@@ -9,15 +9,20 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// 共有リンクの検証に掛ける上限。
+// 共有リンクの検証と、メンバー追加に掛ける上限の数値。
 //
-// リンク 1 本あたり 1 分 10 回（短期は 5 回まで）。パスワードを打ち間違える人の邪魔には
-// ならず、総当たりの速度は 1 分 10 通りまで落ちる。鍵がリンクなので、この上限は
-// 要求元をいくら分散させても効く。同じリンクを持っている人どうしは上限を共有するが、
-// そもそもリンクを渡された者どうしなので実害は無い。
+// 共有リンク: リンク 1 本あたり 1 分 10 回（短期は 5 回まで）。パスワードを打ち間違える
+// 人の邪魔にはならず、総当たりの速度は 1 分 10 通りまで落ちる。鍵がリンクなので、
+// この上限は要求元をいくら分散させても効く。同じリンクを持っている人どうしは
+// 上限を共有するが、そもそもリンクを渡された者どうしなので実害は無い。
+//
+// メンバー追加: ユーザー 1 人あたり 1 分 30 回（短期は 10 回まで）。実運用の一括追加が
+// 詰まらない程度に取りつつ、ユーザー ID 空間の走査は 1 分 30 件まで落ちる。
 const (
 	kbShareLinkVerifyPerMinute = 10
 	kbShareLinkVerifyBurst     = 5
+	kbAddMemberPerMinute       = 30
+	kbAddMemberBurst           = 10
 )
 
 // registerKnowledgeBaseRoutes はナレッジ基盤のページ操作と権限操作のエンドポイントを登録する。
@@ -160,7 +165,17 @@ func registerKnowledgeBaseRoutesWith(
 	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", gh.ClearPageRestriction)
 
 	// 権限を張る相手（principals）の出し入れ。
-	kb.PUT("/kb/workspaces/:workspaceSlug/members/:userId", mh.AddMember)
+	// メンバー追加だけは回数に上限を置く。この口は users.id をそのまま受け取り、
+	// 成功（200）と 404 の差でユーザーの実在が分かる。ワークスペースは認証済みなら誰でも
+	// 作れて、作った本人が admin になるので、**全ログインユーザーが使える走査器**になっている。
+	// 鍵はログイン中のユーザー（検証済み JWT 由来なので付け替えられない。IP は XFF で
+	// 付け替えられるため鍵に使わない）。
+	//
+	// 走査そのものを塞ぐには「誰を招けるか」を会社などで絞る必要があり、それは
+	// 権限モデルの外側の設計判断になる（同意なく他人を自分のワークスペースへ入れられる、
+	// という別の問題も同じところに根がある）。ここで掛けるのは速度の頭打ちまで。
+	kb.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
+		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.AddMember)
 	kb.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)
 	kb.POST("/kb/workspaces/:workspaceSlug/groups", mh.CreateGroup)
 	kb.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.AddGroupMember)

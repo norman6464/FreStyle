@@ -100,7 +100,7 @@ func kbUserIDParam(c *gin.Context) (uint64, bool) {
 // AddMember はユーザーをワークスペースのメンバーにする（冪等）。
 //
 //	@Summary      ナレッジ 基盤 の メンバー 追加
-//	@Description  ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が 唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+//	@Description  ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が 唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー ID 空間 の 走査 を 抑える ため、 呼び出し 元 の ユーザー 単位 で 回数 に 上限 が ある。
 //	@Tags         knowledge-base
 //	@Produce      json
 //	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
@@ -109,6 +109,8 @@ func kbUserIDParam(c *gin.Context) (uint64, bool) {
 //	@Failure      400            {object}  errorResponse  "バリデーション エラー"
 //	@Failure      401            {object}  errorResponse  "未 認証"
 //	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
+//	@Failure      429            {object}  errorResponse  "レート制限超過"
+//	@Header       429            {string}  Retry-After    "再試行までの秒数 (例: 60)"
 //	@Failure      500            {object}  errorResponse  "DB 失敗"
 //	@Router       /kb/workspaces/{workspaceSlug}/members/{userId} [put]
 //	@Security     CookieAuth

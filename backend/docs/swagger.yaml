@@ -3499,7 +3499,8 @@ paths:
       description: 受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を
         返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL
         で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は
-        含め ない。 総当たり と パスワード 推測 を 抑える ため IP 単位 の レート 制限 が かかる。
+        含め ない。 総当たり と パスワード 推測 を 抑える ため、 リンク 1 本 あたり の 試行 回数 に 上限 が ある (要求 元 の IP
+        を 変え て も 頭打ち に なる)。
       parameters:
       - description: トークン と (必要 なら) パスワード
         in: body
@@ -3916,7 +3917,8 @@ paths:
       description: ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が
         唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない
         (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、
-        権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+        権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー ID 空間 の 走査 を 抑える ため、 呼び出し 元 の
+        ユーザー 単位 で 回数 に 上限 が ある。
       parameters:
       - description: ワークスペース の slug
         in: path
@@ -3945,6 +3947,14 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
         "404":
           description: 権限 が 無い か 対象 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":

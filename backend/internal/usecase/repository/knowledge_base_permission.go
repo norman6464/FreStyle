@@ -100,6 +100,16 @@ type ShareLinkWrite struct {
 	CreatedByUserID uint64
 }
 
+// PageScopeFacts は「あるページが属するスペース」についての事実。
+//
+// SpaceID は、そのページが見つかったときだけ入る。**ページが無いときは空文字**で、
+// Roles も空になる。呼び出し側はこの 2 つを区別せず、まとめて拒否へ落とす
+// （区別すると、応答の差からページ ID の実在が読めるようになる）。
+type PageScopeFacts struct {
+	SpaceID string
+	Facts   domain.ScopeFacts
+}
+
 // KnowledgeBasePermissionRepository はナレッジ基盤の権限モデル（principals /
 // principal_members / workspace_grants / space_grants / page_restrictions / share_links）への
 // アクセスを提供する。
@@ -225,6 +235,23 @@ type KnowledgeBasePermissionRepository interface {
 	// 渡されても「自分のワークスペースでの役割」がそのまま返り、他テナントのスペースに対して
 	// editor と答えてしまう。
 	SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error)
+
+	// PageSpaceScopeFactsForUser は「そのページが属するスペース」についての事実を、
+	// **1 回の問い合わせ**で集める。ページを名指しする権限操作の入口が使う。
+	//
+	// SpacePermissionFactsForUser との違いは、スペース ID を引数で受けずページから引くこと。
+	// これは手間を省くためではなく、**問い合わせの回数を一定にする**ため。
+	// 以前は「ページを引く → スペースの実在を確かめる → 役割を集める」の 3 段で、
+	// どれも同じ 404 を返すのに落ちる段によって DB の往復が 0 / 1 / 3 回に分かれ、
+	// 応答のバイト列を揃えても返るまでの時間から「そのページ ID が実在するか」が読めた。
+	//
+	// ページが無い場合も役割が 1 つも無い場合も、返るのは同じ「空」（SpaceID は空文字、
+	// Roles は空）。どちらも呼び出し側では拒否に落ちるので、区別が付かないのが正しい。
+	//
+	// **ページ単位の例外（page_restrictions / page_allow_lists）は見ていない。**
+	// 返すのはスペースの既定だけなので、ページの閲覧・編集の可否をこれで決めてはいけない
+	// （SpacePermissionFactsForUser と同じ制限。そちらの doc も参照）。
+	PageSpaceScopeFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*PageScopeFacts, error)
 	// WorkspacePermissionFactsForUser はワークスペースそのものに対する実効権限を決める事実を集める。
 	// スペースを作る操作のように、どのスペースにも属さない判定に使う。
 	//

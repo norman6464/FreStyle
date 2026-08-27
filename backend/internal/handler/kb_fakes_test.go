@@ -28,6 +28,9 @@ type kbFakePages struct {
 	// moveErr は MovePage を指定のエラーで失敗させる。移動でしか起きないセンチネル
 	// （スペース全員宛ての例外が失効する移動）を handler 越しに見るために分けてある。
 	moveErr error
+	// findPageCalls は FindPage が呼ばれた回数。権限の入口が「認可の前に対象を読む」形へ
+	// 戻っていないことをテストから確かめるために数える。
+	findPageCalls int
 }
 
 var _ repository.KnowledgeBaseRepository = (*kbFakePages)(nil)
@@ -125,6 +128,7 @@ func (f *kbFakePages) CreateSpace(_ context.Context, space *domain.Space) error 
 }
 
 func (f *kbFakePages) FindPage(_ context.Context, workspaceID, pageID string) (*domain.Page, error) {
+	f.findPageCalls++
 	p, ok := f.pages[pageID]
 	if !ok || p.WorkspaceID != workspaceID {
 		return nil, repository.ErrPageNotFound
@@ -344,6 +348,13 @@ type kbFakePerms struct {
 	// allowLists は page_allow_lists の印。
 	allowLists map[kbAllowListKey]bool
 	nextID     int
+	// permReadCalls は「権限を決めるための読み取り」が呼ばれた回数（メソッド名ごと）。
+	//
+	// 権限操作の入口が **結果によらず同じ回数・同じ内訳で引く** ことをテストから確かめるために
+	// 数える。回数が結果で変わると、応答のバイト列を揃えても返るまでの時間から
+	// 対象の実在が読めてしまう。特定のメソッドだけ数えると、別のメソッドで前段の確認が
+	// 復活したときに素通りするので、**入口が使いうる読み取りを全部**ここへ入れる。
+	permReadCalls map[string]int
 	// perPage は特定のページだけ別の既定にしたいときの上書き。
 	perPage map[kbPermKey]domain.PagePermission
 	// fallback は perPage に無いページの既定。
@@ -601,11 +612,21 @@ func (f *kbFakePerms) ListSubtreePagePermissionFacts(
 	return out, nil
 }
 
+// countPermRead は権限の読み取り 1 回を記録する。テストはこの内訳を比べて、
+// 結果によって引く回数が変わっていないことを確かめる。
+func (f *kbFakePerms) countPermRead(method string) {
+	if f.permReadCalls == nil {
+		f.permReadCalls = map[string]int{}
+	}
+	f.permReadCalls[method]++
+}
+
 // SpacePermissionFactsForUser はスペース単位の事実（届いている役割の集合）を返す。
 // 例外（page_restrictions）は見ない — 本番の口と同じで、スペースには例外の層が無い。
 func (f *kbFakePerms) SpacePermissionFactsForUser(
 	_ context.Context, workspaceID, spaceID string, userID uint64,
 ) (*domain.ScopeFacts, error) {
+	f.countPermRead("SpacePermissionFactsForUser")
 	if f.scopeFactsErr != nil {
 		return nil, f.scopeFactsErr
 	}
@@ -619,6 +640,38 @@ func (f *kbFakePerms) SpacePermissionFactsForUser(
 		return &domain.ScopeFacts{}, nil
 	}
 	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: spaceID, userID: userID}, workspaceID, userID)}, nil
+}
+
+// PageSpaceScopeFactsForUser は「そのページが属するスペース」の事実を返す。
+//
+// 本番は 1 回の問い合わせで、ページが無い場合も役割が無い場合も同じ空を返す
+// （応答の時間差からページの実在が読めないようにするため）。fake も同じく
+// **どちらも空を返し、エラーで撃ち分けない**。
+func (f *kbFakePerms) PageSpaceScopeFactsForUser(
+	_ context.Context, workspaceID, pageID string, userID uint64,
+) (*repository.PageScopeFacts, error) {
+	f.countPermRead("PageSpaceScopeFactsForUser")
+	if f.scopeFactsErr != nil {
+		return nil, f.scopeFactsErr
+	}
+	empty := &repository.PageScopeFacts{}
+
+	p, ok := f.pages.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return empty, nil
+	}
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return empty, nil
+	}
+	roles := f.rolesAt(kbScopeKey{scopeID: p.SpaceID, userID: userID}, workspaceID, userID)
+	if len(roles) == 0 {
+		// 役割が 1 つも無いときは、ページが無いときと同じ空にする（SpaceID も返さない）。
+		return empty, nil
+	}
+	return &repository.PageScopeFacts{
+		SpaceID: p.SpaceID,
+		Facts:   domain.ScopeFacts{Roles: roles},
+	}, nil
 }
 
 // ListWorkspaceSpaceScopeFacts はワークスペース配下のスペース全件と、それぞれで
@@ -655,6 +708,7 @@ func (f *kbFakePerms) ListWorkspaceSpaceScopeFacts(
 func (f *kbFakePerms) WorkspacePermissionFactsForUser(
 	_ context.Context, workspaceID string, userID uint64,
 ) (*domain.ScopeFacts, error) {
+	f.countPermRead("WorkspacePermissionFactsForUser")
 	if f.scopeFactsErr != nil {
 		return nil, f.scopeFactsErr
 	}

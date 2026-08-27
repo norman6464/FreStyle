@@ -613,6 +613,71 @@ JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = sqlc.arg(user_id)
 ORDER BY w.slug;
 
+-- name: ListPageSpaceScopeGrantRoles :many
+-- そのページが属するスペースの「既定の役割」として自分に届いている役割を、
+-- スペース ID と組で返す（事実だけ）。ListSpaceScopeGrantRoles のページ版。
+--
+-- # なぜページ版が要るのか（問い合わせの回数を一定にするため）
+--
+-- ページを名指しする権限操作の入口は、以前は 3 段だった:
+-- ページを引く → スペースの実在を確かめる → 役割を集める。
+-- どれも同じ 404 を返すのに、落ちる段で **DB の往復が 0 / 1 / 3 回に分かれる**。
+-- 応答のバイト列を揃えても、返るまでの時間が違えば「そのページ ID が実在するか」が
+-- 読めてしまう。存在の有無そのものが他人の情報なので、これは塞ぐべき差。
+--
+-- 1 回に畳むと、**ページが無い場合も役割が無い場合も等しく 0 行**になる。
+-- どちらも呼び出し側では拒否に落ちるので、区別が付かないこと自体が正しい。
+--
+-- # スペースの実在をここで確かめなくてよい理由
+--
+-- ListSpaceScopeGrantRoles 側は、役割を集める前にスペースの実在を別途確かめている
+-- （workspace_grants は配下の全スペースに届くので、確かめないと存在しないスペースにも
+-- 役割が返ってしまう）。こちらはスペース ID を引数で受け取らず **ページから引く**ので、
+-- その穴が構造上ありえない。pages と spaces には複合 FK が張ってあり、
+-- ページが同じワークスペースに在ることが、そのスペースも同じワークスペースに在ることを保証する。
+--
+-- mine（自分に効く主体）の作り方は ListSpaceScopeGrantRoles と同じ。
+-- 「全員」主体だけはスペース ID が要るので、pg から引いた値を使う。
+WITH pg AS (
+    SELECT p.space_id
+    FROM pages p
+    WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.id = sqlc.arg(page_id)
+),
+me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = sqlc.arg(workspace_id)
+      AND pr.kind = 'user' AND pr.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = sqlc.arg(workspace_id)
+    UNION
+    SELECT sp.id
+    FROM principals sp
+    JOIN pg ON pg.space_id = sp.space_id
+    WHERE sp.workspace_id = sqlc.arg(workspace_id)
+      AND sp.kind = 'space_all'
+      AND EXISTS (SELECT 1 FROM me)
+)
+-- ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+-- pg を JOIN しているので、ページが無ければどちらの枝も 0 行になる。
+SELECT pg.space_id, wg."role"
+  FROM workspace_grants wg
+  JOIN pg ON TRUE
+ WHERE wg.workspace_id = sqlc.arg(workspace_id)
+   AND wg.principal_id IN (SELECT id FROM mine)
+UNION
+SELECT pg.space_id, sg."role"
+  FROM space_grants sg
+  JOIN pg ON pg.space_id = sg.space_id
+ WHERE sg.workspace_id = sqlc.arg(workspace_id)
+   AND sg.principal_id IN (SELECT id FROM mine);
+
 -- name: ListSpaceScopeGrantRoles :many
 -- そのスペースの「既定の役割」として自分に届いている役割をすべて返す（事実だけ）。
 --

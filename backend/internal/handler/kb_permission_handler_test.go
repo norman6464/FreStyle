@@ -346,6 +346,75 @@ func Test_ナレッジ基盤権限API_拒否の応答は対象の実在で変わ
 	}
 }
 
+func Test_ナレッジ基盤権限API_ページを名指しする入口は結果によらず同じ回数だけ引く(t *testing.T) {
+	// 応答のバイト列を揃えても、返るまでの時間が違えば「そのページ ID が実在するか」が読める。
+	// 以前は「ページを引く → スペースの実在を確かめる → 役割を集める」の 3 段で、
+	// 落ちる段によって DB の往復が 0 / 1 / 3 回に分かれていた。
+	//
+	// 数えるのは問い合わせの回数そのもの。時間を測るテストは環境のノイズで揺れるので、
+	// 揺れない量で固定する。**特定の数と比べるのではなく、4 通りの内訳が互いに一致すること**を
+	// 見る。こうしておくと、別のメソッドで前段の確認が復活しても（回数が結果で変われば）落ちる。
+	restrictionPath := func(pageID string) string {
+		return "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + pageID + "/restrictions/"
+	}
+
+	// snapshot は「権限の読み取り（メソッド名ごと）」と「ページの読み取り」の内訳。
+	type snapshot struct {
+		permReads map[string]int
+		findPage  int
+	}
+	take := func(f kbPermFixture) snapshot {
+		reads := map[string]int{}
+		for k, v := range f.perms.permReadCalls {
+			reads[k] = v
+		}
+		return snapshot{permReads: reads, findPage: f.pages.findPageCalls}
+	}
+
+	cases := []struct {
+		name   string
+		role   *domain.GrantRole
+		pageID string
+	}{
+		{"実在するページ・admin ではない", kbGrantRolePtr(domain.GrantRoleEditor), kbChildPageID},
+		{"存在しないページ・admin ではない", kbGrantRolePtr(domain.GrantRoleEditor), kbMissingID},
+		{"実在するページ・admin", kbGrantRolePtr(domain.GrantRoleAdmin), kbChildPageID},
+		{"存在しないページ・admin", kbGrantRolePtr(domain.GrantRoleAdmin), kbMissingID},
+	}
+
+	var want *snapshot
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newKbPermFixture(t, kbUserID, tc.role)
+			before := take(f)
+
+			w := f.do(t, http.MethodPut,
+				restrictionPath(tc.pageID)+f.targetPrincipalID+"/view", `{"mode":"deny"}`)
+			require.NotEqual(t, http.StatusInternalServerError, w.Code)
+
+			after := take(f)
+			got := snapshot{permReads: map[string]int{}, findPage: after.findPage - before.findPage}
+			for k, v := range after.permReads {
+				if d := v - before.permReads[k]; d != 0 {
+					got.permReads[k] = d
+				}
+			}
+
+			if want == nil {
+				want = &got
+				// 認可の前に対象を読まないこと自体も押さえる（読むと必ず回数が結果で揺れる）。
+				assert.Equal(t, 0, got.findPage, "認可より先にページを読まない")
+				// **絶対値も固定する。** 一致だけを見ると、入口が権限を一切引かずに
+				// 一律拒否する退行（全ケース 0 回）でも通ってしまう。
+				assert.Equal(t, map[string]int{"PageSpaceScopeFactsForUser": 1}, got.permReads,
+					"引くのはページ経由の 1 回だけ")
+				return
+			}
+			assert.Equal(t, *want, got, "結果が違っても引く回数と内訳は同じであること")
+		})
+	}
+}
+
 func Test_ナレッジ基盤権限API_未認証は通らない(t *testing.T) {
 	// current user を注入しないルータ。middleware.KnowledgeBaseWorkspace が 401 を返す。
 	for _, e := range kbPermissionEndpoints {

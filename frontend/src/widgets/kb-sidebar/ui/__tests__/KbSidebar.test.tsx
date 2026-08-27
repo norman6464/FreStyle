@@ -278,6 +278,20 @@ describe('KbSidebar', () => {
     );
   });
 
+  it('行の読み上げ名を題名で固定する', async () => {
+    // 名前の決まり方を行の中身に任せておくと、次に何かを足したときに黙って変わる。
+    //
+    // 計算後の名前で確かめても意味が無い（実測では aria-label の有無にかかわらず
+    // 「設計メモ」になる）ので、**明示しているという事実そのもの**を固定する。
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const row = screen.getByRole('treeitem', { name: '設計メモ' });
+
+    expect(row).toHaveAttribute('aria-label', '設計メモ');
+    expect(row).toHaveAttribute('aria-level', '1');
+  });
+
   describe('作る・名前を変える', () => {
     it('スペースの ＋ でスペース直下に作る', async () => {
       renderSidebar();

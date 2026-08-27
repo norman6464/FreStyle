@@ -60,6 +60,13 @@ export default function KbPageRow({
         aria-level={depth + 1}
         aria-expanded={hasChildren ? expanded : undefined}
         aria-selected={active}
+        // 読み上げ名を題名で固定する。
+        //
+        // 既定は「中身から作る」で、行の中に何を置くかで名前が変わりうる。実測では
+        // 操作ボタンを足しても名前は題名のままだった（dom-accessibility-api で確認）が、
+        // 名前の決まり方を行の中身に任せておくと、次に何かを足したときに黙って変わる。
+        // 明示しておけば、中に何を置いても名前は題名のまま。
+        aria-label={page.title}
         className={`group flex items-center gap-1 rounded-md pr-1 transition-colors ${
           active ? 'bg-brand-500/10 text-brand-600' : 'hover:bg-surface-2'
         }`}

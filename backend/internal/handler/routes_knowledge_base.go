@@ -4,8 +4,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+)
+
+// 共有リンクの検証に掛ける上限。
+//
+// リンク 1 本あたり 1 分 10 回（短期は 5 回まで）。パスワードを打ち間違える人の邪魔には
+// ならず、総当たりの速度は 1 分 10 通りまで落ちる。鍵がリンクなので、この上限は
+// 要求元をいくら分散させても効く。同じリンクを持っている人どうしは上限を共有するが、
+// そもそもリンクを渡された者どうしなので実害は無い。
+const (
+	kbShareLinkVerifyPerMinute = 10
+	kbShareLinkVerifyBurst     = 5
 )
 
 // registerKnowledgeBaseRoutes はナレッジ基盤のページ操作と権限操作のエンドポイントを登録する。
@@ -96,12 +108,17 @@ func registerKnowledgeBaseRoutesWith(
 		canRemoveAdmin,
 	)
 
+	// この group には検証（Verify）を登録しないので、渡す limiter は使われない。
+	// それでも組み立てるのは、handler の組み立て方をここと公開 group で揃えるため
+	// （片方だけ nil を渡す形にすると、うっかり検証を認証済み側へ生やしたときに
+	// 上限が無いまま動く）。
 	sh := NewKnowledgeBaseShareLinkHandler(
 		gate,
 		usecase.NewIssueShareLinkUseCase(permissions),
 		usecase.NewRevokeShareLinkUseCase(permissions),
 		usecase.NewListPageShareLinksUseCase(permissions),
 		usecase.NewVerifyShareLinkUseCase(permissions),
+		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
 
 	// 所属ワークスペースの一覧と作成だけは middleware.KnowledgeBaseWorkspace を通さない。
@@ -164,7 +181,9 @@ func registerKnowledgeBaseRoutesWith(
 // 通せず、ワークスペースはトークンから引いたリンクの側が持っている。
 //
 // トークンは 256 bit の乱数だが、パスワード付きリンクのパスワードは人が選ぶ短い値なので、
-// 招待 token の検証（/invitations/accept/:token）と同じく IP 単位のレート制限をかける。
+// 試行回数に上限をかける。鍵は IP ではなく**リンクそのもの**で、IP を変えても頭打ちになる
+// （kbShareLinkAttemptKey の doc に理由がある）。IP 単位の上限も重ねるが、あれは
+// 攻撃者が鍵を変えられるので、単独では総当たりの歯止めにならない。
 func registerKnowledgeBasePublicRoutesWith(
 	g *gin.RouterGroup,
 	pages repository.KnowledgeBaseRepository,
@@ -180,6 +199,10 @@ func registerKnowledgeBasePublicRoutesWith(
 		usecase.NewRevokeShareLinkUseCase(permissions),
 		usecase.NewListPageShareLinksUseCase(permissions),
 		usecase.NewVerifyShareLinkUseCase(permissions),
+		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
+	// 上限は 2 段。**本命は handler 側のリンク 1 本あたりの上限**で、こちらの IP 単位は
+	// 素直な大量アクセスを薄めるだけの層（XFF を詐称すれば鍵が変わるので、これだけでは
+	// パスワードの総当たりを止められない）。詳細は kbShareLinkAttemptKey の doc。
 	g.POST("/kb/share-links/verify", middleware.RateLimitPerMinute(20, 10), sh.VerifyShareLink)
 }

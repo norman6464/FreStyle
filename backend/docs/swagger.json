@@ -7905,6 +7905,15 @@
                 "parentId"
             ],
             "properties": {
+                "afterPageId": {
+                    "description": "AfterPageID / BeforePageID は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。\nどちらも空なら末尾。**両方を指定することはできない。**\n\n並び順のキーそのものを受け取らないのは、そもそも返していないため\n（キーの整数部は兄弟の通し番号になるので、飛びから伏せた枚数が読める）。\n「先頭に置く」は「最初の兄弟の手前（beforePageId）」として表す。",
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000004"
+                },
+                "beforePageId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000005"
+                },
                 "parentId": {
                     "type": "string",
                     "example": "0198a000-0000-7000-8000-000000000003"

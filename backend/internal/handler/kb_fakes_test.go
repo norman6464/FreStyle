@@ -621,6 +621,36 @@ func (f *kbFakePerms) SpacePermissionFactsForUser(
 	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: spaceID, userID: userID}, workspaceID, userID)}, nil
 }
 
+// ListWorkspaceSpaceScopeFacts はワークスペース配下のスペース全件と、それぞれで
+// 自分に届いている役割を返す。**役割が 1 つも無いスペースも落とさずに含める** —
+// 本番のクエリが LEFT JOIN で全スペースを返すのと同じで、ふるいは呼び出し側にある。
+// ここで見えないスペースを間引くと、ふるいを外しても緑のままになるテストが書ける。
+func (f *kbFakePerms) ListWorkspaceSpaceScopeFacts(
+	_ context.Context, workspaceID string, userID uint64,
+) ([]repository.SpaceWithScopeFacts, error) {
+	if f.scopeFactsErr != nil {
+		return nil, f.scopeFactsErr
+	}
+	member := f.userPrincipal(workspaceID, userID) != nil
+	spaces := make([]*domain.Space, 0, len(f.pages.spaces))
+	for _, s := range f.pages.spaces {
+		if s.WorkspaceID == workspaceID {
+			spaces = append(spaces, s)
+		}
+	}
+	// 本番は key 順で返す（ORDER BY s."key"）。map の走査順に依存させない。
+	sort.Slice(spaces, func(i, j int) bool { return spaces[i].Key < spaces[j].Key })
+	out := make([]repository.SpaceWithScopeFacts, 0, len(spaces))
+	for _, s := range spaces {
+		facts := domain.ScopeFacts{Roles: []domain.GrantRole{}}
+		if member {
+			facts.Roles = f.rolesAt(kbScopeKey{scopeID: s.ID, userID: userID}, workspaceID, userID)
+		}
+		out = append(out, repository.SpaceWithScopeFacts{Space: *s, Facts: facts})
+	}
+	return out, nil
+}
+
 // WorkspacePermissionFactsForUser はワークスペース単位の事実を返す。
 func (f *kbFakePerms) WorkspacePermissionFactsForUser(
 	_ context.Context, workspaceID string, userID uint64,

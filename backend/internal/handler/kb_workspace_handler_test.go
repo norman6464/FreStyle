@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -307,4 +308,111 @@ func Test_ナレッジ基盤API_スペース直下のページ作成はスペー
 
 		assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 	})
+}
+
+// kbSecondSpaceID はスペース一覧のテストで使う 2 つ目のスペース。
+// 1 つしか無いと「権限のあるものだけを返す」と「全部返す」が同じ結果になり、
+// ふるいを外しても緑のままになる。
+const kbSecondSpaceID = "0198a000-0000-7000-8000-0000000000a2"
+
+// kbListSpaces はスペース一覧を叩いて応答をデコードする。
+func kbListSpaces(t *testing.T, f kbFixture, slug string) (*httptest.ResponseRecorder, []kbSpaceResponse) {
+	t.Helper()
+	w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, slug, ""), "")
+	if w.Code != http.StatusOK {
+		return w, nil
+	}
+	var got []kbSpaceResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	return w, got
+}
+
+func Test_ナレッジ基盤API_スペース一覧は閲覧できるスペースだけを返す(t *testing.T) {
+	// スペースは「誰に何を見せるか」を分ける入れ物なので、key と name が並ぶだけでも
+	// 中で何が進んでいるかが伝わる。役割が届いていないスペースは 1 件も出さない。
+	roles := []domain.GrantRole{
+		domain.GrantRoleViewer, domain.GrantRoleCommenter,
+		domain.GrantRoleEditor, domain.GrantRoleAdmin,
+	}
+	for _, role := range roles {
+		t.Run(string(role)+"はそのスペースだけ見える", func(t *testing.T) {
+			f := newKbFixture(kbCanEdit, kbUserID)
+			f.pages.addSpace(kbWorkspaceID, kbSecondSpaceID)
+			// 役割はスペース単位で 1 つ目にだけ張る（2 つ目には何も届かない）。
+			f.perms.setScopeRole(kbSpaceID, kbUserID, role)
+
+			w, got := kbListSpaces(t, f, kbWorkspaceSlug)
+
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			require.Len(t, got, 1, "役割が届いているスペースだけ")
+			assert.Equal(t, kbSpaceID, got[0].ID)
+			assert.NotContains(t, w.Body.String(), kbSecondSpaceID,
+				"閲覧権限の無いスペースは ID も key も漏らさない")
+		})
+	}
+
+	t.Run("役割が1つも無ければ1件も返らない", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.addSpace(kbWorkspaceID, kbSecondSpaceID)
+
+		w, got := kbListSpaces(t, f, kbWorkspaceSlug)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, got, "所属しているだけでは中身は見えない")
+		assert.JSONEq(t, `[]`, w.Body.String(), "null ではなく空配列")
+	})
+
+	t.Run("ワークスペース全体の役割は配下の全スペースへ届く", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.addSpace(kbWorkspaceID, kbSecondSpaceID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleViewer)
+
+		_, got := kbListSpaces(t, f, kbWorkspaceSlug)
+
+		require.Len(t, got, 2, "ワークスペースの grant はスペースを選ばない")
+	})
+}
+
+func Test_ナレッジ基盤API_スペース一覧はスペースが0件でも空配列(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+	f.pages.spaces = map[string]*domain.Space{}
+
+	w, _ := kbListSpaces(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `[]`, w.Body.String(),
+		"null を返すとフロントの .map が TypeError で落ちる")
+}
+
+func Test_ナレッジ基盤API_スペース一覧は存在しないワークスペースと権限の無いワークスペースを区別できない(t *testing.T) {
+	// slug の総当たりで他社テナントの実在が分からないこと。判定は middleware にあり、
+	// この口は「メンバーであること」を前提に動く。
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+
+	unknown, _ := kbListSpaces(t, f, "no-such-workspace")
+	foreign, _ := kbListSpaces(t, f, kbOtherWorkspaceSlug)
+
+	assert.Equal(t, http.StatusNotFound, unknown.Code)
+	assert.Equal(t, unknown.Code, foreign.Code)
+	assert.Equal(t, unknown.Body.String(), foreign.Body.String())
+}
+
+func Test_ナレッジ基盤API_スペース一覧は未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+
+	w, _ := kbListSpaces(t, f, kbWorkspaceSlug)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func Test_ナレッジ基盤API_スペース一覧は事実の収集に失敗したら500(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.scopeFactsErr = errors.New("db down")
+
+	w, _ := kbListSpaces(t, f, kbWorkspaceSlug)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"確かめられないなら見せない（空配列で「無い」と答えない）")
 }

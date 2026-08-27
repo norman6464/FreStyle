@@ -243,6 +243,7 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 		http.MethodGet + " " + kbRoutePattern(kbTreePath):    true,
 		http.MethodGet + " " + kbWorkspacesPath:              true,
 		http.MethodPost + " " + kbWorkspacesPath:             true,
+		http.MethodGet + " " + kbRoutePattern(kbSpacesPath):  true,
 		http.MethodPost + " " + kbRoutePattern(kbSpacesPath): true,
 	}
 	for _, e := range kbEndpoints {

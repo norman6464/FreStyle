@@ -2964,6 +2964,82 @@
                 }
             }
         },
+        "/kb/share-links/verify": {
+            "post": {
+                "description": "受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を 返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は 含め ない。 総当たり と パスワード 推測 を 抑える ため IP 単位 の レート 制限 が かかる。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の 共有 リンク 検証",
+                "parameters": [
+                    {
+                        "description": "トークン と (必要 なら) パスワード",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbVerifyShareLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbVerifiedShareLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "パスワード が 必要 / 一致 し ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "その トークン の リンク は 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "失効 済み / 期限 切れ",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces": {
             "get": {
                 "security": [
@@ -3066,6 +3142,492 @@
                                 "type": "string",
                                 "description": "再試行までの秒数 (例: 60)"
                             }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/grants/{principalId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース 全体 で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 全 スペース に 効く。 呼べる の は ワークスペース の admin だけ。 権限 が 無い 場合 と 対象 (ワークスペース / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。 admin を 外す 向き の 変更 で、 ユーザー の admin が 1 人 も 残ら なく なる とき は 409。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ワークスペース 権限 付与",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "役割 (admin / editor / commenter / viewer)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbGrantRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbWorkspaceGrantResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "最後 の admin を 外す 操作",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース 全体 で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る (誰 も 権限 を 変え られ ない ワークスペース は API から 復旧 でき ない ため)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ワークスペース 権限 取り消し",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "取り消し 済み"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "最後 の admin を 外す 操作",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/groups": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "権限 を まとめ て 張る ため の グループ (kind='group' の 主体) を 作る。 名前 は ワークスペース 内 で 一意 (同名 が 2 つ ある と 権限 を 張る 先 を 人 が 選べ ない)。 グループ の 入れ子 は 作れ ない。 呼べる の は ワークスペース の admin だけ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の グループ 作成",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "グループ 名",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbCreateGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPrincipalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "グループ 名 が 使用 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/groups/{groupPrincipalId}/members/{userId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "グループ に ユーザー を 加える。 加える 相手 を 主体 ID で は なく ユーザー ID で 受ける の は、 この 入口 から グループ の 入れ子 を 作ら せ ない ため (DB 側 も 複合 FK で member を kind='user' に 固定 し て いる)。 対象 が ワークスペース の メンバー で なけれ ば 主体 が 無い の で 404。 呼べる の は ワークスペース の admin だけ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の グループ メンバー 追加",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "グループ の 主体 ID (UUID)",
+                        "name": "groupPrincipalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ユーザー ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "追加 済み"
+                    },
+                    "400": {
+                        "description": "バリデーション エラー / 主体 の 種類 違い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "グループ から ユーザー を 外す。 元 から 載っ て い なけれ ば 何 も せ ず 成功 する (冪等)。 グループ 宛て の admin は 「最後 の admin」 の 数 に 入れ て い ない の で、 この 操作 が 409 に なる こと は ない。 呼べる の は ワークスペース の admin だけ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の グループ メンバー 削除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "グループ の 主体 ID (UUID)",
+                        "name": "groupPrincipalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ユーザー ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "削除 済み"
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/members/{userId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が 唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の メンバー 追加",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ユーザー ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPrincipalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / 例外 / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の メンバー 削除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ユーザー ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "削除 済み"
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "最後 の admin を 外す 操作",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "500": {
@@ -3460,6 +4022,371 @@
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/restrictions/{principalId}/{capability}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ と その 子孫 に だけ 効く 例外 を 1 行 設定 する。 mode=deny は 名指し し た 主体 だけ を 外す (ほか の 人 の 既定 は 変わら ない)。 mode=allow は その ページ の その ケイパビリティ を 「載っ て いる 主体 だけ」 の 限定 公開 に 切り替える。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ。 閲覧 権限 は 要求 し ない (自分 を deny し た ページ の 例外 を 自分 で 戻せ なく なる ため)。 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 例外 設定",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ケイパビリティ (view / edit)",
+                        "name": "capability",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "例外 の 向き (allow / deny)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbSetRestrictionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageRestrictionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ に 張ら れ た 例外 を 1 行 解除 する。 元 から 無い 行 に 対し て も 成功 する (冪等)。 消し た の が 最後 の allow 行 なら 限定 公開 も 畳ま れ、 解決 は より 遠い 祖先 の 制限 → grant の 既定 へ 戻る。 deny 行 の 解除 で は 限定 公開 を 畳ま ない。 呼べる の は その ページ が 属する スペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 例外 解除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ケイパビリティ (view / edit)",
+                        "name": "capability",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "解除 済み"
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ に 発行 済み の 共有 リンク を 失効 済み も 含め て 返す。 トークン は 発行 時 の 1 回 しか 返ら ない の で、 ここ に は 出 ない (DB に も SHA-256 しか 無い)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の 共有 リンク 一覧",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.kbShareLinkResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ と その 子孫 を ログイン 不要 で 開ける URL を 発行 する。 応答 の token は 平文 で、 返る の は この 1 回 だけ (DB に は SHA-256 しか 残ら ない)。 失う と 再 発行 に なる。 パスワード を 付ける と 開く 際 に 必要 に なる (値 は 応答 に も ログ に も 出 ない)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の 共有 リンク 発行",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "発行 内容 (capability 必須 / password / expiresAt は 任意)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbIssueShareLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbIssuedShareLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links/{shareLinkId}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "共有 リンク を 失効 さ せる。 行 は 消さ ず revoked_at を 立てる の で、 誰 が いつ 止め た か は 残る。 既に 失効 済み なら 何 も せ ず 成功 する (冪等)。 URL の ページ に 属さ ない リンク ID を 渡し た 場合 は 権限 が 無い の と 同じ 404 (ページ の 権限 で 判断 する 以上、 別 の スペース の リンク を この 口 から 止め られ て は なら ない)。 呼べる の は その ページ が 属する スペース の admin だけ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の 共有 リンク 失効",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "共有 リンク ID (UUID)",
+                        "name": "shareLinkId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "失効 済み"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/pages/{pageId}/unarchive": {
             "post": {
                 "security": [
@@ -3613,6 +4540,151 @@
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "スペース で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。 スペース 単位 の grant で ワークスペース の admin が 降格 する こと は ない (最も 強い 役割 を 採る)。 権限 が 無い 場合 と 対象 (スペース / 主体) が 存在 し ない 場合 は 同じ 404。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の スペース 権限 付与",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "スペース ID (UUID)",
+                        "name": "spaceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "役割 (admin / editor / commenter / viewer)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbGrantRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbSpaceGrantResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "スペース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の スペース 権限 取り消し",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "スペース ID (UUID)",
+                        "name": "spaceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "取り消し 済み"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages": {
             "get": {
                 "security": [
@@ -3749,6 +4821,65 @@
                     },
                     "409": {
                         "description": "親 が アーカイブ 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/principals/everyone": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "「既定 で チーム 全員 が 編集 できる」 を grant 1 行 で 表す ため の 主体 (kind='space_all') を 用意 し て 返す。 既に あれ ば それ を 返す (冪等)。 スペース 作成 時 に は 作ら ない 設計 な の で、 権限 を 張る 直前 に この API で ID を 得る。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の スペース 全員 主体 の 用意",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "スペース ID (UUID)",
+                        "name": "spaceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPrincipalResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -6586,6 +7717,19 @@
                 }
             }
         },
+        "internal_handler.kbCreateGroupRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "開発チーム"
+                }
+            }
+        },
         "internal_handler.kbCreatePageRequest": {
             "type": "object",
             "required": [
@@ -6637,6 +7781,53 @@
                 "slug": {
                     "type": "string",
                     "example": "acme"
+                }
+            }
+        },
+        "internal_handler.kbGrantRoleRequest": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "description": "Role は domain.ValidGrantRoles のいずれか。既知でない値は usecase が弾く。",
+                    "type": "string",
+                    "example": "editor"
+                }
+            }
+        },
+        "internal_handler.kbIssueShareLinkRequest": {
+            "type": "object",
+            "required": [
+                "capability"
+            ],
+            "properties": {
+                "capability": {
+                    "description": "Capability はリンク経由でできることの既定（view / edit）。",
+                    "type": "string",
+                    "example": "view"
+                },
+                "expiresAt": {
+                    "description": "ExpiresAt が未指定なら無期限。過去の時刻は usecase が弾く。",
+                    "type": "string"
+                },
+                "password": {
+                    "description": "Password が空でなければパスワード付きにする。応答にもログにも出さない。",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.kbIssuedShareLinkResponse": {
+            "type": "object",
+            "properties": {
+                "link": {
+                    "$ref": "#/definitions/internal_handler.kbShareLinkResponse"
+                },
+                "token": {
+                    "description": "Token は共有 URL に載せる平文トークン。",
+                    "type": "string",
+                    "example": "3q2-7uMBEjRWeJq83vzMzQ"
                 }
             }
         },
@@ -6711,6 +7902,33 @@
                 }
             }
         },
+        "internal_handler.kbPageRestrictionResponse": {
+            "type": "object",
+            "properties": {
+                "capability": {
+                    "type": "string",
+                    "example": "view"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string",
+                    "example": "deny"
+                },
+                "pageId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000003"
+                },
+                "principalId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.kbPageTreeResponse": {
             "type": "object",
             "properties": {
@@ -6722,6 +7940,36 @@
                 },
                 "page": {
                     "$ref": "#/definitions/internal_handler.kbPageResponse"
+                }
+            }
+        },
+        "internal_handler.kbPrincipalResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "name": {
+                    "description": "Name は kind=group のときだけ入る。",
+                    "type": "string",
+                    "example": "開発チーム"
+                },
+                "spaceId": {
+                    "description": "SpaceID は kind=space_all のときだけ入る。",
+                    "type": "string"
+                },
+                "userId": {
+                    "description": "UserID は kind=user のときだけ入る。",
+                    "type": "integer",
+                    "example": 42
                 }
             }
         },
@@ -6749,6 +7997,78 @@
                 }
             }
         },
+        "internal_handler.kbSetRestrictionRequest": {
+            "type": "object",
+            "required": [
+                "mode"
+            ],
+            "properties": {
+                "mode": {
+                    "description": "Mode は allow（限定公開の許可リストへ載せる）か deny（この主体だけ外す）。",
+                    "type": "string",
+                    "example": "deny"
+                }
+            }
+        },
+        "internal_handler.kbShareLinkResponse": {
+            "type": "object",
+            "properties": {
+                "capability": {
+                    "description": "Capability はリンク経由でできることの既定（view / edit）。",
+                    "type": "string",
+                    "example": "view"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000c"
+                },
+                "pageId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000003"
+                },
+                "requiresPassword": {
+                    "description": "RequiresPassword はパスワード付きのリンクか。",
+                    "type": "boolean",
+                    "example": false
+                },
+                "revokedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.kbSpaceGrantResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "principalId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "editor"
+                },
+                "spaceId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000002"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.kbSpaceResponse": {
             "type": "object",
             "properties": {
@@ -6766,6 +8086,56 @@
                 "name": {
                     "type": "string",
                     "example": "開発部"
+                }
+            }
+        },
+        "internal_handler.kbVerifiedShareLinkResponse": {
+            "type": "object",
+            "properties": {
+                "capability": {
+                    "type": "string",
+                    "example": "view"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "pageId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000003"
+                }
+            }
+        },
+        "internal_handler.kbVerifyShareLinkRequest": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "password": {
+                    "description": "Password はパスワード付きリンクのときに要る。",
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.kbWorkspaceGrantResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "principalId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "editor"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },

@@ -469,6 +469,24 @@ func Test_ナレッジ基盤ツリー_スペース直下の見えないページ
 	assert.True(t, body.HasHiddenChildren, "スペース直下で伏せた分を印に出す")
 }
 
+func Test_ナレッジ基盤ツリー_見える根が無いときは存在しないスペースと同じ応答(t *testing.T) {
+	// 根が非公開で、その子だけ閲覧できる形。木には 1 行も出ない。
+	// このとき印を返すと、存在しないスペースと撃ち分けられて実在が漏れる。
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setPagePermission(kbRootPageID, kbUserID, kbNoPerm)
+	f.perms.setPagePermission(kbDestPageID, kbUserID, kbNoPerm)
+
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	missing := f.do(t, http.MethodGet,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/0198a000-0000-7000-8000-00000000beef/pages", "")
+
+	assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, w.Body.String())
+	assert.Equal(t, missing.Body.String(), w.Body.String(),
+		"存在しないスペースの応答と 1 バイトも変わらないこと")
+}
+
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet,

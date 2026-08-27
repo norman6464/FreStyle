@@ -115,8 +115,9 @@ describe('KbSidebar', () => {
     renderSidebar();
     await screen.findByText('親ページ');
 
+    // リンクとして引く。役割とアクセシブルな名前の崩れも一緒に捕まえられる。
     const iconOf = (title: string) =>
-      screen.getByText(title).closest('a')?.querySelector('[data-icon]')?.getAttribute('data-icon');
+      screen.getByRole('link', { name: title }).querySelector('[data-icon]')?.getAttribute('data-icon');
 
     expect(iconOf('親ページ')).toBe('page-group');
     expect(iconOf('葉ページ')).toBe('page');
@@ -129,7 +130,7 @@ describe('KbSidebar', () => {
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    const icon = screen.getByText('設計メモ').closest('a')?.querySelector('[data-icon]');
+    const icon = screen.getByRole('link', { name: '設計メモ' }).querySelector('[data-icon]');
     expect(icon?.getAttribute('data-icon')).toBe('page');
   });
 

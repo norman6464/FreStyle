@@ -159,18 +159,37 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 		}
 	}
 
-	// 1 件も見えないなら、見えない子の有無も返さない。
+	// 画面に 1 行も出ないなら、見えない子の有無も返さない。
 	//
 	// ここを外すと、応答の差から**そのスペースが実在するかどうか**が分かってしまう。
-	// ツリー取得は「存在しないスペース」と「中身が 1 件も見えないスペース」を撃ち分けない
+	// ツリー取得は「存在しないスペース」と「中身が 1 行も出ないスペース」を撃ち分けない
 	// ことになっているが、前者は false・後者は true を返してしまい、スペース ID を
 	// 総当たりするだけで実在を数え上げられる（存在の有無そのものが他人の情報）。
 	//
-	// 逆に 1 件でも見えていれば、スペースの実在はその時点で既に分かっている。だから
+	// 逆に 1 行でも出ていれば、スペースの実在はその時点で既に分かっている。だから
 	// 「見えている段の直下に伏せたものが在るか」を足しても、実在については何も増えない。
-	// 知らせてよい条件は **利用者が既にその段を見ていること** であり、スペース直下は
-	// 見えるページが 1 枚も無い場合に限りその足場が無い。
-	if len(pages) == 0 {
+	// 知らせてよい条件は **利用者が既にその段を見ていること**。
+	//
+	// # 「見えるページが 0 枚か」で判定してはいけない
+	//
+	// pages には**孤児**（自分は見えるが親が見えないページ）も入る。孤児は木に繋がらないので
+	// BuildPageTree(PageTreeOrphanHidden) が丸ごと落とし、画面には 1 行も出ない。
+	// つまり pages が非空でも木が空になることがある。
+	//
+	// 実際に踏んだ形: 根が非公開で子だけ閲覧できるとき、pages=[子] なので 0 枚判定は通り抜け、
+	// 一方 hidden[""] は（見えない根を数えて）true になる。結果 {"pages":[],"hasHiddenChildren":true}
+	// が返り、存在しないスペースの {"pages":[],"hasHiddenChildren":false} と撃ち分けられた。
+	//
+	// 木が空になるのは**見える根が 1 つも無いとき**（BuildPageTree の根は「親を持たない見えるページ」）
+	// なので、そこで判定する。
+	hasVisibleRoot := false
+	for i := range pages {
+		if pages[i].ParentID == nil {
+			hasVisibleRoot = true
+			break
+		}
+	}
+	if !hasVisibleRoot {
 		return ListViewablePagesOutput{Pages: pages, HasHiddenChildren: map[string]bool{}}, nil
 	}
 

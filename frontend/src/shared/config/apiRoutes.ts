@@ -232,4 +232,31 @@ export const CHAPTER_VIEW = {
   record: (id: number | string) => `${API_V2}/teaching-materials/${id}/view`,
 } as const;
 
+/**
+ * ナレッジ基盤（workspaces → spaces → pages の木）。
+ *
+ * リッチ文書（DOCUMENTS）とは別系統であることに注意。あちらは所有者スコープの平らな一覧、
+ * こちらは付与（grant）と例外（restriction）で解決する木。当面は両方が並存する。
+ *
+ * ワークスペースは URL の slug で指す（内部 UUID は外に出さない）。slug から所属を確定する
+ * middleware を backend 側の group が通しているので、slug を含まないパスは一覧と作成だけ。
+ */
+export const KNOWLEDGE_BASE = {
+  /** GET(所属一覧) / POST(作成) — /api/v2/kb/workspaces */
+  workspaces: `${API_V2}/kb/workspaces`,
+  /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
+  spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/spaces`,
+  /**
+   * GET(ツリー) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/pages
+   *
+   * ツリーは閲覧できるページだけを返し、見えない親の配下は現れない。
+   * 代わりに各段の hiddenChildCount に伏せた件数が入る（題名は返らない）。
+   */
+  pages: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/pages`,
+  /** GET(本文込み) / PATCH(改名) — /api/v2/kb/workspaces/:slug/pages/:pageId */
+  page: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}`,
+} as const;
+
 // WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

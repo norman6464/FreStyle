@@ -241,3 +241,35 @@ func (u *CheckShareLinkPermissionUseCase) Execute(ctx context.Context, in CheckS
 	perm := domain.ResolvePagePermission(*facts)
 	return &perm, nil
 }
+
+// ListPageShareLinksUseCase はページに発行済みの共有リンクを返す（失効済みも含む）。
+//
+// 発行しっぱなしを防ぐための口。トークンは発行時の 1 回しか返らず（DB には SHA-256 しか
+// 残らない）、あとから「今どのリンクが生きているか」を知る手段がこれしか無い。
+// 失効済みも返すのは、止めたことの確認と、いつ誰が止めたかを追えるようにするため。
+//
+// 返す domain.ShareLink の TokenHash / PasswordHash は json:"-" で API へ出ない。
+// handler 側も平文トークンを持っていない（保存していない）ので、この一覧から
+// リンクを開く手がかりは出ない。
+type ListPageShareLinksUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListPageShareLinksUseCase(r repository.KnowledgeBasePermissionRepository) *ListPageShareLinksUseCase {
+	return &ListPageShareLinksUseCase{repo: r}
+}
+
+type ListPageShareLinksInput struct {
+	WorkspaceID string
+	PageID      string
+}
+
+func (u *ListPageShareLinksUseCase) Execute(ctx context.Context, in ListPageShareLinksInput) ([]domain.ShareLink, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.PageID == "" {
+		return nil, errors.New("pageID is required")
+	}
+	return u.repo.ListPageShareLinks(ctx, in.WorkspaceID, in.PageID)
+}

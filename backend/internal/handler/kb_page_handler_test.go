@@ -39,12 +39,29 @@ var (
 	kbNoPerm  = domain.PagePermission{}
 )
 
+// kbAuditRecorder は監査ログの記録先（本番の RecordAuditEventUseCase の代わり）。
+//
+// 権限操作 API に監査 middleware が本当に掛かっているかは、ルートを実際に叩いて
+// 記録が 1 件増えることでしか確かめられない（掛け忘れは配線の穴で、handler 単体を
+// 見ても分からない）。
+type kbAuditRecorder struct {
+	entries []middleware.AuditEntry
+}
+
+// handler は記録先をこのレコーダにした監査 middleware を返す。
+func (r *kbAuditRecorder) handler() gin.HandlerFunc {
+	return middleware.AuditLog(func(_ context.Context, e middleware.AuditEntry) {
+		r.entries = append(r.entries, e)
+	})
+}
+
 // kbFixture は fake repository と、本番と同じ wiring で組んだルータの組。
 type kbFixture struct {
 	pages       *kbFakePages
 	perms       *kbFakePerms
 	provisioner *kbFakeProvisioner
 	router      *gin.Engine
+	audit       *kbAuditRecorder
 }
 
 // newKbFixture はワークスペース 2 つ・スペース 1 つ・ページ 3 つ（root / child / dest）の
@@ -84,8 +101,13 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 		})
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
-	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner)
-	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, router: r}
+	audit := &kbAuditRecorder{}
+	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner, audit.handler())
+	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
+	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
+	// 「未認証でも通ること」を検証できない。
+	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms)
+	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, router: r, audit: audit}
 }
 
 func (f kbFixture) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
@@ -193,6 +215,29 @@ func kbRoutePattern(p string) string {
 
 // 認可テストの表に載っていないルートが増えていないかを見る。
 // 表に足し忘れたエンドポイントは認可の検証をすり抜けてしまうので、ここで機械的に塞ぐ。
+// 登録されているナレッジ基盤のルートが、1 本残らず認可テストの表に載っていることを見る。
+//
+// # なぜ結合テストではなく単体テストに置いているのか
+//
+// 探しているのは「認可を通さないルートが増えたこと」で、それは**ルートの一覧**を見れば
+// 分かる（実際に叩いて確かめる必要が無い）。結合テストに置くと、DB が要るぶん
+// 開発者の手元では skip され得るし、CI でも専用ジョブでしか走らない。
+// 配線の穴は書いた直後に落ちてほしいので、`go test ./...` で必ず走る側に置く。
+//
+// # この検査が守っている連鎖
+//
+// gin に登録されたルート ⊆ 表（kbEndpoints / kbPermissionEndpoints）で、その表は
+// そのまま「admin 以外は通らない」「拒否の応答は対象の実在で変わらない」「変更操作は
+// 監査ログに残る」の各テストが総当たりする入力になっている。つまり **認可も監査も
+// 掛けずにルートを 1 本生やすと、まずここで落ちる**（表に足せば、今度は他のテストが
+// その 1 本を実際に叩いて落とす）。
+//
+// # 限界（これで拾えないもの）
+//
+// gin のルート表からは middleware が見えないので、「このルートに audit を挟んだか」は
+// ここでは分からない。それを見ているのは表を総当たりする側のテスト
+// （Test_ナレッジ基盤権限API_権限を変える経路は全て監査ログに残る）で、この検査は
+// 「新しいルートを必ずその表へ載せさせる」ことでそちらへ橋渡ししている。
 func Test_ナレッジ基盤API_登録済みルートは全て認可テストの対象になっている(t *testing.T) {
 	covered := map[string]bool{
 		http.MethodGet + " " + kbRoutePattern(kbTreePath):    true,
@@ -203,6 +248,12 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
 	}
+	// 権限操作 API は判定の軸が違う（ページ 1 枚のケイパビリティではなく admin か）ので
+	// 表を分けてある。足したら kbPermissionEndpoints 側に足す。
+	for _, e := range kbPermissionEndpoints {
+		covered[e.method+" "+e.pattern] = true
+	}
+	covered[http.MethodPost+" "+kbShareLinkVerifyPath] = true
 
 	f := newKbFixture(kbCanEdit, kbUserID)
 	registered := map[string]bool{}

@@ -315,8 +315,7 @@ type kbAllowListKey struct {
 
 // errKbFakeNotModeled はこの fake が再現していない口を呼ばれたときのエラー。
 //
-// nil を返して黙って成功させない。ページ handler の経路にはまだ権限管理・共有リンクの
-// エンドポイントが無く、ここが呼ばれるのは配線が変わったときだけなので、
+// nil を返して黙って成功させない。ここが呼ばれるのは配線が変わったときだけなので、
 // そのときは 500 として目に見えるようにする。
 var errKbFakeNotModeled = errors.New("kb fake: この口は再現していない")
 
@@ -359,16 +358,31 @@ type kbFakePerms struct {
 	// ページ単位の perPage とは別に持つ（スペースの判定はページの例外を見ないため、
 	// 同じ入れ物にまとめると fake が本番より賢くなってしまう）。
 	scopeRoles map[kbScopeKey]domain.GrantRole
+	// grants は workspace_grants / space_grants の行。入れ物 ID が
+	// ワークスペースかスペースかの違いしかないので 1 つの map で持つ。
+	grants map[kbGrantKey]domain.GrantRole
+	// shareLinks は share_links の行（linkID -> 行）。
+	shareLinks map[string]*domain.ShareLink
 	// scopeFactsErr は入れ物単位の事実収集を失敗させる（500 経路の確認用）。
 	scopeFactsErr error
 	// listWorkspacesErr は所属ワークスペース一覧を失敗させる（500 経路の確認用）。
 	listWorkspacesErr error
+	// revokeGrantErr は grant の取り消しを失敗させる。
+	// 本物の repository が「最後の admin」を書き込みと同じトランザクションで断る経路
+	// （競合で手前の検査をすり抜けたとき）を、fake でも再現するために使う。
+	revokeGrantErr error
 }
 
 // kbScopeKey は入れ物（ワークスペース ID / スペース ID）と利用者の組。
 type kbScopeKey struct {
 	scopeID string
 	userID  uint64
+}
+
+// kbGrantKey は grant 1 行の主キー（入れ物 + 主体）。
+type kbGrantKey struct {
+	scopeID     string
+	principalID string
 }
 
 var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
@@ -382,6 +396,8 @@ func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakeP
 		allowLists:   map[kbAllowListKey]bool{},
 		perPage:      map[kbPermKey]domain.PagePermission{},
 		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
+		grants:       map[kbGrantKey]domain.GrantRole{},
+		shareLinks:   map[string]*domain.ShareLink{},
 		fallback:     fallback,
 	}
 }
@@ -832,47 +848,162 @@ func (f *kbFakePerms) ListPageAllowListCapabilities(_ context.Context, workspace
 	return out, nil
 }
 
-// --- 以降はこの段の handler が通らない口。呼ばれたら黙って成功させずエラーにする
-// （権限管理・共有リンクのエンドポイントはまだ無く、通り始めたら配線の変化として気づきたい）。
+// --- ここから grant（既定の権限）と共有リンク。権限操作 API が通る口。
 
-func (f *kbFakePerms) UpsertWorkspaceGrant(context.Context, string, string, domain.GrantRole) (*domain.WorkspaceGrant, error) {
-	return nil, errKbFakeNotModeled
+// mirrorGrant は grant の書き換えを読み取り側（scopeRoles）にも反映する。
+//
+// fake が「書けるが読めない」状態だと、権限を付与する API のテストが
+// 「付与したのに実効権限が変わらない」ことに気づけない。反映するのは kind='user' の
+// 主体だけ（scopeRoles がユーザー単位のため）。グループやスペース全員宛ての grant は
+// grants にだけ残り、そちらの実効権限はページ経路の perPage / restrictions で表す。
+func (f *kbFakePerms) mirrorGrant(scopeID, principalID string, role *domain.GrantRole) {
+	p, ok := f.principals[principalID]
+	if !ok || p.Kind != domain.PrincipalKindUser || p.UserID == nil {
+		return
+	}
+	key := kbScopeKey{scopeID: scopeID, userID: *p.UserID}
+	if role == nil {
+		delete(f.scopeRoles, key)
+		return
+	}
+	f.scopeRoles[key] = *role
 }
 
-func (f *kbFakePerms) DeleteWorkspaceGrant(context.Context, string, string) error {
-	return errKbFakeNotModeled
+// listGrants は入れ物 1 つ分の grant を主体 ID 順で返す。
+func (f *kbFakePerms) listGrants(scopeID string) []kbGrantKey {
+	keys := make([]kbGrantKey, 0, len(f.grants))
+	for k := range f.grants {
+		if k.scopeID == scopeID {
+			keys = append(keys, k)
+		}
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].principalID < keys[j].principalID })
+	return keys
 }
 
-func (f *kbFakePerms) ListWorkspaceGrants(context.Context, string) ([]domain.WorkspaceGrant, error) {
-	return nil, errKbFakeNotModeled
+func (f *kbFakePerms) UpsertWorkspaceGrant(
+	ctx context.Context, workspaceID, principalID string, role domain.GrantRole,
+) (*domain.WorkspaceGrant, error) {
+	// 本番は複合 FK で「別ワークスペースの主体には張れない」を DB が弾く。fake も同じ形で断る。
+	if _, err := f.FindPrincipal(ctx, workspaceID, principalID); err != nil {
+		return nil, err
+	}
+	f.grants[kbGrantKey{scopeID: workspaceID, principalID: principalID}] = role
+	f.mirrorGrant(workspaceID, principalID, &role)
+	return &domain.WorkspaceGrant{WorkspaceID: workspaceID, PrincipalID: principalID, Role: role}, nil
 }
 
-func (f *kbFakePerms) UpsertSpaceGrant(context.Context, string, string, string, domain.GrantRole) (*domain.SpaceGrant, error) {
-	return nil, errKbFakeNotModeled
+// DeleteWorkspaceGrant は 0 行削除でも成功のまま（本番と同じく取り消しは冪等）。
+func (f *kbFakePerms) DeleteWorkspaceGrant(_ context.Context, workspaceID, principalID string) error {
+	if f.revokeGrantErr != nil {
+		return f.revokeGrantErr
+	}
+	delete(f.grants, kbGrantKey{scopeID: workspaceID, principalID: principalID})
+	f.mirrorGrant(workspaceID, principalID, nil)
+	return nil
 }
 
-func (f *kbFakePerms) DeleteSpaceGrant(context.Context, string, string, string) error {
-	return errKbFakeNotModeled
+func (f *kbFakePerms) ListWorkspaceGrants(_ context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
+	out := []domain.WorkspaceGrant{}
+	for _, k := range f.listGrants(workspaceID) {
+		out = append(out, domain.WorkspaceGrant{
+			WorkspaceID: workspaceID, PrincipalID: k.principalID, Role: f.grants[k],
+		})
+	}
+	return out, nil
 }
 
-func (f *kbFakePerms) ListSpaceGrants(context.Context, string, string) ([]domain.SpaceGrant, error) {
-	return nil, errKbFakeNotModeled
+func (f *kbFakePerms) UpsertSpaceGrant(
+	ctx context.Context, workspaceID, spaceID, principalID string, role domain.GrantRole,
+) (*domain.SpaceGrant, error) {
+	if _, err := f.FindPrincipal(ctx, workspaceID, principalID); err != nil {
+		return nil, err
+	}
+	f.grants[kbGrantKey{scopeID: spaceID, principalID: principalID}] = role
+	f.mirrorGrant(spaceID, principalID, &role)
+	return &domain.SpaceGrant{
+		WorkspaceID: workspaceID, SpaceID: spaceID, PrincipalID: principalID, Role: role,
+	}, nil
 }
 
-func (f *kbFakePerms) CreateShareLink(context.Context, repository.ShareLinkWrite) (*domain.ShareLink, error) {
-	return nil, errKbFakeNotModeled
+func (f *kbFakePerms) DeleteSpaceGrant(_ context.Context, _, spaceID, principalID string) error {
+	delete(f.grants, kbGrantKey{scopeID: spaceID, principalID: principalID})
+	f.mirrorGrant(spaceID, principalID, nil)
+	return nil
 }
 
-func (f *kbFakePerms) RevokeShareLink(context.Context, string, string) error {
-	return errKbFakeNotModeled
+func (f *kbFakePerms) ListSpaceGrants(_ context.Context, workspaceID, spaceID string) ([]domain.SpaceGrant, error) {
+	out := []domain.SpaceGrant{}
+	for _, k := range f.listGrants(spaceID) {
+		out = append(out, domain.SpaceGrant{
+			WorkspaceID: workspaceID, SpaceID: spaceID, PrincipalID: k.principalID, Role: f.grants[k],
+		})
+	}
+	return out, nil
 }
 
-func (f *kbFakePerms) FindShareLinkByTokenHash(context.Context, []byte) (*domain.ShareLink, error) {
+// CreateShareLink は共有リンクと、その来訪者を表す主体を一緒に作る（本番は 1 トランザクション）。
+func (f *kbFakePerms) CreateShareLink(_ context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
+	page, ok := f.pages.pages[in.PageID]
+	if !ok || page.WorkspaceID != in.WorkspaceID {
+		return nil, repository.ErrPageNotFound
+	}
+	pageID := in.PageID
+	principal := f.newPrincipal(domain.Principal{
+		WorkspaceID: in.WorkspaceID, Kind: domain.PrincipalKindShareLink, PageID: &pageID,
+	})
+	f.nextID++
+	link := &domain.ShareLink{
+		ID:              "share-link-" + strconv.Itoa(f.nextID),
+		WorkspaceID:     in.WorkspaceID,
+		PageID:          in.PageID,
+		PrincipalID:     principal.ID,
+		Capability:      in.Capability,
+		TokenHash:       in.TokenHash,
+		PasswordHash:    in.PasswordHash,
+		ExpiresAt:       in.ExpiresAt,
+		CreatedByUserID: in.CreatedByUserID,
+		CreatedAt:       time.Now(),
+	}
+	f.shareLinks[link.ID] = link
+	c := *link
+	return &c, nil
+}
+
+// RevokeShareLink は行を消さず revoked_at を立てる（誰がいつ止めたかを残すため）。
+// 既に失効済みなら何もしない（冪等）。
+func (f *kbFakePerms) RevokeShareLink(_ context.Context, workspaceID, shareLinkID string) error {
+	link, ok := f.shareLinks[shareLinkID]
+	if !ok || link.WorkspaceID != workspaceID {
+		return repository.ErrShareLinkNotFound
+	}
+	if link.RevokedAt == nil {
+		now := time.Now()
+		link.RevokedAt = &now
+	}
+	return nil
+}
+
+// FindShareLinkByTokenHash は期限切れ・失効も含めて返す（判定は usecase 側）。
+func (f *kbFakePerms) FindShareLinkByTokenHash(_ context.Context, tokenHash []byte) (*domain.ShareLink, error) {
+	for _, link := range f.shareLinks {
+		if string(link.TokenHash) == string(tokenHash) {
+			c := *link
+			return &c, nil
+		}
+	}
 	return nil, repository.ErrShareLinkNotFound
 }
 
-func (f *kbFakePerms) ListPageShareLinks(context.Context, string, string) ([]domain.ShareLink, error) {
-	return nil, errKbFakeNotModeled
+func (f *kbFakePerms) ListPageShareLinks(_ context.Context, workspaceID, pageID string) ([]domain.ShareLink, error) {
+	out := []domain.ShareLink{}
+	for _, link := range f.shareLinks {
+		if link.WorkspaceID == workspaceID && link.PageID == pageID {
+			out = append(out, *link)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 func (f *kbFakePerms) PagePermissionFactsForPrincipal(context.Context, string, string, string) (*domain.PagePermissionFacts, error) {

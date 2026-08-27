@@ -1159,6 +1159,66 @@ func (q *Queries) ListWorkspaceScopeGrantRoles(ctx context.Context, arg ListWork
 	return items, nil
 }
 
+const lockWorkspaceAdminGrantsForRemoval = `-- name: LockWorkspaceAdminGrantsForRemoval :one
+WITH admin_grants AS MATERIALIZED (
+    SELECT wg.principal_id, p.kind
+    FROM workspace_grants wg
+    JOIN principals p ON p.workspace_id = wg.workspace_id AND p.id = wg.principal_id
+    WHERE wg.workspace_id = $1 AND wg."role" = 'admin'
+    ORDER BY wg.principal_id
+    FOR UPDATE OF wg
+)
+SELECT
+    count(*) FILTER (WHERE principal_id = $2) > 0 AS target_is_admin,
+    count(*) FILTER (WHERE principal_id <> $2 AND kind = 'user') > 0 AS other_user_admin_remains
+FROM admin_grants
+`
+
+type LockWorkspaceAdminGrantsForRemovalParams struct {
+	WorkspaceID uuid.UUID
+	PrincipalID uuid.UUID
+}
+
+type LockWorkspaceAdminGrantsForRemovalRow struct {
+	TargetIsAdmin         bool
+	OtherUserAdminRemains bool
+}
+
+// 「この主体から admin を外しても、ユーザーの admin が 1 人以上残るか」を答える。
+// **答えるだけでなく、この文が admin の行をロックする。** ロックは呼び出し側の
+// トランザクションが終わるまで続く（＝ 判定と書き換えのあいだに割り込ませない）。
+//
+// なぜロックまでするのか（検査を単一文にするだけでは足りなかった）:
+//
+//	検査と削除が別トランザクションだと、2 人の admin をほぼ同時に外す要求が
+//	両方とも検査を通り抜け、ワークスペースの admin が 0 人になる。0 人になると
+//	ナレッジ基盤には super_admin の抜け道が無いので、元 admin を含む誰も API から
+//	権限を張り直せない（復旧は DB を直接触るしかない）。
+//
+//	検査を DELETE の EXISTS へ畳んで単一文にしても、これは塞がらない。
+//	PostgreSQL の既定は READ COMMITTED で、EXISTS の副問い合わせは行をロックしない。
+//	2 つのトランザクションが互いの admin 行を「まだ在る」と見たまま、それぞれ自分の
+//	相手を消せてしまう（実測: 明示トランザクションを重ねると再現し、admin が 0 人になる）。
+//	FOR UPDATE を付けて初めて、後から来た側が先の削除を待ち、待ったあとに
+//	「その行はもう無い」と読み直して断るようになる。
+//
+// 作りの要点:
+//   - ORDER BY principal_id … 同時に走る 2 つの要求が同じ順でロックを取るので、
+//     互いに待ち合って動けなくなる（デッドロック）ことがない。
+//   - AS MATERIALIZED + 集約 … CTE を必ず最後まで読み切らせ、経路上の admin 行を
+//     取りこぼさずロックする。EXISTS で書くと最初の 1 行で読むのをやめる可能性があり、
+//     ロックする行が実行計画次第で変わってしまう。
+//   - kind の扱い … 残る admin として数えるのは kind='user' だけ。グループ宛ての admin を
+//     数に入れると、メンバーが 1 人も居ないグループが「最後の admin」として残り、
+//     結局誰も権限を変えられないワークスペースが同じようにできる。
+//     一方 target_is_admin は kind を問わない（外そうとしている行が admin かどうかの事実）。
+func (q *Queries) LockWorkspaceAdminGrantsForRemoval(ctx context.Context, arg LockWorkspaceAdminGrantsForRemovalParams) (LockWorkspaceAdminGrantsForRemovalRow, error) {
+	row := q.db.QueryRowContext(ctx, lockWorkspaceAdminGrantsForRemoval, arg.WorkspaceID, arg.PrincipalID)
+	var i LockWorkspaceAdminGrantsForRemovalRow
+	err := row.Scan(&i.TargetIsAdmin, &i.OtherUserAdminRemains)
+	return i, err
+}
+
 const markPageAllowList = `-- name: MarkPageAllowList :exec
 INSERT INTO page_allow_lists (workspace_id, page_id, capability)
 VALUES ($1, $2, $3)

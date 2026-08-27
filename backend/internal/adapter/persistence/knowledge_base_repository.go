@@ -333,6 +333,15 @@ func (r *knowledgeBaseRepository) CreatePage(ctx context.Context, page *domain.P
 	if !ok || !ok2 || !ok3 {
 		return repository.ErrPageNotFound
 	}
+	// pages.created_by_user_id は bigint（int64）で、domain のユーザー ID は uint64。
+	// int64(page.CreatedByUserID) と素で書くと math.MaxInt64 を超える値が負数へ巻き戻り、
+	// 作成者とは無関係な id が作成者として記録される。範囲外の id を持つユーザーは
+	// 存在し得ないので、書き込みに入る前にエラーで止める
+	// （nil を返すとページを作れたと誤認され、呼び出し側が page.ID を読みに行く）。
+	createdBy, ok4 := toInt64ID(page.CreatedByUserID)
+	if !ok4 {
+		return outOfRangeIDError("created_by_user_id", page.CreatedByUserID)
+	}
 	id, err := kbNewID()
 	if err != nil {
 		return err
@@ -352,7 +361,7 @@ func (r *knowledgeBaseRepository) CreatePage(ctx context.Context, page *domain.P
 		ParentID:        parent,
 		Position:        page.Position,
 		Title:           page.Title,
-		CreatedByUserID: int64(page.CreatedByUserID),
+		CreatedByUserID: createdBy,
 	})
 	if err != nil {
 		return err

@@ -14,6 +14,28 @@ import (
 
 // knowledgeBasePermissionRepository は [repository.KnowledgeBasePermissionRepository] の実装。
 // ナレッジ基盤は GORM を通さない方針のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
+//
+// # ユーザー ID の境界（uint64 → bigint）について
+//
+// domain のユーザー ID は uint64、DB の principals.user_id / share_links.created_by_user_id は
+// bigint（＝ 符号付き 64bit・int64）。この境界を int64(userID) と素で書いてはいけない。
+// Go の変換はビット列をそのまま読み替えるだけなので、userID が math.MaxInt64 を超えると
+// 最上位ビットが符号ビットとして解釈され、値が負数へ巻き戻る
+// （例: 1<<63 = 9223372036854775808 → -9223372036854775808）。
+// 巻き戻った値は「たまたま別の行に一致し得る値」であって、元の入力とは無関係な行を指す。
+// この API はユーザー ID を URL のパスから uint64 として受ける（handler の kbUserIDParam は
+// strconv.ParseUint(..., 10, 64) なので 2^63 以上も通る）ため、利用者が指定した値が
+// そのままここへ届く。変換は必ず toInt64ID（ids.go）を通し、範囲外は下の規則で扱う。
+//
+// 範囲外（> math.MaxInt64）の userID が意味するもの: users.id は bigint なので、
+// その値を持つユーザーは**存在し得ない**。したがって扱いは読み書きで分かれる。
+//
+//   - 書き込み: エラーを返す。1 行も書けていないのに nil を返すと、呼び出し側が
+//     「作成・更新できた」と誤認する。
+//   - 読み取り（権限の判定・一覧）: 「該当なし」を返す。クエリを投げても 0 行になる入力なので、
+//     0 行のときとまったく同じ値を返すのが正しい。**必ず拒否側（deny）に倒す**こと。
+//     ここで「許可」側の値（役割あり・メンバーである・閲覧できる）を返すと、
+//     存在しないユーザー ID を名乗るだけで権限が湧く＝権限昇格になる。
 type knowledgeBasePermissionRepository struct {
 	db *sql.DB
 	q  *sqlcgen.Queries
@@ -126,11 +148,19 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 	if !ok {
 		return nil, repository.ErrWorkspaceNotFound
 	}
+	// bigint に収まらない userID は users のどの行の id にもなり得ない ＝ そんなユーザーは居ない。
+	// これは下の FK 違反（実在しないユーザー ID を渡された場合）とまったく同じ状況なので、
+	// 同じ ErrUserNotFound を返して呼び出し側の分岐を増やさない。
+	// nil を返してはいけない — 主体を 1 行も作れていないのに「作れた」と誤認される。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return nil, repository.ErrUserNotFound
+	}
 	// 先に引いてから作る。ユーザーの主体は (workspace_id, user_id) の部分 UNIQUE で 1 つに限られ、
 	// 競合したら INSERT が一意制約で落ちるので、その場合はもう一度引き直して既存を返す。
 	row, err := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 	if err == nil {
 		p := toDomainPrincipal(row)
@@ -147,13 +177,18 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 		ID:          id,
 		WorkspaceID: wsID,
 		Kind:        string(domain.PrincipalKindUser),
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 	if err != nil {
+		// 実在しないユーザー ID を渡された場合は users への FK で落ちる。入力の誤りなので
+		// 制約違反のまま上へ流さず、「そのユーザーは居ない」として返す（500 にしない）。
+		if isForeignKeyViolation(err) {
+			return nil, repository.ErrUserNotFound
+		}
 		// 同時に同じユーザーを追加したときは一意制約で落ちる。既存を返して冪等にする。
 		existing, getErr := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 			WorkspaceID: wsID,
-			UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+			UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		})
 		if getErr != nil {
 			return nil, err
@@ -223,6 +258,12 @@ func (r *knowledgeBasePermissionRepository) CreateGroupPrincipal(ctx context.Con
 		Name:        name,
 	})
 	if err != nil {
+		// 名前はワークスペース内で一意（uq_principals_group_name）。検査してから INSERT する
+		// までの間に別の要求が同じ名前を取り得るので、一意制約を唯一の判定にする
+		// （ワークスペース作成の slug と同じ考え方）。
+		if isUniqueViolation(err) {
+			return nil, repository.ErrPrincipalGroupNameTaken
+		}
 		return nil, err
 	}
 	p := toDomainPrincipal(row)
@@ -251,9 +292,16 @@ func (r *knowledgeBasePermissionRepository) FindUserPrincipal(ctx context.Contex
 	if !ok {
 		return nil, repository.ErrPrincipalNotFound
 	}
+	// bigint に収まらない userID はどの principals の行にも一致しない。クエリを投げれば
+	// 0 行 ＝ sql.ErrNoRows になる入力なので、その分岐（下の ErrPrincipalNotFound）と
+	// 同じ値を返す。呼び出し側から見た意味は「非メンバー」で、拒否側に倒れている。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return nil, repository.ErrPrincipalNotFound
+	}
 	row, err := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrPrincipalNotFound
@@ -265,20 +313,27 @@ func (r *knowledgeBasePermissionRepository) FindUserPrincipal(ctx context.Contex
 	return &p, nil
 }
 
+// DeletePrincipal は主体を 1 件消す。
+//
+// 主体を消すと、その主体に張られていた grant も FK の CASCADE で消える。つまりこれは
+// 「ワークスペースの admin を 1 人減らし得る操作」でもあるので、grant の取り消しと
+// まったく同じ検査を、同じトランザクションの中で通す（withLastAdminGuard の doc を参照）。
 func (r *knowledgeBasePermissionRepository) DeletePrincipal(ctx context.Context, workspaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return repository.ErrPrincipalNotFound
 	}
-	n, err := r.q.DeletePrincipal(ctx, sqlcgen.DeletePrincipalParams{WorkspaceID: wsID, ID: prID})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return repository.ErrPrincipalNotFound
-	}
-	return nil
+	return r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		n, err := qtx.DeletePrincipal(ctx, sqlcgen.DeletePrincipalParams{WorkspaceID: wsID, ID: prID})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return repository.ErrPrincipalNotFound
+		}
+		return nil
+	})
 }
 
 func (r *knowledgeBasePermissionRepository) IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error) {
@@ -286,9 +341,17 @@ func (r *knowledgeBasePermissionRepository) IsWorkspaceMember(ctx context.Contex
 	if !ok {
 		return false, nil
 	}
+	// bigint に収まらない userID は principals のどの行にも一致しない。SQL は EXISTS を
+	// 返すので 0 行 ＝ false。同じ false を返す（上の ID 不正の分岐と同じ値）。
+	// true 側へ倒すと、存在しないユーザー ID を名乗るだけでワークスペースの中身が
+	// 見える口が開く（所属は principals の行が唯一の表現なので、ここが所属判定の本体）。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return false, nil
+	}
 	return r.q.IsWorkspaceMember(ctx, sqlcgen.IsWorkspaceMemberParams{
 		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 }
 
@@ -328,38 +391,117 @@ func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Contex
 	return err
 }
 
+// UpsertWorkspaceGrant はワークスペース全体の既定の役割を 1 行に揃える。
+//
+// admin を**与える**向きは admin を減らさないので検査も行ロックも要らない（素で書く）。
+// admin から他の役割へ**落とす**向きは、行が消えないだけで「admin を外す」操作そのものなので、
+// 取り消し・メンバー削除とまったく同じ検査を同じトランザクションで通す。
 func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return nil, repository.ErrPrincipalNotFound
 	}
-	row, err := r.q.UpsertWorkspaceGrant(ctx, sqlcgen.UpsertWorkspaceGrantParams{
+	params := sqlcgen.UpsertWorkspaceGrantParams{
 		WorkspaceID: wsID,
 		PrincipalID: prID,
 		Role:        string(role),
-	})
-	if err != nil {
+	}
+	if role == domain.GrantRoleAdmin {
+		row, err := r.q.UpsertWorkspaceGrant(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		g := toDomainWorkspaceGrant(row)
+		return &g, nil
+	}
+	var g domain.WorkspaceGrant
+	if err := r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		row, err := qtx.UpsertWorkspaceGrant(ctx, params)
+		if err != nil {
+			return err
+		}
+		g = toDomainWorkspaceGrant(row)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	g := toDomainWorkspaceGrant(row)
 	return &g, nil
 }
 
 // DeleteWorkspaceGrant はワークスペース権限を 1 件取り消す。
 // RemoveGroupMember と同じ理由で 0 行削除は成功のまま（「権限が無い状態」が事後条件で、
 // 元から無ければ既に満たされている）。取り消しの再実行を 404 にしない。
+//
+// ただし「ユーザーの admin が 0 人になる取り消し」だけは冪等では済まないので、
+// withLastAdminGuard を通して同じトランザクションの中で断る。
 func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return nil
 	}
-	_, err := r.q.DeleteWorkspaceGrant(ctx, sqlcgen.DeleteWorkspaceGrantParams{
-		WorkspaceID: wsID,
-		PrincipalID: prID,
+	return r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		_, err := qtx.DeleteWorkspaceGrant(ctx, sqlcgen.DeleteWorkspaceGrantParams{
+			WorkspaceID: wsID,
+			PrincipalID: prID,
+		})
+		return err
 	})
-	return err
+}
+
+// withLastAdminGuard は「この主体から admin を外す」操作を 1 トランザクションで包み、
+// ユーザーの admin が 0 人になる場合は repository.ErrLastWorkspaceAdmin を返して
+// mutate を一度も呼ばない。
+//
+// # なぜここまでするのか
+//
+// ワークスペースの admin が 0 人になると、そのワークスペースの権限を変えられる人は
+// API のどこにも居なくなる。ナレッジ基盤は「アプリの super_admin なら通る」という
+// 抜け道を意図的に持たないため、**元 admin を含めて誰も復旧できない**（DB を直接
+// 触るしかない）。逆に「最後の 1 人は自分を外せない」で詰まる場面は、先に別の誰かへ
+// admin を渡せば必ず解ける。取り返しがつかない側だけを禁じる。
+//
+// # なぜ検査を手前（usecase）に置くだけでは足りないのか
+//
+// 手前の CanRemoveWorkspaceAdminUseCase は読み取りだけで、そのあとの書き換えは別の
+// トランザクションになる。admin 2 人をほぼ同時に外す 2 本の要求は、両方ともその検査を
+// 通り抜けて両方とも成功し得る（実測: 2 本同時に流すと 60 回中 59 回 admin が 0 人になった）。
+//
+// # なぜ「検査を DELETE の EXISTS へ畳んで単一文にする」だけでは足りないのか
+//
+// PostgreSQL の既定は READ COMMITTED で、EXISTS の副問い合わせは行をロックしない。
+// 2 つのトランザクションが互いの admin 行を「まだ在る」と見たまま、それぞれ相手を
+// 消せてしまう。実測でもこの形は明示トランザクションを重ねると admin 0 人を再現した。
+// LockWorkspaceAdminGrantsForRemoval が FOR UPDATE で admin 行をロックし、そのロックを
+// 書き換えと同じトランザクションが握り続けることで初めて塞がる。
+func (r *knowledgeBasePermissionRepository) withLastAdminGuard(
+	ctx context.Context,
+	workspaceID, principalID uuid.UUID,
+	mutate func(qtx *sqlcgen.Queries) error,
+) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	qtx := r.q.WithTx(tx)
+
+	guard, err := qtx.LockWorkspaceAdminGrantsForRemoval(ctx, sqlcgen.LockWorkspaceAdminGrantsForRemovalParams{
+		WorkspaceID: workspaceID,
+		PrincipalID: principalID,
+	})
+	if err != nil {
+		return err
+	}
+	// 元から admin ではない相手なら、この操作で admin は 1 人も減らない。
+	if guard.TargetIsAdmin && !guard.OtherUserAdminRemains {
+		return repository.ErrLastWorkspaceAdmin
+	}
+	if err := mutate(qtx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *knowledgeBasePermissionRepository) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
@@ -582,6 +724,13 @@ func (r *knowledgeBasePermissionRepository) CreateShareLink(ctx context.Context,
 	if !ok || !ok2 {
 		return nil, repository.ErrPageNotFound
 	}
+	// share_links.created_by_user_id は bigint で、users への FK も張っている。
+	// 範囲外の発行者 ID では 1 行も書けないので、書き込みに入る前にエラーで止める
+	// （nil を返すと呼び出し側がリンクを発行できたと誤認する）。
+	createdBy, cok := toInt64ID(in.CreatedByUserID)
+	if !cok {
+		return nil, outOfRangeIDError("created_by_user_id", in.CreatedByUserID)
+	}
 	principalID, err := kbNewID()
 	if err != nil {
 		return nil, err
@@ -617,7 +766,7 @@ func (r *knowledgeBasePermissionRepository) CreateShareLink(ctx context.Context,
 		TokenHash:       in.TokenHash,
 		PasswordHash:    nullString(in.PasswordHash),
 		ExpiresAt:       nullTime(in.ExpiresAt),
-		CreatedByUserID: int64(in.CreatedByUserID),
+		CreatedByUserID: createdBy,
 	})
 	if err != nil {
 		return nil, err
@@ -683,8 +832,27 @@ func (r *knowledgeBasePermissionRepository) ListPageShareLinks(ctx context.Conte
 }
 
 func (r *knowledgeBasePermissionRepository) PagePermissionFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*domain.PagePermissionFacts, error) {
+	// bigint に収まらない userID は principals のどの行にも一致しない。クエリ側で言えば
+	// me / mine の CTE が空になる状態で、そのとき SQL が返す自分についての事実は
+	// is_member=false / grant_rank=0 / denied_anywhere=false / allowed_at_nearest=false。
+	// つまり Member=false / Role=nil で、非メンバーが得るものと同じ。
+	//
+	// ゼロ値で返すので View / Edit は nil（経路に制限が無い）になる。ページ側に制限が
+	// 張られていれば実際のクエリは非 nil を返すが、そこは違っていて構わない。
+	// domain.ResolvePagePermission に通したときの答えがどちらも同じだからで、
+	// 既定が roleAllows(nil) = false である以上、resolveCapability は
+	// 例外が nil でも（deny / 許可リストで）非 nil でも false を返す。
+	// CanEdit は CanView を含むのでさらに閉じる。拒否側へ倒れることが確実に決まる。
+	//
+	// ページの実在は確かめない（確かめる術がクエリしか無く、その入力がここでは作れない）。
+	// 存在しないページを名指しされたときの応答が 404 ではなく 403 になるが、
+	// どちらも拒否で、ページの実在を漏らす向きでもない。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return &domain.PagePermissionFacts{}, nil
+	}
 	return r.pagePermissionFacts(ctx, workspaceID, pageID,
-		sql.NullInt64{Int64: int64(userID), Valid: true}, uuid.NullUUID{})
+		sql.NullInt64{Int64: uid, Valid: true}, uuid.NullUUID{})
 }
 
 func (r *knowledgeBasePermissionRepository) PagePermissionFactsForPrincipal(ctx context.Context, workspaceID, pageID, principalID string) (*domain.PagePermissionFacts, error) {
@@ -733,10 +901,20 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 	if !ok || !ok2 {
 		return []repository.PageWithViewFacts{}, nil
 	}
+	// bigint に収まらない userID はどの主体にも一致しない。この一覧は「見えるページ」を
+	// 組み立てる材料なので、0 件（空スライス）が該当なしの答え。上の ID 不正の分岐と同じ値。
+	//
+	// ここで「行を返しつつ Role だけ nil」のような中途半端な値を作らないのは、
+	// 呼び出し側（ListViewablePagesUseCase）が domain.ResolvePageView でふるいに掛ける前に
+	// ページの中身（タイトル等）を受け取ってしまうため。空で返せば 1 枚も漏れない。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []repository.PageWithViewFacts{}, nil
+	}
 	rows, err := r.q.ListSpacePageViewFacts(ctx, sqlcgen.ListSpacePageViewFactsParams{
 		WorkspaceID: wsID,
 		SpaceID:     spID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 	if err != nil {
 		return nil, err
@@ -767,7 +945,17 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 }
 
 func (r *knowledgeBasePermissionRepository) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error) {
-	rows, err := r.q.ListMemberWorkspaces(ctx, sql.NullInt64{Int64: int64(userID), Valid: true})
+	// ここは唯一テナントを跨いで読むメソッドで、絞り込みは user_id だけが行う。
+	// つまり userID の取り違えがそのままテナント境界の越境になるので、
+	// 巻き戻った値で問い合わせることは絶対に避ける。
+	//
+	// bigint に収まらない userID は principals のどの行にも一致しない ＝ 所属ゼロ。
+	// クエリが 0 行を返したときと同じ空スライスを返す（下のループが作る値と同じ）。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []domain.Workspace{}, nil
+	}
+	rows, err := r.q.ListMemberWorkspaces(ctx, sql.NullInt64{Int64: uid, Valid: true})
 	if err != nil {
 		return nil, err
 	}
@@ -796,9 +984,21 @@ func (r *knowledgeBasePermissionRepository) SpacePermissionFactsForUser(
 		}
 		return nil, err
 	}
+	// bigint に収まらない userID はどの主体にも一致しない ＝ 役割を 1 つも持たない。
+	// 役割の問い合わせが 0 行を返したときと同じ値（空の Roles）を返す。
+	// domain.ResolveScopePermission は StrongestGrantRole([]) = nil → roleAllows(nil) = false
+	// なので CanView / CanEdit / CanManage がすべて false になり、拒否側へ倒れる。
+	//
+	// この検査を「スペースの実在を確かめたあと」に置いているのは、ErrSpaceNotFound を
+	// 返す条件がスペース側の事情だけで決まるようにするため。userID が範囲外かどうかで
+	// 存在しないスペースへの応答が変わると、同じ URL の答えが呼び出し方で揺れる。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return &domain.ScopeFacts{Roles: toGrantRoles(nil)}, nil
+	}
 	roles, err := r.q.ListSpaceScopeGrantRoles(ctx, sqlcgen.ListSpaceScopeGrantRolesParams{
 		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		SpaceID:     uuid.NullUUID{UUID: spID, Valid: true},
 	})
 	if err != nil {
@@ -814,9 +1014,17 @@ func (r *knowledgeBasePermissionRepository) WorkspacePermissionFactsForUser(
 	if !ok {
 		return nil, repository.ErrWorkspaceNotFound
 	}
+	// bigint に収まらない userID はどの主体にも一致しない ＝ 役割を 1 つも持たない。
+	// SpacePermissionFactsForUser と同じく、0 行のときと同じ空の Roles を返す。
+	// これが admin を含む役割へ倒れると、ワークスペースの権限設定そのものを
+	// 書き換えられる（CanManage が true になる）ので、必ず空側に倒す。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return &domain.ScopeFacts{Roles: toGrantRoles(nil)}, nil
+	}
 	roles, err := r.q.ListWorkspaceScopeGrantRoles(ctx, sqlcgen.ListWorkspaceScopeGrantRolesParams{
 		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 	if err != nil {
 		return nil, err
@@ -840,10 +1048,20 @@ func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx c
 	if !ok || !ok2 {
 		return []repository.PageWithPermissionFacts{}, nil
 	}
+	// bigint に収まらない userID はどの主体にも一致しない。上の ID 不正の分岐と同じ
+	// 空スライスを返す。呼び出し側（CanEditPageSubtreeUseCase）は 0 行を
+	// 「許可には倒さない」と決めて false を返すので、ここも拒否側で一致する。
+	//
+	// 空ではなく「全ページを Role=nil で返す」ようにしてはいけない。そちらでも判定自体は
+	// false になるが、見えないページの ID を呼び出し側へ渡すことになる。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []repository.PageWithPermissionFacts{}, nil
+	}
 	rows, err := r.q.ListSubtreePagePermissionFacts(ctx, sqlcgen.ListSubtreePagePermissionFactsParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
-		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
 	if err != nil {
 		return nil, err

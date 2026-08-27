@@ -178,8 +178,33 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 	t.Run("存在しないユーザーのprincipalは作れない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
-		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, 999999999)
+		// 弾いているのは DB の FK。まず生の INSERT で制約が効いていることを確かめる。
+		_, err := f.db.Exec(
+			`INSERT INTO principals (id, workspace_id, kind, user_id)
+			 VALUES (gen_random_uuid(), $1, 'user', 999999999)`, f.ws,
+		)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_principals_user")
+
+		// repository はそれを ErrUserNotFound へ翻訳する。制約違反のまま上へ流すと
+		// 「ユーザー ID を間違えた」という入力の誤りが HTTP の入口で 500 になり、
+		// 呼び出し側が DB 障害と区別できない（再試行すべきだと誤解する）。
+		_, err = f.perm.EnsureUserPrincipal(ctx, f.ws, 999999999)
+		require.ErrorIs(t, err, repository.ErrUserNotFound)
+	})
+
+	t.Run("グループ名の重複は一意制約として返る", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		_, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "重複する名前")
+		require.NoError(t, err)
+
+		// 名前はワークスペース内で一意（uq_principals_group_name）。同名が 2 つあると
+		// 権限を張る先を人が選べない。ここも制約違反のままではなくセンチネルで返す。
+		_, err = f.perm.CreateGroupPrincipal(ctx, f.ws, "重複する名前")
+		require.ErrorIs(t, err, repository.ErrPrincipalGroupNameTaken)
+
+		// 別ワークスペースなら同じ名前を使える（一意なのはワークスペース内だけ）。
+		_, err = f.perm.CreateGroupPrincipal(ctx, f.otherWS, "重複する名前")
+		require.NoError(t, err)
 	})
 
 	t.Run("ユーザーを消すと権限も消える", func(t *testing.T) {
@@ -306,6 +331,10 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, f.permFor(ctx, t, pageA.ID, f.alice).CanEdit,
 			"スペースに viewer を張るだけでワークスペース管理者を締め出せてはいけない")
+
+		// 取り消す前に別の admin を用意する。ユーザーの admin が 0 人になる取り消しは
+		// repository が断るので、そこで落ちると本題（役割の合成規則）が確かめられない。
+		keepAdmin(ctx, t, f, f.bob)
 
 		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID))
 		got := f.permFor(ctx, t, pageA.ID, f.alice)
@@ -949,6 +978,8 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		}))
 		assert.True(t, f.permFor(ctx, t, page.ID, f.alice).CanEdit, "解除すれば既定へ戻る")
 
+		// 取り消す前に別の admin を用意する（0 人になる取り消しは repository が断る）。
+		keepAdmin(ctx, t, f, f.bob)
 		require.NoError(t, usecase.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
 			usecase.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: alice.ID}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.alice).CanView)
@@ -1368,6 +1399,19 @@ func shareLinkPermFunc(ctx context.Context, t *testing.T, f kbPermFixture) func(
 		require.NoError(t, err)
 		return *got
 	}
+}
+
+// keepAdmin は userID をワークスペースの admin にする。
+//
+// 「最後の admin は外せない」は repository が書き込みと同じトランザクションで守っている。
+// admin の取り消しそのものが本題でないテストは、先に 2 人目を用意してからでないと
+// その検査に引っかかって、確かめたかったこと（役割の合成規則など）へ辿り着けない。
+func keepAdmin(ctx context.Context, t *testing.T, f kbPermFixture, userID uint64) {
+	t.Helper()
+	p, err := f.perm.EnsureUserPrincipal(ctx, f.ws, userID)
+	require.NoError(t, err)
+	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, p.ID, domain.GrantRoleAdmin)
+	require.NoError(t, err)
 }
 
 // pageIDs はページの ID だけを取り出す（一覧の比較用）。

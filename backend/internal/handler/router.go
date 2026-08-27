@@ -69,6 +69,9 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 
 	registerHealthRoutes(v2, deps)
 	registerInvitationPublicRoutes(v2, deps)
+	// 共有リンクの検証だけは未認証。リンクを受け取った相手はログインしていない
+	// （認可はトークンとパスワードそのものが担う）。
+	registerKnowledgeBasePublicRoutes(v2, deps)
 	companyAppHandler := newCompanyApplicationHandler(deps)
 	registerCompanyApplicationPublicRoutes(v2, companyAppHandler)
 	authHandler := registerAuthPublicRoutes(v2, deps)
@@ -97,7 +100,7 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	registerCompanyApplicationAdminRoutes(authed, companyAppHandler, audit)
 	registerDashboardRoutes(authed, deps)
 	registerDailyGoalsRoutes(authed, deps)
-	registerKnowledgeBaseRoutes(authed, deps)
+	registerKnowledgeBaseRoutes(authed, deps, audit)
 	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 	return r
 }

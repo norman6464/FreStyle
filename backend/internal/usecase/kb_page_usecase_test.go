@@ -248,3 +248,25 @@ func Test_ページ改名_長すぎるタイトルは拒否(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func Test_ページ参照_本文を読まずにメタ情報だけ返す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := usecase.NewFindPageUseCase(repo)
+
+	page, err := uc.Execute(context.Background(), usecase.FindPageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	assert.Equal(t, kbSpace, page.SpaceID, "権限判定に使うスペースが取れる")
+	repo.AssertNotCalled(t, "GetPageSnapshot", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "ListBlocksByPage", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ参照_必須項目の検証(t *testing.T) {
+	uc := usecase.NewFindPageUseCase(&mockKnowledgeBaseRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, usecase.FindPageInput{PageID: kbPage})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, usecase.FindPageInput{WorkspaceID: kbWS})
+	require.ErrorIs(t, err, repository.ErrPageNotFound, "空の pageID は存在しないページと同じ扱い")
+}

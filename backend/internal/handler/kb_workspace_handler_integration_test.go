@@ -59,8 +59,9 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 		// 5. ツリーに現れる。
 		tree := e.do(t, http.MethodGet, pagesPath, "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		var nodes []kbPageTreeResponse
-		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &nodes))
+		var body kbPageTreeRootResponse
+		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
+		nodes := body.Pages
 		require.Len(t, nodes, 1)
 		assert.Equal(t, page.ID, nodes[0].Page.ID)
 	})

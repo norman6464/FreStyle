@@ -295,7 +295,8 @@ func Test_ナレッジ基盤API_権限が無いユーザーは全経路で404(t 
 		f := newKbFixture(kbNoPerm, kbUserID)
 		w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.JSONEq(t, `[]`, w.Body.String(), "1 件も見えないスペースは空のツリー")
+		assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, w.Body.String(),
+			"1 件も見えないスペースは空のツリー。伏せた件数も返さない（実在オラクルになるため）")
 	})
 }
 
@@ -388,8 +389,9 @@ func Test_ナレッジ基盤ツリー_見えない親の子は根に浮かない
 	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var tree []kbPageTreeResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &tree))
+	var body kbPageTreeRootResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	tree := body.Pages
 	require.Len(t, tree, 1, "見えない root の配下は子孫ごとツリーに現れない")
 	assert.Equal(t, kbDestPageID, tree[0].Page.ID)
 	assert.Empty(t, tree[0].Children)
@@ -400,8 +402,9 @@ func Test_ナレッジ基盤ツリー_見える親の下に子がぶら下がる
 	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var tree []kbPageTreeResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &tree))
+	var body kbPageTreeRootResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	tree := body.Pages
 	require.Len(t, tree, 2, "root と dest が根")
 	assert.Equal(t, kbRootPageID, tree[0].Page.ID)
 	require.Len(t, tree[0].Children, 1)
@@ -417,10 +420,49 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みページは現れな
 	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var tree []kbPageTreeResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &tree))
+	var body kbPageTreeRootResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	tree := body.Pages
 	require.Len(t, tree, 2)
 	assert.Empty(t, tree[0].Children)
+}
+
+func Test_ナレッジ基盤ツリー_見えない子は件数だけ返す(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// 応答に混ざっていないことを確かめたいので、schema の項目名と衝突しない題名にする
+	// （既定の "child" は children 項目に含まれてしまい、検査が素通りする）。
+	f.pages.pages[kbChildPageID].Title = "機密の議事録"
+	f.perms.setPagePermission(kbChildPageID, kbUserID, kbNoPerm)
+
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body kbPageTreeRootResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body.Pages, 2, "root と dest が根")
+
+	assert.Equal(t, kbRootPageID, body.Pages[0].Page.ID)
+	assert.Empty(t, body.Pages[0].Children, "見えない子はツリーに現れない")
+	assert.Equal(t, 1, body.Pages[0].HiddenChildCount, "現れない代わりに件数だけ出す")
+	assert.Equal(t, 0, body.HiddenChildCount, "根の段では伏せていない")
+
+	assert.NotContains(t, w.Body.String(), "機密の議事録", "題名は応答のどこにも出さない")
+}
+
+func Test_ナレッジ基盤ツリー_スペース直下の見えないページも件数に出る(t *testing.T) {
+	// 段ごとに「見えない子が居る」と示す以上、いちばん上の段だけ黙るのは筋が通らない。
+	// 1 枚でも見えていればスペースの実在は既に分かっているので、実在オラクルにはならない。
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setPagePermission(kbDestPageID, kbUserID, kbNoPerm)
+
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body kbPageTreeRootResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body.Pages, 1, "見える根は root だけ")
+	assert.Equal(t, kbRootPageID, body.Pages[0].Page.ID)
+	assert.Equal(t, 1, body.HiddenChildCount, "スペース直下で伏せた 1 枚を件数に出す")
 }
 
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
@@ -429,7 +471,7 @@ func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリ
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/0198a000-0000-7000-8000-00000000beef/pages", "")
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `[]`, w.Body.String(),
+	assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, w.Body.String(),
 		"存在しないスペースと中身が見えないスペースを撃ち分けない")
 }
 
@@ -862,8 +904,9 @@ func kbTreeIDs(t *testing.T, f kbFixture) []string {
 	t.Helper()
 	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 	require.Equal(t, http.StatusOK, w.Code)
-	var tree []kbPageTreeResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &tree))
+	var body kbPageTreeRootResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	tree := body.Pages
 	ids := make([]string, 0, 4)
 	var walk func(nodes []kbPageTreeResponse)
 	walk = func(nodes []kbPageTreeResponse) {

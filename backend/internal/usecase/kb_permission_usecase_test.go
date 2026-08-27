@@ -91,12 +91,80 @@ func Test_閲覧可能ページ一覧_見えないページを落とす(t *testi
 		}, nil)
 	uc := usecase.NewListViewablePagesUseCase(repo)
 
-	pages, err := uc.Execute(context.Background(), usecase.ListViewablePagesInput{
+	out, err := uc.Execute(context.Background(), usecase.ListViewablePagesInput{
 		WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1,
 	})
 	require.NoError(t, err)
-	require.Len(t, pages, 1)
-	assert.Equal(t, "見える", pages[0].Title)
+	require.Len(t, out.Pages, 1)
+	assert.Equal(t, "見える", out.Pages[0].Title)
+	assert.Equal(t, 1, out.HiddenChildCount[usecase.HiddenChildrenRootKey],
+		"落とした 1 枚は件数として残す（題名は出さない）")
+}
+
+func Test_閲覧可能ページ一覧_見えない親の下は数えない(t *testing.T) {
+	// 見える root ─ 見えない mid ─ その下に 2 枚（見えるものと見えないもの）。
+	//
+	// mid が見えないので、その配下は木に出ない（PageTreeOrphanHidden）。ここで mid の直下を
+	// 数えてしまうと「見えない枝の中に何枚あるか」が漏れ、木から伏せた判断と食い違う。
+	mid := "mid"
+	rows := []repository.PageWithViewFacts{
+		{
+			Page:  domain.Page{ID: "root", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "見える親"},
+			Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)},
+		},
+		{
+			Page: domain.Page{ID: mid, WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: strPtr("root"), Title: "隠れる中間"},
+			Facts: domain.PageViewFacts{
+				Role: kbGrantRole(domain.GrantRoleViewer),
+				View: &domain.RestrictionFacts{HasAllowList: true},
+			},
+		},
+		{
+			// 権限だけ見れば通るが、親が見えないので木には出ない（＝孤児）。
+			Page:  domain.Page{ID: "orphan", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &mid, Title: "見えるが孤児"},
+			Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)},
+		},
+		{
+			Page: domain.Page{ID: "buried", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &mid, Title: "見えない孫"},
+			Facts: domain.PageViewFacts{
+				Role: kbGrantRole(domain.GrantRoleViewer),
+				View: &domain.RestrictionFacts{HasAllowList: true},
+			},
+		},
+	}
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).Return(rows, nil)
+
+	out, err := usecase.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, out.HiddenChildCount["root"], "見える親の直下で伏せた 1 枚は数える")
+	assert.Equal(t, 0, out.HiddenChildCount[mid], "見えない親の直下は、伏せた孫が居ても数えない")
+	assert.Equal(t, 0, out.HiddenChildCount[usecase.HiddenChildrenRootKey])
+	assert.Len(t, out.Pages, 2, "root と孤児。孤児を落とすのは木の組み立て側の役目")
+}
+
+func Test_閲覧可能ページ一覧_1件も見えないなら件数も返さない(t *testing.T) {
+	// 存在しないスペースと「中身が 1 件も見えないスペース」を撃ち分けないための不変条件。
+	// 件数を返すと、前者は 0・後者は N になり、スペース ID の総当たりで実在が分かる。
+	deny := domain.PageViewFacts{
+		Role: kbGrantRole(domain.GrantRoleViewer),
+		View: &domain.RestrictionFacts{HasAllowList: true},
+	}
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).
+		Return([]repository.PageWithViewFacts{
+			{Page: domain.Page{ID: "p1", WorkspaceID: kbWS, SpaceID: kbSpace}, Facts: deny},
+			{Page: domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace}, Facts: deny},
+		}, nil)
+
+	out, err := usecase.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	require.NoError(t, err)
+
+	assert.Empty(t, out.Pages)
+	assert.Empty(t, out.HiddenChildCount, "存在しないスペースの応答と 1 バイトも変わらないこと")
 }
 
 func Test_閲覧可能ページ一覧_必須項目の検証(t *testing.T) {
@@ -411,3 +479,6 @@ func Test_例外解除_検証と委譲(t *testing.T) {
 		PageID: kbPage, PrincipalID: kbPrincipal, Capability: domain.CapabilityView,
 	}), "workspaceID 必須")
 }
+
+// strPtr は ParentID のようなポインタ項目をテストから書くための小道具。
+func strPtr(v string) *string { return &v }

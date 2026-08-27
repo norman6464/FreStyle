@@ -502,6 +502,35 @@ func Test_ナレッジ基盤ツリー_並び順のキーを応答に出さない
 	assert.NotContains(t, w.Body.String(), `"a2"`)
 }
 
+func Test_ナレッジ基盤作成_URLのスペースが実在するかを応答から読めない(t *testing.T) {
+	// 親を指定して作るとき、URL の spaceId は「親のスペースと同じか」の比較にしか使わない。
+	// スペースを引いて確かめると、実在しない ID は 404、実在する別の ID は 400 になり、
+	// 応答の差からそのスペースが在るかどうかが分かってしまう。
+	const existingOtherSpace = "0198a000-0000-7000-8000-0000000000c1"
+	const missingSpace = "0198a000-0000-7000-8000-00000000beef"
+	body := `{"parentId":"` + kbRootPageID + `","title":"別スペースの親"}`
+
+	post := func(t *testing.T, spaceID string) *httptest.ResponseRecorder {
+		t.Helper()
+		f := newKbFixture(kbCanEdit, kbUserID)
+		// 一方だけスペースを実在させる。ここが唯一の違い。
+		if spaceID == existingOtherSpace {
+			f.pages.addSpace(kbWorkspaceID, existingOtherSpace)
+		}
+		return f.do(t, http.MethodPost,
+			"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/"+spaceID+"/pages", body)
+	}
+
+	onExisting := post(t, existingOtherSpace)
+	onMissing := post(t, missingSpace)
+
+	assert.Equal(t, onExisting.Code, onMissing.Code, "実在の有無でステータスを変えない")
+	assert.Equal(t, onExisting.Body.String(), onMissing.Body.String(),
+		"実在の有無で本文を変えない（1 バイトも）")
+	assert.Equal(t, http.StatusBadRequest, onExisting.Code)
+	assert.JSONEq(t, `{"error":"parent_space_mismatch"}`, onExisting.Body.String())
+}
+
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet,

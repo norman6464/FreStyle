@@ -47,10 +47,18 @@ export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
   { label: '監査ログ', to: '/admin/audit', matchPrefix: '/admin/audit', allowedRoles: ['super_admin'] },
 ];
 
-/** navActive は現在の pathname がその項目を指しているかを判定する。 */
+/**
+ * navActive は現在の pathname がその項目を指しているかを判定する。
+ *
+ * matchPrefix は**パスの区切りまで見る**。素の startsWith だと `/kb` が `/kb-other` にも、
+ * `/notes` が `/notes-foo` にも一致し、名前が前方一致するだけの無関係な画面でナビが光る。
+ * 一致してよいのは、そのものか、`/` で続く下の階層だけ。
+ */
 export function navActive(item: NavItem, pathname: string): boolean {
   if (item.matchExact) return pathname === item.to;
-  if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
+  if (item.matchPrefix) {
+    return pathname === item.matchPrefix || pathname.startsWith(`${item.matchPrefix}/`);
+  }
   return pathname === item.to;
 }
 

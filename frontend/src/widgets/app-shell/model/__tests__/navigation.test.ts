@@ -26,6 +26,15 @@ describe('ナレッジへの導線', () => {
     expect(navActive(kb!, '/notes')).toBe(false);
   });
 
+  it('名前が前方一致するだけの別パスでは選ばれない', () => {
+    // 素の startsWith だと /kb-other でも「ナレッジ」が光る。
+    // いまそういうルートは無いが、足した瞬間に静かに壊れる形なので判定側で塞ぐ。
+    const kb = MAIN_NAV_ITEMS.find((item) => item.id === 'kb');
+
+    expect(navActive(kb!, '/kb-other')).toBe(false);
+    expect(navActive(kb!, '/kbx')).toBe(false);
+  });
+
   it.each(['company_admin', 'trainee'])('%s に出す', (role) => {
     const ids = visibleMainNav(role, { aiChatEnabledForTrainees: true }).map((item) => item.id);
 

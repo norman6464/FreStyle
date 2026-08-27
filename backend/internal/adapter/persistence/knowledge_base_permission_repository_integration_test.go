@@ -178,8 +178,33 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 	t.Run("存在しないユーザーのprincipalは作れない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
-		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, 999999999)
+		// 弾いているのは DB の FK。まず生の INSERT で制約が効いていることを確かめる。
+		_, err := f.db.Exec(
+			`INSERT INTO principals (id, workspace_id, kind, user_id)
+			 VALUES (gen_random_uuid(), $1, 'user', 999999999)`, f.ws,
+		)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_principals_user")
+
+		// repository はそれを ErrUserNotFound へ翻訳する。制約違反のまま上へ流すと
+		// 「ユーザー ID を間違えた」という入力の誤りが HTTP の入口で 500 になり、
+		// 呼び出し側が DB 障害と区別できない（再試行すべきだと誤解する）。
+		_, err = f.perm.EnsureUserPrincipal(ctx, f.ws, 999999999)
+		require.ErrorIs(t, err, repository.ErrUserNotFound)
+	})
+
+	t.Run("グループ名の重複は一意制約として返る", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		_, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "重複する名前")
+		require.NoError(t, err)
+
+		// 名前はワークスペース内で一意（uq_principals_group_name）。同名が 2 つあると
+		// 権限を張る先を人が選べない。ここも制約違反のままではなくセンチネルで返す。
+		_, err = f.perm.CreateGroupPrincipal(ctx, f.ws, "重複する名前")
+		require.ErrorIs(t, err, repository.ErrPrincipalGroupNameTaken)
+
+		// 別ワークスペースなら同じ名前を使える（一意なのはワークスペース内だけ）。
+		_, err = f.perm.CreateGroupPrincipal(ctx, f.otherWS, "重複する名前")
+		require.NoError(t, err)
 	})
 
 	t.Run("ユーザーを消すと権限も消える", func(t *testing.T) {

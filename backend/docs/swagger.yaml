@@ -1117,6 +1117,13 @@ definitions:
         type: boolean
       page:
         $ref: '#/definitions/internal_handler.kbPageResponse'
+      parentArchived:
+        description: |-
+          ParentArchived は親がアーカイブ済みか。アーカイブ済みの一覧でだけ意味を持つ
+          （現役の一覧では常に false）。**事実であって判断ではない** — 復帰できるかの規則は
+          「親がアーカイブ中なら断る」で、それを持つのは UnarchivePageUseCase。
+        example: false
+        type: boolean
     type: object
   internal_handler.kbPageTreeRootResponse:
     properties:
@@ -4753,6 +4760,10 @@ paths:
         name: spaceId
         required: true
         type: string
+      - description: true で アーカイブ 済み の 一覧 に 切り替える
+        in: query
+        name: archived
+        type: boolean
       produces:
       - application/json
       responses:

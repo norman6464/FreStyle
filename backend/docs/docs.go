@@ -4786,6 +4786,12 @@ const docTemplate = `{
                         "name": "spaceId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true で アーカイブ 済み の 一覧 に 切り替える",
+                        "name": "archived",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -8010,6 +8016,11 @@ const docTemplate = `{
                 },
                 "page": {
                     "$ref": "#/definitions/internal_handler.kbPageResponse"
+                },
+                "parentArchived": {
+                    "description": "ParentArchived は親がアーカイブ済みか。アーカイブ済みの一覧でだけ意味を持つ\n（現役の一覧では常に false）。**事実であって判断ではない** — 復帰できるかの規則は\n「親がアーカイブ中なら断る」で、それを持つのは UnarchivePageUseCase。",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },

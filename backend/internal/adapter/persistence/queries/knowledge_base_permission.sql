@@ -386,7 +386,16 @@ SELECT
     COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_allowed_at_nearest;
 
 -- name: ListSpacePageViewFacts :many
--- スペース配下の現役ページ全件と、それぞれの「閲覧の事実」を 1 回のクエリで返す。
+-- スペース配下のページ全件と、それぞれの「閲覧の事実」を 1 回のクエリで返す。
+-- archived で現役／アーカイブ済みを切り替える（既定の一覧は現役）。
+--
+-- # なぜアーカイブ用に別のクエリを作らないのか
+--
+-- 権限の事実を組み立てる部分（deny は経路全体・許可リストは最も近い段・段かどうかは
+-- page_allow_lists の印）を写経することになるため。**同じ判断を 2 箇所に置くと必ずずれる**
+-- （このクエリ自身が下で「1 ページの解決と一覧で違う畳み方をすると『開くと見えるのに
+-- 一覧に出ない』ずれになる」と書いているのと同じ理由）。違うのは対象の絞り込みだけなので、
+-- そこだけを引数にする。
 -- 判定は domain.ResolvePagePermission が行い、呼び出し側がふるい落とす。
 --
 -- ページごとに権限クエリを投げる（N+1）ことは避ける。ツリー表示は 1 スペースで
@@ -424,7 +433,11 @@ onpath AS (
     JOIN page_restrictions r
       ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id AND r.capability = 'view'
     WHERE pp.workspace_id = sqlc.arg(workspace_id)
-      AND tp.space_id = sqlc.arg(space_id) AND tp.archived_at IS NULL
+      AND tp.space_id = sqlc.arg(space_id)
+      -- archived と「アーカイブ済みか」が一致する行だけ。3 箇所すべて同じ条件にすること。
+      -- 片方だけ現役に絞ると、アーカイブ済みページに例外の事実が 1 つも付かず、
+      -- 伏せてあるはずのページが見える側へ倒れる。
+      AND (sqlc.arg(archived)::boolean) = (tp.archived_at IS NOT NULL)
 ),
 allow_scope AS (
     SELECT pp.page_id, MIN(pp.depth) AS nearest_depth
@@ -433,7 +446,8 @@ allow_scope AS (
     JOIN page_allow_lists a
       ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id AND a.capability = 'view'
     WHERE pp.workspace_id = sqlc.arg(workspace_id)
-      AND tp.space_id = sqlc.arg(space_id) AND tp.archived_at IS NULL
+      AND tp.space_id = sqlc.arg(space_id)
+      AND (sqlc.arg(archived)::boolean) = (tp.archived_at IS NOT NULL)
     GROUP BY pp.page_id
 ),
 exception AS (
@@ -469,13 +483,20 @@ SELECT
     (e.page_id IS NOT NULL OR s.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(e.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (s.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(e.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+    COALESCE(e.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest,
+    -- 親がアーカイブ済みか（親を持たない行は false）。
+    (par.archived_at IS NOT NULL)::boolean AS parent_archived
 FROM pages p
 LEFT JOIN exception e ON e.page_id = p.id
 LEFT JOIN allow_scope s ON s.page_id = p.id
+-- 親がアーカイブ済みかは**事実**として返すだけで、ここでは何の判断にも使わない。
+-- 「復帰できるか」の規則は UnarchivePageUseCase が持つ（親がアーカイブ中なら断る）。
+-- 相関副問い合わせにしないのは、経路の集計で二乗になるのを避けるのと同じ流儀
+-- （こちらは主キー 1 件の引きなので実害は無いが、書き方を揃える）。
+LEFT JOIN pages par ON par.workspace_id = p.workspace_id AND par.id = p.parent_id
 WHERE p.workspace_id = sqlc.arg(workspace_id)
   AND p.space_id = sqlc.arg(space_id)
-  AND p.archived_at IS NULL
+  AND (sqlc.arg(archived)::boolean) = (p.archived_at IS NOT NULL)
 ORDER BY p."position";
 
 -- name: ListSubtreePagePermissionFacts :many

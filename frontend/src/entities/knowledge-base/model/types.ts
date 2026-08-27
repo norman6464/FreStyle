@@ -63,6 +63,14 @@ export interface KbPageTreeNode {
   page: KbPage;
   children: KbPageTreeNode[];
   hasHiddenChildren: boolean;
+  /**
+   * 親がアーカイブ済みか。**アーカイブ済みの一覧でだけ意味を持つ**（現役では常に false）。
+   *
+   * これは事実であって判断ではない。復帰できるかの規則は「親がアーカイブ中なら断る」で、
+   * backend の usecase が持っている。ここで canRestore という名前にすると、
+   * 同じ規則がフロントにも写り、必ずずれる。
+   */
+  parentArchived: boolean;
 }
 
 /**

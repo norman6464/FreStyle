@@ -142,9 +142,24 @@ func (f *kbFakePages) ListActivePagesBySpace(_ context.Context, workspaceID, spa
 
 // activePages は position 順に並んだ現役ページを返す（本番の ORDER BY "position" と同じ並び）。
 func (f *kbFakePages) activePages(workspaceID, spaceID string) []domain.Page {
+	return f.pagesInSpace(workspaceID, spaceID, false)
+}
+
+// parentArchived は親がアーカイブ済みかを返す（親を持たない行は false）。本番の LEFT JOIN と同じ。
+func (f *kbFakePages) parentArchived(p domain.Page) bool {
+	if p.ParentID == nil {
+		return false
+	}
+	parent, ok := f.pages[*p.ParentID]
+	return ok && parent.ArchivedAt != nil
+}
+
+// pagesInSpace は position 順に並んだページを返す。archived で現役／アーカイブ済みを切り替える
+// （本番のクエリが 1 本で両方を返すのと同じ形にする — 別実装にすると fake だけ挙動がずれる）。
+func (f *kbFakePages) pagesInSpace(workspaceID, spaceID string, archived bool) []domain.Page {
 	out := make([]domain.Page, 0, len(f.pages))
 	for _, p := range f.pages {
-		if p.WorkspaceID == workspaceID && p.SpaceID == spaceID && p.ArchivedAt == nil {
+		if p.WorkspaceID == workspaceID && p.SpaceID == spaceID && (p.ArchivedAt != nil) == archived {
 			out = append(out, *p)
 		}
 	}
@@ -553,12 +568,14 @@ func (f *kbFakePerms) PagePermissionFactsForUser(ctx context.Context, workspaceI
 	}, nil
 }
 
-func (f *kbFakePerms) ListSpacePageViewFacts(_ context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageWithViewFacts, error) {
+func (f *kbFakePerms) ListSpacePageViewFacts(
+	_ context.Context, workspaceID, spaceID string, userID uint64, archived bool,
+) ([]repository.PageWithViewFacts, error) {
 	if f.listFactsErr != nil {
 		return nil, f.listFactsErr
 	}
 	mine := f.mine(workspaceID, spaceID, userID)
-	pages := f.pages.activePages(workspaceID, spaceID)
+	pages := f.pages.pagesInSpace(workspaceID, spaceID, archived)
 	out := make([]repository.PageWithViewFacts, 0, len(pages))
 	for _, p := range pages {
 		out = append(out, repository.PageWithViewFacts{
@@ -567,6 +584,7 @@ func (f *kbFakePerms) ListSpacePageViewFacts(_ context.Context, workspaceID, spa
 				Role: roleFor(f.permFor(p.ID, userID)),
 				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
 			},
+			ParentArchived: f.pages.parentArchived(p),
 		})
 	}
 	return out, nil

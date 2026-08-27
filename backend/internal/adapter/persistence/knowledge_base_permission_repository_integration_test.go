@@ -132,6 +132,74 @@ func (f kbPermFixture) viewablePageIDs(ctx context.Context, t *testing.T, spaceI
 	return pageIDs(out.Pages)
 }
 
+func TestKnowledgeBaseArchivedViewFacts_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	// listFor はその一覧に出るページ ID を返す（現役／アーカイブ済みを切り替える）。
+	listFor := func(f kbPermFixture, t *testing.T, userID uint64, archived bool) []string {
+		t.Helper()
+		out, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
+			usecase.ListViewablePagesInput{
+				WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: userID, Archived: archived,
+			})
+		require.NoError(t, err)
+		return pageIDs(out.Pages)
+	}
+
+	t.Run("現役とアーカイブ済みが混ざらない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alive := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "現役")
+		gone := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "アーカイブ")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, gone.ID))
+
+		assert.Equal(t, []string{alive.ID}, listFor(f, t, f.alice, false))
+		assert.Equal(t, []string{gone.ID}, listFor(f, t, f.alice, true))
+	})
+
+	t.Run("アーカイブ済みでも、伏せたページは出ない", func(t *testing.T) {
+		// **この検査が本命。** 絞り込みは 3 箇所（例外の集計・許可リストの印・本体）に
+		// あり、1 箇所でも現役のままだと、アーカイブ済みページに例外の事実が付かず、
+		// 伏せてあるはずのページが見える側へ倒れる。fake は SQL を通らないので、
+		// このずれは実 PostgreSQL でしか露見しない。
+		f := setupKBPermission(t, sqlDB)
+		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "秘密")
+		alice := f.principalFor(ctx, t, f.alice)
+		bob := f.principalFor(ctx, t, f.bob)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		f.grantSpace(ctx, t, f.spaceA, bob.ID, domain.GrantRoleViewer)
+		// bob だけを許可リストに載せる（＝ この段は限定公開になり、alice は外れる）。
+		f.restrict(ctx, t, secret.ID, bob.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, secret.ID))
+
+		assert.Empty(t, listFor(f, t, f.alice, true), "許可リストに載っていない相手には出ない")
+		assert.Equal(t, []string{secret.ID}, listFor(f, t, f.bob, true), "載っている相手には出る")
+	})
+
+	t.Run("親がアーカイブ済みかを事実として返す", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "根")
+		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "子")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, root.ID))
+
+		out, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
+			usecase.ListViewablePagesInput{
+				WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.alice, Archived: true,
+			})
+		require.NoError(t, err)
+
+		// 先に両方が一覧に出ていることを確かめる。map の引きは**鍵が無くても false** を返すので、
+		// 根が欠落していても「復帰できる側」の検査だけは通ってしまう。
+		assert.ElementsMatch(t, []string{root.ID, child.ID}, pageIDs(out.Pages))
+		assert.False(t, out.ParentArchived[root.ID], "根は復帰できる側")
+		assert.True(t, out.ParentArchived[child.ID], "子だけを復帰させることはできない")
+	})
+}
+
 func TestKnowledgeBasePageSpaceScope_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
@@ -767,7 +835,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 		// 別ワークスペースのスペース ID を渡しても 1 枚も返さない（事実の収集の時点で塞ぐ）。
 		mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "別テナントのページ")
-		foreign, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.otherSpc, f.alice)
+		foreign, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.otherSpc, f.alice, false)
 		require.NoError(t, err)
 		assert.Empty(t, foreign, "テナント越えの spaceID では 0 件")
 	})
@@ -1143,7 +1211,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		links, err := f.perm.ListPageShareLinks(ctx, bad, bad)
 		require.NoError(t, err)
 		assert.Empty(t, links)
-		facts, err := f.perm.ListSpacePageViewFacts(ctx, bad, bad, f.alice)
+		facts, err := f.perm.ListSpacePageViewFacts(ctx, bad, bad, f.alice, false)
 		require.NoError(t, err)
 		assert.Empty(t, facts)
 

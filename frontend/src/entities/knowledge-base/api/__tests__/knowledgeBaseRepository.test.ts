@@ -44,7 +44,19 @@ describe('KnowledgeBaseRepository', () => {
 
       await KnowledgeBaseRepository.fetchPageTree('acme', 'space-1');
 
-      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/space-1/pages');
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/space-1/pages', {
+        params: undefined,
+      });
+    });
+
+    it('archived を渡すとスコープを切り替える（別の口ではなく同じ口）', async () => {
+      mockGet.mockResolvedValue({ data: { pages: [], hasHiddenChildren: false } });
+
+      await KnowledgeBaseRepository.fetchPageTree('acme', 's1', { archived: true });
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s1/pages', {
+        params: { archived: 'true' },
+      });
     });
 
     it('hasHiddenChildren をそのまま通す', async () => {
@@ -128,6 +140,32 @@ describe('KnowledgeBaseRepository', () => {
       mockPatch.mockRejectedValue(new Error('boom'));
 
       await expect(KnowledgeBaseRepository.renamePage('acme', 'p1', 'x')).rejects.toThrow();
+    });
+  });
+
+  describe('archivePage / unarchivePage', () => {
+    it('archivePage は POST /archive を叩く', async () => {
+      mockPost.mockResolvedValue({ data: undefined });
+
+      await KnowledgeBaseRepository.archivePage('acme', 'p1');
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p1/archive');
+    });
+
+    it('unarchivePage は POST /unarchive を叩き、戻ったページを返す', async () => {
+      mockPost.mockResolvedValue({ data: { id: 'p1', title: '戻った' } });
+
+      const restored = await KnowledgeBaseRepository.unarchivePage('acme', 'p1');
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p1/unarchive');
+      expect(restored.title).toBe('戻った');
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('boom'));
+
+      await expect(KnowledgeBaseRepository.archivePage('acme', 'p1')).rejects.toThrow();
+      await expect(KnowledgeBaseRepository.unarchivePage('acme', 'p1')).rejects.toThrow();
     });
   });
 

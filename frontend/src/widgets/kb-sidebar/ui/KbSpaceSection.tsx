@@ -20,6 +20,12 @@ export interface KbSpaceSectionProps {
   onCreatePage: (spaceId: string, parentId?: string) => Promise<KbPage>;
   /** 題名を変える。**失敗は投げてくる。** */
   onRenamePage: (spaceId: string, pageId: string, title: string) => Promise<KbPage>;
+  /** 子孫ごとアーカイブする。**失敗は投げてくる。** */
+  onArchivePage: (spaceId: string, pageId: string) => Promise<void>;
+  /** 現役へ戻す。**失敗は投げてくる。** */
+  onUnarchivePage: (spaceId: string, pageId: string) => Promise<void>;
+  /** アーカイブ済みを見ているか。 */
+  archivedMode: boolean;
 }
 
 /**
@@ -51,6 +57,9 @@ export default function KbSpaceSection({
   onRetry,
   onCreatePage,
   onRenamePage,
+  onArchivePage,
+  onUnarchivePage,
+  archivedMode,
 }: KbSpaceSectionProps) {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -84,6 +93,22 @@ export default function KbSpaceSection({
     }
   };
 
+  const archivePage = async (pageId: string) => {
+    try {
+      await onArchivePage(space.id, pageId);
+    } catch {
+      showToast('error', 'アーカイブできませんでした');
+    }
+  };
+
+  const unarchivePage = async (pageId: string) => {
+    try {
+      await onUnarchivePage(space.id, pageId);
+    } catch {
+      showToast('error', '復帰できませんでした');
+    }
+  };
+
   return (
     <section className="mb-1">
       <h2 className="group flex items-center gap-1 rounded-md pr-1 hover:bg-surface-2">
@@ -99,7 +124,9 @@ export default function KbSpaceSection({
           />
           <span className="truncate">{space.name}</span>
         </button>
-        {/* スペース直下に作る。見出しは名前を変えられないので ＋ だけ出す。 */}
+        {/* スペース直下に作る。見出しは名前を変えられないので ＋ だけ出す。
+            アーカイブ済みを見ているときは出さない（そこには作れない）。 */}
+        {!archivedMode && (
         <button
           type="button"
           onClick={() => void createPage()}
@@ -108,6 +135,7 @@ export default function KbSpaceSection({
         >
           <PlusIcon className="h-4 w-4" aria-hidden="true" />
         </button>
+        )}
       </h2>
 
       {open && (
@@ -134,7 +162,9 @@ export default function KbSpaceSection({
           )}
 
           {!state?.loading && !state?.error && entries.length === 0 && !hiddenAtRoot && (
-            <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">ページがありません</p>
+            <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
+              {archivedMode ? 'アーカイブしたページはありません' : 'ページがありません'}
+            </p>
           )}
 
           {entries.length > 0 && (
@@ -153,6 +183,9 @@ export default function KbSpaceSection({
                     onCancelRename={() => setRenamingPageId(null)}
                     onCommitRename={commitRename}
                     onCreateChild={(parentId) => void createPage(parentId)}
+                    onArchive={(pageId) => void archivePage(pageId)}
+                    archivedMode={archivedMode}
+                    onUnarchive={(pageId) => void unarchivePage(pageId)}
                   />
                 ) : (
                   <KbHiddenChildrenRow key={`hidden-${entry.parentId}`} depth={entry.depth} />

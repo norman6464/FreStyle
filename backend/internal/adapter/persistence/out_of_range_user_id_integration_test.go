@@ -175,7 +175,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 	t.Run("閲覧できるページの一覧は0件になる", func(t *testing.T) {
 		f := setupDecoy(ctx, t, sqlDB)
 
-		rows, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.spaceA, wrappedUserID())
+		rows, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.spaceA, wrappedUserID(), false)
 
 		require.NoError(t, err)
 		assert.NotNil(t, rows, "0 件でも nil スライスを返さないこと")

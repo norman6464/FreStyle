@@ -7,6 +7,7 @@ export interface KbRowActionsProps {
   onCreateChild: () => void;
   /** 未指定ならメニュー自体を出さない（スペースの見出しなど、名前を変えられない行）。 */
   onRename?: () => void;
+  onArchive?: () => void;
 }
 
 /**
@@ -16,7 +17,7 @@ export interface KbRowActionsProps {
  * たどり着いたときだけ**濃くする。`opacity` で消しているだけで DOM からは外さない —
  * 外すと Tab の順序が触れるたびに変わり、キーボードでは追えなくなる。
  */
-export default function KbRowActions({ label, onCreateChild, onRename }: KbRowActionsProps) {
+export default function KbRowActions({ label, onCreateChild, onRename, onArchive }: KbRowActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +79,20 @@ export default function KbRowActions({ label, onCreateChild, onRename }: KbRowAc
                   名前を変更
                 </button>
               </li>
+              {onArchive && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onArchive();
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-surface-2"
+                  >
+                    アーカイブ
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </>

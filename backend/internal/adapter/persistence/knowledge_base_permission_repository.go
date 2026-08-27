@@ -895,7 +895,7 @@ func (r *knowledgeBasePermissionRepository) pagePermissionFacts(
 	}, nil
 }
 
-func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageWithViewFacts, error) {
+func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]repository.PageWithViewFacts, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)
 	if !ok || !ok2 {
@@ -915,6 +915,7 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 		WorkspaceID: wsID,
 		SpaceID:     spID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		Archived:    archived,
 	})
 	if err != nil {
 		return nil, err
@@ -939,6 +940,7 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 				Role: domain.GrantRoleByRank(int(row.GrantRank)),
 				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
 			},
+			ParentArchived: row.ParentArchived,
 		})
 	}
 	return out, nil

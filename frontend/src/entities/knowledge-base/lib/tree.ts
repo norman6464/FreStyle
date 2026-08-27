@@ -15,6 +15,12 @@ export interface KbTreeRow {
   hasChildren: boolean;
   /** いま開いているか。子を持たない行では常に false。 */
   expanded: boolean;
+  /**
+   * 親がアーカイブ済みか。アーカイブ済みの一覧でだけ意味を持つ。
+   * 復帰できるかの規則（親がアーカイブ中なら断る）は backend が持つので、
+   * ここでは事実のまま運ぶ。
+   */
+  parentArchived: boolean;
 }
 
 /**
@@ -49,7 +55,14 @@ export function flattenKbTree(
   for (const node of nodes) {
     const hasChildren = node.children.length > 0;
     const expanded = hasChildren && expandedIds.has(node.page.id);
-    entries.push({ kind: 'page', page: node.page, depth, hasChildren, expanded });
+    entries.push({
+      kind: 'page',
+      page: node.page,
+      depth,
+      hasChildren,
+      expanded,
+      parentArchived: node.parentArchived,
+    });
 
     if (expanded) {
       entries.push(...flattenKbTree(node.children, expandedIds, depth + 1));

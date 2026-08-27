@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import KbSidebar from '../KbSidebar';
@@ -10,6 +10,8 @@ const hoisted = vi.hoisted(() => ({
   fetchPageTree: vi.fn(),
   createPage: vi.fn(),
   renamePage: vi.fn(),
+  archivePage: vi.fn(),
+  unarchivePage: vi.fn(),
   showToast: vi.fn(),
 }));
 
@@ -32,6 +34,8 @@ vi.mock('@/entities/knowledge-base', async () => {
       fetchPageTree: hoisted.fetchPageTree,
       createPage: hoisted.createPage,
       renamePage: hoisted.renamePage,
+      archivePage: hoisted.archivePage,
+      unarchivePage: hoisted.unarchivePage,
     },
   };
 });
@@ -56,16 +60,25 @@ function page(id: string, title = id): KbPage {
 }
 
 function tree(
-  nodes: { id: string; title?: string; hidden?: boolean; children?: string[] }[],
+  nodes: {
+    id: string;
+    title?: string;
+    hidden?: boolean;
+    children?: string[];
+    parentArchived?: boolean;
+  }[],
   hiddenAtRoot = false,
 ): KbPageTree {
   return {
-    pages: nodes.map((n) => ({
-      page: page(n.id, n.title),
-      hasHiddenChildren: n.hidden ?? false,
-      children: (n.children ?? []).map((childId) => ({
+    pages: nodes.map((node) => ({
+      page: page(node.id, node.title),
+      hasHiddenChildren: node.hidden ?? false,
+      parentArchived: node.parentArchived ?? false,
+      children: (node.children ?? []).map((childId) => ({
         page: page(childId),
         hasHiddenChildren: false,
+        // 一緒にアーカイブされた子は、その子だけを戻すことはできない。
+        parentArchived: true,
         children: [],
       })),
     })),
@@ -90,6 +103,8 @@ beforeEach(() => {
   hoisted.renamePage.mockImplementation(async (_slug: string, id: string, title: string) =>
     page(id, title),
   );
+  hoisted.archivePage.mockResolvedValue(undefined);
+  hoisted.unarchivePage.mockResolvedValue(undefined);
 });
 
 describe('KbSidebar', () => {
@@ -97,7 +112,7 @@ describe('KbSidebar', () => {
     renderSidebar();
 
     expect(await screen.findByText('設計メモ')).toBeInTheDocument();
-    expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1');
+    expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: false });
   });
 
   it('開いていないスペースの木は取りに行かない', async () => {
@@ -108,7 +123,7 @@ describe('KbSidebar', () => {
 
     // スペースの数だけ要求が飛ぶ（N+1）と、開いていない分が丸ごと無駄になる。
     expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
-    expect(hoisted.fetchPageTree).not.toHaveBeenCalledWith('acme', 'space-2');
+    expect(hoisted.fetchPageTree).not.toHaveBeenCalledWith('acme', 'space-2', { archived: false });
   });
 
   it('スペースを開いたときに初めて取りに行く', async () => {
@@ -118,7 +133,9 @@ describe('KbSidebar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '営業部' }));
 
-    await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-2'));
+    await waitFor(() =>
+      expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-2', { archived: false }),
+    );
   });
 
   it('子を持つページはフォルダ、持たないページは紙にする', async () => {
@@ -413,6 +430,141 @@ describe('KbSidebar', () => {
 
       await waitFor(() => expect(screen.getByText('設計メモ')).toBeInTheDocument());
       expect(hoisted.renamePage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('アーカイブ', () => {
+    const openArchive = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+
+    it('切り替えると、同じスペースをアーカイブ済みで取り直す', async () => {
+      // 別の口ではなく同じ口のスコープ。権限の見方は現役とまったく同じ。
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      openArchive();
+
+      await waitFor(() =>
+        expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: true }),
+      );
+    });
+
+    it('切り替えたら前のスコープの木を捨てる', async () => {
+      // 残すと、切り替えた直後だけ前のスコープの木が見える。
+      hoisted.fetchPageTree.mockResolvedValueOnce(tree([{ id: 'p1', title: '現役のページ' }]));
+      hoisted.fetchPageTree.mockImplementationOnce(() => new Promise(() => {}));
+      renderSidebar();
+      await screen.findByText('現役のページ');
+
+      openArchive();
+
+      await waitFor(() => expect(screen.queryByText('現役のページ')).not.toBeInTheDocument());
+    });
+
+    it('アーカイブ済みでは作る・名前を変えるを出さない', async () => {
+      renderSidebar();
+      await screen.findByText('設計メモ');
+      openArchive();
+      await screen.findByText('設計メモ');
+
+      expect(screen.queryByRole('button', { name: '開発部 にページを追加' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '設計メモ の操作' })).not.toBeInTheDocument();
+      // 切り替え自体は残り、押すと現役へ戻る。
+      expect(screen.getByRole('button', { name: '現役のページに戻る' })).toBeInTheDocument();
+    });
+
+    it('復帰は、アーカイブの根にだけ出す', async () => {
+      // 親がまだアーカイブ中の行に出すと、押せるのに必ず断られるボタンになる。
+      hoisted.fetchPageTree.mockResolvedValue(
+        tree([{ id: 'p1', title: 'アーカイブの根', children: ['p1-child'] }]),
+      );
+      renderSidebar();
+      await screen.findByText('アーカイブの根');
+      openArchive();
+      await screen.findByText('アーカイブの根');
+
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブの根 を開く' }));
+      await screen.findByText('p1-child');
+
+      // 子（parentArchived: true）には出ない。
+      expect(screen.getAllByRole('button', { name: '復帰' })).toHaveLength(1);
+    });
+
+    it('メニューからアーカイブすると、木を取り直す', async () => {
+      // 消えるのは 1 枚とは限らない（子孫ごと消える）ので、手元で抜くとずれる。
+      renderSidebar();
+      await screen.findByText('設計メモ');
+      const before = hoisted.fetchPageTree.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブ' }));
+
+      await waitFor(() => expect(hoisted.archivePage).toHaveBeenCalledWith('acme', 'p1'));
+      await waitFor(() =>
+        expect(hoisted.fetchPageTree.mock.calls.length).toBeGreaterThan(before),
+      );
+    });
+
+    it('操作中に切り替えても、取り直しは新しいスコープで走る', async () => {
+      // アーカイブの完了は await をまたぐ。その間に切り替えられたとき、書き換えを
+      // 始めた時点のスコープで取りに行くと、**古い木が新しい表示に入る**。
+      let finishArchive: () => void = () => {};
+      hoisted.archivePage.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishArchive = resolve;
+          }),
+      );
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブ' }));
+      await waitFor(() => expect(hoisted.archivePage).toHaveBeenCalled());
+
+      // まだ終わっていないうちに切り替える。
+      openArchive();
+      await waitFor(() =>
+        expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: true }),
+      );
+      hoisted.fetchPageTree.mockClear();
+
+      await act(async () => {
+        finishArchive();
+      });
+
+      await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalled());
+      for (const call of hoisted.fetchPageTree.mock.calls) {
+        expect(call[2]).toEqual({ archived: true });
+      }
+    });
+
+    it('アーカイブに失敗したら知らせを出す', async () => {
+      hoisted.archivePage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: 'アーカイブ' }));
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith('error', 'アーカイブできませんでした'),
+      );
+      expect(hoisted.showToast).not.toHaveBeenCalledWith('success', expect.anything());
+    });
+
+    it('復帰に失敗したら知らせを出す', async () => {
+      hoisted.unarchivePage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('設計メモ');
+      openArchive();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '復帰' }));
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith('error', '復帰できませんでした'),
+      );
     });
   });
 

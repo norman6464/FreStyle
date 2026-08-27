@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { EllipsisHorizontalIcon, PlusIcon } from '@heroicons/react/24/outline';
+import type { KbDropTarget, KbMoveActions } from '@/entities/knowledge-base';
 
 export interface KbRowActionsProps {
   /** 読み上げに使う対象の名前（「〜の下にページを追加」のように読ませる）。 */
@@ -8,6 +9,9 @@ export interface KbRowActionsProps {
   /** 未指定ならメニュー自体を出さない（スペースの見出しなど、名前を変えられない行）。 */
   onRename?: () => void;
   onArchive?: () => void;
+  /** 動かせる 4 つの向き。null の向きは項目自体を出さない（押せない項目を並べない）。 */
+  moves?: KbMoveActions;
+  onMove?: (target: KbDropTarget) => void;
 }
 
 /**
@@ -17,7 +21,14 @@ export interface KbRowActionsProps {
  * たどり着いたときだけ**濃くする。`opacity` で消しているだけで DOM からは外さない —
  * 外すと Tab の順序が触れるたびに変わり、キーボードでは追えなくなる。
  */
-export default function KbRowActions({ label, onCreateChild, onRename, onArchive }: KbRowActionsProps) {
+export default function KbRowActions({
+  label,
+  onCreateChild,
+  onRename,
+  onArchive,
+  moves,
+  onMove,
+}: KbRowActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +90,38 @@ export default function KbRowActions({ label, onCreateChild, onRename, onArchive
                   名前を変更
                 </button>
               </li>
+              {/*
+                動かす項目。**ドラッグと同じ行き先を、同じ経路で送る。**
+                キーボードだけの人にはこれが唯一の並べ替えの手段になるので、
+                押せない向きは項目ごと出さない（押しても何も起きない項目を並べない）。
+              */}
+              {moves &&
+                onMove &&
+                (
+                  [
+                    ['up', '上へ移動'],
+                    ['down', '下へ移動'],
+                    ['indent', 'ひとつ内側へ'],
+                    ['outdent', 'ひとつ外側へ'],
+                  ] as const
+                ).map(([key, text]) => {
+                  const target = moves[key];
+                  if (!target) return null;
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onMove(target);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-surface-2"
+                      >
+                        {text}
+                      </button>
+                    </li>
+                  );
+                })}
               {onArchive && (
                 <li>
                   <button

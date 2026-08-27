@@ -1,86 +1,6 @@
 import type { KbPage, KbPageTreeNode } from '../model/types';
 
 /**
- * サイドバーに 1 行として描くための、木を平らにしたもの。
- *
- * 木のまま再帰コンポーネントで描くこともできるが、平らな配列にしておくと
- * キーボード操作（上下移動）と仮想スクロールがそのまま素直に書ける。木の形は depth が持つ。
- */
-export interface KbTreeRow {
-  kind: 'page';
-  page: KbPage;
-  /** 0 がスペース直下。1 段下がるごとに 1 増える。 */
-  depth: number;
-  /** 見える子を持つか。**伏せた子しか居ない場合は false**（開いても何も出ないため）。 */
-  hasChildren: boolean;
-  /** いま開いているか。子を持たない行では常に false。 */
-  expanded: boolean;
-  /**
-   * 親がアーカイブ済みか。アーカイブ済みの一覧でだけ意味を持つ。
-   * 復帰できるかの規則（親がアーカイブ中なら断る）は backend が持つので、
-   * ここでは事実のまま運ぶ。
-   */
-  parentArchived: boolean;
-}
-
-/**
- * 「この段に、自分には見えないページが在る」ことだけを示す行。**枚数は持たない。**
- *
- * ページの行とは別の要素にしてある。ページの行の中に混ぜると、
- * **子より前**に出てしまう（平らにした配列では、親の要素が子より先に来るため）。
- * 伏せた分は最後の子の後ろに来るのが読み順として正しい。
- */
-export interface KbHiddenRow {
-  kind: 'hidden';
-  /** どの段の直下か。スペース直下は null。 */
-  parentId: string | null;
-  depth: number;
-}
-
-export type KbTreeEntry = KbTreeRow | KbHiddenRow;
-
-/**
- * flattenKbTree は木を、いま開いている段だけの平らな行の並びに変換する。
- *
- * 閉じている行の子孫は結果に入らない（描かないものは行にしない）。
- * 兄弟順は backend が返した配列の順序をそのまま保つ。ここで並べ替えないこと
- * （並び順のキーは意図的に返ってこない。配列の順序だけが正）。
- */
-export function flattenKbTree(
-  nodes: KbPageTreeNode[],
-  expandedIds: ReadonlySet<string>,
-  depth = 0,
-): KbTreeEntry[] {
-  const entries: KbTreeEntry[] = [];
-  for (const node of nodes) {
-    const hasChildren = node.children.length > 0;
-    const expanded = hasChildren && expandedIds.has(node.page.id);
-    entries.push({
-      kind: 'page',
-      page: node.page,
-      depth,
-      hasChildren,
-      expanded,
-      parentArchived: node.parentArchived,
-    });
-
-    if (expanded) {
-      entries.push(...flattenKbTree(node.children, expandedIds, depth + 1));
-    }
-
-    // 伏せたものが在る印は、その段の中身の**最後**に置く。
-    //
-    // 閉じている段では出さない。閉じた段の中身は見える子も出していないのだから、
-    // 伏せた分だけを出すと「閉じているのに何かが書いてある」行になる。
-    // 見える子が 1 枚も無い段は開けないので、そこは閉じている扱いにせず出す。
-    if (node.hasHiddenChildren && (expanded || !hasChildren)) {
-      entries.push({ kind: 'hidden', parentId: node.page.id, depth: depth + 1 });
-    }
-  }
-  return entries;
-}
-
-/**
  * searchAncestors は「見つからなかった」を null、「見つかった」を根からの祖先 ID で返す。
  *
  * 空配列を「見つからなかった」に使えないのが要点。**対象が根そのものだったとき**の
@@ -215,4 +135,43 @@ export function moveKbPageInTree(
   // 自分の子孫が落下先なら、動かすと木が根から切り離される。
   if (findNode(found.node.children, target.pageId)) return null;
   return insertNode(removeNode(nodes, pageId), found.node, target);
+}
+
+/**
+ * 行のメニューから呼べる 4 つの動かし方。動かせない向きは null。
+ *
+ * ドラッグと同じ「隣のページの ID」で表すので、送り先の API も同じ。
+ * キーボードのためだけに別の経路を作らない（作ると失敗の扱いも二重になる）。
+ */
+export interface KbMoveActions {
+  /** ひとつ上の兄弟の手前へ。先頭なら null。 */
+  up: KbDropTarget | null;
+  /** ひとつ下の兄弟の直後へ。末尾なら null。 */
+  down: KbDropTarget | null;
+  /** ひとつ上の兄弟の子へ。先頭なら null（受け入れる相手がいない）。 */
+  indent: KbDropTarget | null;
+  /** 親の直後へ（ひとつ外側の段に出る）。すでに最上段なら null。 */
+  outdent: KbDropTarget | null;
+}
+
+/**
+ * kbMoveActions は、その行から動かせる 4 つの向きを求める。
+ *
+ * 兄弟は**画面に出ている並び**をそのまま使う。伏せられている兄弟は数に入っていないが、
+ * 「見えている隣の隣へ」という利用者の意図はそれで正しく表せる（実際のキーの計算は
+ * サーバーが伏せた兄弟も含めて行うので、隙間に落ちることはない）。
+ */
+export function kbMoveActions(
+  siblings: KbPageTreeNode[],
+  index: number,
+  parentId: string | null,
+): KbMoveActions {
+  const previous = siblings[index - 1];
+  const next = siblings[index + 1];
+  return {
+    up: previous ? { kind: 'before', pageId: previous.page.id } : null,
+    down: next ? { kind: 'after', pageId: next.page.id } : null,
+    indent: previous ? { kind: 'into', pageId: previous.page.id } : null,
+    outdent: parentId ? { kind: 'after', pageId: parentId } : null,
+  };
 }

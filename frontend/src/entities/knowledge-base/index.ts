@@ -1,11 +1,11 @@
 export { default as KnowledgeBaseRepository } from './api/knowledgeBaseRepository';
 export {
-  flattenKbTree,
   collectKbAncestorIds,
   replaceKbPageInTree,
   moveKbPageInTree,
+  kbMoveActions,
 } from './lib/tree';
-export type { KbTreeRow, KbHiddenRow, KbTreeEntry, KbDropTarget } from './lib/tree';
+export type { KbDropTarget, KbMoveActions } from './lib/tree';
 export type {
   KbWorkspace,
   KbSpace,

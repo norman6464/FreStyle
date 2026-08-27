@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { flattenKbTree, type KbDropTarget, type KbPage, type KbSpace } from '@/entities/knowledge-base';
+import type { KbDropTarget, KbPage, KbSpace } from '@/entities/knowledge-base';
 import { toDropTarget, type KbDropZone } from '../model/dropZone';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import type { KbSpaceState } from '../model/useKnowledgeBaseTree';
-import KbPageRow from './KbPageRow';
-import KbHiddenChildrenRow from './KbHiddenChildrenRow';
+import KbTreeList from './KbTreeList';
 
 export interface KbSpaceSectionProps {
   space: KbSpace;
@@ -76,8 +75,8 @@ export default function KbSpaceSection({
   const [dropAt, setDropAt] = useState<{ pageId: string; zone: KbDropZone } | null>(null);
 
   const open = state?.open ?? false;
-  const entries = state?.tree ? flattenKbTree(state.tree.pages, expandedPageIds) : [];
-  const hiddenAtRoot = state?.tree?.hasHiddenChildren ?? false;
+  const tree = state?.tree ?? null;
+  const hiddenAtRoot = tree?.hasHiddenChildren ?? false;
 
   const createPage = async (parentId?: string) => {
     try {
@@ -122,16 +121,20 @@ export default function KbSpaceSection({
     setDropAt(null);
   };
 
-  const dropOnRow = async (pageId: string, zone: KbDropZone) => {
-    const moving = draggingPageId;
-    endDrag();
-    if (!moving || moving === pageId) return;
+  const movePage = async (pageId: string, target: KbDropTarget) => {
     try {
-      await onMovePage(space.id, moving, toDropTarget(zone, pageId));
+      await onMovePage(space.id, pageId, target);
     } catch {
       // 並びは model 側で動かす前へ戻っている。ここは知らせるだけ。
       showToast('error', '移動できませんでした');
     }
+  };
+
+  const dropOnRow = async (pageId: string, zone: KbDropZone) => {
+    const moving = draggingPageId;
+    endDrag();
+    if (!moving || moving === pageId) return;
+    await movePage(moving, toDropTarget(zone, pageId));
   };
 
   return (
@@ -186,53 +189,46 @@ export default function KbSpaceSection({
             </div>
           )}
 
-          {!state?.loading && !state?.error && entries.length === 0 && !hiddenAtRoot && (
+          {!state?.loading && !state?.error && !tree?.pages.length && !hiddenAtRoot && (
             <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
               {archivedMode ? 'アーカイブしたページはありません' : 'ページがありません'}
             </p>
           )}
 
-          {entries.length > 0 && (
-            // 平らな配列だが aria-level で段を伝えるので、木として読み上げられる。
-            <ul role="tree" aria-label={`${space.name} のページ`} className="space-y-px">
-              {entries.map((entry) =>
-                entry.kind === 'page' ? (
-                  <KbPageRow
-                    key={entry.page.id}
-                    row={entry}
-                    workspaceSlug={workspaceSlug}
-                    active={entry.page.id === activePageId}
-                    onToggle={onTogglePage}
-                    renaming={entry.page.id === renamingPageId}
-                    onStartRename={setRenamingPageId}
-                    onCancelRename={() => setRenamingPageId(null)}
-                    onCommitRename={commitRename}
-                    onCreateChild={(parentId) => void createPage(parentId)}
-                    onArchive={(pageId) => void archivePage(pageId)}
-                    archivedMode={archivedMode}
-                    onUnarchive={(pageId) => void unarchivePage(pageId)}
-                    // アーカイブ済みでは並べ替えを受け付けない（現役に戻してから）。
-                    draggable={!archivedMode}
-                    dragging={entry.page.id === draggingPageId}
-                    onDragStart={setDraggingPageId}
-                    onDragEnd={endDrag}
-                    dropZone={
-                      dropAt?.pageId === entry.page.id && draggingPageId !== entry.page.id
-                        ? dropAt.zone
-                        : null
-                    }
-                    onDragOverRow={(pageId, zone) => setDropAt({ pageId, zone })}
-                    onDropOnRow={(pageId, zone) => void dropOnRow(pageId, zone)}
-                  />
-                ) : (
-                  <KbHiddenChildrenRow key={`hidden-${entry.parentId}`} depth={entry.depth} />
-                ),
-              )}
-            </ul>
+          {tree && tree.pages.length > 0 && (
+            <KbTreeList
+              nodes={tree.pages}
+              depth={0}
+              parentId={null}
+              hasHiddenChildren={tree.hasHiddenChildren}
+              expandedPageIds={expandedPageIds}
+              activePageId={activePageId}
+              workspaceSlug={workspaceSlug}
+              renamingPageId={renamingPageId}
+              draggingPageId={draggingPageId}
+              dropAt={dropAt}
+              archivedMode={archivedMode}
+              label={`${space.name} のページ`}
+              onToggle={onTogglePage}
+              onStartRename={setRenamingPageId}
+              onCancelRename={() => setRenamingPageId(null)}
+              onCommitRename={commitRename}
+              onCreateChild={(parentId) => void createPage(parentId)}
+              onArchive={(pageId) => void archivePage(pageId)}
+              onUnarchive={(pageId) => void unarchivePage(pageId)}
+              onMove={(pageId, target) => void movePage(pageId, target)}
+              onDragStart={setDraggingPageId}
+              onDragEnd={endDrag}
+              onDragOverRow={(pageId, zone) => setDropAt({ pageId, zone })}
+              onDropOnRow={(pageId, zone) => void dropOnRow(pageId, zone)}
+            />
           )}
 
-          {/* スペース直下の印。1 件も見えないスペースでは backend が必ず false を返す。 */}
-          {hiddenAtRoot && (
+          {/*
+            スペース直下の印。ページが 1 枚も無いときはここが出す（一覧そのものを描かないため）。
+            1 枚でもあれば一覧の末尾に出る。1 件も見えないスペースでは backend が必ず false を返す。
+          */}
+          {!tree?.pages.length && hiddenAtRoot && (
             <p className="px-2 py-0.5 text-xs text-[var(--color-text-muted)]">
               表示できないページがあります
             </p>

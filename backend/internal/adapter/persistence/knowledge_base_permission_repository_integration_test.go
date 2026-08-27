@@ -192,7 +192,8 @@ func TestKnowledgeBasePageSpaceScope_Integration(t *testing.T) {
 		onExisting, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, page.ID, f.carol)
 		require.NoError(t, err)
 		onMissing, err := f.perm.PageSpaceScopeFactsForUser(
-			ctx, f.ws, "0198a000-0000-7000-8000-0000000000ff", f.carol)
+			ctx, f.ws, "0198a000-0000-7000-8000-0000000000ff", f.carol,
+		)
 		require.NoError(t, err)
 		onGarbage, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, "not-a-uuid", f.carol)
 		require.NoError(t, err)

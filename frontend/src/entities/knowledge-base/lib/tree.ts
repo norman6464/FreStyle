@@ -18,7 +18,7 @@ export interface KbTreeRow {
 }
 
 /**
- * 「この段に、自分には見えないページが n 枚ある」ことだけを示す行。
+ * 「この段に、自分には見えないページが在る」ことだけを示す行。**枚数は持たない。**
  *
  * ページの行とは別の要素にしてある。ページの行の中に混ぜると、
  * **子より前**に出てしまう（平らにした配列では、親の要素が子より先に来るため）。
@@ -29,7 +29,6 @@ export interface KbHiddenRow {
   /** どの段の直下か。スペース直下は null。 */
   parentId: string | null;
   depth: number;
-  count: number;
 }
 
 export type KbTreeEntry = KbTreeRow | KbHiddenRow;
@@ -38,8 +37,8 @@ export type KbTreeEntry = KbTreeRow | KbHiddenRow;
  * flattenKbTree は木を、いま開いている段だけの平らな行の並びに変換する。
  *
  * 閉じている行の子孫は結果に入らない（描かないものは行にしない）。
- * 兄弟順は backend が position 順で返したものをそのまま保つ。ここで並べ替えないこと
- * （分数インデックスの辞書順が正で、フロントで再現すると必ずずれる）。
+ * 兄弟順は backend が返した配列の順序をそのまま保つ。ここで並べ替えないこと
+ * （並び順のキーは意図的に返ってこない。配列の順序だけが正）。
  */
 export function flattenKbTree(
   nodes: KbPageTreeNode[],
@@ -56,18 +55,13 @@ export function flattenKbTree(
       entries.push(...flattenKbTree(node.children, expandedIds, depth + 1));
     }
 
-    // 伏せた件数は、その段の中身の**最後**に置く。
+    // 伏せたものが在る印は、その段の中身の**最後**に置く。
     //
     // 閉じている段では出さない。閉じた段の中身は見える子も出していないのだから、
     // 伏せた分だけを出すと「閉じているのに何かが書いてある」行になる。
     // 見える子が 1 枚も無い段は開けないので、そこは閉じている扱いにせず出す。
-    if (node.hiddenChildCount > 0 && (expanded || !hasChildren)) {
-      entries.push({
-        kind: 'hidden',
-        parentId: node.page.id,
-        depth: depth + 1,
-        count: node.hiddenChildCount,
-      });
+    if (node.hasHiddenChildren && (expanded || !hasChildren)) {
+      entries.push({ kind: 'hidden', parentId: node.page.id, depth: depth + 1 });
     }
   }
   return entries;

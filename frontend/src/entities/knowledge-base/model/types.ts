@@ -5,7 +5,7 @@
  *
  *   ワークスペース  会社の境界。同時に 2 つ見る場面が無いので UI では「切り替え」で表す
  *     └ スペース    部署や個人の区画。同時に見たいので UI では「見出し」で並べる
- *         └ ページ  木。親を持ち、兄弟の中での位置を position で持つ
+ *         └ ページ  木。親を持ち、兄弟の並び順は配列の順序で表される
  *
  * リッチ文書（entities/document）とは別系統であることに注意。あちらは所有者スコープの
  * 平らな一覧で、こちらは付与（grant）と例外（restriction）で解決する木。当面は並存する。
@@ -29,15 +29,16 @@ export interface KbSpace {
 /**
  * ページ 1 件（本文は含まない）。
  *
- * position は**分数インデックス**。兄弟の並び順を「a0」「a1」のような文字列で持ち、
- * 辞書順で並べる。間に挿すときは隣り合う 2 つの中間値を計算するだけで済み、
- * 他の行を書き換えない（整数の連番だと以降を全部ずらす必要があり、木では現実的でない）。
+ * **並び順のキー（position）は入っていない。** backend が意図的に返していない。
+ * 分数インデックスの整数部は末尾追加のたびに 1 ずつ増えるので、a0 と a3 が見えて
+ * a1 a2 が見えなければ、その間に 2 枚あることがそのまま読めてしまうため。
+ *
+ * 並び順は**配列の順序そのもの**が持っている。ここで並べ替えないこと。
  */
 export interface KbPage {
   id: string;
   spaceId: string;
   parentId?: string;
-  position: string;
   title: string;
   createdByUserId: number;
   archivedAt?: string;
@@ -48,28 +49,32 @@ export interface KbPage {
 /**
  * ツリーの 1 ノード。
  *
- * hiddenChildCount は「この段の直下にある、自分には見えないページの数」。
- * 題名は返ってこない（件数だけ）。0 のときは何も示さない。
+ * hasHiddenChildren は「この段の直下に、自分には見えないページが在るか」。
+ * **枚数も題名も返ってこない。**
  *
  * 見えないページをただ消すと、木に穴が空いた理由が分からず「壊れている」と読まれるので、
- * 居ることだけを示す。なお**見えない親の配下は件数にも入らない**（backend 側で数えていない。
- * 数えると「見えない枝の中に何枚あるか」まで漏れるため）。
+ * 居ることだけを示す。枚数を出さないのは、利用者にとって「2 枚」と「7 枚」の差が行動を
+ * 何も変えないのに、伏せた量に比例して漏れる情報が増えるため。
+ *
+ * なお**見えない親の配下は印にも出ない**（backend 側で見ていない。見ると
+ * 「見えない枝の中にも何かある」ことまで漏れるため）。
  */
 export interface KbPageTreeNode {
   page: KbPage;
   children: KbPageTreeNode[];
-  hiddenChildCount: number;
+  hasHiddenChildren: boolean;
 }
 
 /**
  * ツリー取得の応答全体。
  *
- * hiddenChildCount はスペース直下で伏せた件数。**1 件も見えないスペースでは必ず 0** になる
- * （存在しないスペースと撃ち分けると、スペース ID の総当たりで実在が分かってしまうため）。
+ * hasHiddenChildren はスペース直下に見えないページが在るか。
+ * **1 件も見えないスペースでは必ず false** になる（存在しないスペースと撃ち分けると、
+ * 応答の差からスペース ID の実在を数え上げられてしまうため）。
  */
 export interface KbPageTree {
   pages: KbPageTreeNode[];
-  hiddenChildCount: number;
+  hasHiddenChildren: boolean;
 }
 
 /**

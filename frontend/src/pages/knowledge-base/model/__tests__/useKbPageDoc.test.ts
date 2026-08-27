@@ -12,7 +12,6 @@ const pageDoc = (title: string) => ({
   page: {
     id: 'p1',
     spaceId: 's1',
-    position: 'a0',
     title,
     createdByUserId: 1,
     createdAt: '2026-08-01T00:00:00Z',

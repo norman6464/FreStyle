@@ -4764,7 +4764,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hiddenChildCount は その 段 の 直下 に ある 閲覧 でき ない ページ の 件数 で、 題名 は 返さ ない。",
+                "description": "スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hasHiddenChildren は その 段 の 直下 に 閲覧 でき ない ページ が 在る か で、 枚数 も 題名 も 返さ ない。",
                 "produces": [
                     "application/json"
                 ],
@@ -7954,10 +7954,6 @@ const docTemplate = `{
                 "parentId": {
                     "type": "string"
                 },
-                "position": {
-                    "type": "string",
-                    "example": "a0"
-                },
                 "spaceId": {
                     "type": "string",
                     "example": "0198a000-0000-7000-8000-000000000002"
@@ -8007,10 +8003,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/internal_handler.kbPageTreeResponse"
                     }
                 },
-                "hiddenChildCount": {
-                    "description": "HiddenChildCount はこのページの直下にある、閲覧できないページの数。\n題名は出さない（件数だけ）。判断の理由は ListViewablePagesOutput の doc に書いてある。",
-                    "type": "integer",
-                    "example": 0
+                "hasHiddenChildren": {
+                    "description": "HasHiddenChildren はこのページの直下に、閲覧できないページが在るか。\n枚数も題名も出さない。理由は ListViewablePagesOutput の doc に書いてある。",
+                    "type": "boolean",
+                    "example": false
                 },
                 "page": {
                     "$ref": "#/definitions/internal_handler.kbPageResponse"
@@ -8020,10 +8016,10 @@ const docTemplate = `{
         "internal_handler.kbPageTreeRootResponse": {
             "type": "object",
             "properties": {
-                "hiddenChildCount": {
-                    "description": "HiddenChildCount はスペース直下にある、閲覧できないページの数。\n1 件も見えないスペースでは必ず 0（存在しないスペースと撃ち分けないため）。",
-                    "type": "integer",
-                    "example": 0
+                "hasHiddenChildren": {
+                    "description": "HasHiddenChildren はスペース直下に、閲覧できないページが在るか。\n1 件も見えないスペースでは必ず false（存在しないスペースと撃ち分けないため）。",
+                    "type": "boolean",
+                    "example": false
                 },
                 "pages": {
                     "type": "array",

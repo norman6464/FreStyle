@@ -7,7 +7,6 @@ function page(id: string, title = id): KbPage {
   return {
     id,
     spaceId: 'space-1',
-    position: 'a0',
     title,
     createdByUserId: 1,
     createdAt: '2026-08-01T00:00:00Z',
@@ -15,13 +14,13 @@ function page(id: string, title = id): KbPage {
   };
 }
 
-function node(id: string, children: KbPageTreeNode[] = [], hidden = 0): KbPageTreeNode {
-  return { page: page(id), children, hiddenChildCount: hidden };
+function node(id: string, children: KbPageTreeNode[] = [], hidden = false): KbPageTreeNode {
+  return { page: page(id), children, hasHiddenChildren: hidden };
 }
 
-/** ids は行の並びを「ページ ID」と「伏せた件数の印」で表したもの（読み順そのもの）。 */
+/** ids は行の並びを「ページ ID」と「伏せたものが在る印」で表したもの（読み順そのもの）。 */
 function ids(entries: ReturnType<typeof flattenKbTree>): string[] {
-  return entries.map((e) => (e.kind === 'page' ? e.page.id : `hidden:${e.count}`));
+  return entries.map((e) => (e.kind === 'page' ? e.page.id : 'hidden'));
 }
 
 describe('flattenKbTree', () => {
@@ -50,33 +49,33 @@ describe('flattenKbTree', () => {
     expect(ids(flattenKbTree(tree, new Set(['a1'])))).toEqual(['a']);
   });
 
-  it('伏せた件数は、その段の子の最後に出す', () => {
+  it('伏せたものが在る印は、その段の子の最後に出す', () => {
     // 平らにした配列では親の要素が子より先に来るので、ページの行に混ぜると
-    // 「1 ページは表示できません」が子より前に出てしまう。
-    const tree = [node('a', [node('a1'), node('a2')], 1)];
+    // 「表示できないページがあります」が子より前に出てしまう。
+    const tree = [node('a', [node('a1'), node('a2')], true)];
 
-    expect(ids(flattenKbTree(tree, new Set(['a'])))).toEqual(['a', 'a1', 'a2', 'hidden:1']);
+    expect(ids(flattenKbTree(tree, new Set(['a'])))).toEqual(['a', 'a1', 'a2', 'hidden']);
   });
 
-  it('閉じている段では伏せた件数を出さない', () => {
+  it('閉じている段では伏せた印を出さない', () => {
     // 見える子も出していないのに伏せた分だけ出すと、閉じているのに何か書いてある行になる。
-    const tree = [node('a', [node('a1')], 1)];
+    const tree = [node('a', [node('a1')], true)];
 
     expect(ids(flattenKbTree(tree, new Set()))).toEqual(['a']);
   });
 
-  it('見える子が 1 枚も無い段では、閉じていても伏せた件数を出す', () => {
+  it('見える子が 1 枚も無い段では、閉じていても伏せた印を出す', () => {
     // 開けない段なので、出さないと永久に伝わらない。
-    const tree = [node('a', [], 3)];
+    const tree = [node('a', [], true)];
 
     const entries = flattenKbTree(tree, new Set());
 
-    expect(ids(entries)).toEqual(['a', 'hidden:3']);
+    expect(ids(entries)).toEqual(['a', 'hidden']);
     expect(entries[0]).toMatchObject({ kind: 'page', hasChildren: false, expanded: false });
   });
 
-  it('伏せた件数の行は、子と同じ段に置く', () => {
-    const tree = [node('a', [node('a1')], 2)];
+  it('伏せた印の行は、子と同じ段に置く', () => {
+    const tree = [node('a', [node('a1')], true)];
 
     const entries = flattenKbTree(tree, new Set(['a']));
 

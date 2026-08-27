@@ -295,8 +295,8 @@ func Test_ナレッジ基盤API_権限が無いユーザーは全経路で404(t 
 		f := newKbFixture(kbNoPerm, kbUserID)
 		w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, w.Body.String(),
-			"1 件も見えないスペースは空のツリー。伏せた件数も返さない（実在オラクルになるため）")
+		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, w.Body.String(),
+			"1 件も見えないスペースは空のツリー。伏せた印も返さない（存在しないスペースと\n\t\t\t\t撃ち分けると、応答の差から実在が分かるため）")
 	})
 }
 
@@ -427,7 +427,7 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みページは現れな
 	assert.Empty(t, tree[0].Children)
 }
 
-func Test_ナレッジ基盤ツリー_見えない子は件数だけ返す(t *testing.T) {
+func Test_ナレッジ基盤ツリー_見えない子は有無だけ返す(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// 応答に混ざっていないことを確かめたいので、schema の項目名と衝突しない題名にする
 	// （既定の "child" は children 項目に含まれてしまい、検査が素通りする）。
@@ -443,15 +443,19 @@ func Test_ナレッジ基盤ツリー_見えない子は件数だけ返す(t *te
 
 	assert.Equal(t, kbRootPageID, body.Pages[0].Page.ID)
 	assert.Empty(t, body.Pages[0].Children, "見えない子はツリーに現れない")
-	assert.Equal(t, 1, body.Pages[0].HiddenChildCount, "現れない代わりに件数だけ出す")
-	assert.Equal(t, 0, body.HiddenChildCount, "根の段では伏せていない")
+	assert.True(t, body.Pages[0].HasHiddenChildren, "現れない代わりに、在ることだけ出す")
+	assert.False(t, body.HasHiddenChildren, "根の段では伏せていない")
+	// 枚数が載る余地が無いことを、応答の形そのもので確かめる。
+	// 中身の substring で数字を探すのは無意味（UUID や日時にも数字が入る）。
+	assert.NotContains(t, w.Body.String(), "hiddenChildCount", "枚数を返す項目が復活していないこと")
+	assert.Contains(t, w.Body.String(), `"hasHiddenChildren":true`)
 
 	assert.NotContains(t, w.Body.String(), "機密の議事録", "題名は応答のどこにも出さない")
 }
 
-func Test_ナレッジ基盤ツリー_スペース直下の見えないページも件数に出る(t *testing.T) {
+func Test_ナレッジ基盤ツリー_スペース直下の見えないページも印に出る(t *testing.T) {
 	// 段ごとに「見えない子が居る」と示す以上、いちばん上の段だけ黙るのは筋が通らない。
-	// 1 枚でも見えていればスペースの実在は既に分かっているので、実在オラクルにはならない。
+	// 1 枚でも見えていればスペースの実在は既に分かっているので、実在は新たに漏れない。
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.setPagePermission(kbDestPageID, kbUserID, kbNoPerm)
 
@@ -462,7 +466,40 @@ func Test_ナレッジ基盤ツリー_スペース直下の見えないページ
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	require.Len(t, body.Pages, 1, "見える根は root だけ")
 	assert.Equal(t, kbRootPageID, body.Pages[0].Page.ID)
-	assert.Equal(t, 1, body.HiddenChildCount, "スペース直下で伏せた 1 枚を件数に出す")
+	assert.True(t, body.HasHiddenChildren, "スペース直下で伏せた分を印に出す")
+}
+
+func Test_ナレッジ基盤ツリー_見える根が無いときは存在しないスペースと同じ応答(t *testing.T) {
+	// 根が非公開で、その子だけ閲覧できる形。木には 1 行も出ない。
+	// このとき印を返すと、存在しないスペースと撃ち分けられて実在が漏れる。
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setPagePermission(kbRootPageID, kbUserID, kbNoPerm)
+	f.perms.setPagePermission(kbDestPageID, kbUserID, kbNoPerm)
+
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	missing := f.do(t, http.MethodGet,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/0198a000-0000-7000-8000-00000000beef/pages", "")
+
+	assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, w.Body.String())
+	assert.Equal(t, missing.Body.String(), w.Body.String(),
+		"存在しないスペースの応答と 1 バイトも変わらないこと")
+}
+
+func Test_ナレッジ基盤ツリー_並び順のキーを応答に出さない(t *testing.T) {
+	// 分数インデックスの整数部は末尾追加のたびに 1 ずつ増える。a0 と a3 が見えて
+	// a1 a2 が見えなければ、その間に 2 枚あることがそのまま読める。
+	// hasHiddenChildren を有無に落として枚数を伏せた意味が、この 1 項目で消える。
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	assert.NotContains(t, w.Body.String(), `"position"`)
+	// fixture は a0 / a2 を使っている（間が空いている＝伏せた 1 枚が読める形）。
+	assert.NotContains(t, w.Body.String(), `"a0"`)
+	assert.NotContains(t, w.Body.String(), `"a2"`)
 }
 
 func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
@@ -471,7 +508,7 @@ func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリ
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/0198a000-0000-7000-8000-00000000beef/pages", "")
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, w.Body.String(),
+	assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, w.Body.String(),
 		"存在しないスペースと中身が見えないスペースを撃ち分けない")
 }
 

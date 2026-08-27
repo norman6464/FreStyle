@@ -355,7 +355,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, e.do(t, http.MethodPost, e.pagePath(root)+"/archive", "").Code)
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, tree.Body.String())
+		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, tree.Body.String())
 
 		require.Equal(t, http.StatusOK, e.do(t, http.MethodPost, e.pagePath(root)+"/unarchive", "").Code)
 		tree = e.do(t, http.MethodGet, e.pagesPath(), "")
@@ -502,7 +502,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(root), "").Code)
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
-		assert.JSONEq(t, `{"pages":[],"hiddenChildCount":0}`, tree.Body.String())
+		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, tree.Body.String())
 	})
 }
 

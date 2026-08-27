@@ -38,7 +38,6 @@ function page(id: string, title = id): KbPage {
   return {
     id,
     spaceId: 'space-1',
-    position: 'a0',
     title,
     createdByUserId: 1,
     createdAt: '2026-08-01T00:00:00Z',
@@ -47,20 +46,20 @@ function page(id: string, title = id): KbPage {
 }
 
 function tree(
-  nodes: { id: string; title?: string; hidden?: number; children?: string[] }[],
-  hiddenAtRoot = 0,
+  nodes: { id: string; title?: string; hidden?: boolean; children?: string[] }[],
+  hiddenAtRoot = false,
 ): KbPageTree {
   return {
     pages: nodes.map((n) => ({
       page: page(n.id, n.title),
-      hiddenChildCount: n.hidden ?? 0,
+      hasHiddenChildren: n.hidden ?? false,
       children: (n.children ?? []).map((childId) => ({
         page: page(childId),
-        hiddenChildCount: 0,
+        hasHiddenChildren: false,
         children: [],
       })),
     })),
-    hiddenChildCount: hiddenAtRoot,
+    hasHiddenChildren: hiddenAtRoot,
   };
 }
 
@@ -108,17 +107,43 @@ describe('KbSidebar', () => {
     await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-2'));
   });
 
-  it('伏せた子の件数を出し、題名は出さない', async () => {
-    hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ', hidden: 2 }]));
+  it('子を持つページはフォルダ、持たないページは紙にする', async () => {
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([{ id: 'p1', title: '親ページ', children: ['p1-child'] }, { id: 'p2', title: '葉ページ' }]),
+    );
+    renderSidebar();
+    await screen.findByText('親ページ');
+
+    // リンクとして引く。役割とアクセシブルな名前の崩れも一緒に捕まえられる。
+    const iconOf = (title: string) =>
+      screen.getByRole('link', { name: title }).querySelector('[data-icon]')?.getAttribute('data-icon');
+
+    expect(iconOf('親ページ')).toBe('page-group');
+    expect(iconOf('葉ページ')).toBe('page');
+  });
+
+  it('伏せた子しか居ないページはフォルダにしない', async () => {
+    // 開閉の三角が無いのにフォルダ、という食い違った行になるうえ、
+    // 「この下に何かある」ことを形からも二重に漏らすことになる。
+    hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ', hidden: true }]));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const icon = screen.getByRole('link', { name: '設計メモ' }).querySelector('[data-icon]');
+    expect(icon?.getAttribute('data-icon')).toBe('page');
+  });
+
+  it('伏せた子が在ることだけを出し、枚数も題名も出さない', async () => {
+    hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ', hidden: true }]));
 
     renderSidebar();
 
-    expect(await screen.findByText('2 ページは表示できません')).toBeInTheDocument();
+    expect(await screen.findByText('表示できないページがあります')).toBeInTheDocument();
   });
 
   it('伏せた子しか居ない行に開閉ボタンを出さない', async () => {
     // 開いても何も出ない行に三角を出すと、押しても反応しない行になる。
-    hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ', hidden: 2 }]));
+    hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ', hidden: true }]));
 
     renderSidebar();
     await screen.findByText('設計メモ');
@@ -139,11 +164,11 @@ describe('KbSidebar', () => {
     expect(await screen.findByText('p1-child')).toBeInTheDocument();
   });
 
-  it('伏せた件数は、開いた段の子より後ろに出す', async () => {
+  it('伏せた印は、開いた段の子より後ろに出す', async () => {
     // 平らにした配列では親の要素が子より先に来るので、ページの行に混ぜると
-    // 件数が子より前に出る。読み順として最後の子の後ろが正しい。
+    // 印が子より前に出る。読み順として最後の子の後ろが正しい。
     hoisted.fetchPageTree.mockResolvedValue(
-      tree([{ id: 'p1', title: '設計メモ', hidden: 2, children: ['p1-child'] }]),
+      tree([{ id: 'p1', title: '設計メモ', hidden: true, children: ['p1-child'] }]),
     );
     renderSidebar();
     await screen.findByText('設計メモ');
@@ -152,19 +177,19 @@ describe('KbSidebar', () => {
     await screen.findByText('p1-child');
 
     const text = document.body.textContent ?? '';
-    expect(text.indexOf('p1-child')).toBeLessThan(text.indexOf('2 ページは表示できません'));
+    expect(text.indexOf('p1-child')).toBeLessThan(text.indexOf('表示できないページがあります'));
   });
 
-  it('閉じている段では伏せた件数を出さない', async () => {
+  it('閉じている段では伏せた印を出さない', async () => {
     // 見える子も出していないのに伏せた分だけ出すと、閉じているのに何か書いてある行になる。
     hoisted.fetchPageTree.mockResolvedValue(
-      tree([{ id: 'p1', title: '設計メモ', hidden: 2, children: ['p1-child'] }]),
+      tree([{ id: 'p1', title: '設計メモ', hidden: true, children: ['p1-child'] }]),
     );
 
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    expect(screen.queryByText('2 ページは表示できません')).not.toBeInTheDocument();
+    expect(screen.queryByText('表示できないページがあります')).not.toBeInTheDocument();
   });
 
   it('現在位置のページの祖先を自動で開く', async () => {

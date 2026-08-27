@@ -24,6 +24,10 @@ export interface KbPageRowProps {
   /** 確定。**失敗は投げてくる**ので、握り潰さない限り必ず表に出る。 */
   onCommitRename: (pageId: string, title: string) => Promise<void>;
   onCreateChild: (parentId: string) => void;
+  onArchive: (pageId: string) => void;
+  /** アーカイブ済みを見ているか。行に出す操作がまるごと変わる。 */
+  archivedMode: boolean;
+  onUnarchive: (pageId: string) => void;
 }
 
 /**
@@ -43,8 +47,11 @@ export default function KbPageRow({
   onCancelRename,
   onCommitRename,
   onCreateChild,
+  onArchive,
+  archivedMode,
+  onUnarchive,
 }: KbPageRowProps) {
-  const { page, depth, hasChildren, expanded } = row;
+  const { page, depth, hasChildren, expanded, parentArchived } = row;
 
   // 子を持つページはフォルダ、持たないページは紙。
   //
@@ -109,11 +116,27 @@ export default function KbPageRow({
               <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
               <span className="truncate">{page.title}</span>
             </Link>
-            <KbRowActions
-              label={page.title}
-              onCreateChild={() => onCreateChild(page.id)}
-              onRename={() => onStartRename(page.id)}
-            />
+            {archivedMode ? (
+              // アーカイブ済みの行では、作る・名前を変えるは出さない（現役に戻してから）。
+              // 復帰できるのはアーカイブの根だけ。親がまだアーカイブ中の行に出すと、
+              // 押せるのに必ず断られるボタンになる。
+              !parentArchived && (
+                <button
+                  type="button"
+                  onClick={() => onUnarchive(page.id)}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-xs text-[var(--color-text-muted)] opacity-0 transition-opacity hover:bg-surface-3 focus:opacity-100 group-hover:opacity-100"
+                >
+                  復帰
+                </button>
+              )
+            ) : (
+              <KbRowActions
+                label={page.title}
+                onCreateChild={() => onCreateChild(page.id)}
+                onRename={() => onStartRename(page.id)}
+                onArchive={() => onArchive(page.id)}
+              />
+            )}
           </>
         )}
       </div>

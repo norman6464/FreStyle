@@ -44,7 +44,19 @@ describe('KnowledgeBaseRepository', () => {
 
       await KnowledgeBaseRepository.fetchPageTree('acme', 'space-1');
 
-      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/space-1/pages');
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/space-1/pages', {
+        params: undefined,
+      });
+    });
+
+    it('archived を渡すとスコープを切り替える（別の口ではなく同じ口）', async () => {
+      mockGet.mockResolvedValue({ data: { pages: [], hasHiddenChildren: false } });
+
+      await KnowledgeBaseRepository.fetchPageTree('acme', 's1', { archived: true });
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s1/pages', {
+        params: { archived: 'true' },
+      });
     });
 
     it('hasHiddenChildren をそのまま通す', async () => {

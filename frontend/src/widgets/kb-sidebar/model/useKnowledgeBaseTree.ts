@@ -50,6 +50,10 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
   const [spacesError, setSpacesError] = useState<string | null>(null);
 
   const [spaceStates, setSpaceStates] = useState<Record<string, KbSpaceState>>({});
+  // アーカイブ済みを見ているか。**ワークスペース全体で 1 つ**の切り替えにしてある。
+  // スペースごとに持たせると「いまどちらを見ているのか」が場所によって変わり、
+  // 木を置き換えるという体験が成立しない（設計の「必要なときだけ木を置き換える」）。
+  const [archivedMode, setArchivedModeState] = useState(false);
   const [expandedPageIds, setExpandedPageIds] = useState<ReadonlySet<string>>(new Set());
 
   // 切り替えを速く繰り返したときに、古い応答が新しい表示を上書きするのを防ぐ。
@@ -133,7 +137,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
         [spaceId]: { ...(prev[spaceId] ?? emptySpaceState(true)), loading: true, error: null },
       }));
 
-      KnowledgeBaseRepository.fetchPageTree(activeSlug, spaceId)
+      KnowledgeBaseRepository.fetchPageTree(activeSlug, spaceId, { archived: archivedMode })
         .then((tree) => {
           if (token !== generation.current) return;
           setSpaceStates((prev) => ({
@@ -154,7 +158,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
           }));
         });
     },
-    [activeSlug],
+    [activeSlug, archivedMode],
   );
 
   // 開いていて、まだ取っていないスペースを取りに行く。
@@ -194,6 +198,55 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
       return { ...prev, [spaceId]: emptySpaceState(true) };
     });
   }, []);
+
+  /**
+   * 現役とアーカイブ済みを切り替える。
+   *
+   * 取得済みの木は**捨てる**。同じスペースでも中身がまったく別なので、残しておくと
+   * 切り替えた直後だけ前のスコープの木が見える。開いていたスペース（open）は保つ。
+   */
+  const setArchivedMode = useCallback((next: boolean) => {
+    // 切り替え前に投げた要求を採用しない（古いスコープの木が後から届く）。
+    generation.current += 1;
+    setArchivedModeState(next);
+    setExpandedPageIds(new Set());
+    setSpaceStates((prev) => {
+      const cleared: Record<string, KbSpaceState> = {};
+      for (const [spaceId, state] of Object.entries(prev)) {
+        cleared[spaceId] = { open: state.open, loading: false, error: null, tree: null };
+      }
+      return cleared;
+    });
+  }, []);
+
+  /**
+   * ページを（子孫ごと）アーカイブする。**失敗は握り潰さず投げる。**
+   *
+   * 成功したらその段の木を取り直す。消えるのは 1 枚とは限らない（子孫ごと消える）ので、
+   * 手元で 1 枚だけ抜くと表示と中身がずれる。
+   */
+  const archivePage = useCallback(
+    async (spaceId: string, pageId: string): Promise<void> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      await KnowledgeBaseRepository.archivePage(activeSlug, pageId);
+      loadSpaceTree(spaceId);
+    },
+    [activeSlug, loadSpaceTree],
+  );
+
+  /**
+   * アーカイブしたページを現役へ戻す。**失敗は握り潰さず投げる。**
+   *
+   * 戻るのも 1 枚とは限らないので、こちらも木を取り直す。
+   */
+  const unarchivePage = useCallback(
+    async (spaceId: string, pageId: string): Promise<void> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      await KnowledgeBaseRepository.unarchivePage(activeSlug, pageId);
+      loadSpaceTree(spaceId);
+    },
+    [activeSlug, loadSpaceTree],
+  );
 
   const togglePage = useCallback((pageId: string) => {
     setExpandedPageIds((prev) => {
@@ -279,6 +332,10 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     togglePage,
     createPage,
     renamePage,
+    archivePage,
+    unarchivePage,
+    archivedMode,
+    setArchivedMode,
   };
 }
 

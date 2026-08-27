@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import { useKnowledgeBaseTree } from '../model/useKnowledgeBaseTree';
 import KbWorkspaceSwitcher from './KbWorkspaceSwitcher';
 import KbSpaceSection from './KbSpaceSection';
@@ -38,6 +39,10 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     togglePage,
     createPage,
     renamePage,
+    archivePage,
+    unarchivePage,
+    archivedMode,
+    setArchivedMode,
   } = useKnowledgeBaseTree({ workspaceSlug, activePageId });
 
   return (
@@ -101,9 +106,36 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
               onRetry={retrySpace}
               onCreatePage={createPage}
               onRenamePage={renamePage}
+              onArchivePage={archivePage}
+              onUnarchivePage={unarchivePage}
+              archivedMode={archivedMode}
             />
           ))}
       </div>
+
+      {/*
+        アーカイブは下段の入口に畳む。普段は視界に入らず、押したときだけ木を置き換える。
+        切り替えはワークスペース全体で 1 つ — スペースごとに持たせると
+        「いまどちらを見ているのか」が場所によって変わる。
+      */}
+      {activeSlug && (
+        <button
+          type="button"
+          onClick={() => setArchivedMode(!archivedMode)}
+          aria-pressed={archivedMode}
+          // 見た目は「アーカイブ」の一語だが、読み上げ名は押すと何が起きるかにする。
+          // 行のメニューにも「アーカイブ」があるので、名前が同じだとどちらか分からない。
+          aria-label={archivedMode ? '現役のページに戻る' : 'アーカイブしたページを表示'}
+          className={`mt-2 flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors ${
+            archivedMode
+              ? 'bg-brand-500/10 text-brand-600'
+              : 'text-[var(--color-text-muted)] hover:bg-surface-2'
+          }`}
+        >
+          <ArchiveBoxIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>アーカイブ</span>
+        </button>
+      )}
     </nav>
   );
 }

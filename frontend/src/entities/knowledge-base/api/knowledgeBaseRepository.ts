@@ -36,8 +36,15 @@ const KnowledgeBaseRepository = {
    *
    * 実データで重くなったら遅延読み込みへ切り替える余地はあるが、先に作り込む理由が無い。
    */
-  async fetchPageTree(workspaceSlug: string, spaceId: string): Promise<KbPageTree> {
-    const res = await apiClient.get<KbPageTree>(KNOWLEDGE_BASE.pages(workspaceSlug, spaceId));
+  async fetchPageTree(
+    workspaceSlug: string,
+    spaceId: string,
+    options: { archived?: boolean } = {},
+  ): Promise<KbPageTree> {
+    const res = await apiClient.get<KbPageTree>(KNOWLEDGE_BASE.pages(workspaceSlug, spaceId), {
+      // 既定は現役。別の口ではなく同じ口のスコープなので、応答の形も同じ。
+      params: options.archived ? { archived: 'true' } : undefined,
+    });
     // pages が欠けた応答（想定外）でも描画側が落ちないよう、配列だけは必ず用意する。
     return {
       pages: toArray(res.data?.pages),
@@ -68,6 +75,26 @@ const KnowledgeBaseRepository = {
   /** ページの題名を変える。**失敗は例外として投げる**（createPage と同じ理由）。 */
   async renamePage(workspaceSlug: string, pageId: string, title: string): Promise<KbPage> {
     const res = await apiClient.patch<KbPage>(KNOWLEDGE_BASE.page(workspaceSlug, pageId), { title });
+    return res.data;
+  },
+
+  /**
+   * ページを（子孫ごと）アーカイブする。冪等。**失敗は例外として投げる。**
+   */
+  async archivePage(workspaceSlug: string, pageId: string): Promise<void> {
+    await apiClient.post(`${KNOWLEDGE_BASE.page(workspaceSlug, pageId)}/archive`);
+  },
+
+  /**
+   * アーカイブしたページを（同時にアーカイブされた子孫ごと）現役へ戻す。
+   *
+   * 親がまだアーカイブ中なら backend が断る（子だけを戻すと、ツリーに現れない
+   * 迷子ページができるため）。**失敗は例外として投げる。**
+   */
+  async unarchivePage(workspaceSlug: string, pageId: string): Promise<KbPage> {
+    const res = await apiClient.post<KbPage>(
+      `${KNOWLEDGE_BASE.page(workspaceSlug, pageId)}/unarchive`,
+    );
     return res.data;
   },
 

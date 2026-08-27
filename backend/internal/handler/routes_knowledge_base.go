@@ -77,6 +77,7 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewCanEditPageSubtreeUseCase(permissions),
 		usecase.NewListViewablePagesUseCase(permissions),
 		usecase.NewGetPageUseCase(pages),
+		usecase.NewFindPageUseCase(pages),
 		usecase.NewCreatePageUseCase(pages),
 		usecase.NewRenamePageUseCase(pages),
 		usecase.NewMovePageUseCase(pages),

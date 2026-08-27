@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { collectKbAncestorIds, flattenKbTree, replaceKbPageInTree } from '../tree';
+import {
+  collectKbAncestorIds,
+  flattenKbTree,
+  moveKbPageInTree,
+  replaceKbPageInTree,
+} from '../tree';
 import type { KbPage, KbPageTreeNode } from '../../model/types';
 
 /** page は木の形だけを見たいので、題名以外は既定値で埋める。 */
@@ -147,4 +152,78 @@ describe('replaceKbPageInTree', () => {
 
     expect(next[1]).toBe(tree[1]);
   });
+});
+
+describe('moveKbPageInTree', () => {
+  /** ids は木の形を「親>子」の並びで表す（順序も含めて比べるため）。 */
+  function shape(nodes: ReturnType<typeof moveKbPageInTree>): string[] {
+    if (!nodes) return [];
+    const out: string[] = [];
+    const walk = (list: typeof nodes, prefix: string) => {
+      for (const node of list) {
+        out.push(prefix + node.page.id);
+        walk(node.children, prefix + node.page.id + '>');
+      }
+    };
+    walk(nodes, '');
+    return out;
+  }
+
+  const tree = [node('a', [node('a1'), node('a2')]), node('b'), node('c')];
+
+  it('兄弟の手前に差し込む', () => {
+    expect(shape(moveKbPageInTree(tree, 'c', { kind: 'before', pageId: 'b' }))).toEqual([
+      'a', 'a>a1', 'a>a2', 'c', 'b',
+    ]);
+  });
+
+  it('兄弟の直後に差し込む', () => {
+    expect(shape(moveKbPageInTree(tree, 'b', { kind: 'after', pageId: 'c' }))).toEqual([
+      'a', 'a>a1', 'a>a2', 'c', 'b',
+    ]);
+  });
+
+  it('別の段の子として末尾に入る', () => {
+    expect(shape(moveKbPageInTree(tree, 'b', { kind: 'into', pageId: 'a' }))).toEqual([
+      'a', 'a>a1', 'a>a2', 'a>b', 'c',
+    ]);
+  });
+
+  it('子孫ごと動く', () => {
+    const nested = [node('a', [node('a1', [node('a1x')])]), node('b')];
+
+    expect(shape(moveKbPageInTree(nested, 'a1', { kind: 'into', pageId: 'b' }))).toEqual([
+      'a', 'b', 'b>a1', 'b>a1>a1x',
+    ]);
+  });
+
+  it('元の木は変えない', () => {
+    moveKbPageInTree(tree, 'b', { kind: 'into', pageId: 'a' });
+
+    expect(shape(tree)).toEqual(['a', 'a>a1', 'a>a2', 'b', 'c']);
+  });
+
+  it('自分自身の中へは動かせない', () => {
+    expect(moveKbPageInTree(tree, 'a', { kind: 'into', pageId: 'a' })).toBeNull();
+  });
+
+  it('自分の子孫の中へは動かせない', () => {
+    // 動かすと木が根から切り離される。サーバーも同じ理由で断るが、
+    // 画面が先に動いてから巻き戻るより、動かさないほうが分かりやすい。
+    expect(moveKbPageInTree(tree, 'a', { kind: 'into', pageId: 'a1' })).toBeNull();
+    expect(moveKbPageInTree(tree, 'a', { kind: 'after', pageId: 'a2' })).toBeNull();
+  });
+
+  it('木に無いページは動かせない', () => {
+    expect(moveKbPageInTree(tree, 'unknown', { kind: 'into', pageId: 'a' })).toBeNull();
+  });
+
+  it.each(['before', 'after', 'into'] as const)(
+    '落下先が木に無ければ何もしない（%s）',
+    (kind) => {
+      // 確かめずに進めると、取り除いたあと差し込む先が見つからず、
+      // 動かしたページと子孫が木から消える。
+      expect(moveKbPageInTree(tree, 'b', { kind, pageId: 'unknown' })).toBeNull();
+    },
+  );
 });

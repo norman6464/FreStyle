@@ -136,3 +136,83 @@ export function replaceKbPageInTree(nodes: KbPageTreeNode[], page: KbPage): KbPa
   // 参照で変化を見ている側（React）が毎回描き直す。
   return changed ? next : nodes;
 }
+
+/**
+ * ドラッグで落とした先。**「どの行の、どこに」**の 2 つだけで表す。
+ *
+ * 並び順のキーを持たないので、位置は必ず隣のページの ID で表す
+ * （キーは応答に入っていない。整数部が兄弟の通し番号になるため、飛びから伏せた枚数が読める）。
+ */
+export type KbDropTarget =
+  /** その行の手前に、同じ親の兄弟として置く。 */
+  | { kind: 'before'; pageId: string }
+  /** その行の直後に、同じ親の兄弟として置く。 */
+  | { kind: 'after'; pageId: string }
+  /** その行の子として、末尾に置く。 */
+  | { kind: 'into'; pageId: string };
+
+/** findNode は木から 1 ノードとその親の ID を探す。 */
+function findNode(
+  nodes: KbPageTreeNode[],
+  pageId: string,
+  parentId: string | null = null,
+): { node: KbPageTreeNode; parentId: string | null } | null {
+  for (const node of nodes) {
+    if (node.page.id === pageId) return { node, parentId };
+    const found = findNode(node.children, pageId, node.page.id);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** removeNode は木からそのページ（と子孫）を取り除いた新しい木を返す。 */
+function removeNode(nodes: KbPageTreeNode[], pageId: string): KbPageTreeNode[] {
+  return nodes
+    .filter((node) => node.page.id !== pageId)
+    .map((node) => ({ ...node, children: removeNode(node.children, pageId) }));
+}
+
+/** insertNode は target の指す場所へ node を差し込んだ新しい木を返す。 */
+function insertNode(
+  nodes: KbPageTreeNode[],
+  node: KbPageTreeNode,
+  target: KbDropTarget,
+): KbPageTreeNode[] {
+  const out: KbPageTreeNode[] = [];
+  for (const current of nodes) {
+    if (target.kind === 'before' && current.page.id === target.pageId) out.push(node);
+    if (current.page.id === target.pageId && target.kind === 'into') {
+      out.push({ ...current, children: [...insertNode(current.children, node, target), node] });
+      continue;
+    }
+    out.push({ ...current, children: insertNode(current.children, node, target) });
+    if (target.kind === 'after' && current.page.id === target.pageId) out.push(node);
+  }
+  return out;
+}
+
+/**
+ * moveKbPageInTree は落とした先へページを動かした**新しい木**を返す（元は変えない）。
+ * 動かせない指定なら null を返す。
+ *
+ * 画面を先に動かすためだけの計算で、**正しい並びを決めるのはサーバー**。
+ * ここで作る木はサーバーの返事が来るまでの見た目でしかなく、失敗したら丸ごと捨てる。
+ *
+ * 自分自身や自分の子孫の中へは動かせない（木が根から切り離される）。サーバーも同じ理由で
+ * 断るが、画面が先に動いてから巻き戻るより、動かさないほうが分かりやすい。
+ */
+export function moveKbPageInTree(
+  nodes: KbPageTreeNode[],
+  pageId: string,
+  target: KbDropTarget,
+): KbPageTreeNode[] | null {
+  if (pageId === target.pageId) return null;
+  const found = findNode(nodes, pageId);
+  if (!found) return null;
+  // 落下先が木に無ければ何もしない。**確かめずに進めると、取り除いたあと差し込む先が
+  // 見つからず、動かしたページと子孫が木から消える**（画面から丸ごと居なくなる）。
+  if (!findNode(nodes, target.pageId)) return null;
+  // 自分の子孫が落下先なら、動かすと木が根から切り離される。
+  if (findNode(found.node.children, target.pageId)) return null;
+  return insertNode(removeNode(nodes, pageId), found.node, target);
+}

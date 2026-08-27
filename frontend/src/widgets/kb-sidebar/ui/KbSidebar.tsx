@@ -41,6 +41,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     renamePage,
     archivePage,
     unarchivePage,
+    movePage,
     archivedMode,
     setArchivedMode,
   } = useKnowledgeBaseTree({ workspaceSlug, activePageId });
@@ -109,6 +110,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
               onArchivePage={archivePage}
               onUnarchivePage={unarchivePage}
               archivedMode={archivedMode}
+              onMovePage={movePage}
             />
           ))}
       </div>

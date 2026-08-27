@@ -8,6 +8,14 @@ const hoisted = vi.hoisted(() => ({
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
   fetchPageTree: vi.fn(),
+  createPage: vi.fn(),
+  renamePage: vi.fn(),
+  showToast: vi.fn(),
+}));
+
+// トーストは検査の対象。**失敗したときだけ知らせが出ること**を確かめるために捕まえる。
+vi.mock('@/shared/lib/hooks/useToast', () => ({
+  useToast: () => ({ showToast: hoisted.showToast, toasts: [], removeToast: vi.fn() }),
 }));
 
 vi.mock('@/entities/knowledge-base', async () => {
@@ -22,6 +30,8 @@ vi.mock('@/entities/knowledge-base', async () => {
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
       fetchPageTree: hoisted.fetchPageTree,
+      createPage: hoisted.createPage,
+      renamePage: hoisted.renamePage,
     },
   };
 });
@@ -76,6 +86,10 @@ beforeEach(() => {
   hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社')]);
   hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部')]);
   hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ' }]));
+  hoisted.createPage.mockResolvedValue(page('new-1', '無題'));
+  hoisted.renamePage.mockImplementation(async (_slug: string, id: string, title: string) =>
+    page(id, title),
+  );
 });
 
 describe('KbSidebar', () => {
@@ -262,6 +276,144 @@ describe('KbSidebar', () => {
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: '開発部' })).not.toBeInTheDocument(),
     );
+  });
+
+  it('行の読み上げ名を題名で固定する', async () => {
+    // 名前の決まり方を行の中身に任せておくと、次に何かを足したときに黙って変わる。
+    //
+    // 計算後の名前で確かめても意味が無い（実測では aria-label の有無にかかわらず
+    // 「設計メモ」になる）ので、**明示しているという事実そのもの**を固定する。
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const row = screen.getByRole('treeitem', { name: '設計メモ' });
+
+    expect(row).toHaveAttribute('aria-label', '設計メモ');
+    expect(row).toHaveAttribute('aria-level', '1');
+  });
+
+  describe('作る・名前を変える', () => {
+    it('スペースの ＋ でスペース直下に作る', async () => {
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '開発部 にページを追加' }));
+
+      await waitFor(() =>
+        expect(hoisted.createPage).toHaveBeenCalledWith('acme', 'space-1', {
+          title: '無題',
+          parentId: undefined,
+        }),
+      );
+    });
+
+    it('行の ＋ でその行の子として作る', async () => {
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の下にページを追加' }));
+
+      await waitFor(() =>
+        expect(hoisted.createPage).toHaveBeenCalledWith('acme', 'space-1', {
+          title: '無題',
+          parentId: 'p1',
+        }),
+      );
+    });
+
+    it('作ったら木を取り直す（並び順を決めるのはサーバー）', async () => {
+      renderSidebar();
+      await screen.findByText('設計メモ');
+      const before = hoisted.fetchPageTree.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: '開発部 にページを追加' }));
+
+      await waitFor(() =>
+        expect(hoisted.fetchPageTree.mock.calls.length).toBeGreaterThan(before),
+      );
+    });
+
+    it('作成に失敗したら知らせを出す', async () => {
+      // 轍: コース削除も教材の保存も「失敗したのに成功の表示」だった。
+      hoisted.createPage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '開発部 にページを追加' }));
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ページを作成できませんでした'),
+      );
+      expect(hoisted.showToast).not.toHaveBeenCalledWith('success', expect.anything());
+    });
+
+    it('名前を変えると、その行だけが書き換わる', async () => {
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
+
+      const input = screen.getByRole('textbox', { name: 'ページの題名' });
+      fireEvent.change(input, { target: { value: '新しい名前' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(await screen.findByText('新しい名前')).toBeInTheDocument();
+      expect(hoisted.renamePage).toHaveBeenCalledWith('acme', 'p1', '新しい名前');
+      // 木ごと取り直すと一瞬空になり、開いていた段も畳まれて見える。
+      expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
+    });
+
+    it('名前の変更に失敗したら、知らせを出して入力欄を閉じない', async () => {
+      // 閉じると、書いた文字は消えるのに元の題名が残り、保存されたのか分からなくなる。
+      hoisted.renamePage.mockRejectedValueOnce(new Error('boom'));
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
+
+      const input = screen.getByRole('textbox', { name: 'ページの題名' });
+      fireEvent.change(input, { target: { value: '新しい名前' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() =>
+        expect(hoisted.showToast).toHaveBeenCalledWith('error', '名前を変更できませんでした'),
+      );
+      expect(screen.getByRole('textbox', { name: 'ページの題名' })).toHaveValue('新しい名前');
+      expect(hoisted.showToast).not.toHaveBeenCalledWith('success', expect.anything());
+    });
+
+    it('Escape で取り消すと、サーバーへ投げない', async () => {
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
+
+      const input = screen.getByRole('textbox', { name: 'ページの題名' });
+      fireEvent.change(input, { target: { value: '書きかけ' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(await screen.findByText('設計メモ')).toBeInTheDocument();
+      expect(hoisted.renamePage).not.toHaveBeenCalled();
+    });
+
+    it('空の題名はサーバーへ投げない', async () => {
+      // サーバーも弾くが、往復させる意味が無い。
+      renderSidebar();
+      await screen.findByText('設計メモ');
+
+      fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+      fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
+
+      const input = screen.getByRole('textbox', { name: 'ページの題名' });
+      fireEvent.change(input, { target: { value: '   ' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() => expect(screen.getByText('設計メモ')).toBeInTheDocument());
+      expect(hoisted.renamePage).not.toHaveBeenCalled();
+    });
   });
 
   it('ワークスペースを切り替えると URL も変わる', async () => {

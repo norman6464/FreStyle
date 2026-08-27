@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KnowledgeBaseRepository,
   collectKbAncestorIds,
+  replaceKbPageInTree,
+  type KbPage,
   type KbPageTree,
   type KbSpace,
   type KbWorkspace,
@@ -202,6 +204,56 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     });
   }, []);
 
+  /**
+   * ページを作る。**失敗は握り潰さず投げる。**
+   *
+   * このリポジトリには「操作は失敗したのに成功の表示が出る」轍が既にあり
+   * （コース削除・教材の保存）、原因はどれも**操作関数が失敗を投げなかった**こと。
+   * 返り値の真偽で伝えると、呼び出し側は見なくても書けてしまう。投げれば、
+   * 握り潰すには try/catch を書くしかなく、握り潰したことがコードに残る。
+   *
+   * 成功したらその段の木を取り直す。**兄弟のどこに入るかを決めるのはサーバー**なので、
+   * 手元で組み立てると必ずずれる（並び順のキーは応答にも入っていない）。
+   */
+  const createPage = useCallback(
+    async (spaceId: string, parentId?: string): Promise<KbPage> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      const page = await KnowledgeBaseRepository.createPage(activeSlug, spaceId, {
+        title: KB_NEW_PAGE_TITLE,
+        parentId,
+      });
+      // 親の下に作ったなら、その親を開いておく（開かないと作ったページが見えない）。
+      if (parentId) {
+        setExpandedPageIds((prev) => (prev.has(parentId) ? prev : new Set([...prev, parentId])));
+      }
+      loadSpaceTree(spaceId);
+      return page;
+    },
+    [activeSlug, loadSpaceTree],
+  );
+
+  /**
+   * 題名を変える。**失敗は握り潰さず投げる**（createPage と同じ理由）。
+   *
+   * 成功したら木ごと取り直さず、サーバーが返したページで 1 枚だけ差し替える。
+   * 取り直すと一瞬空になり、開いていた段も畳まれて見えるため。
+   */
+  const renamePage = useCallback(
+    async (spaceId: string, pageId: string, title: string): Promise<KbPage> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      const page = await KnowledgeBaseRepository.renamePage(activeSlug, pageId, title);
+      setSpaceStates((prev) => {
+        const current = prev[spaceId];
+        if (!current?.tree) return prev;
+        const pages = replaceKbPageInTree(current.tree.pages, page);
+        if (pages === current.tree.pages) return prev;
+        return { ...prev, [spaceId]: { ...current, tree: { ...current.tree, pages } } };
+      });
+      return page;
+    },
+    [activeSlug],
+  );
+
   const retrySpace = useCallback(
     (spaceId: string) => {
       loadSpaceTree(spaceId);
@@ -225,8 +277,13 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     retrySpace,
     expandedPageIds,
     togglePage,
+    createPage,
+    renamePage,
   };
 }
+
+/** 新しく作ったページの題名。作った直後にその場で書き換えられる。 */
+export const KB_NEW_PAGE_TITLE = '無題';
 
 function emptySpaceState(open: boolean): KbSpaceState {
   return { open, loading: false, error: null, tree: null };

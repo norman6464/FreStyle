@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { KbPageGroupIcon, KbPageIcon } from '@/shared/ui/icons/kb';
+import KbRowActions from './KbRowActions';
+import KbInlineRename from './KbInlineRename';
 import type { KbTreeRow } from '@/entities/knowledge-base';
 
 /** 1 段下がるごとの字下げ幅（px）。三角の幅とほぼ同じにして、段が目で追えるようにする。 */
@@ -15,6 +17,13 @@ export interface KbPageRowProps {
   /** いま開いているページか。 */
   active: boolean;
   onToggle: (pageId: string) => void;
+  /** いま題名を書き換え中か。 */
+  renaming: boolean;
+  onStartRename: (pageId: string) => void;
+  onCancelRename: () => void;
+  /** 確定。**失敗は投げてくる**ので、握り潰さない限り必ず表に出る。 */
+  onCommitRename: (pageId: string, title: string) => Promise<void>;
+  onCreateChild: (parentId: string) => void;
 }
 
 /**
@@ -24,7 +33,17 @@ export interface KbPageRowProps {
  * 「開くつもりで押したらページが切り替わった」が必ず起きる。押した場所で意味が変わる操作は、
  * キーボードやスクリーンリーダーからはさらに区別が付かない。
  */
-export default function KbPageRow({ row, workspaceSlug, active, onToggle }: KbPageRowProps) {
+export default function KbPageRow({
+  row,
+  workspaceSlug,
+  active,
+  onToggle,
+  renaming,
+  onStartRename,
+  onCancelRename,
+  onCommitRename,
+  onCreateChild,
+}: KbPageRowProps) {
   const { page, depth, hasChildren, expanded } = row;
 
   // 子を持つページはフォルダ、持たないページは紙。
@@ -41,6 +60,13 @@ export default function KbPageRow({ row, workspaceSlug, active, onToggle }: KbPa
         aria-level={depth + 1}
         aria-expanded={hasChildren ? expanded : undefined}
         aria-selected={active}
+        // 読み上げ名を題名で固定する。
+        //
+        // 既定は「中身から作る」で、行の中に何を置くかで名前が変わりうる。実測では
+        // 操作ボタンを足しても名前は題名のままだった（dom-accessibility-api で確認）が、
+        // 名前の決まり方を行の中身に任せておくと、次に何かを足したときに黙って変わる。
+        // 明示しておけば、中に何を置いても名前は題名のまま。
+        aria-label={page.title}
         className={`group flex items-center gap-1 rounded-md pr-1 transition-colors ${
           active ? 'bg-brand-500/10 text-brand-600' : 'hover:bg-surface-2'
         }`}
@@ -63,15 +89,33 @@ export default function KbPageRow({ row, workspaceSlug, active, onToggle }: KbPa
           <span style={{ width: KB_TOGGLE_WIDTH_PX }} className="shrink-0" aria-hidden="true" />
         )}
 
-        <Link
-          to={`/kb/${workspaceSlug}/pages/${page.id}`}
-          className={`flex min-w-0 flex-1 items-center gap-1.5 py-1 text-sm ${
-            active ? 'font-medium' : 'text-[var(--color-text-primary)]'
-          }`}
-        >
-          <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-          <span className="truncate">{page.title}</span>
-        </Link>
+        {renaming ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
+            <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+            <KbInlineRename
+              initialTitle={page.title}
+              onCommit={(title) => onCommitRename(page.id, title)}
+              onCancel={onCancelRename}
+            />
+          </div>
+        ) : (
+          <>
+            <Link
+              to={`/kb/${workspaceSlug}/pages/${page.id}`}
+              className={`flex min-w-0 flex-1 items-center gap-1.5 py-1 text-sm ${
+                active ? 'font-medium' : 'text-[var(--color-text-primary)]'
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+              <span className="truncate">{page.title}</span>
+            </Link>
+            <KbRowActions
+              label={page.title}
+              onCreateChild={() => onCreateChild(page.id)}
+              onRename={() => onStartRename(page.id)}
+            />
+          </>
+        )}
       </div>
     </li>
   );

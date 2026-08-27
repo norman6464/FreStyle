@@ -1,7 +1,7 @@
 import apiClient from '@/shared/api/axios';
 import { toArray } from '@/shared/lib/toArray';
 import { KNOWLEDGE_BASE } from '@/shared/config/apiRoutes';
-import type { KbPageDoc, KbPageTree, KbSpace, KbWorkspace } from '../model/types';
+import type { KbPage, KbPageDoc, KbPageTree, KbSpace, KbWorkspace } from '../model/types';
 
 /**
  * ナレッジ基盤 API（/api/v2/kb/…）の薄いラッパ。
@@ -43,6 +43,32 @@ const KnowledgeBaseRepository = {
       pages: toArray(res.data?.pages),
       hasHiddenChildren: res.data?.hasHiddenChildren ?? false,
     };
+  },
+
+  /**
+   * ページを作る。parentId を省くとスペース直下、渡すとその子として作る。
+   *
+   * **失敗は例外として投げる**（axios がそうする）。ここで握り潰して null や false を返すと、
+   * 呼び出し側は失敗を知りようがない。このリポジトリには「操作は失敗したのに成功の表示が出る」
+   * 轍が既にあり、原因はどれも操作関数が失敗を投げなかったことだった。
+   */
+  async createPage(
+    workspaceSlug: string,
+    spaceId: string,
+    input: { title: string; parentId?: string },
+  ): Promise<KbPage> {
+    const res = await apiClient.post<KbPage>(KNOWLEDGE_BASE.pages(workspaceSlug, spaceId), {
+      title: input.title,
+      // backend は空文字を「親なし」として扱う（binding が omitempty ではないため必ず送る）。
+      parentId: input.parentId ?? '',
+    });
+    return res.data;
+  },
+
+  /** ページの題名を変える。**失敗は例外として投げる**（createPage と同じ理由）。 */
+  async renamePage(workspaceSlug: string, pageId: string, title: string): Promise<KbPage> {
+    const res = await apiClient.patch<KbPage>(KNOWLEDGE_BASE.page(workspaceSlug, pageId), { title });
+    return res.data;
   },
 
   /**

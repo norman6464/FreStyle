@@ -20,6 +20,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	createWorkspace *usecase.CreateWorkspaceUseCase
 	checkWorkspace  *usecase.CheckWorkspacePermissionUseCase
 	createSpace     *usecase.CreateSpaceUseCase
+	listSpaces      *usecase.ListViewableSpacesUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -28,12 +29,14 @@ func NewKnowledgeBaseWorkspaceHandler(
 	createWorkspace *usecase.CreateWorkspaceUseCase,
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	createSpace *usecase.CreateSpaceUseCase,
+	listSpaces *usecase.ListViewableSpacesUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:  listWorkspaces,
 		createWorkspace: createWorkspace,
 		checkWorkspace:  checkWorkspace,
 		createSpace:     createSpace,
+		listSpaces:      listSpaces,
 	}
 }
 
@@ -138,6 +141,65 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, toKbWorkspaceResponse(ws))
+}
+
+// ListSpaces はワークスペース配下のスペースのうち、自分が閲覧できるものだけを返す。
+//
+// スペース ID を知る唯一の口。ページの木を取る API（GET .../spaces/{spaceId}/pages）が
+// spaceId を要求するので、これが無いとスペースを作った本人以外は木にたどり着けない。
+//
+// # 権限のふるい（この口が守っているもの）
+//
+// 返すのは「そのスペースの中身を既定で閲覧できる」相手にだけ。スペースは権限を分けるための
+// 入れ物なので、key と name が並ぶだけでも中で何が進んでいるかが伝わってしまう。
+// ふるいは usecase（domain.ResolveScopePermission）が掛け、handler は結果を並べるだけ。
+//
+// # 存在オラクルを作らない
+//
+// 権限の無いワークスペースと存在しないワークスペースは、どちらも middleware が 404 に
+// 畳んでいる（middleware.KnowledgeBaseWorkspace）。ここに到達した時点で呼び出し元は
+// 必ずそのワークスペースのメンバーなので、あとは「見えるスペースだけを並べる」で足りる。
+// 1 件も見えなくても 404 にはしない（空配列）。スペースの実在を撃ち分けないのは
+// ページの木（Tree）と同じ扱い。
+//
+// # ページは含めない
+//
+// サイドバーはスペースごとに木を取るので、この一覧はスペースだけでよい。ページまで
+// 抱き合わせると、開いていないスペースの中身まで毎回引くことになる。
+//
+//	@Summary      ナレッジ 基盤 の スペース 一覧
+//	@Description  ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。 閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages で 取る)。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
+//	@Success      200            {array}   kbSpaceResponse
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/spaces [get]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	// スペースごとに権限を引くと N+1 になるので、一覧はまとめて 1 回で解決する
+	// （ページの木を返す Tree と同じ作り）。
+	spaces, err := h.listSpaces.Execute(c.Request.Context(), usecase.ListViewableSpacesInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	// 0 件でも null ではなく [] を返す（make で長さ 0 のスライスを作ってある）。
+	// null になるとフロントの .map / for-of が TypeError で落ちる。
+	out := make([]kbSpaceResponse, 0, len(spaces))
+	for i := range spaces {
+		out = append(out, toKbSpaceResponse(&spaces[i]))
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // kbCreateSpaceRequest はスペース作成の入力。

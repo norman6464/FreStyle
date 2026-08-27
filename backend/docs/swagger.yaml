@@ -4526,6 +4526,43 @@ paths:
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces:
+    get:
+      description: ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。
+        閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく
+        て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages
+        で 取る)。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.kbSpaceResponse'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: ワークスペース が 無い か 未 所属
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ナレッジ 基盤 の スペース 一覧
+      tags:
+      - knowledge-base
     post:
       consumes:
       - application/json

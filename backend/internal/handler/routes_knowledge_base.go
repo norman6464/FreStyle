@@ -90,6 +90,7 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewCreateWorkspaceUseCase(provisioner),
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
 		usecase.NewCreateSpaceUseCase(pages),
+		usecase.NewListViewableSpacesUseCase(permissions),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
@@ -150,6 +151,10 @@ func registerKnowledgeBaseRoutesWith(
 	kb := g.Group("", middleware.KnowledgeBaseWorkspace(
 		usecase.NewResolveWorkspaceUseCase(pages, permissions),
 	))
+	// スペースの一覧はワークスペースのメンバーなら誰でも叩ける（返る中身が権限で変わる）。
+	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
+	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
+	kb.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces", wh.CreateSpace)
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Tree)
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Create)

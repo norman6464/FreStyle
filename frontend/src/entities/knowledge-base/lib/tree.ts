@@ -93,3 +93,33 @@ function searchAncestors(nodes: KbPageTreeNode[], pageId: string): string[] | nu
 export function collectKbAncestorIds(nodes: KbPageTreeNode[], pageId: string): string[] {
   return searchAncestors(nodes, pageId) ?? [];
 }
+
+/**
+ * replaceKbPageInTree は木の中の 1 ページを差し替えた**新しい木**を返す（元は変えない）。
+ *
+ * 名前を変えたあとに使う。木ごと取り直すのでも正しいが、取り直すと一瞬空になり、
+ * 開いていた段も畳まれて見える。サーバーが返した新しいページで 1 枚だけ差し替えれば、
+ * 表示が飛ばない。
+ *
+ * 差し替えるのは**そのページの値だけ**で、木の形（親子・兄弟順）は触らない。
+ * 形が変わる操作（作成・移動）でこれを使わないこと — 兄弟順はサーバーが決めるので、
+ * 手元で組み立てると必ずずれる。
+ */
+export function replaceKbPageInTree(nodes: KbPageTreeNode[], page: KbPage): KbPageTreeNode[] {
+  let changed = false;
+  const next = nodes.map((node) => {
+    if (node.page.id === page.id) {
+      changed = true;
+      return { ...node, page };
+    }
+    const children = replaceKbPageInTree(node.children, page);
+    if (children !== node.children) {
+      changed = true;
+      return { ...node, children };
+    }
+    return node;
+  });
+  // 見つからなければ元の配列をそのまま返す。新しい配列を作ると、
+  // 参照で変化を見ている側（React）が毎回描き直す。
+  return changed ? next : nodes;
+}

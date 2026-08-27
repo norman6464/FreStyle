@@ -36,6 +36,8 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     retrySpace,
     expandedPageIds,
     togglePage,
+    createPage,
+    renamePage,
   } = useKnowledgeBaseTree({ workspaceSlug, activePageId });
 
   return (
@@ -97,6 +99,8 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
               onToggleSpace={toggleSpace}
               onTogglePage={togglePage}
               onRetry={retrySpace}
+              onCreatePage={createPage}
+              onRenamePage={renamePage}
             />
           ))}
       </div>

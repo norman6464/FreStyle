@@ -5,6 +5,8 @@ import apiClient from '@/shared/api/axios';
 vi.mock('@/shared/api/axios');
 
 const mockGet = vi.mocked(apiClient.get);
+const mockPost = vi.mocked(apiClient.post);
+const mockPatch = vi.mocked(apiClient.patch);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -74,6 +76,58 @@ describe('KnowledgeBaseRepository', () => {
         pages: [],
         hasHiddenChildren: false,
       });
+    });
+  });
+
+  describe('createPage', () => {
+    it('parentId を省くと空文字で送る（backend は空文字を「親なし」として扱う）', async () => {
+      mockPost.mockResolvedValue({ data: { id: 'new-1' } });
+
+      await KnowledgeBaseRepository.createPage('acme', 's1', { title: '無題' });
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s1/pages', {
+        title: '無題',
+        parentId: '',
+      });
+    });
+
+    it('parentId を渡すとそのまま送る', async () => {
+      mockPost.mockResolvedValue({ data: { id: 'new-1' } });
+
+      await KnowledgeBaseRepository.createPage('acme', 's1', { title: '無題', parentId: 'p1' });
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s1/pages', {
+        title: '無題',
+        parentId: 'p1',
+      });
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      // 握り潰して null や false を返すと、呼び出し側は失敗を知りようがない。
+      // このリポジトリの「失敗したのに成功の表示」はどれもここが原因だった。
+      mockPost.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        KnowledgeBaseRepository.createPage('acme', 's1', { title: '無題' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('renamePage', () => {
+    it('PATCH で題名だけを送る', async () => {
+      mockPatch.mockResolvedValue({ data: { id: 'p1', title: '新しい名前' } });
+
+      await KnowledgeBaseRepository.renamePage('acme', 'p1', '新しい名前');
+
+      expect(mockPatch).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p1', {
+        title: '新しい名前',
+      });
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPatch.mockRejectedValue(new Error('boom'));
+
+      await expect(KnowledgeBaseRepository.renamePage('acme', 'p1', 'x')).rejects.toThrow();
     });
   });
 

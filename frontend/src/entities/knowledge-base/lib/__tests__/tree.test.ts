@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectKbAncestorIds, flattenKbTree } from '../tree';
+import { collectKbAncestorIds, flattenKbTree, replaceKbPageInTree } from '../tree';
 import type { KbPage, KbPageTreeNode } from '../../model/types';
 
 /** page は木の形だけを見たいので、題名以外は既定値で埋める。 */
@@ -109,5 +109,42 @@ describe('collectKbAncestorIds', () => {
     // 「見つからない」を空配列で表すと、探索が最初の枝を降りて失敗した時点で
     // 空配列＝成功と誤読し、その枝の ID を積んで返してしまう。
     expect(collectKbAncestorIds(tree, 'a')).toEqual([]);
+  });
+});
+
+describe('replaceKbPageInTree', () => {
+  const tree = [node('a', [node('a1', [node('a1x')])]), node('b')];
+
+  it('深い段のページも差し替える', () => {
+    const renamed = { ...page('a1x'), title: '新しい名前' };
+
+    const next = replaceKbPageInTree(tree, renamed);
+
+    expect(next[0].children[0].children[0].page.title).toBe('新しい名前');
+  });
+
+  it('元の木は変えない', () => {
+    replaceKbPageInTree(tree, { ...page('a1x'), title: '新しい名前' });
+
+    expect(tree[0].children[0].children[0].page.title).toBe('a1x');
+  });
+
+  it('木の形は触らない', () => {
+    // 兄弟順を決めるのはサーバー。手元で組み立てると必ずずれる。
+    const next = replaceKbPageInTree(tree, { ...page('a'), title: 'A' });
+
+    expect(next.map((n) => n.page.id)).toEqual(['a', 'b']);
+    expect(next[0].children.map((n) => n.page.id)).toEqual(['a1']);
+  });
+
+  it('見つからなければ元の配列をそのまま返す', () => {
+    // 新しい配列を作ると、参照で変化を見ている側が毎回描き直す。
+    expect(replaceKbPageInTree(tree, page('unknown'))).toBe(tree);
+  });
+
+  it('関係ない枝は同じ参照のまま残す', () => {
+    const next = replaceKbPageInTree(tree, { ...page('a1x'), title: '新しい名前' });
+
+    expect(next[1]).toBe(tree[1]);
   });
 });

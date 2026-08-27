@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/bedrock"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/localauth"
@@ -21,11 +20,9 @@ import (
 
 // routeDeps はドメインごとの register*Routes 関数に渡す共通依存。
 type routeDeps struct {
-	db            *sql.DB
-	cfg           *config.Config
-	userRepo      repository.UserRepository
-	bedrockClient *bedrock.Client
-	msgRepo       repository.AiChatMessageRepository
+	db       *sql.DB
+	cfg      *config.Config
+	userRepo repository.UserRepository
 }
 
 // NewRouter は API ルーティングを組み立てる。
@@ -42,24 +39,10 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 		c.JSON(200, gin.H{"message": "FreStyle Go backend"})
 	})
 
-	ctx := context.Background()
-
-	bc, err := bedrock.NewClient(ctx, cfg.Bedrock.Region, cfg.Bedrock.ModelID)
-	if err != nil {
-		log.Printf("WARN: Bedrock client init failed (AI chat WS will be unavailable): %v", err)
-	}
-
-	msgRepo, err := persistence.NewAiChatMessageRepository(ctx, cfg.DynamoDB.Region, cfg.DynamoDB.AiChatTable)
-	if err != nil {
-		log.Printf("WARN: DynamoDB client init failed (AI chat WS will be unavailable): %v", err)
-	}
-
 	deps := &routeDeps{
-		db:            db,
-		cfg:           cfg,
-		userRepo:      persistence.NewUserRepository(db),
-		bedrockClient: bc,
-		msgRepo:       msgRepo,
+		db:       db,
+		cfg:      cfg,
+		userRepo: persistence.NewUserRepository(db),
 	}
 
 	v2 := r.Group("/api/v2")
@@ -84,7 +67,6 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	audit := newAuditMiddleware(deps.db)
 
 	registerAuthAuthedRoutes(authed, authHandler)
-	registerChatRoutes(authed, deps)
 	registerProfileRoutes(authed, deps)
 	registerNoteRoutes(authed, deps)
 	registerDocumentRoutes(authed, deps)
@@ -96,12 +78,10 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	registerTeachingMaterialRoutes(authed, deps)
 	registerLessonProgressRoutes(authed, deps)
 	registerLearningReportRoutes(authed, deps)
-	registerCompanySettingsRoutes(authed, deps)
 	registerCompanyApplicationAdminRoutes(authed, companyAppHandler, audit)
 	registerDashboardRoutes(authed, deps)
 	registerDailyGoalsRoutes(authed, deps)
 	registerKnowledgeBaseRoutes(authed, deps, audit)
-	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 	return r
 }
 

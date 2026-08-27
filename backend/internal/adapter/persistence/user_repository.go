@@ -66,10 +66,6 @@ func toDomainUser(row userRow) *domain.User {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
 	}
-	if row.AiChatEnabled.Valid {
-		v := row.AiChatEnabled.Bool
-		u.AiChatEnabled = &v
-	}
 	if row.DeletedAt.Valid {
 		t := row.DeletedAt.Time
 		u.DeletedAt = &t
@@ -108,7 +104,7 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	u := toDomainUser(userRow{
 		ID: row.ID, Email: row.Email, Name: row.Name,
 		CompanyID: row.CompanyID, RoleID: row.RoleID,
-		AiChatEnabled: row.AiChatEnabled, IsActive: row.IsActive,
+		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 		RoleName: row.RoleName,
 	})
@@ -224,9 +220,6 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 		}
 		params.CompanyID = sql.NullInt64{Int64: cid, Valid: true}
 	}
-	if user.AiChatEnabled != nil {
-		params.AiChatEnabled = sql.NullBool{Bool: *user.AiChatEnabled, Valid: true}
-	}
 	if user.DeletedAt != nil {
 		params.DeletedAt = sql.NullTime{Time: *user.DeletedAt, Valid: true}
 	}
@@ -248,16 +241,15 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			return fmt.Errorf("user id %d が int64 の範囲外です", user.ID)
 		}
 		row, err := q.InsertUserWithID(ctx, sqlcgen.InsertUserWithIDParams{
-			ID:            fixedID,
-			Email:         params.Email,
-			PasswordHash:  params.PasswordHash,
-			Name:          params.Name,
-			CompanyID:     params.CompanyID,
-			RoleID:        params.RoleID,
-			AiChatEnabled: params.AiChatEnabled,
-			CreatedAt:     params.CreatedAt,
-			UpdatedAt:     params.UpdatedAt,
-			DeletedAt:     params.DeletedAt,
+			ID:           fixedID,
+			Email:        params.Email,
+			PasswordHash: params.PasswordHash,
+			Name:         params.Name,
+			CompanyID:    params.CompanyID,
+			RoleID:       params.RoleID,
+			CreatedAt:    params.CreatedAt,
+			UpdatedAt:    params.UpdatedAt,
+			DeletedAt:    params.DeletedAt,
 		})
 		if err != nil {
 			return err
@@ -413,38 +405,6 @@ func ensureOidcIdentityTx(ctx context.Context, q *sqlcgen.Queries, userID uint64
 			"oidc identity conflict: provider=%s の subject は既に user %d に紐付いています（要求 user %d）",
 			provider, ownerID, userID,
 		)
-	}
-	return nil
-}
-
-// UpdateAiChatEnabled は AI チャットの個別上書きを更新する。enabled=nil で NULL（会社設定に従う）に戻す。
-// 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。
-//
-// 0 件更新を成功にしてはいけない理由（この下の Update 系も同じ）:
-//
-//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと handler は
-//	204 を返し、管理画面には切り替えた値が表示されるのに DB には何も書かれていない。
-//	行が無いことは「保存できた」ではなく「対象が無い」なので 404 として伝える。
-func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error {
-	id64, ok := toInt64ID(userID)
-	if !ok {
-		return domain.ErrNotFound // 存在し得ない id = not found
-	}
-	q := r.queries()
-	value := sql.NullBool{}
-	if enabled != nil {
-		value = sql.NullBool{Bool: *enabled, Valid: true}
-	}
-	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 件でも成功と区別が付かない）。
-	affected, err := q.UpdateUserAiChatEnabled(ctx, sqlcgen.UpdateUserAiChatEnabledParams{
-		ID:            id64,
-		AiChatEnabled: value,
-	})
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return domain.ErrNotFound
 	}
 	return nil
 }

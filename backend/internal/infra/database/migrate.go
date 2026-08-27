@@ -109,10 +109,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		if err := ApplyUserNormalizationConstraints(ctx, tx); err != nil {
 			return err
 		}
-		if err := ApplyRichDocumentConstraints(ctx, tx); err != nil {
-			return err
-		}
-		return ApplySessionNoteConstraints(ctx, tx)
+		return ApplyRichDocumentConstraints(ctx, tx)
 	}); err != nil {
 		return err
 	}
@@ -262,29 +259,6 @@ func ApplyRichDocumentConstraints(ctx context.Context, db Executor) error {
 		}
 	}
 	return nil
-}
-
-// ApplySessionNoteConstraints は session_notes に 1 セッション 1 ノートの一意制約を張る（冪等）。
-// session_id には schema/core.sql が一意索引を張っているが、既存 DB では非一意のまま残っている
-// ことがあるため、別名の一意インデックスを明示 SQL で必ず作る。
-// 既存に session_id 重複があると作成に失敗するので、適用前に重複が無いことを確認すること。
-//
-// CREATE UNIQUE INDEX IF NOT EXISTS は索引が既に在ってスキップする場合でも session_notes の
-// ShareLock を取り、トランザクションが終わるまで手放さない。起動のたびにノートの書き込みを
-// 止めないよう、先にカタログを引いて未作成のときだけ発行する。
-func ApplySessionNoteConstraints(ctx context.Context, db Executor) error {
-	exists, err := indexExists(ctx, db, "uq_session_notes_session_id")
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	_, err = db.ExecContext(
-		ctx,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_session_notes_session_id ON session_notes (session_id)`,
-	)
-	return err
 }
 
 // preRepairUsersForMigrate は正規化バックフィルの前提を満たすよう旧データを埋める（冪等）。

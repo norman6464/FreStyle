@@ -17,7 +17,6 @@ function activity(daysAgo: number, exerciseCount: number): UserDailyActivity {
     exerciseCount,
     correctCount: 0,
     lessonCount: 0,
-    aiChatCount: 0,
     noteCount: 0,
   };
 }

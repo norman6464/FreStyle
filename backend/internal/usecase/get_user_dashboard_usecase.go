@@ -65,12 +65,12 @@ func (u *GetUserDashboardUseCase) Execute(ctx context.Context, userID uint64) (*
 }
 
 // computeStreak は今日から遡って何日連続で学習したかを返す。
-// 学習あり = ExerciseCount + LessonCount + AiChatCount + NoteCount のいずれかが 1 以上の日。
+// 学習あり = ExerciseCount + LessonCount + NoteCount のいずれかが 1 以上の日。
 func computeStreak(activities []domain.UserDailyActivity, now time.Time) int {
 	// date → activity のマップを作る。
 	actMap := make(map[string]bool, len(activities))
 	for _, a := range activities {
-		if a.ExerciseCount+a.LessonCount+a.AiChatCount+a.NoteCount > 0 {
+		if a.ExerciseCount+a.LessonCount+a.NoteCount > 0 {
 			actMap[a.ActivityDate.UTC().Format("2006-01-02")] = true
 		}
 	}

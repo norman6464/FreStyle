@@ -51,7 +51,6 @@ export const useAuth = () => {
             // （FRESTYLE-233）。?? で null / true を入れると、ユーザー情報を返さない
             // 応答（/auth/cognito/login は message のみ）で確定済みのロールを消してしまう。
             role: userInfo.role,
-            aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees,
           }),
         );
         return true;
@@ -137,7 +136,6 @@ export const useAuth = () => {
         setAuthData({
           isAdmin: !!userInfo.isAdmin,
           role: userInfo.role,
-          aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees,
         }),
       );
       return userInfo;

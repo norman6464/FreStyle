@@ -23,7 +23,6 @@ export interface AdminSubItem {
  */
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'ホーム', to: '/dashboard', matchExact: true },
-  { id: 'ai', label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
   { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: '/notes' },
@@ -63,20 +62,13 @@ export function navActive(item: NavItem, pathname: string): boolean {
 }
 
 /**
- * visibleMainNav はロールと機能フラグに応じて出す主要ナビを返す。
- * - super_admin はホームのみ
- * - AI チャットが受講者に無効なら trainee には出さない
+ * visibleMainNav はロールに応じて出す主要ナビを返す。
+ * - super_admin は企業管理に専念するロールなので学習系メニューを出さない
  */
-export function visibleMainNav(
-  role: string | null,
-  options: { aiChatEnabledForTrainees: boolean },
-): NavItem[] {
-  const base = role === 'super_admin'
+export function visibleMainNav(role: string | null): NavItem[] {
+  return role === 'super_admin'
     ? MAIN_NAV_ITEMS.filter((item) => SUPER_ADMIN_MAIN_NAV_IDS.has(item.id))
     : MAIN_NAV_ITEMS;
-  return base.filter(
-    (item) => !(item.id === 'ai' && role === 'trainee' && !options.aiChatEnabledForTrainees),
-  );
 }
 
 /** visibleAdminSubs はロールに応じて出す管理メニューを返す。 */

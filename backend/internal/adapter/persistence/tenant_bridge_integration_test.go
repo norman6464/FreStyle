@@ -25,11 +25,11 @@ var tenantBridgeTables = []string{"users", "user_oidc_identities", "companies", 
 var workspaceSlugPattern = regexp.MustCompile(`^ws-[0-9a-f]{32}$`)
 
 // insertCompany は会社を 1 件作る（id を明示して固定する）。
-func insertCompany(t *testing.T, db *sql.DB, id int64, name string, aiChat, active bool) {
+func insertCompany(t *testing.T, db *sql.DB, id int64, name string, active bool) {
 	t.Helper()
 	_, err := db.Exec(
-		`INSERT INTO companies (id, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, NOW(), NOW())`, id, name, aiChat, active,
+		`INSERT INTO companies (id, name, is_active, created_at, updated_at)
+		 VALUES ($1, $2, $3, NOW(), NOW())`, id, name, active,
 	)
 	require.NoError(t, err)
 }
@@ -65,8 +65,8 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 
 	t.Run("会社ごとにワークスペースが 1 つでき、所属ユーザーへ写る", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "株式会社ふれすたいる", true, true)
-		insertCompany(t, sqlDB, 2, "Second Corp", false, false)
+		insertCompany(t, sqlDB, 1, "株式会社ふれすたいる", true)
+		insertCompany(t, sqlDB, 2, "Second Corp", false)
 
 		repo := persistence.NewUserRepository(sqlDB)
 		c1, c2 := uint64(1), uint64(2)
@@ -95,17 +95,15 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 
 		// 会社名と設定が写っていること（設定は移行期間中 companies が正本）。
 		var name string
-		var aiChat, active sql.NullBool
+		var active sql.NullBool
 		require.NoError(t, sqlDB.QueryRow(
-			`SELECT name, ai_chat_enabled_for_trainees, is_active FROM workspaces WHERE id = $1`, ws1.UUID,
-		).Scan(&name, &aiChat, &active))
+			`SELECT name, is_active FROM workspaces WHERE id = $1`, ws1.UUID,
+		).Scan(&name, &active))
 		require.Equal(t, "株式会社ふれすたいる", name)
-		require.Equal(t, sql.NullBool{Bool: true, Valid: true}, aiChat)
 		require.Equal(t, sql.NullBool{Bool: true, Valid: true}, active)
 		require.NoError(t, sqlDB.QueryRow(
-			`SELECT ai_chat_enabled_for_trainees, is_active FROM workspaces WHERE id = $1`, ws2.UUID,
-		).Scan(&aiChat, &active))
-		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, aiChat)
+			`SELECT is_active FROM workspaces WHERE id = $1`, ws2.UUID,
+		).Scan(&active))
 		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active)
 
 		userA, err := repo.FindByCognitoSub(ctx, "sub-a")
@@ -126,8 +124,8 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 
 	t.Run("何度流してもワークスペースが増えず ID もぶれない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
-		insertCompany(t, sqlDB, 2, "会社 B", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
 
 		runStartupBackfill(ctx, t, sqlDB)
 		first1 := companyWorkspaceID(t, sqlDB, 1)
@@ -145,8 +143,8 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 
 	t.Run("slug はグローバル一意で長さ制約を満たす", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "同名の会社", true, true)
-		insertCompany(t, sqlDB, 2, "同名の会社", true, true) // companies.name に一意制約は無い
+		insertCompany(t, sqlDB, 1, "同名の会社", true)
+		insertCompany(t, sqlDB, 2, "同名の会社", true) // companies.name に一意制約は無い
 
 		runStartupBackfill(ctx, t, sqlDB)
 
@@ -168,7 +166,7 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 
 	t.Run("存在しないワークスペースは指せない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社", true, true)
+		insertCompany(t, sqlDB, 1, "会社", true)
 
 		_, err := sqlDB.Exec(`UPDATE companies SET workspace_id = $1 WHERE id = 1`, uuid.New())
 		require.Error(t, err, "FK が無いまま company_id の轍を踏まない")
@@ -183,7 +181,7 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 	t.Run("招待からのユーザー作成で両方の列が埋まる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
@@ -214,8 +212,8 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 	t.Run("会社の付け替えで workspace_id も追随する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
-		insertCompany(t, sqlDB, 2, "会社 B", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		ws2 := companyWorkspaceID(t, sqlDB, 2)
@@ -239,25 +237,22 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 	t.Run("会社設定の更新がワークスペースへ写る", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true, true)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
 		companies := persistence.NewCompanyRepository(sqlDB)
-		require.NoError(t, companies.UpdateAiChatEnabled(ctx, 1, false))
 		require.NoError(t, companies.UpdateActive(ctx, 1, false))
 
-		var aiChat, active sql.NullBool
+		var active sql.NullBool
 		require.NoError(t, sqlDB.QueryRow(
-			`SELECT ai_chat_enabled_for_trainees, is_active FROM workspaces WHERE id = $1`, ws1.UUID,
-		).Scan(&aiChat, &active))
-		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, aiChat)
+			`SELECT is_active FROM workspaces WHERE id = $1`, ws1.UUID,
+		).Scan(&active))
 		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active)
 
 		// 読み取り（companies）は従来どおり。
 		company, err := companies.FindByID(ctx, 1)
 		require.NoError(t, err)
-		require.False(t, company.AiChatEnabledForTrainees)
 		require.False(t, company.IsActive)
 	})
 
@@ -269,10 +264,9 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 	t.Run("ワークスペース未紐付けの会社でも設定更新は成功する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "未紐付けの会社", true, true) // バックフィル前
+		insertCompany(t, sqlDB, 1, "未紐付けの会社", true) // バックフィル前
 		companies := persistence.NewCompanyRepository(sqlDB)
 		require.NoError(t, companies.UpdateActive(ctx, 1, false))
-		require.NoError(t, companies.UpdateAiChatEnabled(ctx, 1, false))
 		require.False(t, companyWorkspaceID(t, sqlDB, 1).Valid)
 	})
 }

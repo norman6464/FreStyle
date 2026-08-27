@@ -31,18 +31,6 @@ func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		usecase.NewIssueNoteImageUploadURLUseCase(newNoteImagePresignerOrFallback(deps)),
 	)
 	g.POST("/notes/images/upload-url", noteImageHandler.IssueUploadURL)
-
-	// セッション固有ノート。
-	// 書き込みはメモの所有権がセッションに従属するため、所有者の権威である
-	// ai_chat_sessions の repository も渡す（メモを書いてよいかはセッションの所有者で決まる）。
-	sessionNoteRepo := persistence.NewSessionNoteRepository(deps.db)
-	aiChatSessionRepo := persistence.NewAiChatSessionRepository(deps.db)
-	sessionNoteHandler := NewSessionNoteHandler(
-		usecase.NewGetSessionNoteUseCase(sessionNoteRepo),
-		usecase.NewUpsertSessionNoteUseCase(sessionNoteRepo, aiChatSessionRepo),
-	)
-	g.GET("/sessions/:sessionId/note", sessionNoteHandler.Get)
-	g.PUT("/sessions/:sessionId/note", sessionNoteHandler.Upsert)
 }
 
 // newNoteImagePresignerOrFallback は本番では real な presigner、NOTE_IMAGES_BUCKET 未設定や

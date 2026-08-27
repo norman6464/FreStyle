@@ -45,7 +45,6 @@ describe('DashboardStats', () => {
               exerciseCount: 2,
               correctCount: 2,
               lessonCount: 1,
-              aiChatCount: 0,
               noteCount: 0,
             },
           ],

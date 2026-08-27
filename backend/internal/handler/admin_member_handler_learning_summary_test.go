@@ -26,7 +26,7 @@ func (f *fakeCompanyLearningActivityRepoH) ListMemberActivities(context.Context,
 }
 
 func newLearningSummaryHandler(repo repository.CompanyLearningActivitySummarizer) *AdminMemberHandler {
-	return NewAdminMemberHandler(nil, nil, nil, nil, usecase.NewGetCompanyLearningSummaryUseCase(repo))
+	return NewAdminMemberHandler(nil, nil, nil, usecase.NewGetCompanyLearningSummaryUseCase(repo))
 }
 
 func companyAdminUser() *domain.User {

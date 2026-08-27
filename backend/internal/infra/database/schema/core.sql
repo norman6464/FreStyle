@@ -87,7 +87,6 @@ CREATE TABLE IF NOT EXISTS users (
     name          text NOT NULL DEFAULT '',
     company_id    bigint,
     role_id       integer NOT NULL DEFAULT 3,
-    ai_chat_enabled boolean,
     is_active     boolean NOT NULL DEFAULT true,
     created_at    timestamptz NOT NULL,
     updated_at    timestamptz NOT NULL,
@@ -131,25 +130,10 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id);
 
--- AI チャットセッション固有のメモ。1 セッション = 1 ノート
--- （ON CONFLICT (session_id) の推論先。uq_session_notes_session_id は
---  ApplySessionNoteConstraints が別名で張る二重の壁）。
-CREATE TABLE IF NOT EXISTS session_notes (
-    id         bigserial PRIMARY KEY,
-    session_id bigint NOT NULL,
-    user_id    bigint NOT NULL,
-    content    text NOT NULL DEFAULT '',
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_session_notes_session_id ON session_notes (session_id);
-CREATE INDEX IF NOT EXISTS idx_session_notes_user_id ON session_notes (user_id);
-
 -- 企業（現行のテナント）。
 CREATE TABLE IF NOT EXISTS companies (
     id                           bigserial PRIMARY KEY,
     name                         text NOT NULL,
-    ai_chat_enabled_for_trainees boolean NOT NULL DEFAULT true,
     is_active                    boolean NOT NULL DEFAULT true,
     created_at                   timestamptz NOT NULL,
     updated_at                   timestamptz NOT NULL,
@@ -201,18 +185,6 @@ CREATE TABLE IF NOT EXISTS audit_events (
 CREATE INDEX IF NOT EXISTS idx_audit_events_actor_id ON audit_events (actor_id);
 CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events (action);
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events (created_at);
-
--- AI チャットの 1 セッション。scenario_id は NULL を取り得る。
-CREATE TABLE IF NOT EXISTS ai_chat_sessions (
-    id           bigserial PRIMARY KEY,
-    user_id      bigint NOT NULL,
-    title        text NOT NULL DEFAULT '',
-    session_type text NOT NULL DEFAULT '',
-    scenario_id  bigint,
-    created_at   timestamptz NOT NULL,
-    updated_at   timestamptz NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_ai_chat_sessions_user_id ON ai_chat_sessions (user_id);
 
 -- 招待（マジックリンク）。token は未設定を NULL にして一意制約を避けるため nullable。
 -- updated_at は持たない。
@@ -377,7 +349,6 @@ CREATE TABLE IF NOT EXISTS user_daily_activities (
     exercise_count integer NOT NULL DEFAULT 0,
     correct_count  integer NOT NULL DEFAULT 0,
     chapter_count  integer NOT NULL DEFAULT 0,
-    ai_chat_count  integer NOT NULL DEFAULT 0,
     note_count     integer NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, activity_date)
 );

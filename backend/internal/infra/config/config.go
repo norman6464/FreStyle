@@ -52,30 +52,16 @@ type Config struct {
 	// （例: http://127.0.0.1:9000）。未設定なら in-process サンドボックスで実行する。
 	CodeRunnerURL string
 
-	Cognito  CognitoConfig
-	S3       S3Config
-	Bedrock  BedrockConfig
-	DynamoDB DynamoDBConfig
-	SES      SESConfig
-	SMTP     SMTPConfig
+	Cognito CognitoConfig
+	S3      S3Config
+	SES     SESConfig
+	SMTP    SMTPConfig
 }
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。
 type S3Config struct {
 	Region           string
 	NoteImagesBucket string
-}
-
-// BedrockConfig は AWS Bedrock Converse API 呼び出しに必要な設定。
-type BedrockConfig struct {
-	Region  string
-	ModelID string
-}
-
-// DynamoDBConfig は AI チャットメッセージを保存する DynamoDB の設定。
-type DynamoDBConfig struct {
-	Region      string
-	AiChatTable string
 }
 
 // SESConfig は招待マジックリンクメール送信用の SES v2 設定。
@@ -138,17 +124,6 @@ func Load() (*Config, error) {
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
 			NoteImagesBucket: os.Getenv("NOTE_IMAGES_BUCKET"),
-		},
-		Bedrock: BedrockConfig{
-			Region: getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			// Claude 4 系は on-demand では呼べず Inference Profile 経由必須
-			// （foundation-model ARN 直指定だと ConverseStream が ValidationException を返す）。
-			// IAM 側でも inference-profile ARN を許可しておくこと。
-			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "jp.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-		},
-		DynamoDB: DynamoDBConfig{
-			Region:      getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			AiChatTable: getEnvOrDefault("DYNAMODB_AI_CHAT_TABLE", "fre_style_ai_chat_dev"),
 		},
 		SES: SESConfig{
 			Region:      getEnvOrDefault("SES_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),

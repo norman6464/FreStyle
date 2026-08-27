@@ -27,15 +27,14 @@ describe('HelpPage', () => {
     expect(heading).toBeInTheDocument();
   });
 
-  it('全 7 章の見出しが表示される', () => {
+  it('全 6 章の見出しが表示される', () => {
     renderHelp();
     expect(screen.getByRole('heading', { name: /1\. FreStyle ってなに？/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /2\. 最初の1日にやること/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /3\. 練習モードの使い方/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /4\. 5軸評価の読み方/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /5\. AI チャットとは/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /6\. メモ・テンプレート機能/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /7\. 困ったとき/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /5\. メモ・テンプレート機能/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /6\. 困ったとき/ })).toBeInTheDocument();
   });
 
   it('Step 1 の ActionCard が /practice へのリンクとして描画される', () => {
@@ -50,11 +49,6 @@ describe('HelpPage', () => {
     expect(link).toHaveAttribute('href', '/scores');
   });
 
-  it('AI アシスタントへの導線が /chat/ask-ai を指す', () => {
-    renderHelp();
-    const link = screen.getByRole('link', { name: /AI アシスタントに相談する/ });
-    expect(link).toHaveAttribute('href', '/chat/ask-ai');
-  });
 
   it('メモ・テンプレートのカードがそれぞれ /notes と /templates を指す', () => {
     renderHelp();

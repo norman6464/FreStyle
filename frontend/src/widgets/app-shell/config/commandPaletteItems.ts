@@ -36,15 +36,6 @@ export const COMMAND_ITEMS: CommandItem[] = [
     keywords: ['home', 'メニュー', 'トップ'],
   },
   {
-    id: 'nav-ai',
-    label: 'AI アシスタント',
-    description: 'AIアシスタントに移動',
-    icon: SparklesIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/chat/ask-ai' },
-    keywords: ['ai', '人工知能', 'アシスタント'],
-  },
-  {
     id: 'nav-practice',
     label: '練習モード',
     description: '練習モードに移動',

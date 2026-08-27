@@ -31,7 +31,7 @@ func TestUserDailyActivityRepository_Increment_Integration(t *testing.T) {
 	}))
 	// 同 (user, date) への 2 回目は各カウンタへ加算。LessonCount は列 chapter_count へ入る。
 	require.NoError(t, repo.Increment(ctx, 1, day1, repository.UserDailyActivityIncrement{
-		ExerciseCount: 2, LessonCount: 1, AiChatCount: 3, NoteCount: 1,
+		ExerciseCount: 2, LessonCount: 1, NoteCount: 1,
 	}))
 	// 別日は別行。
 	require.NoError(t, repo.Increment(ctx, 1, day2, repository.UserDailyActivityIncrement{NoteCount: 5}))
@@ -47,7 +47,6 @@ func TestUserDailyActivityRepository_Increment_Integration(t *testing.T) {
 		require.Equal(t, 3, got.ExerciseCount, "1 + 2")
 		require.Equal(t, 1, got.CorrectCount)
 		require.Equal(t, 1, got.LessonCount, "chapter_count 列へ加算される")
-		require.Equal(t, 3, got.AiChatCount)
 		require.Equal(t, 1, got.NoteCount)
 		require.Equal(t, day1, got.ActivityDate.UTC())
 	})

@@ -35,18 +35,15 @@ type AuthHandler struct {
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 	passwordAuth   passwordAuthenticator
-	aiChatAccess   *usecase.AiChatEnabledForUserUseCase
 }
 
 // NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
-// aiChatAccess は /auth/me で aiChatEnabledForTrainees を算出するのに使う。nil 可（その場合は既定 true）。
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
 	promoteAdmin *usecase.PromoteCognitoAdminRoleUseCase,
 	cognitoCfg *config.CognitoConfig,
 	passwordAuth passwordAuthenticator,
-	aiChatAccess *usecase.AiChatEnabledForUserUseCase,
 ) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
@@ -54,7 +51,6 @@ func NewAuthHandler(
 		promoteAdmin:   promoteAdmin,
 		cognitoCfg:     cognitoCfg,
 		passwordAuth:   passwordAuth,
-		aiChatAccess:   aiChatAccess,
 		tokens: cognito.NewTokenExchanger(cognito.Config{
 			ClientID:     cognitoCfg.ClientID,
 			ClientSecret: cognitoCfg.ClientSecret,
@@ -105,23 +101,15 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			user.Role = domain.RoleSuperAdmin
 		}
 	}
-	// trainee への AI チャット表示判定。会社設定が無効なら false。算出失敗・未配線時は既定 true。
-	aiEnabled := true
-	if h.aiChatAccess != nil {
-		if ok, err := h.aiChatAccess.Execute(c.Request.Context(), user); err == nil {
-			aiEnabled = ok
-		}
-	}
 	resp := gin.H{
-		"id":                       user.ID,
-		"email":                    user.Email,
-		"name":                     user.Name,
-		"role":                     user.Role,
-		"createdAt":                user.CreatedAt,
-		"updatedAt":                user.UpdatedAt,
-		"groups":                   groups,
-		"isAdmin":                  isAdmin,
-		"aiChatEnabledForTrainees": aiEnabled,
+		"id":        user.ID,
+		"email":     user.Email,
+		"name":      user.Name,
+		"role":      user.Role,
+		"createdAt": user.CreatedAt,
+		"updatedAt": user.UpdatedAt,
+		"groups":    groups,
+		"isAdmin":   isAdmin,
 	}
 	// companyId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
 	if user.CompanyID != nil {

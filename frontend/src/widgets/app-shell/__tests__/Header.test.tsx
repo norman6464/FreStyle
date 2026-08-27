@@ -40,30 +40,31 @@ describe('Header', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('テキストのナビ項目を表示する', () => {
-    renderHeader({ role: 'trainee', aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee' });
     expect(screen.getAllByText('コース').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('演習').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('ノート').length).toBeGreaterThanOrEqual(1);
   });
 
   it('通知ベルとハンバーガー(メニュー)を表示する', () => {
-    renderHeader({ role: 'trainee', aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee' });
     expect(screen.getByRole('link', { name: /通知/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /メニュー/ })).toBeInTheDocument();
   });
 
   it('未読件数のバッジを表示する', async () => {
-    renderHeader({ role: 'trainee', aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee' });
     await waitFor(() => expect(screen.getByText('3')).toBeInTheDocument());
   });
 
-  it('AI が無効な trainee には AI を出さない', () => {
-    renderHeader({ role: 'trainee', aiChatEnabledForTrainees: false });
+  it('AI のナビ項目はどのロールにも出ない（機能廃止の回帰）', () => {
+    renderHeader({ role: 'trainee' });
     expect(screen.queryByText('AI')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'AI' })).not.toBeInTheDocument();
   });
 
   it('非 admin には管理ドロップダウンを出さない', () => {
-    renderHeader({ role: 'trainee', isAdmin: false, aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee', isAdmin: false });
     expect(screen.queryByRole('button', { name: '管理' })).not.toBeInTheDocument();
   });
 
@@ -83,7 +84,7 @@ describe('Header', () => {
   });
 
   it('ハンバーガーでモバイルメニューが開き、設定/ログアウトが出る', () => {
-    renderHeader({ role: 'trainee', aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee' });
     // 開く前はデスクトップ分のみ。
     expect(screen.getAllByText('コース').length).toBe(1);
     fireEvent.click(screen.getByRole('button', { name: /メニュー/ }));
@@ -94,7 +95,7 @@ describe('Header', () => {
   });
 
   it('ユーザーメニューを開くと設定/ログアウトが出る', async () => {
-    renderHeader({ role: 'trainee', aiChatEnabledForTrainees: true });
+    renderHeader({ role: 'trainee' });
     const userButton = await screen.findByText('テスト太郎');
     fireEvent.click(userButton);
     expect(screen.getByRole('button', { name: '設定' })).toBeInTheDocument();

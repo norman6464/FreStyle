@@ -13,6 +13,8 @@ var (
 	ErrCannotManageSelf = errors.New("cannot disable or delete yourself")
 	// ErrMemberNotFound は対象 user が存在しない（404 相当）。
 	ErrMemberNotFound = errors.New("member not found")
+	// ErrMemberNotInActorCompany は対象 user が actor の会社に属していないときのエラー（403 相当）。
+	ErrMemberNotInActorCompany = errors.New("member is not in the actor's company")
 )
 
 // authorizeMemberManagement は actor が target を管理（停止/削除）できるかを判定する。

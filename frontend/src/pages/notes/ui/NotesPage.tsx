@@ -25,7 +25,7 @@ import { useNoteKeyboardShortcuts } from '../model/useNoteKeyboardShortcuts';
 
 export default function NotesPage() {
   const { showToast } = useToast();
-  // URL（/notes/:noteId）と選択状態を双方向に同期する（AI チャットの /chat/ask-ai/:sessionId と同じ流儀）。
+  // URL（/notes/:noteId）と選択状態を双方向に同期する。
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();

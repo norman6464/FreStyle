@@ -104,10 +104,6 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	if err := database.ApplyRichDocumentConstraints(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
 	}
-	// session_notes の 1 セッション 1 ノート一意制約も本番（database.Migrate）と同じに揃える。
-	if err := database.ApplySessionNoteConstraints(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplySessionNoteConstraints 失敗: %v", err)
-	}
 	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）も同じ明示 DDL を流す。
 	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)

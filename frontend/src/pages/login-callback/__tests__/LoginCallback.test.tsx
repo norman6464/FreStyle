@@ -43,7 +43,6 @@ describe('LoginCallback', () => {
       id: 1,
       isAdmin: true,
       role: 'super_admin',
-      aiChatEnabledForTrainees: true,
     });
   });
 
@@ -130,7 +129,6 @@ describe('LoginCallback', () => {
         id: 2,
         isAdmin: false,
         role: 'trainee',
-        aiChatEnabledForTrainees: false,
       });
 
       const { store } = renderWithRoute('?code=valid-code');
@@ -139,7 +137,6 @@ describe('LoginCallback', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
       });
       expect(store.getState().auth.role).toBe('trainee');
-      expect(store.getState().auth.aiChatEnabledForTrainees).toBe(false);
     });
 
     // 認可コードの交換は成功しているので認証は成立している。ここでログイン画面へ

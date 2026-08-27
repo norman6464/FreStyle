@@ -124,22 +124,6 @@ func outOfRangeWriteCases() []writeCase {
 			},
 		},
 		{
-			name: "セッションメモの upsert（session_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewSessionNoteRepository(db).Upsert(ctx, &domain.SessionNote{
-					SessionID: outOfRangeID, UserID: 1, Content: "c",
-				})
-			},
-		},
-		{
-			name: "セッションメモの upsert（user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewSessionNoteRepository(db).Upsert(ctx, &domain.SessionNote{
-					SessionID: 1, UserID: outOfRangeID, Content: "c",
-				})
-			},
-		},
-		{
 			name: "章の作成（company_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{

@@ -120,21 +120,20 @@ func BackfillWorkspacesFromCompanies(ctx context.Context, db *sql.DB) error {
 // 行を作ったのに指せていない中途半端な状態は残らない。
 func createWorkspacesForCompanies(ctx context.Context, tx *sql.Tx) error {
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, name, ai_chat_enabled_for_trainees, is_active
+		`SELECT id, name, is_active
 		 FROM companies WHERE workspace_id IS NULL ORDER BY id`)
 	if err != nil {
 		return fmt.Errorf("未対応の会社の取得に失敗: %w", err)
 	}
 	type companyRow struct {
-		id           int64
-		name         string
-		aiChatForAll bool
-		isActive     bool
+		id       int64
+		name     string
+		isActive bool
 	}
 	var targets []companyRow
 	for rows.Next() {
 		var c companyRow
-		if err := rows.Scan(&c.id, &c.name, &c.aiChatForAll, &c.isActive); err != nil {
+		if err := rows.Scan(&c.id, &c.name, &c.isActive); err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("会社行の読み取りに失敗: %w", err)
 		}
@@ -157,9 +156,9 @@ func createWorkspacesForCompanies(ctx context.Context, tx *sql.Tx) error {
 		name := truncateRunes(c.name, 200)
 		if _, err := tx.ExecContext(
 			ctx,
-			`INSERT INTO workspaces (id, slug, name, ai_chat_enabled_for_trainees, is_active)
-			 VALUES ($1, $2, $3, $4, $5)`,
-			id, workspaceSlugFor(id), name, c.aiChatForAll, c.isActive,
+			`INSERT INTO workspaces (id, slug, name, is_active)
+			 VALUES ($1, $2, $3, $4)`,
+			id, workspaceSlugFor(id), name, c.isActive,
 		); err != nil {
 			return fmt.Errorf("ワークスペースの作成に失敗（company=%d）: %w", c.id, err)
 		}
@@ -183,13 +182,11 @@ func mirrorCompanySettingsToWorkspaces(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE workspaces w
-		 SET ai_chat_enabled_for_trainees = c.ai_chat_enabled_for_trainees,
-		     is_active = c.is_active,
+		 SET is_active = c.is_active,
 		     updated_at = now()
 		 FROM companies c
 		 WHERE c.workspace_id = w.id
-		   AND (w.ai_chat_enabled_for_trainees IS DISTINCT FROM c.ai_chat_enabled_for_trainees
-		        OR w.is_active IS DISTINCT FROM c.is_active)`,
+		   AND w.is_active IS DISTINCT FROM c.is_active`,
 	); err != nil {
 		return fmt.Errorf("ワークスペースへの設定反映に失敗: %w", err)
 	}

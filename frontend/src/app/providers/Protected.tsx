@@ -9,7 +9,7 @@ interface ProtectedProps {
 
 // super_admin は trainee 向け学習機能を利用しないため、これらのパスにアクセスしたら
 // /admin/companies へリダイレクトする。Header のナビ filter とセットで運用する。
-const TRAINEE_ONLY_PATH_PREFIXES = ['/chat/ask-ai', '/code-editor', '/notes', '/reports'];
+const TRAINEE_ONLY_PATH_PREFIXES = ['/code-editor', '/notes', '/reports'];
 
 /**
  * 認証必須ルートのガード。

@@ -13,14 +13,13 @@ import (
 const incrementUserDailyActivity = `-- name: IncrementUserDailyActivity :exec
 
 INSERT INTO user_daily_activities
-  (user_id, activity_date, exercise_count, correct_count, chapter_count, ai_chat_count, note_count)
+  (user_id, activity_date, exercise_count, correct_count, chapter_count, note_count)
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7)
+  ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (user_id, activity_date) DO UPDATE SET
   exercise_count = user_daily_activities.exercise_count + EXCLUDED.exercise_count,
   correct_count  = user_daily_activities.correct_count  + EXCLUDED.correct_count,
   chapter_count  = user_daily_activities.chapter_count  + EXCLUDED.chapter_count,
-  ai_chat_count  = user_daily_activities.ai_chat_count  + EXCLUDED.ai_chat_count,
   note_count     = user_daily_activities.note_count     + EXCLUDED.note_count
 `
 
@@ -30,7 +29,6 @@ type IncrementUserDailyActivityParams struct {
 	ExerciseCount int32
 	CorrectCount  int32
 	ChapterCount  int32
-	AiChatCount   int32
 	NoteCount     int32
 }
 
@@ -46,14 +44,13 @@ func (q *Queries) IncrementUserDailyActivity(ctx context.Context, arg IncrementU
 		arg.ExerciseCount,
 		arg.CorrectCount,
 		arg.ChapterCount,
-		arg.AiChatCount,
 		arg.NoteCount,
 	)
 	return err
 }
 
 const listUserDailyActivitiesByUser = `-- name: ListUserDailyActivitiesByUser :many
-SELECT user_id, activity_date, exercise_count, correct_count, chapter_count, ai_chat_count, note_count
+SELECT user_id, activity_date, exercise_count, correct_count, chapter_count, note_count
 FROM user_daily_activities
 WHERE user_id = $1
   AND activity_date BETWEEN $2 AND $3
@@ -84,7 +81,6 @@ func (q *Queries) ListUserDailyActivitiesByUser(ctx context.Context, arg ListUse
 			&i.ExerciseCount,
 			&i.CorrectCount,
 			&i.ChapterCount,
-			&i.AiChatCount,
 			&i.NoteCount,
 		); err != nil {
 			return nil, err

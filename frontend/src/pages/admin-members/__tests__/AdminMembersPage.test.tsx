@@ -16,7 +16,6 @@ const members = [
     displayName: '河野拓真',
     email: 'kawano@example.com',
     role: 'company_admin',
-    aiChatEnabled: null,
     isActive: true,
   },
   {
@@ -24,7 +23,6 @@ const members = [
     displayName: '木村',
     email: 'kimura@example.com',
     role: 'trainee',
-    aiChatEnabled: null,
     isActive: true,
   },
 ];

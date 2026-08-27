@@ -40,8 +40,8 @@ func TestMigrate_Integration(t *testing.T) {
 		for _, table := range []string{
 			"roles", "users", "user_oidc_identities", "companies", "company_applications",
 			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
-			"company_exercises", "exercise_submissions", "notes", "session_notes",
-			"notifications", "invitations", "audit_events", "ai_chat_sessions",
+			"company_exercises", "exercise_submissions", "notes",
+			"notifications", "invitations", "audit_events",
 			"learning_reports", "rich_documents",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
@@ -76,7 +76,6 @@ func TestMigrate_Integration(t *testing.T) {
 		require.True(t, constraintExists(t, db, "rich_documents", "ck_rich_documents_doc"))
 		require.True(t, constraintExists(t, db, "rich_documents", "ck_rich_documents_title_len"))
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
-		require.True(t, indexExists(t, db, "uq_session_notes_session_id"))
 	})
 
 	t.Run("seed は 2 回流しても重複しない", func(t *testing.T) {

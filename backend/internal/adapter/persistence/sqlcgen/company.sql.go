@@ -10,7 +10,7 @@ import (
 )
 
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at, workspace_id FROM companies
+SELECT id, name, is_active, created_at, updated_at, workspace_id FROM companies
 WHERE id = $1
 `
 
@@ -21,7 +21,6 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id int64) (Company, error)
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.AiChatEnabledForTrainees,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -31,7 +30,7 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id int64) (Company, error)
 }
 
 const listCompanies = `-- name: ListCompanies :many
-SELECT id, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at, workspace_id FROM companies
+SELECT id, name, is_active, created_at, updated_at, workspace_id FROM companies
 ORDER BY name ASC, id ASC
 `
 
@@ -48,7 +47,6 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.AiChatEnabledForTrainees,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -69,18 +67,17 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 
 const mirrorCompanySettingsToWorkspace = `-- name: MirrorCompanySettingsToWorkspace :exec
 UPDATE workspaces w
-SET ai_chat_enabled_for_trainees = c.ai_chat_enabled_for_trainees,
-    is_active = c.is_active,
+SET is_active = c.is_active,
     updated_at = now()
 FROM companies c
 WHERE c.id = $1 AND c.workspace_id = w.id
 `
 
 // 会社のテナント設定を、対応する workspaces 行へ写す。
-// ai_chat_enabled_for_trainees / is_active は最終的に workspaces の列になる。今は companies が
-// 正本で、workspaces 側はその写し。設定を書く経路が増えても写し忘れないよう、2 列まとめて
-// companies から写すこの 1 か所に集約する。まだワークスペースに紐付いていない会社
-// （workspace_id IS NULL）は 0 件更新で、写す先が無い。
+// is_active は最終的に workspaces の列になる。今は companies が正本で、workspaces 側は
+// その写し。設定を書く経路が増えても写し忘れないよう、companies から写すこの 1 か所に
+// 集約する。まだワークスペースに紐付いていない会社（workspace_id IS NULL）は 0 件更新で、
+// 写す先が無い。
 func (q *Queries) MirrorCompanySettingsToWorkspace(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, mirrorCompanySettingsToWorkspace, id)
 	return err
@@ -100,32 +97,6 @@ type UpdateCompanyActiveParams struct {
 // 会社が not-found に化ける。
 func (q *Queries) UpdateCompanyActive(ctx context.Context, arg UpdateCompanyActiveParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateCompanyActive, arg.ID, arg.IsActive)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const updateCompanyAiChatEnabled = `-- name: UpdateCompanyAiChatEnabled :execrows
-UPDATE companies SET ai_chat_enabled_for_trainees = $2, updated_at = now() WHERE id = $1
-`
-
-type UpdateCompanyAiChatEnabledParams struct {
-	ID                       int64
-	AiChatEnabledForTrainees bool
-}
-
-// trainee への AI チャット許可を更新する。0 件なら対象の会社が存在しない
-// （呼び出し側が not-found にする）。判定は UpdateCompanyActive と同じく companies 側の
-// 件数で行う（写し先の workspaces の件数を見ると、まだ紐付いていない会社が not-found に化ける）。
-//
-// :exec ではなく :execrows にしている理由:
-//
-//	:exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
-//	成功なので、存在しない会社の設定を書こうとしても呼び出し側には成功として見え、
-//	画面には切り替えたはずの設定が反映されたように表示される。
-func (q *Queries) UpdateCompanyAiChatEnabled(ctx context.Context, arg UpdateCompanyAiChatEnabledParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateCompanyAiChatEnabled, arg.ID, arg.AiChatEnabledForTrainees)
 	if err != nil {
 		return 0, err
 	}

@@ -36,14 +36,14 @@ describe('ナレッジへの導線', () => {
   });
 
   it.each(['company_admin', 'trainee'])('%s に出す', (role) => {
-    const ids = visibleMainNav(role, { aiChatEnabledForTrainees: true }).map((item) => item.id);
+    const ids = visibleMainNav(role).map((item) => item.id);
 
     expect(ids).toContain('kb');
   });
 
   it('super_admin にも出す（学習系ではなく書きものの面なので）', () => {
     // 運用の手順や決めごとを書き残すのは、むしろ管理する側の仕事になる。
-    const ids = visibleMainNav('super_admin', { aiChatEnabledForTrainees: true }).map(
+    const ids = visibleMainNav('super_admin').map(
       (item) => item.id,
     );
 

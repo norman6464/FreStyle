@@ -71,20 +71,20 @@ describe('useCommandPalette', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('AIアシスタント');
+      result.current.setQuery('スコア履歴に移動');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('AI アシスタント');
+    expect(labels).toContain('スコア履歴');
   });
 
   it('フィルタリングは大文字小文字を区別しない', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('AI');
+      result.current.setQuery('KB');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('AI アシスタント');
+    expect(labels).toContain('ナレッジ');
   });
 
   it('クエリ変更時にselectedIndexが0にリセットされる', () => {

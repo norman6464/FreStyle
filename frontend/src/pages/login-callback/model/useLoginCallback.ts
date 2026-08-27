@@ -43,7 +43,6 @@ export function useLoginCallback() {
             setAuthData({
               isAdmin: !!me.isAdmin,
               role: me.role,
-              aiChatEnabledForTrainees: me.aiChatEnabledForTrainees,
             }),
           );
           setAuthHint();

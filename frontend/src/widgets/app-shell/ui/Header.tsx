@@ -29,7 +29,6 @@ export default function Header() {
   const { handleLogout, loggingOut } = useSidebar();
   const isAdmin = useAppSelector((s) => s.auth.isAdmin);
   const role = useAppSelector((s) => s.auth.role);
-  const aiChatEnabledForTrainees = useAppSelector((s) => s.auth.aiChatEnabledForTrainees);
 
   const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null; email: string } | null>(null);
   const [unread, setUnread] = useState(0);
@@ -69,7 +68,7 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [adminOpen]);
 
-  const visibleNav = visibleMainNav(role, { aiChatEnabledForTrainees });
+  const visibleNav = visibleMainNav(role);
   const adminSubs = visibleAdminSubs(role);
 
   const navLinkClass = (active: boolean) =>

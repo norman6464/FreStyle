@@ -20,9 +20,8 @@ import { GLOSSARY } from '../config/glossary';
  *   2. 最初の1日にやること（StepIndicator + ActionCard）
  *   3. 練習モードの使い方（シナリオの選び方）
  *   4. 5軸評価の読み方
- *   5. AI チャットとは
- *   6. メモ・テンプレート機能
- *   7. 困ったとき (FAQ)
+ *   5. メモ・テンプレート機能
+ *   6. 困ったとき (FAQ)
  *
  * - 既存の共通UIコンポーネント（PageIntro / StepIndicator / GlossaryTerm /
  *   GuidedHint / ActionCard）を最大限活用し、文章だけでなく操作可能な
@@ -219,33 +218,10 @@ export default function HelpPage() {
         </p>
       </section>
 
-      {/* 5. AI チャットとは */}
-      <section aria-labelledby="help-aichat">
-        <h2 id="help-aichat" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          5. AI チャットとは
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          練習モード以外に、AI に対して自由に質問・相談できる「AI アシスタント」機能があります。
-        </p>
-        <ul className="mt-2 list-disc pl-6 text-sm text-[var(--color-text-secondary)] space-y-1">
-          <li>「この報告メールどう書けば良い？」と書きかけの文面を相談する</li>
-          <li>「明日の打ち合わせで何を聞けばいい？」と論点整理を依頼する</li>
-          <li>過去のチャットは履歴として残るので、振り返りや見直しに使える</li>
-        </ul>
-        <div className="mt-3">
-          <ActionCard
-            to="/chat/ask-ai"
-            title="AI アシスタントに相談する"
-            description="自由形式で質問・壁打ちができます。"
-            icon={<SparklesIcon className="h-5 w-5" />}
-          />
-        </div>
-      </section>
-
-      {/* 6. メモ・テンプレート */}
+      {/* 5. メモ・テンプレート */}
       <section aria-labelledby="help-notes">
         <h2 id="help-notes" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          6. メモ・テンプレート機能
+          5. メモ・テンプレート機能
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
           学んだフレーズや繰り返し使う文面は、メモ・テンプレート機能に保存できます。
@@ -266,10 +242,10 @@ export default function HelpPage() {
         </div>
       </section>
 
-      {/* 7. FAQ */}
+      {/* 6. FAQ */}
       <section aria-labelledby="help-faq">
         <h2 id="help-faq" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          7. 困ったとき（FAQ）
+          6. 困ったとき（FAQ）
         </h2>
         <ul className="list-none space-y-3 pl-0">
           <li>

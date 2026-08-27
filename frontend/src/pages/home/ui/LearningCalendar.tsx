@@ -16,7 +16,7 @@ export default function LearningCalendar({ activities }: Props) {
   const actMap = new Map<string, number>();
   for (const a of activities) {
     const dateKey = a.activityDate.slice(0, 10); // "2026-06-19"
-    actMap.set(dateKey, (a.exerciseCount + a.lessonCount + a.aiChatCount + a.noteCount));
+    actMap.set(dateKey, (a.exerciseCount + a.lessonCount + a.noteCount));
   }
 
   // 今日から 90 日分の日付リストを生成（UTC 基準 — activityDate の UTC 文字列と一致させる）。

@@ -443,7 +443,7 @@ func (q *Queries) IsWorkspaceMember(ctx context.Context, arg IsWorkspaceMemberPa
 }
 
 const listMemberWorkspaces = `-- name: ListMemberWorkspaces :many
-SELECT w.id, w.slug, w.name, w.ai_chat_enabled_for_trainees, w.is_active, w.created_at, w.updated_at FROM workspaces w
+SELECT w.id, w.slug, w.name, w.is_active, w.created_at, w.updated_at FROM workspaces w
 JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = $1
 ORDER BY w.slug
@@ -468,7 +468,6 @@ func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64
 			&i.ID,
 			&i.Slug,
 			&i.Name,
-			&i.AiChatEnabledForTrainees,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,

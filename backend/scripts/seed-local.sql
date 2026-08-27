@@ -272,7 +272,7 @@ WHERE random() < 0.7
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_daily_activities (user_id, activity_date, exercise_count, correct_count,
-                                   chapter_count, ai_chat_count, note_count)
+                                   chapter_count, note_count)
 SELECT
   1000000 + u,
   (now() - d * interval '1 day')::date,
@@ -281,7 +281,6 @@ SELECT
   -- ダッシュボードの集計が破綻する。
   (random() * e.exercise_count)::int,
   (random() * 3)::int,
-  (random() * 5)::int,
   (random() * 2)::int
 FROM generate_series(1, :n_users) AS u,
      generate_series(0, :activity_days - 1) AS d,

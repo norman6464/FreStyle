@@ -13,6 +13,5 @@ type UserDailyActivity struct {
 	// LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。
 	// JSON キーは互換のため lessonCount のまま。
 	LessonCount int `json:"lessonCount"`
-	AiChatCount int `json:"aiChatCount"`
 	NoteCount   int `json:"noteCount"`
 }

@@ -18,7 +18,6 @@ import (
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
 	invitations := persistence.NewAdminInvitationRepository(deps.db)
-	aiAccess := usecase.NewAiChatEnabledForUserUseCase(persistence.NewCompanyRepository(deps.db))
 	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(
 		deps.userRepo,
 		invitations,
@@ -28,7 +27,7 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 
 	pwAuth := buildPasswordAuthenticator(deps)
 
-	authHandler := NewAuthHandler(getCurrentUser, upsertUser, promoteAdmin, &deps.cfg.Cognito, pwAuth, aiAccess)
+	authHandler := NewAuthHandler(getCurrentUser, upsertUser, promoteAdmin, &deps.cfg.Cognito, pwAuth)
 
 	g.POST("/auth/logout", authHandler.Logout)
 	// login（認可コード→token 交換）は認証不要のため、総当たり緩和に per-IP 制限を掛ける。

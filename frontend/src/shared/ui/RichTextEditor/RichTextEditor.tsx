@@ -5,6 +5,7 @@ import { createEditorExtensions } from './editorExtensions';
 import type { EditorCommand } from './editorCommands';
 import { buildSlashItems } from './slashItems';
 import { acceptedImageFiles, insertUploadedImages } from './imageInsertion';
+import { sanitizeDocLinks } from './linkSafety';
 import BubbleFormatMenu from './BubbleFormatMenu';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
 import type { RichDocContent } from './emptyRichDoc';
@@ -128,7 +129,9 @@ export default function RichTextEditor({
   const editor = useEditor({
     editable,
     extensions: createEditorExtensions({ placeholder, slashItems }),
-    content: value,
+    // 読み込み側のリンク洗浄。doc JSON は API から丸ごと差し込めるので、エディタの入力・貼り付けを
+    // どれだけ固めても「危険な href がすでに入った doc」はここから入ってくる。開いた時点で落とす。
+    content: sanitizeDocLinks(value),
     editorProps: {
       attributes: {
         class: 'focus:outline-none',
@@ -150,7 +153,9 @@ export default function RichTextEditor({
       onCreateRef.current?.(currentEditor);
     },
     onUpdate: ({ editor: currentEditor }) => {
-      const next = currentEditor.getJSON() as RichDocContent;
+      // 保存側のリンク洗浄。表示のときだけ無害化する作りだと、DB には危険な href が残ったままになり、
+      // 別の読み手（別のクライアント・API 直叩き）に対して無防備なままになる。外へ出す値を洗う。
+      const next = sanitizeDocLinks(currentEditor.getJSON()) as RichDocContent;
       const nextStr = JSON.stringify(next);
       // 内容が現在値と同じ（マウント時の空振り or 外部同期のエコー）なら通知しない。
       if (nextStr === lastValueRef.current) return;
@@ -168,7 +173,8 @@ export default function RichTextEditor({
     const valueStr = JSON.stringify(value);
     if (valueStr !== lastValueRef.current) {
       lastValueRef.current = valueStr;
-      editor.commands.setContent(value, { emitUpdate: false });
+      // 差し替えで入ってくる doc も読み込み時と同じ経路で洗う（別ドキュメントへの切り替え）。
+      editor.commands.setContent(sanitizeDocLinks(value), { emitUpdate: false });
     }
   }, [editor, value]);
 

@@ -158,5 +158,8 @@ function sanitizeMarks(marks: DocMark[] | undefined): DocMark[] | undefined {
     changed = true;
     next.push({ ...mark, attrs: { ...mark.attrs, href } });
   }
-  return changed ? next : marks;
+  if (!changed) return marks;
+  // マークが 1 つも残らなかったら marks 自体を落とす。tiptap の getJSON も空の marks は書かないので、
+  // 空配列を残すと「同じ内容なのに JSON が違う」状態になり、保存の差分検出や往復比較が濁る。
+  return next.length > 0 ? next : undefined;
 }

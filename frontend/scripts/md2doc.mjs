@@ -20,6 +20,7 @@ import { pathToFileURL } from 'node:url';
 import { getSchema, resolveExtensions } from '@tiptap/core';
 import { Markdown, MarkdownManager } from '@tiptap/markdown';
 import { createSchemaExtensions } from '../src/shared/ui/RichTextEditor/schemaExtensions.ts';
+import { sanitizeDocLinks } from '../src/shared/ui/RichTextEditor/linkSafety.ts';
 
 // MarkdownManager はフラット化済みの拡張配列を受け取る（editor 不要・Node で動く）。
 function makeManager() {
@@ -42,10 +43,14 @@ export function assertDocMatchesSchema(doc) {
 export function markdownToDoc(markdown) {
   const manager = makeManager();
   const node = manager.parse(markdown);
-  const doc = typeof node.toJSON === 'function' ? node.toJSON() : node;
-  restoreCodeBlockText(markdown, doc);
-  dedupeMarks(doc);
-  ensureListItemParagraph(doc);
+  const parsed = typeof node.toJSON === 'function' ? node.toJSON() : node;
+  restoreCodeBlockText(markdown, parsed);
+  dedupeMarks(parsed);
+  ensureListItemParagraph(parsed);
+  // Markdown パーサは `[文字](URL)` の URL を検査せずマークへ写すため、教材原稿に
+  // `[押して](javascript:alert(1))` と書けば doc に残ってしまう。DB へ入る前にここで落とす。
+  // 判定はエディタと同じ関数（linkSafety）を使い、教材とノートで許可範囲がずれないようにする。
+  const doc = sanitizeDocLinks(parsed);
   assertDocMatchesSchema(doc);
   return doc;
 }

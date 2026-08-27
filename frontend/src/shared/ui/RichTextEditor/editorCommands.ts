@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/react';
+import { LINK_MARK_NAME, normalizeLinkInput } from './linkSafety';
 
 /**
  * EditorCommandGroup はコマンドの分類。UI（バブルメニュー・将来のスラッシュ/ツールバー）が
@@ -201,6 +202,41 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
     run: (editor) => focused(editor).redo().run(),
   },
 ];
+
+/*
+ * --- リンク操作 ---
+ *
+ * リンクだけは EDITOR_COMMANDS（記述子の配列）に載せず、専用の関数として置く。
+ * 記述子の実行本体は `run(editor)` という「引数を取らない」形で、太字やリストのように
+ * その場で完結する操作を前提にしている。リンクは掛ける先の URL を人から受け取る必要があり、
+ * この形に収まらない。無理に載せるより、入力を伴う操作として別に書くほうが素直に読める。
+ * UI（LinkFormatControl）はこの 3 つだけを呼び、書式ロジックはここに閉じる。
+ */
+
+/** activeLinkHref はキャレット / 選択範囲に掛かっているリンクの href を返す（無ければ null）。 */
+export function activeLinkHref(editor: Editor): string | null {
+  const href: unknown = editor.getAttributes(LINK_MARK_NAME).href;
+  return typeof href === 'string' ? href : null;
+}
+
+/**
+ * applyLink は入力欄に打たれた文字列をリンクとして掛ける。掛けられたら true。
+ *
+ * 許可できない URL（`javascript:` など）は normalizeLinkInput が null を返すので何もせず false。
+ * 「掛けようとしたが弾かれた」ことを UI が知って利用者に伝えられるよう、例外ではなく戻り値で返す。
+ * extendMarkRange は、既にリンクが掛かった語の中にキャレットを置いただけの状態でも
+ * そのリンク全体を対象にするための指定（選択し直さずに URL を貼り替えられる）。
+ */
+export function applyLink(editor: Editor, rawInput: string): boolean {
+  const href = normalizeLinkInput(rawInput);
+  if (href === null) return false;
+  return focused(editor).extendMarkRange(LINK_MARK_NAME).setLink({ href }).run();
+}
+
+/** removeLink はキャレット / 選択範囲のリンクを解除する（文字はそのまま残る）。 */
+export function removeLink(editor: Editor): boolean {
+  return focused(editor).extendMarkRange(LINK_MARK_NAME).unsetLink().run();
+}
 
 /**
  * getEditorCommands は指定グループのコマンドだけを、EDITOR_COMMANDS の並び順のまま返す。

@@ -106,6 +106,18 @@
   caret-color: transparent;
 }
 
+/*
+ * リンク。本文中で「押せる場所」だと分かるよう色と下線を付ける。
+ * 許可できない href のリンクは <a> ではなく <span> として描画される（schemaExtensions の
+ * SafeLink 参照）ため、ここで色が付くのは安全と判定できたリンクだけになる。
+ */
+.rte-content .ProseMirror a {
+  color: var(--color-brand, #3b82f6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* 画像（@tiptap/extension-image）。はみ出さず角丸で表示する。 */
 .rte-content .ProseMirror img {
   max-width: 100%;
@@ -136,6 +148,67 @@
   border-radius: 8px;
   box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
   z-index: 50;
+}
+
+/*
+ * リンク操作（バブルメニュー内）。ボタンの下に入力欄を開く。
+ * 入力欄はバブルの高さを変えないよう absolute で下に出す（開閉で書式ボタン列が動かない）。
+ */
+.rte-link-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.rte-link-form {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  z-index: 51;
+}
+
+.rte-link-input {
+  width: 15rem;
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 6px;
+}
+
+.rte-link-input:focus {
+  outline: 2px solid var(--color-brand, #3b82f6);
+  outline-offset: -1px;
+}
+
+.rte-link-action {
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.rte-link-action:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+}
+
+/* エラー文言は入力欄の下へ回り込ませる（flex-basis 100% で改行）。 */
+.rte-link-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #dc2626;
 }
 
 /*

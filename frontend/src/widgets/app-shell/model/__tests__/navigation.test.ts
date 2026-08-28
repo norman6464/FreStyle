@@ -26,6 +26,16 @@ describe('ノートへの導線', () => {
     expect(navActive(notes!, '/courses')).toBe(false);
   });
 
+  it('文字列 1 本の matchPrefix（演習など）も子パスまで選ばれる', () => {
+    // notes は配列、code は文字列。navActive は両方の形を受けるので、両方の分岐を固定する。
+    const code = MAIN_NAV_ITEMS.find((item) => item.id === 'code');
+
+    expect(navActive(code!, '/code-editor')).toBe(true);
+    expect(navActive(code!, '/code-editor/123')).toBe(true);
+    expect(navActive(code!, '/code-editor-x')).toBe(false);
+    expect(navActive(code!, '/courses')).toBe(false);
+  });
+
   it('名前が前方一致するだけの別パスでは選ばれない', () => {
     // 素の startsWith だと /notes-foo でも「ノート」が光る。
     // いまそういうルートは無いが、足した瞬間に静かに壊れる形なので判定側で塞ぐ。

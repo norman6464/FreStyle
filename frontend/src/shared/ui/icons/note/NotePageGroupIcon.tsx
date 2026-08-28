@@ -10,7 +10,7 @@ import type { SVGProps } from 'react';
  * 本文行は NotePageIcon と同じ 2 本。並べたときに同じ族に見えることを優先している。
  *
  * 線は currentColor なので、置いた場所の文字色をそのまま継ぐ（heroicons と同じ流儀）。
- * 図形の正本は同じディレクトリの kb-page-group.svg（png/ は そこから描き出したもの）。
+ * 図形の正本は同じディレクトリの note-page-group.svg（png/ は そこから描き出したもの）。
  */
 export default function NotePageGroupIcon(props: SVGProps<SVGSVGElement>) {
   return (

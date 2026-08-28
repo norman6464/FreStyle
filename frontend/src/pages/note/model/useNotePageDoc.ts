@@ -32,19 +32,32 @@ export function useNotePageDoc(pageId: string | undefined) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDoc = useRef<unknown>(null);
   const saveTarget = useRef<{ workspaceSlug: string; pageId: string } | null>(null);
+  // PUT が飛んでいる間 true。保存は**必ず 1 本ずつ**送る。並行に送ると、後から書いた
+  // 本文の PUT が先に完了し、古い本文の PUT が後から着地して上書きすることがある
+  //（丸ごと置換の API なので、順序が崩れる＝最後の入力が消える）。
+  const saveInFlight = useRef(false);
 
   const flushSave = useCallback(() => {
+    if (saveInFlight.current) return; // 完了ハンドラが残りを流す
     const target = saveTarget.current;
     const doc = pendingDoc.current;
     if (!target || doc == null) return;
     pendingDoc.current = null;
+    saveInFlight.current = true;
     setSaveStatus('saving');
     NoteRepository.replaceContent(target.workspaceSlug, target.pageId, doc)
       .then(() => {
-        // 送信中にさらに書かれていたら、その保存がまだ残っている。
-        setSaveStatus(pendingDoc.current == null ? 'saved' : 'unsaved');
+        saveInFlight.current = false;
+        if (pendingDoc.current == null) {
+          setSaveStatus('saved');
+        } else {
+          // 送信中にさらに書かれていた。次を続けて送る（編集順を守る）。
+          setSaveStatus('unsaved');
+          flushSave();
+        }
       })
       .catch(() => {
+        saveInFlight.current = false;
         setSaveStatus('unsaved');
       });
   }, []);

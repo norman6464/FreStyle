@@ -20,7 +20,7 @@ function page(id: string, title = id): NotePage {
 }
 
 function node(id: string, children: NotePageTreeNode[] = [], hidden = false): NotePageTreeNode {
-  return { page: page(id), children, hasHiddenChildren: hidden };
+  return { page: page(id), children, hasHiddenChildren: hidden, parentArchived: false };
 }
 
 describe('collectNoteAncestorIds', () => {

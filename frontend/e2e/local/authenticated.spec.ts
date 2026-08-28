@@ -181,5 +181,10 @@ test.describe('ノート作成導線（POST モック）', () => {
     await expect
       .poll(() => postBody)
       .toEqual({ name: '開発チーム' });
+
+    // 201 を受けて画面も進む: 作ったワークスペースが選ばれ、最上段に名前が出る
+    //（所属が 1 つだけの間は切替ボタンではなく見出しとして出る仕様）。
+    await expect(page.getByText('開発チーム')).toBeVisible();
+    await expect(page.getByText(/まだワークスペースがありません/)).not.toBeVisible();
   });
 });

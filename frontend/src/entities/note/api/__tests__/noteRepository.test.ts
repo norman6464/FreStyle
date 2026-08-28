@@ -7,6 +7,7 @@ vi.mock('@/shared/api/axios');
 const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
 const mockPatch = vi.mocked(apiClient.patch);
+const mockPut = vi.mocked(apiClient.put);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -213,5 +214,47 @@ describe('NoteRepository', () => {
     mockPatch.mockRejectedValue(new Error('forbidden'));
 
     await expect(NoteRepository.renameSpace('acme', 'sp-1', 'x')).rejects.toThrow();
+  });
+
+  it('resolvePage は GET /kb/pages/:id で解決結果をそのまま返す', async () => {
+    const resolved = {
+      workspaceSlug: 'w-3f2a9c',
+      page: { id: 'p-1', spaceId: 'sp-1', title: '設計メモ' },
+      doc: { type: 'doc', content: [] },
+      canEdit: true,
+    };
+    mockGet.mockResolvedValue({ data: resolved });
+
+    const got = await NoteRepository.resolvePage('p-1');
+
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/pages/p-1');
+    expect(got).toEqual(resolved);
+  });
+
+  it('resolvePage の失敗は投げる（404 は「無い」と「見えない」の両方）', async () => {
+    mockGet.mockRejectedValue(new Error('not found'));
+
+    await expect(NoteRepository.resolvePage('p-x')).rejects.toThrow();
+  });
+
+  it('replaceContent は PUT /pages/:id/content に { doc } を送り、正規形を返す', async () => {
+    const normalized = { doc: { type: 'doc', content: [] }, builtAt: '2026-08-28T00:00:00Z' };
+    mockPut.mockResolvedValue({ data: normalized });
+
+    const got = await NoteRepository.replaceContent('acme', 'p-1', {
+      type: 'doc',
+      content: [{ type: 'paragraph' }],
+    });
+
+    expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/content', {
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+    });
+    expect(got).toEqual(normalized);
+  });
+
+  it('replaceContent の失敗は投げる（呼び出し側が未保存へ戻すため）', async () => {
+    mockPut.mockRejectedValue(new Error('conflict'));
+
+    await expect(NoteRepository.replaceContent('acme', 'p-1', {})).rejects.toThrow();
   });
 });

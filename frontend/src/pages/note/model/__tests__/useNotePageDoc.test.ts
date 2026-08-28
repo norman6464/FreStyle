@@ -121,6 +121,55 @@ describe('useNotePageDoc', () => {
     }
   });
 
+  it('前の保存が終わるまで次の PUT を送らない（丸ごと置換なので順序が命）', async () => {
+    // 並行に送ると、後から書いた本文の PUT が先に完了し、古い本文の PUT が
+    // 後から着地して上書きし得る。送信は必ず 1 本ずつ・編集順で。
+    vi.useFakeTimers();
+    try {
+      let resolveFirst: (value: unknown) => void = () => {};
+      hoisted.replaceContent.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      );
+
+      const { result } = renderHook(() => useNotePageDoc('p1'));
+      await act(async () => {});
+
+      // 1 回目の編集 → デバウンス発火で PUT(A) が飛ぶ（保留のまま）。
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(hoisted.replaceContent).toHaveBeenCalledTimes(1);
+
+      // PUT(A) が飛んでいる間に 2 回目の編集 → デバウンスが切れても送らない。
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(hoisted.replaceContent).toHaveBeenCalledTimes(1);
+
+      // PUT(A) が完了したら、残っていた本文が続けて送られる。
+      await act(async () => {
+        resolveFirst({ doc: { type: 'doc', content: [] }, builtAt: '2026-08-28T00:00:00Z' });
+      });
+      expect(hoisted.replaceContent).toHaveBeenCalledTimes(2);
+      expect(hoisted.replaceContent).toHaveBeenLastCalledWith('w-3f2a9c', 'p1', {
+        type: 'doc',
+        content: [],
+      });
+      expect(result.current.saveStatus).toBe('saved');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('保存が失敗したら unsaved に戻す（保存できた顔をしない）', async () => {
     vi.useFakeTimers();
     try {

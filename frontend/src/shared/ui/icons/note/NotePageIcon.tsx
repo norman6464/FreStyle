@@ -8,7 +8,7 @@ import type { SVGProps } from 'react';
  *
  * 線は currentColor なので、置いた場所の文字色をそのまま継ぐ（heroicons と同じ流儀）。
  * 太さ 1.5 / 角丸は 16px でも潰れないことを実際に描いて確かめた値。
- * 図形の正本は同じディレクトリの kb-page.svg（png/ は そこから描き出したもの）。
+ * 図形の正本は同じディレクトリの note-page.svg（png/ は そこから描き出したもの）。
  */
 export default function NotePageIcon(props: SVGProps<SVGSVGElement>) {
   return (

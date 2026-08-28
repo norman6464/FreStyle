@@ -53,6 +53,8 @@ describe('HelpPage', () => {
   it('ノートのカードが /notes を指す', () => {
     renderHelp();
     expect(screen.getByRole('link', { name: /ノートを書く/ })).toHaveAttribute('href', '/notes');
+    // 撤去したテンプレートカード（/templates は実在しないルート）が復活していないこと。
+    expect(screen.queryByRole('link', { name: /テンプレートを使う/ })).not.toBeInTheDocument();
   });
 
   it('末尾の CTA がホームに戻るリンクになっている', () => {

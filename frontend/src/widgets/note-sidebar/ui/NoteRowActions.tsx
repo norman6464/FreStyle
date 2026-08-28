@@ -67,7 +67,6 @@ export default function NoteRowActions({
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
-            aria-haspopup="true"
             aria-expanded={menuOpen}
             aria-label={`${label} の操作`}
             className="rounded p-1 text-[var(--color-text-muted)] hover:bg-surface-3"

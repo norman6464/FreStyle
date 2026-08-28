@@ -11,7 +11,7 @@ import type { SVGProps } from 'react';
  * 本文行はこの族の約束（親も中身を持つページである）どおり 2 本入れてある。
  * 開いた前面の板に載るぶん、閉じた形より少し下に寄せてある。
  *
- * 図形の正本は同じディレクトリの kb-page-group-open.svg（png/ はそこから描き出したもの）。
+ * 図形の正本は同じディレクトリの note-page-group-open.svg（png/ はそこから描き出したもの）。
  */
 export default function NotePageGroupOpenIcon(props: SVGProps<SVGSVGElement>) {
   return (

@@ -1255,6 +1255,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceSpaceScopeFacts(
 					WorkspaceID: row.WorkspaceID,
 					Key:         row.Key,
 					Name:        row.Name,
+					Visibility:  row.Visibility,
 					CreatedAt:   row.CreatedAt,
 					UpdatedAt:   row.UpdatedAt,
 				}),

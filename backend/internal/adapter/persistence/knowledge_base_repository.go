@@ -96,6 +96,7 @@ func toDomainSpace(row sqlcgen.Space) domain.Space {
 		WorkspaceID: row.WorkspaceID.String(),
 		Key:         row.Key,
 		Name:        row.Name,
+		Visibility:  domain.SpaceVisibility(row.Visibility),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
@@ -285,11 +286,18 @@ func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain
 	if err != nil {
 		return err
 	}
+	// ゼロ値（visibility 未指定の呼び出し）は既定の 'workspace' に倒す。
+	// 空文字のまま送ると CHECK 制約（ck_spaces_visibility）で落ちる。
+	visibility := space.Visibility
+	if visibility == "" {
+		visibility = domain.SpaceVisibilityWorkspace
+	}
 	row, err := r.q.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Key:         space.Key,
 		Name:        space.Name,
+		Visibility:  string(visibility),
 	})
 	if err != nil {
 		// key の重複（uq_spaces_workspace_key）は入口の検証では防げない

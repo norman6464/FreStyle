@@ -4084,7 +4084,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
+                "description": "ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
                 "consumes": [
                     "application/json"
                 ],
@@ -7206,6 +7206,15 @@
                     "type": "string",
                     "maxLength": 200,
                     "example": "開発部"
+                },
+                "visibility": {
+                    "description": "Visibility は省略時 workspace（チームスペース）。private は自分だけの区画で、\nメンバーなら誰でも作れる（作れる範囲の非対称は handler が判定する）。",
+                    "type": "string",
+                    "enum": [
+                        "workspace",
+                        "private"
+                    ],
+                    "example": "workspace"
                 }
             }
         },
@@ -7598,6 +7607,11 @@
                 "name": {
                     "type": "string",
                     "example": "開発部"
+                },
+                "visibility": {
+                    "description": "Visibility はサイドバーの節分けに使う（workspace = チーム / private = プライベート）。",
+                    "type": "string",
+                    "example": "workspace"
                 }
             }
         },

@@ -315,6 +315,59 @@ func Test_ナレッジ基盤API_スペース直下のページ作成はスペー
 // ふるいを外しても緑のままになる。
 const kbSecondSpaceID = "0198a000-0000-7000-8000-0000000000a2"
 
+// プライベートスペース: 自分の区画が増えるだけなので、admin でないメンバーでも作れる。
+// チームスペース（省略時）は今までどおり admin だけ（上のテスト）。この非対称が仕様。
+func Test_ナレッジ基盤API_プライベートスペースはメンバーなら作れる(t *testing.T) {
+	spacesPath := kbFill(kbSpacesPath, kbWorkspaceSlug, "")
+
+	t.Run("editor でも private なら作れて、応答に visibility が載る", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleEditor)
+
+		w := f.do(t, http.MethodPost, spacesPath, `{"name":"自分のメモ","visibility":"private"}`)
+
+		require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+		var got kbSpaceResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+		assert.Equal(t, "private", got.Visibility)
+		assert.NotEmpty(t, got.Key, "key は自動採番される")
+
+		// 作成者の一覧に出る（provisioner が作成者へ grant を張っている）。
+		// ワークスペース既定（editor）は private に届かないので、
+		// この grant が無ければ作った本人にも見えない。
+		_, list := kbListSpaces(t, f, kbWorkspaceSlug)
+		found := false
+		for _, s := range list {
+			if s.ID == got.ID {
+				found = true
+				assert.Equal(t, "private", s.Visibility, "一覧の応答にも visibility が載る（節分けの判定材料）")
+			}
+		}
+		assert.True(t, found, "作った本人の一覧に出る")
+	})
+
+	t.Run("visibility が未知の値なら 400", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+
+		w := f.do(t, http.MethodPost, spacesPath, `{"name":"x","visibility":"secret"}`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("チームスペースの応答は visibility=workspace", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+
+		w := f.do(t, http.MethodPost, spacesPath, `{"name":"開発部"}`)
+
+		require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+		var got kbSpaceResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+		assert.Equal(t, "workspace", got.Visibility)
+	})
+}
+
 // kbListSpaces はスペース一覧を叩いて応答をデコードする。
 func kbListSpaces(t *testing.T, f kbFixture, slug string) (*httptest.ResponseRecorder, []kbSpaceResponse) {
 	t.Helper()

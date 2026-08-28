@@ -276,7 +276,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
    * 分かっているため（サーバーが返した行をそのまま足す）。
    */
   const createSpace = useCallback(
-    async (input: { name: string }): Promise<NoteSpace> => {
+    async (input: { name: string; visibility?: 'workspace' | 'private' }): Promise<NoteSpace> => {
       if (!activeSlug) throw new Error('workspace is not selected');
       const space = await NoteRepository.createSpace(activeSlug, input);
       setSpaces((prev) => [...prev, space]);

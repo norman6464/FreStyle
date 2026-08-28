@@ -23,6 +23,8 @@ export interface NoteSpace {
   id: string;
   key: string;
   name: string;
+  /** サイドバーの節分け。workspace = チーム（全員） / private = プライベート（付与された人だけ）。 */
+  visibility: 'workspace' | 'private';
   createdAt: string;
 }
 

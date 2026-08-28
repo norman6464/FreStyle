@@ -69,14 +69,19 @@ func toKbWorkspaceResponse(w *domain.Workspace) kbWorkspaceResponse {
 // kbSpaceResponse はスペース 1 件の返却形。
 // id は載せる（ページ一覧・作成の URL がスペース ID を取るため）。
 type kbSpaceResponse struct {
-	ID        string    `json:"id"  example:"0198a000-0000-7000-8000-000000000002"`
-	Key       string    `json:"key" example:"eng"`
-	Name      string    `json:"name" example:"開発部"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID   string `json:"id"  example:"0198a000-0000-7000-8000-000000000002"`
+	Key  string `json:"key" example:"eng"`
+	Name string `json:"name" example:"開発部"`
+	// Visibility はサイドバーの節分けに使う（workspace = チーム / private = プライベート）。
+	Visibility string    `json:"visibility" example:"workspace"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 func toKbSpaceResponse(s *domain.Space) kbSpaceResponse {
-	return kbSpaceResponse{ID: s.ID, Key: s.Key, Name: s.Name, CreatedAt: s.CreatedAt}
+	return kbSpaceResponse{
+		ID: s.ID, Key: s.Key, Name: s.Name,
+		Visibility: string(s.Visibility), CreatedAt: s.CreatedAt,
+	}
 }
 
 // List は自分が所属するワークスペースの一覧を返す。
@@ -220,12 +225,15 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 type kbCreateSpaceRequest struct {
 	Key  string `json:"key" example:"eng"`
 	Name string `json:"name" binding:"required,max=200" example:"開発部"`
+	// Visibility は省略時 workspace（チームスペース）。private は自分だけの区画で、
+	// メンバーなら誰でも作れる（作れる範囲の非対称は handler が判定する）。
+	Visibility string `json:"visibility,omitempty" binding:"omitempty,oneof=workspace private" example:"workspace"`
 }
 
 // CreateSpace はワークスペース配下にスペースを作る（ワークスペースの admin が要る）。
 //
 //	@Summary      ナレッジ 基盤 の スペース 作成
-//	@Description  ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
+//	@Description  ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -245,30 +253,37 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 	if !ok {
 		return
 	}
-	perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
-		WorkspaceID: scope.workspaceID,
-		UserID:      scope.userID,
-	})
-	if err != nil {
-		respondKnowledgeBaseErr(c, err)
-		return
-	}
-	if !perm.CanManage {
-		// ここに来る相手はワークスペースのメンバー（middleware が確かめている）なので、
-		// 実在は既に知っている。403 で理由を返してよい。
-		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
-		return
-	}
 	limitKnowledgeBaseBody(c)
 	var req kbCreateSpaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
+	// 作れる範囲は非対称: チームスペース（workspace）は全員に見える入れ物が増えるので
+	// admin だけ。プライベートは自分の区画が増えるだけ（他人の見えるものは変わらない）
+	// なので、メンバーなら誰でも作れる。所属は middleware が確かめ済み。
+	if req.Visibility != string(domain.SpaceVisibilityPrivate) {
+		perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
+			WorkspaceID: scope.workspaceID,
+			UserID:      scope.userID,
+		})
+		if err != nil {
+			respondKnowledgeBaseErr(c, err)
+			return
+		}
+		if !perm.CanManage {
+			// ここに来る相手はワークスペースのメンバー（middleware が確かめている）なので、
+			// 実在は既に知っている。403 で理由を返してよい。
+			c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+			return
+		}
+	}
 	space, err := h.createSpace.Execute(c.Request.Context(), usecase.CreateSpaceInput{
-		WorkspaceID: scope.workspaceID,
-		Key:         req.Key,
-		Name:        req.Name,
+		WorkspaceID:   scope.workspaceID,
+		Key:           req.Key,
+		Name:          req.Name,
+		Visibility:    domain.SpaceVisibility(req.Visibility),
+		CreatorUserID: scope.userID,
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)

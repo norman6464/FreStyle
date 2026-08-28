@@ -638,8 +638,10 @@ func (q *Queries) ListPageShareLinks(ctx context.Context, arg ListPageShareLinks
 
 const listPageSpaceScopeGrantRoles = `-- name: ListPageSpaceScopeGrantRoles :many
 WITH pg AS (
-    SELECT p.space_id
+    -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
+    SELECT p.space_id, s.visibility AS space_visibility
     FROM pages p
+    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
     WHERE p.workspace_id = $1 AND p.id = $2
 ),
 me AS (
@@ -661,11 +663,12 @@ mine AS (
     JOIN pg ON pg.space_id = sp.space_id
     WHERE sp.workspace_id = $1
       AND sp.kind = 'space_all'
+      AND pg.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me)
 )
 SELECT pg.space_id, wg."role"
   FROM workspace_grants wg
-  JOIN pg ON TRUE
+  JOIN pg ON pg.space_visibility = 'workspace'
  WHERE wg.workspace_id = $1
    AND wg.principal_id IN (SELECT id FROM mine)
 UNION
@@ -711,7 +714,8 @@ type ListPageSpaceScopeGrantRolesRow struct {
 //
 // mine（自分に効く主体）の作り方は ListSpaceScopeGrantRoles と同じ。
 // 「全員」主体だけはスペース ID が要るので、pg から引いた値を使う。
-// ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+// ワークスペースの grant は visibility='workspace' のスペースにだけ届く
+// （private にはスペース単位の grant だけが届く）。スペースの grant と合わせて返す。
 // pg を JOIN しているので、ページが無ければどちらの枝も 0 行になる。
 func (q *Queries) ListPageSpaceScopeGrantRoles(ctx context.Context, arg ListPageSpaceScopeGrantRolesParams) ([]ListPageSpaceScopeGrantRolesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPageSpaceScopeGrantRoles, arg.WorkspaceID, arg.PageID, arg.UserID)
@@ -797,6 +801,12 @@ mine AS (
     FROM principals sp
     WHERE sp.workspace_id = $1
       AND sp.kind = 'space_all' AND sp.space_id = $2
+      -- private のスペースには space_all を届かせない（1 枚解決と同じ規則）。
+      AND EXISTS (
+        SELECT 1 FROM spaces sv1
+        WHERE sv1.workspace_id = $1 AND sv1.id = $2
+          AND sv1.visibility = 'workspace'
+      )
       AND EXISTS (SELECT 1 FROM me)
 ),
 onpath AS (
@@ -844,9 +854,15 @@ SELECT
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                      WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
         FROM (
+            -- private のスペースにはワークスペース全体の grant を届かせない。
             SELECT wg."role" FROM workspace_grants wg
              WHERE wg.workspace_id = $1
                AND wg.principal_id IN (SELECT id FROM mine)
+               AND EXISTS (
+                 SELECT 1 FROM spaces sv2
+                 WHERE sv2.workspace_id = $1 AND sv2.id = $2
+                   AND sv2.visibility = 'workspace'
+               )
             UNION ALL
             SELECT sg."role" FROM space_grants sg
              WHERE sg.workspace_id = $1 AND sg.space_id = $2
@@ -983,11 +999,22 @@ mine AS (
     FROM principals sp
     WHERE sp.workspace_id = $1
       AND sp.kind = 'space_all' AND sp.space_id = $3
+      -- private のスペースには space_all を届かせない。
+      AND EXISTS (
+        SELECT 1 FROM spaces sv3
+        WHERE sv3.workspace_id = $1 AND sv3.id = $3
+          AND sv3.visibility = 'workspace'
+      )
       AND EXISTS (SELECT 1 FROM me)
 )
 SELECT wg."role" FROM workspace_grants wg
  WHERE wg.workspace_id = $1
    AND wg.principal_id IN (SELECT id FROM mine)
+   AND EXISTS (
+     SELECT 1 FROM spaces sv4
+     WHERE sv4.workspace_id = $1 AND sv4.id = $3
+       AND sv4.visibility = 'workspace'
+   )
 UNION
 SELECT sg."role" FROM space_grants sg
  WHERE sg.workspace_id = $1 AND sg.space_id = $3
@@ -1015,7 +1042,8 @@ type ListSpaceScopeGrantRolesParams struct {
 // mine（自分に効く主体）の作り方は ResolvePagePermissionFacts と同じ:
 // 自分自身 + 所属グループ + そのスペースの「全員」。グループの入れ子は DB 側で
 // 禁じてあるので 1 段の JOIN で足りる。
-// ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+// ワークスペースの grant は visibility='workspace' のスペースにだけ届く。
+// スペースの grant と合わせて返す。
 func (q *Queries) ListSpaceScopeGrantRoles(ctx context.Context, arg ListSpaceScopeGrantRolesParams) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listSpaceScopeGrantRoles, arg.WorkspaceID, arg.UserID, arg.SpaceID)
 	if err != nil {
@@ -1041,8 +1069,10 @@ func (q *Queries) ListSpaceScopeGrantRoles(ctx context.Context, arg ListSpaceSco
 
 const listSubtreePagePermissionFacts = `-- name: ListSubtreePagePermissionFacts :many
 WITH target AS (
-    SELECT p.space_id
+    -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
+    SELECT p.space_id, s.visibility AS space_visibility
     FROM pages p
+    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
     WHERE p.workspace_id = $1 AND p.id = $2
 ),
 subtree AS (
@@ -1070,6 +1100,7 @@ mine AS (
     CROSS JOIN target t
     WHERE sp.workspace_id = $1
       AND sp.kind = 'space_all' AND sp.space_id = t.space_id
+      AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me)
 ),
 onpath AS (
@@ -1108,8 +1139,9 @@ grants AS (
                  WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                  WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS grant_rank
     FROM (
-        SELECT wg."role" FROM workspace_grants wg
+        SELECT wg."role" FROM workspace_grants wg CROSS JOIN target t
          WHERE wg.workspace_id = $1
+           AND t.space_visibility = 'workspace'
            AND wg.principal_id IN (SELECT id FROM mine)
         UNION ALL
         SELECT sg."role" FROM space_grants sg CROSS JOIN target t
@@ -1271,8 +1303,11 @@ mine AS (
     WHERE pmb.workspace_id = $1
 ),
 space_allp AS (
+    -- private のスペースには space_all を届かせない（Search 側と同じ規則）。
     SELECT spx.space_id, spx.id
     FROM principals spx
+    JOIN spaces svy ON svy.workspace_id = $1 AND svy.id = spx.space_id
+     AND svy.visibility = 'workspace'
     WHERE spx.workspace_id = $1
       AND spx.kind = 'space_all'
       AND EXISTS (SELECT 1 FROM me)
@@ -1337,12 +1372,18 @@ sgrank AS (
 )
 SELECT
     cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
-    GREATEST((SELECT v FROM wsrank), COALESCE(sr.v, 0))::integer AS grant_rank,
+    -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
+    -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0)
+    )::integer AS grant_rank,
     (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
     COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
 FROM cand cnd
+JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
 LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
@@ -1391,6 +1432,7 @@ type ListWorkspacePageViewFactsByIDsRow struct {
 //
 // 表の別名はクエリ全体で一意（CTE をまたぐ使い回しは sqlc の列解決が混線する — 検索の
 // クエリのコメントを参照）。
+// pages → spaces は複合 FK があるので必ず 1 行に当たる。
 func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListWorkspacePageViewFactsByIDsParams) ([]ListWorkspacePageViewFactsByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspacePageViewFactsByIDs, arg.WorkspaceID, arg.UserID, arg.PageIds)
 	if err != nil {
@@ -1500,13 +1542,15 @@ mine AS (
     WHERE pm.workspace_id = $1
 ),
 roles AS (
-    -- (a) ワークスペース全体の grant は配下の全スペースへ届く。
+    -- (a) ワークスペース全体の grant は visibility='workspace' のスペースへだけ届く。
+    -- private のスペースは (b) のスペース単位の付与だけで見える。
     SELECT s.id AS space_id, wg."role"
     FROM spaces s
     JOIN workspace_grants wg
       ON wg.workspace_id = $1
      AND wg.principal_id IN (SELECT id FROM mine)
     WHERE s.workspace_id = $1
+      AND s.visibility = 'workspace'
     UNION
     -- (b) スペース単位の grant のうち、自分 / 所属グループ宛てのもの。
     SELECT sg.space_id, sg."role"
@@ -1522,10 +1566,14 @@ roles AS (
     JOIN principals sa
       ON sa.workspace_id = $1 AND sa.id = sg.principal_id
      AND sa.kind = 'space_all' AND sa.space_id = sg.space_id
+    -- private のスペースには space_all を届かせない。
+    JOIN spaces sv5
+      ON sv5.workspace_id = $1 AND sv5.id = sg.space_id
+     AND sv5.visibility = 'workspace'
     WHERE sg.workspace_id = $1
       AND EXISTS (SELECT 1 FROM me)
 )
-SELECT s.id, s.workspace_id, s.key, s.name, s.created_at, s.updated_at, r."role"
+SELECT s.id, s.workspace_id, s.key, s.name, s.visibility, s.created_at, s.updated_at, r."role"
 FROM spaces s
 LEFT JOIN roles r ON r.space_id = s.id
 WHERE s.workspace_id = $1
@@ -1542,6 +1590,7 @@ type ListWorkspaceSpaceScopeFactsRow struct {
 	WorkspaceID uuid.UUID
 	Key         string
 	Name        string
+	Visibility  string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Role        sql.NullString
@@ -1583,6 +1632,7 @@ func (q *Queries) ListWorkspaceSpaceScopeFacts(ctx context.Context, arg ListWork
 			&i.WorkspaceID,
 			&i.Key,
 			&i.Name,
+			&i.Visibility,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Role,
@@ -1681,8 +1731,12 @@ func (q *Queries) MarkPageAllowList(ctx context.Context, arg MarkPageAllowListPa
 
 const resolvePagePermissionFacts = `-- name: ResolvePagePermissionFacts :one
 WITH target AS (
-    SELECT p.space_id
+    -- スペースの visibility も一緒に引く。'private' のスペースには
+    -- ワークスペース全体の grant と space_all（そのスペースの全員）を届かせない
+    -- （届かせ方の規則は domain のまま。ここで変えるのは「事実の集め方」だけ）。
+    SELECT p.space_id, s.visibility AS space_visibility
     FROM pages p
+    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
     WHERE p.workspace_id = $1 AND p.id = $2
 ),
 me AS (
@@ -1708,6 +1762,7 @@ mine AS (
     WHERE sp.workspace_id = $1
       AND sp.kind = 'space_all'
       AND sp.space_id = t.space_id
+      AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me WHERE me.kind = 'user')
 ),
 onpath AS (
@@ -1754,8 +1809,9 @@ SELECT
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                      WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
         FROM (
-            SELECT wg."role" FROM workspace_grants wg
+            SELECT wg."role" FROM workspace_grants wg CROSS JOIN target t
              WHERE wg.workspace_id = $1
+               AND t.space_visibility = 'workspace'
                AND wg.principal_id IN (SELECT id FROM mine)
             UNION ALL
             SELECT sg."role" FROM space_grants sg CROSS JOIN target t
@@ -1890,8 +1946,11 @@ mine AS (
 ),
 space_allp AS (
     -- スペースごとの「全員」主体。自分がワークスペースの所属者のときだけ意味を持つ。
+    -- private のスペースには space_all を届かせない（スペース単位の付与だけが届く）。
     SELECT spx.space_id, spx.id
     FROM principals spx
+    JOIN spaces svx ON svx.workspace_id = $1 AND svx.id = spx.space_id
+     AND svx.visibility = 'workspace'
     WHERE spx.workspace_id = $1
       AND spx.kind = 'space_all'
       AND EXISTS (SELECT 1 FROM me)
@@ -1956,12 +2015,18 @@ sgrank AS (
 )
 SELECT
     cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
-    GREATEST((SELECT v FROM wsrank), COALESCE(sr.v, 0))::integer AS grant_rank,
+    -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
+    -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0)
+    )::integer AS grant_rank,
     (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
     COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
 FROM cand cnd
+JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
 LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
@@ -2019,6 +2084,7 @@ type SearchWorkspacePageViewFactsRow struct {
 // 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c1 / c2 …）。CTE ごとに同じ
 // 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
 // 「column ... does not exist」で生成が落ちる（実測）。
+// pages → spaces は複合 FK があるので必ず 1 行に当たる。
 func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWorkspacePageViewFactsParams) ([]SearchWorkspacePageViewFactsRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchWorkspacePageViewFacts, arg.WorkspaceID, arg.UserID, arg.Needle)
 	if err != nil {

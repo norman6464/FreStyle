@@ -94,7 +94,7 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewListMemberWorkspacesUseCase(permissions),
 		usecase.NewCreateWorkspaceUseCase(provisioner),
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
-		usecase.NewCreateSpaceUseCase(pages),
+		usecase.NewCreateSpaceUseCase(pages, provisioner),
 		usecase.NewListViewableSpacesUseCase(permissions),
 		usecase.NewCheckSpacePermissionUseCase(permissions),
 		usecase.NewRenameSpaceUseCase(pages),

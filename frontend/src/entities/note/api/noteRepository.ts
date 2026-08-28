@@ -75,7 +75,10 @@ const NoteRepository = {
    *
    * key はワークスペース内で一意。**失敗は例外として投げる。**
    */
-  async createSpace(workspaceSlug: string, input: { name: string }): Promise<NoteSpace> {
+  async createSpace(
+    workspaceSlug: string,
+    input: { name: string; visibility?: 'workspace' | 'private' },
+  ): Promise<NoteSpace> {
     const res = await apiClient.post<NoteSpace>(NOTES_API.spaces(workspaceSlug), input);
     return res.data;
   },

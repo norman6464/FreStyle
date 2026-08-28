@@ -64,6 +64,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
   const [searchOpen, setSearchOpen] = useState(false);
   // スペース追加フォームの開閉。既にスペースがあるときの追加入口（0 件のときは常設フォーム）。
   const [addingSpace, setAddingSpace] = useState(false);
+  const [addingPrivateSpace, setAddingPrivateSpace] = useState(false);
 
   // ワークスペース作成は入口が 2 つ（切替ポップアップ / 所属 0 件の常設フォーム）ある。
   // 作成 → 失敗の知らせ → /notes へ戻る、を 1 つに集約して入口ごとの差を作らない。
@@ -132,8 +133,9 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
       )}
 
       <div className="mt-2 min-h-0 flex-1">
-        {/* 節の見出し（見本合わせ）。スペースは共有の木で、個人の領域（プライベート）は
-            権限モデルの設計とセットで別の段。 */}
+        {/* 節の見出し（見本合わせ）。visibility で 2 節に分ける —
+            チームスペース（workspace = 全員に届く）と、プライベート（付与された人だけ）。
+            アーカイブ一覧では節を分けない（対象の絞り込みが主で、場所の区分は騒がしい）。 */}
         {activeSlug && !archivedMode && spaces.length > 0 && (
           <div className="flex items-center justify-between px-2 pb-1">
             {/* 見出しとして名乗る（p だと見出し一覧からこの節へ飛べない）。 */}
@@ -210,7 +212,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
         )}
 
         {activeSlug &&
-          spaces.map((space) => (
+          (archivedMode ? spaces : spaces.filter((s) => s.visibility !== 'private')).map((space) => (
             <NoteSpaceSection
               key={space.id}
               space={space}
@@ -231,6 +233,78 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
               onMovePage={movePage}
             />
           ))}
+
+        {/* プライベート節。空でも見出しと＋を出す — 作る入口が無いと、この区分が
+            あること自体に気づけない。作成はメンバーなら誰でもできる（サーバーが判定）。 */}
+        {activeSlug && !archivedMode && (
+          <>
+            <div className="mt-3 flex items-center justify-between px-2 pb-1">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                プライベート
+              </h2>
+              <button
+                type="button"
+                onClick={() => setAddingPrivateSpace((prev) => !prev)}
+                aria-label="プライベートスペースを追加"
+                title="自分だけに見えるスペースを作成"
+                className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-surface-2"
+              >
+                <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+            {addingPrivateSpace && (
+              <div className="mb-1 rounded-md border border-surface-3">
+                <NoteCreateForm
+                  what="プライベートスペース"
+                  onCreate={async (input) => {
+                    try {
+                      await createSpace({ ...input, visibility: 'private' });
+                    } catch {
+                      showToast('error', 'スペースを作成できませんでした');
+                      throw new Error('create private space failed');
+                    }
+                    setAddingPrivateSpace(false);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setAddingPrivateSpace(false)}
+                  className="w-full px-2 pb-2 text-left text-xs text-[var(--color-text-muted)] hover:underline"
+                >
+                  やめる
+                </button>
+              </div>
+            )}
+            {!addingPrivateSpace && spaces.every((s) => s.visibility !== 'private') && (
+              <p className="px-2 pb-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                自分だけに見える区画。＋で作れます。
+              </p>
+            )}
+            {spaces
+              .filter((s) => s.visibility === 'private')
+              .map((space) => (
+                <NoteSpaceSection
+                  key={space.id}
+                  space={space}
+                  state={spaceStates[space.id]}
+                  workspaceSlug={activeSlug}
+                  activePageId={activePageId}
+                  expandedPageIds={expandedPageIds}
+                  onToggleSpace={toggleSpace}
+                  onTogglePage={togglePage}
+                  onRetry={retrySpace}
+                  onCreatePage={createPage}
+                  onRenamePage={renamePage}
+                  onArchivePage={archivePage}
+                  onDeletePage={deletePage}
+                  onUnarchivePage={unarchivePage}
+                  archivedMode={archivedMode}
+                  onRenameSpace={renameSpace}
+                  onMovePage={movePage}
+                />
+              ))}
+          </>
+        )}
 
       </div>
 

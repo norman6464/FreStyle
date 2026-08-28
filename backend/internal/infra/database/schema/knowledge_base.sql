@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS spaces (
     -- key はワークスペース内で一意な短い識別子（例: "eng"）。
     "key"        varchar(64) NOT NULL,
     name         varchar(200) NOT NULL,
+    -- visibility はワークスペース既定の grant が届くか（'workspace'）・届かないか（'private'）。
+    -- 'private' のスペースにはスペース単位の付与（space_grants）だけが届く。
+    -- 「プライベートかどうか」を grant の構成から導出しないための明示の印（値の正本は
+    -- domain.SpaceVisibility）。実効権限の畳み方は変えず、事実の集め方（workspace_grants を
+    -- 参照する各クエリ）がこの列でふるう。
+    visibility   varchar(16) NOT NULL DEFAULT 'workspace',
     created_at   timestamptz NOT NULL DEFAULT now(),
     updated_at   timestamptz NOT NULL DEFAULT now(),
 
@@ -65,8 +71,28 @@ CREATE TABLE IF NOT EXISTS spaces (
     -- pages からの複合 FK の参照先。id の PK があるので実データ上は冗長だが、
     -- 「テナント越えを FK で塞ぐ」ための足場として要る。
     CONSTRAINT uq_spaces_workspace_id UNIQUE (workspace_id, id),
-    CONSTRAINT ck_spaces_key_len CHECK (char_length("key") BETWEEN 1 AND 64)
+    CONSTRAINT ck_spaces_key_len CHECK (char_length("key") BETWEEN 1 AND 64),
+    CONSTRAINT ck_spaces_visibility CHECK (visibility IN ('workspace', 'private'))
 );
+
+-- 既存 DB への visibility 列の追加（新規 DB には上の CREATE TABLE が効く。
+-- ADD COLUMN IF NOT EXISTS は在れば何もしないので冪等）。既定 'workspace' で埋まるため、
+-- 追加時点の既存スペースの見え方は変わらない。
+ALTER TABLE spaces ADD COLUMN IF NOT EXISTS visibility varchar(16) NOT NULL DEFAULT 'workspace';
+
+-- 既存 DB への CHECK 制約の追加。ADD CONSTRAINT に IF NOT EXISTS が無いので
+-- カタログを見て在るときは何もしない（このファイルで唯一の DO ブロック）。
+DO $mig$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'ck_spaces_visibility' AND conrelid = 'spaces'::regclass
+    ) THEN
+        ALTER TABLE spaces ADD CONSTRAINT ck_spaces_visibility
+            CHECK (visibility IN ('workspace', 'private'));
+    END IF;
+END
+$mig$;
 
 -- ページ: ナレッジ基盤の 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
 CREATE TABLE IF NOT EXISTS pages (

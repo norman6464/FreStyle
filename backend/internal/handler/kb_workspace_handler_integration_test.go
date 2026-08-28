@@ -373,3 +373,85 @@ func TestKnowledgeBaseListSpacesAPI_Integration(t *testing.T) {
 		assert.NotContains(t, w.Body.String(), "secret")
 	})
 }
+
+// TestKnowledgeBasePrivateSpaceAPI_Integration はプライベートスペースが「スペース単位で
+// 付与された相手」以外へ**どの読み取り経路からも**漏れないことを実 PostgreSQL で確かめる。
+//
+// ワークスペース全体の grant を見るクエリは 8 本あり、1 本でもふるい忘れると
+// 「一覧には出ないのに URL 直叩きで読める」私室ができる。ここでは admin（ワークスペース
+// 既定では最強の相手）を観測者にして、一覧・木・1 枚・検索の全部で見えないことを固定する。
+func TestKnowledgeBasePrivateSpaceAPI_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	env := newKbEnv(t, sqlDB, "acme")
+	alice := kbInsertUser(t, sqlDB, "alice") // ワークスペースの admin（それでも見えない）
+	bob := kbInsertUser(t, sqlDB, "bob")     // editor・プライベートスペースの作成者
+	env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+	env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+
+	// bob（admin ではない）がプライベートスペースを作れる。
+	spacesPath := "/api/v2/kb/workspaces/acme/spaces"
+	created := env.as(bob).do(t, http.MethodPost, spacesPath,
+		`{"name":"bob の下書き","visibility":"private"}`)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	var space kbSpaceResponse
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &space))
+	require.Equal(t, "private", space.Visibility)
+
+	// 中にページも作れる（作成時に張られる space_grant(admin) が唯一の入口。
+	// これが無ければワークスペース既定は届かず、作った本人にも見えない）。
+	pagesPath := spacesPath + "/" + space.ID + "/pages"
+	pageRes := env.as(bob).do(t, http.MethodPost, pagesPath, `{"title":"秘密のメモ"}`)
+	require.Equal(t, http.StatusCreated, pageRes.Code, pageRes.Body.String())
+	var page kbPageResponse
+	require.NoError(t, json.Unmarshal(pageRes.Body.Bytes(), &page))
+
+	t.Run("作成者にはすべての経路で見える", func(t *testing.T) {
+		e := env.as(bob)
+		listed := e.do(t, http.MethodGet, spacesPath, "")
+		require.Equal(t, http.StatusOK, listed.Code)
+		assert.Contains(t, listed.Body.String(), space.ID, "一覧に出る")
+
+		tree := e.do(t, http.MethodGet, pagesPath, "")
+		require.Equal(t, http.StatusOK, tree.Code)
+		assert.Contains(t, tree.Body.String(), page.ID, "木に出る")
+
+		got := e.do(t, http.MethodGet, env.pagePath(page.ID), "")
+		assert.Equal(t, http.StatusOK, got.Code, "本文を開ける")
+
+		search := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/search?q=秘密", "")
+		require.Equal(t, http.StatusOK, search.Code)
+		assert.Contains(t, search.Body.String(), page.ID, "検索に出る")
+	})
+
+	t.Run("ワークスペースのadminでもスペース単位の付与が無ければ何も見えない", func(t *testing.T) {
+		e := env.as(alice)
+		listed := e.do(t, http.MethodGet, spacesPath, "")
+		require.Equal(t, http.StatusOK, listed.Code)
+		assert.NotContains(t, listed.Body.String(), space.ID, "一覧に行ごと出さない")
+
+		// スペース ID を知っていても木は空。404 にしないのは Tree の設計
+		// （「無いスペース」と「見えないスペース」を撃ち分けると ID の総当たりで
+		// 実在が分かるため、どちらも 200 の空配列）。中身が漏れないことが本題。
+		tree := e.do(t, http.MethodGet, pagesPath, "")
+		require.Equal(t, http.StatusOK, tree.Code)
+		assert.NotContains(t, tree.Body.String(), page.ID, "木にページが載らない")
+		assert.Contains(t, tree.Body.String(), `"pages":[]`, "1 件も出ない")
+
+		// ページ ID を知っていても 1 枚を開けない。
+		got := e.do(t, http.MethodGet, env.pagePath(page.ID), "")
+		assert.Equal(t, http.StatusNotFound, got.Code, "URL 直叩きも 404")
+
+		search := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/search?q=秘密", "")
+		require.Equal(t, http.StatusOK, search.Code)
+		assert.NotContains(t, search.Body.String(), page.ID, "検索にも出ない")
+	})
+
+	t.Run("チームスペースは今までどおり全員に見える", func(t *testing.T) {
+		// 回帰の確認: visibility のふるいを足したことで、既定の 'workspace' の
+		// スペースまで見えなくなっていないこと（env の既定スペース eng を使う）。
+		e := env.as(alice)
+		listed := e.do(t, http.MethodGet, spacesPath, "")
+		require.Equal(t, http.StatusOK, listed.Code)
+		assert.Contains(t, listed.Body.String(), env.spaceID)
+	})
+}

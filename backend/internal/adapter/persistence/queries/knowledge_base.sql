@@ -29,8 +29,9 @@ RETURNING *;
 
 -- name: InsertSpace :one
 -- スペースの作成。key はワークスペース内で一意（uq_spaces_workspace_key）。
-INSERT INTO spaces (id, workspace_id, "key", name)
-VALUES ($1, $2, $3, $4)
+-- visibility の値は domain.SpaceVisibility が正（'workspace' / 'private'）。
+INSERT INTO spaces (id, workspace_id, "key", name, visibility)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetSpace :one

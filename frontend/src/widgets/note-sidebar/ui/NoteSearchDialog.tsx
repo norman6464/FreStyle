@@ -74,6 +74,8 @@ export default function NoteSearchDialog({ workspaceSlug, spaces, onClose }: Not
   };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
+    // 日本語入力の変換キャンセル・確定はモーダルの操作にしない（打ちかけの検索語を守る）。
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();

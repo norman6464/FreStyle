@@ -101,8 +101,9 @@ export default function NotePage() {
                 フロントで埋めると、サーバーが伏せた実在を推測で喋ることになる）。
               */}
               <nav aria-label="ページの場所" className="mb-2 flex min-w-0 flex-wrap items-center gap-1 text-xs text-[var(--color-text-muted)]">
-                <span className="truncate">{data.workspaceName}</span>
-                {data.ancestors.map((ancestor) => (
+                <span className="truncate">{data.workspaceName ?? data.workspaceSlug}</span>
+                {/* ?? [] はデプロイ順の防御 — 旧バックエンドの応答（ancestors なし）でも落とさない */}
+                {(data.ancestors ?? []).map((ancestor) => (
                   <span key={ancestor.id} className="flex min-w-0 items-center gap-1">
                     <span aria-hidden="true">/</span>
                     <Link
@@ -113,9 +114,12 @@ export default function NotePage() {
                     </Link>
                   </span>
                 ))}
-                <span aria-hidden="true">/</span>
-                <span aria-current="page" className="max-w-40 truncate text-[var(--color-text-secondary)]">
-                  {data.page.title}
+                {/* 区切りは題名と組にして折り返す（独立させると「/」だけが行末に残る） */}
+                <span className="flex min-w-0 items-center gap-1">
+                  <span aria-hidden="true">/</span>
+                  <span aria-current="page" className="max-w-40 truncate text-[var(--color-text-secondary)]">
+                    {data.page.title}
+                  </span>
                 </span>
               </nav>
               {/* ページごとに作り直す（別ページへ移った瞬間、打ちかけの下書きを持ち越さない） */}

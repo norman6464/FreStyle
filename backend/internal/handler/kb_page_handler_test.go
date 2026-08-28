@@ -1034,26 +1034,9 @@ func Test_ナレッジ基盤API_IDだけの解決にパンくずが載る(t *tes
 	assert.Equal(t, kbRootPageID, res.Ancestors[0].ID)
 	assert.Equal(t, kbChildPageID, res.Ancestors[1].ID)
 
-	// 途中の祖先（child）に deny を張ると、その段は行ごと消える（穴があく）。
-	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
-	require.NotNil(t, me)
-	f.perms.restrictions[kbRestrictionKey{
-		pageID: kbChildPageID, principalID: me.ID, capability: domain.CapabilityView,
-	}] = domain.RestrictionModeDeny
-	// deny は経路全体に効くので孫も見えなくなる…わけではなく、この fake は段ごとの
-	// 制限を見る。孫自身の可視が落ちる場合は 404 になるため、ここでは応答の形だけ見る。
-	got2 := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+grandchild.ID, "")
-	if got2.Code == http.StatusOK {
-		var res2 struct {
-			Ancestors []struct {
-				ID string `json:"id"`
-			} `json:"ancestors"`
-		}
-		require.NoError(t, json.Unmarshal(got2.Body.Bytes(), &res2))
-		for _, a := range res2.Ancestors {
-			assert.NotEqual(t, kbChildPageID, a.ID, "deny された祖先はパンくずに出ない")
-		}
-	}
+	// 祖先への deny はこの fake では経路全体に効き、孫自身も 404 になる
+	// （＝この経路で「祖先だけ消える」形は作れない）。見えない祖先が行ごと
+	// 落ちること・並びが closure の順であることは usecase の単体テストが固定する。
 }
 
 // ResolveByID（/p の入口）は Get と別経路で WorkspaceID / UserID を組み立てるため、

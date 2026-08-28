@@ -84,6 +84,11 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 	}
 	titles := make(map[string]string, len(rows))
 	for _, row := range rows {
+		// アーカイブ済みは題名に採らない（隠したページの現在の題名を本文へ映さない —
+		// 検索が現役だけを対象にするのと同じ線引き）。パンくず側は逆に含める。
+		if row.Page.ArchivedAt != nil {
+			continue
+		}
 		if domain.ResolvePageView(row.Facts) {
 			titles[row.Page.ID] = row.Page.Title
 		}
@@ -247,6 +252,9 @@ type AncestorRef struct {
 // （ListWorkspacePageViewFactsByIDs + domain.ResolvePageView）を通す。
 // 結果、パンくずには穴があき得るが、それは木と同じ見え方 — パンくずだけ別の
 // 判定を持つと「木には出ないのに道筋には出る」穴になる。
+//
+// **アーカイブ済みの祖先は含める**（閲覧できる限り）。アーカイブ済みのページは
+// /p/{id} で開けるので、経路から抜くと「その段が無い」かのように場所を偽る。
 type ListViewableAncestorsUseCase struct {
 	pages repository.KnowledgeBaseRepository
 	perms repository.KnowledgeBasePermissionRepository

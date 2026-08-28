@@ -47,6 +47,10 @@ export default function NoteWorkspaceSwitcher({
     // Escape で閉じる。開いたものを閉じる手段がキーボードから無いのは、
     // 役割を名乗る名乗らないに関わらず困る。
     const onKeyDown = (event: KeyboardEvent) => {
+      // 日本語入力の変換キャンセルの Escape で閉じない。閉じるとポップアップ内の
+      // 作成フォームごと消え、打ちかけのワークスペース名が失われる（keyCode 229 は
+      // Safari の変換中の値）。
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') setOpen(false);
     };
     document.addEventListener('mousedown', onDocumentMouseDown);

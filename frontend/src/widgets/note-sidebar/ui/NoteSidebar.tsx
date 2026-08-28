@@ -82,6 +82,9 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
             showToast('error', 'ワークスペースを作成できませんでした');
             throw new Error('create workspace failed');
           }
+          // 切替（onSelect）と同じ理由で一覧へ戻す。戻さないと、開いていた旧ワーク
+          // スペースのページと、新ワークスペースを指すサイドバーが食い違ったまま残る。
+          navigate('/notes');
         }}
       />
 

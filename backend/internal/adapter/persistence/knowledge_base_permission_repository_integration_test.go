@@ -1802,20 +1802,22 @@ func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
 		rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice,
 			[]string{visible.ID, secret.ID, archived.ID, "not-a-uuid"})
 		require.NoError(t, err)
-		require.Len(t, rows, 2,
-			"頼んだ ID の現役ページだけが返る（不正 ID・アーカイブ済みは静かに落ちる）")
+		require.Len(t, rows, 3,
+			"頼んだ ID のページが返る（不正 ID は静かに落ちる。アーカイブ済みは行として返り、除外は用途側の判断）")
 
 		byID := map[string]bool{}
+		archivedAt := map[string]bool{}
 		for _, row := range rows {
 			byID[row.Page.ID] = domain.ResolvePageView(row.Facts)
+			archivedAt[row.Page.ID] = row.Page.ArchivedAt != nil
 		}
 		assert.True(t, byID[visible.ID], "deny の無いページは閲覧できる")
 		assert.False(t, byID[secret.ID], "deny のあるページは事実から閲覧不可に倒れる（検索と同じ規則）")
+		assert.True(t, archivedAt[archived.ID], "アーカイブ済みは ArchivedAt 付きで返る（呼び出し側が除外を判断できる）")
+		assert.False(t, archivedAt[visible.ID])
 		// 頼んでいない ID は返らない（ID で絞る口が全件の口にならない証拠）。
 		_, unrequested := byID[other.ID]
 		assert.False(t, unrequested)
-		_, gotArchived := byID[archived.ID]
-		assert.False(t, gotArchived, "アーカイブ済みは隠したページ — 題名を本文へ映さない")
 	})
 
 	t.Run("他ワークスペースのIDは返らない", func(t *testing.T) {

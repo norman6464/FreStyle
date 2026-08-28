@@ -717,7 +717,8 @@ func (f *kbFakePerms) ListWorkspacePageViewFactsByIDs(
 		wanted[id] = true
 	}
 	for _, p := range f.pages.pages {
-		if p.WorkspaceID != workspaceID || p.ArchivedAt != nil || !wanted[p.ID] {
+		// アーカイブ済みも行として返す（本番と同じ）。除外の判断は呼び出し側が持つ。
+		if p.WorkspaceID != workspaceID || !wanted[p.ID] {
 			continue
 		}
 		mine := f.mine(workspaceID, p.SpaceID, userID)

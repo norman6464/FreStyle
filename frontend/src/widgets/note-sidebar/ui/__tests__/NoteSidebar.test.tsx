@@ -1387,8 +1387,20 @@ describe('ページ画面からの通知に木が追従する', () => {
 });
 
 describe('ワークスペース切替ポップアップ', () => {
+  let popPath = '';
+  function PopPathProbe() {
+    popPath = useLocation().pathname;
+    return null;
+  }
+
   it('所属が 1 つでも開け、追加の入口から名前だけで作れる', async () => {
-    renderSidebar();
+    popPath = '';
+    render(
+      <MemoryRouter initialEntries={['/p/p1']}>
+        <PopPathProbe />
+        <NoteSidebar workspaceSlug="acme" activePageId="p1" />
+      </MemoryRouter>,
+    );
     await screen.findByText('設計メモ');
 
     // 1 件でも見出しではなくボタン（ポップアップに追加の入口があるため）。
@@ -1404,7 +1416,28 @@ describe('ワークスペース切替ポップアップ', () => {
     await waitFor(() =>
       expect(hoisted.createWorkspace).toHaveBeenCalledWith({ name: '新チーム' }),
     );
-    // 成功したらポップアップは閉じる（hook が作った先へ切り替える）。
+    // 成功したらポップアップは閉じ、一覧（/notes）へ戻る — 開いていた旧ワークスペースの
+    // ページと、新ワークスペースを指すサイドバーが食い違ったまま残らないように。
+    await waitFor(() =>
+      expect(screen.queryByLabelText('ワークスペースの名前')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(popPath).toBe('/notes'));
+  });
+
+  it('日本語入力の変換キャンセルの Escape ではポップアップを閉じない（打ちかけの名前を守る）', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを追加' }));
+    const input = screen.getByLabelText('ワークスペースの名前');
+    fireEvent.change(input, { target: { value: '開発ちー' } });
+
+    // 変換中の Escape（isComposing=true）は document のリスナーに届いても無視される。
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
+    expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('開発ちー');
+
+    // 変換していない Escape では従来どおり閉じる。
+    fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() =>
       expect(screen.queryByLabelText('ワークスペースの名前')).not.toBeInTheDocument(),
     );

@@ -156,6 +156,18 @@ describe('NotePage の配線', () => {
     expect(within(nav).queryByRole('link', { name: '親ページ' })).not.toBeInTheDocument();
   });
 
+  it('ancestors の無い旧応答でも画面は落ちない（デプロイ順の防御）', async () => {
+    const legacy = { ...resolved(true) } as Record<string, unknown>;
+    delete legacy.ancestors;
+    delete legacy.workspaceName;
+    hoisted.resolvePage.mockResolvedValue(legacy);
+    renderPage();
+
+    const nav = await screen.findByRole('navigation', { name: 'ページの場所' });
+    // ワークスペース名が無ければ slug で代用する。
+    expect(within(nav).getByText('w-3f2a9c')).toBeInTheDocument();
+  });
+
   it('祖先が空でもパンくずは壊れない（根ページ・穴だけの経路）', async () => {
     hoisted.resolvePage.mockResolvedValue({ ...resolved(true), ancestors: [] });
     renderPage();

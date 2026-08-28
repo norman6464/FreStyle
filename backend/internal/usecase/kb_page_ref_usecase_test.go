@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -178,4 +179,106 @@ func Test_ページ参照の題名は保存時に剥がされる(t *testing.T) {
 	// 参照が無い doc は触らない（同じ文字列のまま）。
 	plain := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`
 	assert.Equal(t, plain, usecase.StripPageRefTitles(plain))
+}
+
+func Test_ページ参照の題名解決_アーカイブ済みの参照は題名に採らない(t *testing.T) {
+	// 隠したページの現在の題名を本文へ映さない（検索が現役だけを対象にするのと同じ線引き）。
+	repo := &mockKBPermissionRepo{}
+	id := "00000000-0000-7000-8000-000000000001"
+	archivedAt := time.Now()
+	archived := repository.PageWithViewFacts{
+		Page:  domain.Page{ID: id, Title: "隠した題名", ArchivedAt: &archivedAt},
+		Facts: domain.PageViewFacts{Role: rolePtr(domain.GrantRoleViewer)},
+	}
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{id}).
+		Return([]repository.PageWithViewFacts{archived}, nil)
+	uc := usecase.NewResolvePageRefTitlesUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(id),
+	})
+
+	assert.NoError(t, err)
+	assert.NotContains(t, got, "隠した題名")
+}
+
+func Test_パンくず_閲覧できる祖先だけがclosureの順で返る(t *testing.T) {
+	pages := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	// closure の順は「ん」→「あ」（根が「ん」）。facts は題名順（「あ」が先）で返す —
+	// 題名順をそのまま使う退行をこの並びで捕まえる。
+	root := "00000000-0000-7000-8000-00000000000a"
+	child := "00000000-0000-7000-8000-00000000000b"
+	hidden := "00000000-0000-7000-8000-00000000000c"
+	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "page-x").
+		Return([]string{root, child, hidden}, nil)
+	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7),
+		[]string{root, child, hidden}).
+		Return([]repository.PageWithViewFacts{
+			// 題名順: 「あ」(child) が先、「ん」(root) が後。hidden は deny の事実つき。
+			kbViewableFacts(child, "あ"),
+			kbViewableFacts(root, "ん"),
+			{
+				Page: domain.Page{ID: hidden, Title: "見えない段"},
+				Facts: domain.PageViewFacts{
+					Role: rolePtr(domain.GrantRoleViewer),
+					View: &domain.RestrictionFacts{DeniedAnywhere: true},
+				},
+			},
+		}, nil)
+	uc := usecase.NewListViewableAncestorsUseCase(pages, perms)
+
+	got, err := uc.Execute(context.Background(), usecase.ListViewableAncestorsInput{
+		WorkspaceID: kbRefWS, UserID: 7, PageID: "page-x",
+	})
+
+	assert.NoError(t, err)
+	// 並びは closure（根から）。facts の題名順に引きずられない。
+	// 見えない段は行ごと消える（題名どころか実在も知らせない）。
+	assert.Equal(t, []usecase.AncestorRef{
+		{ID: root, Title: "ん"},
+		{ID: child, Title: "あ"},
+	}, got)
+}
+
+func Test_パンくず_アーカイブ済みの祖先も閲覧できる限り含める(t *testing.T) {
+	// アーカイブ済みのページは /p で開ける。経路から抜くと「その段が無い」かのように
+	// 場所を偽るので、可視である限り出す（題名解決と除外の線引きが違う）。
+	pages := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	arch := "00000000-0000-7000-8000-00000000000d"
+	archivedAt := time.Now()
+	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "page-y").
+		Return([]string{arch}, nil)
+	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{arch}).
+		Return([]repository.PageWithViewFacts{{
+			Page:  domain.Page{ID: arch, Title: "片付けた親", ArchivedAt: &archivedAt},
+			Facts: domain.PageViewFacts{Role: rolePtr(domain.GrantRoleViewer)},
+		}}, nil)
+	uc := usecase.NewListViewableAncestorsUseCase(pages, perms)
+
+	got, err := uc.Execute(context.Background(), usecase.ListViewableAncestorsInput{
+		WorkspaceID: kbRefWS, UserID: 7, PageID: "page-y",
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []usecase.AncestorRef{{ID: arch, Title: "片付けた親"}}, got)
+}
+
+func Test_パンくず_祖先が無ければ空のsliceを返す(t *testing.T) {
+	// nil を返すと JSON で null になり、フロントの ancestors.map が落ちる。
+	pages := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "root-page").
+		Return([]string{}, nil)
+	uc := usecase.NewListViewableAncestorsUseCase(pages, perms)
+
+	got, err := uc.Execute(context.Background(), usecase.ListViewableAncestorsInput{
+		WorkspaceID: kbRefWS, UserID: 7, PageID: "root-page",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, got)
+	assert.Empty(t, got)
+	perms.AssertNotCalled(t, "ListWorkspacePageViewFactsByIDs")
 }

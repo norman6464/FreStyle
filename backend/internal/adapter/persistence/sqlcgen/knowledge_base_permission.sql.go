@@ -1281,7 +1281,6 @@ cand AS (
     SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at
     FROM pages pg
     WHERE pg.workspace_id = $1
-      AND pg.archived_at IS NULL
       AND pg.id IN (
         SELECT value::uuid FROM json_array_elements_text($3::json) AS t(value)
       )
@@ -1384,8 +1383,11 @@ type ListWorkspacePageViewFactsByIDsRow struct {
 // 増えるため。json_array_elements_text で展開して uuid へ落とす）。呼び出し側（Go）が
 // UUID として読めない値を先に落として渡す — ここで ::uuid が失敗するとクエリ全体が落ちる。
 //
-// アーカイブ済みを含めないのは検索と同じ線引き（隠したページの現在の題名を
-// 本文へ映さない）。他ワークスペースの ID は workspace_id の条件で自然に 0 行になる。
+// アーカイブ済みも行として返す（Page.ArchivedAt に載る）。除外するかは用途で違う —
+// 題名解決は除外し（隠したページの題名を本文へ映さない）、パンくずは含める
+// （アーカイブ済みのページは開けるので、経路から抜くと場所を偽る）。その判断は
+// 呼び出し側（usecase）が Page.ArchivedAt を見て行う。
+// 他ワークスペースの ID は workspace_id の条件で自然に 0 行になる。
 //
 // 表の別名はクエリ全体で一意（CTE をまたぐ使い回しは sqlc の列解決が混線する — 検索の
 // クエリのコメントを参照）。

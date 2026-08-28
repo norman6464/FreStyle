@@ -1105,6 +1105,32 @@ describe('題名で検索（サーバー検索）', () => {
     expect(await screen.findByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
   });
 
+  it('古い検索の応答が、後から届いても新しい結果を上書きしない', async () => {
+    // 1 回目の応答を保留し、2 回目が確定した後で解決する（遅い応答が追い越される形）。
+    let resolveOld: (pages: KbPage[]) => void = () => {};
+    hoisted.searchPages.mockImplementationOnce(
+      () => new Promise<KbPage[]>((resolve) => { resolveOld = resolve; }),
+    );
+    hoisted.searchPages.mockResolvedValueOnce([
+      { ...page('new-hit', '新しい結果'), spaceId: 'space-1' },
+    ]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const input = screen.getByRole('searchbox', { name: 'ページを題名で検索' });
+    fireEvent.change(input, { target: { value: 'ふるい' } });
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: '新しい' } });
+    expect(await screen.findByRole('link', { name: /新しい結果/ })).toBeInTheDocument();
+
+    // ここで 1 回目（古い方）が届く。世代番号で捨てられ、画面は新しい結果のまま。
+    await act(async () => {
+      resolveOld([{ ...page('old-hit', '古い結果'), spaceId: 'space-1' }]);
+    });
+    expect(screen.queryByRole('link', { name: /古い結果/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /新しい結果/ })).toBeInTheDocument();
+  });
+
   it('検索に失敗したら再試行の導線を出し、押すともう一度問い合わせる', async () => {
     hoisted.searchPages.mockRejectedValueOnce(new Error('down'));
     hoisted.searchPages.mockResolvedValueOnce([
@@ -1131,7 +1157,7 @@ describe('スペースの見出しの操作', () => {
     fireEvent.click(screen.getByRole('button', { name: '開発部 の操作' }));
     fireEvent.click(screen.getByRole('button', { name: 'スペースの名前を変更' }));
 
-    const input = screen.getByRole('textbox', { name: 'ページの題名' });
+    const input = screen.getByRole('textbox', { name: 'スペースの名前' });
     fireEvent.change(input, { target: { value: '技術部' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -1147,7 +1173,7 @@ describe('スペースの見出しの操作', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '開発部 の操作' }));
     fireEvent.click(screen.getByRole('button', { name: 'スペースの名前を変更' }));
-    const input = screen.getByRole('textbox', { name: 'ページの題名' });
+    const input = screen.getByRole('textbox', { name: 'スペースの名前' });
     fireEvent.change(input, { target: { value: '技術部' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -1156,7 +1182,7 @@ describe('スペースの見出しの操作', () => {
     );
     // 入力欄は開いたまま・書いた文字も残る（閉じると、保存されたのか分からなくなる）。
     // ページの改名と同じ設計。
-    const stillOpen = screen.getByRole('textbox', { name: 'ページの題名' });
+    const stillOpen = screen.getByRole('textbox', { name: 'スペースの名前' });
     expect(stillOpen).toHaveValue('技術部');
   });
 

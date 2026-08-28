@@ -540,13 +540,28 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 		assert.Equal(t, "p-2", pages[1].ID)
 	})
 
-	t.Run("Limit は可視でふるった後に効く", func(t *testing.T) {
-		pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
-			WorkspaceID: "ws-1", UserID: 7, Query: "docker", Limit: 1,
-		})
-		require.NoError(t, err)
-		require.Len(t, pages, 1)
-		assert.Equal(t, "p-1", pages[0].ID)
+	t.Run("Limit は可視でふるった後に効き、範囲外は既定・上限へ畳まれる", func(t *testing.T) {
+		// 入力 → 期待件数の表。可視は 2 件しか無いので、2 以上はすべて 2 になる。
+		cases := []struct {
+			name  string
+			limit int
+			want  int
+		}{
+			{name: "1 なら 1 件", limit: 1, want: 2 - 1},
+			{name: "0 は既定 20 → 可視の全件", limit: 0, want: 2},
+			{name: "負も既定 20 → 可視の全件", limit: -5, want: 2},
+			{name: "上限 50 を超えても 50 に畳まれる（可視の全件）", limit: 999, want: 2},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+					WorkspaceID: "ws-1", UserID: 7, Query: "docker", Limit: tc.limit,
+				})
+				require.NoError(t, err)
+				require.Len(t, pages, tc.want)
+				assert.Equal(t, "p-1", pages[0].ID, "並びは repo の返した順（題名順）を保つ")
+			})
+		}
 	})
 }
 

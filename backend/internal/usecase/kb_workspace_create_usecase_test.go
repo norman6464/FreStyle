@@ -198,6 +198,8 @@ func Test_スペース改名_検証と伝播(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, name, got.Name)
+		// UpdateSpaceName を呼ばずに FindSpace の結果だけ返す回帰を捕まえる。
+		repo.AssertExpectations(t)
 	})
 
 	t.Run("存在しないスペースは ErrSpaceNotFound をそのまま伝える", func(t *testing.T) {
@@ -209,5 +211,6 @@ func Test_スペース改名_検証と伝播(t *testing.T) {
 			WorkspaceID: "ws-1", SpaceID: "sp-x", Name: "新名",
 		})
 		assert.ErrorIs(t, err, repository.ErrSpaceNotFound)
+		repo.AssertExpectations(t)
 	})
 }

@@ -166,6 +166,7 @@ export default function KbSpaceSection({
             />
             <KbInlineRename
               initialTitle={space.name}
+              ariaLabel="スペースの名前"
               onCommit={commitSpaceRename}
               onCancel={() => setRenamingSpace(false)}
             />
@@ -201,7 +202,7 @@ export default function KbSpaceSection({
             <button
               type="button"
               onClick={() => setSpaceMenuOpen((prev) => !prev)}
-              aria-haspopup="true"
+              // menu を名乗らない（矢印キーでの移動を用意していないため）。開閉は aria-expanded が表す。
               aria-expanded={spaceMenuOpen}
               aria-label={`${space.name} の操作`}
               className="shrink-0 rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-surface-3"

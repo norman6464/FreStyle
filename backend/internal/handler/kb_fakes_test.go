@@ -641,8 +641,10 @@ func (f *kbFakePerms) PagePermissionFactsForUser(ctx context.Context, workspaceI
 }
 
 // SearchWorkspacePageViewFacts は本番のクエリと同じ見方で候補と事実を返す:
-// 題名の部分一致（大文字小文字は区別しない）・現役のみ・ワークスペース境界・
-// 役割はそのページのスペースに届いている分。判定（ふるい）は usecase が行う。
+// 題名の部分一致（大文字小文字は区別しない）・現役のみ・ワークスペース境界。
+// 事実（役割と経路上の例外）は一覧（ListSpacePageViewFacts）と同じ作り方にする —
+// 検索だけ Role しか返さないと、deny のあるページが検索でだけ見える fake になり、
+// 本番との差がテストの穴になる。判定（ふるい）は usecase が行う。
 func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 	_ context.Context, workspaceID string, userID uint64, query string,
 ) ([]repository.PageWithViewFacts, error) {
@@ -659,13 +661,13 @@ func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 		if !strings.Contains(strings.ToLower(p.Title), needle) {
 			continue
 		}
-		var role *domain.GrantRole
-		if roles := f.rolesAt(kbScopeKey{scopeID: p.SpaceID, userID: userID}, workspaceID, userID); len(roles) > 0 {
-			role = &roles[0]
-		}
+		mine := f.mine(workspaceID, p.SpaceID, userID)
 		out = append(out, repository.PageWithViewFacts{
-			Page:  *p,
-			Facts: domain.PageViewFacts{Role: role},
+			Page: *p,
+			Facts: domain.PageViewFacts{
+				Role: roleFor(f.permFor(p.ID, userID)),
+				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
+			},
 		})
 	}
 	// map の巡回順に依存しない並び（本番は題名順）。

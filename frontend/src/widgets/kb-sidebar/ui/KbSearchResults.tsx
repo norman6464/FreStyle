@@ -100,7 +100,12 @@ export default function KbSearchResults({
             <li key={page.id}>
               <Link
                 to={`/kb/${workspaceSlug}/pages/${page.id}`}
-                className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm text-[var(--color-text-primary)] hover:bg-surface-2"
+                aria-current={page.id === activePageId ? 'page' : undefined}
+                className={`flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm ${
+                  page.id === activePageId
+                    ? 'bg-brand-500/10 font-medium text-brand-600'
+                    : 'text-[var(--color-text-primary)] hover:bg-surface-2'
+                }`}
               >
                 <KbPageIcon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                 <span className="truncate">{page.title}</span>

@@ -1452,17 +1452,28 @@ func Test_ナレッジ基盤API_題名検索(t *testing.T) {
 		return f.do(t, http.MethodGet, path, "")
 	}
 
-	t.Run("役割があれば題名の一致した分が返る", func(t *testing.T) {
+	t.Run("閲覧できる相手には題名の一致した分が返る", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
-		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleViewer)
 		w := search(f, t, "root")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assert.Contains(t, w.Body.String(), "root")
 		assert.NotContains(t, w.Body.String(), "child")
 	})
 
-	t.Run("役割が無ければ一致していても空", func(t *testing.T) {
+	t.Run("閲覧できない相手には一致していても空", func(t *testing.T) {
+		f := newKbFixture(domain.PagePermission{}, kbUserID)
+		w := search(f, t, "root")
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "[]", strings.TrimSpace(w.Body.String()))
+	})
+
+	t.Run("経路上で deny された相手には出ない（一覧と同じ事実で判定される）", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
+		me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
+		require.NotNil(t, me)
+		f.perms.restrictions[kbRestrictionKey{
+			pageID: kbRootPageID, principalID: me.ID, capability: domain.CapabilityView,
+		}] = domain.RestrictionModeDeny
 		w := search(f, t, "root")
 		require.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "[]", strings.TrimSpace(w.Body.String()))

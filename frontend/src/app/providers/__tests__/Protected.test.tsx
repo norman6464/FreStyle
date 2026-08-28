@@ -54,8 +54,9 @@ describe('Protected', () => {
     expect(screen.queryByText('保護されたコンテンツ')).not.toBeInTheDocument();
   });
 
-  // super_admin が trainee 向けルート (/notes 等) にアクセスしたら /admin/companies に飛ばす。
-  it('role=super_admin が /notes にアクセスすると /admin/companies にリダイレクト', () => {
+  // super_admin が trainee 向けルート (/code-editor 等) にアクセスしたら /admin/companies に飛ばす。
+  // ノート（/notes）は旧ナレッジを統合した共有の面なので super_admin にも開く（対象外）。
+  it('role=super_admin が /code-editor にアクセスすると /admin/companies にリダイレクト', () => {
     const store = configureStore({
       reducer: { auth: authReducer },
       preloadedState: {
@@ -69,13 +70,13 @@ describe('Protected', () => {
     });
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={['/notes']}>
+        <MemoryRouter initialEntries={['/code-editor']}>
           <Routes>
             <Route
-              path="/notes"
+              path="/code-editor"
               element={
                 <Protected>
-                  <div>ノート画面</div>
+                  <div>演習画面</div>
                 </Protected>
               }
             />
@@ -85,7 +86,7 @@ describe('Protected', () => {
       </Provider>,
     );
     expect(screen.getByText('会社一覧')).toBeInTheDocument();
-    expect(screen.queryByText('ノート画面')).not.toBeInTheDocument();
+    expect(screen.queryByText('演習画面')).not.toBeInTheDocument();
   });
 
   // super_admin でも /admin 配下は通る。

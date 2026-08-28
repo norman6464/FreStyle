@@ -6,20 +6,17 @@ import {
   StarIcon,
   DocumentTextIcon,
   UserCircleIcon,
-  DocumentPlusIcon,
 } from '@heroicons/react/24/outline';
 import type { ComponentType, SVGProps } from 'react';
 
-export type CommandAction =
-  | { type: 'navigate'; path: string }
-  | { type: 'action'; id: string };
+export type CommandAction = { type: 'navigate'; path: string };
 
 export interface CommandItem {
   id: string;
   label: string;
   description?: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
-  category: 'ページ移動' | 'アクション';
+  category: 'ページ移動';
   action: CommandAction;
   keywords?: string[];
 }
@@ -69,16 +66,8 @@ export const COMMAND_ITEMS: CommandItem[] = [
     icon: DocumentTextIcon,
     category: 'ページ移動',
     action: { type: 'navigate', path: '/notes' },
-    keywords: ['note', 'メモ', 'ノート'],
-  },
-  {
-    id: 'nav-kb',
-    label: 'ナレッジ',
-    description: 'ナレッジに移動',
-    icon: DocumentTextIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/kb' },
-    keywords: ['kb', 'knowledge', 'ナレッジ', 'wiki', 'ドキュメント', '共有'],
+    // 旧「ナレッジ」の語でも引けるようにしておく（統合後も呼び名の記憶は残る）。
+    keywords: ['note', 'メモ', 'ノート', 'kb', 'knowledge', 'ナレッジ', 'wiki', '共有'],
   },
   {
     id: 'nav-profile',
@@ -88,15 +77,5 @@ export const COMMAND_ITEMS: CommandItem[] = [
     category: 'ページ移動',
     action: { type: 'navigate', path: '/profile/me' },
     keywords: ['profile', 'プロフィール', '設定'],
-  },
-  // アクション
-  {
-    id: 'action-new-note',
-    label: '新規ノート作成',
-    description: '新しいノートを作成',
-    icon: DocumentPlusIcon,
-    category: 'アクション',
-    action: { type: 'action', id: 'new-note' },
-    keywords: ['new', 'note', 'create', '新規', '作成', 'ノート'],
   },
 ];

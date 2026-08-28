@@ -43,14 +43,6 @@ export const PROFILE = {
   meStats: `${API_V2}/users/me/stats`,
 } as const;
 
-/** リッチ文書（rich_documents・tiptap JSON）。owner スコープ・楽観ロック（revision）。 */
-export const DOCUMENTS = {
-  /** GET(一覧) / POST(作成) — /api/v2/documents。一覧は ?kind= で絞り込み可 */
-  list: `${API_V2}/documents`,
-  /** GET / PUT / DELETE — /api/v2/documents/:id（id は UUID 文字列） */
-  byId: (documentId: string) => `${API_V2}/documents/${documentId}`,
-} as const;
-
 /** 画像アップロード（current user 名義の S3 PUT 署名 URL。ノート/教材で共有）*/
 export const IMAGES = {
   /** POST /api/v2/notes/images/upload-url — {contentType} → {url, key, publicUrl} */
@@ -216,13 +208,14 @@ export const CHAPTER_VIEW = {
 /**
  * ナレッジ基盤（workspaces → spaces → pages の木）。
  *
- * リッチ文書（DOCUMENTS）とは別系統であることに注意。あちらは所有者スコープの平らな一覧、
- * こちらは付与（grant）と例外（restriction）で解決する木。当面は両方が並存する。
+ * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧で、
+ * UI は撤去済み（データは残っているが、フロントからはもう呼ばない）。
+ * こちらは付与（grant）と例外（restriction）で解決する木。
  *
  * ワークスペースは URL の slug で指す（内部 UUID は外に出さない）。slug から所属を確定する
  * middleware を backend 側の group が通しているので、slug を含まないパスは一覧と作成だけ。
  */
-export const KNOWLEDGE_BASE = {
+export const NOTES_API = {
   /** GET(所属一覧) / POST(作成) — /api/v2/kb/workspaces */
   workspaces: `${API_V2}/kb/workspaces`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
@@ -238,6 +231,16 @@ export const KNOWLEDGE_BASE = {
   /** GET(本文込み) / PATCH(改名) — /api/v2/kb/workspaces/:slug/pages/:pageId */
   page: (workspaceSlug: string, pageId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}`,
+  /**
+   * GET — /api/v2/kb/pages/:pageId
+   *
+   * /p/{pageId} の URL からの解決。URL にワークスペースを出さないための口で、
+   * 応答の workspaceSlug を以降の呼び出し（木・保存）に使う。
+   */
+  resolvePage: (pageId: string) => `${API_V2}/kb/pages/${pageId}`,
+  /** PUT(本文の置き換え) — /api/v2/kb/workspaces/:slug/pages/:pageId/content */
+  pageContent: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/content`,
   /** PATCH(表示名の変更) — /api/v2/kb/workspaces/:slug/spaces/:spaceId。key は変えられない */
   space: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}`,

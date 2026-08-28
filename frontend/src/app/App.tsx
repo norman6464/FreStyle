@@ -1,5 +1,5 @@
 import { useEffect, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import AuthInitializer from './providers/AuthInitializer';
 import Protected from './providers/Protected';
 import RequireRole from './providers/RequireRole';
@@ -27,8 +27,7 @@ const LandingPage = lazyWithReload(() => import('@/pages/landing').then((m) => (
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
-const NotesPage = lazyWithReload(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })), 'NotesPage');
-const KnowledgeBasePage = lazyWithReload(() => import('@/pages/knowledge-base').then((m) => ({ default: m.KnowledgeBasePage })), 'KnowledgeBasePage');
+const NotePage = lazyWithReload(() => import('@/pages/note').then((m) => ({ default: m.NotePage })), 'NotePage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const LearningReportPage = lazyWithReload(() => import('@/pages/learning-report').then((m) => ({ default: m.LearningReportPage })), 'LearningReportPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
@@ -47,7 +46,6 @@ const ExerciseDetailPage = lazyWithReload(() => import('@/pages/exercise-detail'
 const CourseCategorySelectPage = lazyWithReload(() => import('@/pages/courses').then((m) => ({ default: m.CourseCategorySelectPage })), 'CourseCategorySelectPage');
 const CoursesListPage = lazyWithReload(() => import('@/pages/courses').then((m) => ({ default: m.CoursesListPage })), 'CoursesListPage');
 const CourseDetailPage = lazyWithReload(() => import('@/pages/course-detail').then((m) => ({ default: m.CourseDetailPage })), 'CourseDetailPage');
-const MarkdownSyntaxHelpPage = lazyWithReload(() => import('@/pages/markdown-syntax-help').then((m) => ({ default: m.MarkdownSyntaxHelpPage })), 'MarkdownSyntaxHelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
 const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
@@ -69,6 +67,13 @@ function NavigationToast() {
   }, [location, showToast]);
 
   return null;
+}
+
+// LegacyKbPageRedirect は旧 /kb/:slug/pages/:pageId を /p/:pageId へ写す。
+// slug は URL から消えた（テナントはページ ID から解決する）ので捨ててよい。
+function LegacyKbPageRedirect() {
+  const { pageId } = useParams<{ pageId: string }>();
+  return <Navigate to={`/p/${pageId ?? ''}`} replace />;
 }
 
 export default function App() {
@@ -108,18 +113,16 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
         <Route path="/profile/me" element={<SettingsPage />} />
-        <Route path="/notes" element={<NotesPage />} />
-        {/* 静的ルート（markdown-help）はルータのランキングで :noteId より優先される。 */}
-        <Route path="/notes/markdown-help" element={<MarkdownSyntaxHelpPage />} />
-        <Route path="/notes/:noteId" element={<NotesPage />} />
         {/*
-          ナレッジ基盤（workspaces → spaces → pages の木）。/notes とは別系統で、
-          あちらは所有者スコープの平らな一覧、こちらは付与と例外で解決する木。
-          slug だけならスペース一覧まで、pageId まであれば本文も出す。
+          ノート（workspaces → spaces → pages の木）。旧「ナレッジ」を統合した現在の正
+          （FRESTYLE-393）。ページの URL は /p/{pageId} だけで、テナントを URL に出さない。
         */}
-        <Route path="/kb" element={<KnowledgeBasePage />} />
-        <Route path="/kb/:workspaceSlug" element={<KnowledgeBasePage />} />
-        <Route path="/kb/:workspaceSlug/pages/:pageId" element={<KnowledgeBasePage />} />
+        <Route path="/notes" element={<NotePage />} />
+        <Route path="/p/:pageId" element={<NotePage />} />
+        {/* 旧 URL の受け皿。/kb 系はブックマーク・共有リンクから来る。 */}
+        <Route path="/kb" element={<Navigate to="/notes" replace />} />
+        <Route path="/kb/:workspaceSlug" element={<Navigate to="/notes" replace />} />
+        <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />

@@ -109,19 +109,20 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 }
 
 // kbCreateWorkspaceRequest はワークスペース作成の入力。
+// slug は空でよく、空ならサーバーが自動採番する（URL 名を人に決めさせない）。
 type kbCreateWorkspaceRequest struct {
-	Slug string `json:"slug" binding:"required" example:"acme"`
+	Slug string `json:"slug" example:"acme"`
 	Name string `json:"name" binding:"required,max=200" example:"Acme 社"`
 }
 
 // Create はワークスペースを作り、作成者をその admin にする。
 //
 //	@Summary      ナレッジ 基盤 の ワークスペース 作成
-//	@Description  ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
+//	@Description  ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
-//	@Param        body  body      kbCreateWorkspaceRequest  true  "作成 内容 (slug/name 必須)"
+//	@Param        body  body      kbCreateWorkspaceRequest  true  "作成 内容 (name 必須。 slug は 空 なら 自動 採番)"
 //	@Success      201   {object}  kbWorkspaceResponse
 //	@Failure      400   {object}  errorResponse  "バリデーション エラー"
 //	@Failure      401   {object}  errorResponse  "未 認証"
@@ -215,20 +216,21 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 }
 
 // kbCreateSpaceRequest はスペース作成の入力。
+// key は空でよく、空ならサーバーが自動採番する（URL 名を人に決めさせない）。
 type kbCreateSpaceRequest struct {
-	Key  string `json:"key"  binding:"required" example:"eng"`
+	Key  string `json:"key" example:"eng"`
 	Name string `json:"name" binding:"required,max=200" example:"開発部"`
 }
 
 // CreateSpace はワークスペース配下にスペースを作る（ワークスペースの admin が要る）。
 //
 //	@Summary      ナレッジ 基盤 の スペース 作成
-//	@Description  ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は ワークスペース 内 で 一意。
+//	@Description  ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
 //	@Param        workspaceSlug  path      string                true  "ワークスペース の slug"
-//	@Param        body           body      kbCreateSpaceRequest  true  "作成 内容 (key/name 必須)"
+//	@Param        body           body      kbCreateSpaceRequest  true  "作成 内容 (name 必須。 key は 空 なら 自動 採番)"
 //	@Success      201            {object}  kbSpaceResponse
 //	@Failure      400            {object}  errorResponse  "バリデーション エラー"
 //	@Failure      401            {object}  errorResponse  "未 認証"

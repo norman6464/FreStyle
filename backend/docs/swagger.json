@@ -2511,7 +2511,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。",
+                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。",
                 "consumes": [
                     "application/json"
                 ],
@@ -2524,7 +2524,7 @@
                 "summary": "ナレッジ 基盤 の ワークスペース 作成",
                 "parameters": [
                     {
-                        "description": "作成 内容 (slug/name 必須)",
+                        "description": "作成 内容 (name 必須。 slug は 空 なら 自動 採番)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4024,7 +4024,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は ワークスペース 内 で 一意。",
+                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
                 "consumes": [
                     "application/json"
                 ],
@@ -4044,7 +4044,7 @@
                         "required": true
                     },
                     {
-                        "description": "作成 内容 (key/name 必須)",
+                        "description": "作成 内容 (name 必須。 key は 空 なら 自動 採番)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -7124,7 +7124,6 @@
         "internal_handler.kbCreateSpaceRequest": {
             "type": "object",
             "required": [
-                "key",
                 "name"
             ],
             "properties": {
@@ -7142,8 +7141,7 @@
         "internal_handler.kbCreateWorkspaceRequest": {
             "type": "object",
             "required": [
-                "name",
-                "slug"
+                "name"
             ],
             "properties": {
                 "name": {

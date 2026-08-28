@@ -243,4 +243,3 @@ func Test_スペース作成_keyが空なら自動採番される(t *testing.T) 
 	assert.True(t, domain.ValidSpaceKey(got.Key), "生成された key %q が規則を満たすこと", got.Key)
 	assert.True(t, strings.HasPrefix(got.Key, "s-"))
 }
-

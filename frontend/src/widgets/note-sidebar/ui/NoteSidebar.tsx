@@ -112,7 +112,9 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
         </div>
       )}
 
-      {activeSlug && spaces.length > 0 && !archivedMode && (
+      {/* スペースが 0 件でも出す。スペースは 1 つも見えないが、個別に許可された
+          ページだけ持つ人がいる — その人にとって検索が唯一の入口になる。 */}
+      {activeSlug && !archivedMode && (
         <button
           type="button"
           onClick={() => setSearchOpen(true)}

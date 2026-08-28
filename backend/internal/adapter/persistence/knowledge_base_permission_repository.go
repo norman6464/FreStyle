@@ -1070,6 +1070,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
 				Role: domain.GrantRoleByRank(int(row.GrantRank)),
 				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
 			},
+			// ParentArchived は集めない（検索と同じく現役だけが対象）。既定の false のまま。
 		})
 	}
 	return out, nil

@@ -1792,16 +1792,18 @@ func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
 		visible := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "見えるページ")
 		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "機密ページ")
 		other := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "頼んでいないページ")
-		_ = other
+		archived := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "隠したページ")
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, archived.ID))
 
 		alice := f.principalFor(ctx, t, f.alice)
 		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
 		f.restrict(ctx, t, secret.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
 
 		rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice,
-			[]string{visible.ID, secret.ID, "not-a-uuid"})
+			[]string{visible.ID, secret.ID, archived.ID, "not-a-uuid"})
 		require.NoError(t, err)
-		require.Len(t, rows, 2, "頼んだ ID だけが返る（不正 ID は静かに落ちる）")
+		require.Len(t, rows, 2,
+			"頼んだ ID の現役ページだけが返る（不正 ID・アーカイブ済みは静かに落ちる）")
 
 		byID := map[string]bool{}
 		for _, row := range rows {
@@ -1809,12 +1811,21 @@ func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
 		}
 		assert.True(t, byID[visible.ID], "deny の無いページは閲覧できる")
 		assert.False(t, byID[secret.ID], "deny のあるページは事実から閲覧不可に倒れる（検索と同じ規則）")
+		// 頼んでいない ID は返らない（ID で絞る口が全件の口にならない証拠）。
+		_, unrequested := byID[other.ID]
+		assert.False(t, unrequested)
+		_, gotArchived := byID[archived.ID]
+		assert.False(t, gotArchived, "アーカイブ済みは隠したページ — 題名を本文へ映さない")
 	})
 
 	t.Run("他ワークスペースのIDは返らない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
-		g := setupKBPermission(t, sqlDB)
-		foreign := mustCreatePage(ctx, t, g.pageUC, g.ws, g.spaceA, nil, "よそのページ")
+		// alice は f.ws の正規メンバー（境界を跨げないことを、権限がある状態で確かめる）。
+		// fixture をもう 1 つ作らないのは、setupKBPermission が先頭で TruncateAll を
+		// 実行し、先に作った fixture の行が全部消えてしまうため。
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		foreign := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "よそのページ")
 
 		rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice, []string{foreign.ID})
 		require.NoError(t, err)

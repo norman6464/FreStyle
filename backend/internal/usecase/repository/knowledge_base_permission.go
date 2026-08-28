@@ -244,6 +244,7 @@ type KnowledgeBasePermissionRepository interface {
 	// domain.ResolvePageView で行う。UUID として読めない ID・他ワークスペースの ID・
 	// アーカイブ済みは行にならない（エラーにしない — 参照は本文の中身であり、
 	// 壊れた参照でページ全体の読み出しを落とさない）。
+	// ParentArchived は常に false（検索と同じく現役だけが対象なので集めない）。
 	ListWorkspacePageViewFactsByIDs(ctx context.Context, workspaceID string, userID uint64, pageIDs []string) ([]PageWithViewFacts, error)
 	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める。
 	// 判定は domain.ResolveScopePermission が行う。スペースが無い・別ワークスペースなら

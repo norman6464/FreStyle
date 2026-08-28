@@ -1054,9 +1054,21 @@ describe('見た目の印（葉の点と開いたフォルダ）', () => {
 });
 
 describe('題名で検索（モーダル）', () => {
+  let currentPath = '';
+  function PathProbe() {
+    currentPath = useLocation().pathname;
+    return null;
+  }
+
   /** openSearch は木の描画を待ってから検索モーダルを開き、入力欄を返す。 */
   async function openSearch() {
-    renderSidebar();
+    currentPath = '';
+    render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <PathProbe />
+        <NoteSidebar />
+      </MemoryRouter>,
+    );
     await screen.findByText('設計メモ');
     fireEvent.click(screen.getByRole('button', { name: '検索' }));
     return screen.getByRole('combobox', { name: 'ページを題名で検索' });
@@ -1097,6 +1109,8 @@ describe('題名で検索（モーダル）', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
     );
+    // 閉じるだけでなく、選んだページへ実際に移っている。
+    expect(currentPath).toBe('/p/hit-1');
   });
 
   it('↑↓ で選び Enter で開ける（キーボードだけで完結する）', async () => {
@@ -1118,6 +1132,7 @@ describe('題名で検索（モーダル）', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
     );
+    expect(currentPath).toBe('/p/hit-2');
   });
 
   it('Escape と外側クリックで閉じる', async () => {
@@ -1129,6 +1144,24 @@ describe('題名で検索（モーダル）', () => {
     fireEvent.click(screen.getByRole('button', { name: '検索' }));
     fireEvent.click(screen.getByTestId('note-search-overlay'));
     expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument();
+  });
+
+  it('入力を消した後に届いた古い応答は表示しない（空の入力に結果が湧かない）', async () => {
+    let resolveSlow: (pages: NotePage[]) => void = () => {};
+    hoisted.searchPages.mockImplementationOnce(
+      () => new Promise<NotePage[]>((resolve) => { resolveSlow = resolve; }),
+    );
+    const input = await openSearch();
+
+    fireEvent.change(input, { target: { value: 'docker' } });
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
+    // 応答が返る前に入力を消す。
+    fireEvent.change(input, { target: { value: '' } });
+
+    await act(async () => {
+      resolveSlow([{ ...page('late-hit', '遅れて届いた結果'), spaceId: 'space-1' }]);
+    });
+    expect(screen.queryByRole('option', { name: /遅れて届いた結果/ })).not.toBeInTheDocument();
   });
 
   it('0 件なら「一致するページがありません」と伝える', async () => {

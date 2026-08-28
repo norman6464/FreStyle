@@ -40,13 +40,15 @@ export default function NoteSearchDialog({ workspaceSlug, spaces, onClose }: Not
   }, []);
 
   useEffect(() => {
+    // 空入力に戻したときも世代を進める。進めないと、消す前に飛ばした検索の応答が
+    // まだ有効な世代のまま届き、空の入力に古い結果が再表示される。
+    const token = ++generation.current;
     const needle = query.trim();
     if (needle === '') {
       setStatus('idle');
       setPages([]);
       return undefined;
     }
-    const token = ++generation.current;
     setStatus('loading');
     const timer = setTimeout(() => {
       NoteRepository.searchPages(workspaceSlug, needle)

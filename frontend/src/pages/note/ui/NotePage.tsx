@@ -1,21 +1,51 @@
-import { useParams } from 'react-router-dom';
+import { useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { NoteSidebar } from '@/widgets/note-sidebar';
-import { RichTextEditor, emptyRichDoc, isRichDoc } from '@/shared/ui/RichTextEditor';
+import { RichTextEditor, emptyRichDoc, isRichDoc, type SubpageCreator } from '@/shared/ui/RichTextEditor';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
+import { useToast } from '@/shared/lib/hooks/useToast';
 import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import { useNotePageDoc } from '../model/useNotePageDoc';
+import { createSubpage } from '../model/createSubpage';
+import NotePageTitle from './NotePageTitle';
 
 /**
  * NotePage はノートの画面（左にサイドバー、右に本文）。
  *
  * URL は /notes（ページ未選択）と /p/{pageId} の 2 つ。ページの URL はページ ID
  * だけを持ち、所属ワークスペースはサーバーの解決 API が返す（テナントを URL に
- * 出さない）。編集可否も同じ応答で来て、編集できる人にはそのまま書ける本文を出す。
+ * 出さない）。編集可否も同じ応答で来て、編集できる人には題名も本文もその場で書ける。
  */
 export default function NotePage() {
   const { pageId } = useParams<{ pageId: string }>();
-  const { data, loading, error, saveStatus, onDocChange } = useNotePageDoc(pageId);
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { data, loading, error, saveStatus, onDocChange, renameTitle } = useNotePageDoc(pageId);
+
+  const handleRename = useCallback(
+    async (title: string) => {
+      try {
+        await renameTitle(title);
+      } catch (cause) {
+        showToast('error', '題名を変更できませんでした');
+        // 入力を保たせるため、失敗は握り潰さず投げ直す（NotePageTitle 側の約束）。
+        throw cause;
+      }
+    },
+    [renameTitle, showToast],
+  );
+
+  // '/page': 子ページを作って本文にリンクを挿し、作ったページを開く。
+  const handleCreateSubpage: SubpageCreator = useCallback(
+    (editor) => {
+      if (!data) return;
+      void createSubpage(editor, data)
+        .then((path) => navigate(path))
+        .catch(() => showToast('error', '子ページを作成できませんでした'));
+    },
+    [data, navigate, showToast],
+  );
 
   return (
     <div className="flex h-full">
@@ -49,9 +79,13 @@ export default function NotePage() {
 
           {pageId && !loading && !error && data && (
             <article>
-              <h1 className="mb-4 text-3xl font-bold text-[var(--color-text-primary)] md:text-4xl">
-                {data.page.title}
-              </h1>
+              {/* ページごとに作り直す（別ページへ移った瞬間、打ちかけの下書きを持ち越さない） */}
+              <NotePageTitle
+                key={data.page.id}
+                title={data.page.title}
+                canEdit={data.canEdit}
+                onRename={handleRename}
+              />
               <RichTextEditor
                 // doc は API から来る任意の JSON。形が違えば空の本文として扱い、画面を落とさない。
                 value={isRichDoc(data.doc) ? data.doc : emptyRichDoc()}
@@ -59,6 +93,7 @@ export default function NotePage() {
                 onChange={onDocChange}
                 saveStatus={data.canEdit ? saveStatus : 'idle'}
                 ariaLabel={`${data.page.title} の本文`}
+                onCreateSubpage={data.canEdit ? handleCreateSubpage : undefined}
               />
             </article>
           )}

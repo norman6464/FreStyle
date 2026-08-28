@@ -5,13 +5,17 @@ import { useNotePageDoc } from '../useNotePageDoc';
 const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
   replaceContent: vi.fn(),
+  renamePage: vi.fn(),
+  emit: vi.fn(),
 }));
 
 vi.mock('@/entities/note', () => ({
   NoteRepository: {
     resolvePage: hoisted.resolvePage,
     replaceContent: hoisted.replaceContent,
+    renamePage: hoisted.renamePage,
   },
+  emitNoteTreeEvent: hoisted.emit,
 }));
 
 const resolved = (title: string, canEdit = true) => ({
@@ -168,6 +172,38 @@ describe('useNotePageDoc', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('renameTitle は改名し、画面の題名を確定後の値へ差し替え、木にも知らせる', async () => {
+    const renamed = {
+      id: 'p1',
+      spaceId: 's1',
+      title: '設計メモ v2',
+      createdByUserId: 1,
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+    };
+    hoisted.renamePage.mockResolvedValue(renamed);
+    const { result } = renderHook(() => useNotePageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.renameTitle('設計メモ v2');
+    });
+
+    expect(hoisted.renamePage).toHaveBeenCalledWith('w-3f2a9c', 'p1', '設計メモ v2');
+    expect(result.current.data?.page.title).toBe('設計メモ v2');
+    expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-renamed', page: renamed });
+  });
+
+  it('renameTitle の失敗は投げ、画面の題名は変えない', async () => {
+    hoisted.renamePage.mockRejectedValue(new Error('403'));
+    const { result } = renderHook(() => useNotePageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await expect(result.current.renameTitle('だめな改名')).rejects.toThrow();
+    expect(result.current.data?.page.title).toBe('設計メモ');
+    expect(hoisted.emit).not.toHaveBeenCalled();
   });
 
   it('保存が失敗したら unsaved に戻す（保存できた顔をしない）', async () => {

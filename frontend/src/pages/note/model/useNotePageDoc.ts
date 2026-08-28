@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NoteRepository, type NoteResolvedPage } from '@/entities/note';
+import { NoteRepository, emitNoteTreeEvent, type NoteResolvedPage } from '@/entities/note';
 import type { SaveStatus } from '@/shared/ui/RichTextEditor';
 
 export interface NotePageDocState {
@@ -98,6 +98,18 @@ export function useNotePageDoc(pageId: string | undefined) {
     };
   }, [pageId, flushSave]);
 
+  /**
+   * renameTitle は題名を変える。**失敗は投げる**（呼び出し側が入力を保って知らせる）。
+   * 成功したら画面の状態を確定後の値で差し替え、サイドバーの木にも知らせる。
+   */
+  const renameTitle = useCallback(async (title: string): Promise<void> => {
+    const target = saveTarget.current;
+    if (!target) return;
+    const page = await NoteRepository.renamePage(target.workspaceSlug, target.pageId, title);
+    setState((prev) => (prev.data ? { ...prev, data: { ...prev.data, page } } : prev));
+    emitNoteTreeEvent({ type: 'page-renamed', page });
+  }, []);
+
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
   const onDocChange = useCallback(
     (doc: unknown) => {
@@ -112,5 +124,5 @@ export function useNotePageDoc(pageId: string | undefined) {
     [flushSave],
   );
 
-  return { ...state, saveStatus, onDocChange };
+  return { ...state, saveStatus, onDocChange, renameTitle };
 }

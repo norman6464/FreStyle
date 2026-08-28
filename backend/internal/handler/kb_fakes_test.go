@@ -104,6 +104,15 @@ func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) 
 	return &c, nil
 }
 
+func (f *kbFakePages) UpdateSpaceName(_ context.Context, workspaceID, spaceID, name string) error {
+	s, ok := f.spaces[spaceID]
+	if !ok || s.WorkspaceID != workspaceID {
+		return repository.ErrSpaceNotFound
+	}
+	s.Name = name
+	return nil
+}
+
 func (f *kbFakePages) CreateSpace(_ context.Context, space *domain.Space) error {
 	if f.failWith != nil {
 		return f.failWith
@@ -628,6 +637,10 @@ func (f *kbFakePerms) PagePermissionFactsForUser(ctx context.Context, workspaceI
 		View:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityView, mine),
 		Edit:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityEdit, mine),
 	}, nil
+}
+
+func (f *kbFakePerms) SearchWorkspacePageViewFacts(context.Context, string, uint64, string) ([]repository.PageWithViewFacts, error) {
+	return nil, nil
 }
 
 func (f *kbFakePerms) ListSpacePageViewFacts(

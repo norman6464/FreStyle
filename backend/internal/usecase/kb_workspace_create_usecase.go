@@ -97,6 +97,45 @@ func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (
 	return space, nil
 }
 
+// RenameSpaceUseCase はスペースの表示名だけを変える。
+//
+// key は変えない。key は URL とスペース識別の一部で、変えると共有済みの場所が全部外れる。
+// 表示名は人が読むための欄なので自由に変えてよい — この非対称が、2 つを別の欄に
+// 分けている理由そのもの。
+//
+// 誰が変えられるか（スペースの実効権限）の判定は handler が CheckSpacePermissionUseCase で
+// 先に行う（CreateSpace と同じ分担）。
+type RenameSpaceUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewRenameSpaceUseCase(r repository.KnowledgeBaseRepository) *RenameSpaceUseCase {
+	return &RenameSpaceUseCase{repo: r}
+}
+
+type RenameSpaceInput struct {
+	WorkspaceID string
+	SpaceID     string
+	Name        string
+}
+
+func (u *RenameSpaceUseCase) Execute(ctx context.Context, in RenameSpaceInput) (*domain.Space, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.SpaceID == "" {
+		return nil, errors.New("spaceID is required")
+	}
+	if !validDisplayName(in.Name, domain.SpaceNameMaxLen) {
+		return nil, ErrInvalidName
+	}
+	if err := u.repo.UpdateSpaceName(ctx, in.WorkspaceID, in.SpaceID, in.Name); err != nil {
+		return nil, err
+	}
+	// 更新後の姿を読み直して返す（updated_at は DB の now() が入るため、書いた値では作れない）。
+	return u.repo.FindSpace(ctx, in.WorkspaceID, in.SpaceID)
+}
+
 // validDisplayName は表示名が空でなく列幅（文字数）に収まるかを返す。
 // 列は varchar(n) で「文字数」の上限なので、バイト数ではなくルーン数で数える。
 func validDisplayName(name string, maxLen int) bool {

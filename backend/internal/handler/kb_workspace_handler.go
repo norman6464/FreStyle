@@ -2,7 +2,10 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -21,6 +24,9 @@ type KnowledgeBaseWorkspaceHandler struct {
 	checkWorkspace  *usecase.CheckWorkspacePermissionUseCase
 	createSpace     *usecase.CreateSpaceUseCase
 	listSpaces      *usecase.ListViewableSpacesUseCase
+	checkSpace      *usecase.CheckSpacePermissionUseCase
+	renameSpace     *usecase.RenameSpaceUseCase
+	searchPages     *usecase.SearchViewablePagesUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -30,6 +36,9 @@ func NewKnowledgeBaseWorkspaceHandler(
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	createSpace *usecase.CreateSpaceUseCase,
 	listSpaces *usecase.ListViewableSpacesUseCase,
+	checkSpace *usecase.CheckSpacePermissionUseCase,
+	renameSpace *usecase.RenameSpaceUseCase,
+	searchPages *usecase.SearchViewablePagesUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:  listWorkspaces,
@@ -37,6 +46,9 @@ func NewKnowledgeBaseWorkspaceHandler(
 		checkWorkspace:  checkWorkspace,
 		createSpace:     createSpace,
 		listSpaces:      listSpaces,
+		checkSpace:      checkSpace,
+		renameSpace:     renameSpace,
+		searchPages:     searchPages,
 	}
 }
 
@@ -261,4 +273,120 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, toKbSpaceResponse(space))
+}
+
+type kbRenameSpaceRequest struct {
+	Name string `json:"name" binding:"required,max=200" example:"開発部 (改組)"`
+}
+
+// RenameSpace はスペースの表示名を変える（key は変えない）。
+//
+//	@Summary      ナレッジ 基盤 の スペース 改名
+//	@Description  表示名 だけ を 変更 する。 key は URL・権限 の 参照 に 使う ため 不変。 スペース の 管理 権限 が 要る。
+//	@Tags         knowledge-base
+//	@Accept       json
+//	@Produce      json
+//	@Param        workspaceSlug  path      string                true  "ワークスペース の slug"
+//	@Param        spaceId        path      string                true  "スペース ID (UUID)"
+//	@Param        body           body      kbRenameSpaceRequest  true  "新しい 表示名"
+//	@Success      200            {object}  kbSpaceResponse
+//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      403            {object}  errorResponse  "管理 権限 が 無い"
+//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/spaces/{spaceId} [patch]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	spaceID := c.Param("spaceId")
+	perm, err := h.checkSpace.Execute(c.Request.Context(), usecase.CheckSpacePermissionInput{
+		WorkspaceID: scope.workspaceID,
+		SpaceID:     spaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if !perm.CanView {
+		// 中身を 1 つも見られない相手にはスペースの実在を教えない（他の口と同じ畳み方）。
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+		return
+	}
+	if !perm.CanManage {
+		// 見えている相手には理由を返してよい。入れ物そのものの変更は管理権限。
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
+	limitKnowledgeBaseBody(c)
+	var req kbRenameSpaceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	space, err := h.renameSpace.Execute(c.Request.Context(), usecase.RenameSpaceInput{
+		WorkspaceID: scope.workspaceID,
+		SpaceID:     spaceID,
+		Name:        req.Name,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toKbSpaceResponse(space))
+}
+
+// SearchPages はワークスペース全体を題名で検索する（閲覧できるページだけが返る）。
+//
+//	@Summary      ナレッジ 基盤 の ページ 題名 検索
+//	@Description  ワークスペース 全体 から 題名 の 部分 一致 で 検索 する。 返る の は 閲覧 できる 現役 ページ のみ。 並び は 題名 順。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path      string  true   "ワークスペース の slug"
+//	@Param        q              query     string  true   "題名 の 部分 一致 (1〜100 文字)"
+//	@Param        limit          query     int     false  "最大 件数 (既定 20 / 上限 50)"
+//	@Success      200            {array}   kbPageResponse
+//	@Failure      400            {object}  errorResponse  "q が 空 か 長 すぎる"
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/search [get]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	q := strings.TrimSpace(c.Query("q"))
+	// 空は「全件」ではなく誤りとして返す。空で全件を返すと、この口が
+	// 「見えるページの全数を数える口」になってしまう（見せてよいのは一致した分だけ）。
+	if q == "" || utf8.RuneCountInString(q) > 100 {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_query"})
+		return
+	}
+	limit := 0
+	if raw := c.Query("limit"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil {
+			limit = n
+		}
+	}
+	pages, err := h.searchPages.Execute(c.Request.Context(), usecase.SearchViewablePagesInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+		Query:       q,
+		Limit:       limit,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	// 0 件でも [] を返す（null だとフロントの .map が落ちる）。
+	out := make([]kbPageResponse, 0, len(pages))
+	for i := range pages {
+		out = append(out, toKbPageResponse(&pages[i]))
+	}
+	c.JSON(http.StatusOK, out)
 }

@@ -201,6 +201,28 @@ func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, sp
 	return &sp, nil
 }
 
+// UpdateSpaceName はスペースの表示名を変える。0 件更新は「無い」と同じ扱いで
+// ErrSpaceNotFound（別ワークスペースの ID も WHERE の workspace_id でここに落ちる）。
+func (r *knowledgeBaseRepository) UpdateSpaceName(ctx context.Context, workspaceID, spaceID, name string) error {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	if !ok || !ok2 {
+		return repository.ErrSpaceNotFound
+	}
+	affected, err := r.q.UpdateSpaceName(ctx, sqlcgen.UpdateSpaceNameParams{
+		WorkspaceID: wsID,
+		ID:          spID,
+		Name:        name,
+	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return repository.ErrSpaceNotFound
+	}
+	return nil
+}
+
 func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain.Space) error {
 	wsID, ok := kbParseID(space.WorkspaceID)
 	if !ok {

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -276,4 +277,63 @@ func (u *CanEditPageSubtreeUseCase) Execute(ctx context.Context, in CanEditPageS
 		}
 	}
 	return true, nil
+}
+
+// SearchViewablePagesUseCase はワークスペース全体を題名で検索し、閲覧できるページだけを返す。
+//
+// ふるいは一覧（ListViewablePages）とまったく同じ domain.ResolvePageView。
+// 検索だけ別の判定を持つと「一覧には出ないのに検索では出る」というずれ方をして、
+// 伏せてあるページの実在が検索から漏れる。
+//
+// Limit は応答の件数。候補の計算量の天井（200 件）は SQL 側が持っていて別物。
+type SearchViewablePagesUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewSearchViewablePagesUseCase(r repository.KnowledgeBasePermissionRepository) *SearchViewablePagesUseCase {
+	return &SearchViewablePagesUseCase{repo: r}
+}
+
+type SearchViewablePagesInput struct {
+	WorkspaceID string
+	UserID      uint64
+	// Query は題名の部分一致（大文字小文字は区別しない）。空白だけは呼び出し側で弾く。
+	Query string
+	// Limit は返す最大件数。0 以下なら既定の 20。上限 50。
+	Limit int
+}
+
+func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewablePagesInput) ([]domain.Page, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.UserID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	query := strings.TrimSpace(in.Query)
+	if query == "" {
+		return nil, errors.New("query is required")
+	}
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	rows, err := u.repo.SearchWorkspacePageViewFacts(ctx, in.WorkspaceID, in.UserID, query)
+	if err != nil {
+		return nil, err
+	}
+	pages := make([]domain.Page, 0, limit)
+	for _, row := range rows {
+		if !domain.ResolvePageView(row.Facts) {
+			continue
+		}
+		pages = append(pages, row.Page)
+		if len(pages) >= limit {
+			break
+		}
+	}
+	return pages, nil
 }

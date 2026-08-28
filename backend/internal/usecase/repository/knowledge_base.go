@@ -73,6 +73,9 @@ type KnowledgeBaseRepository interface {
 	FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error)
 	// FindSpace はスペースを 1 件引く。無い・別ワークスペースなら ErrSpaceNotFound。
 	FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error)
+	// UpdateSpaceName はスペースの表示名だけを変える（key は URL・権限の参照に使うので不変）。
+	// 0 件更新（無い・別ワークスペース）は ErrSpaceNotFound。
+	UpdateSpaceName(ctx context.Context, workspaceID, spaceID, name string) error
 	// CreateSpace はスペースを作成する。ID は UUIDv7 を採番して space.ID に反映し、
 	// 呼び出し後の space は DB で確定した行（created_at 等）で上書きされる。
 	// key が同じワークスペースで使用済みなら ErrSpaceKeyTaken。

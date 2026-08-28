@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -941,6 +942,60 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
 			},
 			ParentArchived: row.ParentArchived,
+		})
+	}
+	return out, nil
+}
+
+// kbEscapeLike は LIKE / ILIKE の特殊文字（% _ \）をエスケープする。
+// LIKE の既定のエスケープ文字はバックスラッシュなので ESCAPE 句は書かない。
+// 生のまま渡すと「%」1 文字で全件一致になり、候補の天井まで無関係な行が埋まる。
+func kbEscapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
+func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]repository.PageWithViewFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	// bigint に収まらない userID はどの主体にも一致しない（ListSpacePageViewFacts と同じ扱い）。
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	rows, err := r.q.SearchWorkspacePageViewFacts(ctx, sqlcgen.SearchWorkspacePageViewFactsParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		Needle:      kbEscapeLike(query),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.PageWithViewFacts, 0, len(rows))
+	for _, row := range rows {
+		page := toDomainPage(sqlcgen.Page{
+			ID:              row.ID,
+			WorkspaceID:     row.WorkspaceID,
+			SpaceID:         row.SpaceID,
+			ParentID:        row.ParentID,
+			Position:        row.Position,
+			Title:           row.Title,
+			CreatedByUserID: row.CreatedByUserID,
+			ArchivedAt:      row.ArchivedAt,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
+		})
+		out = append(out, repository.PageWithViewFacts{
+			Page: page,
+			Facts: domain.PageViewFacts{
+				Role: domain.GrantRoleByRank(int(row.GrantRank)),
+				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
+			},
+			// ParentArchived は集めない（検索は現役だけが対象）。既定の false のまま。
 		})
 	}
 	return out, nil

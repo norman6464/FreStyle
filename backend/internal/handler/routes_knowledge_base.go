@@ -92,6 +92,9 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
 		usecase.NewCreateSpaceUseCase(pages),
 		usecase.NewListViewableSpacesUseCase(permissions),
+		usecase.NewCheckSpacePermissionUseCase(permissions),
+		usecase.NewRenameSpaceUseCase(pages),
+		usecase.NewSearchViewablePagesUseCase(permissions),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
@@ -157,6 +160,9 @@ func registerKnowledgeBaseRoutesWith(
 	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces", wh.CreateSpace)
+	kb.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)
+	// 検索は /pages/:pageId と衝突しないよう /search を独立させる。
+	kb.GET("/kb/workspaces/:workspaceSlug/search", wh.SearchPages)
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Tree)
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Create)
 	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Get)

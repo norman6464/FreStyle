@@ -865,6 +865,28 @@ func (q *Queries) UpdatePageTitle(ctx context.Context, arg UpdatePageTitleParams
 	return i, err
 }
 
+const updateSpaceName = `-- name: UpdateSpaceName :execrows
+UPDATE spaces SET name = $3, updated_at = now()
+WHERE workspace_id = $1 AND id = $2
+`
+
+type UpdateSpaceNameParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+}
+
+// スペースの表示名だけを変える。key は URL・権限の参照に使われるので触らない。
+// 0 件なら対象が存在しない（別ワークスペースの ID もここで 0 件になる —
+// workspace_id を WHERE に含める作法はこのファイルの先頭コメントのとおり）。
+func (q *Queries) UpdateSpaceName(ctx context.Context, arg UpdateSpaceNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateSpaceName, arg.WorkspaceID, arg.ID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertPageSnapshot = `-- name: UpsertPageSnapshot :exec
 INSERT INTO page_snapshots (page_id, doc, built_at)
 VALUES ($1, $2, now())

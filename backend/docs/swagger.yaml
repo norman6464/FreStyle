@@ -1081,6 +1081,15 @@ definitions:
     required:
     - title
     type: object
+  internal_handler.kbRenameSpaceRequest:
+    properties:
+      name:
+        example: 開発部 (改組)
+        maxLength: 200
+        type: string
+    required:
+    - name
+    type: object
   internal_handler.kbReplaceContentRequest:
     properties:
       doc:
@@ -3995,6 +4004,51 @@ paths:
       summary: ナレッジ 基盤 の ページ 復帰
       tags:
       - knowledge-base
+  /kb/workspaces/{workspaceSlug}/search:
+    get:
+      description: ワークスペース 全体 から 題名 の 部分 一致 で 検索 する。 返る の は 閲覧 できる 現役 ページ のみ。 並び は
+        題名 順。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      - description: 題名 の 部分 一致 (1〜100 文字)
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: 最大 件数 (既定 20 / 上限 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.kbPageResponse'
+            type: array
+        "400":
+          description: q が 空 か 長 すぎる
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ナレッジ 基盤 の ページ 題名 検索
+      tags:
+      - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces:
     get:
       description: ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。
@@ -4085,6 +4139,60 @@ paths:
       security:
       - CookieAuth: []
       summary: ナレッジ 基盤 の スペース 作成
+      tags:
+      - knowledge-base
+  /kb/workspaces/{workspaceSlug}/spaces/{spaceId}:
+    patch:
+      consumes:
+      - application/json
+      description: 表示名 だけ を 変更 する。 key は URL・権限 の 参照 に 使う ため 不変。 スペース の 管理 権限 が 要る。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      - description: スペース ID (UUID)
+        in: path
+        name: spaceId
+        required: true
+        type: string
+      - description: 新しい 表示名
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.kbRenameSpaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.kbSpaceResponse'
+        "400":
+          description: バリデーション エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理 権限 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 存在 し ない か 閲覧 権限 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ナレッジ 基盤 の スペース 改名
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId}:

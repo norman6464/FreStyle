@@ -172,3 +172,42 @@ func Test_スペース作成_key衝突はそのまま伝える(t *testing.T) {
 	})
 	assert.ErrorIs(t, err, repository.ErrSpaceKeyTaken)
 }
+
+func Test_スペース改名_検証と伝播(t *testing.T) {
+	t.Run("空の名前と文字数超過は repo に届く前に弾く", func(t *testing.T) {
+		repo := &mockKnowledgeBaseRepo{}
+		uc := usecase.NewRenameSpaceUseCase(repo)
+		for _, name := range []string{"", strings.Repeat("あ", 201)} {
+			_, err := uc.Execute(context.Background(), usecase.RenameSpaceInput{
+				WorkspaceID: "ws-1", SpaceID: "sp-1", Name: name,
+			})
+			assert.ErrorIs(t, err, usecase.ErrInvalidName)
+		}
+		repo.AssertNotCalled(t, "UpdateSpaceName", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("200 文字ちょうどは通る（列幅は文字数）", func(t *testing.T) {
+		repo := &mockKnowledgeBaseRepo{}
+		name := strings.Repeat("あ", 200)
+		repo.On("UpdateSpaceName", mock.Anything, "ws-1", "sp-1", name).Return(nil)
+		repo.On("FindSpace", mock.Anything, "ws-1", "sp-1").
+			Return(&domain.Space{ID: "sp-1", WorkspaceID: "ws-1", Key: "eng", Name: name}, nil)
+		uc := usecase.NewRenameSpaceUseCase(repo)
+		got, err := uc.Execute(context.Background(), usecase.RenameSpaceInput{
+			WorkspaceID: "ws-1", SpaceID: "sp-1", Name: name,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, name, got.Name)
+	})
+
+	t.Run("存在しないスペースは ErrSpaceNotFound をそのまま伝える", func(t *testing.T) {
+		repo := &mockKnowledgeBaseRepo{}
+		repo.On("UpdateSpaceName", mock.Anything, "ws-1", "sp-x", "新名").
+			Return(repository.ErrSpaceNotFound)
+		uc := usecase.NewRenameSpaceUseCase(repo)
+		_, err := uc.Execute(context.Background(), usecase.RenameSpaceInput{
+			WorkspaceID: "ws-1", SpaceID: "sp-x", Name: "新名",
+		})
+		assert.ErrorIs(t, err, repository.ErrSpaceNotFound)
+	})
+}

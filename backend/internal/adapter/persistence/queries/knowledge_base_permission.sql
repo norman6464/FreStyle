@@ -968,3 +968,112 @@ LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 ORDER BY cnd.title, cnd.id;
+
+-- name: ListWorkspacePageViewFactsByIDs :many
+-- 指定した ID 群の**現役**ページについて「閲覧の事実」を 1 回のクエリで返す
+-- （本文中のページ参照の題名解決用）。事実の組み立ては SearchWorkspacePageViewFacts と
+-- 同一で、違いは候補の絞り方だけ（題名の部分一致 → ID の一致）。判定は
+-- domain.ResolvePageView が行う。
+--
+-- page_ids は json 配列（文字列の UUID）。IN 句のスライス展開を使わないのは
+-- ListMasterExerciseExamplesByExerciseIDs と同じ理由（database/sql モードでは lib/pq 依存が
+-- 増えるため。json_array_elements_text で展開して uuid へ落とす）。呼び出し側（Go）が
+-- UUID として読めない値を先に落として渡す — ここで ::uuid が失敗するとクエリ全体が落ちる。
+--
+-- アーカイブ済みを含めないのは検索と同じ線引き（隠したページの現在の題名を
+-- 本文へ映さない）。他ワークスペースの ID は workspace_id の条件で自然に 0 行になる。
+--
+-- 表の別名はクエリ全体で一意（CTE をまたぐ使い回しは sqlc の列解決が混線する — 検索の
+-- クエリのコメントを参照）。
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = sqlc.arg(workspace_id)
+      AND pr.kind = 'user' AND pr.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pmb.group_principal_id
+    FROM principal_members pmb
+    JOIN me ON me.id = pmb.member_principal_id
+    WHERE pmb.workspace_id = sqlc.arg(workspace_id)
+),
+space_allp AS (
+    SELECT spx.space_id, spx.id
+    FROM principals spx
+    WHERE spx.workspace_id = sqlc.arg(workspace_id)
+      AND spx.kind = 'space_all'
+      AND EXISTS (SELECT 1 FROM me)
+),
+cand AS (
+    SELECT pg.*
+    FROM pages pg
+    WHERE pg.workspace_id = sqlc.arg(workspace_id)
+      AND pg.archived_at IS NULL
+      AND pg.id IN (
+        SELECT value::uuid FROM json_array_elements_text(sqlc.arg(page_ids)::json) AS t(value)
+      )
+    ORDER BY pg.title, pg.id
+),
+onpath AS (
+    SELECT pp1.page_id, c1.space_id AS page_space, pp1.depth, rst.mode, rst.principal_id
+    FROM page_paths pp1
+    JOIN cand c1 ON c1.workspace_id = pp1.workspace_id AND c1.id = pp1.page_id
+    JOIN page_restrictions rst
+      ON rst.workspace_id = pp1.workspace_id AND rst.page_id = pp1.ancestor_id AND rst.capability = 'view'
+    WHERE pp1.workspace_id = sqlc.arg(workspace_id)
+),
+allow_scope AS (
+    SELECT pp2.page_id, MIN(pp2.depth) AS nearest_depth
+    FROM page_paths pp2
+    JOIN cand c2 ON c2.workspace_id = pp2.workspace_id AND c2.id = pp2.page_id
+    JOIN page_allow_lists alw
+      ON alw.workspace_id = pp2.workspace_id AND alw.page_id = pp2.ancestor_id AND alw.capability = 'view'
+    WHERE pp2.workspace_id = sqlc.arg(workspace_id)
+    GROUP BY pp2.page_id
+),
+exception AS (
+    SELECT onp.page_id,
+           bool_or(onp.mode = 'deny'
+                   AND (onp.principal_id IN (SELECT id FROM mine)
+                        OR onp.principal_id = sap.id)) AS denied_anywhere,
+           bool_or(onp.mode = 'allow' AND onp.depth = asc1.nearest_depth
+                   AND (onp.principal_id IN (SELECT id FROM mine)
+                        OR onp.principal_id = sap.id)) AS allowed_at_nearest
+    FROM onpath onp
+    LEFT JOIN allow_scope asc1 ON asc1.page_id = onp.page_id
+    LEFT JOIN space_allp sap ON sap.space_id = onp.page_space
+    GROUP BY onp.page_id
+),
+wsrank AS (
+    SELECT COALESCE(max(CASE wg."role"
+                          WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                          WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END), 0) AS v
+    FROM workspace_grants wg
+    WHERE wg.workspace_id = sqlc.arg(workspace_id)
+      AND wg.principal_id IN (SELECT id FROM mine)
+),
+sgrank AS (
+    SELECT sg.space_id,
+           max(CASE sg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM space_grants sg
+    LEFT JOIN space_allp sap2 ON sap2.space_id = sg.space_id
+    WHERE sg.workspace_id = sqlc.arg(workspace_id)
+      AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
+    GROUP BY sg.space_id
+)
+SELECT
+    cnd.*,
+    GREATEST((SELECT v FROM wsrank), COALESCE(sr.v, 0))::integer AS grant_rank,
+    (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
+    COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
+    (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
+    COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+FROM cand cnd
+LEFT JOIN exception exc ON exc.page_id = cnd.id
+LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
+LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+ORDER BY cnd.title, cnd.id;

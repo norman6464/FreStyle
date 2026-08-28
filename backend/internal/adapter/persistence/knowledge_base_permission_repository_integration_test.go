@@ -1780,3 +1780,44 @@ func TestKnowledgeBaseUpdateSpaceName_Integration(t *testing.T) {
 		assert.NotEqual(t, "越境", sp.Name)
 	})
 }
+
+// ページ参照の題名解決に使う ID 指定の可視事実。検索と同じ規則で判定されることと、
+// 境界（他ワークスペース・不正 ID・deny）を実 PostgreSQL で確かめる。
+func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	t.Run("指定IDの現役ページだけが返り、denyは事実として載る", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		visible := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "見えるページ")
+		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "機密ページ")
+		other := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "頼んでいないページ")
+		_ = other
+
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		f.restrict(ctx, t, secret.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice,
+			[]string{visible.ID, secret.ID, "not-a-uuid"})
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "頼んだ ID だけが返る（不正 ID は静かに落ちる）")
+
+		byID := map[string]bool{}
+		for _, row := range rows {
+			byID[row.Page.ID] = domain.ResolvePageView(row.Facts)
+		}
+		assert.True(t, byID[visible.ID], "deny の無いページは閲覧できる")
+		assert.False(t, byID[secret.ID], "deny のあるページは事実から閲覧不可に倒れる（検索と同じ規則）")
+	})
+
+	t.Run("他ワークスペースのIDは返らない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		g := setupKBPermission(t, sqlDB)
+		foreign := mustCreatePage(ctx, t, g.pageUC, g.ws, g.spaceA, nil, "よそのページ")
+
+		rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice, []string{foreign.ID})
+		require.NoError(t, err)
+		assert.Empty(t, rows, "ワークスペース境界を跨いで題名を引けない")
+	})
+}

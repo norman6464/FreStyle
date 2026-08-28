@@ -239,6 +239,12 @@ type KnowledgeBasePermissionRepository interface {
 	// （% _ \ のエスケープは実装が行う — 呼び出し側に SQL の都合を漏らさない）。
 	// ParentArchived は常に false（検索は現役だけを対象にするため集めない）。
 	SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]PageWithViewFacts, error)
+	// ListWorkspacePageViewFactsByIDs は指定 ID 群の現役ページの閲覧の事実を返す
+	// （本文中のページ参照の題名解決用）。事実の見方は検索と同一で、判定は呼び出し側が
+	// domain.ResolvePageView で行う。UUID として読めない ID・他ワークスペースの ID・
+	// アーカイブ済みは行にならない（エラーにしない — 参照は本文の中身であり、
+	// 壊れた参照でページ全体の読み出しを落とさない）。
+	ListWorkspacePageViewFactsByIDs(ctx context.Context, workspaceID string, userID uint64, pageIDs []string) ([]PageWithViewFacts, error)
 	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める。
 	// 判定は domain.ResolveScopePermission が行う。スペースが無い・別ワークスペースなら
 	// ErrSpaceNotFound。

@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import NoteSidebar from '../NoteSidebar';
+import { emitNoteTreeEvent } from '@/entities/note';
 import type { NotePage, NotePageTree, NoteSpace, NoteWorkspace } from '@/entities/note';
 
 const hoisted = vi.hoisted(() => ({
@@ -1196,3 +1197,119 @@ describe('スペースの見出しの操作', () => {
   });
 });
 
+describe('スペースを追加する入口', () => {
+  it('スペースが既にあっても「スペースを追加」から作れる', async () => {
+    renderSidebar();
+    await screen.findByRole('button', { name: '開発部' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを追加' }));
+    hoisted.createSpace.mockResolvedValue(space('space-2', '営業部'));
+
+    fireEvent.change(screen.getByLabelText('スペースの名前'), { target: { value: '営業部' } });
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.createSpace).toHaveBeenCalledWith('acme', { name: '営業部' }),
+    );
+    // 成功したらフォームは畳まれ、入口のボタンに戻る。
+    await waitFor(() =>
+      expect(screen.queryByLabelText('スペースの名前')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'スペースを追加' })).toBeInTheDocument();
+  });
+
+  it('やめるでフォームを畳める（作らない）', async () => {
+    renderSidebar();
+    await screen.findByRole('button', { name: '開発部' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを追加' }));
+    expect(screen.getByLabelText('スペースの名前')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'やめる' }));
+
+    expect(screen.queryByLabelText('スペースの名前')).not.toBeInTheDocument();
+    expect(hoisted.createSpace).not.toHaveBeenCalled();
+  });
+
+  it('失敗したら知らせを出し、入力は消さない', async () => {
+    hoisted.createSpace.mockRejectedValue(new Error('forbidden'));
+    renderSidebar();
+    await screen.findByRole('button', { name: '開発部' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを追加' }));
+    fireEvent.change(screen.getByLabelText('スペースの名前'), { target: { value: '営業部' } });
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'スペースを作成できませんでした'),
+    );
+    expect(screen.getByLabelText('スペースの名前')).toHaveValue('営業部');
+  });
+
+  it('アーカイブ表示の間は入口を出さない（現役の木の操作なので）', async () => {
+    renderSidebar();
+    await screen.findByRole('button', { name: '開発部' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'スペースを追加' })).not.toBeInTheDocument(),
+    );
+  });
+});
+
+describe('ページ画面からの通知に木が追従する', () => {
+  it('page-created で親を開き、そのスペースの木を取り直す', async () => {
+    renderSidebar();
+    // 先頭のスペースは自動で開き、木が読み込まれている。
+    await screen.findByText('設計メモ');
+    hoisted.fetchPageTree.mockClear();
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([{ id: 'p1', title: '設計メモ', children: ['p1-child'] }]),
+    );
+
+    act(() => {
+      emitNoteTreeEvent({
+        type: 'page-created',
+        page: { ...page('p1-child', '無題'), parentId: 'p1' },
+      });
+    });
+
+    await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalledWith(
+      'acme',
+      'space-1',
+      { archived: false },
+    ));
+    // 取り直した木で子が見えている（親は自動で開いている）。
+    expect(await screen.findByText('p1-child')).toBeInTheDocument();
+  });
+
+  it('page-renamed が未読込のスペース宛でも壊れない（何も起きない）', async () => {
+    hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部'), space('space-2', '営業部')]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    // space-2 は開いておらず木が無い。宛先の state が無くても落ちず、取りにも行かない。
+    act(() => {
+      emitNoteTreeEvent({
+        type: 'page-renamed',
+        page: { ...page('px', 'よそのページ'), spaceId: 'space-2' },
+      });
+    });
+
+    expect(screen.queryByText('よそのページ')).not.toBeInTheDocument();
+    expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
+  });
+
+  it('page-renamed で木の題名が差し替わる', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    act(() => {
+      emitNoteTreeEvent({ type: 'page-renamed', page: page('p1', '設計メモ v2') });
+    });
+
+    expect(await screen.findByText('設計メモ v2')).toBeInTheDocument();
+    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+  });
+});

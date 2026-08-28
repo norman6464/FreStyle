@@ -35,6 +35,14 @@ export interface RichTextEditorProps {
    * 生成直後にフォーカスしたい・外部から editor を参照して拡張したい、といった用途の拡張点。
    */
   onCreate?: (editor: Editor) => void;
+  /**
+   * '/' メニューへ追加するコマンド。エディタが知らない操作（子ページの作成など、
+   * 業務を知る操作）は呼び出し側がここから差し込む。エディタは項目の中身を解釈しない。
+   *
+   * **項目はエディタ生成時に固定される。** run の closure が画面の状態を読むなら、
+   * 呼び出し側で ref 越しに最新を参照させること（この配列自体を差し替えても反映されない）。
+   */
+  extraSlashCommands?: EditorCommand[];
   /** 外枠に付与する追加クラス。 */
   className?: string;
 }
@@ -58,6 +66,7 @@ export default function RichTextEditor({
   saveStatus,
   onImageUpload,
   onCreate,
+  extraSlashCommands,
   className = '',
 }: RichTextEditorProps) {
   // onChange は props で差し替わり得るので ref 越しに最新を呼ぶ（onUpdate クロージャの陳腐化を防ぐ）。
@@ -123,7 +132,10 @@ export default function RichTextEditor({
           },
         ]
       : [];
-    return buildSlashItems(extra);
+    return buildSlashItems([...extra, ...(extraSlashCommands ?? [])]);
+    // extraSlashCommands は「エディタ生成時に固定」の契約（props の JSDoc 参照）なので
+    // 依存に入れない — 入れても extensions は作り直されず、揃わない再計算だけが増える。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasImageUpload]);
 
   const editor = useEditor({

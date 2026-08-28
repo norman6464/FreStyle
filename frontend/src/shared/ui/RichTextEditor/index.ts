@@ -1,5 +1,6 @@
 export { default as RichTextEditor } from './RichTextEditor';
 export type { RichTextEditorProps } from './RichTextEditor';
+export type { EditorCommand } from './editorCommands';
 export { default as SaveStatusIndicator } from './SaveStatusIndicator';
 export type { SaveStatus } from './SaveStatusIndicator';
 export { emptyRichDoc, isRichDoc } from './emptyRichDoc';

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArchiveBoxIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import NoteCreateForm from './NoteCreateForm';
 import { useNoteTree } from '../model/useNoteTree';
@@ -60,6 +60,8 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
   // フロントで読み込み済みの木を絞る方式は捨てた — 閉じているスペースや未読の枝が
   // 探せず、「検索したのに見つからない」が起きるため。
   const [searchQuery, setSearchQuery] = useState('');
+  // スペース追加フォームの開閉。既にスペースがあるときの追加入口（0 件のときは常設フォーム）。
+  const [addingSpace, setAddingSpace] = useState(false);
   const [searchStatus, setSearchStatus] = useState<'loading' | 'done' | 'error'>('done');
   const [searchPages, setSearchPages] = useState<NotePage[]>([]);
   // 速く打ったときに、古い応答が新しい結果を上書きしないための世代番号。
@@ -227,6 +229,46 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
               onMovePage={movePage}
             />
           ))}
+
+        {/*
+          スペースの追加入口。0 件のときの常設フォームとは別に、既にあるときも
+          ここから増やせる（無いと 1 つ作った時点で追加の手段が UI から消える）。
+          作成できるかの判定はサーバーが持つ — 押せても、権限が無ければ失敗の知らせが出る。
+        */}
+        {activeSlug && !searching && !archivedMode && spaces.length > 0 && !spacesLoading && (
+          addingSpace ? (
+            <div className="mt-1 rounded-md border border-surface-3">
+              <NoteCreateForm
+                what="スペース"
+                onCreate={async (input) => {
+                  try {
+                    await createSpace(input);
+                  } catch {
+                    showToast('error', 'スペースを作成できませんでした');
+                    throw new Error('create space failed');
+                  }
+                  setAddingSpace(false);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setAddingSpace(false)}
+                className="w-full px-2 pb-2 text-left text-xs text-[var(--color-text-muted)] hover:underline"
+              >
+                やめる
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAddingSpace(true)}
+              className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-surface-2"
+            >
+              <PlusIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>スペースを追加</span>
+            </button>
+          )
+        )}
       </div>
 
       {/*

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react';
 import type { Editor, JSONContent } from '@tiptap/react';
 import RichTextEditor from '../RichTextEditor';
 import { emptyRichDoc } from '../emptyRichDoc';
@@ -92,6 +92,28 @@ describe('スラッシュコマンド（統合）', () => {
     await waitFor(() => expect(screen.getByText('引用')).toBeInTheDocument());
     fireEvent.click(screen.getByText('引用'));
     await waitFor(() => expect(findNode(editor.getJSON(), 'blockquote')).toBeDefined());
+  });
+
+  it("extraSlashCommands で足した項目が '/' メニューに出て、実行で run が editor 付きで呼ばれる", async () => {
+    const run = vi.fn();
+    const { editor } = await setup({
+      extraSlashCommands: [
+        { id: 'page', label: 'ページ', group: 'insert', glyph: '📄', keywords: ['page'], run },
+      ],
+    });
+    await typeSlash(editor, 'page');
+    const option = await screen.findByRole('option', { name: /ページ/ });
+    fireEvent.click(within(option).getByRole('button'));
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(run).toHaveBeenCalledWith(editor);
+    // 入力した "/page" は本文に残らない。
+    expect(editor.getText()).not.toContain('/page');
+  });
+
+  it("extraSlashCommands を渡さなければ '/page' は出ない（配線の無い操作を見せない）", async () => {
+    const { editor } = await setup();
+    await typeSlash(editor, 'page');
+    await waitFor(() => expect(screen.getByText('該当するコマンドがありません')).toBeInTheDocument());
   });
 
   it('該当なしのクエリでは空表示になる', async () => {

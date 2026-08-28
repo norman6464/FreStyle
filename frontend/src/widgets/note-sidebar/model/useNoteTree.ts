@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  NOTE_NEW_PAGE_TITLE,
   NoteRepository,
   collectNoteAncestorIds,
+  subscribeNoteTreeEvents,
   replaceNotePageInTree,
   moveNotePageInTree,
   type NoteDropTarget,
@@ -413,6 +415,29 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     });
   }, []);
 
+  // ページ画面（/p）での作成・改名を木に映す。作成は木ごと取り直し（親子関係の
+  // 差し込み位置をこちらで計算しない — サーバーの並び順が正）、改名は 1 枚差し替え。
+  useEffect(() => {
+    return subscribeNoteTreeEvents((event) => {
+      if (event.type === 'page-created') {
+        const parentId = event.page.parentId;
+        if (parentId) {
+          setExpandedPageIds((prev) => (prev.has(parentId) ? prev : new Set([...prev, parentId])));
+        }
+        loadSpaceTree(event.page.spaceId);
+        return;
+      }
+      // page-renamed
+      setSpaceStates((prev) => {
+        const current = prev[event.page.spaceId];
+        if (!current?.tree) return prev;
+        const pages = replaceNotePageInTree(current.tree.pages, event.page);
+        if (pages === current.tree.pages) return prev;
+        return { ...prev, [event.page.spaceId]: { ...current, tree: { ...current.tree, pages } } };
+      });
+    });
+  }, [loadSpaceTree, setSpaceStates]);
+
   /**
    * ページを作る。**失敗は握り潰さず投げる。**
    *
@@ -513,8 +538,8 @@ function parentIdOf(tree: NotePageTree | null, pageId: string): string | null {
   return walk(tree.pages, null) ?? null;
 }
 
-/** 新しく作ったページの題名。作った直後にその場で書き換えられる。 */
-export const KB_NEW_PAGE_TITLE = '無題';
+/** 新しく作ったページの題名。正本は entities/note（エディタの /page と共用）。 */
+export const KB_NEW_PAGE_TITLE = NOTE_NEW_PAGE_TITLE;
 
 function emptySpaceState(open: boolean): NoteSpaceState {
   return { open, loading: false, error: null, tree: null };

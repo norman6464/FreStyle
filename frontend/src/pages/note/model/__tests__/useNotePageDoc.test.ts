@@ -5,13 +5,17 @@ import { useNotePageDoc } from '../useNotePageDoc';
 const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
   replaceContent: vi.fn(),
+  renamePage: vi.fn(),
+  emit: vi.fn(),
 }));
 
 vi.mock('@/entities/note', () => ({
   NoteRepository: {
     resolvePage: hoisted.resolvePage,
     replaceContent: hoisted.replaceContent,
+    renamePage: hoisted.renamePage,
   },
+  emitNoteTreeEvent: hoisted.emit,
 }));
 
 const resolved = (title: string, canEdit = true) => ({
@@ -165,6 +169,195 @@ describe('useNotePageDoc', () => {
         content: [],
       });
       expect(result.current.saveStatus).toBe('saved');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('renameTitle は改名し、画面の題名を確定後の値へ差し替え、木にも知らせる', async () => {
+    const renamed = {
+      id: 'p1',
+      spaceId: 's1',
+      title: '設計メモ v2',
+      createdByUserId: 1,
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+    };
+    hoisted.renamePage.mockResolvedValue(renamed);
+    const { result } = renderHook(() => useNotePageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.renameTitle('設計メモ v2');
+    });
+
+    expect(hoisted.renamePage).toHaveBeenCalledWith('w-3f2a9c', 'p1', '設計メモ v2');
+    expect(result.current.data?.page.title).toBe('設計メモ v2');
+    expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-renamed', page: renamed });
+  });
+
+  it('renameTitle の失敗は投げ、画面の題名は変えない', async () => {
+    hoisted.renamePage.mockRejectedValue(new Error('403'));
+    const { result } = renderHook(() => useNotePageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await expect(result.current.renameTitle('だめな改名')).rejects.toThrow();
+    expect(result.current.data?.page.title).toBe('設計メモ');
+    expect(hoisted.emit).not.toHaveBeenCalled();
+  });
+
+  it('ページを移っても、書きかけの保存は**書いた時点のページ**へ送る（移った先を潰さない）', async () => {
+    // 旧: 宛先を送信時に読む → 移った先の resolve が宛先を差し替え、旧ページの全文が
+    // 新ページへ PUT され、丸ごと置換なので新ページの本文が消えていた。
+    vi.useFakeTimers();
+    try {
+      let resolveFirstPut: (value: unknown) => void = () => {};
+      hoisted.replaceContent.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstPut = resolve;
+          }),
+      );
+
+      const { result, rerender } = renderHook(({ id }) => useNotePageDoc(id), {
+        initialProps: { id: 'p1' },
+      });
+      await act(async () => {});
+
+      // p1 で書く → PUT(A) が飛ぶ（保留）。さらに書いて残りを作る。
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [] });
+      });
+
+      // 子ページ p2 へ移る（resolve は p2 を返し、宛先 ref は p2 に差し替わる）。
+      hoisted.resolvePage.mockResolvedValue({
+        ...resolved('子ページ'),
+        page: { ...resolved('子ページ').page, id: 'p2' },
+      });
+      rerender({ id: 'p2' });
+      await act(async () => {});
+
+      // PUT(A) が完了 → 残りが流れる。宛先は**書いた時点の p1** でなければならない。
+      await act(async () => {
+        resolveFirstPut({ doc: { type: 'doc', content: [] }, builtAt: '2026-08-28T00:00:00Z' });
+      });
+      expect(hoisted.replaceContent).toHaveBeenCalledTimes(2);
+      expect(hoisted.replaceContent).toHaveBeenLastCalledWith('w-3f2a9c', 'p1', {
+        type: 'doc',
+        content: [],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('改名の応答が別ページへ移った後に返っても、移った先の表示を上書きしない', async () => {
+    let resolveRename: (value: unknown) => void = () => {};
+    hoisted.renamePage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+    const { result, rerender } = renderHook(({ id }) => useNotePageDoc(id), {
+      initialProps: { id: 'p1' },
+    });
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    // p1 の改名を送ったまま p2 へ移る。
+    const renamePromise = result.current.renameTitle('旧ページの新題名');
+    hoisted.resolvePage.mockResolvedValue({
+      ...resolved('別ページ'),
+      page: { ...resolved('別ページ').page, id: 'p2' },
+    });
+    rerender({ id: 'p2' });
+    await waitFor(() => expect(result.current.data?.page.id).toBe('p2'));
+
+    // 遅れて p1 の改名応答が着地しても、p2 の表示はそのまま。
+    await act(async () => {
+      resolveRename({
+        id: 'p1',
+        spaceId: 's1',
+        title: '旧ページの新題名',
+        createdByUserId: 1,
+        createdAt: '2026-08-01T00:00:00Z',
+        updatedAt: '2026-08-28T00:00:00Z',
+      });
+      await renamePromise;
+    });
+    expect(result.current.data?.page.id).toBe('p2');
+    expect(result.current.data?.page.title).toBe('別ページ');
+    // 改名自体はサーバーで成立しているので、木への知らせは出す。
+    expect(hoisted.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'page-renamed' }),
+    );
+  });
+
+  it('旧ページの書き直しは、移った先で書いても消えない（宛先ごとに保留を持つ）', async () => {
+    // 1 枠の保留だと、p1 の PUT 中に p1 を書き直し → p2 へ移動 → p2 を書く、の並びで
+    // p2 の doc が p1 の保留を上書きし、p1 の最後の編集が黙って消えていた。
+    vi.useFakeTimers();
+    try {
+      let resolveFirstPut: (value: unknown) => void = () => {};
+      hoisted.replaceContent.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstPut = resolve;
+          }),
+      );
+
+      const { result, rerender } = renderHook(({ id }) => useNotePageDoc(id), {
+        initialProps: { id: 'p1' },
+      });
+      await act(async () => {});
+
+      // p1 で書く → PUT(p1 v1) が飛ぶ（保留）。飛行中に p1 を書き直す。
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [], attrs: { v: 'p1v2' } });
+      });
+
+      // p2 へ移って p2 も書く。
+      hoisted.resolvePage.mockResolvedValue({
+        ...resolved('子ページ'),
+        page: { ...resolved('子ページ').page, id: 'p2' },
+      });
+      rerender({ id: 'p2' });
+      await act(async () => {});
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [], attrs: { v: 'p2v1' } });
+      });
+
+      // PUT(p1 v1) が完了すると、p1 の書き直しと p2 の両方が書いた順で届く。
+      await act(async () => {
+        resolveFirstPut({ doc: { type: 'doc', content: [] }, builtAt: '2026-08-28T00:00:00Z' });
+        vi.advanceTimersByTime(1000);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(hoisted.replaceContent).toHaveBeenCalledTimes(3);
+      expect(hoisted.replaceContent).toHaveBeenNthCalledWith(2, 'w-3f2a9c', 'p1', {
+        type: 'doc',
+        content: [],
+        attrs: { v: 'p1v2' },
+      });
+      expect(hoisted.replaceContent).toHaveBeenNthCalledWith(3, 'w-3f2a9c', 'p2', {
+        type: 'doc',
+        content: [],
+        attrs: { v: 'p2v1' },
+      });
     } finally {
       vi.useRealTimers();
     }

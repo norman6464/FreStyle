@@ -1284,6 +1284,23 @@ describe('ページ画面からの通知に木が追従する', () => {
     expect(await screen.findByText('p1-child')).toBeInTheDocument();
   });
 
+  it('page-renamed が未読込のスペース宛でも壊れない（何も起きない）', async () => {
+    hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部'), space('space-2', '営業部')]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    // space-2 は開いておらず木が無い。宛先の state が無くても落ちず、取りにも行かない。
+    act(() => {
+      emitNoteTreeEvent({
+        type: 'page-renamed',
+        page: { ...page('px', 'よそのページ'), spaceId: 'space-2' },
+      });
+    });
+
+    expect(screen.queryByText('よそのページ')).not.toBeInTheDocument();
+    expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
+  });
+
   it('page-renamed で木の題名が差し替わる', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');

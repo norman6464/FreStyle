@@ -1021,3 +1021,101 @@ describe('KbSidebar', () => {
     await waitFor(() => expect(path).toBe('/kb/beta'));
   });
 });
+
+describe('見た目の印（葉の点と開いたフォルダ）', () => {
+  it('子が無い行は三角の位置に「・」が出て、子を持つ行には出ない', async () => {
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([{ id: 'parent', title: '親ページ', children: ['child-1'] }, { id: 'leaf', title: '葉ページ' }]),
+    );
+    renderSidebar();
+    await screen.findByText('親ページ');
+
+    const leafRow = screen.getByRole('link', { name: /葉ページ/ }).closest('div[draggable]') as HTMLElement;
+    const parentRow = screen.getByRole('link', { name: /親ページ/ }).closest('div[draggable]') as HTMLElement;
+    expect(leafRow.textContent).toContain('•');
+    expect(parentRow.textContent).not.toContain('•');
+  });
+
+  it('子を持つ行のフォルダは、開くと開いた形のアイコンに変わる', async () => {
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([{ id: 'parent', title: '親ページ', children: ['child-1'] }]),
+    );
+    renderSidebar();
+    await screen.findByText('親ページ');
+
+    const row = () => screen.getByRole('link', { name: /親ページ/ }).closest('div[draggable]') as HTMLElement;
+    expect(row().querySelector('[data-icon="page-group"]')).not.toBeNull();
+    expect(row().querySelector('[data-icon="page-group-open"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '親ページ を開く' }));
+
+    expect(row().querySelector('[data-icon="page-group-open"]')).not.toBeNull();
+    expect(row().querySelector('[data-icon="page-group"]')).toBeNull();
+  });
+});
+
+describe('題名で絞り込み', () => {
+  beforeEach(() => {
+    hoisted.fetchPageTree.mockResolvedValue(
+      tree([
+        { id: 'docker', title: 'Docker 手順', children: ['docker-child'] },
+        { id: 'design', title: '設計メモ' },
+      ]),
+    );
+  });
+
+  it('一致した行と、その祖先だけが残る', async () => {
+    // 子の題名は fixture では id がそのまま入る（docker-child）。
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
+      target: { value: 'docker-child' },
+    });
+
+    // 一致した子と、その親（道）は見え、無関係の行は消える。閉じていた道も開く。
+    expect(screen.getByRole('link', { name: /docker-child/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
+  });
+
+  it('1 件も一致しないと「一致するページがありません」と伝える', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
+      target: { value: '存在しない題名' },
+    });
+
+    expect(screen.getByText('一致するページがありません')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
+  });
+
+  it('絞り込み中はドラッグできない（絞られた並びの「隣」は実際の隣ではない）', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const before = screen.getByRole('link', { name: /設計メモ/ }).closest('div[draggable]') as HTMLElement;
+    expect(before.getAttribute('draggable')).toBe('true');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
+      target: { value: '設計' },
+    });
+
+    const row = screen.getByRole('link', { name: /設計メモ/ }).closest('div[draggable]') as HTMLElement;
+    expect(row.getAttribute('draggable')).toBe('false');
+  });
+
+  it('消すと元の木に戻る', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const input = screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' });
+    fireEvent.change(input, { target: { value: '設計' } });
+    expect(screen.queryByRole('link', { name: /Docker 手順/ })).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '' } });
+    expect(screen.getByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
+  });
+});

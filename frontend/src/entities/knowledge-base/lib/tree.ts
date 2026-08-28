@@ -175,3 +175,49 @@ export function kbMoveActions(
     outdent: parentId ? { kind: 'after', pageId: parentId } : null,
   };
 }
+
+/**
+ * filterKbTree は題名で木を絞り込む。残るのは**一致した行と、その祖先**だけ。
+ *
+ * 一致した行の下は出さない（親が一致しただけで子孫を全部広げると、絞り込んだのに
+ * 木が縮まらない）。祖先を残すのは、行き先を選ぶには場所ごと見える必要があるから。
+ *
+ * 返る木では hasHiddenChildren を必ず false にする。あの印は「木に穴が空いて見える」
+ * ことへの説明で、絞り込み中は利用者自身が木を削っているので、説明が要らない
+ * （出すと「一致していないのに何かある」と読まれてしまう）。
+ *
+ * 空・空白だけの問い合わせは**元の配列をそのまま返す**。参照が変わらないので、
+ * 呼び出し側の memo がそのまま効く。
+ */
+export function filterKbTree(nodes: KbPageTreeNode[], query: string): KbPageTreeNode[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return nodes;
+  const out: KbPageTreeNode[] = [];
+  for (const n of nodes) {
+    const children = filterKbTree(n.children, needle);
+    const selfHit = n.page.title.toLowerCase().includes(needle);
+    if (selfHit || children.length > 0) {
+      // 自分が一致したときも children は絞った側を使う（一致しない子は出さない）。
+      out.push({ ...n, children, hasHiddenChildren: false });
+    }
+  }
+  return out;
+}
+
+/**
+ * collectKbBranchIds は子を持つ行の id を全部集める。
+ * 絞り込み中に「一致した行までの道をすべて開く」ための一覧として使う。
+ */
+export function collectKbBranchIds(nodes: KbPageTreeNode[]): string[] {
+  const out: string[] = [];
+  const walk = (list: KbPageTreeNode[]) => {
+    for (const n of list) {
+      if (n.children.length > 0) {
+        out.push(n.page.id);
+        walk(n.children);
+      }
+    }
+  };
+  walk(nodes);
+  return out;
+}

@@ -64,6 +64,20 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
   // スペース追加フォームの開閉。既にスペースがあるときの追加入口（0 件のときは常設フォーム）。
   const [addingSpace, setAddingSpace] = useState(false);
 
+  // ワークスペース作成は入口が 2 つ（切替ポップアップ / 所属 0 件の常設フォーム）ある。
+  // 作成 → 失敗の知らせ → /notes へ戻る、を 1 つに集約して入口ごとの差を作らない。
+  const handleCreateWorkspace = async (input: { name: string }) => {
+    try {
+      await createWorkspace(input);
+    } catch {
+      showToast('error', 'ワークスペースを作成できませんでした');
+      throw new Error('create workspace failed');
+    }
+    // 切替（onSelect）と同じ理由で一覧へ戻す。戻さないと、開いていた旧ワーク
+    // スペースのページと、新ワークスペースを指すサイドバーが食い違ったまま残る。
+    navigate('/notes');
+  };
+
   return (
     <nav aria-label="ナレッジ基盤" className="flex h-full flex-col overflow-y-auto p-2">
       <NoteWorkspaceSwitcher
@@ -75,17 +89,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           selectWorkspace(slug);
           navigate('/notes');
         }}
-        onCreate={async (input) => {
-          try {
-            await createWorkspace(input);
-          } catch {
-            showToast('error', 'ワークスペースを作成できませんでした');
-            throw new Error('create workspace failed');
-          }
-          // 切替（onSelect）と同じ理由で一覧へ戻す。戻さないと、開いていた旧ワーク
-          // スペースのページと、新ワークスペースを指すサイドバーが食い違ったまま残る。
-          navigate('/notes');
-        }}
+        onCreate={handleCreateWorkspace}
       />
 
       {workspacesLoading && (
@@ -109,17 +113,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           <p className="px-2 pt-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
             まだワークスペースがありません。作るとページを置けるようになります。
           </p>
-          <NoteCreateForm
-            what="ワークスペース"
-            onCreate={async (input) => {
-              try {
-                await createWorkspace(input);
-              } catch {
-                showToast('error', 'ワークスペースを作成できませんでした');
-                throw new Error('create workspace failed');
-              }
-            }}
-          />
+          <NoteCreateForm what="ワークスペース" onCreate={handleCreateWorkspace} />
         </div>
       )}
 
@@ -140,9 +134,10 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
         {/* 節の見出し（見本合わせ）。スペースは共有の木で、個人の領域（プライベート）は
             権限モデルの設計とセットで別の段。 */}
         {activeSlug && !archivedMode && spaces.length > 0 && (
-          <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+          // 見出しとして名乗る（p だと見出し一覧からこの節へ飛べない）。
+          <h2 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
             チームスペース
-          </p>
+          </h2>
         )}
         {spacesLoading && (
           <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>

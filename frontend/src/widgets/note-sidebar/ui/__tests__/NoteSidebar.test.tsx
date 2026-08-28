@@ -319,6 +319,30 @@ describe('NoteSidebar', () => {
       );
     });
 
+    it('未所属の常設フォームから作っても /notes へ戻る（入口ごとの差を作らない）', async () => {
+      hoisted.fetchWorkspaces.mockResolvedValue([]);
+      hoisted.createWorkspace.mockResolvedValue(workspace('w-new', '新チーム'));
+      let entryPath = '';
+      function EntryPathProbe() {
+        entryPath = useLocation().pathname;
+        return null;
+      }
+      render(
+        <MemoryRouter initialEntries={['/p/stale-page']}>
+          <EntryPathProbe />
+          <NoteSidebar />
+        </MemoryRouter>,
+      );
+      await screen.findByText(/まだワークスペースがありません/);
+
+      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+        target: { value: '新チーム' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+      await waitFor(() => expect(entryPath).toBe('/notes'));
+    });
+
     it('スペースが無いときも行き止まりにしない', async () => {
       // ワークスペースを作っただけではスペースは付いてこない。
       hoisted.fetchSpaces.mockResolvedValue([]);
@@ -1135,6 +1159,18 @@ describe('題名で検索（モーダル）', () => {
     expect(currentPath).toBe('/p/hit-2');
   });
 
+  it('日本語入力の変換キャンセルの Escape ではモーダルを閉じない（打ちかけの検索語を守る）', async () => {
+    const input = await openSearch();
+    fireEvent.change(input, { target: { value: 'けんさ' } });
+
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
+    expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
+    expect(input).toHaveValue('けんさ');
+
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
+    expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
+  });
+
   it('Escape と外側クリックで閉じる', async () => {
     const input = await openSearch();
 
@@ -1436,6 +1472,10 @@ describe('ワークスペース切替ポップアップ', () => {
     fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
     expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('開発ちー');
 
+    // Safari は変換中を keyCode 229 で伝える。こちらの分岐でも閉じない。
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
+    expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('開発ちー');
+
     // 変換していない Escape では従来どおり閉じる。
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() =>
@@ -1461,10 +1501,10 @@ describe('ワークスペース切替ポップアップ', () => {
     expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('新チーム');
   });
 
-  it('スペース一覧に「チームスペース」の節見出しが付く', async () => {
+  it('スペース一覧に「チームスペース」の節見出しが付く（見出しとして名乗る）', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    expect(screen.getByText('チームスペース')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'チームスペース' })).toBeInTheDocument();
   });
 });

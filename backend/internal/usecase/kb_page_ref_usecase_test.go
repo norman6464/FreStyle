@@ -199,7 +199,11 @@ func Test_ページ参照の題名解決_アーカイブ済みの参照は題名
 	})
 
 	assert.NoError(t, err)
-	assert.NotContains(t, got, "隠した題名")
+	assert.NotContains(t, got, "隠した題名", "現在の題名は入れない")
+	// 原文をそのまま返しても通る検証にしない: 保存されていた「無題」も剥がれている
+	//（＝読み出し側の strip と解決の両方が実際に走った）ことまで確かめる。
+	assert.NotContains(t, got, `"無題"`)
+	repo.AssertExpectations(t)
 }
 
 func Test_パンくず_閲覧できる祖先だけがclosureの順で返る(t *testing.T) {

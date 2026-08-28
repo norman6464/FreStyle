@@ -141,7 +141,7 @@ make verify        # gofumpt / vet / build / test / 3 linter を一括実行
 
 ### 結合テスト（本物の PostgreSQL）
 
-`adapter/persistence` 層は、repository が実際に発行する SQL を **本物の PostgreSQL** に対して検証する結合テストを持つ。単体テスト（usecase の mock）とは独立し、`//go:build integration` タグで隔離しているため通常の `go test ./...` には含まれない。
+backend は、repository が実際に発行する SQL や usecase のトランザクションを **本物の PostgreSQL** に対して検証する結合テストを持つ。単体テスト（usecase の mock）とは独立し、`//go:build integration` タグで隔離しているため通常の `go test ./...` には含まれない。
 
 ```bash
 make test-integration

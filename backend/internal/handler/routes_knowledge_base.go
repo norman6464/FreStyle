@@ -73,6 +73,7 @@ func registerKnowledgeBaseRoutesWith(
 ) {
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(permissions),
+		usecase.NewResolvePageLocationUseCase(pages),
 		usecase.NewCheckSpacePermissionUseCase(permissions),
 		usecase.NewCanEditPageSubtreeUseCase(permissions),
 		usecase.NewListViewablePagesUseCase(permissions),
@@ -147,6 +148,9 @@ func registerKnowledgeBaseRoutesWith(
 	// 「どの slug を開けるのか」を知る前・そもそもワークスペースを作る前には使えない。
 	// 認証（CurrentUser）は呼び出し元の group が既に通している。
 	g.GET("/kb/workspaces", wh.List)
+	// /p/{pageId} の解決。URL にテナントを持たないため slug の middleware は通せない
+	// （権限判定は handler の中で、解決した workspace に対して必ず行う）。
+	g.GET("/kb/pages/:pageId", h.ResolveByID)
 	// 作成は認証済みなら誰でも叩けて、slug はテナントをまたいで一意。
 	// 上限が無いと 1 人で短い slug を取り尽くせてしまい、取り返す手段が運用の手作業しか無い。
 	// 保有数の上限までは塞げないが、掴み取りの速度は他の作成系と同じ土俵に落とす。

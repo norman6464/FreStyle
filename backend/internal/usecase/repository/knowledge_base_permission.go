@@ -171,6 +171,10 @@ type KnowledgeBasePermissionRepository interface {
 	// admin から他の役割へ落とす向きは「admin を外す」操作なので、それでユーザーの admin が
 	// 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない（判定は書き込みと同じトランザクション）。
 	UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error)
+	// GrantWorkspaceRoleIfAbsent は既定の役割を**無いときだけ**与える（既存の行は触らない）。
+	// メンバー追加の既定 editor 用。上書きの Upsert を使うと、冪等な追加のやり直しで
+	// admin が editor に落ちる（最後の admin なら保護の検査に当たって追加自体が失敗する）。
+	GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error
 	// DeleteWorkspaceGrant はワークスペース全体での既定の役割を剥がす（冪等）。
 	// これでユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない。
 	DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error

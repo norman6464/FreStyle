@@ -96,6 +96,15 @@ func (f *kbFakePages) hasWorkspaceID(workspaceID string) bool {
 	return false
 }
 
+func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID string) (*domain.Page, error) {
+	p, ok := f.pages[pageID]
+	if !ok {
+		return nil, repository.ErrPageNotFound
+	}
+	c := *p
+	return &c, nil
+}
+
 func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	s, ok := f.spaces[spaceID]
 	if !ok || s.WorkspaceID != workspaceID {
@@ -845,6 +854,21 @@ func (f *kbFakePerms) WorkspacePermissionFactsForUser(
 
 // rolesAt はその入れ物で自分に届いている役割を返す。scopeRoles に明示があればそれ、
 // 無ければワークスペース全体の役割（workspaceRole）だけ。
+// GrantWorkspaceRoleIfAbsent は無いときだけ既定の役割を入れる（本番と同じ意味）。
+func (f *kbFakePerms) GrantWorkspaceRoleIfAbsent(_ context.Context, workspaceID, principalID string, role domain.GrantRole) error {
+	// principal からユーザーを引いて scopeRoles のワークスペース段に置く。
+	for _, p := range f.principals {
+		if p.ID == principalID && p.UserID != nil {
+			key := kbScopeKey{scopeID: workspaceID, userID: *p.UserID}
+			if _, ok := f.scopeRoles[key]; !ok {
+				f.scopeRoles[key] = role
+			}
+			return nil
+		}
+	}
+	return repository.ErrPrincipalNotFound
+}
+
 func (f *kbFakePerms) rolesAt(key kbScopeKey, workspaceID string, userID uint64) []domain.GrantRole {
 	roles := make([]domain.GrantRole, 0, 2)
 	if role, ok := f.scopeRoles[key]; ok {

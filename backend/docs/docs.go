@@ -2345,6 +2345,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/kb/pages/{pageId}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ ID だけ で ページ と 所属 ワークスペース を 解決 する。 閲覧 できない・存在 しない は 同じ 404。応答 の workspaceSlug を 以降 の API に 使う。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ページ 解決 (ID のみ)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbResolvedPageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/share-links/verify": {
             "post": {
                 "description": "受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を 返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は 含め ない。 総当たり と パスワード 推測 を 抑える ため、 リンク 1 本 あたり の 試行 回数 に 上限 が ある (要求 元 の IP を 変え て も 頭打ち に なる)。",
@@ -7364,6 +7416,24 @@ const docTemplate = `{
             "properties": {
                 "doc": {
                     "type": "object"
+                }
+            }
+        },
+        "internal_handler.kbResolvedPageResponse": {
+            "type": "object",
+            "properties": {
+                "canEdit": {
+                    "type": "boolean"
+                },
+                "doc": {
+                    "type": "object"
+                },
+                "page": {
+                    "$ref": "#/definitions/internal_handler.kbPageResponse"
+                },
+                "workspaceSlug": {
+                    "type": "string",
+                    "example": "w-3f2a9c"
                 }
             }
         },

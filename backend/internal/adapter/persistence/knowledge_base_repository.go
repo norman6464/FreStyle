@@ -184,6 +184,23 @@ func (r *knowledgeBaseRepository) FindWorkspaceBySlug(ctx context.Context, slug 
 	return &ws, nil
 }
 
+// FindPageByIDAcrossWorkspaces はページを ID だけで引く（詳細は port のコメント）。
+func (r *knowledgeBaseRepository) FindPageByIDAcrossWorkspaces(ctx context.Context, pageID string) (*domain.Page, error) {
+	pgID, ok := kbParseID(pageID)
+	if !ok {
+		return nil, repository.ErrPageNotFound
+	}
+	row, err := r.q.GetPageAcrossWorkspaces(ctx, pgID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrPageNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	p := toDomainPage(row)
+	return &p, nil
+}
+
 func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)

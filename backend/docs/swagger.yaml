@@ -1097,6 +1097,18 @@ definitions:
     required:
     - doc
     type: object
+  internal_handler.kbResolvedPageResponse:
+    properties:
+      canEdit:
+        type: boolean
+      doc:
+        type: object
+      page:
+        $ref: '#/definitions/internal_handler.kbPageResponse'
+      workspaceSlug:
+        example: w-3f2a9c
+        type: string
+    type: object
   internal_handler.kbSetRestrictionRequest:
     properties:
       mode:
@@ -2968,6 +2980,40 @@ paths:
       summary: 招待 トークン 検証 (公開 / 認証 不要)
       tags:
       - invitations
+  /kb/pages/{pageId}:
+    get:
+      description: ページ ID だけ で ページ と 所属 ワークスペース を 解決 する。 閲覧 できない・存在 しない は 同じ 404。応答
+        の workspaceSlug を 以降 の API に 使う。
+      parameters:
+      - description: ページ ID (UUID)
+        in: path
+        name: pageId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.kbResolvedPageResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 存在 し ない か 閲覧 権限 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート の ページ 解決 (ID のみ)
+      tags:
+      - knowledge-base
   /kb/share-links/verify:
     post:
       consumes:

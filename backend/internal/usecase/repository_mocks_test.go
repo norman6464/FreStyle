@@ -380,6 +380,12 @@ func (m *mockKnowledgeBaseRepo) UpdateSpaceName(ctx context.Context, workspaceID
 	return m.Called(ctx, workspaceID, spaceID, name).Error(0)
 }
 
+func (m *mockKnowledgeBaseRepo) FindPageByIDAcrossWorkspaces(ctx context.Context, pageID string) (*domain.Page, error) {
+	args := m.Called(ctx, pageID)
+	p, _ := args.Get(0).(*domain.Page)
+	return p, args.Error(1)
+}
+
 func (m *mockKnowledgeBaseRepo) FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	p, _ := args.Get(0).(*domain.Page)
@@ -621,6 +627,10 @@ func (m *mockKBPermissionRepo) SearchWorkspacePageViewFacts(ctx context.Context,
 	args := m.Called(ctx, workspaceID, userID, query)
 	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
 	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error {
+	return m.Called(ctx, workspaceID, principalID, role).Error(0)
 }
 
 func (m *mockKBPermissionRepo) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]repository.PageWithViewFacts, error) {

@@ -29,8 +29,17 @@ export function useNotePageDoc(pageId: string | undefined) {
 
   // 保存のデバウンスと「最後に書かれた doc」。タイマーは 1 本だけ持ち、
   // 発火時点の最新 doc を送る（打鍵ごとに PUT しない）。
+  //
+  // **宛先（どのページの本文か）は doc と一緒に束ねて持つ。** 別々の ref に置くと、
+  // ページを移った瞬間に宛先だけが新しいページへ差し替わり、旧ページの書きかけが
+  // 新しいページへ PUT される（丸ごと置換の API なので、移った先の本文が旧ページの
+  // 全文で上書きされる）。書いた時点のページが宛先 — この束がそれを崩れなくする。
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDoc = useRef<unknown>(null);
+  const pendingSave = useRef<{
+    workspaceSlug: string;
+    pageId: string;
+    doc: unknown;
+  } | null>(null);
   const saveTarget = useRef<{ workspaceSlug: string; pageId: string } | null>(null);
   // PUT が飛んでいる間 true。保存は**必ず 1 本ずつ**送る。並行に送ると、後から書いた
   // 本文の PUT が先に完了し、古い本文の PUT が後から着地して上書きすることがある
@@ -39,16 +48,15 @@ export function useNotePageDoc(pageId: string | undefined) {
 
   const flushSave = useCallback(() => {
     if (saveInFlight.current) return; // 完了ハンドラが残りを流す
-    const target = saveTarget.current;
-    const doc = pendingDoc.current;
-    if (!target || doc == null) return;
-    pendingDoc.current = null;
+    const pending = pendingSave.current;
+    if (pending == null) return;
+    pendingSave.current = null;
     saveInFlight.current = true;
     setSaveStatus('saving');
-    NoteRepository.replaceContent(target.workspaceSlug, target.pageId, doc)
+    NoteRepository.replaceContent(pending.workspaceSlug, pending.pageId, pending.doc)
       .then(() => {
         saveInFlight.current = false;
-        if (pendingDoc.current == null) {
+        if (pendingSave.current == null) {
           setSaveStatus('saved');
         } else {
           // 送信中にさらに書かれていた。次を続けて送る（編集順を守る）。
@@ -105,15 +113,24 @@ export function useNotePageDoc(pageId: string | undefined) {
   const renameTitle = useCallback(async (title: string): Promise<void> => {
     const target = saveTarget.current;
     if (!target) return;
+    const token = generation.current;
     const page = await NoteRepository.renamePage(target.workspaceSlug, target.pageId, title);
-    setState((prev) => (prev.data ? { ...prev, data: { ...prev.data, page } } : prev));
+    // 応答が返る前に別ページへ移っていたら、画面の状態には触らない
+    //（触ると、移った先の見出しと ID が前のページのもので上書きされる）。
+    // 改名そのものはサーバーで成立しているので、木への知らせは出す。
+    if (token === generation.current) {
+      setState((prev) => (prev.data ? { ...prev, data: { ...prev.data, page } } : prev));
+    }
     emitNoteTreeEvent({ type: 'page-renamed', page });
   }, []);
 
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
   const onDocChange = useCallback(
     (doc: unknown) => {
-      pendingDoc.current = doc;
+      // 宛先は**書いたこの瞬間**のページ。あとで読むとページ移動で差し替わっている。
+      const target = saveTarget.current;
+      if (!target) return;
+      pendingSave.current = { ...target, doc };
       setSaveStatus('unsaved');
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {

@@ -69,6 +69,41 @@ describe('NotePageTitle', () => {
     expect(onRename).not.toHaveBeenCalled();
   });
 
+  it('確定が終わるまで欄は無効になり、重ねて確定しても 1 回しか呼ばない', async () => {
+    let resolveRename: () => void = () => {};
+    const onRename = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+    render(<NotePageTitle title="無題" canEdit onRename={onRename} />);
+
+    const input = screen.getByRole('textbox', { name: 'ページの題名' });
+    fireEvent.change(input, { target: { value: '設計メモ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(input).toBeDisabled());
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.blur(input);
+    expect(onRename).toHaveBeenCalledTimes(1);
+
+    resolveRename();
+    await waitFor(() => expect(input).not.toBeDisabled());
+  });
+
+  it('日本語入力の変換確定 Enter では確定しない（isComposing を見る）', () => {
+    const onRename = vi.fn();
+    render(<NotePageTitle title="無題" canEdit onRename={onRename} />);
+
+    const input = screen.getByRole('textbox', { name: 'ページの題名' });
+    fireEvent.change(input, { target: { value: '設計' } });
+    // 変換確定の Enter（isComposing=true）。ここで確定すると打ちかけの題名で改名が飛ぶ。
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
   it('失敗しても入力は消さない（打ち直しにさせない）', async () => {
     const onRename = vi.fn().mockRejectedValue(new Error('boom'));
     render(<NotePageTitle title="無題" canEdit onRename={onRename} />);

@@ -63,6 +63,9 @@ export default function NotePageTitle({ title, canEdit, onRename }: NotePageTitl
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => void commit()}
       onKeyDown={(event) => {
+        // 日本語入力の変換確定 Enter は本文の確定ではない。isComposing を見ないと、
+        // 変換のたびに打ちかけの題名で改名が飛ぶ（keyCode 229 は Safari の変換中の値）。
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         if (event.key === 'Enter') {
           event.preventDefault();
           void commit();

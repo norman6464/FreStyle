@@ -75,6 +75,14 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           selectWorkspace(slug);
           navigate('/notes');
         }}
+        onCreate={async (input) => {
+          try {
+            await createWorkspace(input);
+          } catch {
+            showToast('error', 'ワークスペースを作成できませんでした');
+            throw new Error('create workspace failed');
+          }
+        }}
       />
 
       {workspacesLoading && (
@@ -126,6 +134,13 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
       )}
 
       <div className="mt-2 min-h-0 flex-1">
+        {/* 節の見出し（見本合わせ）。スペースは共有の木で、個人の領域（プライベート）は
+            権限モデルの設計とセットで別の段。 */}
+        {activeSlug && !archivedMode && spaces.length > 0 && (
+          <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+            チームスペース
+          </p>
+        )}
         {spacesLoading && (
           <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
         )}

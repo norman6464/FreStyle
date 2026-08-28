@@ -1385,3 +1385,53 @@ describe('ページ画面からの通知に木が追従する', () => {
     expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
   });
 });
+
+describe('ワークスペース切替ポップアップ', () => {
+  it('所属が 1 つでも開け、追加の入口から名前だけで作れる', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    // 1 件でも見出しではなくボタン（ポップアップに追加の入口があるため）。
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    hoisted.createWorkspace.mockResolvedValue(workspace('w-new', '新チーム'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+      target: { value: '新チーム' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.createWorkspace).toHaveBeenCalledWith({ name: '新チーム' }),
+    );
+    // 成功したらポップアップは閉じる（hook が作った先へ切り替える）。
+    await waitFor(() =>
+      expect(screen.queryByLabelText('ワークスペースの名前')).not.toBeInTheDocument(),
+    );
+  });
+
+  it('失敗したら知らせを出し、入力は消さない', async () => {
+    hoisted.createWorkspace.mockRejectedValue(new Error('boom'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+      target: { value: '新チーム' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを作成できませんでした'),
+    );
+    expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('新チーム');
+  });
+
+  it('スペース一覧に「チームスペース」の節見出しが付く', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    expect(screen.getByText('チームスペース')).toBeInTheDocument();
+  });
+});

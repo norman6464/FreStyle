@@ -17,4 +17,5 @@ export type {
   NotePageTree,
   NotePageDoc,
   NoteResolvedPage,
+  NoteAncestorRef,
 } from './model/types';

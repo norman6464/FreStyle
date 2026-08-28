@@ -51,7 +51,44 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 		return nil, err
 	}
 	if !member {
-		return nil, repository.ErrWorkspaceNotFound
+		// 会社のワークスペースなら、まだ principals の行が無いだけなので入れる。
+		// URL を直に開いた人も一覧を経ずにここへ来るため、判定の直前で用意する
+		// （用意した事実は principals に書くので、所属の表現は 1 つのまま）。
+		joined, jerr := u.joinCompany(ctx, ws.ID, in.UserID)
+		if jerr != nil {
+			return nil, jerr
+		}
+		if !joined {
+			return nil, repository.ErrWorkspaceNotFound
+		}
 	}
 	return ws, nil
+}
+
+// joinCompany は「そのワークスペースがこの人の会社のものなら」所属を用意する。
+// 会社が違う・会社に属していないなら false（呼び出し側は 404 に倒す）。
+func (u *ResolveWorkspaceUseCase) joinCompany(
+	ctx context.Context, workspaceID string, userID uint64,
+) (bool, error) {
+	companyWorkspaceID, err := u.permissions.FindUserCompanyWorkspaceID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrWorkspaceNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if companyWorkspaceID != workspaceID {
+		return false, nil
+	}
+	principal, err := u.permissions.EnsureUserPrincipal(ctx, workspaceID, userID)
+	if err != nil {
+		return false, err
+	}
+	// 既定は editor（読むだけの人を作らない）。既にある役割は触らない。
+	if err := u.permissions.GrantWorkspaceRoleIfAbsent(
+		ctx, workspaceID, principal.ID, domain.GrantRoleEditor,
+	); err != nil {
+		return false, err
+	}
+	return true, nil
 }

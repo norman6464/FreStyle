@@ -92,6 +92,7 @@ func registerKnowledgeBaseRoutesWith(
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
 		usecase.NewListMemberWorkspacesUseCase(permissions),
+		usecase.NewJoinCompanyWorkspaceUseCase(permissions),
 		usecase.NewCreateWorkspaceUseCase(provisioner),
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
 		usecase.NewCreateSpaceUseCase(pages, provisioner),

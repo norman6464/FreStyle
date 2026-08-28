@@ -653,6 +653,18 @@ LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
 LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id;
 
+-- name: GetUserCompanyWorkspaceID :one
+-- そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
+--
+-- 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
+-- ナレッジ基盤の所属の正本はあくまで principals（kind='user'）の行で、この列は
+-- 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
+-- （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
+--
+-- 会社に属さないユーザー（company_id が NULL → workspace_id も NULL）は 0 行。
+SELECT workspace_id FROM users
+WHERE id = $1 AND workspace_id IS NOT NULL AND deleted_at IS NULL;
+
 -- name: ListMemberWorkspaces :many
 -- そのユーザーが所属するワークスペース一覧。
 --

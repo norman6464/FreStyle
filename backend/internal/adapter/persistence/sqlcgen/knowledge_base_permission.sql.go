@@ -263,6 +263,26 @@ func (q *Queries) GetSpaceEveryonePrincipal(ctx context.Context, arg GetSpaceEve
 	return i, err
 }
 
+const getUserCompanyWorkspaceID = `-- name: GetUserCompanyWorkspaceID :one
+SELECT workspace_id FROM users
+WHERE id = $1 AND workspace_id IS NOT NULL AND deleted_at IS NULL
+`
+
+// そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
+//
+// 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
+// ナレッジ基盤の所属の正本はあくまで principals（kind='user'）の行で、この列は
+// 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
+// （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
+//
+// 会社に属さないユーザー（company_id が NULL → workspace_id も NULL）は 0 行。
+func (q *Queries) GetUserCompanyWorkspaceID(ctx context.Context, id int64) (uuid.NullUUID, error) {
+	row := q.db.QueryRowContext(ctx, getUserCompanyWorkspaceID, id)
+	var workspace_id uuid.NullUUID
+	err := row.Scan(&workspace_id)
+	return workspace_id, err
+}
+
 const getUserPrincipal = `-- name: GetUserPrincipal :one
 SELECT id, workspace_id, kind, user_id, space_id, page_id, name, created_at, updated_at FROM principals
 WHERE workspace_id = $1 AND kind = 'user' AND user_id = $2

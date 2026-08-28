@@ -455,3 +455,84 @@ func TestKnowledgeBasePrivateSpaceAPI_Integration(t *testing.T) {
 		assert.Contains(t, listed.Body.String(), env.spaceID)
 	})
 }
+
+// TestKnowledgeBaseCompanyMembership_Integration は「同じ会社の人はチームスペースを見られる」
+// を実 PostgreSQL で確かめる。
+//
+// 会社ごとのワークスペースは起動時のバックフィルが用意し users.workspace_id へ写すが、
+// ナレッジ基盤の所属（principals の行）は作成者にしか無かったため、同じ会社の他の
+// メンバーには一覧にも出ず URL も 404 だった。ここでその経路を固定する。
+func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	env := newKbEnv(t, sqlDB, "acme")
+	alice := kbInsertUser(t, sqlDB, "alice") // ワークスペースを作った人
+	bob := kbInsertUser(t, sqlDB, "bob")     // 同じ会社の別の人（principals の行は無い）
+	carol := kbInsertUser(t, sqlDB, "carol") // 別の会社の人
+	env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+
+	// 会社の紐づけ（本番の tenant_bridge が埋める列）を用意する。
+	otherWorkspaceID := kbInsertWorkspace(t, sqlDB, "rival")
+	for _, c := range []struct {
+		user uint64
+		ws   string
+	}{{alice, env.workspaceID}, {bob, env.workspaceID}, {carol, otherWorkspaceID}} {
+		_, err := sqlDB.Exec(`UPDATE users SET workspace_id = $1 WHERE id = $2`, c.ws, c.user)
+		require.NoError(t, err)
+	}
+
+	// alice がチームスペースへページを 1 枚置く。
+	pageRes := env.as(alice).do(t, http.MethodPost, env.pagesPath(), `{"title":"全社の議事録"}`)
+	require.Equal(t, http.StatusCreated, pageRes.Code, pageRes.Body.String())
+	var page kbPageResponse
+	require.NoError(t, json.Unmarshal(pageRes.Body.Bytes(), &page))
+
+	t.Run("同じ会社の人は一覧・木・本文まで届く（所属は自動で用意される）", func(t *testing.T) {
+		e := env.as(bob)
+
+		listed := e.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
+		require.Equal(t, http.StatusOK, listed.Code)
+		assert.Contains(t, listed.Body.String(), "acme", "会社のワークスペースが一覧に出る")
+
+		spaces := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/spaces", "")
+		require.Equal(t, http.StatusOK, spaces.Code)
+		assert.Contains(t, spaces.Body.String(), env.spaceID, "チームスペースが見える")
+
+		tree := e.do(t, http.MethodGet, env.pagesPath(), "")
+		require.Equal(t, http.StatusOK, tree.Code)
+		assert.Contains(t, tree.Body.String(), page.ID, "木にページが出る")
+
+		got := e.do(t, http.MethodGet, env.pagePath(page.ID), "")
+		assert.Equal(t, http.StatusOK, got.Code, "本文を開ける")
+	})
+
+	t.Run("既定は editor なので書ける（読むだけの人を作らない）", func(t *testing.T) {
+		w := env.as(bob).do(t, http.MethodPatch, env.pagePath(page.ID), `{"title":"議事録（改訂）"}`)
+		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	})
+
+	t.Run("別の会社の人には見えないまま", func(t *testing.T) {
+		e := env.as(carol)
+
+		listed := e.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
+		require.Equal(t, http.StatusOK, listed.Code)
+		assert.NotContains(t, listed.Body.String(), `"slug":"acme"`, "他社のワークスペースは出ない")
+
+		spaces := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/spaces", "")
+		assert.Equal(t, http.StatusNotFound, spaces.Code, "URL を知っていても 404")
+	})
+
+	t.Run("プライベートスペースは会社の全員には見えない", func(t *testing.T) {
+		// 会社の全員が入っても、プライベートは付与された人だけ（ワークスペース全体の
+		// grant は private へ届かない）。この 2 つが両立して初めて節分けが意味を持つ。
+		created := env.as(bob).do(t, http.MethodPost, "/api/v2/kb/workspaces/acme/spaces",
+			`{"name":"bob の下書き","visibility":"private"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var private kbSpaceResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &private))
+
+		listed := env.as(alice).do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/spaces", "")
+		require.Equal(t, http.StatusOK, listed.Code)
+		assert.NotContains(t, listed.Body.String(), private.ID,
+			"会社の admin にも、他人のプライベートスペースは見えない")
+	})
+}

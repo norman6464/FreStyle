@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // KnowledgeBaseWorkspaceHandler はナレッジ基盤のワークスペース / スペースの操作を受ける。
@@ -20,6 +22,7 @@ import (
 // （通したら「まだ所属していない・まだ存在しない」ワークスペースを扱えない）。
 type KnowledgeBaseWorkspaceHandler struct {
 	listWorkspaces  *usecase.ListMemberWorkspacesUseCase
+	joinCompany     *usecase.JoinCompanyWorkspaceUseCase
 	createWorkspace *usecase.CreateWorkspaceUseCase
 	checkWorkspace  *usecase.CheckWorkspacePermissionUseCase
 	createSpace     *usecase.CreateSpaceUseCase
@@ -32,6 +35,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
 func NewKnowledgeBaseWorkspaceHandler(
 	listWorkspaces *usecase.ListMemberWorkspacesUseCase,
+	joinCompany *usecase.JoinCompanyWorkspaceUseCase,
 	createWorkspace *usecase.CreateWorkspaceUseCase,
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	createSpace *usecase.CreateSpaceUseCase,
@@ -42,6 +46,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:  listWorkspaces,
+		joinCompany:     joinCompany,
 		createWorkspace: createWorkspace,
 		checkWorkspace:  checkWorkspace,
 		createSpace:     createSpace,
@@ -99,6 +104,18 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
 		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	// 会社のワークスペースへは自動で入る。一覧はナレッジ基盤に入る最初の口なので、
+	// ここで所属を用意しておけば以降の経路（木・ページ・検索）は既存のままで通る。
+	//
+	// 会社に属さないユーザー（運営管理者など）は入れる先が無いだけなので、
+	// ErrWorkspaceNotFound は一覧の失敗にしない。それ以外の失敗は握り潰さず 500 にする
+	// （所属を用意できていないのに空の一覧を返すと「会社のページが無い」に見える）。
+	if _, err := h.joinCompany.Execute(c.Request.Context(), usecase.JoinCompanyWorkspaceInput{
+		UserID: uid,
+	}); err != nil && !errors.Is(err, repository.ErrWorkspaceNotFound) {
+		respondKnowledgeBaseErr(c, err)
 		return
 	}
 	workspaces, err := h.listWorkspaces.Execute(c.Request.Context(), usecase.ListMemberWorkspacesInput{UserID: uid})

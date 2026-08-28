@@ -8,7 +8,7 @@ import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
-import { isAllowedLinkHref, sanitizeLinkHref } from './linkSafety';
+import { isAllowedLinkHref, isInternalPageLinkHref, sanitizeLinkHref } from './linkSafety';
 
 /**
  * lowlight のインスタンス（highlight.js の common 言語 37 種を登録）。
@@ -103,7 +103,11 @@ const SafeLink = Link.configure({
       // href="" の <a> にすると「押せるのにどこへも行かない要素」が残るため、span で出す。
       return ['span', {}, 0];
     }
-    const attributes: Record<string, string> = { ...LINK_RENDER_ATTRIBUTES, href };
+    // ページ間リンク（/p/…）は同じタブで開く。_blank と rel の束は外部サイト向けの防御
+    // （tabnabbing・Referer 漏れ・スパム評価）で、同一アプリ内の遷移には当てはまらない。
+    const attributes: Record<string, string> = isInternalPageLinkHref(href)
+      ? { href }
+      : { ...LINK_RENDER_ATTRIBUTES, href };
     if (typeof HTMLAttributes.title === 'string' && HTMLAttributes.title !== '') {
       attributes.title = HTMLAttributes.title;
     }

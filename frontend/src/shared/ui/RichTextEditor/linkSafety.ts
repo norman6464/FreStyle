@@ -22,9 +22,24 @@ import type { JSONContent } from '@tiptap/core';
  *   自動的に不許可側へ倒れる。
  *
  * ここに無いスキーム（javascript: / data: / vbscript: など）は例外なく不許可。
- * ページ間リンク（相対パス）はナレッジ基盤の別段で扱うため、いまは絶対 URL だけを許す。
+ * 相対パスは原則不許可で、唯一の例外がページ間リンク（下の INTERNAL_PAGE_LINK_PATTERN）。
  */
 export const ALLOWED_LINK_PROTOCOLS: readonly string[] = ['http', 'https', 'mailto', 'tel'];
+
+/**
+ * ページ間リンク（/p/{ページID}）の形。ノートのページを指す内部リンクで、
+ * 相対パスの中では**この形だけ**を許す。任意の相対パスを開けると、利用者入力から
+ * 任意の画面へ踏ませる経路（ログアウトの踏み台や、将来できるかもしれない
+ * 副作用つき URL への誘導）になるため、ID は UUID の字面に固定し、
+ * クエリ・フラグメント・大文字も認めない。広げる理由が出るまで最小で持つ。
+ */
+export const INTERNAL_PAGE_LINK_PATTERN =
+  /^\/p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** isInternalPageLinkHref は「同じアプリ内のページを指すリンクか」を判定する述語。 */
+export function isInternalPageLinkHref(href: unknown): boolean {
+  return typeof href === 'string' && INTERNAL_PAGE_LINK_PATTERN.test(foldAsUrlParserWould(href));
+}
 
 /** doc JSON 上のリンクマーク名（ProseMirror のマーク名。tiptap の Link 拡張と一致させる）。 */
 export const LINK_MARK_NAME = 'link';
@@ -63,11 +78,14 @@ export function sanitizeLinkHref(href: unknown): string | null {
   const folded = foldAsUrlParserWould(href);
   if (folded === '') return null;
 
+  // ページ間リンクだけは相対パスのまま許す（形は正規表現で固定）。
+  if (INTERNAL_PAGE_LINK_PATTERN.test(folded)) return folded;
+
   let parsed: URL;
   try {
     parsed = new URL(folded);
   } catch {
-    // 絶対 URL として読めないもの（相対パス・スキーム無し）はここでは許可しない。
+    // それ以外の絶対 URL として読めないもの（相対パス・スキーム無し）は許可しない。
     // 「スキームが無いから安全」ではなく「安全と判断できる形になっていない」ので落とす。
     return null;
   }

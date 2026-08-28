@@ -7,7 +7,7 @@ import "time"
 // 既存アプリの RoleName（super_admin / company_admin / trainee）とは別物で、統合もしない。
 // あちらは「アプリ全体で何ができるか」を 1 人 1 つ持つグローバルなロール、こちらは
 // 「この入れ物（ワークスペース / スペース）で何ができるか」を入れ物ごとに持つ。
-// ナレッジ基盤の権限は principals / grants / restrictions だけで閉じており、
+// ノートの権限は principals / grants / restrictions だけで閉じており、
 // 「特権ロールなら全部見える」という抜け道は解決ロジックに持たせない。
 type GrantRole string
 

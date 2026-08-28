@@ -10,7 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ナレッジ基盤のページ操作で共通のビジネスルール違反。
+// ノートのページ操作で共通のビジネスルール違反。
 // handler はこれらを errors.Is で判定して HTTP ステータスにマップする（400/409 相当）。
 var (
 	// ErrPageArchived はアーカイブ済みページへの変更操作（改名・移動・本文書き換え）に返す。

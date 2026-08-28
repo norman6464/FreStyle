@@ -9,7 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ── ナレッジ基盤の「権限そのものを変える」API に共通する認可 ──
+// ── ノートの「権限そのものを変える」API に共通する認可 ──
 //
 // # なぜ handler で認可を判定するのか
 //
@@ -31,7 +31,7 @@ import (
 //
 // # なぜ super_admin を特別扱いしないのか
 //
-// ナレッジ基盤の役割（domain.GrantRole の admin / editor / commenter / viewer）は、
+// ノートの役割（domain.GrantRole の admin / editor / commenter / viewer）は、
 // アプリ全体のロール（domain.RoleName の super_admin / company_admin / trainee）とは
 // 別物で、統合もしない（domain/grant.go のコメント）。あちらは「アプリ全体で何ができるか」を
 // 1 人 1 つ持つグローバルなロール、こちらは「この入れ物で何ができるか」を入れ物ごとに持つ。

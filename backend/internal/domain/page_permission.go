@@ -142,7 +142,7 @@ func resolveCapability(defaultAllowed bool, exc *RestrictionFacts) bool {
 }
 
 // ResolvePagePermission は集めた事実から 1 ページの実効権限を決める。
-// ナレッジ基盤の権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
+// ノートの権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
 func ResolvePagePermission(f PagePermissionFacts) PagePermission {
 	canView := resolveCapability(f.defaultAllows(CapabilityView), f.View)
 	// 編集は閲覧を含む。閲覧できないページを編集できる状態は、UI でも監査でも説明できず、

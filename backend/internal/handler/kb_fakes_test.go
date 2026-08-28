@@ -12,7 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ナレッジ基盤 handler テスト用の fake repository。
+// ノート handler テスト用の fake repository。
 //
 // 権限は「事実」まで組み立てて domain.ResolvePagePermission に通す（判定結果を直接返さない）。
 // fake が判定を肩代わりすると、本番と違う規則でテストが緑になってしまうため。

@@ -15,7 +15,7 @@ import (
 )
 
 // knowledgeBasePermissionRepository は [repository.KnowledgeBasePermissionRepository] の実装。
-// ナレッジ基盤は GORM を通さない方針のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
+// ノートは GORM を通さない方針のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
 //
 // # ユーザー ID の境界（uint64 → bigint）について
 //
@@ -43,7 +43,7 @@ type knowledgeBasePermissionRepository struct {
 	q  *sqlcgen.Queries
 }
 
-// NewKnowledgeBasePermissionRepository はナレッジ基盤の権限 repository を組み立てる。
+// NewKnowledgeBasePermissionRepository はノートの権限 repository を組み立てる。
 func NewKnowledgeBasePermissionRepository(db *sql.DB) repository.KnowledgeBasePermissionRepository {
 	return &knowledgeBasePermissionRepository{db: db, q: sqlcgen.New(db)}
 }
@@ -496,7 +496,7 @@ func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Con
 // # なぜここまでするのか
 //
 // ワークスペースの admin が 0 人になると、そのワークスペースの権限を変えられる人は
-// API のどこにも居なくなる。ナレッジ基盤は「アプリの super_admin なら通る」という
+// API のどこにも居なくなる。ノートは「アプリの super_admin なら通る」という
 // 抜け道を意図的に持たないため、**元 admin を含めて誰も復旧できない**（DB を直接
 // 触るしかない）。逆に「最後の 1 人は自分を外せない」で詰まる場面は、先に別の誰かへ
 // admin を渡せば必ず解ける。取り返しがつかない側だけを禁じる。

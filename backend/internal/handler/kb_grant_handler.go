@@ -9,7 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// KnowledgeBaseGrantHandler はナレッジ基盤の「既定の権限（grant）」と
+// KnowledgeBaseGrantHandler はノートの「既定の権限（grant）」と
 // 「ページ単位の例外（restriction）」の書き換えを受ける。
 //
 // 認可はすべて kbPermissionGate が持つ（このファイルには判定規則を書かない）。
@@ -124,7 +124,7 @@ type kbSetRestrictionRequest struct {
 //
 // # なぜ剥がせなくしたか
 //
-// ナレッジ基盤の権限は principals / grants / restrictions だけで閉じていて、
+// ノートの権限は principals / grants / restrictions だけで閉じていて、
 // アプリの super_admin による救済経路を意図的に持たない。ワークスペースの admin が
 // 0 人になると、そこから先は権限を張り直す手段が API に存在せず、
 // DB を直接触る以外に復旧できない。
@@ -161,7 +161,7 @@ func (h *KnowledgeBaseGrantHandler) requireNotLastWorkspaceAdmin(
 
 // GrantWorkspaceRole はワークスペース全体での既定の役割を主体に与える。
 //
-//	@Summary      ナレッジ 基盤 の ワークスペース 権限 付与
+//	@Summary      ノート の ワークスペース 権限 付与
 //	@Description  ワークスペース 全体 で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 全 スペース に 効く。 呼べる の は ワークスペース の admin だけ。 権限 が 無い 場合 と 対象 (ワークスペース / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。 admin を 外す 向き の 変更 で、 ユーザー の admin が 1 人 も 残ら なく なる とき は 409。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -216,7 +216,7 @@ func (h *KnowledgeBaseGrantHandler) GrantWorkspaceRole(c *gin.Context) {
 
 // RevokeWorkspaceRole はワークスペース全体での既定の役割を剥がす（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の ワークスペース 権限 取り消し
+//	@Summary      ノート の ワークスペース 権限 取り消し
 //	@Description  ワークスペース 全体 で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る (誰 も 権限 を 変え られ ない ワークスペース は API から 復旧 でき ない ため)。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -256,7 +256,7 @@ func (h *KnowledgeBaseGrantHandler) RevokeWorkspaceRole(c *gin.Context) {
 
 // GrantSpaceRole はスペースでの既定の役割を主体に与える。
 //
-//	@Summary      ナレッジ 基盤 の スペース 権限 付与
+//	@Summary      ノート の スペース 権限 付与
 //	@Description  スペース で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。 スペース 単位 の grant で ワークスペース の admin が 降格 する こと は ない (最も 強い 役割 を 採る)。 権限 が 無い 場合 と 対象 (スペース / 主体) が 存在 し ない 場合 は 同じ 404。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -305,7 +305,7 @@ func (h *KnowledgeBaseGrantHandler) GrantSpaceRole(c *gin.Context) {
 
 // RevokeSpaceRole はスペースでの既定の役割を剥がす（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の スペース 権限 取り消し
+//	@Summary      ノート の スペース 権限 取り消し
 //	@Description  スペース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -340,7 +340,7 @@ func (h *KnowledgeBaseGrantHandler) RevokeSpaceRole(c *gin.Context) {
 
 // SetPageRestriction はページ以下だけ既定を上書きする例外を設定する。
 //
-//	@Summary      ナレッジ 基盤 の ページ 例外 設定
+//	@Summary      ノート の ページ 例外 設定
 //	@Description  ページ と その 子孫 に だけ 効く 例外 を 1 行 設定 する。 mode=deny は 名指し し た 主体 だけ を 外す (ほか の 人 の 既定 は 変わら ない)。 mode=allow は その ページ の その ケイパビリティ を 「載っ て いる 主体 だけ」 の 限定 公開 に 切り替える。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ。 閲覧 権限 は 要求 し ない (自分 を deny し た ページ の 例外 を 自分 で 戻せ なく なる ため)。 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -388,7 +388,7 @@ func (h *KnowledgeBaseGrantHandler) SetPageRestriction(c *gin.Context) {
 
 // ClearPageRestriction はページの例外を 1 行解除する（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 例外 解除
+//	@Summary      ノート の ページ 例外 解除
 //	@Description  ページ に 張ら れ た 例外 を 1 行 解除 する。 元 から 無い 行 に 対し て も 成功 する (冪等)。 消し た の が 最後 の allow 行 なら 限定 公開 も 畳ま れ、 解決 は より 遠い 祖先 の 制限 → grant の 既定 へ 戻る。 deny 行 の 解除 で は 限定 公開 を 畳ま ない。 呼べる の は その ページ が 属する スペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
 //	@Tags         knowledge-base
 //	@Produce      json

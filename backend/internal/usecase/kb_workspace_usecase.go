@@ -9,7 +9,7 @@ import (
 )
 
 // ResolveWorkspaceUseCase は URL の slug と現在のユーザーから、操作対象のワークスペースを決める。
-// ナレッジ基盤の HTTP 経路はすべてここを通ってテナントを確定させる
+// ノートの HTTP 経路はすべてここを通ってテナントを確定させる
 // （クライアントが送った workspace_id をそのまま信じる経路を作らない）。
 //
 // 所属していない slug も存在しない slug も、どちらも repository.ErrWorkspaceNotFound を返す。

@@ -16,7 +16,7 @@ import (
 )
 
 // knowledgeBaseRepository は [repository.KnowledgeBaseRepository] の実装。
-// ナレッジ基盤は GORM を通さない方針（スキーマの正本は infra/database/schema/knowledge_base.sql）
+// ノートは GORM を通さない方針（スキーマの正本は infra/database/schema/knowledge_base.sql）
 // のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
 // 複数テーブルにまたがる書き込み（ページ作成・移動・本文置き換え）は BeginTx で
 // この層に閉じたトランザクションにする（usecase に *sql.Tx を漏らさない）。
@@ -25,7 +25,7 @@ type knowledgeBaseRepository struct {
 	q  *sqlcgen.Queries
 }
 
-// NewKnowledgeBaseRepository はナレッジ基盤の repository を組み立てる。
+// NewKnowledgeBaseRepository はノートの repository を組み立てる。
 func NewKnowledgeBaseRepository(db *sql.DB) repository.KnowledgeBaseRepository {
 	return &knowledgeBaseRepository{db: db, q: sqlcgen.New(db)}
 }

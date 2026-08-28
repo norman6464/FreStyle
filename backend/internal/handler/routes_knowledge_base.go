@@ -25,7 +25,7 @@ const (
 	kbAddMemberBurst           = 10
 )
 
-// registerKnowledgeBaseRoutes はナレッジ基盤のページ操作と権限操作のエンドポイントを登録する。
+// registerKnowledgeBaseRoutes はノートのページ操作と権限操作のエンドポイントを登録する。
 //
 // ワークスペースは URL の slug から middleware が解決するので、ルートはすべて
 // /kb/workspaces/:workspaceSlug 以下に置き、その middleware を通す group に登録する
@@ -40,7 +40,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps, audit gin.
 	)
 }
 
-// registerKnowledgeBasePublicRoutes は認証不要のナレッジ基盤エンドポイントを登録する。
+// registerKnowledgeBasePublicRoutes は認証不要のノートエンドポイントを登録する。
 //
 // ここに置いてよいのは「ログインしていない相手が使う」ものだけ。今のところ共有リンクの
 // 検証 1 本で、認可はトークン（と任意のパスワード）そのものが担う。

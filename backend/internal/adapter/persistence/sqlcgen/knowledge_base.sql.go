@@ -261,7 +261,7 @@ SELECT id, slug, name, is_active, created_at, updated_at FROM workspaces
 WHERE id = $1
 `
 
-// ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）のクエリ。
+// ノート（workspaces / spaces / pages / blocks / page_paths / page_snapshots）のクエリ。
 //
 // 作法（このファイル全体の前提）:
 //   - すべての SELECT / UPDATE / DELETE の WHERE に workspace_id を含める。

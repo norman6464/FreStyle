@@ -29,7 +29,7 @@ type WorkspaceProvisionInput struct {
 //
 // 3 つの書き込み（workspaces / principals / workspace_grants）は 1 トランザクションで行う。
 // 分けてはいけない: ワークスペースの行だけが入って主体と grant が入らないと、
-// 作成者を含めて誰もメンバーでないワークスペースができる。ナレッジ基盤の全経路は
+// 作成者を含めて誰もメンバーでないワークスペースができる。ノートの全経路は
 // middleware が所属を確かめてから通すので、そのワークスペースは作成者にも
 // 404 にしか見えず、誰も入れないまま slug だけを占有し続ける（消す口も無い）。
 type WorkspaceProvisioner interface {

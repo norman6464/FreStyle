@@ -3014,6 +3014,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kb/pages/{pageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ノート の ページ 解決 (ID のみ)
+         * @description ページ ID だけ で ページ と 所属 ワークスペース を 解決 する。 閲覧 できない・存在 しない は 同じ 404。応答 の workspaceSlug を 以降 の API に 使う。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbResolvedPageResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/kb/share-links/verify": {
         parameters: {
             query?: never;
@@ -3024,7 +3093,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * ナレッジ 基盤 の 共有 リンク 検証
+         * ノート の 共有 リンク 検証
          * @description 受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を 返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は 含め ない。 総当たり と パスワード 推測 を 抑える ため、 リンク 1 本 あたり の 試行 回数 に 上限 が ある (要求 元 の IP を 変え て も 頭打ち に なる)。
          */
         post: {
@@ -3122,8 +3191,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * ナレッジ 基盤 の 所属 ワークスペース 一覧
-         * @description ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ナレッジ 基盤 API が URL に 使う slug を 知る ため の 入口。
+         * ノート の 所属 ワークスペース 一覧
+         * @description ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ノート API が URL に 使う slug を 知る ため の 入口。
          */
         get: {
             parameters: {
@@ -3165,8 +3234,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * ナレッジ 基盤 の ワークスペース 作成
-         * @description ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
+         * ノート の ワークスペース 作成
+         * @description ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
          */
         post: {
             parameters: {
@@ -3175,7 +3244,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 作成 内容 (slug/name 必須) */
+            /** @description 作成 内容 (name 必須。 slug は 空 なら 自動 採番) */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.kbCreateWorkspaceRequest"];
@@ -3255,7 +3324,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の ワークスペース 権限 付与
+         * ノート の ワークスペース 権限 付与
          * @description ワークスペース 全体 で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 全 スペース に 効く。 呼べる の は ワークスペース の admin だけ。 権限 が 無い 場合 と 対象 (ワークスペース / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。 admin を 外す 向き の 変更 で、 ユーザー の admin が 1 人 も 残ら なく なる とき は 409。
          */
         put: {
@@ -3330,7 +3399,7 @@ export interface paths {
         };
         post?: never;
         /**
-         * ナレッジ 基盤 の ワークスペース 権限 取り消し
+         * ノート の ワークスペース 権限 取り消し
          * @description ワークスペース 全体 で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る (誰 も 権限 を 変え られ ない ワークスペース は API から 復旧 でき ない ため)。
          */
         delete: {
@@ -3407,7 +3476,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * ナレッジ 基盤 の グループ 作成
+         * ノート の グループ 作成
          * @description 権限 を まとめ て 張る ため の グループ (kind='group' の 主体) を 作る。 名前 は ワークスペース 内 で 一意 (同名 が 2 つ ある と 権限 を 張る 先 を 人 が 選べ ない)。 グループ の 入れ子 は 作れ ない。 呼べる の は ワークスペース の admin だけ。
          */
         post: {
@@ -3498,7 +3567,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の グループ メンバー 追加
+         * ノート の グループ メンバー 追加
          * @description グループ に ユーザー を 加える。 加える 相手 を 主体 ID で は なく ユーザー ID で 受ける の は、 この 入口 から グループ の 入れ子 を 作ら せ ない ため (DB 側 も 複合 FK で member を kind='user' に 固定 し て いる)。 対象 が ワークスペース の メンバー で なけれ ば 主体 が 無い の で 404。 呼べる の は ワークスペース の admin だけ。
          */
         put: {
@@ -3564,7 +3633,7 @@ export interface paths {
         };
         post?: never;
         /**
-         * ナレッジ 基盤 の グループ メンバー 削除
+         * ノート の グループ メンバー 削除
          * @description グループ から ユーザー を 外す。 元 から 載っ て い なけれ ば 何 も せ ず 成功 する (冪等)。 グループ 宛て の admin は 「最後 の admin」 の 数 に 入れ て い ない の で、 この 操作 が 409 に なる こと は ない。 呼べる の は ワークスペース の admin だけ。
          */
         delete: {
@@ -3642,7 +3711,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の メンバー 追加
+         * ノート の メンバー 追加
          * @description ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が 唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー ID 空間 の 走査 を 抑える ため、 呼び出し 元 の ユーザー 単位 で 回数 に 上限 が ある。
          */
         put: {
@@ -3719,7 +3788,7 @@ export interface paths {
         };
         post?: never;
         /**
-         * ナレッジ 基盤 の メンバー 削除
+         * ノート の メンバー 削除
          * @description ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / 例外 / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
          */
         delete: {
@@ -3803,7 +3872,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * ナレッジ 基盤 の ページ 取得
+         * ノート の ページ 取得
          * @description ページ の メタ 情報 と 本文 (ProseMirror doc) を 返す。 閲覧 権限 が 無い ページ は 存在 し ない ページ と 同じ 404。
          */
         get: {
@@ -3860,11 +3929,73 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * ノート の ページ 削除
+         * @description ページ を 子孫 ごと 物理 削除 する。 アーカイブ と 違い 戻せ ない。 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 配下 に 編集 でき ない ページ が ある */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         /**
-         * ナレッジ 基盤 の ページ 改名
+         * ノート の ページ 改名
          * @description タイトル だけ を 変更 する。 編集 権限 が 要る。 アーカイブ 済み ページ は 変更 でき ない (409)。
          */
         patch: {
@@ -3963,7 +4094,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * ナレッジ 基盤 の ページ アーカイブ
+         * ノート の ページ アーカイブ
          * @description ページ と その 子孫 を まとめて ツリー から 隠す。 対象 の ページ だけ で なく 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も し ない)。 これ は 意図 し た 設計 で、 同じ ページ を 直接 改名 する 場合 と 判定 を 揃える ため。 既に アーカイブ 済み なら 何 も し ない (冪等)。
          */
         post: {
@@ -4040,7 +4171,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の ページ 本文 置き換え
+         * ノート の ページ 本文 置き換え
          * @description ページ の 本文 (ProseMirror doc) を 丸ごと 置き換える。 編集 権限 が 要る。 保存 さ れる の は 行 スキーマ から 組み立て 直し た 正規 形 で、 レスポンス は その 正規 形 を 返す。
          */
         put: {
@@ -4144,7 +4275,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * ナレッジ 基盤 の ページ 移動
+         * ノート の ページ 移動
          * @description ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
          */
         post: {
@@ -4246,7 +4377,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の ページ 例外 設定
+         * ノート の ページ 例外 設定
          * @description ページ と その 子孫 に だけ 効く 例外 を 1 行 設定 する。 mode=deny は 名指し し た 主体 だけ を 外す (ほか の 人 の 既定 は 変わら ない)。 mode=allow は その ページ の その ケイパビリティ を 「載っ て いる 主体 だけ」 の 限定 公開 に 切り替える。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ。 閲覧 権限 は 要求 し ない (自分 を deny し た ページ の 例外 を 自分 で 戻せ なく なる ため)。 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
          */
         put: {
@@ -4321,7 +4452,7 @@ export interface paths {
         };
         post?: never;
         /**
-         * ナレッジ 基盤 の ページ 例外 解除
+         * ノート の ページ 例外 解除
          * @description ページ に 張ら れ た 例外 を 1 行 解除 する。 元 から 無い 行 に 対し て も 成功 する (冪等)。 消し た の が 最後 の allow 行 なら 限定 公開 も 畳ま れ、 解決 は より 遠い 祖先 の 制限 → grant の 既定 へ 戻る。 deny 行 の 解除 で は 限定 公開 を 畳ま ない。 呼べる の は その ページ が 属する スペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
          */
         delete: {
@@ -4400,7 +4531,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * ナレッジ 基盤 の 共有 リンク 一覧
+         * ノート の 共有 リンク 一覧
          * @description ページ に 発行 済み の 共有 リンク を 失効 済み も 含め て 返す。 トークン は 発行 時 の 1 回 しか 返ら ない の で、 ここ に は 出 ない (DB に も SHA-256 しか 無い)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。
          */
         get: {
@@ -4457,7 +4588,7 @@ export interface paths {
         };
         put?: never;
         /**
-         * ナレッジ 基盤 の 共有 リンク 発行
+         * ノート の 共有 リンク 発行
          * @description ページ と その 子孫 を ログイン 不要 で 開ける URL を 発行 する。 応答 の token は 平文 で、 返る の は この 1 回 だけ (DB に は SHA-256 しか 残ら ない)。 失う と 再 発行 に なる。 パスワード を 付ける と 開く 際 に 必要 に なる (値 は 応答 に も ログ に も 出 ない)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。
          */
         post: {
@@ -4543,7 +4674,7 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * ナレッジ 基盤 の 共有 リンク 失効
+         * ノート の 共有 リンク 失効
          * @description 共有 リンク を 失効 さ せる。 行 は 消さ ず revoked_at を 立てる の で、 誰 が いつ 止め た か は 残る。 既に 失効 済み なら 何 も せ ず 成功 する (冪等)。 URL の ページ に 属さ ない リンク ID を 渡し た 場合 は 権限 が 無い の と 同じ 404 (ページ の 権限 で 判断 する 以上、 別 の スペース の リンク を この 口 から 止め られ て は なら ない)。 呼べる の は その ページ が 属する スペース の admin だけ。
          */
         delete: {
@@ -4613,7 +4744,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * ナレッジ 基盤 の ページ 復帰
+         * ノート の ページ 復帰
          * @description アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 アーカイブ と 同じ く 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。
          */
         post: {
@@ -4692,6 +4823,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kb/workspaces/{workspaceSlug}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ノート の ページ 題名 検索
+         * @description ワークスペース 全体 から 題名 の 部分 一致 で 検索 する。 返る の は 閲覧 できる 現役 ページ のみ。 並び は 題名 順。
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description 題名 の 部分 一致 (1〜100 文字) */
+                    q: string;
+                    /** @description 最大 件数 (既定 20 / 上限 50) */
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageResponse"][];
+                    };
+                };
+                /** @description q が 空 か 長 すぎる */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/kb/workspaces/{workspaceSlug}/spaces": {
         parameters: {
             query?: never;
@@ -4700,7 +4905,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * ナレッジ 基盤 の スペース 一覧
+         * ノート の スペース 一覧
          * @description ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。 閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages で 取る)。
          */
         get: {
@@ -4755,8 +4960,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * ナレッジ 基盤 の スペース 作成
-         * @description ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は ワークスペース 内 で 一意。
+         * ノート の スペース 作成
+         * @description ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
          */
         post: {
             parameters: {
@@ -4768,7 +4973,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            /** @description 作成 内容 (key/name 必須) */
+            /** @description 作成 内容 (name 必須。 key は 空 なら 自動 採番) */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.kbCreateSpaceRequest"];
@@ -4846,6 +5051,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * ノート の スペース 改名
+         * @description 表示名 だけ を 変更 する。 key は URL・権限 の 参照 に 使う ため 不変。 スペース の 管理 権限 が 要る。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description スペース ID (UUID) */
+                    spaceId: string;
+                };
+                cookie?: never;
+            };
+            /** @description 新しい 表示名 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.kbRenameSpaceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbSpaceResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 存在 し ない か 閲覧 権限 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId}": {
         parameters: {
             query?: never;
@@ -4855,7 +5154,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の スペース 権限 付与
+         * ノート の スペース 権限 付与
          * @description スペース で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。 スペース 単位 の grant で ワークスペース の admin が 降格 する こと は ない (最も 強い 役割 を 採る)。 権限 が 無い 場合 と 対象 (スペース / 主体) が 存在 し ない 場合 は 同じ 404。
          */
         put: {
@@ -4923,7 +5222,7 @@ export interface paths {
         };
         post?: never;
         /**
-         * ナレッジ 基盤 の スペース 権限 取り消し
+         * ノート の スペース 権限 取り消し
          * @description スペース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
          */
         delete: {
@@ -4991,7 +5290,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * ナレッジ 基盤 の ページ ツリー
+         * ノート の ページ ツリー
          * @description スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hasHiddenChildren は その 段 の 直下 に 閲覧 でき ない ページ が 在る か で、 枚数 も 題名 も 返さ ない。
          */
         get: {
@@ -5051,7 +5350,7 @@ export interface paths {
         };
         put?: never;
         /**
-         * ナレッジ 基盤 の ページ 作成
+         * ノート の ページ 作成
          * @description parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
          */
         post: {
@@ -5153,7 +5452,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * ナレッジ 基盤 の スペース 全員 主体 の 用意
+         * ノート の スペース 全員 主体 の 用意
          * @description 「既定 で チーム 全員 が 編集 できる」 を grant 1 行 で 表す ため の 主体 (kind='space_all') を 用意 し て 返す。 既に あれ ば それ を 返す (冪等)。 スペース 作成 時 に は 作ら ない 設計 な の で、 権限 を 張る 直前 に この API で ID を 得る。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。
          */
         put: {
@@ -7100,6 +7399,10 @@ export interface components {
             title?: string;
             url?: string;
         };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef": {
+            id?: string;
+            title?: string;
+        };
         "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput": {
             /** @description ActiveThisWeek は直近 7 日間(今日を含む)に学習活動があった trainee 数。 */
             activeThisWeek?: number;
@@ -7354,15 +7657,22 @@ export interface components {
         };
         "internal_handler.kbCreateSpaceRequest": {
             /** @example eng */
-            key: string;
+            key?: string;
             /** @example 開発部 */
             name: string;
+            /**
+             * @description Visibility は省略時 workspace（チームスペース）。private は自分だけの区画で、
+             *     メンバーなら誰でも作れる（作れる範囲の非対称は handler が判定する）。
+             * @example workspace
+             * @enum {string}
+             */
+            visibility?: "workspace" | "private";
         };
         "internal_handler.kbCreateWorkspaceRequest": {
             /** @example Acme 社 */
             name: string;
             /** @example acme */
-            slug: string;
+            slug?: string;
         };
         "internal_handler.kbGrantRoleRequest": {
             /**
@@ -7496,8 +7806,22 @@ export interface components {
             /** @example 設計メモ (改訂) */
             title: string;
         };
+        "internal_handler.kbRenameSpaceRequest": {
+            /** @example 開発部 (改組) */
+            name: string;
+        };
         "internal_handler.kbReplaceContentRequest": {
             doc: Record<string, never>;
+        };
+        "internal_handler.kbResolvedPageResponse": {
+            ancestors?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef"][];
+            canEdit?: boolean;
+            doc?: Record<string, never>;
+            page?: components["schemas"]["internal_handler.kbPageResponse"];
+            /** @example 開発チーム */
+            workspaceName?: string;
+            /** @example w-3f2a9c */
+            workspaceSlug?: string;
         };
         "internal_handler.kbSetRestrictionRequest": {
             /**
@@ -7545,6 +7869,11 @@ export interface components {
             key?: string;
             /** @example 開発部 */
             name?: string;
+            /**
+             * @description Visibility はサイドバーの節分けに使う（workspace = チーム / private = プライベート）。
+             * @example workspace
+             */
+            visibility?: string;
         };
         "internal_handler.kbVerifiedShareLinkResponse": {
             /** @example view */

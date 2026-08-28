@@ -1,4 +1,4 @@
--- ナレッジ基盤の権限モデル（principals / principal_members / workspace_grants /
+-- ノートの権限モデル（principals / principal_members / workspace_grants /
 -- space_grants / page_restrictions / share_links）のクエリ。
 --
 -- 作法（knowledge_base.sql と同じ）:
@@ -91,7 +91,7 @@ WHERE workspace_id = $1 AND principal_id = $2;
 -- なぜロックまでするのか（検査を単一文にするだけでは足りなかった）:
 --   検査と削除が別トランザクションだと、2 人の admin をほぼ同時に外す要求が
 --   両方とも検査を通り抜け、ワークスペースの admin が 0 人になる。0 人になると
---   ナレッジ基盤には super_admin の抜け道が無いので、元 admin を含む誰も API から
+--   ノートには super_admin の抜け道が無いので、元 admin を含む誰も API から
 --   権限を張り直せない（復旧は DB を直接触るしかない）。
 --
 --   検査を DELETE の EXISTS へ畳んで単一文にしても、これは塞がらない。
@@ -657,7 +657,7 @@ ORDER BY s.page_id;
 -- そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
 --
 -- 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
--- ナレッジ基盤の所属の正本はあくまで principals（kind='user'）の行で、この列は
+-- ノートの所属の正本はあくまで principals（kind='user'）の行で、この列は
 -- 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
 -- （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
 --

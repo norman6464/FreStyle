@@ -1,4 +1,4 @@
--- ナレッジ基盤の権限モデル（principals / principal_members / workspace_grants /
+-- ノートの権限モデル（principals / principal_members / workspace_grants /
 -- space_grants / page_restrictions / page_allow_lists / share_links）の DDL。
 --
 -- knowledge_base.sql（骨格 6 テーブル）と同じ扱い: このファイルが実スキーマの正本であり、
@@ -10,7 +10,7 @@
 --   (1) 骨格 6 テーブルは「ページの木そのもの」で、権限は「誰がそれを触れるか」という別の関心。
 --       1 枚に混ぜると、どちらを読みたいときも全部を読むことになる。
 --   (2) こちらは users（schema/core.sql が作るテーブル）へ FK を張る。骨格側は
---       ナレッジ基盤だけで閉じており、その依存の有無をファイル境界で見えるようにする。
+--       ノートだけで閉じており、その依存の有無をファイル境界で見えるようにする。
 --       適用順は database.Migrate が core → 骨格 → 権限なので users は必ず先にある。
 --
 -- 設計の柱（骨格の 2 つに加えて）:
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS principals (
 
     CONSTRAINT fk_principals_workspace FOREIGN KEY (workspace_id)
         REFERENCES workspaces (id) ON DELETE CASCADE,
-    -- users への FK は張る。principals はナレッジ基盤とアプリのユーザーを結ぶ唯一の接点で、
+    -- users への FK は張る。principals はノートとアプリのユーザーを結ぶ唯一の接点で、
     -- ここが緩いと「消えたユーザーの principal に権限が残る」＝ 別人が同じ id を再取得したときに
     -- 権限を引き継いでしまう。骨格側の pages.created_by_user_id が FK を持たないのは、
     -- あちらが既存テーブル（IF NOT EXISTS では後から制約を足せない）だからで、

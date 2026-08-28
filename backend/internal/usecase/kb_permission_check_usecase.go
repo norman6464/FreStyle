@@ -14,7 +14,7 @@ import (
 var ErrPagePermissionDenied = errors.New("permission denied for this page")
 
 // CheckPagePermissionUseCase は「このユーザーはこのページを閲覧 / 編集できるか」に答える。
-// ナレッジ基盤の認可はすべてここを通す（呼び出し側に判定規則を写経させない）。
+// ノートの認可はすべてここを通す（呼び出し側に判定規則を写経させない）。
 //
 // 段 1-b の各 usecase（GetPageUseCase / RenamePageUseCase / ReplacePageBlocksUseCase …）への
 // 組み込みは handler の段で行う。組み込み方は次のとおり:

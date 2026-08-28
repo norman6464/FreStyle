@@ -1,4 +1,4 @@
--- ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）の DDL。
+-- ノート（workspaces / spaces / pages / blocks / page_paths / page_snapshots）の DDL。
 --
 -- このファイルが実スキーマの正本であり、同時に sqlc の型付け入力でもある
 -- （backend/sqlc.yaml の schema に登録済み。列を足したら `make sqlc` で生成物を作り直す）。
@@ -29,7 +29,7 @@
 --   (2) 並び順は分数インデックス（internal/pkg/fracindex）が採番する文字列キー。
 --       同じ親の中で position が重複しないことを部分 UNIQUE で守り、既定値は置かない（採番はアプリ側）。
 
--- ワークスペース: ナレッジ基盤のテナント境界。
+-- ワークスペース: ノートのテナント境界。
 CREATE TABLE IF NOT EXISTS workspaces (
     id         uuid PRIMARY KEY,
     -- slug は URL に出る短い識別子。テナント内ではなくグローバルに一意。
@@ -94,7 +94,7 @@ BEGIN
 END
 $mig$;
 
--- ページ: ナレッジ基盤の 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
+-- ページ: ノートの 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
 CREATE TABLE IF NOT EXISTS pages (
     id                 uuid PRIMARY KEY,
     workspace_id       uuid NOT NULL,
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS pages (
     -- ORDER BY position がアプリの認識とずれる。列の定義で最初から揃えておく。
     "position"         text COLLATE "C" NOT NULL,
     title              varchar(200) NOT NULL DEFAULT '',
-    -- 作成者（users.id）。users への FK は張らない（ナレッジ基盤の骨格に閉じるため）。
+    -- 作成者（users.id）。users への FK は張らない（ノートの骨格に閉じるため）。
     created_by_user_id bigint NOT NULL,
     -- archived_at が NULL の行が現役。物理削除ではなくアーカイブで隠す運用のため、
     -- position の一意性はアーカイブ済みを除外した部分 UNIQUE で守る（下の CREATE UNIQUE INDEX）。

@@ -1,5 +1,5 @@
 /**
- * ナレッジ基盤の型。backend の `kb*Response`（`backend/internal/handler/kb_*_handler.go`）と 1:1。
+ * ノートの型。backend の `kb*Response`（`backend/internal/handler/kb_*_handler.go`）と 1:1。
  *
  * 3 つの入れ子で出来ている。
  *

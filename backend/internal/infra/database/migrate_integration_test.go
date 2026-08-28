@@ -48,18 +48,18 @@ func TestMigrate_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("ナレッジ基盤と権限モデルが揃っている", func(t *testing.T) {
+	t.Run("ノートと権限モデルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
 			"workspaces", "spaces", "pages", "blocks", "page_paths", "page_snapshots",
 			"principals", "principal_members", "workspace_grants", "space_grants",
 			"page_restrictions", "page_allow_lists", "share_links",
 		} {
-			require.True(t, tableExists(t, db, table), "ナレッジ基盤のテーブル %s が無い", table)
+			require.True(t, tableExists(t, db, table), "ノートのテーブル %s が無い", table)
 		}
 	})
 
 	t.Run("テナント橋渡しの列と FK が張られている", func(t *testing.T) {
-		// ここが通るのは、ナレッジ基盤（workspaces）より後にテナント橋渡しを流したときだけ。
+		// ここが通るのは、ノート（workspaces）より後にテナント橋渡しを流したときだけ。
 		require.True(t, columnExists(t, db, "companies", "workspace_id"))
 		require.True(t, columnExists(t, db, "users", "workspace_id"))
 		require.True(t, constraintExists(t, db, "companies", "fk_companies_workspace"))

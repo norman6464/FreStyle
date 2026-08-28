@@ -14,7 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// KnowledgeBasePageHandler はナレッジ基盤のページ操作を受ける。
+// KnowledgeBasePageHandler はノートのページ操作を受ける。
 //
 // ワークスペースはリクエストからは受け取らず、middleware.KnowledgeBaseWorkspace が
 // URL の slug と principals から確定させたものを context から取る。
@@ -328,7 +328,7 @@ func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 
 // Tree はスペース配下の、そのユーザーが閲覧できるページを木構造で返す。
 //
-//	@Summary      ナレッジ 基盤 の ページ ツリー
+//	@Summary      ノート の ページ ツリー
 //	@Description  スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hasHiddenChildren は その 段 の 直下 に 閲覧 でき ない ページ が 在る か で、 枚数 も 題名 も 返さ ない。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -400,7 +400,7 @@ type kbCreatePageRequest struct {
 
 // Create は親ページの下に新しいページを作る（親の編集権限が要る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 作成
+//	@Summary      ノート の ページ 作成
 //	@Description  parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -459,7 +459,7 @@ func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 
 // Get はページ 1 件と本文を返す（閲覧権限が要る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 取得
+//	@Summary      ノート の ページ 取得
 //	@Description  ページ の メタ 情報 と 本文 (ProseMirror doc) を 返す。 閲覧 権限 が 無い ページ は 存在 し ない ページ と 同じ 404。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -511,7 +511,7 @@ type kbRenamePageRequest struct {
 
 // Rename はページのタイトルを変える（編集権限が要る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 改名
+//	@Summary      ノート の ページ 改名
 //	@Description  タイトル だけ を 変更 する。 編集 権限 が 要る。 アーカイブ 済み ページ は 変更 でき ない (409)。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -578,7 +578,7 @@ type kbMovePageRequest struct {
 
 // Move はページ（と子孫）を別の親の下へ移す。動かすページと移動先の親の両方に編集権限が要る。
 //
-//	@Summary      ナレッジ 基盤 の ページ 移動
+//	@Summary      ノート の ページ 移動
 //	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -719,7 +719,7 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 
 // Archive はページと子孫をまとめてアーカイブする（編集権限が要る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ アーカイブ
+//	@Summary      ノート の ページ アーカイブ
 //	@Description  ページ と その 子孫 を まとめて ツリー から 隠す。 対象 の ページ だけ で なく 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も し ない)。 これ は 意図 し た 設計 で、 同じ ページ を 直接 改名 する 場合 と 判定 を 揃える ため。 既に アーカイブ 済み なら 何 も し ない (冪等)。
 //	@Tags         knowledge-base
 //	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
@@ -757,7 +757,7 @@ func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 
 // Delete はページを子孫ごと物理削除する（戻せない）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 削除
+//	@Summary      ノート の ページ 削除
 //	@Description  ページ を 子孫 ごと 物理 削除 する。 アーカイブ と 違い 戻せ ない。 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -802,7 +802,7 @@ func (h *KnowledgeBasePageHandler) Delete(c *gin.Context) {
 
 // Unarchive はアーカイブしたページを現役へ戻す（編集権限が要る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 復帰
+//	@Summary      ノート の ページ 復帰
 //	@Description  アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 アーカイブ と 同じ く 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -845,7 +845,7 @@ type kbReplaceContentRequest struct {
 
 // ReplaceContent はページ本文を丸ごと置き換える（編集権限が要る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 本文 置き換え
+//	@Summary      ノート の ページ 本文 置き換え
 //	@Description  ページ の 本文 (ProseMirror doc) を 丸ごと 置き換える。 編集 権限 が 要る。 保存 さ れる の は 行 スキーマ から 組み立て 直し た 正規 形 で、 レスポンス は その 正規 形 を 返す。
 //	@Tags         knowledge-base
 //	@Accept       json

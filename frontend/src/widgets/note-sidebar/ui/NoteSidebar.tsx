@@ -17,7 +17,7 @@ export interface NoteSidebarProps {
 }
 
 /**
- * NoteSidebar はナレッジ基盤の「場所を示す面」。
+ * NoteSidebar はノートの「場所を示す面」。
  *
  * 上から ワークスペースの切替 → スペースの見出し → ページの木。
  * いまは読むだけで、作る・動かす・印は次の段で足す。
@@ -81,7 +81,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
   };
 
   return (
-    <nav aria-label="ナレッジ基盤" className="flex h-full flex-col overflow-y-auto p-2">
+    <nav aria-label="ノート" className="flex h-full flex-col overflow-y-auto p-2">
       <NoteWorkspaceSwitcher
         workspaces={workspaces}
         activeSlug={activeSlug}

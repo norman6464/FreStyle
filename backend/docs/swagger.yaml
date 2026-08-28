@@ -3090,14 +3090,14 @@ paths:
           description: DB 失敗
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
-      summary: ナレッジ 基盤 の 共有 リンク 検証
+      summary: ノート の 共有 リンク 検証
       tags:
       - knowledge-base
   /kb/workspaces:
     get:
       description: ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user')
-        の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ナレッジ 基盤 API が URL
-        に 使う slug を 知る ため の 入口。
+        の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ノート API が URL に 使う
+        slug を 知る ため の 入口。
       produces:
       - application/json
       responses:
@@ -3117,7 +3117,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の 所属 ワークスペース 一覧
+      summary: ノート の 所属 ワークスペース 一覧
       tags:
       - knowledge-base
     post:
@@ -3168,7 +3168,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ワークスペース 作成
+      summary: ノート の ワークスペース 作成
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/grants/{principalId}:
@@ -3211,7 +3211,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ワークスペース 権限 取り消し
+      summary: ノート の ワークスペース 権限 取り消し
       tags:
       - knowledge-base
     put:
@@ -3267,7 +3267,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ワークスペース 権限 付与
+      summary: ノート の ワークスペース 権限 付与
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/groups:
@@ -3318,7 +3318,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の グループ 作成
+      summary: ノート の グループ 作成
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/groups/{groupPrincipalId}/members/{userId}:
@@ -3365,7 +3365,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の グループ メンバー 削除
+      summary: ノート の グループ メンバー 削除
       tags:
       - knowledge-base
     put:
@@ -3412,7 +3412,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の グループ メンバー 追加
+      summary: ノート の グループ メンバー 追加
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/members/{userId}:
@@ -3458,7 +3458,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の メンバー 削除
+      summary: ノート の メンバー 削除
       tags:
       - knowledge-base
     put:
@@ -3511,7 +3511,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の メンバー 追加
+      summary: ノート の メンバー 追加
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}:
@@ -3552,7 +3552,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 削除
+      summary: ノート の ページ 削除
       tags:
       - knowledge-base
     get:
@@ -3590,7 +3590,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 取得
+      summary: ノート の ページ 取得
       tags:
       - knowledge-base
     patch:
@@ -3647,7 +3647,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 改名
+      summary: ノート の ページ 改名
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/archive:
@@ -3688,7 +3688,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ アーカイブ
+      summary: ノート の ページ アーカイブ
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/content:
@@ -3747,7 +3747,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 本文 置き換え
+      summary: ノート の ページ 本文 置き換え
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/move:
@@ -3811,7 +3811,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 移動
+      summary: ノート の ページ 移動
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/restrictions/{principalId}/{capability}:
@@ -3864,7 +3864,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 例外 解除
+      summary: ノート の ページ 例外 解除
       tags:
       - knowledge-base
     put:
@@ -3927,7 +3927,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 例外 設定
+      summary: ノート の ページ 例外 設定
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links:
@@ -3969,7 +3969,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の 共有 リンク 一覧
+      summary: ノート の 共有 リンク 一覧
       tags:
       - knowledge-base
     post:
@@ -4021,7 +4021,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の 共有 リンク 発行
+      summary: ノート の 共有 リンク 発行
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links/{shareLinkId}:
@@ -4065,7 +4065,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の 共有 リンク 失効
+      summary: ノート の 共有 リンク 失効
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/unarchive:
@@ -4113,7 +4113,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 復帰
+      summary: ノート の ページ 復帰
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/search:
@@ -4158,7 +4158,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 題名 検索
+      summary: ノート の ページ 題名 検索
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces:
@@ -4196,7 +4196,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の スペース 一覧
+      summary: ノート の スペース 一覧
       tags:
       - knowledge-base
     post:
@@ -4253,7 +4253,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の スペース 作成
+      summary: ノート の スペース 作成
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces/{spaceId}:
@@ -4307,7 +4307,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の スペース 改名
+      summary: ノート の スペース 改名
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId}:
@@ -4350,7 +4350,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の スペース 権限 取り消し
+      summary: ノート の スペース 権限 取り消し
       tags:
       - knowledge-base
     put:
@@ -4407,7 +4407,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の スペース 権限 付与
+      summary: ノート の スペース 権限 付与
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages:
@@ -4452,7 +4452,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ ツリー
+      summary: ノート の ページ ツリー
       tags:
       - knowledge-base
     post:
@@ -4512,7 +4512,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の ページ 作成
+      summary: ノート の ページ 作成
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/principals/everyone:
@@ -4552,7 +4552,7 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: ナレッジ 基盤 の スペース 全員 主体 の 用意
+      summary: ノート の スペース 全員 主体 の 用意
       tags:
       - knowledge-base
   /learning-reports:

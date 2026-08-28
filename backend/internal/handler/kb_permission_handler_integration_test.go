@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ナレッジ基盤の権限操作 API を、実 PostgreSQL・本番と同じ配線で確かめる。
+// ノートの権限操作 API を、実 PostgreSQL・本番と同じ配線で確かめる。
 //
 // 権限を書き換える usecase は認可を一切見ない（受け取った ID をそのまま書く）ので、
 // 認可が効いているかどうかは HTTP の入口を実際に叩かないと分からない。ここで固定するのは:
@@ -629,7 +629,7 @@ func kbSuperAdminEnvRouter(e *kbPermEnv, userID uint64) *gin.Engine {
 }
 
 // アプリ内ロール（super_admin）を持っていても権限操作は通らないことを実 DB で固定する。
-// ナレッジ基盤の権限は principals / grants だけで閉じており、「特権ロールなら全部できる」
+// ノートの権限は principals / grants だけで閉じており、「特権ロールなら全部できる」
 // という抜け道を持たない（domain/grant.go・kb_permission_gate.go）。
 func TestKnowledgeBasePermissionAPI_SuperAdminHasNoBypass_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)

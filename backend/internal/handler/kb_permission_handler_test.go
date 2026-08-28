@@ -269,7 +269,7 @@ func (f kbPermFixture) call(t *testing.T, e kbPermissionEndpoint, path string) (
 
 func kbGrantRolePtr(r domain.GrantRole) *domain.GrantRole { return &r }
 
-func Test_ナレッジ基盤権限API_adminだけが通る(t *testing.T) {
+func Test_ノート権限API_adminだけが通る(t *testing.T) {
 	// admin 以外の 5 通り。どれも同じ 404 + 同じ本文で断られなければならない。
 	//
 	// super_admin 等のアプリ内ロールをここに 1 つも足していないことも同時に固定している
@@ -314,7 +314,7 @@ func Test_ナレッジ基盤権限API_adminだけが通る(t *testing.T) {
 	}
 }
 
-func Test_ナレッジ基盤権限API_adminは全経路を通れる(t *testing.T) {
+func Test_ノート権限API_adminは全経路を通れる(t *testing.T) {
 	for _, e := range kbPermissionEndpoints {
 		t.Run(e.name, func(t *testing.T) {
 			f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
@@ -324,7 +324,7 @@ func Test_ナレッジ基盤権限API_adminは全経路を通れる(t *testing.T
 	}
 }
 
-func Test_ナレッジ基盤権限API_拒否の応答は対象の実在で変わらない(t *testing.T) {
+func Test_ノート権限API_拒否の応答は対象の実在で変わらない(t *testing.T) {
 	// 存在オラクル対策の本命。権限の無い相手から見て、実在する対象と存在しない対象の
 	// 応答がバイト単位で一致することを固定する（片方だけ別の応答を返すと、ID を
 	// 総当たりするだけで中身を読まずに実在を数え上げられる）。
@@ -346,7 +346,7 @@ func Test_ナレッジ基盤権限API_拒否の応答は対象の実在で変わ
 	}
 }
 
-func Test_ナレッジ基盤権限API_ページを名指しする入口は結果によらず同じ回数だけ引く(t *testing.T) {
+func Test_ノート権限API_ページを名指しする入口は結果によらず同じ回数だけ引く(t *testing.T) {
 	// 応答のバイト列を揃えても、返るまでの時間が違えば「そのページ ID が実在するか」が読める。
 	// 以前は「ページを引く → スペースの実在を確かめる → 役割を集める」の 3 段で、
 	// 落ちる段によって DB の往復が 0 / 1 / 3 回に分かれていた。
@@ -415,7 +415,7 @@ func Test_ナレッジ基盤権限API_ページを名指しする入口は結果
 	}
 }
 
-func Test_ナレッジ基盤権限API_未認証は通らない(t *testing.T) {
+func Test_ノート権限API_未認証は通らない(t *testing.T) {
 	// current user を注入しないルータ。middleware.KnowledgeBaseWorkspace が 401 を返す。
 	for _, e := range kbPermissionEndpoints {
 		t.Run(e.name, func(t *testing.T) {
@@ -426,7 +426,7 @@ func Test_ナレッジ基盤権限API_未認証は通らない(t *testing.T) {
 	}
 }
 
-func Test_ナレッジ基盤権限API_最後のadminは外せない(t *testing.T) {
+func Test_ノート権限API_最後のadminは外せない(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	path := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/grants/" + f.callerPrincipalID
 
@@ -442,7 +442,7 @@ func Test_ナレッジ基盤権限API_最後のadminは外せない(t *testing.T
 	assert.Equal(t, http.StatusConflict, w.Code, "メンバー削除でも principal ごと消える")
 }
 
-func Test_ナレッジ基盤権限API_admin2人目が居れば外せる(t *testing.T) {
+func Test_ノート権限API_admin2人目が居れば外せる(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	ctx := context.Background()
 	_, err := f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, f.targetPrincipalID, domain.GrantRoleAdmin)
@@ -453,7 +453,7 @@ func Test_ナレッジ基盤権限API_admin2人目が居れば外せる(t *testi
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
-func Test_ナレッジ基盤権限API_競合で断られた取り消しも409(t *testing.T) {
+func Test_ノート権限API_競合で断られた取り消しも409(t *testing.T) {
 	// 手前の検査（CanRemoveWorkspaceAdminUseCase）は読み取りだけなので、admin 2 人を
 	// ほぼ同時に外す要求は両方ともそこを通り抜ける。実際に 0 人を止めているのは
 	// repository 側で、判定と書き換えを同じトランザクションに入れて断る。
@@ -471,7 +471,7 @@ func Test_ナレッジ基盤権限API_競合で断られた取り消しも409(t 
 	assert.JSONEq(t, `{"error":"last_workspace_admin"}`, w.Body.String())
 }
 
-func Test_ナレッジ基盤権限API_共有リンクは発行時の1回だけトークンを返す(t *testing.T) {
+func Test_ノート権限API_共有リンクは発行時の1回だけトークンを返す(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/share-links"
 
@@ -488,7 +488,7 @@ func Test_ナレッジ基盤権限API_共有リンクは発行時の1回だけ�
 	assert.NotContains(t, listed.Body.String(), "principalId", "内部の主体 ID も出さない")
 }
 
-func Test_ナレッジ基盤権限API_別ページの共有リンクは失効させられない(t *testing.T) {
+func Test_ノート権限API_別ページの共有リンクは失効させられない(t *testing.T) {
 	// 認可はページ（が属するスペース）で判断するので、リンクが本当にそのページのもので
 	// あることを確かめないと、ページ ID とリンク ID を組み替えるだけで
 	// 別のページのリンクを止められる。
@@ -499,7 +499,7 @@ func Test_ナレッジ基盤権限API_別ページの共有リンクは失効さ
 	assert.JSONEq(t, kbDenied, w.Body.String())
 }
 
-func Test_ナレッジ基盤権限API_共有リンク検証は未認証で通る(t *testing.T) {
+func Test_ノート権限API_共有リンク検証は未認証で通る(t *testing.T) {
 	// current user を注入しないルータでも通ること（リンクを受け取った人はログインしていない）。
 	f := newKbPermFixture(t, 0, nil)
 	w := f.do(t, http.MethodPost, kbShareLinkVerifyPath, `{"token":"`+f.shareToken+`"}`)
@@ -512,7 +512,7 @@ func Test_ナレッジ基盤権限API_共有リンク検証は未認証で通る
 	assert.NotContains(t, w.Body.String(), f.shareToken, "応答にトークンを反射しない")
 }
 
-func Test_ナレッジ基盤権限API_共有リンク検証は知らないトークンを404にする(t *testing.T) {
+func Test_ノート権限API_共有リンク検証は知らないトークンを404にする(t *testing.T) {
 	f := newKbPermFixture(t, 0, nil)
 	w := f.do(t, http.MethodPost, kbShareLinkVerifyPath, `{"token":"unknown-token"}`)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -536,7 +536,7 @@ func kbVerifyWithXFF(t *testing.T, f kbPermFixture, token, xff string) *httptest
 	return w
 }
 
-func Test_ナレッジ基盤権限API_共有リンク検証はIPを変えても頭打ちになる(t *testing.T) {
+func Test_ノート権限API_共有リンク検証はIPを変えても頭打ちになる(t *testing.T) {
 	// パスワード付きリンクのパスワードは人が選ぶ短い値で、総当たりに弱い。
 	// 上限の鍵を IP に取ると攻撃者が鍵ごと変えられるので、鍵はリンクそのものに取っている。
 	// ここで固定するのは「IP を毎回変えても、同じリンクへの試行は必ず頭打ちになる」こと。
@@ -557,7 +557,7 @@ func Test_ナレッジ基盤権限API_共有リンク検証はIPを変えても�
 	assert.Equal(t, "60", last.Header().Get("Retry-After"))
 }
 
-func Test_ナレッジ基盤権限API_共有リンクの上限は別のリンクを巻き込まない(t *testing.T) {
+func Test_ノート権限API_共有リンクの上限は別のリンクを巻き込まない(t *testing.T) {
 	// 上限が「リンク 1 本ごと」であることの裏側。1 本を叩き切っても、他のリンクを
 	// 受け取った人は開ける（鍵がリンクなので、巻き添えが起きるとしたらここ）。
 	f := newKbPermFixture(t, 0, nil)
@@ -580,7 +580,7 @@ func Test_ナレッジ基盤権限API_共有リンクの上限は別のリンク
 		kbVerifyWithXFF(t, f, other, "203.0.113.99").Code, "別のリンクは巻き添えにならない")
 }
 
-func Test_ナレッジ基盤権限API_存在しないトークンは上限の的にならない(t *testing.T) {
+func Test_ノート権限API_存在しないトークンは上限の的にならない(t *testing.T) {
 	// 鍵は要求ごとに変えられる（トークンは攻撃者が名乗る値）ので、実在しないリンクの
 	// 鍵まで limiter に残すと、でたらめなトークンを投げ続けるだけで中身を太らせられる。
 	// 実在しないトークンは 1 回ごとに鍵ごと捨てるので、何度投げても 404 のまま
@@ -594,7 +594,7 @@ func Test_ナレッジ基盤権限API_存在しないトークンは上限の的
 	assert.Equal(t, http.StatusOK, kbVerifyWithXFF(t, f, f.shareToken, "192.0.2.1").Code)
 }
 
-func Test_ナレッジ基盤権限API_同じ存在しないトークンでも上限の的にならない(t *testing.T) {
+func Test_ノート権限API_同じ存在しないトークンでも上限の的にならない(t *testing.T) {
 	f := newKbPermFixture(t, 0, nil)
 	for i := 0; i < kbShareLinkVerifyBurst+10; i++ {
 		w := kbVerifyWithXFF(t, f, "always-unknown", "203.0.113."+strconv.Itoa(i))
@@ -602,7 +602,7 @@ func Test_ナレッジ基盤権限API_同じ存在しないトークンでも上
 	}
 }
 
-func Test_ナレッジ基盤権限API_メンバー追加はユーザー単位で頭打ちになる(t *testing.T) {
+func Test_ノート権限API_メンバー追加はユーザー単位で頭打ちになる(t *testing.T) {
 	// この口は users.id をそのまま受け取り、200 と 404 の差で実在が分かる。
 	// ワークスペースは誰でも作れて作った本人が admin になるので、放っておくと
 	// 全ログインユーザーが使えるユーザー ID の走査器になる。
@@ -627,7 +627,7 @@ func Test_ナレッジ基盤権限API_メンバー追加はユーザー単位で
 		"IP を変えても同じユーザーなら頭打ちになる")
 }
 
-func Test_ナレッジ基盤権限API_権限を変える経路は全て監査ログに残る(t *testing.T) {
+func Test_ノート権限API_権限を変える経路は全て監査ログに残る(t *testing.T) {
 	// 「誰がいつ誰に admin を与えたか」が残らなければ、権限操作 API を用意した意味が薄い。
 	// 掛け忘れは配線の穴なので、handler 単体ではなく実際にルートを叩いて確かめる。
 	for _, e := range kbPermissionEndpoints {
@@ -648,7 +648,7 @@ func Test_ナレッジ基盤権限API_権限を変える経路は全て監査ロ
 	}
 }
 
-func Test_ナレッジ基盤権限API_断られた要求は監査ログに残らない(t *testing.T) {
+func Test_ノート権限API_断られた要求は監査ログに残らない(t *testing.T) {
 	// 記録するのは成功した変更操作だけ。断られた要求まで残すと、権限の無い相手が
 	// 叩いた分で監査ログが埋まり、本当に権限が動いた記録が読めなくなる。
 	for _, e := range kbPermissionEndpoints {
@@ -661,7 +661,7 @@ func Test_ナレッジ基盤権限API_断られた要求は監査ログに残ら
 	}
 }
 
-func Test_ナレッジ基盤権限API_監査ログにトークンもパスワードも入らない(t *testing.T) {
+func Test_ノート権限API_監査ログにトークンもパスワードも入らない(t *testing.T) {
 	// 共有リンクの発行は監査に残す経路だが、応答に平文トークンが載る唯一の経路でもある。
 	// 記録されるのは actor とルートのパターンだけで、ボディも応答も見ていないことを固定する。
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
@@ -682,7 +682,7 @@ func Test_ナレッジ基盤権限API_監査ログにトークンもパスワー
 		f.audit.entries[0].Action)
 }
 
-func Test_ナレッジ基盤権限API_未認証の共有リンク検証は監査ログに残らない(t *testing.T) {
+func Test_ノート権限API_未認証の共有リンク検証は監査ログに残らない(t *testing.T) {
 	// 検証はトークンをボディで受ける未認証の経路。actor が居ないので記録しようがないが、
 	// 「監査を掛けたついでにここにも掛ける」を将来やらないよう、残らないことを固定する。
 	f := newKbPermFixture(t, 0, nil)
@@ -691,7 +691,7 @@ func Test_ナレッジ基盤権限API_未認証の共有リンク検証は監査
 	assert.Empty(t, f.audit.entries)
 }
 
-func Test_ナレッジ基盤権限API_未知の役割は400(t *testing.T) {
+func Test_ノート権限API_未知の役割は400(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	w := f.do(t, http.MethodPut,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/grants/"+f.targetPrincipalID,
@@ -718,9 +718,9 @@ func kbSuperAdminRouter(f kbFixture, uid uint64) *gin.Engine {
 }
 
 // アプリ内ロール（super_admin）を持っていても権限操作は通らないことを固定する。
-// ナレッジ基盤の権限は grant だけで決まり、「特権ロールなら全部できる」という
+// ノートの権限は grant だけで決まり、「特権ロールなら全部できる」という
 // 抜け道を持たない（domain/grant.go・kb_permission_gate.go）。
-func Test_ナレッジ基盤権限API_アプリ内のsuperadminでも通らない(t *testing.T) {
+func Test_ノート権限API_アプリ内のsuperadminでも通らない(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleViewer))
 	router := kbSuperAdminRouter(f.kbFixture, kbUserID)
 

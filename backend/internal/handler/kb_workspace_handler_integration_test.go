@@ -460,7 +460,7 @@ func TestKnowledgeBasePrivateSpaceAPI_Integration(t *testing.T) {
 // を実 PostgreSQL で確かめる。
 //
 // 会社ごとのワークスペースは起動時のバックフィルが用意し users.workspace_id へ写すが、
-// ナレッジ基盤の所属（principals の行）は作成者にしか無かったため、同じ会社の他の
+// ノートの所属（principals の行）は作成者にしか無かったため、同じ会社の他の
 // メンバーには一覧にも出ず URL も 404 だった。ここでその経路を固定する。
 func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)

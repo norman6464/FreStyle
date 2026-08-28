@@ -110,6 +110,13 @@ app > pages > widgets > features > entities > shared
 
 - **日本語**: PR タイトル / チケット / コミットメッセージ / コメント。**英語**: 識別子
 
+### 3.1.0 機能の呼び名（ノート）
+
+ワークスペース / スペース / ページの機能は **「ノート」** と呼ぶ。「ナレッジ基盤」「ナレッジ」とは書かない（ヘッダーのメニューも URL も `/notes` で、呼び名だけ別語だと読み手が結び付けられない）。
+
+- **日本語で書くところはすべて「ノート」**: PR タイトル / 本文・コミット・チケット・コメント・swaggo の `@Summary` / `@Description`・UI 文言・artifact
+- **識別子は触らない**: Go の `KnowledgeBase*` / ファイル名の `kb_*` / `knowledge_base*.sql` / API パスの `/api/v2/kb/...` はそのまま。全面改名は差分が巨大なうえ API パスは互換の問題になる。混在させず「日本語だけを揃える」で運用する
+
 ### 3.1.1 他社プロダクト名の不使用（重要）
 
 PR / チケット / コミット / コメント / docs に**他社プロダクト・他社サービスの名前を書かない**（「〜風 UI」等の比喩も含む）。❌「（他社サービス名）風 2 カラムレイアウト」→ ⭕「2 カラムレイアウト（本文 + 目次サイドバー）」。機能の中身（何があるか）で説明する。
@@ -206,7 +213,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - **バックエンド**: `gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy`（ECR build/push + ECS force-update）。ヘルスチェックは本番 API ドメインの `GET /api/v2/health`（CloudFront 配下の SPA パスに叩くと一律 200 になり誤認する）
 - **フロントエンド**: `gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy`
 - **DB マイグレーション**: 新規テーブル / 列追加は GORM AutoMigrate が ECS 起動時に自動適用。列削除 / リネーム / 型変更は `backend/migrations/000X_*.sql` に置き、private リポ `frestyle-infrastructure` の `make apply-migration-supabase` で適用（実引数・手順は同リポ docs 参照）。冪等性（`IF NOT EXISTS` 等）を必ず担保する
-- **例外: ナレッジ基盤（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
+- **例外: ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
   - 権限側は `users` へ FK を張るので、適用順は AutoMigrate → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）
   - **実効権限の規則は `domain.ResolvePagePermission` だけが持つ**。SQL が返すのは事実（既定の役割・経路上の制限の集計）だけで、優先規則を SQL 側へ写経しない
@@ -289,7 +296,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 |---|---|
 | 黙って壊れるもの | sqlc データアクセス層移行の罠 |
 | 文書は木である | TipTap リッチテキストエディタ入門 |
-| サイドバーの設計 | React ナレッジ基盤サイドバー設計 |
+| サイドバーの設計 | React ノートサイドバー設計 |
 
 詩的な言い回しは捨てず、**本文の見出しや導入に置く**。タイトルにダッシュやコロンで説明を足さない（説明は publish の description に書く）。
 

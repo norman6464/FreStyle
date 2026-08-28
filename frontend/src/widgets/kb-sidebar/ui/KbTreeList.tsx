@@ -18,8 +18,6 @@ export interface KbTreeListProps extends KbRowCallbacks {
   draggingPageId: string | null;
   dropAt: { pageId: string; zone: KbDropZone } | null;
   archivedMode: boolean;
-  /** 題名で絞り込み中か（行のドラッグ・移動メニューを止める）。 */
-  filtering: boolean;
   label: string;
 }
 
@@ -45,7 +43,6 @@ export default function KbTreeList({
   draggingPageId,
   dropAt,
   archivedMode,
-  filtering,
   label,
   ...callbacks
 }: KbTreeListProps) {
@@ -66,7 +63,6 @@ export default function KbTreeList({
               active={node.page.id === activePageId}
               renaming={node.page.id === renamingPageId}
               archivedMode={archivedMode}
-              filtering={filtering}
               dragging={node.page.id === draggingPageId}
               dropZone={
                 dropAt?.pageId === node.page.id && draggingPageId !== node.page.id
@@ -88,7 +84,6 @@ export default function KbTreeList({
                 draggingPageId={draggingPageId}
                 dropAt={dropAt}
                 archivedMode={archivedMode}
-                filtering={filtering}
                 label={`${node.page.title} の中`}
                 {...callbacks}
               />

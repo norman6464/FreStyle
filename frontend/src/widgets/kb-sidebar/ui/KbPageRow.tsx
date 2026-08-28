@@ -43,9 +43,6 @@ export interface KbPageRowProps extends KbRowCallbacks {
   active: boolean;
   renaming: boolean;
   archivedMode: boolean;
-  /** 題名で絞り込み中か。並べ替え（ドラッグ・移動メニュー）は絞った木の上では意味が
-   *  ずれるので止める（「絞られた隣」の隣に置いても、実際の隣は別の行）。 */
-  filtering: boolean;
   dragging: boolean;
   dropZone: KbDropZone | null;
 }
@@ -74,7 +71,6 @@ export default function KbPageRow({
   active,
   renaming,
   archivedMode,
-  filtering,
   dragging,
   dropZone,
   onToggle,
@@ -112,7 +108,7 @@ export default function KbPageRow({
           ? 'border-b-2 border-brand-400'
           : '';
 
-  const draggable = !archivedMode && !filtering;
+  const draggable = !archivedMode;
 
   return (
     <div
@@ -216,12 +212,7 @@ export default function KbPageRow({
               onArchive={() => onArchive(page.id)}
               // ドラッグと同じ行き先を、同じ経路で送る。キーボードのためだけに
               // 別の口を作らない（作ると失敗の扱いも二重になる）。
-              // 絞り込み中は全部 null（絞られた並びの「隣」は実際の隣ではない）。
-              moves={
-                filtering
-                  ? { up: null, down: null, indent: null, outdent: null }
-                  : kbMoveActions(siblings, index, parentId)
-              }
+              moves={kbMoveActions(siblings, index, parentId)}
               onMove={(target) => onMove(page.id, target)}
             />
           )}

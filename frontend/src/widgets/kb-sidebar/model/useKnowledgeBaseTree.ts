@@ -278,6 +278,17 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     [activeSlug, setSpaceStates],
   );
 
+  const renameSpace = useCallback(
+    async (spaceId: string, name: string): Promise<KbSpace> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      const space = await KnowledgeBaseRepository.renameSpace(activeSlug, spaceId, name);
+      // 見出しは spaces の配列から描くので、そこだけ差し替える（木は名前を持たない）。
+      setSpaces((prev) => prev.map((s) => (s.id === space.id ? space : s)));
+      return space;
+    },
+    [activeSlug],
+  );
+
   const setArchivedMode = useCallback((next: boolean) => {
     // 切り替え前に投げた要求を採用しない（古いスコープの木が後から届く）。
     generation.current += 1;
@@ -484,6 +495,7 @@ export function useKnowledgeBaseTree(options: UseKnowledgeBaseTreeOptions = {}) 
     movePage,
     createWorkspace,
     createSpace,
+    renameSpace,
     archivedMode,
     setArchivedMode,
   };

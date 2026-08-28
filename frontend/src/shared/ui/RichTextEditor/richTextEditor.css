@@ -16,7 +16,8 @@
   min-height: 60vh;
   outline: none;
   color: var(--color-text-primary);
-  caret-color: var(--color-brand, #3b82f6);
+  /* キャレット（縦棒）は文字と同じ色。ブランド色だと本文の中で 1 本だけ青く浮く。 */
+  caret-color: var(--color-text-primary);
 }
 
 .rte-content .ProseMirror:focus {

@@ -116,3 +116,42 @@ describe('NotePageTitle', () => {
     expect(input).toHaveValue('設計メモ');
   });
 });
+
+describe('Enter で本文へ移る合図（onEnter）', () => {
+  it('Enter で確定したとき onEnter が呼ばれる（題名が変わっていなくても）', () => {
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={vi.fn()} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), { key: 'Enter' });
+
+    expect(onEnter).toHaveBeenCalledTimes(1);
+  });
+
+  it('日本語入力の変換確定 Enter では呼ばれない', () => {
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={vi.fn()} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), {
+      key: 'Enter',
+      isComposing: true,
+      keyCode: 229,
+    });
+
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+
+  it('Escape では呼ばれない', () => {
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={vi.fn()} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), { key: 'Escape' });
+
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+});

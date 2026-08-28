@@ -36,6 +36,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Storybook の story はブラウザモードの Vitest プロジェクト（projects.storybook）で
+      # そのままテストとして走る。headless Chromium が要るのでここで入れる。
+      - name: Install Playwright Chromium (Storybook tests)
+        run: npx playwright install --with-deps chromium
+
       # TypeScript 型チェック (production code 限定 / test ファイルは tsconfig.exclude で除外済み)。
       # tsc が 1 エラーでも報告したら fail する。React / TypeScript Handbook の
       # "static type-checking before runtime" を CI で強制する。

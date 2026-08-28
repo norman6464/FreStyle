@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { EllipsisHorizontalIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { ConfirmModal } from '@/shared/ui';
 import type { NoteDropTarget, NoteMoveActions } from '@/entities/note';
 
 export interface NoteRowActionsProps {
@@ -36,6 +37,9 @@ export default function NoteRowActions({
   openSignal = 0,
 }: NoteRowActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // 削除の確認。ブラウザ標準の confirm ではなくアプリのモーダルで確かめる
+  // （見た目が周りと揃い、文言・ボタンの並びをこちらで統べられる）。
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // 右クリック（コンテキストメニュー）からも同じメニューを開く。別のメニューを
@@ -159,14 +163,8 @@ export default function NoteRowActions({
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
-                      // 戻せない操作なので、実行の前に必ず確かめる（アーカイブとの違いを明記）。
-                      if (
-                        window.confirm(
-                          `「${label}」を中のページごと削除します（アーカイブ済みの子ページも含みます）。元に戻せません。よろしいですか？`,
-                        )
-                      ) {
-                        onDelete();
-                      }
+                      // 戻せない操作なので、実行の前に必ず確かめる（アーカイブとの違い）。
+                      setConfirmingDelete(true);
                     }}
                     className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-surface-2"
                   >
@@ -188,6 +186,20 @@ export default function NoteRowActions({
       >
         <PlusIcon className="h-4 w-4" aria-hidden="true" />
       </button>
+
+      {onDelete && (
+        <ConfirmModal
+          isOpen={confirmingDelete}
+          title="ページを削除"
+          message={`「${label}」を中のページごと削除します（アーカイブ済みの子ページも含みます）。元に戻せません。`}
+          confirmText="削除"
+          onConfirm={() => {
+            setConfirmingDelete(false);
+            onDelete();
+          }}
+          onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
     </div>
   );
 }

@@ -325,7 +325,9 @@ func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewa
 	if err != nil {
 		return nil, err
 	}
-	pages := make([]domain.Page, 0, limit)
+	// 確保量は行数（SQL 側の天井 200 以下）で決める。利用者由来の limit を確保量に
+	// 使わない — 上で挟んでいても、確保だけ大きくする余地を入力に持たせない。
+	pages := make([]domain.Page, 0, len(rows))
 	for _, row := range rows {
 		if !domain.ResolvePageView(row.Facts) {
 			continue

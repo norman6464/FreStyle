@@ -193,6 +193,10 @@ const (
 	kbWorkspacesPath = "/api/v2/kb/workspaces"
 	// kbSpacesPath はスペース作成。判定はワークスペース単位。
 	kbSpacesPath = "/api/v2/kb/workspaces/{slug}/spaces"
+	// kbSpacePatchPath はスペースの表示名変更。判定はスペース単位（管理）。
+	kbSpacePatchPath = "/api/v2/kb/workspaces/{slug}/spaces/" + kbSpaceID
+	// kbSearchPath は題名検索。判定は所属 + 可視のふるい（結果に出るかどうか）。
+	kbSearchPath = "/api/v2/kb/workspaces/{slug}/search"
 )
 
 func kbFill(s, slug, pageID string) string {
@@ -245,6 +249,9 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 		http.MethodPost + " " + kbWorkspacesPath:             true,
 		http.MethodGet + " " + kbRoutePattern(kbSpacesPath):  true,
 		http.MethodPost + " " + kbRoutePattern(kbSpacesPath): true,
+		// 下 2 本は Test_ナレッジ基盤API_スペース改名の認可 / 題名検索 が直接叩く。
+		http.MethodPatch + " " + kbRoutePattern(kbSpacePatchPath): true,
+		http.MethodGet + " " + kbRoutePattern(kbSearchPath):       true,
 	}
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
@@ -1387,3 +1394,84 @@ func Test_ナレッジ基盤移動_サブツリーの権限確認が失敗した
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Nil(t, f.pages.pages[kbRootPageID].ParentID, "確認できないなら動かさない")
 }
+
+// スペース改名は「入れ物そのもの」の変更なので、ページのケイパビリティではなく
+// スペースの管理権限で判定する。拒否の畳み方は他の口と同じ:
+// 見えない相手には 404（実在を教えない）、見えるが管理できない相手には 403。
+func Test_ナレッジ基盤API_スペース改名の認可(t *testing.T) {
+	patch := func(f kbFixture, t *testing.T, spaceID string) *httptest.ResponseRecorder {
+		t.Helper()
+		path := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/spaces/" + spaceID
+		return f.do(t, http.MethodPatch, path, `{"name":"技術部"}`)
+	}
+
+	t.Run("スペースの admin は変えられる", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleAdmin)
+		w := patch(f, t, kbSpaceID)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), "技術部")
+	})
+
+	t.Run("viewer は 403（見えているので理由を返してよい）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleViewer)
+		w := patch(f, t, kbSpaceID)
+		require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	})
+
+	t.Run("役割の無い相手には、実在するスペースも存在しない ID も同じ 404", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		real := patch(f, t, kbSpaceID)
+		missing := patch(f, t, "00000000-0000-7000-8000-00000000dead")
+		require.Equal(t, http.StatusNotFound, real.Code)
+		require.Equal(t, http.StatusNotFound, missing.Code)
+		// 本文まで同じバイト列であること（差があると実在が読める）。
+		assert.Equal(t, missing.Body.String(), real.Body.String())
+	})
+
+	t.Run("admin でも空の名前は 400", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleAdmin)
+		path := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/spaces/" + kbSpaceID
+		w := f.do(t, http.MethodPatch, path, `{"name":""}`)
+		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	})
+}
+
+// 題名検索は「見えるページだけが結果に出る」ことが認可のすべて。
+// ふるいは木と同じ判定（usecase 側でテスト済み）なので、ここでは配線を確かめる:
+// 役割があれば一致した分が返り、無ければ空、q 無しは 400。
+func Test_ナレッジ基盤API_題名検索(t *testing.T) {
+	search := func(f kbFixture, t *testing.T, query string) *httptest.ResponseRecorder {
+		t.Helper()
+		path := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/search"
+		if query != "" {
+			path += "?q=" + query
+		}
+		return f.do(t, http.MethodGet, path, "")
+	}
+
+	t.Run("役割があれば題名の一致した分が返る", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleViewer)
+		w := search(f, t, "root")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), "root")
+		assert.NotContains(t, w.Body.String(), "child")
+	})
+
+	t.Run("役割が無ければ一致していても空", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		w := search(f, t, "root")
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "[]", strings.TrimSpace(w.Body.String()))
+	})
+
+	t.Run("q 無しは 400（空で全件を返す口にしない）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		w := search(f, t, "")
+		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	})
+}
+

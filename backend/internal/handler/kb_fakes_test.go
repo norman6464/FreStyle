@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"strconv"
 	"time"
 
@@ -639,8 +640,37 @@ func (f *kbFakePerms) PagePermissionFactsForUser(ctx context.Context, workspaceI
 	}, nil
 }
 
-func (f *kbFakePerms) SearchWorkspacePageViewFacts(context.Context, string, uint64, string) ([]repository.PageWithViewFacts, error) {
-	return nil, nil
+// SearchWorkspacePageViewFacts は本番のクエリと同じ見方で候補と事実を返す:
+// 題名の部分一致（大文字小文字は区別しない）・現役のみ・ワークスペース境界・
+// 役割はそのページのスペースに届いている分。判定（ふるい）は usecase が行う。
+func (f *kbFakePerms) SearchWorkspacePageViewFacts(
+	_ context.Context, workspaceID string, userID uint64, query string,
+) ([]repository.PageWithViewFacts, error) {
+	f.countPermRead("SearchWorkspacePageViewFacts")
+	needle := strings.ToLower(query)
+	out := make([]repository.PageWithViewFacts, 0)
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return out, nil
+	}
+	for _, p := range f.pages.pages {
+		if p.WorkspaceID != workspaceID || p.ArchivedAt != nil {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(p.Title), needle) {
+			continue
+		}
+		var role *domain.GrantRole
+		if roles := f.rolesAt(kbScopeKey{scopeID: p.SpaceID, userID: userID}, workspaceID, userID); len(roles) > 0 {
+			role = &roles[0]
+		}
+		out = append(out, repository.PageWithViewFacts{
+			Page:  *p,
+			Facts: domain.PageViewFacts{Role: role},
+		})
+	}
+	// map の巡回順に依存しない並び（本番は題名順）。
+	sort.Slice(out, func(i, j int) bool { return out[i].Page.Title < out[j].Page.Title })
+	return out, nil
 }
 
 func (f *kbFakePerms) ListSpacePageViewFacts(

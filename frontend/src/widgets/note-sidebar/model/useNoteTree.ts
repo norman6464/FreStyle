@@ -167,11 +167,18 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     loadSpaces();
   }, [loadSpaces]);
 
+  // スペース単位の要求連番。ワークスペースの世代（generation）だけだと、同じスペースへの
+  // 要求どうしの追い越しを防げない — 削除後の取り直しより先に投げた古い応答が後から届くと、
+  // 消したはずのページが木に蘇る（選ぶと 404）。最後に投げた要求だけを採用する。
+  const spaceTreeSeq = useRef<Record<string, number>>({});
+
   /** 1 スペース分の木を取りに行く。開いたとき・再試行のときだけ呼ぶ。 */
   const loadSpaceTree = useCallback(
     (spaceId: string) => {
       if (!activeSlug) return;
       const token = generation.current;
+      const seq = (spaceTreeSeq.current[spaceId] ?? 0) + 1;
+      spaceTreeSeq.current[spaceId] = seq;
       setSpaceStates((prev) => ({
         ...prev,
         [spaceId]: { ...(prev[spaceId] ?? emptySpaceState(true)), loading: true, error: null },
@@ -179,14 +186,14 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
 
       NoteRepository.fetchPageTree(activeSlug, spaceId, { archived: archivedModeRef.current })
         .then((tree) => {
-          if (token !== generation.current) return;
+          if (token !== generation.current || seq !== spaceTreeSeq.current[spaceId]) return;
           setSpaceStates((prev) => ({
             ...prev,
             [spaceId]: { open: true, loading: false, error: null, tree },
           }));
         })
         .catch(() => {
-          if (token !== generation.current) return;
+          if (token !== generation.current || seq !== spaceTreeSeq.current[spaceId]) return;
           setSpaceStates((prev) => ({
             ...prev,
             [spaceId]: {

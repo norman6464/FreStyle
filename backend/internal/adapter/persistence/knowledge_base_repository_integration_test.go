@@ -149,6 +149,9 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		require.NoError(t, sqlDB.QueryRowContext(ctx,
 			`SELECT count(*) FROM blocks WHERE page_id = $1`, child.ID).Scan(&count))
 		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_snapshots WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
 
 		// 実在しないページの削除は ErrPageNotFound（冪等にしない — 押した相手が
 		// 「もう無い」ことを知れる）。

@@ -45,7 +45,7 @@ export default function NotePage() {
     return subscribeNoteTreeEvents((event) => {
       if (event.type !== 'page-deleted') return;
       const hit =
-        event.pageId === pageId || (data.ancestors ?? []).some((a) => a.id === event.pageId);
+        event.pageId === pageId || (data.ancestors ?? []).some((ancestor) => ancestor.id === event.pageId);
       if (hit) navigate('/notes');
     });
   }, [pageId, data, navigate]);

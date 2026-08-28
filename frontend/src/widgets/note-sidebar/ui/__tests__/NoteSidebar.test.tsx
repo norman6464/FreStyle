@@ -1577,6 +1577,39 @@ describe('ページの削除', () => {
     confirmSpy.mockRestore();
   });
 
+  it('削除前に投げた古い木の応答が後から届いても、消したページを蘇らせない', async () => {
+    // 同じスペースへの要求どうしの追い越し。ワークスペースの世代番号だけでは防げない
+    // （どちらも同じ世代）。スペース単位の連番で「最後に投げた要求」だけを採用する。
+    hoisted.deletePage.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    // 削除の前から進行中の遅い要求（設計メモを含む古い木を返す）。
+    let resolveStale: (value: NotePageTree) => void = () => {};
+    hoisted.fetchPageTree.mockReturnValueOnce(
+      new Promise<NotePageTree>((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+    act(() => {
+      emitNoteTreeEvent({ type: 'page-created', page: page('p2', '別ページ') });
+    });
+
+    // 削除 → 取り直しは空の木で確定する。
+    hoisted.fetchPageTree.mockResolvedValue(tree([]));
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+    await waitFor(() => expect(screen.queryByText('設計メモ')).not.toBeInTheDocument());
+
+    // 古い応答がいま届く。採用してはいけない。
+    await act(async () => {
+      resolveStale(tree([{ id: 'p1', title: '設計メモ' }]));
+    });
+    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
   it('右クリック → 外側クリックで閉じ、もう一度右クリックで開き直せる', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');

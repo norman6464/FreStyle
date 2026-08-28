@@ -53,7 +53,8 @@ func (u *CreateWorkspaceUseCase) Execute(ctx context.Context, in CreateWorkspace
 	if in.OwnerUserID == 0 {
 		return nil, errors.New("ownerUserID is required")
 	}
-	if in.Slug == "" {
+	autoSlug := in.Slug == ""
+	if autoSlug {
 		in.Slug = generatedURLKey("w")
 	}
 	if !domain.ValidWorkspaceSlug(in.Slug) {
@@ -62,11 +63,20 @@ func (u *CreateWorkspaceUseCase) Execute(ctx context.Context, in CreateWorkspace
 	if !validDisplayName(in.Name, domain.WorkspaceNameMaxLen) {
 		return nil, ErrInvalidName
 	}
-	return u.provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
-		Slug:        in.Slug,
-		Name:        in.Name,
-		OwnerUserID: in.OwnerUserID,
-	})
+	for {
+		w, err := u.provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
+			Slug:        in.Slug,
+			Name:        in.Name,
+			OwnerUserID: in.OwnerUserID,
+		})
+		// 自動採番が衝突したら引き直す（48bit の乱数なので実際にはほぼ起きないが、
+		// 起きたときに利用者へ 409 を見せる理由が無い）。人が指定した slug の 409 はそのまま返す。
+		if autoSlug && errors.Is(err, repository.ErrWorkspaceSlugTaken) {
+			in.Slug = generatedURLKey("w")
+			continue
+		}
+		return w, err
+	}
 }
 
 // CreateSpaceUseCase はワークスペース配下にスペースを作る。
@@ -93,7 +103,8 @@ func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (
 	if in.WorkspaceID == "" {
 		return nil, errors.New("workspaceID is required")
 	}
-	if in.Key == "" {
+	autoKey := in.Key == ""
+	if autoKey {
 		in.Key = generatedURLKey("s")
 	}
 	if !domain.ValidSpaceKey(in.Key) {
@@ -102,11 +113,19 @@ func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (
 	if !validDisplayName(in.Name, domain.SpaceNameMaxLen) {
 		return nil, ErrInvalidName
 	}
-	space := &domain.Space{WorkspaceID: in.WorkspaceID, Key: in.Key, Name: in.Name}
-	if err := u.repo.CreateSpace(ctx, space); err != nil {
-		return nil, err
+	for {
+		space := &domain.Space{WorkspaceID: in.WorkspaceID, Key: in.Key, Name: in.Name}
+		err := u.repo.CreateSpace(ctx, space)
+		// 自動採番の衝突は引き直す（ワークスペースの slug と同じ方針）。
+		if autoKey && errors.Is(err, repository.ErrSpaceKeyTaken) {
+			in.Key = generatedURLKey("s")
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return space, nil
 	}
-	return space, nil
 }
 
 // RenameSpaceUseCase はスペースの表示名だけを変える。

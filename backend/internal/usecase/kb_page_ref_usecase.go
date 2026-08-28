@@ -49,7 +49,7 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 	if err := json.Unmarshal([]byte(in.Doc), &root); err != nil {
 		// 読めない doc は「解決できない」ではなく「解決の対象が無い」。エラーにしない
 		// （保存経路が別途 400 で弾いており、ここで返しても呼び出し側にできることが無い）。
-		return in.Doc, nil
+		return in.Doc, nil //nolint:nilerr // 意図した劣化: 本文の読み出しを題名の都合で止めない
 	}
 	collector := newPageRefCollector()
 	collector.collect(root)
@@ -74,7 +74,7 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 	}
 	out, err := json.Marshal(root)
 	if err != nil {
-		return in.Doc, nil
+		return in.Doc, nil //nolint:nilerr // 意図した劣化: 元の doc を返せば表示は成立する
 	}
 	return string(out), nil
 }

@@ -299,6 +299,70 @@ describe('useNotePageDoc', () => {
     );
   });
 
+  it('旧ページの書き直しは、移った先で書いても消えない（宛先ごとに保留を持つ）', async () => {
+    // 1 枠の保留だと、p1 の PUT 中に p1 を書き直し → p2 へ移動 → p2 を書く、の並びで
+    // p2 の doc が p1 の保留を上書きし、p1 の最後の編集が黙って消えていた。
+    vi.useFakeTimers();
+    try {
+      let resolveFirstPut: (value: unknown) => void = () => {};
+      hoisted.replaceContent.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstPut = resolve;
+          }),
+      );
+
+      const { result, rerender } = renderHook(({ id }) => useNotePageDoc(id), {
+        initialProps: { id: 'p1' },
+      });
+      await act(async () => {});
+
+      // p1 で書く → PUT(p1 v1) が飛ぶ（保留）。飛行中に p1 を書き直す。
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [], attrs: { v: 'p1v2' } });
+      });
+
+      // p2 へ移って p2 も書く。
+      hoisted.resolvePage.mockResolvedValue({
+        ...resolved('子ページ'),
+        page: { ...resolved('子ページ').page, id: 'p2' },
+      });
+      rerender({ id: 'p2' });
+      await act(async () => {});
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [], attrs: { v: 'p2v1' } });
+      });
+
+      // PUT(p1 v1) が完了すると、p1 の書き直しと p2 の両方が書いた順で届く。
+      await act(async () => {
+        resolveFirstPut({ doc: { type: 'doc', content: [] }, builtAt: '2026-08-28T00:00:00Z' });
+        vi.advanceTimersByTime(1000);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(hoisted.replaceContent).toHaveBeenCalledTimes(3);
+      expect(hoisted.replaceContent).toHaveBeenNthCalledWith(2, 'w-3f2a9c', 'p1', {
+        type: 'doc',
+        content: [],
+        attrs: { v: 'p1v2' },
+      });
+      expect(hoisted.replaceContent).toHaveBeenNthCalledWith(3, 'w-3f2a9c', 'p2', {
+        type: 'doc',
+        content: [],
+        attrs: { v: 'p2v1' },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('保存が失敗したら unsaved に戻す（保存できた顔をしない）', async () => {
     vi.useFakeTimers();
     try {

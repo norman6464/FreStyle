@@ -35,11 +35,13 @@ export function useNotePageDoc(pageId: string | undefined) {
   // 新しいページへ PUT される（丸ごと置換の API なので、移った先の本文が旧ページの
   // 全文で上書きされる）。書いた時点のページが宛先 — この束がそれを崩れなくする。
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSave = useRef<{
-    workspaceSlug: string;
-    pageId: string;
-    doc: unknown;
-  } | null>(null);
+  // 保留は宛先（ページ）ごとに最新の doc を 1 つずつ持つ（Map は挿入順を保つ）。
+  // 1 枠だけだと、旧ページの PUT が飛んでいる間に旧ページを書き直し → 移動 → 新ページを
+  // 書く、の並びで旧ページの最後の編集が新ページの doc に上書きされて消える。
+  // ページ単位の丸ごと置換なので、ページごとに最後の doc が届けば十分。
+  const pendingSaves = useRef(
+    new Map<string, { workspaceSlug: string; pageId: string; doc: unknown }>(),
+  );
   const saveTarget = useRef<{ workspaceSlug: string; pageId: string } | null>(null);
   // PUT が飛んでいる間 true。保存は**必ず 1 本ずつ**送る。並行に送ると、後から書いた
   // 本文の PUT が先に完了し、古い本文の PUT が後から着地して上書きすることがある
@@ -48,18 +50,19 @@ export function useNotePageDoc(pageId: string | undefined) {
 
   const flushSave = useCallback(() => {
     if (saveInFlight.current) return; // 完了ハンドラが残りを流す
-    const pending = pendingSave.current;
-    if (pending == null) return;
-    pendingSave.current = null;
+    const head = pendingSaves.current.entries().next();
+    if (head.done) return;
+    const [key, pending] = head.value;
+    pendingSaves.current.delete(key);
     saveInFlight.current = true;
     setSaveStatus('saving');
     NoteRepository.replaceContent(pending.workspaceSlug, pending.pageId, pending.doc)
       .then(() => {
         saveInFlight.current = false;
-        if (pendingSave.current == null) {
+        if (pendingSaves.current.size === 0) {
           setSaveStatus('saved');
         } else {
-          // 送信中にさらに書かれていた。次を続けて送る（編集順を守る）。
+          // 送信中にさらに書かれていた。次を続けて送る（書いた順を守る）。
           setSaveStatus('unsaved');
           flushSave();
         }
@@ -130,7 +133,7 @@ export function useNotePageDoc(pageId: string | undefined) {
       // 宛先は**書いたこの瞬間**のページ。あとで読むとページ移動で差し替わっている。
       const target = saveTarget.current;
       if (!target) return;
-      pendingSave.current = { ...target, doc };
+      pendingSaves.current.set(target.pageId, { ...target, doc });
       setSaveStatus('unsaved');
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {

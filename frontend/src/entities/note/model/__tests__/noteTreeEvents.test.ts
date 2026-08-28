@@ -28,10 +28,11 @@ describe('noteTreeEvents', () => {
     expect(() => emitNoteTreeEvent({ type: 'page-created', page })).not.toThrow();
   });
 
-  it('emit の最中にある購読者が解除しても、残りの購読者へ届く', () => {
-    // 走査中の Set 変更で他の購読者が飛ばされないこと（写しを回している証拠）。
+  it('emit の最中に後続の購読者が解除されても、その回のイベントは届く', () => {
+    // 生の Set を走査していると、未訪問の要素を走査中に消した時点で飛ばされる。
+    // 写しを回している証拠として、first が second を解除しても second に届くことを見る。
     const second = vi.fn();
-    const first = vi.fn(() => unsubscribeFirst());
+    const first = vi.fn(() => unsubscribeSecond());
     const unsubscribeFirst = subscribeNoteTreeEvents(first);
     const unsubscribeSecond = subscribeNoteTreeEvents(second);
 
@@ -39,6 +40,6 @@ describe('noteTreeEvents', () => {
 
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(1);
-    unsubscribeSecond();
+    unsubscribeFirst();
   });
 });

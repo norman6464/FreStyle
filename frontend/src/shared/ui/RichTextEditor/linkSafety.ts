@@ -111,6 +111,9 @@ export function isAllowedLinkHref(href: unknown): boolean {
 export function normalizeLinkInput(rawInput: string): string | null {
   const trimmed = rawInput.trim();
   if (trimmed === '') return null;
+  // ページ間リンクは https:// を補う前に判定する。補ってしまうと
+  // `https:///p/{ID}` がホスト名 `p` の外部 URL として読まれ、壊れた絶対 URL が保存される。
+  if (isInternalPageLinkHref(trimmed)) return sanitizeLinkHref(trimmed);
   if (trimmed.includes(':')) return sanitizeLinkHref(trimmed);
   return sanitizeLinkHref(`https://${trimmed}`);
 }

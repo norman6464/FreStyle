@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react';
 import type { Editor, JSONContent } from '@tiptap/react';
 import RichTextEditor from '../RichTextEditor';
 import { emptyRichDoc } from '../emptyRichDoc';
@@ -102,8 +102,8 @@ describe('スラッシュコマンド（統合）', () => {
       ],
     });
     await typeSlash(editor, 'page');
-    await waitFor(() => expect(screen.getByText('ページ')).toBeInTheDocument());
-    fireEvent.click(screen.getByText('ページ'));
+    const option = await screen.findByRole('option', { name: /ページ/ });
+    fireEvent.click(within(option).getByRole('button'));
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
     expect(run).toHaveBeenCalledWith(editor);
     // 入力した "/page" は本文に残らない。

@@ -94,6 +94,24 @@ describe('スラッシュコマンド（統合）', () => {
     await waitFor(() => expect(findNode(editor.getJSON(), 'blockquote')).toBeDefined());
   });
 
+  it("onCreateSubpage を渡すと '/page' が出て、実行でハンドラが editor 付きで呼ばれる", async () => {
+    const onCreateSubpage = vi.fn();
+    const { editor } = await setup({ onCreateSubpage });
+    await typeSlash(editor, 'page');
+    await waitFor(() => expect(screen.getByText('ページ')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('ページ'));
+    await waitFor(() => expect(onCreateSubpage).toHaveBeenCalledTimes(1));
+    expect(onCreateSubpage).toHaveBeenCalledWith(editor);
+    // 入力した "/page" は本文に残らない。
+    expect(editor.getText()).not.toContain('/page');
+  });
+
+  it("onCreateSubpage を渡さなければ '/page' は出ない（配線の無い操作を見せない）", async () => {
+    const { editor } = await setup();
+    await typeSlash(editor, 'page');
+    await waitFor(() => expect(screen.getByText('該当するコマンドがありません')).toBeInTheDocument());
+  });
+
   it('該当なしのクエリでは空表示になる', async () => {
     const { editor } = await setup();
     await typeSlash(editor, 'zzz');

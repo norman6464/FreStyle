@@ -35,6 +35,12 @@ export interface RichTextEditorProps {
    * 生成直後にフォーカスしたい・外部から editor を参照して拡張したい、といった用途の拡張点。
    */
   onCreate?: (editor: Editor) => void;
+  /**
+   * 「/page」で子ページを作る操作。指定したときだけ '/' メニューに「ページ」が出る。
+   * ページの作成・リンクの挿入・遷移は呼び出し側が担う（このエディタは文書のことしか知らない）。
+   * onImageUpload と同じ注入の形 — 業務を知る操作は props で差し込む。
+   */
+  onCreateSubpage?: (editor: Editor) => void;
   /** 外枠に付与する追加クラス。 */
   className?: string;
 }
@@ -49,6 +55,9 @@ export interface RichTextEditorProps {
  * ビジネスを知らない再利用資産（shared/ui）として置く。保存フロー（debounce・PUT・楽観ロック）は
  * この部品ではなく利用側の画面が担う。
  */
+/** onCreateSubpage の型。呼び出し側がハンドラを書くときに使う。 */
+export type SubpageCreator = (editor: Editor) => void;
+
 export default function RichTextEditor({
   value,
   onChange,
@@ -58,6 +67,7 @@ export default function RichTextEditor({
   saveStatus,
   onImageUpload,
   onCreate,
+  onCreateSubpage,
   className = '',
 }: RichTextEditorProps) {
   // onChange は props で差し替わり得るので ref 越しに最新を呼ぶ（onUpdate クロージャの陳腐化を防ぐ）。
@@ -68,6 +78,12 @@ export default function RichTextEditor({
 
   // onCreate も生成時クロージャの陳腐化を避けるため ref 越しに最新を呼ぶ。
   const onCreateRef = useRef(onCreate);
+  // '/' メニューの項目は editor 生成時に固定される（後から差し替わらない）ので、
+  // 最新のハンドラは ref 越しに呼ぶ（onChange と同じ理由）。
+  const onCreateSubpageRef = useRef(onCreateSubpage);
+  useEffect(() => {
+    onCreateSubpageRef.current = onCreateSubpage;
+  }, [onCreateSubpage]);
   useEffect(() => {
     onCreateRef.current = onCreate;
   }, [onCreate]);
@@ -110,21 +126,31 @@ export default function RichTextEditor({
   // 配線されているときだけ /image（ファイル選択）を足す。onImageUpload の有無だけに依存させ、
   // 拡張一式が編集のたびに作り直されないようにする。
   const hasImageUpload = Boolean(onImageUpload);
+  const hasSubpage = Boolean(onCreateSubpage);
   const slashItems = useMemo<EditorCommand[]>(() => {
-    const extra: EditorCommand[] = hasImageUpload
-      ? [
-          {
-            id: 'image',
-            label: '画像',
-            group: 'insert',
-            glyph: '🖼',
-            keywords: ['image', 'img', 'photo', 'picture', 'upload'],
-            run: () => fileInputRef.current?.click(),
-          },
-        ]
-      : [];
+    const extra: EditorCommand[] = [];
+    if (hasImageUpload) {
+      extra.push({
+        id: 'image',
+        label: '画像',
+        group: 'insert',
+        glyph: '🖼',
+        keywords: ['image', 'img', 'photo', 'picture', 'upload'],
+        run: () => fileInputRef.current?.click(),
+      });
+    }
+    if (hasSubpage) {
+      extra.push({
+        id: 'page',
+        label: 'ページ',
+        group: 'insert',
+        glyph: '📄',
+        keywords: ['page', 'subpage', 'child', 'note'],
+        run: (currentEditor) => onCreateSubpageRef.current?.(currentEditor),
+      });
+    }
     return buildSlashItems(extra);
-  }, [hasImageUpload]);
+  }, [hasImageUpload, hasSubpage]);
 
   const editor = useEditor({
     editable,

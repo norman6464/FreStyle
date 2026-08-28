@@ -36,11 +36,13 @@ export interface RichTextEditorProps {
    */
   onCreate?: (editor: Editor) => void;
   /**
-   * 「/page」で子ページを作る操作。指定したときだけ '/' メニューに「ページ」が出る。
-   * ページの作成・リンクの挿入・遷移は呼び出し側が担う（このエディタは文書のことしか知らない）。
-   * onImageUpload と同じ注入の形 — 業務を知る操作は props で差し込む。
+   * '/' メニューへ追加するコマンド。エディタが知らない操作（子ページの作成など、
+   * 業務を知る操作）は呼び出し側がここから差し込む。エディタは項目の中身を解釈しない。
+   *
+   * **項目はエディタ生成時に固定される。** run の closure が画面の状態を読むなら、
+   * 呼び出し側で ref 越しに最新を参照させること（この配列自体を差し替えても反映されない）。
    */
-  onCreateSubpage?: (editor: Editor) => void;
+  extraSlashCommands?: EditorCommand[];
   /** 外枠に付与する追加クラス。 */
   className?: string;
 }
@@ -55,9 +57,6 @@ export interface RichTextEditorProps {
  * ビジネスを知らない再利用資産（shared/ui）として置く。保存フロー（debounce・PUT・楽観ロック）は
  * この部品ではなく利用側の画面が担う。
  */
-/** onCreateSubpage の型。呼び出し側がハンドラを書くときに使う。 */
-export type SubpageCreator = (editor: Editor) => void;
-
 export default function RichTextEditor({
   value,
   onChange,
@@ -67,7 +66,7 @@ export default function RichTextEditor({
   saveStatus,
   onImageUpload,
   onCreate,
-  onCreateSubpage,
+  extraSlashCommands,
   className = '',
 }: RichTextEditorProps) {
   // onChange は props で差し替わり得るので ref 越しに最新を呼ぶ（onUpdate クロージャの陳腐化を防ぐ）。
@@ -78,12 +77,6 @@ export default function RichTextEditor({
 
   // onCreate も生成時クロージャの陳腐化を避けるため ref 越しに最新を呼ぶ。
   const onCreateRef = useRef(onCreate);
-  // '/' メニューの項目は editor 生成時に固定される（後から差し替わらない）ので、
-  // 最新のハンドラは ref 越しに呼ぶ（onChange と同じ理由）。
-  const onCreateSubpageRef = useRef(onCreateSubpage);
-  useEffect(() => {
-    onCreateSubpageRef.current = onCreateSubpage;
-  }, [onCreateSubpage]);
   useEffect(() => {
     onCreateRef.current = onCreate;
   }, [onCreate]);
@@ -126,31 +119,24 @@ export default function RichTextEditor({
   // 配線されているときだけ /image（ファイル選択）を足す。onImageUpload の有無だけに依存させ、
   // 拡張一式が編集のたびに作り直されないようにする。
   const hasImageUpload = Boolean(onImageUpload);
-  const hasSubpage = Boolean(onCreateSubpage);
   const slashItems = useMemo<EditorCommand[]>(() => {
-    const extra: EditorCommand[] = [];
-    if (hasImageUpload) {
-      extra.push({
-        id: 'image',
-        label: '画像',
-        group: 'insert',
-        glyph: '🖼',
-        keywords: ['image', 'img', 'photo', 'picture', 'upload'],
-        run: () => fileInputRef.current?.click(),
-      });
-    }
-    if (hasSubpage) {
-      extra.push({
-        id: 'page',
-        label: 'ページ',
-        group: 'insert',
-        glyph: '📄',
-        keywords: ['page', 'subpage', 'child', 'note'],
-        run: (currentEditor) => onCreateSubpageRef.current?.(currentEditor),
-      });
-    }
-    return buildSlashItems(extra);
-  }, [hasImageUpload, hasSubpage]);
+    const extra: EditorCommand[] = hasImageUpload
+      ? [
+          {
+            id: 'image',
+            label: '画像',
+            group: 'insert',
+            glyph: '🖼',
+            keywords: ['image', 'img', 'photo', 'picture', 'upload'],
+            run: () => fileInputRef.current?.click(),
+          },
+        ]
+      : [];
+    return buildSlashItems([...extra, ...(extraSlashCommands ?? [])]);
+    // extraSlashCommands は「エディタ生成時に固定」の契約（props の JSDoc 参照）なので
+    // 依存に入れない — 入れても extensions は作り直されず、揃わない再計算だけが増える。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasImageUpload]);
 
   const editor = useEditor({
     editable,

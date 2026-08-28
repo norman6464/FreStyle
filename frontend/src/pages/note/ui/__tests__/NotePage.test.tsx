@@ -1,0 +1,152 @@
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import NotePage from '../NotePage';
+import type { EditorCommand } from '@/shared/ui/RichTextEditor';
+
+const hoisted = vi.hoisted(() => ({
+  resolvePage: vi.fn(),
+  replaceContent: vi.fn(),
+  renamePage: vi.fn(),
+  createPage: vi.fn(),
+  emit: vi.fn(),
+  showToast: vi.fn(),
+  navigate: vi.fn(),
+  editorProps: { current: null as null | { extraSlashCommands?: EditorCommand[] } },
+}));
+
+vi.mock('@/entities/note', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/entities/note')>();
+  return {
+    ...actual,
+    NoteRepository: {
+      resolvePage: hoisted.resolvePage,
+      replaceContent: hoisted.replaceContent,
+      renamePage: hoisted.renamePage,
+      createPage: hoisted.createPage,
+    },
+    emitNoteTreeEvent: hoisted.emit,
+  };
+});
+
+vi.mock('@/shared/lib/hooks/useToast', () => ({
+  useToast: () => ({ showToast: hoisted.showToast, toasts: [], removeToast: vi.fn() }),
+}));
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return { ...actual, useNavigate: () => hoisted.navigate, useParams: () => ({ pageId: 'p1' }) };
+});
+
+// サイドバーは自前のテストで検証済み。ここでは画面の配線だけを見る。
+vi.mock('@/widgets/note-sidebar', () => ({
+  NoteSidebar: () => <nav aria-label="サイドバーの偽物" />,
+}));
+
+// エディタは重い（tiptap 実体）ので、渡された props を捕まえる薄い偽物に差し替える。
+// /page の run は本物の createSubpage を通る（そこが配線の検査対象）。
+vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shared/ui/RichTextEditor')>();
+  return {
+    ...actual,
+    RichTextEditor: (props: { extraSlashCommands?: EditorCommand[] }) => {
+      hoisted.editorProps.current = props;
+      return <div data-testid="editor" />;
+    },
+  };
+});
+
+const resolved = (canEdit: boolean) => ({
+  workspaceSlug: 'w-3f2a9c',
+  page: {
+    id: 'p1',
+    spaceId: 's1',
+    title: '親ページ',
+    createdByUserId: 1,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  },
+  doc: { type: 'doc', content: [] },
+  canEdit,
+});
+
+/** /page の run に渡す最小のエディタ（createSubpage が使う形だけ）。 */
+function fakeEditor() {
+  return {
+    chain: () => ({ focus: () => ({ insertContent: () => ({ run: () => {} }) }) }),
+  } as never;
+}
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={['/p/p1']}>
+      <NotePage />
+    </MemoryRouter>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  hoisted.editorProps.current = null;
+  hoisted.resolvePage.mockResolvedValue(resolved(true));
+});
+
+describe('NotePage の配線', () => {
+  it('題名の改名に失敗したら知らせを出し、入力は消えない', async () => {
+    hoisted.renamePage.mockRejectedValue(new Error('403'));
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: 'ページの題名' });
+
+    fireEvent.change(input, { target: { value: '新しい題名' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', '題名を変更できませんでした'),
+    );
+    // 再 throw が NotePageTitle まで届いている＝入力が保たれている。
+    expect(input).toHaveValue('新しい題名');
+  });
+
+  it('/page で子を作って開く。失敗したら知らせを出し、遷移しない', async () => {
+    renderPage();
+    await screen.findByTestId('editor');
+    const commands = hoisted.editorProps.current?.extraSlashCommands;
+    expect(commands?.map((c) => c.id)).toEqual(['page']);
+
+    // 成功: 作ったページへ遷移。
+    hoisted.createPage.mockResolvedValue({
+      id: 'child-1',
+      spaceId: 's1',
+      parentId: 'p1',
+      title: '無題',
+      createdByUserId: 1,
+      createdAt: '2026-08-28T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+    });
+    await act(async () => {
+      commands![0].run(fakeEditor());
+    });
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/p/child-1'));
+
+    // 失敗: 知らせを出し、遷移しない。
+    hoisted.navigate.mockClear();
+    hoisted.createPage.mockRejectedValue(new Error('403'));
+    await act(async () => {
+      commands![0].run(fakeEditor());
+    });
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', '子ページを作成できませんでした'),
+    );
+    expect(hoisted.navigate).not.toHaveBeenCalled();
+  });
+
+  it('編集できないページでは /page を渡さない（読むだけの人にメニューを見せない）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    renderPage();
+    await screen.findByTestId('editor');
+
+    expect(hoisted.editorProps.current?.extraSlashCommands).toBeUndefined();
+    // 題名も入力欄ではなく見出しで出る。
+    expect(screen.getByRole('heading', { name: '親ページ' })).toBeInTheDocument();
+  });
+});

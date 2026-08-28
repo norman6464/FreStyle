@@ -1,7 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { NoteSidebar } from '@/widgets/note-sidebar';
-import { RichTextEditor, emptyRichDoc, isRichDoc, type SubpageCreator } from '@/shared/ui/RichTextEditor';
+import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/shared/ui/RichTextEditor';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/lib/hooks/useToast';
@@ -37,14 +37,30 @@ export default function NotePage() {
   );
 
   // '/page': 子ページを作って本文にリンクを挿し、作ったページを開く。
-  const handleCreateSubpage: SubpageCreator = useCallback(
-    (editor) => {
-      if (!data) return;
-      void createSubpage(editor, data)
-        .then((path) => navigate(path))
-        .catch(() => showToast('error', '子ページを作成できませんでした'));
-    },
-    [data, navigate, showToast],
+  //
+  // '/' メニューの項目はエディタ生成時に固定される（RichTextEditor の契約）ので、
+  // run の closure には ref を握らせ、実行時点の最新の data を読ませる。
+  // 「ページ」という業務の語彙はこの画面が持ち、エディタは項目を並べるだけ。
+  const subpageContext = useRef({ data, navigate, showToast });
+  subpageContext.current = { data, navigate, showToast };
+  const extraSlashCommands = useMemo<EditorCommand[]>(
+    () => [
+      {
+        id: 'page',
+        label: 'ページ',
+        group: 'insert',
+        glyph: '📄',
+        keywords: ['page', 'subpage', 'child'],
+        run: (editor) => {
+          const ctx = subpageContext.current;
+          if (!ctx.data) return;
+          void createSubpage(editor, ctx.data)
+            .then((path) => ctx.navigate(path))
+            .catch(() => ctx.showToast('error', '子ページを作成できませんでした'));
+        },
+      },
+    ],
+    [],
   );
 
   return (
@@ -93,7 +109,7 @@ export default function NotePage() {
                 onChange={onDocChange}
                 saveStatus={data.canEdit ? saveStatus : 'idle'}
                 ariaLabel={`${data.page.title} の本文`}
-                onCreateSubpage={data.canEdit ? handleCreateSubpage : undefined}
+                extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
               />
             </article>
           )}

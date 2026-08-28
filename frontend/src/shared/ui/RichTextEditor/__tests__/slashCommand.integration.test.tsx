@@ -94,19 +94,23 @@ describe('スラッシュコマンド（統合）', () => {
     await waitFor(() => expect(findNode(editor.getJSON(), 'blockquote')).toBeDefined());
   });
 
-  it("onCreateSubpage を渡すと '/page' が出て、実行でハンドラが editor 付きで呼ばれる", async () => {
-    const onCreateSubpage = vi.fn();
-    const { editor } = await setup({ onCreateSubpage });
+  it("extraSlashCommands で足した項目が '/' メニューに出て、実行で run が editor 付きで呼ばれる", async () => {
+    const run = vi.fn();
+    const { editor } = await setup({
+      extraSlashCommands: [
+        { id: 'page', label: 'ページ', group: 'insert', glyph: '📄', keywords: ['page'], run },
+      ],
+    });
     await typeSlash(editor, 'page');
     await waitFor(() => expect(screen.getByText('ページ')).toBeInTheDocument());
     fireEvent.click(screen.getByText('ページ'));
-    await waitFor(() => expect(onCreateSubpage).toHaveBeenCalledTimes(1));
-    expect(onCreateSubpage).toHaveBeenCalledWith(editor);
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(run).toHaveBeenCalledWith(editor);
     // 入力した "/page" は本文に残らない。
     expect(editor.getText()).not.toContain('/page');
   });
 
-  it("onCreateSubpage を渡さなければ '/page' は出ない（配線の無い操作を見せない）", async () => {
+  it("extraSlashCommands を渡さなければ '/page' は出ない（配線の無い操作を見せない）", async () => {
     const { editor } = await setup();
     await typeSlash(editor, 'page');
     await waitFor(() => expect(screen.getByText('該当するコマンドがありません')).toBeInTheDocument());

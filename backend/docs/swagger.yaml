@@ -415,6 +415,13 @@ definitions:
       url:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef:
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+    type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput:
     properties:
       activeThisWeek:
@@ -1097,12 +1104,19 @@ definitions:
     type: object
   internal_handler.kbResolvedPageResponse:
     properties:
+      ancestors:
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef'
+        type: array
       canEdit:
         type: boolean
       doc:
         type: object
       page:
         $ref: '#/definitions/internal_handler.kbPageResponse'
+      workspaceName:
+        example: 開発チーム
+        type: string
       workspaceSlug:
         example: w-3f2a9c
         type: string

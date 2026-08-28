@@ -633,6 +633,44 @@ func (q *Queries) ListChildPages(ctx context.Context, arg ListChildPagesParams) 
 	return items, nil
 }
 
+const listPageAncestorIDs = `-- name: ListPageAncestorIDs :many
+SELECT pp.ancestor_id
+FROM page_paths pp
+WHERE pp.workspace_id = $1 AND pp.page_id = $2 AND pp.depth > 0
+ORDER BY pp.depth DESC
+`
+
+type ListPageAncestorIDsParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+}
+
+// ページの祖先 ID を根から順（depth の大きい順）に返す。自分自身（depth=0）は含まない。
+// パンくず用の骨組みで、**題名や可視性はここでは返さない** — 可視の判定は
+// ListWorkspacePageViewFactsByIDs と domain.ResolvePageView が持つ（判定の写経をしない）。
+func (q *Queries) ListPageAncestorIDs(ctx context.Context, arg ListPageAncestorIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listPageAncestorIDs, arg.WorkspaceID, arg.PageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var ancestor_id uuid.UUID
+		if err := rows.Scan(&ancestor_id); err != nil {
+			return nil, err
+		}
+		items = append(items, ancestor_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const movePageSubtreeToSpace = `-- name: MovePageSubtreeToSpace :execrows
 UPDATE pages
 SET space_id = $1,

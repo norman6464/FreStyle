@@ -71,6 +71,10 @@ type KnowledgeBaseRepository interface {
 	// このリポジトリで唯一テナントを確定せずに読む口で、呼び出し側は結果を応答に使う前に
 	// **必ずその workspace の権限判定を通す**。無ければ ErrPageNotFound。
 	FindPageByIDAcrossWorkspaces(ctx context.Context, pageID string) (*domain.Page, error)
+	// ListAncestorPageIDs はページの祖先 ID を根から順に返す（自分自身は含まない）。
+	// パンくず用の骨組み。題名・可視性は返さない — 可視の判定は権限側の口が持つ。
+	// ページが無い・根ページなら空（エラーにしない。実在の確認は呼び出し側が済ませている）。
+	ListAncestorPageIDs(ctx context.Context, workspaceID, pageID string) ([]string, error)
 	// FindWorkspaceByID はワークスペースを 1 件引く。無ければ ErrWorkspaceNotFound。
 	FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error)
 	// FindWorkspaceBySlug は URL に出る slug からワークスペースを引く。無ければ ErrWorkspaceNotFound。

@@ -33,6 +33,7 @@ type KnowledgeBasePageHandler struct {
 	unarchive      *usecase.UnarchivePageUseCase
 	replaceBlocks  *usecase.ReplacePageBlocksUseCase
 	resolveRefs    *usecase.ResolvePageRefTitlesUseCase
+	ancestors      *usecase.ListViewableAncestorsUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -51,6 +52,7 @@ func NewKnowledgeBasePageHandler(
 	unarchive *usecase.UnarchivePageUseCase,
 	replaceBlocks *usecase.ReplacePageBlocksUseCase,
 	resolveRefs *usecase.ResolvePageRefTitlesUseCase,
+	ancestors *usecase.ListViewableAncestorsUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -67,6 +69,7 @@ func NewKnowledgeBasePageHandler(
 		unarchive:      unarchive,
 		replaceBlocks:  replaceBlocks,
 		resolveRefs:    resolveRefs,
+		ancestors:      ancestors,
 	}
 }
 
@@ -850,12 +853,16 @@ func limitKnowledgeBaseBody(c *gin.Context) {
 }
 
 // kbResolvedPageResponse は /kb/pages/{pageId}（URL にテナントを持たない解決）の返却形。
-// workspaceSlug は以降の API 呼び出し（木・保存）に使う。canEdit は編集 UI の出し分けに使う。
+// workspaceSlug は以降の API 呼び出し（木・保存）に、workspaceName と ancestors は
+// パンくず（場所の表示）に、canEdit は編集 UI の出し分けに使う。
+// ancestors は**読み手が閲覧できる祖先だけ**を根から順に持つ（木と同じ規則で穴があき得る）。
 type kbResolvedPageResponse struct {
-	WorkspaceSlug string          `json:"workspaceSlug" example:"w-3f2a9c"`
-	Page          kbPageResponse  `json:"page"`
-	Doc           json.RawMessage `json:"doc" swaggertype:"object"`
-	CanEdit       bool            `json:"canEdit"`
+	WorkspaceSlug string                `json:"workspaceSlug" example:"w-3f2a9c"`
+	WorkspaceName string                `json:"workspaceName" example:"開発チーム"`
+	Page          kbPageResponse        `json:"page"`
+	Doc           json.RawMessage       `json:"doc" swaggertype:"object"`
+	CanEdit       bool                  `json:"canEdit"`
+	Ancestors     []usecase.AncestorRef `json:"ancestors"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -916,10 +923,22 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	if refErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: page ref title resolve failed", "err", refErr)
 	}
+	// パンくず（閲覧できる祖先だけ）。失敗してもページは開く — 空のまま出し、記録だけ残す。
+	ancestors, ancErr := h.ancestors.Execute(c.Request.Context(), usecase.ListViewableAncestorsInput{
+		WorkspaceID: loc.Workspace.ID,
+		UserID:      uid,
+		PageID:      pageID,
+	})
+	if ancErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: ancestors resolve failed", "err", ancErr)
+		ancestors = []usecase.AncestorRef{}
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug: loc.Workspace.Slug,
+		WorkspaceName: loc.Workspace.Name,
 		Page:          toKbPageResponse(&out.Page),
 		Doc:           json.RawMessage(doc),
 		CanEdit:       perm.CanEdit,
+		Ancestors:     ancestors,
 	})
 }

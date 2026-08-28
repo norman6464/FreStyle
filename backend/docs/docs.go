@@ -6470,6 +6470,17 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput": {
             "type": "object",
             "properties": {
@@ -7420,6 +7431,12 @@ const docTemplate = `{
         "internal_handler.kbResolvedPageResponse": {
             "type": "object",
             "properties": {
+                "ancestors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef"
+                    }
+                },
                 "canEdit": {
                     "type": "boolean"
                 },
@@ -7428,6 +7445,10 @@ const docTemplate = `{
                 },
                 "page": {
                     "$ref": "#/definitions/internal_handler.kbPageResponse"
+                },
+                "workspaceName": {
+                    "type": "string",
+                    "example": "開発チーム"
                 },
                 "workspaceSlug": {
                     "type": "string",

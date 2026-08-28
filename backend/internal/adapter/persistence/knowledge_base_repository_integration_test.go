@@ -103,6 +103,25 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		return ws, spaceA, spaceB
 	}
 
+	t.Run("祖先IDが根から順に返る（パンくずの骨組み）", func(t *testing.T) {
+		ws, spaceA, _ := setup(t)
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "根")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "子")
+		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "孫")
+
+		got, err := repo.ListAncestorPageIDs(ctx, ws, grand.ID)
+		require.NoError(t, err)
+		assert.Equal(t, []string{root.ID, child.ID}, got, "根 → 親 の順（自分は含まない）")
+
+		// 根ページ・実在しない ID は空（エラーにしない）。
+		empty, err := repo.ListAncestorPageIDs(ctx, ws, root.ID)
+		require.NoError(t, err)
+		assert.Empty(t, empty)
+		none, err := repo.ListAncestorPageIDs(ctx, ws, "not-a-uuid")
+		require.NoError(t, err)
+		assert.Empty(t, none)
+	})
+
 	t.Run("作成して取得すると木の形とclosureが正しい", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		root1 := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root1")

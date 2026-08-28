@@ -31,6 +31,7 @@ type KnowledgeBasePageHandler struct {
 	archive        *usecase.ArchivePageUseCase
 	unarchive      *usecase.UnarchivePageUseCase
 	replaceBlocks  *usecase.ReplacePageBlocksUseCase
+	resolveRefs    *usecase.ResolvePageRefTitlesUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -48,6 +49,7 @@ func NewKnowledgeBasePageHandler(
 	archive *usecase.ArchivePageUseCase,
 	unarchive *usecase.UnarchivePageUseCase,
 	replaceBlocks *usecase.ReplacePageBlocksUseCase,
+	resolveRefs *usecase.ResolvePageRefTitlesUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -63,6 +65,7 @@ func NewKnowledgeBasePageHandler(
 		archive:        archive,
 		unarchive:      unarchive,
 		replaceBlocks:  replaceBlocks,
+		resolveRefs:    resolveRefs,
 	}
 }
 
@@ -478,9 +481,16 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
+	// 本文中のページ参照の題名を、読み手にとっての「いまの題名」へ差し替えて出す
+	// （題名の正本は pages.title で、本文に書かれた title は表示の写しにすぎない）。
+	doc := h.resolveRefs.Execute(c.Request.Context(), usecase.ResolvePageRefTitlesInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+		Doc:         out.Doc,
+	})
 	c.JSON(http.StatusOK, kbPageDocResponse{
 		Page: toKbPageResponse(&out.Page),
-		Doc:  json.RawMessage(out.Doc),
+		Doc:  json.RawMessage(doc),
 	})
 }
 
@@ -892,10 +902,16 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
+	// Get と同じく、本文中のページ参照の題名を読み手の可視範囲で解決して出す。
+	doc := h.resolveRefs.Execute(c.Request.Context(), usecase.ResolvePageRefTitlesInput{
+		WorkspaceID: loc.Workspace.ID,
+		UserID:      uid,
+		Doc:         out.Doc,
+	})
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug: loc.Workspace.Slug,
 		Page:          toKbPageResponse(&out.Page),
-		Doc:           json.RawMessage(out.Doc),
+		Doc:           json.RawMessage(doc),
 		CanEdit:       perm.CanEdit,
 	})
 }

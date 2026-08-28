@@ -934,6 +934,52 @@ func Test_ナレッジ基盤API_取得は本文と作成したページを返す
 	assert.Contains(t, string(doc.Doc), "本文")
 }
 
+// ページ参照（pageRef）は本文のインライン内容として往復し、読み出し時に
+// 読み手が閲覧できる参照だけ現在の題名へ差し替わる（正本は pages.title）。
+func Test_ナレッジ基盤API_本文のページ参照は読み出し時に現在の題名になる(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	refDoc := `{"type":"doc","content":[{"type":"paragraph","content":[` +
+		`{"type":"pageRef","attrs":{"pageId":"` + kbChildPageID + `","title":"無題"}}]}]}`
+	saved := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/content",
+		`{"doc":`+refDoc+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	var doc kbPageDocResponse
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &doc))
+	child := f.pages.pages[kbChildPageID]
+	assert.Contains(t, string(doc.Doc), `"title":"`+child.Title+`"`,
+		"参照の題名が保存時の「無題」ではなく現在の題名になっている")
+	assert.NotContains(t, string(doc.Doc), `"title":"無題"`)
+}
+
+func Test_ナレッジ基盤API_閲覧できない参照の題名は差し替えない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// 参照先そのものに自分への deny を張る（本文を読むページは見える）。
+	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
+	require.NotNil(t, me)
+	f.perms.restrictions[kbRestrictionKey{
+		pageID: kbChildPageID, principalID: me.ID, capability: domain.CapabilityView,
+	}] = domain.RestrictionModeDeny
+
+	refDoc := `{"type":"doc","content":[{"type":"paragraph","content":[` +
+		`{"type":"pageRef","attrs":{"pageId":"` + kbChildPageID + `","title":"無題"}}]}]}`
+	saved := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/content",
+		`{"doc":`+refDoc+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	// 保存されていた文字（著者が書けた情報）のまま。現在の題名は漏れない。
+	child := f.pages.pages[kbChildPageID]
+	assert.Contains(t, got.Body.String(), `"title":"無題"`)
+	assert.NotContains(t, got.Body.String(), `"title":"`+child.Title+`"`)
+}
+
 func Test_ナレッジ基盤API_所属判定が失敗したら500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.membersErr = errors.New("db down")
@@ -1020,6 +1066,7 @@ func Test_ナレッジ基盤API_middlewareを通らないルートは成功し�
 		usecase.NewArchivePageUseCase(pages),
 		usecase.NewUnarchivePageUseCase(pages),
 		usecase.NewReplacePageBlocksUseCase(pages),
+		usecase.NewResolvePageRefTitlesUseCase(perms),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

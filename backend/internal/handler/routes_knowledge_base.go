@@ -23,6 +23,10 @@ const (
 	kbShareLinkVerifyBurst     = 5
 	kbAddMemberPerMinute       = 30
 	kbAddMemberBurst           = 10
+	// スペース作成はプライベートの導入でメンバー全員に開いた書き込みの口。
+	// 人が手で作る回数としては十分に余裕があり、連打での作り散らかしだけを抑える。
+	kbCreateSpacePerMinute = 20
+	kbCreateSpaceBurst     = 10
 )
 
 // registerKnowledgeBaseRoutes はノートのページ操作と権限操作のエンドポイントを登録する。
@@ -167,7 +171,8 @@ func registerKnowledgeBaseRoutesWith(
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
 	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
-	kb.POST("/kb/workspaces/:workspaceSlug/spaces", wh.CreateSpace)
+	kb.POST("/kb/workspaces/:workspaceSlug/spaces",
+		middleware.RateLimitPerMinutePerUser(kbCreateSpacePerMinute, kbCreateSpaceBurst), wh.CreateSpace)
 	kb.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)
 	// 検索は /pages/:pageId と衝突しないよう /search を独立させる。
 	kb.GET("/kb/workspaces/:workspaceSlug/search", wh.SearchPages)

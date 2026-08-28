@@ -1721,6 +1721,34 @@ describe('プライベートとチームの節分け', () => {
     await screen.findByText('自分の下書き');
   });
 
+  it('頼んだ見え方と違うスペースが返ったら失敗として知らせる', async () => {
+    // 列が届く前のサーバーが相手だと visibility を持たない応答が返る。そのまま
+    // 受け入れると、プライベートのつもりが全員に見えるスペースとして作られたまま
+    // 「成功」に見えてしまう。
+    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
+      target: { value: '自分の下書き' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'スペースを作成できませんでした'),
+    );
+  });
+
+  it('読み込み中はプライベート節の「まだ無い」案内を出さない', async () => {
+    // 応答を待たせる。あるものを無いと断言しないこと。
+    hoisted.fetchSpaces.mockReturnValue(new Promise(() => {}));
+    renderSidebar();
+
+    await screen.findByRole('heading', { name: 'プライベート' });
+    expect(screen.queryByText('自分だけに見える区画。＋で作れます。')).not.toBeInTheDocument();
+  });
+
   it('アーカイブ一覧では節を分けない（見出しを出さない）', async () => {
     hoisted.fetchSpaces.mockResolvedValue([
       space('space-1', '開発部'),

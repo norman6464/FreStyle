@@ -347,6 +347,27 @@ func Test_ノートAPI_プライベートスペースはメンバーなら作れ
 		assert.True(t, found, "作った本人の一覧に出る")
 	})
 
+	t.Run("private では key を指定できない（409 から他人のスペースの実在を読ませない）", func(t *testing.T) {
+		// key はチームとプライベートで同じ名前空間。明示指定を許すと「409 が返るか」で
+		// 一覧にも出ないはずの他人のプライベートスペースの実在を言い当てられる。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleEditor)
+
+		w := f.do(t, http.MethodPost, spacesPath, `{"key":"eng","name":"探り","visibility":"private"}`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.JSONEq(t, `{"error":"invalid_request"}`, w.Body.String())
+	})
+
+	t.Run("チームスペースでは今までどおり key を指定できる（admin だけが到達する）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+
+		w := f.do(t, http.MethodPost, spacesPath, `{"key":"eng","name":"開発部"}`)
+
+		require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	})
+
 	t.Run("visibility が未知の値なら 400", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
 		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)

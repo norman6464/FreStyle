@@ -250,7 +250,7 @@ type kbCreateSpaceRequest struct {
 // CreateSpace はワークスペース配下にスペースを作る（ワークスペースの admin が要る）。
 //
 //	@Summary      ノート の スペース 作成
-//	@Description  ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
+//	@Description  ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 プライベート で は key を 指定 でき ない (必ず 自動 採番。 key の 衝突 応答 から 他人 の プライベート スペース の 実在 が 読め ない よう に する ため)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -273,6 +273,17 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 	limitKnowledgeBaseBody(c)
 	var req kbCreateSpaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	// **プライベートでは key を人に決めさせない（必ず自動採番）。**
+	// key はワークスペース内で一意で、チームとプライベートで同じ名前空間を共有する。
+	// 明示指定を許すと、メンバーが任意の key で作成を試して「409 が返るか」だけで
+	// 一覧にも木にも出ないはずの他人のプライベートスペースの実在を言い当てられる
+	// （作成という書き込みの口が、伏せた実在を読む口になる）。あわせて、意味のある
+	// key（"eng" など）を先に取られて admin がチームスペースを作れなくなる占有も防ぐ。
+	// 自動採番の key は衝突しても usecase が引き直すので、409 自体が表に出ない。
+	if req.Visibility == string(domain.SpaceVisibilityPrivate) && req.Key != "" {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}

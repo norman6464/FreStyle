@@ -192,8 +192,13 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, errorResponse{Error: "slug_taken"})
 	case errors.Is(err, repository.ErrSpaceKeyTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "space_key_taken"})
+	case errors.Is(err, repository.ErrPrincipalNotFound):
+		// 所属が確かめられた後に外された場合にここへ来る。権限の拒否なので、
+		// ほかの拒否と同じ 404 に畳む（500 にすると再試行してよいと誤解される）。
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 	case errors.Is(err, usecase.ErrInvalidWorkspaceSlug),
 		errors.Is(err, usecase.ErrInvalidSpaceKey),
+		errors.Is(err, usecase.ErrInvalidSpaceVisibility),
 		errors.Is(err, usecase.ErrInvalidName):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, usecase.ErrPageParentSpaceMismatch):

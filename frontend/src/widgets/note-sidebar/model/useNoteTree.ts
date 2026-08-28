@@ -279,6 +279,12 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     async (input: { name: string; visibility?: 'workspace' | 'private' }): Promise<NoteSpace> => {
       if (!activeSlug) throw new Error('workspace is not selected');
       const space = await NoteRepository.createSpace(activeSlug, input);
+      // 頼んだ見え方で作られたかを確かめる。応答が visibility を持たない（列が届く前の
+      // サーバー）と、プライベートのつもりが**全員に見えるスペース**として作られたまま
+      // 「成功」に見えてしまう。取り違えたら投げて、呼び出し側に知らせを出させる。
+      if (input.visibility && space.visibility !== input.visibility) {
+        throw new Error('space visibility mismatch');
+      }
       setSpaces((prev) => [...prev, space]);
       setSpaceStates((prev) => ({ ...prev, [space.id]: emptySpaceState(true) }));
       return space;

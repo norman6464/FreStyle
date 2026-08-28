@@ -275,11 +275,16 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
                 </button>
               </div>
             )}
-            {!addingPrivateSpace && spaces.every((s) => s.visibility !== 'private') && (
-              <p className="px-2 pb-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                自分だけに見える区画。＋で作れます。
-              </p>
-            )}
+            {/* 「まだ無い」と言い切るのは、読み込みが終わって成功したときだけ。
+                読み込み中や失敗のときに出すと、あるものを無いと断言することになる。 */}
+            {!addingPrivateSpace &&
+              !spacesLoading &&
+              !spacesError &&
+              spaces.every((s) => s.visibility !== 'private') && (
+                <p className="px-2 pb-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  自分だけに見える区画。＋で作れます。
+                </p>
+              )}
             {spaces
               .filter((s) => s.visibility === 'private')
               .map((space) => (

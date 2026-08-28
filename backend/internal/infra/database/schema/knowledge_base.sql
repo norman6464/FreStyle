@@ -75,15 +75,25 @@ CREATE TABLE IF NOT EXISTS spaces (
     CONSTRAINT ck_spaces_visibility CHECK (visibility IN ('workspace', 'private'))
 );
 
--- 既存 DB への visibility 列の追加（新規 DB には上の CREATE TABLE が効く。
--- ADD COLUMN IF NOT EXISTS は在れば何もしないので冪等）。既定 'workspace' で埋まるため、
--- 追加時点の既存スペースの見え方は変わらない。
-ALTER TABLE spaces ADD COLUMN IF NOT EXISTS visibility varchar(16) NOT NULL DEFAULT 'workspace';
-
--- 既存 DB への CHECK 制約の追加。ADD CONSTRAINT に IF NOT EXISTS が無いので
--- カタログを見て在るときは何もしない（このファイルで唯一の DO ブロック）。
+-- 既存 DB への visibility 列と CHECK の追加（新規 DB には上の CREATE TABLE が効く）。
+--
+-- **カタログを見て、足りないときだけ ALTER を出す。** ALTER TABLE は
+-- ADD COLUMN IF NOT EXISTS で「列が既に在るから何もしない」場合でも、判定より先に
+-- ACCESS EXCLUSIVE ロックを取り、トランザクションが終わるまで手放さない。この DDL は
+-- 起動時マイグレーションの 1 トランザクションで流れるので、素で書くと**毎回の起動
+-- （毎デプロイ）で spaces への読み書きが後続の DDL が終わるまで止まる**。
+-- 同じファイルの CREATE INDEX を「既にある索引は発行しない」形にしているのと同じ理由で、
+-- 列が出揃った通常の起動ではロックを 1 つも取らずに通り抜けさせる。
 DO $mig$
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'spaces' AND column_name = 'visibility'
+    ) THEN
+        -- 既定 'workspace' で埋まるので、追加時点の既存スペースの見え方は変わらない。
+        ALTER TABLE spaces ADD COLUMN visibility varchar(16) NOT NULL DEFAULT 'workspace';
+    END IF;
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'ck_spaces_visibility' AND conrelid = 'spaces'::regclass

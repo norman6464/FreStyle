@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import NoteSidebar from '../NoteSidebar';
@@ -1053,47 +1053,124 @@ describe('見た目の印（葉の点と開いたフォルダ）', () => {
   });
 });
 
-describe('題名で検索（サーバー検索）', () => {
+describe('題名で検索（モーダル）', () => {
+  let currentPath = '';
+  function PathProbe() {
+    currentPath = useLocation().pathname;
+    return null;
+  }
+
+  /** openSearch は木の描画を待ってから検索モーダルを開き、入力欄を返す。 */
+  async function openSearch() {
+    currentPath = '';
+    render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <PathProbe />
+        <NoteSidebar />
+      </MemoryRouter>,
+    );
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: '検索' }));
+    return screen.getByRole('combobox', { name: 'ページを題名で検索' });
+  }
+
+  it('入口を押すとモーダルが開き、入力にフォーカスが移る', async () => {
+    const input = await openSearch();
+
+    expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    // サイドバーの木はそのまま（検索が場所の面を奪わない）。
+    expect(screen.getByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
+  });
+
   it('入力すると少し待ってからサーバーに問い合わせ、結果がスペースの見出し付きで出る', async () => {
     hoisted.searchPages.mockResolvedValue([
       { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
     ]);
-    renderSidebar();
-    await screen.findByText('設計メモ');
+    const input = await openSearch();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で検索' }), {
-      target: { value: 'docker' },
-    });
+    fireEvent.change(input, { target: { value: 'docker' } });
 
     await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledWith('acme', 'docker'));
-    expect(await screen.findByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
-    // 木は検索結果に置き換わる。
-    expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: '開発部' })).toBeInTheDocument();
+  });
+
+  it('結果を押すとそのページへ移り、モーダルが閉じる', async () => {
+    hoisted.searchPages.mockResolvedValue([
+      { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
+    ]);
+    const input = await openSearch();
+    fireEvent.change(input, { target: { value: 'docker' } });
+    const option = await screen.findByRole('option', { name: /Docker 手順/ });
+
+    fireEvent.click(within(option).getByRole('button'));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
+    );
+    // 閉じるだけでなく、選んだページへ実際に移っている。
+    expect(currentPath).toBe('/p/hit-1');
+  });
+
+  it('↑↓ で選び Enter で開ける（キーボードだけで完結する）', async () => {
+    hoisted.searchPages.mockResolvedValue([
+      { ...page('hit-1', '一番目'), spaceId: 'space-1' },
+      { ...page('hit-2', '二番目'), spaceId: 'space-1' },
+    ]);
+    const input = await openSearch();
+    fireEvent.change(input, { target: { value: '番目' } });
+    await screen.findByRole('option', { name: /一番目/ });
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(screen.getByRole('option', { name: /二番目/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
+    );
+    expect(currentPath).toBe('/p/hit-2');
+  });
+
+  it('Escape と外側クリックで閉じる', async () => {
+    const input = await openSearch();
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '検索' }));
+    fireEvent.click(screen.getByTestId('note-search-overlay'));
+    expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument();
+  });
+
+  it('入力を消した後に届いた古い応答は表示しない（空の入力に結果が湧かない）', async () => {
+    let resolveSlow: (pages: NotePage[]) => void = () => {};
+    hoisted.searchPages.mockImplementationOnce(
+      () => new Promise<NotePage[]>((resolve) => { resolveSlow = resolve; }),
+    );
+    const input = await openSearch();
+
+    fireEvent.change(input, { target: { value: 'docker' } });
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
+    // 応答が返る前に入力を消す。
+    fireEvent.change(input, { target: { value: '' } });
+
+    await act(async () => {
+      resolveSlow([{ ...page('late-hit', '遅れて届いた結果'), spaceId: 'space-1' }]);
+    });
+    expect(screen.queryByRole('option', { name: /遅れて届いた結果/ })).not.toBeInTheDocument();
   });
 
   it('0 件なら「一致するページがありません」と伝える', async () => {
     hoisted.searchPages.mockResolvedValue([]);
-    renderSidebar();
-    await screen.findByText('設計メモ');
+    const input = await openSearch();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で検索' }), {
-      target: { value: '存在しない題名' },
-    });
+    fireEvent.change(input, { target: { value: '存在しない題名' } });
 
     expect(await screen.findByText('一致するページがありません')).toBeInTheDocument();
-  });
-
-  it('消すと木に戻る', async () => {
-    hoisted.searchPages.mockResolvedValue([]);
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    const input = screen.getByRole('searchbox', { name: 'ページを題名で検索' });
-    fireEvent.change(input, { target: { value: '何か' } });
-    await screen.findByText('一致するページがありません');
-
-    fireEvent.change(input, { target: { value: '' } });
-    expect(await screen.findByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
   });
 
   it('古い検索の応答が、後から届いても新しい結果を上書きしない', async () => {
@@ -1105,21 +1182,19 @@ describe('題名で検索（サーバー検索）', () => {
     hoisted.searchPages.mockResolvedValueOnce([
       { ...page('new-hit', '新しい結果'), spaceId: 'space-1' },
     ]);
-    renderSidebar();
-    await screen.findByText('設計メモ');
+    const input = await openSearch();
 
-    const input = screen.getByRole('searchbox', { name: 'ページを題名で検索' });
     fireEvent.change(input, { target: { value: 'ふるい' } });
     await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
     fireEvent.change(input, { target: { value: '新しい' } });
-    expect(await screen.findByRole('link', { name: /新しい結果/ })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: /新しい結果/ })).toBeInTheDocument();
 
     // ここで 1 回目（古い方）が届く。世代番号で捨てられ、画面は新しい結果のまま。
     await act(async () => {
       resolveOld([{ ...page('old-hit', '古い結果'), spaceId: 'space-1' }]);
     });
-    expect(screen.queryByRole('link', { name: /古い結果/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /新しい結果/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /古い結果/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /新しい結果/ })).toBeInTheDocument();
   });
 
   it('検索に失敗したら再試行の導線を出し、押すともう一度問い合わせる', async () => {
@@ -1127,15 +1202,12 @@ describe('題名で検索（サーバー検索）', () => {
     hoisted.searchPages.mockResolvedValueOnce([
       { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
     ]);
-    renderSidebar();
-    await screen.findByText('設計メモ');
+    const input = await openSearch();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で検索' }), {
-      target: { value: 'docker' },
-    });
+    fireEvent.change(input, { target: { value: 'docker' } });
     fireEvent.click(await screen.findByRole('button', { name: '再試行' }));
 
-    expect(await screen.findByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: /Docker 手順/ })).toBeInTheDocument();
     expect(hoisted.searchPages).toHaveBeenCalledTimes(2);
   });
 });

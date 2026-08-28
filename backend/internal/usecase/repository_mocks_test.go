@@ -629,6 +629,12 @@ func (m *mockKBPermissionRepo) SearchWorkspacePageViewFacts(ctx context.Context,
 	return rows, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListWorkspacePageViewFactsByIDs(ctx context.Context, workspaceID string, userID uint64, pageIDs []string) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, userID, pageIDs)
+	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
+	return rows, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error {
 	return m.Called(ctx, workspaceID, principalID, role).Error(0)
 }

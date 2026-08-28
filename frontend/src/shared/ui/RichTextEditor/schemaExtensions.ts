@@ -1,3 +1,4 @@
+import { Node } from '@tiptap/core';
 import type { Extensions } from '@tiptap/core';
 import Code from '@tiptap/extension-code';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
@@ -115,6 +116,78 @@ const SafeLink = Link.configure({
   },
 });
 
+/**
+ * PageRef は「ページ参照」— ノートのページを指すインラインの 1 要素（atom）。
+ *
+ * 文字を持たず、表示は attrs.title（**表示のための写し**）。題名の正本はページ側にあり、
+ * サーバーが読み出しのたびに「読み手が閲覧できる参照だけ」現在の題名へ差し替える。
+ * atom なので文字は編集できない（編集できると「題名に追従する」約束が壊れる）し、
+ * Backspace で 1 要素として消える。
+ *
+ * href は pageId から組み立てる。pageId は貼り付けや API 由来の doc からも入るので、
+ * UUID の字面（INTERNAL_PAGE_LINK_PATTERN と同じ形）を検証し、通らなければ
+ * リンクにしない（押せるのにどこへも行かない要素を作らないため span で出す）。
+ */
+const PAGE_REF_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export const PageRef = Node.create({
+  name: 'pageRef',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      pageId: { default: null },
+      title: { default: null },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'a[data-page-ref]',
+        // SafeLink の a[href] 規則より先に効かせる（同じ <a> に両方が一致し、
+        // 既定の優先度だとリンクマークが勝って、コピー＆ペーストで参照が
+        // ただのリンクに劣化する）。
+        priority: 100,
+        getAttrs: (element) => {
+          const pageId = element.getAttribute('data-page-id');
+          // ID の形をここでも検証する。貼り付けは外部の HTML からも来るので、
+          // 通らないものは参照として取り込まない（この規則ごと不一致にし、
+          // 後続の規則＝リンクや素の文字に落とす）。
+          if (pageId === null || !PAGE_REF_UUID_PATTERN.test(pageId)) return false;
+          return { pageId, title: element.textContent || null };
+        },
+      },
+    ];
+  },
+
+  renderHTML({ node }) {
+    const pageId = typeof node.attrs.pageId === 'string' ? node.attrs.pageId : '';
+    const title = typeof node.attrs.title === 'string' && node.attrs.title !== ''
+      ? node.attrs.title
+      : 'ページ';
+    if (!PAGE_REF_UUID_PATTERN.test(pageId)) {
+      return ['span', { 'data-page-ref': 'true' }, title];
+    }
+    // 同一アプリ内の遷移なので _blank や rel の束は付けない（SafeLink の内部リンクと同じ扱い）。
+    return [
+      'a',
+      { 'data-page-ref': 'true', 'data-page-id': pageId, href: `/p/${pageId}`, class: 'rte-page-ref' },
+      title,
+    ];
+  },
+
+  // editor.getText() やプレーンテキスト化で参照が消えないよう、題名を文字として出す。
+  renderText({ node }) {
+    return typeof node.attrs.title === 'string' && node.attrs.title !== ''
+      ? node.attrs.title
+      : 'ページ';
+  },
+});
+
 /** createSchemaExtensions の組み立てオプション。 */
 export interface CreateSchemaExtensionsOptions {
   /** 画像ノードをスキーマに含めるか（既定 true）。 */
@@ -157,6 +230,8 @@ export function createSchemaExtensions(
     // タスクリスト（チェックボックス）。教材のチェックリスト章とノートの TODO で使う。
     TaskList,
     TaskItem.configure({ nested: true }),
+    // ページ参照（インラインの atom）。題名はサーバーが読み出し時に解決する。
+    PageRef,
   ];
 
   if (image) {

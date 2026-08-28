@@ -6,7 +6,7 @@ import NoteCreateForm from './NoteCreateForm';
 import { useNoteTree } from '../model/useNoteTree';
 import NoteWorkspaceSwitcher from './NoteWorkspaceSwitcher';
 import NoteSpaceSection from './NoteSpaceSection';
-import NoteSearchResults from './NoteSearchResults';
+import NoteSearchDialog from './NoteSearchDialog';
 import { NoteRepository, type NotePage } from '@/entities/note';
 
 export interface NoteSidebarProps {
@@ -57,45 +57,12 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
   } = useNoteTree({ workspaceSlug, activePageId });
 
   // 題名の検索。実体はサーバー（ツリーと同じ規則で、閲覧できるページだけが返る）。
-  // フロントで読み込み済みの木を絞る方式は捨てた — 閉じているスペースや未読の枝が
-  // 探せず、「検索したのに見つからない」が起きるため。
-  const [searchQuery, setSearchQuery] = useState('');
+  // 検索モーダルの開閉。検索そのもの（デバウンス・世代番号・再試行）はモーダルが持つ。
+  // サイドバー本体は場所（木）を示すことに徹する — 常設の入力欄が場所の面を圧迫し、
+  // 木と結果が同じ狭い面で入れ替わる形は見本合わせでやめた（設計 artifact 参照）。
+  const [searchOpen, setSearchOpen] = useState(false);
   // スペース追加フォームの開閉。既にスペースがあるときの追加入口（0 件のときは常設フォーム）。
   const [addingSpace, setAddingSpace] = useState(false);
-  const [searchStatus, setSearchStatus] = useState<'loading' | 'done' | 'error'>('done');
-  const [searchPages, setSearchPages] = useState<NotePage[]>([]);
-  // 速く打ったときに、古い応答が新しい結果を上書きしないための世代番号。
-  const searchGeneration = useRef(0);
-  const searching = searchQuery.trim() !== '';
-  // 再試行の引き金（値そのものに意味は無い。増えたら同じ問い合わせをもう一度投げる）。
-  const [searchAttempt, setSearchAttempt] = useState(0);
-
-  // ワークスペースを移ったら消す。前の場所の検索が残ると、新しい場所が「一致なし」に見える。
-  useEffect(() => {
-    setSearchQuery('');
-  }, [activeSlug]);
-
-  // 入力から 250ms 待って検索する。1 打鍵ごとに投げると、応答の順序が入れ替わって
-  // 前の結果が後から届く（世代番号はその保険で、debounce は無駄打ちを減らす方）。
-  useEffect(() => {
-    const query = searchQuery.trim();
-    if (!activeSlug || query === '') return undefined;
-    const generation = ++searchGeneration.current;
-    setSearchStatus('loading');
-    const timer = setTimeout(() => {
-      NoteRepository.searchPages(activeSlug, query)
-        .then((pages) => {
-          if (generation !== searchGeneration.current) return;
-          setSearchPages(pages);
-          setSearchStatus('done');
-        })
-        .catch(() => {
-          if (generation !== searchGeneration.current) return;
-          setSearchStatus('error');
-        });
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [activeSlug, searchQuery, searchAttempt]);
 
   return (
     <nav aria-label="ナレッジ基盤" className="flex h-full flex-col overflow-y-auto p-2">
@@ -145,21 +112,17 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
         </div>
       )}
 
-      {activeSlug && spaces.length > 0 && !archivedMode && (
-        <div className="relative mt-2 px-1">
-          <MagnifyingGlassIcon
-            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-muted)]"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="題名で検索"
-            aria-label="ページを題名で検索"
-            className="w-full rounded-md border border-surface-3 bg-surface-1 py-1 pl-7 pr-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-brand-400 focus:outline-none"
-          />
-        </div>
+      {/* スペースが 0 件でも出す。スペースは 1 つも見えないが、個別に許可された
+          ページだけ持つ人がいる — その人にとって検索が唯一の入口になる。 */}
+      {activeSlug && !archivedMode && (
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-surface-2"
+        >
+          <MagnifyingGlassIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>検索</span>
+        </button>
       )}
 
       <div className="mt-2 min-h-0 flex-1">
@@ -196,19 +159,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           </div>
         )}
 
-        {activeSlug && searching && (
-          <NoteSearchResults
-            status={searchStatus}
-            pages={searchPages}
-            spaces={spaces}
-            workspaceSlug={activeSlug}
-            activePageId={activePageId}
-            onRetry={() => setSearchAttempt((prev) => prev + 1)}
-          />
-        )}
-
         {activeSlug &&
-          !searching &&
           spaces.map((space) => (
             <NoteSpaceSection
               key={space.id}
@@ -235,7 +186,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           ここから増やせる（無いと 1 つ作った時点で追加の手段が UI から消える）。
           作成できるかの判定はサーバーが持つ — 押せても、権限が無ければ失敗の知らせが出る。
         */}
-        {activeSlug && !searching && !archivedMode && spaces.length > 0 && !spacesLoading && (
+        {activeSlug && !archivedMode && spaces.length > 0 && !spacesLoading && (
           addingSpace ? (
             <div className="mt-1 rounded-md border border-surface-3">
               <NoteCreateForm
@@ -276,6 +227,14 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
         切り替えはワークスペース全体で 1 つ — スペースごとに持たせると
         「いまどちらを見ているのか」が場所によって変わる。
       */}
+      {searchOpen && activeSlug && (
+        <NoteSearchDialog
+          workspaceSlug={activeSlug}
+          spaces={spaces}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
+
       {activeSlug && (
         <button
           type="button"

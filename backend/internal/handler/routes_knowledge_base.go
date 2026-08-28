@@ -85,6 +85,7 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewArchivePageUseCase(pages),
 		usecase.NewUnarchivePageUseCase(pages),
 		usecase.NewReplacePageBlocksUseCase(pages),
+		usecase.NewResolvePageRefTitlesUseCase(permissions),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(

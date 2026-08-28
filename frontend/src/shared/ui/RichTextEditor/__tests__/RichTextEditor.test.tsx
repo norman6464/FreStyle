@@ -150,3 +150,21 @@ describe('RichTextEditor', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe('doc の同一性はキー順に依らない', () => {
+  it('キー順が違うだけの value を読み込んでも onChange を発火しない（開いただけで保存させない）', async () => {
+    // サーバーはページ参照の題名解決で doc を作り直し、キーがアルファベット順で返る。
+    // 素の文字列比較だとマウント時のエコーが「変更」と誤判定され、閲覧しただけの人が
+    // 本文の全置換 PUT を発行してしまう。
+    const alphabetized = JSON.parse(
+      '{"content":[{"content":[{"text":"本文","type":"text"}],"type":"paragraph"}],"type":"doc"}',
+    );
+    const onChange = vi.fn();
+    render(<RichTextEditor value={alphabetized} onChange={onChange} />);
+
+    await waitFor(() => expect(document.querySelector('[role="textbox"]')).not.toBeNull());
+    // マウント直後のエコーを流し切っても発火しない。
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

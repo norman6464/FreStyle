@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -1010,6 +1011,66 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
 			},
 			// ParentArchived は集めない（検索は現役だけが対象）。既定の false のまま。
+		})
+	}
+	return out, nil
+}
+
+func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
+	ctx context.Context, workspaceID string, userID uint64, pageIDs []string,
+) ([]repository.PageWithViewFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	// UUID として読めない ID はここで落とす。SQL 側の ::uuid が失敗すると
+	// クエリ全体が落ち、壊れた参照 1 つでページの読み出しが死ぬため。
+	valid := make([]string, 0, len(pageIDs))
+	for _, id := range pageIDs {
+		if pid, pok := kbParseID(id); pok {
+			valid = append(valid, pid.String())
+		}
+	}
+	if len(valid) == 0 {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	encoded, err := json.Marshal(valid)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.q.ListWorkspacePageViewFactsByIDs(ctx, sqlcgen.ListWorkspacePageViewFactsByIDsParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		PageIds:     encoded,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.PageWithViewFacts, 0, len(rows))
+	for _, row := range rows {
+		page := toDomainPage(sqlcgen.Page{
+			ID:              row.ID,
+			WorkspaceID:     row.WorkspaceID,
+			SpaceID:         row.SpaceID,
+			ParentID:        row.ParentID,
+			Position:        row.Position,
+			Title:           row.Title,
+			CreatedByUserID: row.CreatedByUserID,
+			ArchivedAt:      row.ArchivedAt,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
+		})
+		out = append(out, repository.PageWithViewFacts{
+			Page: page,
+			Facts: domain.PageViewFacts{
+				Role: domain.GrantRoleByRank(int(row.GrantRank)),
+				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
+			},
+			// ParentArchived は集めない（検索と同じく現役だけが対象）。既定の false のまま。
 		})
 	}
 	return out, nil

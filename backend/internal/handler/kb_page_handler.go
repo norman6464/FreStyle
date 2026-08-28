@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -31,6 +32,7 @@ type KnowledgeBasePageHandler struct {
 	archive        *usecase.ArchivePageUseCase
 	unarchive      *usecase.UnarchivePageUseCase
 	replaceBlocks  *usecase.ReplacePageBlocksUseCase
+	resolveRefs    *usecase.ResolvePageRefTitlesUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -48,6 +50,7 @@ func NewKnowledgeBasePageHandler(
 	archive *usecase.ArchivePageUseCase,
 	unarchive *usecase.UnarchivePageUseCase,
 	replaceBlocks *usecase.ReplacePageBlocksUseCase,
+	resolveRefs *usecase.ResolvePageRefTitlesUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -63,6 +66,7 @@ func NewKnowledgeBasePageHandler(
 		archive:        archive,
 		unarchive:      unarchive,
 		replaceBlocks:  replaceBlocks,
+		resolveRefs:    resolveRefs,
 	}
 }
 
@@ -478,9 +482,20 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
+	// 本文中のページ参照の題名を、読み手にとっての「いまの題名」へ差し替えて出す
+	// （題名の正本は pages.title で、保存側は title を持たない）。解決の失敗は
+	// 本文の読み出しを止めない — 元の doc のまま返し、死んでいることだけ記録する。
+	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), usecase.ResolvePageRefTitlesInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+		Doc:         out.Doc,
+	})
+	if refErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: page ref title resolve failed", "err", refErr)
+	}
 	c.JSON(http.StatusOK, kbPageDocResponse{
 		Page: toKbPageResponse(&out.Page),
-		Doc:  json.RawMessage(out.Doc),
+		Doc:  json.RawMessage(doc),
 	})
 }
 
@@ -892,10 +907,19 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
+	// Get と同じく、本文中のページ参照の題名を読み手の可視範囲で解決して出す。
+	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), usecase.ResolvePageRefTitlesInput{
+		WorkspaceID: loc.Workspace.ID,
+		UserID:      uid,
+		Doc:         out.Doc,
+	})
+	if refErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: page ref title resolve failed", "err", refErr)
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug: loc.Workspace.Slug,
 		Page:          toKbPageResponse(&out.Page),
-		Doc:           json.RawMessage(out.Doc),
+		Doc:           json.RawMessage(doc),
 		CanEdit:       perm.CanEdit,
 	})
 }

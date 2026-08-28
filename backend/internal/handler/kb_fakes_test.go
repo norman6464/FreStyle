@@ -684,6 +684,37 @@ func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 	return out, nil
 }
 
+// ListWorkspacePageViewFactsByIDs は ID 群の可視事実。事実の作り方は検索と同一
+// （ここだけ Role しか返さないと、deny のある参照が fake でだけ解決されてしまう）。
+func (f *kbFakePerms) ListWorkspacePageViewFactsByIDs(
+	_ context.Context, workspaceID string, userID uint64, pageIDs []string,
+) ([]repository.PageWithViewFacts, error) {
+	f.countPermRead("ListWorkspacePageViewFactsByIDs")
+	out := make([]repository.PageWithViewFacts, 0)
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return out, nil
+	}
+	wanted := map[string]bool{}
+	for _, id := range pageIDs {
+		wanted[id] = true
+	}
+	for _, p := range f.pages.pages {
+		if p.WorkspaceID != workspaceID || p.ArchivedAt != nil || !wanted[p.ID] {
+			continue
+		}
+		mine := f.mine(workspaceID, p.SpaceID, userID)
+		out = append(out, repository.PageWithViewFacts{
+			Page: *p,
+			Facts: domain.PageViewFacts{
+				Role: roleFor(f.permFor(p.ID, userID)),
+				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
+			},
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Page.Title < out[j].Page.Title })
+	return out, nil
+}
+
 func (f *kbFakePerms) ListSpacePageViewFacts(
 	_ context.Context, workspaceID, spaceID string, userID uint64, archived bool,
 ) ([]repository.PageWithViewFacts, error) {

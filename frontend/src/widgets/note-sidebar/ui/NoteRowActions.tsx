@@ -9,6 +9,10 @@ export interface NoteRowActionsProps {
   /** 未指定ならメニュー自体を出さない（スペースの見出しなど、名前を変えられない行）。 */
   onRename?: () => void;
   onArchive?: () => void;
+  /** 物理削除（戻せない）。確認は呼び出し側ではなくここで取る（口を 1 つにする）。 */
+  onDelete?: () => void;
+  /** 行の右クリックからメニューを開くための合図。増えたら開く（0 は無視）。 */
+  openSignal?: number;
   /** 動かせる 4 つの向き。null の向きは項目自体を出さない（押せない項目を並べない）。 */
   moves?: NoteMoveActions;
   onMove?: (target: NoteDropTarget) => void;
@@ -26,11 +30,19 @@ export default function NoteRowActions({
   onCreateChild,
   onRename,
   onArchive,
+  onDelete,
   moves,
   onMove,
+  openSignal = 0,
 }: NoteRowActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 右クリック（コンテキストメニュー）からも同じメニューを開く。別のメニューを
+  // 作らないのは、項目と失敗の扱いを 2 つ持たないため。
+  useEffect(() => {
+    if (openSignal > 0) setMenuOpen(true);
+  }, [openSignal]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -132,6 +144,27 @@ export default function NoteRowActions({
                     className="w-full px-3 py-1.5 text-left text-sm hover:bg-surface-2"
                   >
                     アーカイブ
+                  </button>
+                </li>
+              )}
+              {onDelete && (
+                <li className="border-t border-surface-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      // 戻せない操作なので、実行の前に必ず確かめる（アーカイブとの違いを明記）。
+                      if (
+                        window.confirm(
+                          `「${label}」を中のページごと削除します。アーカイブと違い、元に戻せません。よろしいですか？`,
+                        )
+                      ) {
+                        onDelete();
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-surface-2"
+                  >
+                    削除
                   </button>
                 </li>
               )}

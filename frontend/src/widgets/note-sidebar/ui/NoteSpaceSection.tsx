@@ -23,6 +23,8 @@ export interface NoteSpaceSectionProps {
   onRenamePage: (spaceId: string, pageId: string, title: string) => Promise<NotePage>;
   /** 子孫ごとアーカイブする。**失敗は投げてくる。** */
   onArchivePage: (spaceId: string, pageId: string) => Promise<void>;
+  /** 物理削除（戻せない）。**失敗は投げてくる**。 */
+  onDeletePage: (spaceId: string, pageId: string) => Promise<void>;
   /** 現役へ戻す。**失敗は投げてくる。** */
   onUnarchivePage: (spaceId: string, pageId: string) => Promise<void>;
   /** アーカイブ済みを見ているか。 */
@@ -63,6 +65,7 @@ export default function NoteSpaceSection({
   onCreatePage,
   onRenamePage,
   onArchivePage,
+  onDeletePage,
   onUnarchivePage,
   archivedMode,
   onRenameSpace,
@@ -112,6 +115,14 @@ export default function NoteSpaceSection({
       await onArchivePage(space.id, pageId);
     } catch {
       showToast('error', 'アーカイブできませんでした');
+    }
+  };
+
+  const deletePage = async (pageId: string) => {
+    try {
+      await onDeletePage(space.id, pageId);
+    } catch {
+      showToast('error', '削除できませんでした');
     }
   };
 
@@ -279,6 +290,7 @@ export default function NoteSpaceSection({
               onCommitRename={commitRename}
               onCreateChild={(parentId) => void createPage(parentId)}
               onArchive={(pageId) => void archivePage(pageId)}
+              onDelete={(pageId) => void deletePage(pageId)}
               onUnarchive={(pageId) => void unarchivePage(pageId)}
               onMove={(pageId, target) => void movePage(pageId, target)}
               onDragStart={setDraggingPageId}

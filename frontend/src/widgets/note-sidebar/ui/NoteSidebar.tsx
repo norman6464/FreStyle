@@ -7,7 +7,7 @@ import { useNoteTree } from '../model/useNoteTree';
 import NoteWorkspaceSwitcher from './NoteWorkspaceSwitcher';
 import NoteSpaceSection from './NoteSpaceSection';
 import NoteSearchDialog from './NoteSearchDialog';
-import { NoteRepository, type NotePage } from '@/entities/note';
+import { collectNoteAncestorIds, NoteRepository, type NotePage } from '@/entities/note';
 
 export interface NoteSidebarProps {
   /** URL が指しているワークスペース。未指定なら所属の先頭を開く。 */
@@ -49,6 +49,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
     selectWorkspace,
     createPage,
     renamePage,
+    deletePage,
     archivePage,
     unarchivePage,
     movePage,
@@ -134,10 +135,46 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
         {/* 節の見出し（見本合わせ）。スペースは共有の木で、個人の領域（プライベート）は
             権限モデルの設計とセットで別の段。 */}
         {activeSlug && !archivedMode && spaces.length > 0 && (
-          // 見出しとして名乗る（p だと見出し一覧からこの節へ飛べない）。
-          <h2 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-            チームスペース
-          </h2>
+          <div className="flex items-center justify-between px-2 pb-1">
+            {/* 見出しとして名乗る（p だと見出し一覧からこの節へ飛べない）。 */}
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              チームスペース
+            </h2>
+            {/* 作る入口は節の見出しに置く（見本合わせ — 一覧の下だと、増えるほど遠くなる）。
+                作成可否の判定はサーバーが持つ。 */}
+            <button
+              type="button"
+              onClick={() => setAddingSpace((prev) => !prev)}
+              aria-label="スペースを追加"
+              title="スペースを追加"
+              className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-surface-2"
+            >
+              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+        {activeSlug && !archivedMode && spaces.length > 0 && addingSpace && (
+          <div className="mb-1 rounded-md border border-surface-3">
+            <NoteCreateForm
+              what="スペース"
+              onCreate={async (input) => {
+                try {
+                  await createSpace(input);
+                } catch {
+                  showToast('error', 'スペースを作成できませんでした');
+                  throw new Error('create space failed');
+                }
+                setAddingSpace(false);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setAddingSpace(false)}
+              className="w-full px-2 pb-2 text-left text-xs text-[var(--color-text-muted)] hover:underline"
+            >
+              やめる
+            </button>
+          </div>
         )}
         {spacesLoading && (
           <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
@@ -187,6 +224,18 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
               onCreatePage={createPage}
               onRenamePage={renamePage}
               onArchivePage={archivePage}
+              onDeletePage={async (spaceId, pageId) => {
+                // 開いているページ自身か、その祖先を消すなら、消えた場所に立ち続けない。
+                const state = spaceStates[spaceId];
+                const gone =
+                  activePageId !== undefined &&
+                  (pageId === activePageId ||
+                    (state?.tree
+                      ? collectNoteAncestorIds(state.tree.pages, activePageId).includes(pageId)
+                      : false));
+                await deletePage(spaceId, pageId);
+                if (gone) navigate('/notes');
+              }}
               onUnarchivePage={unarchivePage}
               archivedMode={archivedMode}
               onRenameSpace={renameSpace}
@@ -194,45 +243,6 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
             />
           ))}
 
-        {/*
-          スペースの追加入口。0 件のときの常設フォームとは別に、既にあるときも
-          ここから増やせる（無いと 1 つ作った時点で追加の手段が UI から消える）。
-          作成できるかの判定はサーバーが持つ — 押せても、権限が無ければ失敗の知らせが出る。
-        */}
-        {activeSlug && !archivedMode && spaces.length > 0 && !spacesLoading && (
-          addingSpace ? (
-            <div className="mt-1 rounded-md border border-surface-3">
-              <NoteCreateForm
-                what="スペース"
-                onCreate={async (input) => {
-                  try {
-                    await createSpace(input);
-                  } catch {
-                    showToast('error', 'スペースを作成できませんでした');
-                    throw new Error('create space failed');
-                  }
-                  setAddingSpace(false);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setAddingSpace(false)}
-                className="w-full px-2 pb-2 text-left text-xs text-[var(--color-text-muted)] hover:underline"
-              >
-                やめる
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setAddingSpace(true)}
-              className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-surface-2"
-            >
-              <PlusIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>スペースを追加</span>
-            </button>
-          )
-        )}
       </div>
 
       {/*

@@ -488,6 +488,19 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     [activeSlug, setSpaceStates],
   );
 
+  /**
+   * ページを子孫ごと物理削除する。**失敗は握り潰さず投げる。**
+   * 成功したらその段の木を取り直す（部分木がまとめて消えるので 1 枚差し替えでは表せない）。
+   */
+  const deletePage = useCallback(
+    async (spaceId: string, pageId: string): Promise<void> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      await NoteRepository.deletePage(activeSlug, pageId);
+      loadSpaceTree(spaceId);
+    },
+    [activeSlug, loadSpaceTree],
+  );
+
   const retrySpace = useCallback(
     (spaceId: string) => {
       loadSpaceTree(spaceId);
@@ -512,6 +525,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     togglePage,
     createPage,
     renamePage,
+    deletePage,
     archivePage,
     unarchivePage,
     movePage,

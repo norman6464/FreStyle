@@ -137,6 +137,8 @@ export default function NotePage() {
                 saveStatus={data.canEdit ? saveStatus : 'idle'}
                 ariaLabel={`${data.page.title} の本文`}
                 extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
+                toolbar
+
               />
             </article>
           )}

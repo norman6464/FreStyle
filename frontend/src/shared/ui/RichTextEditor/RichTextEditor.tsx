@@ -7,6 +7,7 @@ import { buildSlashItems } from './slashItems';
 import { acceptedImageFiles, insertUploadedImages } from './imageInsertion';
 import { sanitizeDocLinks } from './linkSafety';
 import BubbleFormatMenu from './BubbleFormatMenu';
+import FormatMenuBar from './FormatMenuBar';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
 import type { RichDocContent } from './emptyRichDoc';
 import './richTextEditor.css';
@@ -43,6 +44,11 @@ export interface RichTextEditorProps {
    * 呼び出し側で ref 越しに最新を参照させること（この配列自体を差し替えても反映されない）。
    */
   extraSlashCommands?: EditorCommand[];
+  /**
+   * 書式ボタン列を上部に常設する（編集できるときだけ）。バブルメニュー（選択時に
+   * 浮かぶ方）はそのまま併存する — どちらも同じコマンドレジストリを叩くので二重実装にはならない。
+   */
+  toolbar?: boolean;
   /** 外枠に付与する追加クラス。 */
   className?: string;
 }
@@ -90,6 +96,7 @@ export default function RichTextEditor({
   onImageUpload,
   onCreate,
   extraSlashCommands,
+  toolbar = false,
   className = '',
 }: RichTextEditorProps) {
   // onChange は props で差し替わり得るので ref 越しに最新を呼ぶ（onUpdate クロージャの陳腐化を防ぐ）。
@@ -221,6 +228,11 @@ export default function RichTextEditor({
   return (
     <div className={`rte-root ${className}`}>
       <div className="rte-content prose max-w-none">
+        {toolbar && editable && editor && (
+          <div className="mb-2 border-b border-surface-3 pb-2">
+            <FormatMenuBar editor={editor} />
+          </div>
+        )}
         <EditorContent editor={editor} />
       </div>
       {editable && editor && <BubbleFormatMenu editor={editor} />}

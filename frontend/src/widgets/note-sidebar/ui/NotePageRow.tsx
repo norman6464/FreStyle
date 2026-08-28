@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { NotePageGroupIcon, NotePageGroupOpenIcon, NotePageIcon } from '@/shared/ui/icons/note';
@@ -22,6 +23,8 @@ export interface NoteRowCallbacks {
   onCreateChild: (parentId: string) => void;
   onArchive: (pageId: string) => void;
   onUnarchive: (pageId: string) => void;
+  /** 物理削除（戻せない）。確認は行の操作メニューが取る。 */
+  onDelete: (pageId: string) => void;
   /** メニューやドラッグから動かす。 */
   onMove: (pageId: string, target: NoteDropTarget) => void;
   onDragStart: (pageId: string) => void;
@@ -80,12 +83,15 @@ export default function NotePageRow({
   onCreateChild,
   onArchive,
   onUnarchive,
+  onDelete,
   onMove,
   onDragStart,
   onDragEnd,
   onDragOverRow,
   onDropOnRow,
 }: NotePageRowProps) {
+  // 右クリックでメニューを開く合図（増えるたびに NoteRowActions が開く）。
+  const [contextOpenSignal, setContextOpenSignal] = useState(0);
   const { page } = node;
   const hasChildren = node.children.length > 0;
 
@@ -137,6 +143,13 @@ export default function NotePageRow({
           page.id,
           dropZoneFromEvent(event.currentTarget.getBoundingClientRect(), event.clientY),
         );
+      }}
+      onContextMenu={(event) => {
+        // 右クリックでも同じ操作メニューを開く（ブラウザのメニューは行の操作に置き換える）。
+        // アーカイブ表示の行はメニュー自体を持たないので、既定のまま。
+        if (archivedMode) return;
+        event.preventDefault();
+        setContextOpenSignal((prev) => prev + 1);
       }}
       className={`group flex items-center gap-1 rounded-md pr-1 transition-colors ${
         active ? 'bg-brand-500/10 text-brand-600' : 'hover:bg-surface-2'
@@ -210,6 +223,8 @@ export default function NotePageRow({
               onCreateChild={() => onCreateChild(page.id)}
               onRename={() => onStartRename(page.id)}
               onArchive={() => onArchive(page.id)}
+              onDelete={() => onDelete(page.id)}
+              openSignal={contextOpenSignal}
               // ドラッグと同じ行き先を、同じ経路で送る。キーボードのためだけに
               // 別の口を作らない（作ると失敗の扱いも二重になる）。
               moves={noteMoveActions(siblings, index, parentId)}

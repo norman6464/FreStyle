@@ -23,11 +23,12 @@ const kbPageRefMaxResolve = 100
 // 読み手にとっての「いまの題名」へ差し替える。
 //
 // 差し替えるのは**読み手が閲覧できる現役ページ**の参照だけ。閲覧できない・存在しない・
-// アーカイブ済み・他ワークスペースの参照は保存されている文字のまま — 著者が書けた
-// 情報以上を読み手へ渡さない（可視判定は木・検索と同じ事実 + domain.ResolvePageView）。
+// アーカイブ済み・他ワークスペースの参照には題名を入れない（保存側が題名を持たない —
+// stripPageRefTitles を参照 — ので、表示は「ページ」の代替文字に落ちる）。
 //
-// 解決はいかなる失敗でも本文を壊さない（読めない doc・事実の取得失敗は元の doc を
-// そのまま返す）。題名は表示の飾りで、本文が開けることの方が重い。
+// 解決は本文を壊さない: 読めない doc は元のまま返す（題名は表示の飾りで、本文が
+// 開けることの方が重い）。事実の取得失敗も元の doc を返すが、error は呼び出し側へ
+// 返す — 解決が恒常的に死んでいることに気づけるよう、握り潰す判断は handler が行う。
 type ResolvePageRefTitlesUseCase struct {
 	perms repository.KnowledgeBasePermissionRepository
 }
@@ -43,21 +44,21 @@ type ResolvePageRefTitlesInput struct {
 	Doc string
 }
 
-func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePageRefTitlesInput) string {
+func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePageRefTitlesInput) (string, error) {
 	var root any
 	if err := json.Unmarshal([]byte(in.Doc), &root); err != nil {
-		return in.Doc
+		// 読めない doc は「解決できない」ではなく「解決の対象が無い」。エラーにしない
+		// （保存経路が別途 400 で弾いており、ここで返しても呼び出し側にできることが無い）。
+		return in.Doc, nil
 	}
-	ids := collectPageRefIDs(root, nil)
-	if len(ids) == 0 {
-		return in.Doc
+	collector := newPageRefCollector()
+	collector.collect(root)
+	if len(collector.ids) == 0 {
+		return in.Doc, nil
 	}
-	if len(ids) > kbPageRefMaxResolve {
-		ids = ids[:kbPageRefMaxResolve]
-	}
-	rows, err := u.perms.ListWorkspacePageViewFactsByIDs(ctx, in.WorkspaceID, in.UserID, ids)
+	rows, err := u.perms.ListWorkspacePageViewFactsByIDs(ctx, in.WorkspaceID, in.UserID, collector.ids)
 	if err != nil {
-		return in.Doc
+		return in.Doc, err
 	}
 	titles := make(map[string]string, len(rows))
 	for _, row := range rows {
@@ -66,39 +67,104 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 		}
 	}
 	if len(titles) == 0 {
-		return in.Doc
+		return in.Doc, nil
 	}
 	if !rewritePageRefTitles(root, titles) {
-		return in.Doc
+		return in.Doc, nil
 	}
 	out, err := json.Marshal(root)
 	if err != nil {
-		return in.Doc
+		return in.Doc, nil
+	}
+	return string(out), nil
+}
+
+// StripPageRefTitles は保存前の doc からページ参照の title を取り除く。
+//
+// title は**読み手ごとに**読み出し時へ解決する派生値で、保存してはいけない。
+// 保存すると、閲覧できる編集者の画面で解決された現在の題名が、その人の通常の
+// 保存 1 回で本文へ焼き込まれ、閲覧できない読み手にもそのまま返ってしまう
+// （読み出し時の可視判定を素通りする抜け道になる）。
+//
+// 参照が無い・読めない doc は元のまま返す（読めない doc は保存経路の検証が弾く）。
+func StripPageRefTitles(doc string) string {
+	var root any
+	if err := json.Unmarshal([]byte(doc), &root); err != nil {
+		return doc
+	}
+	if !stripPageRefTitlesNode(root) {
+		return doc
+	}
+	out, err := json.Marshal(root)
+	if err != nil {
+		return doc
 	}
 	return string(out)
 }
 
-// collectPageRefIDs は doc を歩いて pageRef の pageId を文書順・重複なしで集める。
-// 辿るのは content 配列だけ（ProseMirror のノードの子はそこにしか居ない）。
-// map の range で全キーを辿ると順序が実行ごとに変わり、解決数の天井を切る位置が
-// 不定になる（＝どの参照が解決されるかが揺れる）。
-func collectPageRefIDs(node any, ids []string) []string {
+func stripPageRefTitlesNode(node any) bool {
+	changed := false
 	switch v := node.(type) {
 	case map[string]any:
 		if v["type"] == kbPageRefNodeType {
 			if attrs, ok := v["attrs"].(map[string]any); ok {
-				if id, ok := attrs["pageId"].(string); ok && id != "" && !containsString(ids, id) {
-					ids = append(ids, id)
+				if _, has := attrs["title"]; has && attrs["title"] != nil {
+					attrs["title"] = nil
+					changed = true
 				}
 			}
 		}
-		ids = collectPageRefIDs(v["content"], ids)
+		if stripPageRefTitlesNode(v["content"]) {
+			changed = true
+		}
 	case []any:
 		for _, child := range v {
-			ids = collectPageRefIDs(child, ids)
+			if stripPageRefTitlesNode(child) {
+				changed = true
+			}
 		}
 	}
-	return ids
+	return changed
+}
+
+// pageRefCollector は doc を歩いて pageRef の pageId を文書順・重複なしで集める。
+// 重複の判定は set（O(1)）で行い、天井（kbPageRefMaxResolve）に達したら**収集自体を
+// 打ち切る** — 線形走査の重複判定や収集後の切り詰めだと、参照を大量に並べた本文
+// 1 つで読み出しのたびに CPU を燃やせてしまう。
+//
+// 辿るのは content 配列だけ（ProseMirror のノードの子はそこにしか居ない）。
+// map の range で全キーを辿ると順序が実行ごとに変わり、天井を切る位置が不定になる。
+type pageRefCollector struct {
+	ids  []string
+	seen map[string]struct{}
+}
+
+func newPageRefCollector() *pageRefCollector {
+	return &pageRefCollector{seen: map[string]struct{}{}}
+}
+
+func (c *pageRefCollector) collect(node any) {
+	if len(c.ids) >= kbPageRefMaxResolve {
+		return
+	}
+	switch v := node.(type) {
+	case map[string]any:
+		if v["type"] == kbPageRefNodeType {
+			if attrs, ok := v["attrs"].(map[string]any); ok {
+				if id, ok := attrs["pageId"].(string); ok && id != "" {
+					if _, dup := c.seen[id]; !dup {
+						c.seen[id] = struct{}{}
+						c.ids = append(c.ids, id)
+					}
+				}
+			}
+		}
+		c.collect(v["content"])
+	case []any:
+		for _, child := range v {
+			c.collect(child)
+		}
+	}
 }
 
 // rewritePageRefTitles は解決できた参照の title を書き換える。1 つでも書き換えたら true。
@@ -127,13 +193,4 @@ func rewritePageRefTitles(node any, titles map[string]string) bool {
 		}
 	}
 	return changed
-}
-
-func containsString(list []string, s string) bool {
-	for _, item := range list {
-		if item == s {
-			return true
-		}
-	}
-	return false
 }

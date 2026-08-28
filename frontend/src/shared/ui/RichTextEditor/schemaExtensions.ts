@@ -148,10 +148,18 @@ export const PageRef = Node.create({
     return [
       {
         tag: 'a[data-page-ref]',
-        getAttrs: (element) => ({
-          pageId: element.getAttribute('data-page-id'),
-          title: element.textContent || null,
-        }),
+        // SafeLink の a[href] 規則より先に効かせる（同じ <a> に両方が一致し、
+        // 既定の優先度だとリンクマークが勝って、コピー＆ペーストで参照が
+        // ただのリンクに劣化する）。
+        priority: 100,
+        getAttrs: (element) => {
+          const pageId = element.getAttribute('data-page-id');
+          // ID の形をここでも検証する。貼り付けは外部の HTML からも来るので、
+          // 通らないものは参照として取り込まない（この規則ごと不一致にし、
+          // 後続の規則＝リンクや素の文字に落とす）。
+          if (pageId === null || !PAGE_REF_UUID_PATTERN.test(pageId)) return false;
+          return { pageId, title: element.textContent || null };
+        },
       },
     ];
   },

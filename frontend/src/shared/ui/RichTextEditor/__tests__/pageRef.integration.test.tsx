@@ -26,6 +26,12 @@ afterEach(() => {
 
 const uuid = '01a046a3-cf95-73f3-bd0e-1eb9b08eb1d4';
 
+/**
+ * pasteEvent は貼り付け経路用のダミーイベント。jsdom には ClipboardEvent が無いため、
+ * prosemirror-view の pasteHTML へ明示的に渡す（渡さないと内部で生成して落ちる）。
+ */
+const pasteEvent = () => new Event('paste') as ClipboardEvent;
+
 function docWithRef(pageId: unknown, title: string | null = '設計メモ'): JSONContent {
   return {
     type: 'doc',
@@ -60,6 +66,36 @@ describe('ページ参照（pageRef）', () => {
     const e = makeEditor(docWithRef(uuid, null));
 
     expect(e.getHTML()).toContain('ページ');
+  });
+
+  it('描画した HTML を貼り直しても参照のまま戻る（コピー＆ペーストで劣化しない）', () => {
+    const e = makeEditor({ type: 'doc', content: [{ type: 'paragraph' }] });
+
+    e.view.pasteHTML(
+      `<p><a data-page-ref="true" data-page-id="${uuid}" href="/p/${uuid}">設計メモ</a></p>`,
+      pasteEvent(),
+    );
+
+    const json = JSON.stringify(e.getJSON());
+    expect(json).toContain(`"pageId":"${uuid}"`);
+    // リンクマークに劣化していない（pageRef ノードとして入っている）。
+    expect(json).toContain('"pageRef"');
+    expect(json).not.toContain('"link"');
+  });
+
+  it('偽の data-page-id を持つ HTML は参照として取り込まない', () => {
+    const e = makeEditor({ type: 'doc', content: [{ type: 'paragraph' }] });
+
+    e.view.pasteHTML(
+      '<p><a data-page-ref="true" data-page-id="javascript:alert(1)" href="/x">押して</a></p>',
+      pasteEvent(),
+    );
+
+    const json = JSON.stringify(e.getJSON());
+    expect(json).not.toContain('pageRef');
+    expect(json).not.toContain('javascript:alert(1)');
+    // 文字は残る（読み手から本文が消えない）。
+    expect(e.getText()).toContain('押して');
   });
 
   it('doc JSON として往復する（保存 → 再読込で参照が消えない）', () => {

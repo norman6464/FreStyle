@@ -36,7 +36,10 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 	if page.ArchivedAt != nil {
 		return nil, ErrPageArchived
 	}
-	tree, err := parsePageDoc(in.Doc)
+	// ページ参照の title は読み手ごとの派生値なので保存しない（StripPageRefTitles の
+	// コメント参照 — 保存すると、解決済みの題名が編集者の保存で本文へ焼き込まれ、
+	// 閲覧できない読み手にも返ってしまう）。
+	tree, err := parsePageDoc(StripPageRefTitles(in.Doc))
 	if err != nil {
 		return nil, err
 	}

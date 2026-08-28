@@ -57,6 +57,29 @@ export interface RichTextEditorProps {
  * ビジネスを知らない再利用資産（shared/ui）として置く。保存フロー（debounce・PUT・楽観ロック）は
  * この部品ではなく利用側の画面が担う。
  */
+/**
+ * stableDocString は doc の同一性比較のためにキー順を揃えて文字列化する。
+ *
+ * 素の JSON.stringify で比べると、**キーの並びが違うだけ**で「内容が変わった」と
+ * 誤判定する。実際、サーバーはページ参照の題名解決で doc を作り直して返し、その際
+ * キーがアルファベット順になる。tiptap の getJSON() は type が先なので、素の比較だと
+ * 開いただけで onChange が発火し、閲覧しただけの人が本文の保存（全置換）を発行して
+ * 同時編集者の直近の書き込みを潰しうる。比較のためだけに使い、値そのものは変えない。
+ */
+function stableDocString(node: unknown): string {
+  if (Array.isArray(node)) {
+    return `[${node.map(stableDocString).join(',')}]`;
+  }
+  if (node !== null && typeof node === 'object') {
+    const entries = Object.entries(node as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableDocString(v)}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(node) ?? 'null';
+}
+
 export default function RichTextEditor({
   value,
   onChange,
@@ -113,7 +136,7 @@ export default function RichTextEditor({
   // 直近で「これが現在値」とみなしている doc の文字列表現。内容ベースで重複 emit を弾く。
   // tiptap はマウント時に一度 onUpdate を発火する（内容は初期 value と同じ）ため、初期値で初期化して
   // その空振り emit を握りつぶす（読み込み直後に「未保存」へ落ちないようにする）。
-  const lastValueRef = useRef(JSON.stringify(value));
+  const lastValueRef = useRef(stableDocString(value));
 
   // '/' メニューの項目。ベースはレジストリ（ブロック変換＋挿入）。画像アップロードが
   // 配線されているときだけ /image（ファイル選択）を足す。onImageUpload の有無だけに依存させ、
@@ -168,7 +191,7 @@ export default function RichTextEditor({
       // 保存側のリンク洗浄。表示のときだけ無害化する作りだと、DB には危険な href が残ったままになり、
       // 別の読み手（別のクライアント・API 直叩き）に対して無防備なままになる。外へ出す値を洗う。
       const next = sanitizeDocLinks(currentEditor.getJSON()) as RichDocContent;
-      const nextStr = JSON.stringify(next);
+      const nextStr = stableDocString(next);
       // 内容が現在値と同じ（マウント時の空振り or 外部同期のエコー）なら通知しない。
       if (nextStr === lastValueRef.current) return;
       lastValueRef.current = nextStr;
@@ -182,7 +205,7 @@ export default function RichTextEditor({
   // （＝キャレットが飛ばず、無限ループにもならない）。
   useEffect(() => {
     if (!editor) return;
-    const valueStr = JSON.stringify(value);
+    const valueStr = stableDocString(value);
     if (valueStr !== lastValueRef.current) {
       lastValueRef.current = valueStr;
       // 差し替えで入ってくる doc も読み込み時と同じ経路で洗う（別ドキュメントへの切り替え）。

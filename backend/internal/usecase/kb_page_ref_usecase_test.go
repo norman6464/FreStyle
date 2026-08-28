@@ -52,9 +52,10 @@ func Test_ページ参照の題名解決_閲覧できる参照だけを現在の
 		Return([]repository.PageWithViewFacts{kbViewableFacts(visible, "設計メモ v2"), deniedFacts}, nil)
 
 	uc := usecase.NewResolvePageRefTitlesUseCase(repo)
-	got := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+	got, err := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
 		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(visible, hidden),
 	})
+	assert.NoError(t, err)
 
 	var doc map[string]any
 	assert.NoError(t, json.Unmarshal([]byte(got), &doc))
@@ -72,10 +73,11 @@ func Test_ページ参照の題名解決_参照が無ければ問い合わせず
 	uc := usecase.NewResolvePageRefTitlesUseCase(repo)
 	doc := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"参照なし"}]}]}`
 
-	got := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+	got, err := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
 		WorkspaceID: kbRefWS, UserID: 7, Doc: doc,
 	})
 
+	assert.NoError(t, err)
 	assert.Equal(t, doc, got)
 	repo.AssertNotCalled(t, "ListWorkspacePageViewFactsByIDs")
 }
@@ -85,17 +87,21 @@ func Test_ページ参照の題名解決_壊れたdocや取得失敗では原文
 	uc := usecase.NewResolvePageRefTitlesUseCase(repo)
 
 	broken := `{"type":"doc","content":[`
-	assert.Equal(t, broken, uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+	got, err := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
 		WorkspaceID: kbRefWS, UserID: 7, Doc: broken,
-	}), "読めない doc はそのまま返す（本文が開けることが題名より重い）")
+	})
+	assert.NoError(t, err, "読めない doc はエラーではない（保存経路の検証が弾く領分）")
+	assert.Equal(t, broken, got, "読めない doc はそのまま返す（本文が開けることが題名より重い）")
 
 	id := "00000000-0000-7000-8000-000000000001"
 	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{id}).
 		Return(nil, assert.AnError)
 	doc := kbRefDoc(id)
-	assert.Equal(t, doc, uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+	got2, err2 := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
 		WorkspaceID: kbRefWS, UserID: 7, Doc: doc,
-	}), "事実の取得失敗でも原文を返す")
+	})
+	assert.ErrorIs(t, err2, assert.AnError, "事実の取得失敗は握り潰さず返す（気づけるように）")
+	assert.Equal(t, doc, got2, "失敗でも原文を返す（本文の読み出しは止めない）")
 }
 
 func Test_ページ参照の題名解決_同じ参照は1回だけ数え解決数に天井がある(t *testing.T) {
@@ -105,9 +111,10 @@ func Test_ページ参照の題名解決_同じ参照は1回だけ数え解決�
 		Return([]repository.PageWithViewFacts{kbViewableFacts(dup, "本題")}, nil)
 	uc := usecase.NewResolvePageRefTitlesUseCase(repo)
 
-	got := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+	got, err := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
 		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(dup, dup),
 	})
+	assert.NoError(t, err)
 
 	// 同じ ID は 1 回で問い合わせ、両方の出現が書き換わる。
 	assert.Contains(t, got, `"本題"`)
@@ -124,8 +131,25 @@ func Test_ページ参照の題名解決_同じ参照は1回だけ数え解決�
 		mock.MatchedBy(func(got []string) bool { return len(got) == 100 })).
 		Return([]repository.PageWithViewFacts{}, nil)
 	uc2 := usecase.NewResolvePageRefTitlesUseCase(repo2)
-	uc2.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
+	_, err = uc2.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
 		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(ids...),
 	})
+	assert.NoError(t, err)
 	repo2.AssertExpectations(t)
+}
+
+func Test_ページ参照の題名は保存時に剥がされる(t *testing.T) {
+	// title は読み手ごとの派生値。保存されると、閲覧できる編集者の画面で解決された
+	// 現在の題名が本文へ焼き込まれ、閲覧できない読み手にも返ってしまう。
+	id := "00000000-0000-7000-8000-000000000001"
+	doc := kbRefDoc(id)
+
+	got := usecase.StripPageRefTitles(doc)
+
+	assert.NotContains(t, got, `"無題"`)
+	assert.Contains(t, got, id, "参照そのもの（pageId）は残る")
+
+	// 参照が無い doc は触らない（同じ文字列のまま）。
+	plain := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`
+	assert.Equal(t, plain, usecase.StripPageRefTitles(plain))
 }

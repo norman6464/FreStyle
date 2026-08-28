@@ -974,10 +974,55 @@ func Test_ナレッジ基盤API_閲覧できない参照の題名は差し替え
 
 	got := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID, "")
 	require.Equal(t, http.StatusOK, got.Code)
-	// 保存されていた文字（著者が書けた情報）のまま。現在の題名は漏れない。
+	// 題名は出ない。保存時に title は剥がされており（読み手ごとの派生値なので保存しない）、
+	// 読み出しの解決も deny のある参照には題名を入れない。現在の題名は漏れない。
 	child := f.pages.pages[kbChildPageID]
-	assert.Contains(t, got.Body.String(), `"title":"無題"`)
 	assert.NotContains(t, got.Body.String(), `"title":"`+child.Title+`"`)
+	assert.NotContains(t, got.Body.String(), `"title":"無題"`)
+}
+
+// 題名の焼き込み（解決済みの題名が編集者の保存で本文に残り、閲覧できない読み手へ
+// 漏れる）を塞ぐ回帰: 解決済み title 入りの doc を保存しても、保存側には残らない。
+func Test_ナレッジ基盤API_解決済みの題名を保存しても本文に焼き込まれない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	child := f.pages.pages[kbChildPageID]
+
+	// 編集者の画面から返ってくる形（サーバーが解決した現在の題名が title に入っている）。
+	enriched := `{"type":"doc","content":[{"type":"paragraph","content":[` +
+		`{"type":"pageRef","attrs":{"pageId":"` + kbChildPageID + `","title":"` + child.Title + `"}}]}]}`
+	saved := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/content",
+		`{"doc":`+enriched+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+
+	// 以後この読み手が deny されても、保存された文字としての題名は存在しない。
+	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
+	require.NotNil(t, me)
+	f.perms.restrictions[kbRestrictionKey{
+		pageID: kbChildPageID, principalID: me.ID, capability: domain.CapabilityView,
+	}] = domain.RestrictionModeDeny
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	assert.NotContains(t, got.Body.String(), `"title":"`+child.Title+`"`)
+}
+
+// ResolveByID（/p の入口）は Get と別経路で WorkspaceID / UserID を組み立てるため、
+// 題名解決が挟まっていることをこちらでも独立に固定する。
+func Test_ナレッジ基盤API_IDだけの解決でも参照の題名が現在の値になる(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	refDoc := `{"type":"doc","content":[{"type":"paragraph","content":[` +
+		`{"type":"pageRef","attrs":{"pageId":"` + kbChildPageID + `","title":"無題"}}]}]}`
+	saved := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/content",
+		`{"doc":`+refDoc+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbRootPageID, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	child := f.pages.pages[kbChildPageID]
+	assert.Contains(t, got.Body.String(), `"title":"`+child.Title+`"`)
 }
 
 func Test_ナレッジ基盤API_所属判定が失敗したら500(t *testing.T) {

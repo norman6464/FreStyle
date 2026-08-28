@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
-import type { KbDropTarget, KbPage, KbSpace } from '@/entities/knowledge-base';
+import {
+  collectKbBranchIds,
+  filterKbTree,
+  type KbDropTarget,
+  type KbPage,
+  type KbSpace,
+} from '@/entities/knowledge-base';
 import { toDropTarget, type KbDropZone } from '../model/dropZone';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import type { KbSpaceState } from '../model/useKnowledgeBaseTree';
@@ -26,6 +32,8 @@ export interface KbSpaceSectionProps {
   onUnarchivePage: (spaceId: string, pageId: string) => Promise<void>;
   /** アーカイブ済みを見ているか。 */
   archivedMode: boolean;
+  /** 題名の絞り込み。空なら絞らない。 */
+  filterQuery: string;
   /** ドラッグで動かす。**先に画面が動き、断られたら元へ戻る。失敗は投げてくる。** */
   onMovePage: (spaceId: string, pageId: string, target: KbDropTarget) => Promise<void>;
 }
@@ -62,6 +70,7 @@ export default function KbSpaceSection({
   onArchivePage,
   onUnarchivePage,
   archivedMode,
+  filterQuery,
   onMovePage,
 }: KbSpaceSectionProps) {
   const navigate = useNavigate();
@@ -76,7 +85,21 @@ export default function KbSpaceSection({
 
   const open = state?.open ?? false;
   const tree = state?.tree ?? null;
-  const hiddenAtRoot = tree?.hasHiddenChildren ?? false;
+
+  // 絞り込み。空のときは元の配列がそのまま返るので、参照も memo もそのまま保たれる。
+  const filtering = filterQuery.trim() !== '';
+  const visiblePages = useMemo(
+    () => (tree ? filterKbTree(tree.pages, filterQuery) : []),
+    [tree, filterQuery],
+  );
+  // 絞り込み中は一致までの道をすべて開く。閉じた枝の中の一致は「絞ったのに出ない」に見える。
+  const expandedForRender = useMemo(
+    () => (filtering ? new Set(collectKbBranchIds(visiblePages)) : expandedPageIds),
+    [filtering, visiblePages, expandedPageIds],
+  );
+  // 「表示できないページ」の印は絞り込み中に出さない。木を削っているのは利用者自身で、
+  // 説明の要る穴ではない（filterKbTree も枝側の印を落とす）。
+  const hiddenAtRoot = filtering ? false : (tree?.hasHiddenChildren ?? false);
 
   const createPage = async (parentId?: string) => {
     try {
@@ -195,19 +218,29 @@ export default function KbSpaceSection({
             </p>
           )}
 
-          {tree && tree.pages.length > 0 && (
+          {/* ページ自体はあるのに、絞り込みで 1 件も残らなかったとき。黙って空にすると
+              「消えた」と読まれる（絞り込みの空と、本当の空は別の状態）。 */}
+          {!state?.loading && !state?.error && filtering && (tree?.pages.length ?? 0) > 0 &&
+            visiblePages.length === 0 && (
+            <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
+              一致するページがありません
+            </p>
+          )}
+
+          {tree && visiblePages.length > 0 && (
             <KbTreeList
-              nodes={tree.pages}
+              nodes={visiblePages}
               depth={0}
               parentId={null}
-              hasHiddenChildren={tree.hasHiddenChildren}
-              expandedPageIds={expandedPageIds}
+              hasHiddenChildren={hiddenAtRoot}
+              expandedPageIds={expandedForRender}
               activePageId={activePageId}
               workspaceSlug={workspaceSlug}
               renamingPageId={renamingPageId}
               draggingPageId={draggingPageId}
               dropAt={dropAt}
               archivedMode={archivedMode}
+              filtering={filtering}
               label={`${space.name} のページ`}
               onToggle={onTogglePage}
               onStartRename={setRenamingPageId}

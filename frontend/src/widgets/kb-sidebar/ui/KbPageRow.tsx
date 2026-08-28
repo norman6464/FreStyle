@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
-import { KbPageGroupIcon, KbPageIcon } from '@/shared/ui/icons/kb';
+import { KbPageGroupIcon, KbPageGroupOpenIcon, KbPageIcon } from '@/shared/ui/icons/kb';
 import { kbMoveActions, type KbDropTarget, type KbPageTreeNode } from '@/entities/knowledge-base';
 import KbRowActions from './KbRowActions';
 import KbInlineRename from './KbInlineRename';
@@ -43,6 +43,9 @@ export interface KbPageRowProps extends KbRowCallbacks {
   active: boolean;
   renaming: boolean;
   archivedMode: boolean;
+  /** 題名で絞り込み中か。並べ替え（ドラッグ・移動メニュー）は絞った木の上では意味が
+   *  ずれるので止める（「絞られた隣」の隣に置いても、実際の隣は別の行）。 */
+  filtering: boolean;
   dragging: boolean;
   dropZone: KbDropZone | null;
 }
@@ -71,6 +74,7 @@ export default function KbPageRow({
   active,
   renaming,
   archivedMode,
+  filtering,
   dragging,
   dropZone,
   onToggle,
@@ -89,12 +93,13 @@ export default function KbPageRow({
   const { page } = node;
   const hasChildren = node.children.length > 0;
 
-  // 子を持つページはフォルダ、持たないページは紙。
+  // 子を持つページはフォルダ、持たないページは紙。フォルダは開いている間だけ
+  // 開いた形になる（三角は段の折り畳み、アイコンは行の性質。両方が同じ状態を指す）。
   //
   // 見える子が居るかで選ぶので、**伏せた子しか居ないページは紙のまま**になる。
   // ここでフォルダにすると、開閉の三角が無いのにフォルダ、という食い違った行になり、
   // さらに「この下に何かある」ことを形からも二重に漏らす。
-  const Icon = hasChildren ? KbPageGroupIcon : KbPageIcon;
+  const Icon = hasChildren ? (expanded ? KbPageGroupOpenIcon : KbPageGroupIcon) : KbPageIcon;
 
   // 落下先を線と枠で描き分ける。並べ替え（上下の線）と入れ子（枠）は別の操作なので、
   // 見た目でも別にする。同じ強調にすると、どちらになるのか落とすまで分からない。
@@ -107,7 +112,7 @@ export default function KbPageRow({
           ? 'border-b-2 border-brand-400'
           : '';
 
-  const draggable = !archivedMode;
+  const draggable = !archivedMode && !filtering;
 
   return (
     <div
@@ -156,8 +161,16 @@ export default function KbPageRow({
           />
         </button>
       ) : (
-        // 子が無い行にも同じ幅を空ける。空けないと題名の左端が段ごとに揃わない。
-        <span style={{ width: KB_TOGGLE_WIDTH_PX }} className="shrink-0" aria-hidden="true" />
+        // 子が無い行は三角の位置に小さな「・」を置く。空白だと「まだ読み込んでいない」
+        // とも読めてしまう。点なら「ここで終わり（開くものが無い）」が形で伝わり、
+        // 題名の左端も段ごとに揃う。
+        <span
+          style={{ width: KB_TOGGLE_WIDTH_PX }}
+          className="flex shrink-0 items-center justify-center text-xs leading-none text-[var(--color-text-muted)]"
+          aria-hidden="true"
+        >
+          •
+        </span>
       )}
 
       {renaming ? (
@@ -203,7 +216,12 @@ export default function KbPageRow({
               onArchive={() => onArchive(page.id)}
               // ドラッグと同じ行き先を、同じ経路で送る。キーボードのためだけに
               // 別の口を作らない（作ると失敗の扱いも二重になる）。
-              moves={kbMoveActions(siblings, index, parentId)}
+              // 絞り込み中は全部 null（絞られた並びの「隣」は実際の隣ではない）。
+              moves={
+                filtering
+                  ? { up: null, down: null, indent: null, outdent: null }
+                  : kbMoveActions(siblings, index, parentId)
+              }
               onMove={(target) => onMove(page.id, target)}
             />
           )}

@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArchiveBoxIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import KbCreateForm from './KbCreateForm';
 import { useKnowledgeBaseTree } from '../model/useKnowledgeBaseTree';
@@ -51,6 +52,15 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     setArchivedMode,
   } = useKnowledgeBaseTree({ workspaceSlug, activePageId });
 
+  // 題名での絞り込み。開いているスペースの木に効く（読み込んでいない木は絞れない）。
+  const [filterQuery, setFilterQuery] = useState('');
+
+  // ワークスペースを移ったら消す。前の場所の絞り込みが残ると、
+  // 新しい場所が「一致なし」だらけに見える。
+  useEffect(() => {
+    setFilterQuery('');
+  }, [activeSlug]);
+
   return (
     <nav aria-label="ナレッジ基盤" className="flex h-full flex-col overflow-y-auto p-2">
       <KbWorkspaceSwitcher
@@ -92,6 +102,23 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
                 throw new Error('create workspace failed');
               }
             }}
+          />
+        </div>
+      )}
+
+      {activeSlug && spaces.length > 0 && (
+        <div className="relative mt-2 px-1">
+          <MagnifyingGlassIcon
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-muted)]"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={filterQuery}
+            onChange={(event) => setFilterQuery(event.target.value)}
+            placeholder="題名で絞り込み"
+            aria-label="ページを題名で絞り込み"
+            className="w-full rounded-md border border-surface-3 bg-surface-1 py-1 pl-7 pr-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-brand-400 focus:outline-none"
           />
         </div>
       )}
@@ -148,6 +175,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
               onArchivePage={archivePage}
               onUnarchivePage={unarchivePage}
               archivedMode={archivedMode}
+              filterQuery={filterQuery}
               onMovePage={movePage}
             />
           ))}

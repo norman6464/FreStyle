@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { ImageUploadRepository } from '@/entities/user';
 import { RichTextEditor } from '@/shared/ui/RichTextEditor';
 import type { useTeachingMaterialEditor } from '../model/useTeachingMaterialEditor';
@@ -12,6 +13,7 @@ export default function ManagedDetail({
 }: {
   editor: ReturnType<typeof useTeachingMaterialEditor>;
 }) {
+  const navigate = useNavigate();
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-6 pt-4 pb-2 flex items-center justify-end gap-2">
@@ -44,6 +46,9 @@ export default function ManagedDetail({
               ariaLabel="教材本文"
               placeholder="本文を入力…（'/' でコマンド）"
               onImageUpload={(file) => ImageUploadRepository.upload(file)}
+              // 本文にノートのページへのリンクが貼られていることがある。渡さないと
+              // クリックが全画面リロードになり、保存待ちの入力（打ってから 1 秒弱）が消える。
+              onNavigateToPage={(path) => navigate(path)}
             />
           </div>
         </div>

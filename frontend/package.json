@@ -21,7 +21,8 @@
     "size": "npm run build && size-limit",
     "prerender": "node scripts/prerender.mjs",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test:stories": "WITH_STORYBOOK_TESTS=1 vitest run --project=storybook"
   },
   "overrides": {
     "form-data": "^4.0.6"
@@ -92,7 +93,7 @@
     "@storybook/addon-vitest": "^10.5.10",
     "@storybook/addon-a11y": "^10.5.10",
     "@storybook/addon-docs": "^10.5.10",
-    "@storybook/addon-mcp": "latest",
+    "@storybook/addon-mcp": "^0.7.0",
     "eslint-plugin-storybook": "^10.5.10",
     "@vitest/browser-playwright": "4.1.8",
     "playwright": "^1.60.0"

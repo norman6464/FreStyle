@@ -261,7 +261,9 @@ export default function RichTextEditor({
     <div
       className={`rte-root ${className}`}
       onClick={(event) => {
-        if (openClickedLink(event.nativeEvent, onNavigateToPage)) event.preventDefault();
+        if (openClickedLink(event.nativeEvent, onNavigateToPage, { editable })) {
+          event.preventDefault();
+        }
       }}
     >
       {toolbar && editable && editor && toolbarContainer &&

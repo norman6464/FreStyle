@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn, screen, within } from 'storybook/test';
 import ConfirmModal from './ConfirmModal';
 
 /**
@@ -28,8 +28,11 @@ export const ページの削除: Story = {
     isDanger: true,
   },
   play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const dialog = canvas.getByRole('dialog', { name: 'ページを削除' });
+    // モーダルは document.body へポータルされるので canvasElement の中には無い
+    // （呼び出し元の DOM に閉じ込めないための設計。ConfirmModal のコメント参照）。
+    await expect(within(canvasElement).queryByRole('dialog')).toBeNull();
+
+    const dialog = screen.getByRole('dialog', { name: 'ページを削除' });
     await expect(dialog).toBeInTheDocument();
     // 危険側のボタンを押すと onConfirm が 1 回だけ呼ばれる。
     (await within(dialog).findByRole('button', { name: '削除' })).click();

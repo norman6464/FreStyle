@@ -96,7 +96,10 @@ export default function NotePage() {
           中身はエディタがポータルで描き込む（editor はエディタの中に閉じたまま）。
         */}
         {pageId && !loading && !error && data?.canEdit && (
-          <div className="sticky top-0 z-10 border-b border-surface-3 bg-surface">
+          // z-30: 本文側の浮遊 UI（コードブロックの操作バー z-10・その言語メニュー z-30）
+          // より上に出す。選択中に出るバブル（z-50）はこの上のまま — あちらは
+          // 選んだ場所に出るので、覆われると書式を変えられない。
+          <div className="sticky top-0 z-30 border-b border-surface-3 bg-surface">
             <div ref={setToolbarHost} className="mx-auto w-full max-w-3xl px-6 py-1.5" />
           </div>
         )}

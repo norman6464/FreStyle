@@ -260,6 +260,55 @@ describe('リンクのクリック', () => {
     open.mockRestore();
   });
 
+  it('文字を選んだだけのクリックでは開かない（リンクの文言を選べる）', async () => {
+    // リンクをドラッグで選ぶと mouseup のときに click も発火する。ここで開くと
+    // リンクの文言を打ち直す・リンクを外す、といった編集がマウスでできなくなる。
+    const navigateToPage = vi.fn();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(screen.getByText('内部リンク'));
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.click(screen.getByText('内部リンク'));
+
+    expect(navigateToPage).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    selection?.removeAllRanges();
+    open.mockRestore();
+  });
+
+  it('編集中の Shift+クリックは選択を伸ばす操作なので、新しいタブを開かない', async () => {
+    const navigateToPage = vi.fn();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('内部リンク'), { shiftKey: true });
+
+    expect(open).not.toHaveBeenCalled();
+    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+    open.mockRestore();
+  });
+
+  it('読み取り専用の Shift+クリックは新しいタブで開く（選択を伸ばす操作が無い面）', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<RichTextEditor value={docWithLinks()} editable={false} onNavigateToPage={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('内部リンク'), { shiftKey: true });
+
+    expect(open).toHaveBeenCalled();
+    open.mockRestore();
+  });
+
   it('修飾キー付きのクリックは内部リンクでも新しいタブで開く', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     const navigateToPage = vi.fn();

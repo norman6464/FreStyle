@@ -89,12 +89,31 @@ describe('ConfirmModal', () => {
   });
 
   it('オーバーレイクリックでonCancelが呼ばれる', () => {
-    const { container } = render(
+    render(
       <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
     );
-    const overlay = container.querySelector('.bg-black\\/50');
-    if (overlay) fireEvent.click(overlay);
+    // モーダルは document.body へポータルされるので、render の container には無い。
+    const overlay = document.querySelector('.bg-black\\/50');
+    expect(overlay).not.toBeNull();
+    fireEvent.click(overlay!);
     expect(mockOnCancel).toHaveBeenCalled();
+  });
+
+  it('呼び出し元の DOM ではなく document.body へ出す（親のイベントを巻き込まない）', () => {
+    // 行アクションのような「触れている間だけ濃くなる」入れ物の中に描くと、
+    // オーバーレイ上の右クリックやドラッグが親のハンドラへ伝わり、
+    // 背後でメニューが開く・ドラッグが始まる、といった取り違えが起きる。
+    const onParentContextMenu = vi.fn();
+    const { container } = render(
+      <div onContextMenu={onParentContextMenu}>
+        <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+      </div>
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(container.contains(dialog)).toBe(false);
+    fireEvent.contextMenu(dialog);
+    expect(onParentContextMenu).not.toHaveBeenCalled();
   });
 
   it('モーダル表示時にキャンセルボタンが自動フォーカスされる', () => {

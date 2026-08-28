@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, waitFor, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import RichTextEditor from './RichTextEditor';
 import { emptyRichDoc, type RichDocContent } from './emptyRichDoc';
 
@@ -25,7 +25,7 @@ const sampleDoc = (): RichDocContent => ({
   content: [
     {
       type: 'paragraph',
-      content: [{ type: 'text', text: '10日間のインターンがやっと終わりました。' }],
+      content: [{ type: 'text', text: '10 日間の研修がやっと終わりました。' }],
     },
     {
       type: 'bulletList',
@@ -35,7 +35,7 @@ const sampleDoc = (): RichDocContent => ({
           content: [
             {
               type: 'paragraph',
-              content: [{ type: 'text', text: 'TipTap のリッチテキストエディタを使ったこと' }],
+              content: [{ type: 'text', text: 'リッチテキストエディタを組み込んだこと' }],
             },
           ],
         },
@@ -44,7 +44,7 @@ const sampleDoc = (): RichDocContent => ({
           content: [
             {
               type: 'paragraph',
-              content: [{ type: 'text', text: 'oss-DB の勉強も間に挟んだよ' }],
+              content: [{ type: 'text', text: 'データベースの勉強も間に挟んだ' }],
             },
           ],
         },
@@ -69,19 +69,36 @@ const sampleDoc = (): RichDocContent => ({
 
 /**
  * ノート画面の形の再現。ツールバーは**ヘッダー直下の sticky バー**に置かれ、
- * 題名より上に出る（Confluence と同じ並び: ツールバー → 題名 → 本文）。
+ * 題名より上に出る（並びは ツールバー → 題名 → 本文）。
  * エディタには置き場所（toolbarContainer）だけを渡す。
  */
 function NotePageLayout() {
   const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
+  // 題名で Enter を押したら本文へ移る合図（ノート画面と同じ配線）。
+  const [bodyFocusSignal, setBodyFocusSignal] = useState(0);
   return (
     <div style={{ height: '100vh', overflowY: 'auto' }}>
-      <div className="sticky top-0 z-10 border-b border-surface-3 bg-surface">
+      <div className="sticky top-0 z-30 border-b border-surface-3 bg-surface">
         <div ref={setToolbarHost} className="mx-auto w-full max-w-3xl px-6 py-1.5" data-testid="toolbar-host" />
       </div>
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
-        <h1 className="mb-4 text-3xl font-bold">サイボウズインターン終わったー</h1>
-        <RichTextEditor value={sampleDoc()} editable toolbar toolbarContainer={toolbarHost} />
+        <input
+          aria-label="ページの題名"
+          defaultValue="研修の振り返り"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            setBodyFocusSignal((prev) => prev + 1);
+          }}
+          className="mb-4 w-full border-none bg-transparent p-0 text-3xl font-bold outline-none"
+        />
+        <RichTextEditor
+          value={sampleDoc()}
+          editable
+          toolbar
+          toolbarContainer={toolbarHost}
+          focusSignal={bodyFocusSignal}
+        />
       </div>
     </div>
   );
@@ -95,7 +112,7 @@ export const 題名の上のツールバー: Story = {
     const canvas = within(canvasElement);
     // ツールバーが出るまで待つ（editor の初期化は非同期）。
     const toolbar = await canvas.findByRole('toolbar', { name: '書式メニュー' });
-    const title = canvas.getByRole('heading', { level: 1 });
+    const title = canvas.getByRole('textbox', { name: 'ページの題名' });
     const host = canvas.getByTestId('toolbar-host');
     // ツールバーは sticky バー（host）の中に入っている（ポータルが効いている）。
     await expect(host.contains(toolbar)).toBe(true);
@@ -103,6 +120,43 @@ export const 題名の上のツールバー: Story = {
     await expect(
       Boolean(toolbar.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING),
     ).toBe(true);
+  },
+};
+
+/**
+ * 題名で Enter を押すと本文の先頭へ移る。
+ *
+ * **本物のブラウザで確かめる。** jsdom では、同じ document で何度もエディタを作った後の
+ * `focus()` が実際には activeElement を動かさないことがあり、合図を無視する実装でも
+ * 単体テストが通ってしまう（合図のガードを外して確認済み）。ここは story として
+ * ブラウザで実行し、フォーカスが本当に移ることを見る。
+ */
+export const 題名でEnterすると本文へ移る: Story = {
+  args: { value: emptyRichDoc() },
+  render: () => <NotePageLayout />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = await canvas.findByRole('textbox', { name: '本文' });
+    const title = canvas.getByRole('textbox', { name: 'ページの題名' });
+
+    title.focus();
+    await expect(document.activeElement).toBe(title);
+
+    await userEvent.keyboard('{Enter}');
+
+    await waitFor(async () => {
+      await expect(body.contains(document.activeElement)).toBe(true);
+    });
+  },
+};
+
+/** ページを開いただけでは本文がフォーカスを奪わない（マウント時の合図では動かない）。 */
+export const 開いただけでは本文にフォーカスしない: Story = {
+  args: { value: sampleDoc(), editable: true, toolbar: true, focusSignal: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = await canvas.findByRole('textbox', { name: '本文' });
+    await expect(body.contains(document.activeElement)).toBe(false);
   },
 };
 
@@ -122,7 +176,7 @@ export const 読み取り専用: Story = {
     const canvas = within(canvasElement);
     // 本文は出る。
     await waitFor(async () => {
-      await expect(canvas.getByText(/インターンがやっと終わりました/)).toBeInTheDocument();
+      await expect(canvas.getByText(/研修がやっと終わりました/)).toBeInTheDocument();
     });
     await expect(canvas.queryByRole('toolbar', { name: '書式メニュー' })).not.toBeInTheDocument();
   },

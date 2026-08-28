@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 import type { TeachingMaterial } from '@/entities/course';
 import type { RichDocContent } from '@/shared/ui/RichTextEditor';
@@ -42,10 +43,13 @@ function Harness({ selected }: { selected: TeachingMaterial }) {
 }
 
 function renderDetail(selected: TeachingMaterial) {
+  // 本文のリンクをアプリ内遷移で開くため router を使う（本番も Router 配下）。
   return render(
-    <ToastProvider>
-      <Harness selected={selected} />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <Harness selected={selected} />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 }
 

@@ -159,6 +159,10 @@ export default defineConfig([globalIgnores(['dist', 'coverage']), {
     '@typescript-eslint/no-unused-vars': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
   },
+}, {
+  // ビルド・テストの設定ファイルは Node で動く（src はブラウザ）。
+  files: ['*.config.{js,ts,mjs}', '.storybook/**/*.{ts,tsx}'],
+  languageOptions: { globals: globals.node },
 }, ...fsdBoundaryConfigs, ...selfReferenceConfigs, ...storybook.configs["flat/recommended"], {
   // story 名もテスト名と同じく日本語で書く（このリポジトリの流儀）。PascalCase の強制だけ外す。
   files: ['**/*.stories.@(ts|tsx)'],

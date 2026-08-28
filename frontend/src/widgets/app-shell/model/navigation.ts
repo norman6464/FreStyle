@@ -6,7 +6,8 @@ export interface NavItem {
   label: string;
   to: string;
   matchExact?: boolean;
-  matchPrefix?: string;
+  /** 複数の URL 系統が同じ画面に属するとき（例: ノートの /notes と /p）は配列で並べる。 */
+  matchPrefix?: string | string[];
 }
 
 /** AdminSubItem は管理メニューの 1 項目。allowedRoles 未指定なら管理者ロール全員に出す。 */
@@ -25,17 +26,15 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'ホーム', to: '/dashboard', matchExact: true },
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
-  { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: '/notes' },
-  // ナレッジ（/kb）はノートとは別の系統。ノートは自分のための平らな一覧、こちらは
-  // 共有される木で、権限が付く。当面は 2 つ並ぶ（設計の「置く」— 移行は期限を決めてから）。
-  { id: 'kb', label: 'ナレッジ', to: '/kb', matchPrefix: '/kb' },
+  // ノートは共有される木（旧ナレッジを統合）。ページの URL は /p/{pageId}。
+  { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: ['/notes', '/p'] },
   { id: 'reports', label: 'レポート', to: '/reports', matchExact: true },
 ];
 
 // super_admin は企業管理に専念するロールなので**学習系**メニューは出さない。
-// ナレッジは学習系ではなく書きもの・共有の面なので出す（運用の手順や決めごとを
+// ノートは学習系ではなく書きもの・共有の面なので出す（運用の手順や決めごとを
 // 書き残すのは、むしろ管理する側の仕事になる）。
-const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'kb']);
+const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'notes']);
 
 export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
   { label: '概況', to: '/admin/dashboard', matchPrefix: '/admin/dashboard', allowedRoles: ['super_admin'] },
@@ -56,7 +55,8 @@ export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
 export function navActive(item: NavItem, pathname: string): boolean {
   if (item.matchExact) return pathname === item.to;
   if (item.matchPrefix) {
-    return pathname === item.matchPrefix || pathname.startsWith(`${item.matchPrefix}/`);
+    const prefixes = Array.isArray(item.matchPrefix) ? item.matchPrefix : [item.matchPrefix];
+    return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   }
   return pathname === item.to;
 }

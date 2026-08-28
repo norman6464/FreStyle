@@ -268,3 +268,37 @@ func (u *FindPageUseCase) Execute(ctx context.Context, in FindPageInput) (*domai
 	}
 	return u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
 }
+
+// ResolvePageLocationUseCase は URL の /p/{pageId} からページの居場所（ワークスペース）を
+// 特定する。URL にテナントを出さない（ユーザー決定 2026-08-28: URL は UUID だけ）ための口。
+//
+// これはテナント確定**前**に呼ばれる唯一のページ読みなので、ここでは何も判定しない。
+// 権限（見えるか・編集できるか）は handler が返した WorkspaceID で
+// CheckPagePermissionUseCase を通す。この usecase の答えを判定なしで応答に使わないこと。
+type ResolvePageLocationUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewResolvePageLocationUseCase(r repository.KnowledgeBaseRepository) *ResolvePageLocationUseCase {
+	return &ResolvePageLocationUseCase{repo: r}
+}
+
+type ResolvePageLocationOutput struct {
+	Page      domain.Page
+	Workspace domain.Workspace
+}
+
+func (u *ResolvePageLocationUseCase) Execute(ctx context.Context, pageID string) (*ResolvePageLocationOutput, error) {
+	if pageID == "" {
+		return nil, repository.ErrPageNotFound
+	}
+	page, err := u.repo.FindPageByIDAcrossWorkspaces(ctx, pageID)
+	if err != nil {
+		return nil, err
+	}
+	ws, err := u.repo.FindWorkspaceByID(ctx, page.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolvePageLocationOutput{Page: *page, Workspace: *ws}, nil
+}

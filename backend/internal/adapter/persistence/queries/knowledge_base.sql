@@ -50,6 +50,15 @@ RETURNING *;
 SELECT * FROM pages
 WHERE workspace_id = $1 AND id = $2;
 
+-- name: GetPageAcrossWorkspaces :one
+-- ページを **ID だけ** で引く。/p/{pageId} の URL からワークスペースを特定するための、
+-- このファイルで唯一 workspace_id を WHERE に持たない読み取り。
+-- 引いた直後に必ずその workspace の権限判定を通すこと（判定なしで応答に使わない）。
+-- id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない
+-- （危ういのは結果の使い方で、それは呼び出し側の usecase が縛る）。
+SELECT * FROM pages
+WHERE id = $1;
+
 -- name: ListChildPages :many
 -- 指定ページ直下の現役の子ページ一覧（position 順 = 表示順）。
 SELECT * FROM pages

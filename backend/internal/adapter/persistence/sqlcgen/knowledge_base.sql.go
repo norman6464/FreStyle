@@ -159,6 +159,34 @@ func (q *Queries) GetPage(ctx context.Context, arg GetPageParams) (Page, error) 
 	return i, err
 }
 
+const getPageAcrossWorkspaces = `-- name: GetPageAcrossWorkspaces :one
+SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at FROM pages
+WHERE id = $1
+`
+
+// ページを **ID だけ** で引く。/p/{pageId} の URL からワークスペースを特定するための、
+// このファイルで唯一 workspace_id を WHERE に持たない読み取り。
+// 引いた直後に必ずその workspace の権限判定を通すこと（判定なしで応答に使わない）。
+// id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない
+// （危ういのは結果の使い方で、それは呼び出し側の usecase が縛る）。
+func (q *Queries) GetPageAcrossWorkspaces(ctx context.Context, id uuid.UUID) (Page, error) {
+	row := q.db.QueryRowContext(ctx, getPageAcrossWorkspaces, id)
+	var i Page
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpaceID,
+		&i.ParentID,
+		&i.Position,
+		&i.Title,
+		&i.CreatedByUserID,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPageSnapshot = `-- name: GetPageSnapshot :one
 SELECT ps.page_id, ps.doc, ps.built_at FROM page_snapshots ps
 JOIN pages p ON p.id = ps.page_id

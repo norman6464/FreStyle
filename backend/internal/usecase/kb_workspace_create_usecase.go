@@ -2,8 +2,11 @@ package usecase
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -38,6 +41,8 @@ func NewCreateWorkspaceUseCase(p repository.WorkspaceProvisioner) *CreateWorkspa
 }
 
 type CreateWorkspaceInput struct {
+	// Slug は空でよい。空なら自動採番する — URL に使う名前は利用者に決めさせない
+	// （ユーザー決定 2026-08-28。人が付けた名前は衝突・改名の欲求・情報の漏れを生む）。
 	Slug string
 	Name string
 	// OwnerUserID は作成者。この人が主体（kind='user'）になり admin の grant を受け取る。
@@ -48,17 +53,30 @@ func (u *CreateWorkspaceUseCase) Execute(ctx context.Context, in CreateWorkspace
 	if in.OwnerUserID == 0 {
 		return nil, errors.New("ownerUserID is required")
 	}
+	autoSlug := in.Slug == ""
+	if autoSlug {
+		in.Slug = generatedURLKey("w")
+	}
 	if !domain.ValidWorkspaceSlug(in.Slug) {
 		return nil, ErrInvalidWorkspaceSlug
 	}
 	if !validDisplayName(in.Name, domain.WorkspaceNameMaxLen) {
 		return nil, ErrInvalidName
 	}
-	return u.provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
-		Slug:        in.Slug,
-		Name:        in.Name,
-		OwnerUserID: in.OwnerUserID,
-	})
+	for {
+		w, err := u.provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
+			Slug:        in.Slug,
+			Name:        in.Name,
+			OwnerUserID: in.OwnerUserID,
+		})
+		// 自動採番が衝突したら引き直す（48bit の乱数なので実際にはほぼ起きないが、
+		// 起きたときに利用者へ 409 を見せる理由が無い）。人が指定した slug の 409 はそのまま返す。
+		if autoSlug && errors.Is(err, repository.ErrWorkspaceSlugTaken) {
+			in.Slug = generatedURLKey("w")
+			continue
+		}
+		return w, err
+	}
 }
 
 // CreateSpaceUseCase はワークスペース配下にスペースを作る。
@@ -76,13 +94,18 @@ func NewCreateSpaceUseCase(r repository.KnowledgeBaseRepository) *CreateSpaceUse
 
 type CreateSpaceInput struct {
 	WorkspaceID string
-	Key         string
-	Name        string
+	// Key は空でよい。空なら自動採番する（ワークスペースの slug と同じ方針）。
+	Key  string
+	Name string
 }
 
 func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (*domain.Space, error) {
 	if in.WorkspaceID == "" {
 		return nil, errors.New("workspaceID is required")
+	}
+	autoKey := in.Key == ""
+	if autoKey {
+		in.Key = generatedURLKey("s")
 	}
 	if !domain.ValidSpaceKey(in.Key) {
 		return nil, ErrInvalidSpaceKey
@@ -90,11 +113,19 @@ func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (
 	if !validDisplayName(in.Name, domain.SpaceNameMaxLen) {
 		return nil, ErrInvalidName
 	}
-	space := &domain.Space{WorkspaceID: in.WorkspaceID, Key: in.Key, Name: in.Name}
-	if err := u.repo.CreateSpace(ctx, space); err != nil {
-		return nil, err
+	for {
+		space := &domain.Space{WorkspaceID: in.WorkspaceID, Key: in.Key, Name: in.Name}
+		err := u.repo.CreateSpace(ctx, space)
+		// 自動採番の衝突は引き直す（ワークスペースの slug と同じ方針）。
+		if autoKey && errors.Is(err, repository.ErrSpaceKeyTaken) {
+			in.Key = generatedURLKey("s")
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return space, nil
 	}
-	return space, nil
 }
 
 // RenameSpaceUseCase はスペースの表示名だけを変える。
@@ -140,4 +171,13 @@ func (u *RenameSpaceUseCase) Execute(ctx context.Context, in RenameSpaceInput) (
 // 列は varchar(n) で「文字数」の上限なので、バイト数ではなくルーン数で数える。
 func validDisplayName(name string, maxLen int) bool {
 	return name != "" && utf8.RuneCountInString(name) <= maxLen
+}
+
+// generatedURLKey は slug / key の自動採番。UUID の先頭 12 桁（16 進）を使う。
+// 短い連番にしないのは、URL の識別子から作成順・総数が読めてしまうため。
+// 12 桁（48 ビット）なら 1 ワークスペースの規模で衝突は事実上起きず、
+// 万一衝突しても一意制約が 409 で止める（黙って上書きにはならない）。
+func generatedURLKey(prefix string) string {
+	id := uuid.New()
+	return prefix + "-" + hex.EncodeToString(id[:6])
 }

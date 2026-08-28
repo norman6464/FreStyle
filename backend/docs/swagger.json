@@ -2338,6 +2338,58 @@
                 }
             }
         },
+        "/kb/pages/{pageId}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ ID だけ で ページ と 所属 ワークスペース を 解決 する。 閲覧 できない・存在 しない は 同じ 404。応答 の workspaceSlug を 以降 の API に 使う。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ページ 解決 (ID のみ)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbResolvedPageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/share-links/verify": {
             "post": {
                 "description": "受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を 返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は 含め ない。 総当たり と パスワード 推測 を 抑える ため、 リンク 1 本 あたり の 試行 回数 に 上限 が ある (要求 元 の IP を 変え て も 頭打ち に なる)。",
@@ -2459,7 +2511,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。",
+                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。",
                 "consumes": [
                     "application/json"
                 ],
@@ -2472,7 +2524,7 @@
                 "summary": "ナレッジ 基盤 の ワークスペース 作成",
                 "parameters": [
                     {
-                        "description": "作成 内容 (slug/name 必須)",
+                        "description": "作成 内容 (name 必須。 slug は 空 なら 自動 採番)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3972,7 +4024,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は ワークスペース 内 で 一意。",
+                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
                 "consumes": [
                     "application/json"
                 ],
@@ -3992,7 +4044,7 @@
                         "required": true
                     },
                     {
-                        "description": "作成 内容 (key/name 必須)",
+                        "description": "作成 内容 (name 必須。 key は 空 なら 自動 採番)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -7072,7 +7124,6 @@
         "internal_handler.kbCreateSpaceRequest": {
             "type": "object",
             "required": [
-                "key",
                 "name"
             ],
             "properties": {
@@ -7090,8 +7141,7 @@
         "internal_handler.kbCreateWorkspaceRequest": {
             "type": "object",
             "required": [
-                "name",
-                "slug"
+                "name"
             ],
             "properties": {
                 "name": {
@@ -7357,6 +7407,24 @@
             "properties": {
                 "doc": {
                     "type": "object"
+                }
+            }
+        },
+        "internal_handler.kbResolvedPageResponse": {
+            "type": "object",
+            "properties": {
+                "canEdit": {
+                    "type": "boolean"
+                },
+                "doc": {
+                    "type": "object"
+                },
+                "page": {
+                    "$ref": "#/definitions/internal_handler.kbPageResponse"
+                },
+                "workspaceSlug": {
+                    "type": "string",
+                    "example": "w-3f2a9c"
                 }
             }
         },

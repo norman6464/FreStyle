@@ -53,7 +53,6 @@ describe('useCommandPalette', () => {
     });
     const labels = result.current.filteredItems.map(i => i.label);
     expect(labels).toContain('ノート');
-    expect(labels).toContain('新規ノート作成');
     expect(labels).not.toContain('ホーム');
   });
 
@@ -84,7 +83,8 @@ describe('useCommandPalette', () => {
       result.current.setQuery('KB');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('ナレッジ');
+    // 旧「ナレッジ」の英語キーワード kb は、統合先のノートを引き当てる。
+    expect(labels).toContain('ノート');
   });
 
   it('クエリ変更時にselectedIndexが0にリセットされる', () => {

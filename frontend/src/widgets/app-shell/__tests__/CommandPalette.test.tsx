@@ -43,13 +43,12 @@ describe('CommandPalette', () => {
   it('全コマンドがデフォルトで表示される', () => {
     renderPalette();
     expect(screen.getByText('ホーム')).toBeInTheDocument();
-    expect(screen.getByText('新規ノート作成')).toBeInTheDocument();
+    expect(screen.getByText('ノート')).toBeInTheDocument();
   });
 
   it('カテゴリヘッダーが表示される', () => {
     renderPalette();
     expect(screen.getByText('ページ移動')).toBeInTheDocument();
-    expect(screen.getByText('アクション')).toBeInTheDocument();
   });
 
   it('検索入力で絞り込みができる', () => {
@@ -58,7 +57,6 @@ describe('CommandPalette', () => {
       target: { value: 'ノート' },
     });
     expect(screen.getByText('ノート')).toBeInTheDocument();
-    expect(screen.getByText('新規ノート作成')).toBeInTheDocument();
     expect(screen.queryByText('ホーム')).not.toBeInTheDocument();
   });
 
@@ -69,19 +67,12 @@ describe('CommandPalette', () => {
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
-  it('ナレッジが表示され、クリックで /kb へ移動する', () => {
-    renderPalette();
-    fireEvent.click(screen.getByText('ナレッジ'));
-    expect(mockNavigate).toHaveBeenCalledWith('/kb');
-    expect(defaultProps.onClose).toHaveBeenCalled();
-  });
-
-  it('英語キーワード knowledge でナレッジに絞り込める', () => {
+  it('旧「ナレッジ」の語でもノートに絞り込める（統合後も呼び名の記憶は残る）', () => {
     renderPalette();
     fireEvent.change(screen.getByPlaceholderText('コマンドを検索...'), {
       target: { value: 'knowledge' },
     });
-    expect(screen.getByText('ナレッジ')).toBeInTheDocument();
+    expect(screen.getByText('ノート')).toBeInTheDocument();
     expect(screen.queryByText('ホーム')).not.toBeInTheDocument();
   });
 
@@ -135,10 +126,4 @@ describe('CommandPalette', () => {
     expect(screen.getByText('該当するコマンドがありません')).toBeInTheDocument();
   });
 
-  it('新規ノート作成コマンドをクリックするとノートページに移動する', () => {
-    renderPalette();
-    fireEvent.click(screen.getByText('新規ノート作成'));
-    expect(mockNavigate).toHaveBeenCalledWith('/notes');
-    expect(defaultProps.onClose).toHaveBeenCalled();
-  });
 });

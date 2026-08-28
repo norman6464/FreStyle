@@ -96,6 +96,15 @@ func (f *kbFakePages) hasWorkspaceID(workspaceID string) bool {
 	return false
 }
 
+func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID string) (*domain.Page, error) {
+	p, ok := f.pages[pageID]
+	if !ok {
+		return nil, repository.ErrPageNotFound
+	}
+	c := *p
+	return &c, nil
+}
+
 func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	s, ok := f.spaces[spaceID]
 	if !ok || s.WorkspaceID != workspaceID {
@@ -843,8 +852,23 @@ func (f *kbFakePerms) WorkspacePermissionFactsForUser(
 	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: workspaceID, userID: userID}, workspaceID, userID)}, nil
 }
 
-// rolesAt はその入れ物で自分に届いている役割を返す。scopeRoles に明示があればそれ、
-// 無ければワークスペース全体の役割（workspaceRole）だけ。
+// GrantWorkspaceRoleIfAbsent は grant 行が無いときだけ既定の役割を入れる。
+// 「無い」の基準は本番（INSERT ... ON CONFLICT DO NOTHING）と同じく grant 行で、
+// 実効権限の写し（scopeRoles）ではない。行を入れたときだけ読み取り側へも反映する。
+func (f *kbFakePerms) GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error {
+	// 本番は複合 FK が「別ワークスペースの主体」を弾く。fake も同じ形で断る。
+	if _, err := f.FindPrincipal(ctx, workspaceID, principalID); err != nil {
+		return err
+	}
+	grantKey := kbGrantKey{scopeID: workspaceID, principalID: principalID}
+	if _, exists := f.grants[grantKey]; exists {
+		return nil
+	}
+	f.grants[grantKey] = role
+	f.mirrorGrant(workspaceID, principalID, &role)
+	return nil
+}
+
 func (f *kbFakePerms) rolesAt(key kbScopeKey, workspaceID string, userID uint64) []domain.GrantRole {
 	roles := make([]domain.GrantRole, 0, 2)
 	if role, ok := f.scopeRoles[key]; ok {

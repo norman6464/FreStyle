@@ -7,7 +7,6 @@ import {
   QuestionMarkCircleIcon,
   RocketLaunchIcon,
   SparklesIcon,
-  BookmarkIcon,
 } from '@heroicons/react/24/outline';
 import { PageIntro, StepIndicator, GuidedHint, GlossaryTerm, ActionCard } from '@/shared/ui';
 import { GLOSSARY } from '../config/glossary';
@@ -218,26 +217,21 @@ export default function HelpPage() {
         </p>
       </section>
 
-      {/* 5. メモ・テンプレート */}
+      {/* 5. ノート */}
       <section aria-labelledby="help-notes">
         <h2 id="help-notes" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          5. メモ・テンプレート機能
+          5. ノート機能
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          学んだフレーズや繰り返し使う文面は、メモ・テンプレート機能に保存できます。
+          気付きや決めごとは、ワークスペースとスペースで整理されたページに書き残せます。
+          ページはチームで共有され、階層（親子）を持てます。
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <ActionCard
             to="/notes"
-            title="メモを書く"
-            description="気付き・改善ポイントを Markdown で残せます。"
+            title="ノートを書く"
+            description="スペースにページを作り、チームで共有できます。"
             icon={<DocumentTextIcon className="h-5 w-5" />}
-          />
-          <ActionCard
-            to="/templates"
-            title="テンプレートを使う"
-            description="「障害報告」など定型のひな形を再利用。"
-            icon={<BookmarkIcon className="h-5 w-5" />}
           />
         </div>
       </section>

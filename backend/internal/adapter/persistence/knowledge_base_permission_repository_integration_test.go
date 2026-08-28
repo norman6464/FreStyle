@@ -1232,9 +1232,14 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	t.Run("グループ操作のusecaseが権限に効く", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		_, err := usecase.NewAddWorkspaceMemberUseCase(f.perm).Execute(ctx,
+		bobPrincipal, err := usecase.NewAddWorkspaceMemberUseCase(f.perm).Execute(ctx,
 			usecase.AddWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.bob})
 		require.NoError(t, err)
+		// メンバー追加は既定で editor を付ける。この試験は「グループ経由の権限」だけを
+		// 見たいので、既定の役割を外して素の状態（役割なしのメンバー）から始める。
+		require.NoError(t, usecase.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
+			usecase.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: bobPrincipal.ID}))
+		assert.False(t, f.permFor(ctx, t, page.ID, f.bob).CanView, "役割を外した直後は見えない")
 		group, err := usecase.NewCreatePrincipalGroupUseCase(f.perm).Execute(ctx,
 			usecase.CreatePrincipalGroupInput{WorkspaceID: f.ws, Name: "開発"})
 		require.NoError(t, err)

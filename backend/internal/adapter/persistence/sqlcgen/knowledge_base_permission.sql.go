@@ -422,6 +422,27 @@ func (q *Queries) InsertShareLink(ctx context.Context, arg InsertShareLinkParams
 	return i, err
 }
 
+const insertWorkspaceGrantIfAbsent = `-- name: InsertWorkspaceGrantIfAbsent :exec
+INSERT INTO workspace_grants (workspace_id, principal_id, "role")
+VALUES ($1, $2, $3)
+ON CONFLICT (workspace_id, principal_id) DO NOTHING
+`
+
+type InsertWorkspaceGrantIfAbsentParams struct {
+	WorkspaceID uuid.UUID
+	PrincipalID uuid.UUID
+	Role        string
+}
+
+// ワークスペース全体での既定の役割を**無いときだけ**与える（メンバー追加の既定 editor 用）。
+// Upsert（上書き）を使わないのが要点: 追加は冪等な操作で、既に admin の人へもう一度
+// 実行され得る。上書きだと admin が editor に落ち、しかも最後の admin なら
+// 保護の検査に当たって追加そのものが失敗する。既にある行は一切触らない。
+func (q *Queries) InsertWorkspaceGrantIfAbsent(ctx context.Context, arg InsertWorkspaceGrantIfAbsentParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceGrantIfAbsent, arg.WorkspaceID, arg.PrincipalID, arg.Role)
+	return err
+}
+
 const isWorkspaceMember = `-- name: IsWorkspaceMember :one
 SELECT EXISTS (
     SELECT 1 FROM principals

@@ -9,7 +9,8 @@ interface ProtectedProps {
 
 // super_admin は trainee 向け学習機能を利用しないため、これらのパスにアクセスしたら
 // /admin/companies へリダイレクトする。Header のナビ filter とセットで運用する。
-const TRAINEE_ONLY_PATH_PREFIXES = ['/code-editor', '/notes', '/reports'];
+// ノート（/notes・/p）は旧ナレッジを統合した共有の面なので super_admin にも開く。
+const TRAINEE_ONLY_PATH_PREFIXES = ['/code-editor', '/reports'];
 
 /**
  * 認証必須ルートのガード。

@@ -252,6 +252,8 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 		// 下 2 本は Test_ナレッジ基盤API_スペース改名の認可 / 題名検索 が直接叩く。
 		http.MethodPatch + " " + kbRoutePattern(kbSpacePatchPath): true,
 		http.MethodGet + " " + kbRoutePattern(kbSearchPath):       true,
+		// /p/{pageId} の解決。Test_ナレッジ基盤API_IDだけでの解決 が直接叩く。
+		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
 	}
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
@@ -1006,6 +1008,7 @@ func Test_ナレッジ基盤API_middlewareを通らないルートは成功し�
 	perms := newKbFakePerms(pages, kbCanEdit)
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(perms),
+		usecase.NewResolvePageLocationUseCase(pages),
 		usecase.NewCheckSpacePermissionUseCase(perms),
 		usecase.NewCanEditPageSubtreeUseCase(perms),
 		usecase.NewListViewablePagesUseCase(perms),
@@ -1483,5 +1486,31 @@ func Test_ナレッジ基盤API_題名検索(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
 		w := search(f, t, "")
 		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	})
+}
+
+// /p/{pageId} は URL にテナントを持たない解決の口。判定は解決後に必ず通るので、
+// 「所属していないワークスペースのページ」と「存在しない ID」が同じ応答であることが要点。
+func Test_ナレッジ基盤API_IDだけでの解決(t *testing.T) {
+	resolve := func(f kbFixture, t *testing.T, pageID string) *httptest.ResponseRecorder {
+		t.Helper()
+		return f.do(t, http.MethodGet, "/api/v2/kb/pages/"+pageID, "")
+	}
+
+	t.Run("閲覧できる相手には所属スラッグと編集可否が返る", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		w := resolve(f, t, kbRootPageID)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), `"workspaceSlug":"`+kbWorkspaceSlug+`"`)
+		assert.Contains(t, w.Body.String(), `"canEdit":true`)
+	})
+
+	t.Run("閲覧できない相手には、実在も不在も同じ 404", func(t *testing.T) {
+		f := newKbFixture(domain.PagePermission{}, kbUserID)
+		real := resolve(f, t, kbRootPageID)
+		missing := resolve(f, t, "00000000-0000-7000-8000-00000000dead")
+		require.Equal(t, http.StatusNotFound, real.Code)
+		require.Equal(t, http.StatusNotFound, missing.Code)
+		assert.Equal(t, missing.Body.String(), real.Body.String())
 	})
 }

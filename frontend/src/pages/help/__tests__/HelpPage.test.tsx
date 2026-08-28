@@ -33,7 +33,7 @@ describe('HelpPage', () => {
     expect(screen.getByRole('heading', { name: /2\. 最初の1日にやること/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /3\. 練習モードの使い方/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /4\. 5軸評価の読み方/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /5\. メモ・テンプレート機能/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /5\. ノート機能/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /6\. 困ったとき/ })).toBeInTheDocument();
   });
 
@@ -50,10 +50,11 @@ describe('HelpPage', () => {
   });
 
 
-  it('メモ・テンプレートのカードがそれぞれ /notes と /templates を指す', () => {
+  it('ノートのカードが /notes を指す', () => {
     renderHelp();
-    expect(screen.getByRole('link', { name: /メモを書く/ })).toHaveAttribute('href', '/notes');
-    expect(screen.getByRole('link', { name: /テンプレートを使う/ })).toHaveAttribute('href', '/templates');
+    expect(screen.getByRole('link', { name: /ノートを書く/ })).toHaveAttribute('href', '/notes');
+    // 撤去したテンプレートカード（/templates は実在しないルート）が復活していないこと。
+    expect(screen.queryByRole('link', { name: /テンプレートを使う/ })).not.toBeInTheDocument();
   });
 
   it('末尾の CTA がホームに戻るリンクになっている', () => {

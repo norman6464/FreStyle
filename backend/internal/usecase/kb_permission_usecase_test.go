@@ -290,11 +290,16 @@ func Test_メンバー追加_主体を作る(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("EnsureUserPrincipal", mock.Anything, kbWS, uint64(7)).
 		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
+	// 追加した瞬間から全員が書ける（既定 editor）。**無いときだけ**入れる口が呼ばれること
+	// （上書きの Upsert だと、追加のやり直しで admin が editor に落ちる）。
+	repo.On("GrantWorkspaceRoleIfAbsent", mock.Anything, kbWS, kbPrincipal, domain.GrantRoleEditor).
+		Return(nil)
 	uc := usecase.NewAddWorkspaceMemberUseCase(repo)
 
 	got, err := uc.Execute(context.Background(), usecase.AddWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7})
 	require.NoError(t, err)
 	assert.Equal(t, domain.PrincipalKindUser, got.Kind)
+	repo.AssertExpectations(t)
 
 	_, err = uc.Execute(context.Background(), usecase.AddWorkspaceMemberInput{UserID: 7})
 	require.Error(t, err, "workspaceID 必須")

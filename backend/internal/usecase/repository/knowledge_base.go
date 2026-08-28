@@ -67,6 +67,10 @@ type BlockWrite struct {
 // トランザクション境界が interface をまたいでしまうため 1 つにまとめる。
 // トランザクションは実装内で完結させ、usecase に *sql.Tx を漏らさない。
 type KnowledgeBaseRepository interface {
+	// FindPageByIDAcrossWorkspaces はページを ID だけで引く（/p/{pageId} の解決用）。
+	// このリポジトリで唯一テナントを確定せずに読む口で、呼び出し側は結果を応答に使う前に
+	// **必ずその workspace の権限判定を通す**。無ければ ErrPageNotFound。
+	FindPageByIDAcrossWorkspaces(ctx context.Context, pageID string) (*domain.Page, error)
 	// FindWorkspaceByID はワークスペースを 1 件引く。無ければ ErrWorkspaceNotFound。
 	FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error)
 	// FindWorkspaceBySlug は URL に出る slug からワークスペースを引く。無ければ ErrWorkspaceNotFound。

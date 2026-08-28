@@ -54,8 +54,42 @@ describe('Protected', () => {
     expect(screen.queryByText('保護されたコンテンツ')).not.toBeInTheDocument();
   });
 
-  // super_admin が trainee 向けルート (/notes 等) にアクセスしたら /admin/companies に飛ばす。
-  it('role=super_admin が /notes にアクセスすると /admin/companies にリダイレクト', () => {
+  // super_admin が trainee 向けルート (/code-editor 等) にアクセスしたら /admin/companies に飛ばす。
+  // ノート（/notes）は旧ナレッジを統合した共有の面なので super_admin にも開く（対象外）。
+  it('role=super_admin が /code-editor にアクセスすると /admin/companies にリダイレクト', () => {
+    const store = configureStore({
+      reducer: { auth: authReducer },
+      preloadedState: {
+        auth: {
+          isAuthenticated: true,
+          loading: false,
+          isAdmin: true,
+          role: 'super_admin',
+        },
+      },
+    });
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/code-editor']}>
+          <Routes>
+            <Route
+              path="/code-editor"
+              element={
+                <Protected>
+                  <div>演習画面</div>
+                </Protected>
+              }
+            />
+            <Route path="/admin/companies" element={<div>会社一覧</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(screen.getByText('会社一覧')).toBeInTheDocument();
+    expect(screen.queryByText('演習画面')).not.toBeInTheDocument();
+  });
+
+  it('role=super_admin でも /notes は表示できる（旧ナレッジを統合した共有の面）', () => {
     const store = configureStore({
       reducer: { auth: authReducer },
       preloadedState: {
@@ -84,8 +118,8 @@ describe('Protected', () => {
         </MemoryRouter>
       </Provider>,
     );
-    expect(screen.getByText('会社一覧')).toBeInTheDocument();
-    expect(screen.queryByText('ノート画面')).not.toBeInTheDocument();
+    expect(screen.getByText('ノート画面')).toBeInTheDocument();
+    expect(screen.queryByText('会社一覧')).not.toBeInTheDocument();
   });
 
   // super_admin でも /admin 配下は通る。

@@ -397,6 +397,20 @@ func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Contex
 // admin を**与える**向きは admin を減らさないので検査も行ロックも要らない（素で書く）。
 // admin から他の役割へ**落とす**向きは、行が消えないだけで「admin を外す」操作そのものなので、
 // 取り消し・メンバー削除とまったく同じ検査を同じトランザクションで通す。
+// GrantWorkspaceRoleIfAbsent は既定の役割を無いときだけ与える（詳細は port のコメント）。
+func (r *knowledgeBasePermissionRepository) GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error {
+	wsID, ok := kbParseID(workspaceID)
+	prID, ok2 := kbParseID(principalID)
+	if !ok || !ok2 {
+		return repository.ErrPrincipalNotFound
+	}
+	return r.q.InsertWorkspaceGrantIfAbsent(ctx, sqlcgen.InsertWorkspaceGrantIfAbsentParams{
+		WorkspaceID: wsID,
+		PrincipalID: prID,
+		Role:        string(role),
+	})
+}
+
 func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)

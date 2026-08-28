@@ -19,6 +19,7 @@ import (
 // URL の slug と principals から確定させたものを context から取る。
 type KnowledgeBasePageHandler struct {
 	check          *usecase.CheckPagePermissionUseCase
+	resolve        *usecase.ResolvePageLocationUseCase
 	checkSpace     *usecase.CheckSpacePermissionUseCase
 	canEditSubtree *usecase.CanEditPageSubtreeUseCase
 	listViewable   *usecase.ListViewablePagesUseCase
@@ -35,6 +36,7 @@ type KnowledgeBasePageHandler struct {
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
 func NewKnowledgeBasePageHandler(
 	check *usecase.CheckPagePermissionUseCase,
+	resolve *usecase.ResolvePageLocationUseCase,
 	checkSpace *usecase.CheckSpacePermissionUseCase,
 	canEditSubtree *usecase.CanEditPageSubtreeUseCase,
 	listViewable *usecase.ListViewablePagesUseCase,
@@ -49,6 +51,7 @@ func NewKnowledgeBasePageHandler(
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
+		resolve:        resolve,
 		checkSpace:     checkSpace,
 		canEditSubtree: canEditSubtree,
 		listViewable:   listViewable,
@@ -829,4 +832,70 @@ type kbPageContentResponse struct {
 // limitKnowledgeBaseBody は bind 前にボディサイズ上限を課す。
 func limitKnowledgeBaseBody(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxKnowledgeBaseBodyBytes)
+}
+
+// kbResolvedPageResponse は /kb/pages/{pageId}（URL にテナントを持たない解決）の返却形。
+// workspaceSlug は以降の API 呼び出し（木・保存）に使う。canEdit は編集 UI の出し分けに使う。
+type kbResolvedPageResponse struct {
+	WorkspaceSlug string          `json:"workspaceSlug" example:"w-3f2a9c"`
+	Page          kbPageResponse  `json:"page"`
+	Doc           json.RawMessage `json:"doc" swaggertype:"object"`
+	CanEdit       bool            `json:"canEdit"`
+}
+
+// ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
+//
+//	@Summary      ノート の ページ 解決 (ID のみ)
+//	@Description  ページ ID だけ で ページ と 所属 ワークスペース を 解決 する。 閲覧 できない・存在 しない は 同じ 404。応答 の workspaceSlug を 以降 の API に 使う。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        pageId  path      string  true  "ページ ID (UUID)"
+//	@Success      200     {object}  kbResolvedPageResponse
+//	@Failure      401     {object}  errorResponse  "未 認証"
+//	@Failure      404     {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
+//	@Failure      500     {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/pages/{pageId} [get]
+//	@Security     CookieAuth
+func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	pageID := c.Param("pageId")
+	loc, err := h.resolve.Execute(c.Request.Context(), pageID)
+	if err != nil {
+		// 実在しない ID も、この後の権限で伏せられる ID も、同じ経路の 404 に落ちる。
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	// 解決はテナント確定前の読みなので、**ここで必ず**その workspace の権限判定を通す。
+	perm, err := h.check.Execute(c.Request.Context(), usecase.CheckPagePermissionInput{
+		WorkspaceID: loc.Workspace.ID,
+		PageID:      pageID,
+		UserID:      uid,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if !perm.CanView {
+		// 閲覧できない相手にはページの実在を教えない（存在しない ID と同じ応答）。
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+		return
+	}
+	out, err := h.get.Execute(c.Request.Context(), usecase.GetPageInput{
+		WorkspaceID: loc.Workspace.ID,
+		PageID:      pageID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, kbResolvedPageResponse{
+		WorkspaceSlug: loc.Workspace.Slug,
+		Page:          toKbPageResponse(&out.Page),
+		Doc:           json.RawMessage(out.Doc),
+		CanEdit:       perm.CanEdit,
+	})
 }

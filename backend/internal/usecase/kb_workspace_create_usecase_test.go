@@ -37,7 +37,6 @@ func Test_ワークスペース作成_入力の検証(t *testing.T) {
 		in   usecase.CreateWorkspaceInput
 	}{
 		{name: "作成者が無い", in: usecase.CreateWorkspaceInput{Slug: "acme", Name: "Acme"}},
-		{name: "slug が空", in: usecase.CreateWorkspaceInput{Name: "Acme", OwnerUserID: 1}},
 		{name: "slug に大文字", in: usecase.CreateWorkspaceInput{Slug: "Acme", Name: "Acme", OwnerUserID: 1}},
 		{name: "slug に記号", in: usecase.CreateWorkspaceInput{Slug: "acme inc", Name: "Acme", OwnerUserID: 1}},
 		{name: "slug の先頭がハイフン", in: usecase.CreateWorkspaceInput{Slug: "-acme", Name: "Acme", OwnerUserID: 1}},
@@ -120,7 +119,6 @@ func Test_スペース作成_入力の検証(t *testing.T) {
 		in   usecase.CreateSpaceInput
 	}{
 		{name: "workspaceID が無い", in: usecase.CreateSpaceInput{Key: "eng", Name: "開発部"}},
-		{name: "key が空", in: usecase.CreateSpaceInput{WorkspaceID: kbWS, Name: "開発部"}},
 		{name: "key に大文字", in: usecase.CreateSpaceInput{WorkspaceID: kbWS, Key: "ENG", Name: "開発部"}},
 		{
 			name: "key が列幅を超える",
@@ -213,4 +211,35 @@ func Test_スペース改名_検証と伝播(t *testing.T) {
 		assert.ErrorIs(t, err, repository.ErrSpaceNotFound)
 		repo.AssertExpectations(t)
 	})
+}
+
+func Test_ワークスペース作成_slugが空なら自動採番される(t *testing.T) {
+	// URL に使う名前は利用者に決めさせない（ユーザー決定 2026-08-28）。
+	// 空で渡すと形の正しい slug が生成され、そのまま provisioner に届くこと。
+	provisioner := &mockWorkspaceProvisioner{}
+	var got repository.WorkspaceProvisionInput
+	provisioner.On("ProvisionWorkspace", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { got, _ = args.Get(1).(repository.WorkspaceProvisionInput) }).
+		Return(&domain.Workspace{ID: "ws-1", Slug: "w-abc", Name: "Acme"}, nil)
+	uc := usecase.NewCreateWorkspaceUseCase(provisioner)
+
+	_, err := uc.Execute(context.Background(), usecase.CreateWorkspaceInput{Name: "Acme", OwnerUserID: 1})
+	require.NoError(t, err)
+	assert.True(t, domain.ValidWorkspaceSlug(got.Slug), "生成された slug %q が URL の規則を満たすこと", got.Slug)
+	assert.True(t, strings.HasPrefix(got.Slug, "w-"))
+}
+
+func Test_スペース作成_keyが空なら自動採番される(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	var got *domain.Space
+	repo.On("CreateSpace", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { got, _ = args.Get(1).(*domain.Space) }).
+		Return(nil)
+	uc := usecase.NewCreateSpaceUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), usecase.CreateSpaceInput{WorkspaceID: "ws-1", Name: "開発部"})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.True(t, domain.ValidSpaceKey(got.Key), "生成された key %q が規則を満たすこと", got.Key)
+	assert.True(t, strings.HasPrefix(got.Key, "s-"))
 }

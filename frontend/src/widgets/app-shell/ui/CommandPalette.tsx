@@ -7,10 +7,9 @@ import type { CommandItem } from '../config/commandPaletteItems';
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateNote?: () => void;
 }
 
-export default function CommandPalette({ isOpen, onClose, onCreateNote }: CommandPaletteProps) {
+export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { query, selectedIndex, filteredItems, setQuery, selectNext, selectPrev, close } = useCommandPalette();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -26,20 +25,10 @@ export default function CommandPalette({ isOpen, onClose, onCreateNote }: Comman
   const executeCommand = useCallback((item: CommandItem) => {
     if (item.action.type === 'navigate') {
       navigate(item.action.path);
-    } else if (item.action.type === 'action') {
-      switch (item.action.id) {
-        case 'new-note':
-          if (onCreateNote) {
-            onCreateNote();
-          } else {
-            navigate('/notes');
-          }
-          break;
-      }
     }
     close();
     onClose();
-  }, [navigate, onCreateNote, close, onClose]);
+  }, [navigate, close, onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {

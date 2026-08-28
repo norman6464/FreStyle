@@ -61,6 +61,15 @@ ON CONFLICT (group_principal_id, member_principal_id) DO NOTHING;
 DELETE FROM principal_members
 WHERE workspace_id = $1 AND group_principal_id = $2 AND member_principal_id = $3;
 
+-- name: InsertWorkspaceGrantIfAbsent :exec
+-- ワークスペース全体での既定の役割を**無いときだけ**与える（メンバー追加の既定 editor 用）。
+-- Upsert（上書き）を使わないのが要点: 追加は冪等な操作で、既に admin の人へもう一度
+-- 実行され得る。上書きだと admin が editor に落ち、しかも最後の admin なら
+-- 保護の検査に当たって追加そのものが失敗する。既にある行は一切触らない。
+INSERT INTO workspace_grants (workspace_id, principal_id, "role")
+VALUES ($1, $2, $3)
+ON CONFLICT (workspace_id, principal_id) DO NOTHING;
+
 -- name: UpsertWorkspaceGrant :one
 -- ワークスペース全体での既定の役割の付与（同じ主体には 1 行だけ）。
 INSERT INTO workspace_grants (workspace_id, principal_id, "role")

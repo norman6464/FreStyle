@@ -1030,8 +1030,8 @@ describe('見た目の印（葉の点と開いたフォルダ）', () => {
     renderSidebar();
     await screen.findByText('親ページ');
 
-    const leafRow = screen.getByText('葉ページ').closest('div[draggable]') as HTMLElement;
-    const parentRow = screen.getByText('親ページ').closest('div[draggable]') as HTMLElement;
+    const leafRow = screen.getByRole('link', { name: /葉ページ/ }).closest('div[draggable]') as HTMLElement;
+    const parentRow = screen.getByRole('link', { name: /親ページ/ }).closest('div[draggable]') as HTMLElement;
     expect(leafRow.textContent).toContain('•');
     expect(parentRow.textContent).not.toContain('•');
   });
@@ -1043,7 +1043,7 @@ describe('見た目の印（葉の点と開いたフォルダ）', () => {
     renderSidebar();
     await screen.findByText('親ページ');
 
-    const row = () => screen.getByText('親ページ').closest('div[draggable]') as HTMLElement;
+    const row = () => screen.getByRole('link', { name: /親ページ/ }).closest('div[draggable]') as HTMLElement;
     expect(row().querySelector('[data-icon="page-group"]')).not.toBeNull();
     expect(row().querySelector('[data-icon="page-group-open"]')).toBeNull();
 
@@ -1074,9 +1074,9 @@ describe('題名で絞り込み', () => {
     });
 
     // 一致した子と、その親（道）は見え、無関係の行は消える。閉じていた道も開く。
-    expect(screen.getByText('docker-child')).toBeInTheDocument();
-    expect(screen.getByText('Docker 手順')).toBeInTheDocument();
-    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /docker-child/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
   });
 
   it('1 件も一致しないと「一致するページがありません」と伝える', async () => {
@@ -1088,21 +1088,21 @@ describe('題名で絞り込み', () => {
     });
 
     expect(screen.getByText('一致するページがありません')).toBeInTheDocument();
-    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
   });
 
   it('絞り込み中はドラッグできない（絞られた並びの「隣」は実際の隣ではない）', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    const before = screen.getByText('設計メモ').closest('div[draggable]') as HTMLElement;
+    const before = screen.getByRole('link', { name: /設計メモ/ }).closest('div[draggable]') as HTMLElement;
     expect(before.getAttribute('draggable')).toBe('true');
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
       target: { value: '設計' },
     });
 
-    const row = screen.getByText('設計メモ').closest('div[draggable]') as HTMLElement;
+    const row = screen.getByRole('link', { name: /設計メモ/ }).closest('div[draggable]') as HTMLElement;
     expect(row.getAttribute('draggable')).toBe('false');
   });
 
@@ -1112,10 +1112,10 @@ describe('題名で絞り込み', () => {
 
     const input = screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' });
     fireEvent.change(input, { target: { value: '設計' } });
-    expect(screen.queryByText('Docker 手順')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Docker 手順/ })).not.toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: '' } });
-    expect(screen.getByText('Docker 手順')).toBeInTheDocument();
-    expect(screen.getByText('設計メモ')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
   });
 });

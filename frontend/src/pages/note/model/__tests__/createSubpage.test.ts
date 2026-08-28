@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 describe('createSubpage', () => {
-  it('現在のページの子として作り、本文にリンクを挿し、開く先の URL を返す', async () => {
+  it('現在のページの子として作り、本文にページ参照を挿し、開く先の URL を返す', async () => {
     const { editor, insertContent, run } = fakeEditor();
 
     const path = await createSubpage(editor, resolved);
@@ -61,10 +61,10 @@ describe('createSubpage', () => {
       title: '無題',
       parentId: 'parent-1',
     });
+    // 参照は pageId を正として持ち、title は初回表示のための写し（正本はサーバーが解決）。
     expect(insertContent).toHaveBeenCalledWith({
-      type: 'text',
-      text: '無題',
-      marks: [{ type: 'link', attrs: { href: '/p/child-1' } }],
+      type: 'pageRef',
+      attrs: { pageId: 'child-1', title: '無題' },
     });
     expect(run).toHaveBeenCalled();
     expect(path).toBe('/p/child-1');
@@ -78,7 +78,7 @@ describe('createSubpage', () => {
     expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-created', page: child });
   });
 
-  it('作成に失敗したらリンクを挿さず、木にも知らせず、失敗を投げる', async () => {
+  it('作成に失敗したら参照を挿さず、木にも知らせず、失敗を投げる', async () => {
     hoisted.createPage.mockRejectedValue(new Error('403'));
     const { editor, insertContent } = fakeEditor();
 

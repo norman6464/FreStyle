@@ -40,8 +40,14 @@ export default function NoteRowActions({
 
   // 右クリック（コンテキストメニュー）からも同じメニューを開く。別のメニューを
   // 作らないのは、項目と失敗の扱いを 2 つ持たないため。
+  //
+  // 「増えたときだけ」開く。マウント時の値では開かない — 合図は親（行）が持ち、
+  // この部品は改名中にアンマウントされるため、素直に openSignal > 0 で開くと
+  // 「一度でも右クリックした行は、改名を終えるたびにメニューが勝手に開く」。
+  const seenSignal = useRef(openSignal);
   useEffect(() => {
-    if (openSignal > 0) setMenuOpen(true);
+    if (openSignal > seenSignal.current) setMenuOpen(true);
+    seenSignal.current = openSignal;
   }, [openSignal]);
 
   useEffect(() => {
@@ -156,7 +162,7 @@ export default function NoteRowActions({
                       // 戻せない操作なので、実行の前に必ず確かめる（アーカイブとの違いを明記）。
                       if (
                         window.confirm(
-                          `「${label}」を中のページごと削除します。アーカイブと違い、元に戻せません。よろしいですか？`,
+                          `「${label}」を中のページごと削除します（アーカイブ済みの子ページも含みます）。元に戻せません。よろしいですか？`,
                         )
                       ) {
                         onDelete();

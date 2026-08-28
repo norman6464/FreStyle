@@ -777,6 +777,13 @@ func (h *KnowledgeBasePageHandler) Delete(c *gin.Context) {
 	}
 	pageID := c.Param("pageId")
 	// アーカイブと同じ入口: 根の権限を先に見て応答を撃ち分けず、そのうえで子孫まで確かめる。
+	//
+	// 既知の限界（アーカイブ・移動も同じ形）: 検査と DELETE は別々のクエリで、
+	// 間に別ユーザーの移動が挟まると「検査していないページ」を CASCADE が道連れに
+	// し得る。窓はミリ秒で、成立には同一ワークスペースの編集者どうしの同時操作が要る。
+	// 塞ぐには検査と削除を同一トランザクションで行ロックする必要があり、
+	// 権限の事実集めが別リポジトリにある現構成では境界の作り直しになるため、
+	// 直列化はその再設計（権限操作の口の統合）とセットで行う。
 	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
 		return
 	}

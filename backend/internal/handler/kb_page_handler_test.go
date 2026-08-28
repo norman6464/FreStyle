@@ -1038,6 +1038,58 @@ func Test_ナレッジ基盤API_削除は子孫ごと消える(t *testing.T) {
 	assert.NotContains(t, tree.Body.String(), grandchild.ID)
 }
 
+// 削除は戻せないので、配下に 1 枚でも編集できないページがあれば何もしない
+// （アーカイブと同じ二択: 全部できるか、何もしないか）。
+func Test_ナレッジ基盤API_配下に編集できないページがあれば削除しない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	created := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/"+kbSpaceID+"/pages",
+		`{"parentId":"`+kbChildPageID+`","title":"守られる孫"}`)
+	require.Equal(t, http.StatusCreated, created.Code)
+	var grandchild kbPageResponse
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &grandchild))
+	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
+	require.NotNil(t, me)
+	f.perms.restrictions[kbRestrictionKey{
+		pageID: grandchild.ID, principalID: me.ID, capability: domain.CapabilityEdit,
+	}] = domain.RestrictionModeDeny
+
+	w := f.do(t, http.MethodDelete,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, "")
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
+	// 何も消えていない（部分的な削除をしない）。
+	assert.NotNil(t, f.pages.pages[kbChildPageID])
+	assert.NotNil(t, f.pages.pages[grandchild.ID])
+}
+
+// アーカイブ済みのページも（権限があれば）直接削除できる。「隠してから完全に消す」
+// という自然な片付けの経路を API の水準で保つ（UI の入口は現役の行のみ）。
+func Test_ナレッジ基盤API_アーカイブ済みのページも削除できる(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	archived := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/archive", "")
+	require.Equal(t, http.StatusNoContent, archived.Code)
+
+	w := f.do(t, http.MethodDelete,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, "")
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Nil(t, f.pages.pages[kbChildPageID])
+}
+
+func Test_ナレッジ基盤API_削除のrepository失敗は500(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.pages.failWith = errors.New("db down")
+
+	w := f.do(t, http.MethodDelete,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, "")
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.JSONEq(t, `{"error":"internal_error"}`, w.Body.String())
+}
+
 // パンくず: 解決応答に閲覧できる祖先が根から順に載り、deny された祖先は行ごと消える
 // （題名どころか実在も知らせない — 木と同じ規則）。
 func Test_ナレッジ基盤API_IDだけの解決にパンくずが載る(t *testing.T) {

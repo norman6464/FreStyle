@@ -7,7 +7,7 @@ import { useNoteTree } from '../model/useNoteTree';
 import NoteWorkspaceSwitcher from './NoteWorkspaceSwitcher';
 import NoteSpaceSection from './NoteSpaceSection';
 import NoteSearchDialog from './NoteSearchDialog';
-import { collectNoteAncestorIds, NoteRepository, type NotePage } from '@/entities/note';
+import { NoteRepository, type NotePage } from '@/entities/note';
 
 export interface NoteSidebarProps {
   /** URL が指しているワークスペース。未指定なら所属の先頭を開く。 */
@@ -224,18 +224,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
               onCreatePage={createPage}
               onRenamePage={renamePage}
               onArchivePage={archivePage}
-              onDeletePage={async (spaceId, pageId) => {
-                // 開いているページ自身か、その祖先を消すなら、消えた場所に立ち続けない。
-                const state = spaceStates[spaceId];
-                const gone =
-                  activePageId !== undefined &&
-                  (pageId === activePageId ||
-                    (state?.tree
-                      ? collectNoteAncestorIds(state.tree.pages, activePageId).includes(pageId)
-                      : false));
-                await deletePage(spaceId, pageId);
-                if (gone) navigate('/notes');
-              }}
+              onDeletePage={deletePage}
               onUnarchivePage={unarchivePage}
               archivedMode={archivedMode}
               onRenameSpace={renameSpace}

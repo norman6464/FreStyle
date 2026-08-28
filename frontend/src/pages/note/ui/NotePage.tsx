@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { NoteSidebar } from '@/widgets/note-sidebar';
 import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/shared/ui/RichTextEditor';
@@ -8,6 +8,7 @@ import { useToast } from '@/shared/lib/hooks/useToast';
 import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import { useNotePageDoc } from '../model/useNotePageDoc';
 import { createSubpage } from '../model/createSubpage';
+import { subscribeNoteTreeEvents } from '@/entities/note';
 import NotePageTitle from './NotePageTitle';
 
 /**
@@ -35,6 +36,19 @@ export default function NotePage() {
     },
     [renameTitle, showToast],
   );
+
+  // 自分か祖先が物理削除されたら一覧へ戻る（消えた場所に立ち続けない）。
+  // 祖先はサーバー応答（ancestors — アーカイブ済みも含む）で知っているので、
+  // サイドバーの現役の木に載っていないページを開いていても正しく判定できる。
+  useEffect(() => {
+    if (!pageId || !data) return undefined;
+    return subscribeNoteTreeEvents((event) => {
+      if (event.type !== 'page-deleted') return;
+      const hit =
+        event.pageId === pageId || (data.ancestors ?? []).some((a) => a.id === event.pageId);
+      if (hit) navigate('/notes');
+    });
+  }, [pageId, data, navigate]);
 
   // '/page': 子ページを作って本文にリンクを挿し、作ったページを開く。
   //

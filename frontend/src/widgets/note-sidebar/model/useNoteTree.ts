@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NOTE_NEW_PAGE_TITLE,
   NoteRepository,
+  emitNoteTreeEvent,
   collectNoteAncestorIds,
   subscribeNoteTreeEvents,
   replaceNotePageInTree,
@@ -427,7 +428,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
         loadSpaceTree(event.page.spaceId);
         return;
       }
-      // page-renamed
+      if (event.type !== 'page-renamed') return;
       setSpaceStates((prev) => {
         const current = prev[event.page.spaceId];
         if (!current?.tree) return prev;
@@ -496,6 +497,10 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     async (spaceId: string, pageId: string): Promise<void> => {
       if (!activeSlug) throw new Error('workspace is not selected');
       await NoteRepository.deletePage(activeSlug, pageId);
+      // 開いている画面が「消えた場所」かの判定はページ側が行う（ページは自分の祖先を
+      // サーバー応答で知っている。サイドバーの現役の木では、アーカイブ済みの子孫を
+      // 開いている場合を見落とす）。
+      emitNoteTreeEvent({ type: 'page-deleted', pageId });
       loadSpaceTree(spaceId);
     },
     [activeSlug, loadSpaceTree],

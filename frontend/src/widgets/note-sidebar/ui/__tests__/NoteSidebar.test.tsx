@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, fireEvent, within } from '@testing-librar
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import NoteSidebar from '../NoteSidebar';
-import { emitNoteTreeEvent } from '@/entities/note';
+import { emitNoteTreeEvent, subscribeNoteTreeEvents } from '@/entities/note';
 import type { NotePage, NotePageTree, NoteSpace, NoteWorkspace } from '@/entities/note';
 
 const hoisted = vi.hoisted(() => ({
@@ -1559,27 +1559,51 @@ describe('ページの削除', () => {
     confirmSpy.mockRestore();
   });
 
-  it('開いているページを消したら一覧へ戻る（消えた場所に立ち続けない）', async () => {
+  it('消したら木の通知（page-deleted）を出す — 開いている画面の退避はページ側が判定する', async () => {
     hoisted.deletePage.mockResolvedValue(undefined);
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    let delPath = '';
-    function DelPathProbe() {
-      delPath = useLocation().pathname;
-      return null;
-    }
-    render(
-      <MemoryRouter initialEntries={['/p/p1']}>
-        <DelPathProbe />
-        <NoteSidebar workspaceSlug="acme" activePageId="p1" />
-      </MemoryRouter>,
-    );
+    const events: string[] = [];
+    const unsubscribe = subscribeNoteTreeEvents((event) => {
+      if (event.type === 'page-deleted') events.push(event.pageId);
+    });
+    renderSidebar();
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
 
-    await waitFor(() => expect(delPath).toBe('/notes'));
+    await waitFor(() => expect(events).toEqual(['p1']));
+    unsubscribe();
     confirmSpy.mockRestore();
+  });
+
+  it('右クリック → 外側クリックで閉じ、もう一度右クリックで開き直せる', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+  });
+
+  it('右クリック → 名前を変更 → 取消、でメニューが勝手に開き直らない', async () => {
+    // 合図は行が持ち、操作部品は改名中にアンマウントされる。素直な実装だと
+    // 再マウント時に古い合図でメニューが開く（実際に踏んだ形の回帰）。
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
+    const input = await screen.findByRole('textbox', { name: 'ページの題名' });
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    await screen.findByText('設計メモ');
+    expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
   });
 
   it('行の右クリックでも同じ操作メニューが開く', async () => {

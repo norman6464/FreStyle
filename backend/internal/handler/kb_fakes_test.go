@@ -107,6 +107,9 @@ func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID str
 
 // DeletePageSubtree はページと子孫を map から消す（本番の CASCADE の代わりに素直に辿る）。
 func (f *kbFakePages) DeletePageSubtree(_ context.Context, workspaceID, pageID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	root, ok := f.pages[pageID]
 	if !ok || root.WorkspaceID != workspaceID {
 		return repository.ErrPageNotFound

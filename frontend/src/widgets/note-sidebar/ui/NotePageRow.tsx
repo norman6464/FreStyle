@@ -147,7 +147,8 @@ export default function NotePageRow({
       onContextMenu={(event) => {
         // 右クリックでも同じ操作メニューを開く（ブラウザのメニューは行の操作に置き換える）。
         // アーカイブ表示の行はメニュー自体を持たないので、既定のまま。
-        if (archivedMode) return;
+        // 改名の入力中も既定のまま — 奪うと右クリック→貼り付けで題名を入れられない。
+        if (archivedMode || renaming) return;
         event.preventDefault();
         setContextOpenSignal((prev) => prev + 1);
       }}

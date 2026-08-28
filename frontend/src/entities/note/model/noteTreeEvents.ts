@@ -11,7 +11,9 @@ import type { NotePage } from './types';
  */
 export type NoteTreeEvent =
   | { type: 'page-created'; page: NotePage }
-  | { type: 'page-renamed'; page: NotePage };
+  | { type: 'page-renamed'; page: NotePage }
+  /** 物理削除（子孫ごと消えた）。開いている画面が「消えた場所」かはページ側が判定する。 */
+  | { type: 'page-deleted'; pageId: string };
 
 type NoteTreeEventListener = (event: NoteTreeEvent) => void;
 

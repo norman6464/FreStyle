@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NOTE_NEW_PAGE_TITLE,
   NoteRepository,
+  emitNoteTreeEvent,
   collectNoteAncestorIds,
   subscribeNoteTreeEvents,
   replaceNotePageInTree,
@@ -166,11 +167,18 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     loadSpaces();
   }, [loadSpaces]);
 
+  // スペース単位の要求連番。ワークスペースの世代（generation）だけだと、同じスペースへの
+  // 要求どうしの追い越しを防げない — 削除後の取り直しより先に投げた古い応答が後から届くと、
+  // 消したはずのページが木に蘇る（選ぶと 404）。最後に投げた要求だけを採用する。
+  const spaceTreeSeq = useRef<Record<string, number>>({});
+
   /** 1 スペース分の木を取りに行く。開いたとき・再試行のときだけ呼ぶ。 */
   const loadSpaceTree = useCallback(
     (spaceId: string) => {
       if (!activeSlug) return;
       const token = generation.current;
+      const seq = (spaceTreeSeq.current[spaceId] ?? 0) + 1;
+      spaceTreeSeq.current[spaceId] = seq;
       setSpaceStates((prev) => ({
         ...prev,
         [spaceId]: { ...(prev[spaceId] ?? emptySpaceState(true)), loading: true, error: null },
@@ -178,14 +186,14 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
 
       NoteRepository.fetchPageTree(activeSlug, spaceId, { archived: archivedModeRef.current })
         .then((tree) => {
-          if (token !== generation.current) return;
+          if (token !== generation.current || seq !== spaceTreeSeq.current[spaceId]) return;
           setSpaceStates((prev) => ({
             ...prev,
             [spaceId]: { open: true, loading: false, error: null, tree },
           }));
         })
         .catch(() => {
-          if (token !== generation.current) return;
+          if (token !== generation.current || seq !== spaceTreeSeq.current[spaceId]) return;
           setSpaceStates((prev) => ({
             ...prev,
             [spaceId]: {
@@ -427,7 +435,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
         loadSpaceTree(event.page.spaceId);
         return;
       }
-      // page-renamed
+      if (event.type !== 'page-renamed') return;
       setSpaceStates((prev) => {
         const current = prev[event.page.spaceId];
         if (!current?.tree) return prev;
@@ -488,6 +496,23 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     [activeSlug, setSpaceStates],
   );
 
+  /**
+   * ページを子孫ごと物理削除する。**失敗は握り潰さず投げる。**
+   * 成功したらその段の木を取り直す（部分木がまとめて消えるので 1 枚差し替えでは表せない）。
+   */
+  const deletePage = useCallback(
+    async (spaceId: string, pageId: string): Promise<void> => {
+      if (!activeSlug) throw new Error('workspace is not selected');
+      await NoteRepository.deletePage(activeSlug, pageId);
+      // 開いている画面が「消えた場所」かの判定はページ側が行う（ページは自分の祖先を
+      // サーバー応答で知っている。サイドバーの現役の木では、アーカイブ済みの子孫を
+      // 開いている場合を見落とす）。
+      emitNoteTreeEvent({ type: 'page-deleted', pageId });
+      loadSpaceTree(spaceId);
+    },
+    [activeSlug, loadSpaceTree],
+  );
+
   const retrySpace = useCallback(
     (spaceId: string) => {
       loadSpaceTree(spaceId);
@@ -512,6 +537,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     togglePage,
     createPage,
     renamePage,
+    deletePage,
     archivePage,
     unarchivePage,
     movePage,

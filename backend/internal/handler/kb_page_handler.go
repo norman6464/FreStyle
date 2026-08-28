@@ -34,6 +34,7 @@ type KnowledgeBasePageHandler struct {
 	replaceBlocks  *usecase.ReplacePageBlocksUseCase
 	resolveRefs    *usecase.ResolvePageRefTitlesUseCase
 	ancestors      *usecase.ListViewableAncestorsUseCase
+	deletePage     *usecase.DeletePageUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -53,6 +54,7 @@ func NewKnowledgeBasePageHandler(
 	replaceBlocks *usecase.ReplacePageBlocksUseCase,
 	resolveRefs *usecase.ResolvePageRefTitlesUseCase,
 	ancestors *usecase.ListViewableAncestorsUseCase,
+	deletePage *usecase.DeletePageUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -70,6 +72,7 @@ func NewKnowledgeBasePageHandler(
 		replaceBlocks:  replaceBlocks,
 		resolveRefs:    resolveRefs,
 		ancestors:      ancestors,
+		deletePage:     deletePage,
 	}
 }
 
@@ -743,6 +746,51 @@ func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 		return
 	}
 	if err := h.archive.Execute(c.Request.Context(), usecase.ArchivePageInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+	}); err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// Delete はページを子孫ごと物理削除する（戻せない）。
+//
+//	@Summary      ナレッジ 基盤 の ページ 削除
+//	@Description  ページ を 子孫 ごと 物理 削除 する。 アーカイブ と 違い 戻せ ない。 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
+//	@Param        pageId         path  string  true  "ページ ID (UUID)"
+//	@Success      204  "削除 済み"
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      403  {object}  errorResponse  "配下 に 編集 でき ない ページ が ある"
+//	@Failure      404  {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
+//	@Failure      500  {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId} [delete]
+//	@Security     CookieAuth
+func (h *KnowledgeBasePageHandler) Delete(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	// アーカイブと同じ入口: 根の権限を先に見て応答を撃ち分けず、そのうえで子孫まで確かめる。
+	//
+	// 既知の限界（アーカイブ・移動も同じ形）: 検査と DELETE は別々のクエリで、
+	// 間に別ユーザーの移動が挟まると「検査していないページ」を CASCADE が道連れに
+	// し得る。窓はミリ秒で、成立には同一ワークスペースの編集者どうしの同時操作が要る。
+	// 塞ぐには検査と削除を同一トランザクションで行ロックする必要があり、
+	// 権限の事実集めが別リポジトリにある現構成では境界の作り直しになるため、
+	// 直列化はその再設計（権限操作の口の統合）とセットで行う。
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	if !h.requireSubtreeEditPermission(c, scope, pageID) {
+		return
+	}
+	if err := h.deletePage.Execute(c.Request.Context(), usecase.DeletePageInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	}); err != nil {

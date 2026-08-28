@@ -318,3 +318,11 @@ SELECT pp.ancestor_id
 FROM page_paths pp
 WHERE pp.workspace_id = $1 AND pp.page_id = $2 AND pp.depth > 0
 ORDER BY pp.depth DESC;
+
+-- name: DeletePage :execrows
+-- ページを物理削除する。子孫・closure（page_paths）・blocks・snapshot は
+-- ON DELETE CASCADE で一緒に消える（fk_pages_parent が CASCADE のため、
+-- この 1 文で部分木全体が落ちる）。アーカイブと違い戻せない — 子孫全員の
+-- 編集権限の確認（requireSubtreeEditPermission）は呼び出し側の入口が行う。
+DELETE FROM pages
+WHERE workspace_id = $1 AND id = $2;

@@ -64,6 +64,28 @@ func (q *Queries) AttachPageSubtreePaths(ctx context.Context, arg AttachPageSubt
 	return err
 }
 
+const deletePage = `-- name: DeletePage :execrows
+DELETE FROM pages
+WHERE workspace_id = $1 AND id = $2
+`
+
+type DeletePageParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+// ページを物理削除する。子孫・closure（page_paths）・blocks・snapshot は
+// ON DELETE CASCADE で一緒に消える（fk_pages_parent が CASCADE のため、
+// この 1 文で部分木全体が落ちる）。アーカイブと違い戻せない — 子孫全員の
+// 編集権限の確認（requireSubtreeEditPermission）は呼び出し側の入口が行う。
+func (q *Queries) DeletePage(ctx context.Context, arg DeletePageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deletePage, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deletePageBlocks = `-- name: DeletePageBlocks :exec
 DELETE FROM blocks
 WHERE workspace_id = $1 AND page_id = $2

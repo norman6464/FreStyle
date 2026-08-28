@@ -162,9 +162,25 @@ describe('doc の同一性はキー順に依らない', () => {
     const onChange = vi.fn();
     render(<RichTextEditor value={alphabetized} onChange={onChange} />);
 
-    await waitFor(() => expect(document.querySelector('[role="textbox"]')).not.toBeNull());
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '本文' })).toBeInTheDocument());
     // マウント直後のエコーを流し切っても発火しない。
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('常設ツールバー', () => {
+  it('toolbar を渡すと書式ボタン列が常に出る（編集できるときだけ）', async () => {
+    render(<RichTextEditor value={emptyRichDoc()} toolbar />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '本文' })).toBeInTheDocument());
+
+    expect(screen.getByRole('toolbar', { name: '書式メニュー' })).toBeInTheDocument();
+  });
+
+  it('読み取り専用ではツールバーを出さない（押せない操作を見せない）', async () => {
+    render(<RichTextEditor value={emptyRichDoc()} toolbar editable={false} />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '本文' })).toBeInTheDocument());
+
+    expect(screen.queryByRole('toolbar', { name: '書式メニュー' })).not.toBeInTheDocument();
   });
 });

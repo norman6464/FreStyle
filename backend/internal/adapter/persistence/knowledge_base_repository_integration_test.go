@@ -122,6 +122,42 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		assert.Empty(t, none)
 	})
 
+	t.Run("削除は子孫・closure・本文ごとCASCADEで消える", func(t *testing.T) {
+		ws, spaceA, _ := setup(t)
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "消す根")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "消える子")
+		_ = mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
+		_, err := uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: child.ID,
+			Doc: `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, repo.DeletePageSubtree(ctx, ws, root.ID))
+
+		_, err = uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: child.ID})
+		require.ErrorIs(t, err, repository.ErrPageNotFound, "子孫も一緒に消える")
+		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		require.NoError(t, err)
+		assert.Equal(t, "残る根", treeShape(tree), "残す根は無傷で、消した木は形から消える")
+
+		// 派生テーブルにも残骸が無い（CASCADE の確認）。
+		var count int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_paths WHERE page_id = $1 OR ancestor_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM blocks WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_snapshots WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+
+		// 実在しないページの削除は ErrPageNotFound（冪等にしない — 押した相手が
+		// 「もう無い」ことを知れる）。
+		require.ErrorIs(t, repo.DeletePageSubtree(ctx, ws, root.ID), repository.ErrPageNotFound)
+	})
+
 	t.Run("作成して取得すると木の形とclosureが正しい", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		root1 := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root1")

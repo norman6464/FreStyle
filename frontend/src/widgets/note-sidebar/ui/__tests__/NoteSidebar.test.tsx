@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, fireEvent, within } from '@testing-librar
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import NoteSidebar from '../NoteSidebar';
-import { emitNoteTreeEvent } from '@/entities/note';
+import { emitNoteTreeEvent, subscribeNoteTreeEvents } from '@/entities/note';
 import type { NotePage, NotePageTree, NoteSpace, NoteWorkspace } from '@/entities/note';
 
 const hoisted = vi.hoisted(() => ({
@@ -11,6 +11,7 @@ const hoisted = vi.hoisted(() => ({
   fetchPageTree: vi.fn(),
   createPage: vi.fn(),
   renamePage: vi.fn(),
+  deletePage: vi.fn(),
   archivePage: vi.fn(),
   unarchivePage: vi.fn(),
   movePage: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('@/entities/note', async () => {
       fetchPageTree: hoisted.fetchPageTree,
       createPage: hoisted.createPage,
       renamePage: hoisted.renamePage,
+      deletePage: hoisted.deletePage,
       archivePage: hoisted.archivePage,
       unarchivePage: hoisted.unarchivePage,
       movePage: hoisted.movePage,
@@ -1506,5 +1508,145 @@ describe('ワークスペース切替ポップアップ', () => {
     await screen.findByText('設計メモ');
 
     expect(screen.getByRole('heading', { name: 'チームスペース' })).toBeInTheDocument();
+  });
+});
+
+describe('ページの削除', () => {
+  it('⋯ の「削除」で確認してから消し、木を取り直す', async () => {
+    hoisted.deletePage.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    hoisted.fetchPageTree.mockClear();
+    hoisted.fetchPageTree.mockResolvedValue(tree([]));
+
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(hoisted.deletePage).toHaveBeenCalledWith('acme', 'p1'));
+    // 部分木がまとめて消えるので木を取り直す。
+    await waitFor(() =>
+      expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: false }),
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('確認で「やめる」を選んだら消さない（戻せない操作は必ず確かめる）', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+
+    expect(hoisted.deletePage).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('失敗したら知らせを出す', async () => {
+    hoisted.deletePage.mockRejectedValue(new Error('down'));
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', '削除できませんでした'),
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('消したら木の通知（page-deleted）を出す — 開いている画面の退避はページ側が判定する', async () => {
+    hoisted.deletePage.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const events: string[] = [];
+    const unsubscribe = subscribeNoteTreeEvents((event) => {
+      if (event.type === 'page-deleted') events.push(event.pageId);
+    });
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+
+    await waitFor(() => expect(events).toEqual(['p1']));
+    unsubscribe();
+    confirmSpy.mockRestore();
+  });
+
+  it('削除前に投げた古い木の応答が後から届いても、消したページを蘇らせない', async () => {
+    // 同じスペースへの要求どうしの追い越し。ワークスペースの世代番号だけでは防げない
+    // （どちらも同じ世代）。スペース単位の連番で「最後に投げた要求」だけを採用する。
+    hoisted.deletePage.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    // 削除の前から進行中の遅い要求（設計メモを含む古い木を返す）。
+    let resolveStale: (value: NotePageTree) => void = () => {};
+    hoisted.fetchPageTree.mockReturnValueOnce(
+      new Promise<NotePageTree>((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+    act(() => {
+      emitNoteTreeEvent({ type: 'page-created', page: page('p2', '別ページ') });
+    });
+
+    // 削除 → 取り直しは空の木で確定する。
+    hoisted.fetchPageTree.mockResolvedValue(tree([]));
+    fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+    await waitFor(() => expect(screen.queryByText('設計メモ')).not.toBeInTheDocument());
+
+    // 古い応答がいま届く。採用してはいけない。
+    await act(async () => {
+      resolveStale(tree([{ id: 'p1', title: '設計メモ' }]));
+    });
+    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it('右クリック → 外側クリックで閉じ、もう一度右クリックで開き直せる', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+  });
+
+  it('右クリック → 名前を変更 → 取消、でメニューが勝手に開き直らない', async () => {
+    // 合図は行が持ち、操作部品は改名中にアンマウントされる。素直な実装だと
+    // 再マウント時に古い合図でメニューが開く（実際に踏んだ形の回帰）。
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
+    const input = await screen.findByRole('textbox', { name: 'ページの題名' });
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    await screen.findByText('設計メモ');
+    expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
+  });
+
+  it('行の右クリックでも同じ操作メニューが開く', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.contextMenu(screen.getByText('設計メモ'));
+
+    // ⋯ と同じメニュー（別のメニューを作らない）。
+    expect(screen.getByRole('button', { name: '名前を変更' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
   });
 });

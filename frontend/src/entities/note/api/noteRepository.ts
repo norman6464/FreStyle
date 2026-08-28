@@ -122,6 +122,14 @@ const NoteRepository = {
     return res.data;
   },
 
+  /**
+   * ページを子孫ごと物理削除する。アーカイブと違い戻せない。
+   * **失敗は例外として投げる**（createPage と同じ理由）。
+   */
+  async deletePage(workspaceSlug: string, pageId: string): Promise<void> {
+    await apiClient.delete(NOTES_API.page(workspaceSlug, pageId));
+  },
+
   /** ページの題名を変える。**失敗は例外として投げる**（createPage と同じ理由）。 */
   async renamePage(workspaceSlug: string, pageId: string, title: string): Promise<NotePage> {
     const res = await apiClient.patch<NotePage>(NOTES_API.page(workspaceSlug, pageId), { title });

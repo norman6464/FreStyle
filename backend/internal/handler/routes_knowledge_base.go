@@ -87,6 +87,7 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewReplacePageBlocksUseCase(pages),
 		usecase.NewResolvePageRefTitlesUseCase(permissions),
 		usecase.NewListViewableAncestorsUseCase(pages, permissions),
+		usecase.NewDeletePageUseCase(pages),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
@@ -173,6 +174,7 @@ func registerKnowledgeBaseRoutesWith(
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Create)
 	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Get)
 	kb.PATCH("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Rename)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Delete)
 	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/move", h.Move)
 	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/archive", h.Archive)
 	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/unarchive", h.Unarchive)

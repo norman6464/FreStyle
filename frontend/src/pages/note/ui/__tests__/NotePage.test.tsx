@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent, act, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NotePage from '../NotePage';
+import { emitNoteTreeEvent } from '@/entities/note';
 import type { EditorCommand } from '@/shared/ui/RichTextEditor';
 
 const hoisted = vi.hoisted(() => ({
@@ -25,7 +26,11 @@ vi.mock('@/entities/note', async (importOriginal) => {
       renamePage: hoisted.renamePage,
       createPage: hoisted.createPage,
     },
-    emitNoteTreeEvent: hoisted.emit,
+    // スパイしつつ実物へ転送する（購読側の配線もこのテストの検査対象のため）。
+    emitNoteTreeEvent: (event: Parameters<typeof actual.emitNoteTreeEvent>[0]) => {
+      hoisted.emit(event);
+      actual.emitNoteTreeEvent(event);
+    },
   };
 });
 
@@ -175,6 +180,32 @@ describe('NotePage の配線', () => {
 
     expect(within(nav).getByText('開発チーム')).toBeInTheDocument();
     expect(within(nav).queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('自分か祖先が削除されたら一覧へ戻る（サーバー応答の祖先で判定する）', async () => {
+    renderPage();
+    await screen.findByRole('navigation', { name: 'ページの場所' });
+
+    // 無関係なページの削除では動かない。
+    act(() => {
+      emitNoteTreeEvent({ type: 'page-deleted', pageId: 'unrelated' });
+    });
+    expect(hoisted.navigate).not.toHaveBeenCalled();
+
+    // 祖先（anc-1）が消えたら CASCADE で自分も消えている — 一覧へ戻る。
+    // 祖先はサーバー応答から取るので、サイドバーの現役の木に載っていない
+    // （アーカイブ済みの）ページを開いていても判定できる。
+    act(() => {
+      emitNoteTreeEvent({ type: 'page-deleted', pageId: 'anc-1' });
+    });
+    expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+
+    // 自分自身の削除でも戻る。
+    hoisted.navigate.mockClear();
+    act(() => {
+      emitNoteTreeEvent({ type: 'page-deleted', pageId: 'p1' });
+    });
+    expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
   });
 
   it('編集できないページでは /page を渡さない（読むだけの人にメニューを見せない）', async () => {

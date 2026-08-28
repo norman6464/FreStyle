@@ -188,3 +188,61 @@ test.describe('ノート作成導線（POST モック）', () => {
     await expect(page.getByText(/まだワークスペースがありません/)).not.toBeVisible();
   });
 });
+
+test.describe('スペース追加導線（POST モック）', () => {
+  test('スペースが既にあっても「スペースを追加」から名前だけで作れる', async ({ page }) => {
+    await mockAuthenticated(page);
+
+    let postBody: unknown = null;
+    await page.route('**/api/v2/kb/workspaces', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { slug: 'w-3f2a9c', name: '開発チーム', createdAt: '2026-01-01T00:00:00Z' },
+        ]),
+      }),
+    );
+    await page.route('**/api/v2/kb/workspaces/w-3f2a9c/spaces', (route) => {
+      if (route.request().method() === 'POST') {
+        postBody = route.request().postDataJSON();
+        return route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: '22222222-2222-2222-2222-222222222222',
+            key: 's-9d8c7b',
+            name: '営業定例',
+            createdAt: '2026-01-01T00:00:00Z',
+          }),
+        });
+      }
+      // GET 一覧: 既存 1 件（0 件のときの常設フォームではなく、追加入口の経路を通す）。
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: '11111111-1111-1111-1111-111111111111',
+            key: 's-1a2b3c',
+            name: 'バックエンド定例',
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ]),
+      });
+    });
+
+    await page.goto('/notes');
+    // 見出し・行の＋・⋯ が同名を含むので exact で見出しだけを掴む。
+    await expect(page.getByRole('button', { name: 'バックエンド定例', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'スペースを追加' }).click();
+    await page.getByLabel('スペースの名前').fill('営業定例');
+    await page.getByRole('button', { name: 'スペースを作る' }).click();
+
+    // key は送らない（サーバーが自動採番）。
+    await expect.poll(() => postBody).toEqual({ name: '営業定例' });
+    // 作ったスペースが見出しとして現れる。
+    await expect(page.getByRole('button', { name: '営業定例', exact: true })).toBeVisible();
+  });
+});

@@ -27,6 +27,10 @@
   --tw-prose-pre-bg: var(--color-surface-2);
   --tw-prose-pre-code: #383a42;
   --tw-prose-pre-border: var(--color-surface-3);
+  /* 箇条書きの点・番号は typography の既定だと灰色で、本文から浮いて見える。
+     本文と同じ色に揃える（ノート / 教材 / AI チャットの prose 全部に効く）。 */
+  --tw-prose-bullets: var(--color-text-primary);
+  --tw-prose-counters: var(--color-text-primary);
 }
 .prose pre {
   background-color: var(--color-surface-2);

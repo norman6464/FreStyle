@@ -302,3 +302,23 @@ func (u *ResolvePageLocationUseCase) Execute(ctx context.Context, pageID string)
 	}
 	return &ResolvePageLocationOutput{Page: *page, Workspace: *ws}, nil
 }
+
+// DeletePageUseCase はページを子孫ごと物理削除する。
+// アーカイブ（隠すだけ・戻せる）とは別の操作で、こちらは戻せない。
+// 誰が消せるか（根と子孫全部の編集権限）は handler の入口が確かめる。
+type DeletePageUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewDeletePageUseCase(r repository.KnowledgeBaseRepository) *DeletePageUseCase {
+	return &DeletePageUseCase{repo: r}
+}
+
+type DeletePageInput struct {
+	WorkspaceID string
+	PageID      string
+}
+
+func (u *DeletePageUseCase) Execute(ctx context.Context, in DeletePageInput) error {
+	return u.repo.DeletePageSubtree(ctx, in.WorkspaceID, in.PageID)
+}

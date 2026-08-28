@@ -380,6 +380,10 @@ func (m *mockKnowledgeBaseRepo) UpdateSpaceName(ctx context.Context, workspaceID
 	return m.Called(ctx, workspaceID, spaceID, name).Error(0)
 }
 
+func (m *mockKnowledgeBaseRepo) DeletePageSubtree(ctx context.Context, workspaceID, pageID string) error {
+	return m.Called(ctx, workspaceID, pageID).Error(0)
+}
+
 func (m *mockKnowledgeBaseRepo) ListAncestorPageIDs(ctx context.Context, workspaceID, pageID string) ([]string, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	ids, _ := args.Get(0).([]string)

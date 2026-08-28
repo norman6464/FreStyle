@@ -221,6 +221,22 @@ func (r *knowledgeBaseRepository) ListAncestorPageIDs(ctx context.Context, works
 	return out, nil
 }
 
+func (r *knowledgeBaseRepository) DeletePageSubtree(ctx context.Context, workspaceID, pageID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return repository.ErrPageNotFound
+	}
+	rows, err := r.q.DeletePage(ctx, sqlcgen.DeletePageParams{WorkspaceID: wsID, ID: pgID})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return repository.ErrPageNotFound
+	}
+	return nil
+}
+
 func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)

@@ -133,6 +133,10 @@ type KnowledgeBaseRepository interface {
 	// スペースをまたぐ移動で、サブツリーに移動先以外のスペースの「全員」宛て例外が
 	// 残っている場合は ErrPageMoveVoidsSpaceRestriction を返して移動しない。
 	MovePage(ctx context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error
+	// DeletePageSubtree はページを子孫ごと物理削除する（closure・blocks・snapshot も
+	// CASCADE で消える）。対象が無ければ ErrPageNotFound。アーカイブと違い戻せないため、
+	// 子孫全員の編集権限の確認は呼び出し側の入口が行う。
+	DeletePageSubtree(ctx context.Context, workspaceID, pageID string) error
 	// ArchivePageSubtree はページとその子孫のうち現役の行に archived_at を設定する。
 	// 既にアーカイブ済みの行は元の archived_at を保つ（触らない）。
 	ArchivePageSubtree(ctx context.Context, workspaceID, pageID string) error

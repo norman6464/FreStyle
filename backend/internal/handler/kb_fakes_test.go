@@ -105,6 +105,36 @@ func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID str
 	return &c, nil
 }
 
+// DeletePageSubtree はページと子孫を map から消す（本番の CASCADE の代わりに素直に辿る）。
+func (f *kbFakePages) DeletePageSubtree(_ context.Context, workspaceID, pageID string) error {
+	root, ok := f.pages[pageID]
+	if !ok || root.WorkspaceID != workspaceID {
+		return repository.ErrPageNotFound
+	}
+	doomed := map[string]bool{pageID: true}
+	// 子孫を親リンクで数え上げる（数が変わらなくなるまで）。
+	for {
+		grew := false
+		for id, p := range f.pages {
+			if doomed[id] || p.ParentID == nil {
+				continue
+			}
+			if doomed[*p.ParentID] {
+				doomed[id] = true
+				grew = true
+			}
+		}
+		if !grew {
+			break
+		}
+	}
+	for id := range doomed {
+		delete(f.pages, id)
+		delete(f.snapshots, id)
+	}
+	return nil
+}
+
 // ListAncestorPageIDs は親の連鎖を根から順に返す（closure table の代わりに素直に辿る）。
 func (f *kbFakePages) ListAncestorPageIDs(_ context.Context, workspaceID, pageID string) ([]string, error) {
 	out := []string{}

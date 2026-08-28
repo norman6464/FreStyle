@@ -145,6 +145,7 @@ export default function KbRowActions({
         type="button"
         onClick={onCreateChild}
         aria-label={`${label} の下にページを追加`}
+        title="中にページを作成"
         className="rounded p-1 text-[var(--color-text-muted)] hover:bg-surface-3"
       >
         <PlusIcon className="h-4 w-4" aria-hidden="true" />

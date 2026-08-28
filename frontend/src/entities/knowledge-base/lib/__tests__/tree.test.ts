@@ -4,8 +4,6 @@ import {
   kbMoveActions,
   moveKbPageInTree,
   replaceKbPageInTree,
-  filterKbTree,
-  collectKbBranchIds,
 } from '../tree';
 import type { KbPage, KbPageTreeNode } from '../../model/types';
 
@@ -194,64 +192,5 @@ describe('kbMoveActions', () => {
       kind: 'after',
       pageId: 'parent',
     });
-  });
-});
-
-describe('filterKbTree', () => {
-  const tree = [
-    node('a', [node('a1'), node('a2', [node('a2x', [], true)])]),
-    node('b', [], true),
-  ];
-  // 題名を付け替えた木（id と題名を分けて、題名で引けていることを確かめる）。
-  const titled = [
-    { ...node('p'), page: page('p', '設計メモ'), children: [
-      { ...node('c'), page: page('c', '議事録') , children: [] },
-    ] },
-  ] as KbPageTreeNode[];
-
-  it('題名が一致した行と、その祖先だけが残る', () => {
-    const out = filterKbTree(tree, 'a2x');
-    expect(out).toHaveLength(1);
-    expect(out[0].page.id).toBe('a');
-    expect(out[0].children).toHaveLength(1);
-    expect(out[0].children[0].page.id).toBe('a2');
-    expect(out[0].children[0].children[0].page.id).toBe('a2x');
-  });
-
-  it('大文字小文字を区別しない', () => {
-    const out = filterKbTree(titled, 'ぎじろく'.toUpperCase());
-    // 日本語には大文字化が無いので、英字で確かめ直す。
-    const latin = [{ ...node('x'), page: page('x', 'Docker Notes'), children: [] }];
-    expect(filterKbTree(latin, 'docker')).toHaveLength(1);
-    expect(filterKbTree(latin, 'DOCKER')).toHaveLength(1);
-    void out;
-  });
-
-  it('一致した親は残るが、一致しない子は残らない', () => {
-    const out = filterKbTree(titled, '設計');
-    expect(out).toHaveLength(1);
-    expect(out[0].page.title).toBe('設計メモ');
-    expect(out[0].children).toHaveLength(0);
-  });
-
-  it('どこにも一致しなければ空になる', () => {
-    expect(filterKbTree(tree, 'zzz')).toHaveLength(0);
-  });
-
-  it('空や空白だけの問い合わせでは元の木をそのまま返す', () => {
-    expect(filterKbTree(tree, '')).toBe(tree);
-    expect(filterKbTree(tree, '   ')).toBe(tree);
-  });
-
-  it('絞り込み中は「表示できないページ」の印を出さない', () => {
-    const out = filterKbTree(tree, 'a2x');
-    expect(out[0].children[0].children[0].hasHiddenChildren).toBe(false);
-  });
-});
-
-describe('collectKbBranchIds', () => {
-  it('子を持つ行の id をすべて集める（開くべき行の一覧）', () => {
-    const tree = [node('a', [node('a1'), node('a2', [node('a2x')])]), node('b')];
-    expect(collectKbBranchIds(tree).sort()).toEqual(['a', 'a2']);
   });
 });

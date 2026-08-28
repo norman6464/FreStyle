@@ -4,8 +4,6 @@ export {
   replaceKbPageInTree,
   moveKbPageInTree,
   kbMoveActions,
-  filterKbTree,
-  collectKbBranchIds,
 } from './lib/tree';
 export type { KbDropTarget, KbMoveActions } from './lib/tree';
 export type {

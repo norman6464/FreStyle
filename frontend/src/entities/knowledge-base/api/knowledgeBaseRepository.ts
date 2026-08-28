@@ -74,6 +74,28 @@ const KnowledgeBaseRepository = {
   },
 
   /**
+   * スペースの表示名を変える。key は URL・権限の参照に使うので変えられない。
+   * 管理権限が無ければ 403、見えないスペースは 404。**失敗は例外として投げる。**
+   */
+  async renameSpace(workspaceSlug: string, spaceId: string, name: string): Promise<KbSpace> {
+    const res = await apiClient.patch<KbSpace>(KNOWLEDGE_BASE.space(workspaceSlug, spaceId), {
+      name,
+    });
+    return res.data;
+  },
+
+  /**
+   * ワークスペース全体を題名で検索する。返るのは閲覧できる現役ページだけ。
+   * 見える範囲の判定はツリーと同じ規則をサーバーが持つ。**失敗は例外として投げる。**
+   */
+  async searchPages(workspaceSlug: string, query: string, limit?: number): Promise<KbPage[]> {
+    const res = await apiClient.get<KbPage[]>(KNOWLEDGE_BASE.search(workspaceSlug), {
+      params: { q: query, ...(limit ? { limit } : {}) },
+    });
+    return toArray(res.data);
+  },
+
+  /**
    * ページを作る。parentId を省くとスペース直下、渡すとその子として作る。
    *
    * **失敗は例外として投げる**（axios がそうする）。ここで握り潰して null や false を返すと、

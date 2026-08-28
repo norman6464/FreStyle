@@ -15,6 +15,8 @@ const hoisted = vi.hoisted(() => ({
   movePage: vi.fn(),
   createWorkspace: vi.fn(),
   createSpace: vi.fn(),
+  renameSpace: vi.fn(),
+  searchPages: vi.fn(),
   showToast: vi.fn(),
 }));
 
@@ -42,6 +44,8 @@ vi.mock('@/entities/knowledge-base', async () => {
       movePage: hoisted.movePage,
       createWorkspace: hoisted.createWorkspace,
       createSpace: hoisted.createSpace,
+      renameSpace: hoisted.renameSpace,
+      searchPages: hoisted.searchPages,
     },
   };
 });
@@ -114,6 +118,10 @@ beforeEach(() => {
   hoisted.movePage.mockResolvedValue(page('p1'));
   hoisted.createWorkspace.mockResolvedValue(workspace('new', '新しい会社'));
   hoisted.createSpace.mockResolvedValue(space('new-space', '新しい区画'));
+  hoisted.renameSpace.mockImplementation(async (_slug: string, id: string, name: string) =>
+    space(id, name),
+  );
+  hoisted.searchPages.mockResolvedValue([]);
 });
 
 /** 行の矩形を固定して、落とす位置（上端 / 中央 / 下端）を狙えるようにする。 */
@@ -1054,68 +1062,147 @@ describe('見た目の印（葉の点と開いたフォルダ）', () => {
   });
 });
 
-describe('題名で絞り込み', () => {
-  beforeEach(() => {
-    hoisted.fetchPageTree.mockResolvedValue(
-      tree([
-        { id: 'docker', title: 'Docker 手順', children: ['docker-child'] },
-        { id: 'design', title: '設計メモ' },
-      ]),
-    );
-  });
-
-  it('一致した行と、その祖先だけが残る', async () => {
-    // 子の題名は fixture では id がそのまま入る（docker-child）。
+describe('題名で検索（サーバー検索）', () => {
+  it('入力すると少し待ってからサーバーに問い合わせ、結果がスペースの見出し付きで出る', async () => {
+    hoisted.searchPages.mockResolvedValue([
+      { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
+    ]);
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
-      target: { value: 'docker-child' },
+    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で検索' }), {
+      target: { value: 'docker' },
     });
 
-    // 一致した子と、その親（道）は見え、無関係の行は消える。閉じていた道も開く。
-    expect(screen.getByRole('link', { name: /docker-child/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledWith('acme', 'docker'));
+    expect(await screen.findByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    // 木は検索結果に置き換わる。
     expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
   });
 
-  it('1 件も一致しないと「一致するページがありません」と伝える', async () => {
+  it('0 件なら「一致するページがありません」と伝える', async () => {
+    hoisted.searchPages.mockResolvedValue([]);
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で検索' }), {
       target: { value: '存在しない題名' },
     });
 
-    expect(screen.getByText('一致するページがありません')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /設計メモ/ })).not.toBeInTheDocument();
+    expect(await screen.findByText('一致するページがありません')).toBeInTheDocument();
   });
 
-  it('絞り込み中はドラッグできない（絞られた並びの「隣」は実際の隣ではない）', async () => {
+  it('消すと木に戻る', async () => {
+    hoisted.searchPages.mockResolvedValue([]);
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    const before = screen.getByRole('link', { name: /設計メモ/ }).closest('div[draggable]') as HTMLElement;
-    expect(before.getAttribute('draggable')).toBe('true');
-
-    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' }), {
-      target: { value: '設計' },
-    });
-
-    const row = screen.getByRole('link', { name: /設計メモ/ }).closest('div[draggable]') as HTMLElement;
-    expect(row.getAttribute('draggable')).toBe('false');
-  });
-
-  it('消すと元の木に戻る', async () => {
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    const input = screen.getByRole('searchbox', { name: 'ページを題名で絞り込み' });
-    fireEvent.change(input, { target: { value: '設計' } });
-    expect(screen.queryByRole('link', { name: /Docker 手順/ })).not.toBeInTheDocument();
+    const input = screen.getByRole('searchbox', { name: 'ページを題名で検索' });
+    fireEvent.change(input, { target: { value: '何か' } });
+    await screen.findByText('一致するページがありません');
 
     fireEvent.change(input, { target: { value: '' } });
-    expect(screen.getByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /設計メモ/ })).toBeInTheDocument();
+  });
+
+  it('古い検索の応答が、後から届いても新しい結果を上書きしない', async () => {
+    // 1 回目の応答を保留し、2 回目が確定した後で解決する（遅い応答が追い越される形）。
+    let resolveOld: (pages: KbPage[]) => void = () => {};
+    hoisted.searchPages.mockImplementationOnce(
+      () => new Promise<KbPage[]>((resolve) => { resolveOld = resolve; }),
+    );
+    hoisted.searchPages.mockResolvedValueOnce([
+      { ...page('new-hit', '新しい結果'), spaceId: 'space-1' },
+    ]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const input = screen.getByRole('searchbox', { name: 'ページを題名で検索' });
+    fireEvent.change(input, { target: { value: 'ふるい' } });
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: '新しい' } });
+    expect(await screen.findByRole('link', { name: /新しい結果/ })).toBeInTheDocument();
+
+    // ここで 1 回目（古い方）が届く。世代番号で捨てられ、画面は新しい結果のまま。
+    await act(async () => {
+      resolveOld([{ ...page('old-hit', '古い結果'), spaceId: 'space-1' }]);
+    });
+    expect(screen.queryByRole('link', { name: /古い結果/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /新しい結果/ })).toBeInTheDocument();
+  });
+
+  it('検索に失敗したら再試行の導線を出し、押すともう一度問い合わせる', async () => {
+    hoisted.searchPages.mockRejectedValueOnce(new Error('down'));
+    hoisted.searchPages.mockResolvedValueOnce([
+      { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
+    ]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'ページを題名で検索' }), {
+      target: { value: 'docker' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: '再試行' }));
+
+    expect(await screen.findByRole('link', { name: /Docker 手順/ })).toBeInTheDocument();
+    expect(hoisted.searchPages).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('スペースの見出しの操作', () => {
+  it('⋯ の「スペースの名前を変更」で見出しが書き換わる', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: '開発部 の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: 'スペースの名前を変更' }));
+
+    const input = screen.getByRole('textbox', { name: 'スペースの名前' });
+    fireEvent.change(input, { target: { value: '技術部' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(hoisted.renameSpace).toHaveBeenCalledWith('acme', 'space-1', '技術部'));
+    expect(await screen.findByText('技術部')).toBeInTheDocument();
+    expect(hoisted.showToast).not.toHaveBeenCalled();
+  });
+
+  it('変更に失敗したら知らせが出て、見出しは元のまま', async () => {
+    hoisted.renameSpace.mockRejectedValue(new Error('forbidden'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: '開発部 の操作' }));
+    fireEvent.click(screen.getByRole('button', { name: 'スペースの名前を変更' }));
+    const input = screen.getByRole('textbox', { name: 'スペースの名前' });
+    fireEvent.change(input, { target: { value: '技術部' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'スペースの名前を変更できませんでした'),
+    );
+    // 入力欄は開いたまま・書いた文字も残る（閉じると、保存されたのか分からなくなる）。
+    // ページの改名と同じ設計。
+    const stillOpen = screen.getByRole('textbox', { name: 'スペースの名前' });
+    expect(stillOpen).toHaveValue('技術部');
+  });
+
+  it('見出しの ＋ と ⋯ はホバーしなくても見えている（行の操作はホバーで現れる）', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const plus = screen.getByRole('button', { name: '開発部 にページを追加' });
+    const menu = screen.getByRole('button', { name: '開発部 の操作' });
+    // 行の操作（opacity-0 で隠れる）と違い、見出しの操作は常時表示のクラス構成。
+    expect(plus.className).not.toContain('opacity-0');
+    expect(menu.className).not.toContain('opacity-0');
+  });
+
+  it('行の ＋ には何が起きるかのツールチップが付いている', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    const rowPlus = screen.getByRole('button', { name: '設計メモ の下にページを追加' });
+    expect(rowPlus).toHaveAttribute('title', '中にページを作成');
+  });
+});
+

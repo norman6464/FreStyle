@@ -1668,3 +1668,110 @@ func pageIDs(pages []domain.Page) []string {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+func TestKnowledgeBaseSearchViewFacts_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	searchFor := func(f kbPermFixture, t *testing.T, userID uint64, query string) []string {
+		t.Helper()
+		pages, err := usecase.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
+			usecase.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: userID, Query: query})
+		require.NoError(t, err)
+		return pageIDs(pages)
+	}
+
+	t.Run("題名の部分一致でスペースを跨いで返り、伏せたページは出ない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		inA := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "Docker 手順")
+		inB := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceB, nil, "docker 入門")
+		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "Docker 機密")
+		_ = mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "無関係")
+
+		alice := f.principalFor(ctx, t, f.alice)
+		bob := f.principalFor(ctx, t, f.bob)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		f.grantSpace(ctx, t, f.spaceB, alice.ID, domain.GrantRoleViewer)
+		f.grantSpace(ctx, t, f.spaceA, bob.ID, domain.GrantRoleViewer)
+		// secret は alice を deny（1 ページ解決と同じ見方で、検索でも落ちること）。
+		f.restrict(ctx, t, secret.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		got := searchFor(f, t, f.alice, "docker")
+		// 並びは題名順（"Docker 手順" < "docker 入門" は ILIKE ではなく ORDER BY title 依存）。
+		// 順序はロケールに寄るので、集合として確かめる。
+		assert.ElementsMatch(t, []string{inA.ID, inB.ID}, got)
+		// deny の無い bob には機密も見える（deny が本人にだけ効いている確認）。
+		// bob はスペース A の viewer だけなので、B のページは出ない（スペースごとの権限が
+		// 検索でも効いている確認を兼ねる）。
+		assert.ElementsMatch(t, []string{inA.ID, secret.ID}, searchFor(f, t, f.bob, "docker"))
+	})
+
+	t.Run("見えない祖先の配下は検索でも出ない", func(t *testing.T) {
+		// 一覧（木）では見えない枝の中身は出ない。検索が別の判定を持つと
+		// 「木には出ないのに検索では出る」穴になる — 同じ ResolvePageView を通る確認。
+		f := setupKBPermission(t, sqlDB)
+		parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親")
+		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent.ID, "Docker 子")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		// 親を deny → 経路上の deny は子にも効く。
+		f.restrict(ctx, t, parent.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		assert.Empty(t, searchFor(f, t, f.alice, "docker"), "deny された祖先の配下 %s が検索に出ている", child.ID)
+	})
+
+	t.Run("ワークスペースの境界を越えない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		mine := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "共通の題名")
+		_ = mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "共通の題名")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+
+		assert.Equal(t, []string{mine.ID}, searchFor(f, t, f.alice, "共通"))
+	})
+
+	t.Run("LIKE の記号は文字として扱う（% で全件は返らない）", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		literal := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "進捗 100% の報告")
+		_ = mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "無関係")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+
+		assert.Equal(t, []string{literal.ID}, searchFor(f, t, f.alice, "100%"),
+			"% がワイルドカードのまま渡ると全件一致になる")
+	})
+
+	t.Run("アーカイブ済みは検索に出ない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		gone := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "Docker 旧版")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, gone.ID))
+
+		assert.Empty(t, searchFor(f, t, f.alice, "docker"))
+	})
+}
+
+func TestKnowledgeBaseUpdateSpaceName_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	t.Run("名前だけが変わり key は変わらない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		require.NoError(t, f.pages.UpdateSpaceName(ctx, f.ws, f.spaceA, "改組後の名前"))
+		sp, err := f.pages.FindSpace(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		assert.Equal(t, "改組後の名前", sp.Name)
+		assert.Equal(t, "aaa", sp.Key)
+	})
+
+	t.Run("別ワークスペースのスペース ID は not found", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		err := f.pages.UpdateSpaceName(ctx, f.ws, f.otherSpc, "越境")
+		assert.ErrorIs(t, err, repository.ErrSpaceNotFound)
+		// 相手側の名前が変わっていないこと（0 件更新の確認を裏からも取る）。
+		sp, ferr := f.pages.FindSpace(ctx, f.otherWS, f.otherSpc)
+		require.NoError(t, ferr)
+		assert.NotEqual(t, "越境", sp.Name)
+	})
+}

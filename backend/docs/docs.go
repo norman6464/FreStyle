@@ -3851,6 +3851,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/search": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース 全体 から 題名 の 部分 一致 で 検索 する。 返る の は 閲覧 できる 現役 ページ のみ。 並び は 題名 順。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 題名 検索",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "題名 の 部分 一致 (1〜100 文字)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "最大 件数 (既定 20 / 上限 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.kbPageResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "q が 空 か 長 すぎる",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/spaces": {
             "get": {
                 "security": [
@@ -3973,6 +4041,89 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "key が 使用 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "表示名 だけ を 変更 する。 key は URL・権限 の 参照 に 使う ため 不変。 スペース の 管理 権限 が 要る。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の スペース 改名",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "スペース ID (UUID)",
+                        "name": "spaceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "新しい 表示名",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbRenameSpaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbSpaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -7189,6 +7340,19 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 200,
                     "example": "設計メモ (改訂)"
+                }
+            }
+        },
+        "internal_handler.kbRenameSpaceRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "開発部 (改組)"
                 }
             }
         },

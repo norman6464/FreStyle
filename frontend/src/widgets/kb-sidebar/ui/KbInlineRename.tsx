@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 
 export interface KbInlineRenameProps {
   initialTitle: string;
+  /** 入力の読み上げ名。既定は「ページの題名」（スペースの改名では「スペースの名前」を渡す）。 */
+  ariaLabel?: string;
   /** 確定。**失敗は投げてくる**ので、呼び出し側が握り潰さない限り必ず表に出る。 */
   onCommit: (title: string) => Promise<void>;
   onCancel: () => void;
@@ -15,7 +17,12 @@ export interface KbInlineRenameProps {
  * 元の題名が残り、「保存されたのか分からない」状態になる。開いたままにして
  * もう一度試せるようにする（失敗の知らせは呼び出し側が出す）。
  */
-export default function KbInlineRename({ initialTitle, onCommit, onCancel }: KbInlineRenameProps) {
+export default function KbInlineRename({
+  initialTitle,
+  ariaLabel = 'ページの題名',
+  onCommit,
+  onCancel,
+}: KbInlineRenameProps) {
   const [value, setValue] = useState(initialTitle);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,7 +61,7 @@ export default function KbInlineRename({ initialTitle, onCommit, onCancel }: KbI
       type="text"
       value={value}
       disabled={saving}
-      aria-label="ページの題名"
+      aria-label={ariaLabel}
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => void commit()}
       onKeyDown={(event) => {

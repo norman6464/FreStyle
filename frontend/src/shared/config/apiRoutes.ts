@@ -238,6 +238,16 @@ export const KNOWLEDGE_BASE = {
   /** GET(本文込み) / PATCH(改名) — /api/v2/kb/workspaces/:slug/pages/:pageId */
   page: (workspaceSlug: string, pageId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}`,
+  /** PATCH(表示名の変更) — /api/v2/kb/workspaces/:slug/spaces/:spaceId。key は変えられない */
+  space: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/search?q=
+   *
+   * ワークスペース全体の題名検索。返るのは閲覧できる現役ページだけで、
+   * 判定はツリーと同じ規則をサーバーが持つ（検索だけ別の判定にしない）。
+   */
+  search: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/search`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

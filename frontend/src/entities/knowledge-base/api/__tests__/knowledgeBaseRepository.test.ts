@@ -176,4 +176,42 @@ describe('KnowledgeBaseRepository', () => {
 
     expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p1');
   });
+
+  it('searchPages は GET /search に q を渡し、null 応答でも空配列にする', async () => {
+    mockGet.mockResolvedValue({ data: null });
+
+    await expect(KnowledgeBaseRepository.searchPages('acme', 'docker')).resolves.toEqual([]);
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/search', {
+      params: { q: 'docker' },
+    });
+  });
+
+  it('searchPages は limit を渡したときだけ params に載せる', async () => {
+    mockGet.mockResolvedValue({ data: [] });
+
+    await KnowledgeBaseRepository.searchPages('acme', 'docker', 5);
+
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/search', {
+      params: { q: 'docker', limit: 5 },
+    });
+  });
+
+  it('renameSpace は PATCH /spaces/:id に name だけを送る', async () => {
+    mockPatch.mockResolvedValue({
+      data: { id: 'sp-1', key: 'eng', name: '技術部', createdAt: '2026-08-01T00:00:00Z' },
+    });
+
+    const space = await KnowledgeBaseRepository.renameSpace('acme', 'sp-1', '技術部');
+
+    expect(mockPatch).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/sp-1', {
+      name: '技術部',
+    });
+    expect(space.name).toBe('技術部');
+  });
+
+  it('renameSpace の失敗は投げる（握り潰すと成功の表示だけが残る）', async () => {
+    mockPatch.mockRejectedValue(new Error('forbidden'));
+
+    await expect(KnowledgeBaseRepository.renameSpace('acme', 'sp-1', 'x')).rejects.toThrow();
+  });
 });

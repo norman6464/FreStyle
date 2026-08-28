@@ -837,3 +837,125 @@ FROM spaces s
 LEFT JOIN roles r ON r.space_id = s.id
 WHERE s.workspace_id = sqlc.arg(workspace_id)
 ORDER BY s."key", r."role";
+
+-- name: SearchWorkspacePageViewFacts :many
+-- ワークスペース全体から、題名が部分一致する**現役**ページを候補にして、
+-- それぞれの「閲覧の事実」を 1 回のクエリで返す（サイドバーの題名検索用）。
+--
+-- 事実の組み立ては ListSpacePageViewFacts と同じ見方（deny は経路全体・許可リストは
+-- 最も近い段・段かどうかは page_allow_lists の印）で、判定は domain.ResolvePageView が行う。
+-- 違いは 2 つだけ:
+--   1. 対象がスペース 1 つではなくワークスペース全体（題名の一致で先に候補を絞る）
+--   2. スペース単位の主体（space_all）と space_grants は**そのページのスペース**のもので
+--      突き合わせる。1 スペース版は引数のスペースに固定できたが、こちらは行ごとに違うので、
+--      space_allp（スペースごとの space_all 主体。自分が所属するときだけ行がある）を
+--      JOIN で当てる。集計の中に相関副問い合わせを書かない流儀は他のクエリと同じ。
+--
+-- 候補の LIMIT 200 は「事実を計算する行数の天井」であって応答の件数ではない
+-- （呼び出し側が可視でふるった後にさらに件数を切る）。
+--
+-- needle は呼び出し側（Go）が % _ とバックスラッシュをエスケープして渡す
+-- （LIKE の既定のエスケープ文字はバックスラッシュ）。生で渡すと「%」1 文字で全件一致になり、
+-- 候補の天井まで無関係な行が埋まる。
+--
+-- 索引について: 部分一致（中間一致）は B-tree では引けないため、この絞り込みは
+-- workspace_id の索引で範囲を狭めたうえでの逐次比較になる。現状の規模（1 ワークスペース
+-- 数百〜数千ページ）では十分速い。伸びたら pg_trgm の GIN を検討する（拡張が要るので
+-- そのときに判断する）。
+--
+-- 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c1 / c2 …）。CTE ごとに同じ
+-- 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
+-- 「column ... does not exist」で生成が落ちる（実測）。
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = sqlc.arg(workspace_id)
+      AND pr.kind = 'user' AND pr.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    -- 自分と、自分が入っているグループ。space_all はスペースごとに違うので space_allp で持つ。
+    SELECT id FROM me
+    UNION
+    SELECT pmb.group_principal_id
+    FROM principal_members pmb
+    JOIN me ON me.id = pmb.member_principal_id
+    WHERE pmb.workspace_id = sqlc.arg(workspace_id)
+),
+space_allp AS (
+    -- スペースごとの「全員」主体。自分がワークスペースの所属者のときだけ意味を持つ。
+    SELECT spx.space_id, spx.id
+    FROM principals spx
+    WHERE spx.workspace_id = sqlc.arg(workspace_id)
+      AND spx.kind = 'space_all'
+      AND EXISTS (SELECT 1 FROM me)
+),
+cand AS (
+    SELECT pg.*
+    FROM pages pg
+    WHERE pg.workspace_id = sqlc.arg(workspace_id)
+      AND pg.archived_at IS NULL
+      AND pg.title ILIKE ('%' || sqlc.arg(needle)::text || '%')
+    ORDER BY pg.title, pg.id
+    LIMIT 200
+),
+onpath AS (
+    SELECT pp1.page_id, c1.space_id AS page_space, pp1.depth, rst.mode, rst.principal_id
+    FROM page_paths pp1
+    JOIN cand c1 ON c1.workspace_id = pp1.workspace_id AND c1.id = pp1.page_id
+    JOIN page_restrictions rst
+      ON rst.workspace_id = pp1.workspace_id AND rst.page_id = pp1.ancestor_id AND rst.capability = 'view'
+    WHERE pp1.workspace_id = sqlc.arg(workspace_id)
+),
+allow_scope AS (
+    SELECT pp2.page_id, MIN(pp2.depth) AS nearest_depth
+    FROM page_paths pp2
+    JOIN cand c2 ON c2.workspace_id = pp2.workspace_id AND c2.id = pp2.page_id
+    JOIN page_allow_lists alw
+      ON alw.workspace_id = pp2.workspace_id AND alw.page_id = pp2.ancestor_id AND alw.capability = 'view'
+    WHERE pp2.workspace_id = sqlc.arg(workspace_id)
+    GROUP BY pp2.page_id
+),
+exception AS (
+    SELECT onp.page_id,
+           bool_or(onp.mode = 'deny'
+                   AND (onp.principal_id IN (SELECT id FROM mine)
+                        OR onp.principal_id = sap.id)) AS denied_anywhere,
+           bool_or(onp.mode = 'allow' AND onp.depth = asc1.nearest_depth
+                   AND (onp.principal_id IN (SELECT id FROM mine)
+                        OR onp.principal_id = sap.id)) AS allowed_at_nearest
+    FROM onpath onp
+    LEFT JOIN allow_scope asc1 ON asc1.page_id = onp.page_id
+    LEFT JOIN space_allp sap ON sap.space_id = onp.page_space
+    GROUP BY onp.page_id
+),
+wsrank AS (
+    SELECT COALESCE(max(CASE wg."role"
+                          WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                          WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END), 0) AS v
+    FROM workspace_grants wg
+    WHERE wg.workspace_id = sqlc.arg(workspace_id)
+      AND wg.principal_id IN (SELECT id FROM mine)
+),
+sgrank AS (
+    SELECT sg.space_id,
+           max(CASE sg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM space_grants sg
+    LEFT JOIN space_allp sap2 ON sap2.space_id = sg.space_id
+    WHERE sg.workspace_id = sqlc.arg(workspace_id)
+      AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
+    GROUP BY sg.space_id
+)
+SELECT
+    cnd.*,
+    GREATEST((SELECT v FROM wsrank), COALESCE(sr.v, 0))::integer AS grant_rank,
+    (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
+    COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
+    (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
+    COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+FROM cand cnd
+LEFT JOIN exception exc ON exc.page_id = cnd.id
+LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
+LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+ORDER BY cnd.title, cnd.id;

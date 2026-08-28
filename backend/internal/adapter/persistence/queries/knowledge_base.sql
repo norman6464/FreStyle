@@ -56,6 +56,13 @@ SELECT * FROM pages
 WHERE workspace_id = $1 AND parent_id = $2 AND archived_at IS NULL
 ORDER BY "position";
 
+-- name: UpdateSpaceName :execrows
+-- スペースの表示名だけを変える。key は URL・権限の参照に使われるので触らない。
+-- 0 件なら対象が存在しない（別ワークスペースの ID もここで 0 件になる —
+-- workspace_id を WHERE に含める作法はこのファイルの先頭コメントのとおり）。
+UPDATE spaces SET name = $3, updated_at = now()
+WHERE workspace_id = $1 AND id = $2;
+
 -- name: ListActivePagesBySpace :many
 -- スペース配下の現役ページ全件（ツリー構築用）。position はバイト順なので、
 -- 同じ親を持つページ同士はこの並びのまま兄弟順になる（木への組み立ては Go 側）。

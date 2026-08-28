@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArchiveBoxIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/shared/lib/hooks/useToast';
@@ -6,6 +6,8 @@ import KbCreateForm from './KbCreateForm';
 import { useKnowledgeBaseTree } from '../model/useKnowledgeBaseTree';
 import KbWorkspaceSwitcher from './KbWorkspaceSwitcher';
 import KbSpaceSection from './KbSpaceSection';
+import KbSearchResults from './KbSearchResults';
+import { KnowledgeBaseRepository, type KbPage } from '@/entities/knowledge-base';
 
 export interface KbSidebarProps {
   /** URL が指しているワークスペース。未指定なら所属の先頭を開く。 */
@@ -43,6 +45,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     togglePage,
     createWorkspace,
     createSpace,
+    renameSpace,
     createPage,
     renamePage,
     archivePage,
@@ -52,14 +55,44 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     setArchivedMode,
   } = useKnowledgeBaseTree({ workspaceSlug, activePageId });
 
-  // 題名での絞り込み。開いているスペースの木に効く（読み込んでいない木は絞れない）。
-  const [filterQuery, setFilterQuery] = useState('');
+  // 題名の検索。実体はサーバー（ツリーと同じ規則で、閲覧できるページだけが返る）。
+  // フロントで読み込み済みの木を絞る方式は捨てた — 閉じているスペースや未読の枝が
+  // 探せず、「検索したのに見つからない」が起きるため。
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchStatus, setSearchStatus] = useState<'loading' | 'done' | 'error'>('done');
+  const [searchPages, setSearchPages] = useState<KbPage[]>([]);
+  // 速く打ったときに、古い応答が新しい結果を上書きしないための世代番号。
+  const searchGeneration = useRef(0);
+  const searching = searchQuery.trim() !== '';
+  // 再試行の引き金（値そのものに意味は無い。増えたら同じ問い合わせをもう一度投げる）。
+  const [searchAttempt, setSearchAttempt] = useState(0);
 
-  // ワークスペースを移ったら消す。前の場所の絞り込みが残ると、
-  // 新しい場所が「一致なし」だらけに見える。
+  // ワークスペースを移ったら消す。前の場所の検索が残ると、新しい場所が「一致なし」に見える。
   useEffect(() => {
-    setFilterQuery('');
+    setSearchQuery('');
   }, [activeSlug]);
+
+  // 入力から 250ms 待って検索する。1 打鍵ごとに投げると、応答の順序が入れ替わって
+  // 前の結果が後から届く（世代番号はその保険で、debounce は無駄打ちを減らす方）。
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!activeSlug || query === '') return undefined;
+    const generation = ++searchGeneration.current;
+    setSearchStatus('loading');
+    const timer = setTimeout(() => {
+      KnowledgeBaseRepository.searchPages(activeSlug, query)
+        .then((pages) => {
+          if (generation !== searchGeneration.current) return;
+          setSearchPages(pages);
+          setSearchStatus('done');
+        })
+        .catch(() => {
+          if (generation !== searchGeneration.current) return;
+          setSearchStatus('error');
+        });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [activeSlug, searchQuery, searchAttempt]);
 
   return (
     <nav aria-label="ナレッジ基盤" className="flex h-full flex-col overflow-y-auto p-2">
@@ -106,7 +139,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
         </div>
       )}
 
-      {activeSlug && spaces.length > 0 && (
+      {activeSlug && spaces.length > 0 && !archivedMode && (
         <div className="relative mt-2 px-1">
           <MagnifyingGlassIcon
             className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-muted)]"
@@ -114,10 +147,10 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
           />
           <input
             type="search"
-            value={filterQuery}
-            onChange={(event) => setFilterQuery(event.target.value)}
-            placeholder="題名で絞り込み"
-            aria-label="ページを題名で絞り込み"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="題名で検索"
+            aria-label="ページを題名で検索"
             className="w-full rounded-md border border-surface-3 bg-surface-1 py-1 pl-7 pr-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-brand-400 focus:outline-none"
           />
         </div>
@@ -158,7 +191,19 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
           </div>
         )}
 
+        {activeSlug && searching && (
+          <KbSearchResults
+            status={searchStatus}
+            pages={searchPages}
+            spaces={spaces}
+            workspaceSlug={activeSlug}
+            activePageId={activePageId}
+            onRetry={() => setSearchAttempt((prev) => prev + 1)}
+          />
+        )}
+
         {activeSlug &&
+          !searching &&
           spaces.map((space) => (
             <KbSpaceSection
               key={space.id}
@@ -175,7 +220,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
               onArchivePage={archivePage}
               onUnarchivePage={unarchivePage}
               archivedMode={archivedMode}
-              filterQuery={filterQuery}
+              onRenameSpace={renameSpace}
               onMovePage={movePage}
             />
           ))}

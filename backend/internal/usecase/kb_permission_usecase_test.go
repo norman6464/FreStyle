@@ -510,3 +510,68 @@ func Test_例外解除_検証と委譲(t *testing.T) {
 
 // strPtr は ParentID のようなポインタ項目をテストから書くための小道具。
 func strPtr(v string) *string { return &v }
+
+func Test_題名検索_見えないページを落とし件数を切る(t *testing.T) {
+	visible := domain.Page{ID: "p-1", Title: "Docker 手順"}
+	visible2 := domain.Page{ID: "p-2", Title: "Docker 入門"}
+	denied := domain.Page{ID: "p-3", Title: "Docker 機密"}
+
+	repo := &mockKBPermissionRepo{}
+	repo.On("SearchWorkspacePageViewFacts", mock.Anything, "ws-1", uint64(7), "docker").
+		Return([]repository.PageWithViewFacts{
+			{Page: visible, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
+			// 経路上で自分が deny されている行 — 一覧と同じ判定（ResolvePageView）で落ちること。
+			{Page: denied, Facts: domain.PageViewFacts{
+				Role: kbGrantRole(domain.GrantRoleViewer),
+				View: &domain.RestrictionFacts{DeniedAnywhere: true},
+			}},
+			{Page: visible2, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
+		}, nil)
+
+	uc := usecase.NewSearchViewablePagesUseCase(repo)
+
+	t.Run("deny された行は返らない", func(t *testing.T) {
+		pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+			WorkspaceID: "ws-1", UserID: 7, Query: "docker",
+		})
+		require.NoError(t, err)
+		require.Len(t, pages, 2)
+		assert.Equal(t, "p-1", pages[0].ID)
+		assert.Equal(t, "p-2", pages[1].ID)
+	})
+
+	t.Run("Limit は可視でふるった後に効き、範囲外は既定・上限へ畳まれる", func(t *testing.T) {
+		// 入力 → 期待件数の表。可視は 2 件しか無いので、2 以上はすべて 2 になる。
+		cases := []struct {
+			name  string
+			limit int
+			want  int
+		}{
+			{name: "1 なら 1 件", limit: 1, want: 2 - 1},
+			{name: "0 は既定 20 → 可視の全件", limit: 0, want: 2},
+			{name: "負も既定 20 → 可視の全件", limit: -5, want: 2},
+			{name: "上限 50 を超えても 50 に畳まれる（可視の全件）", limit: 999, want: 2},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+					WorkspaceID: "ws-1", UserID: 7, Query: "docker", Limit: tc.limit,
+				})
+				require.NoError(t, err)
+				require.Len(t, pages, tc.want)
+				assert.Equal(t, "p-1", pages[0].ID, "並びは repo の返した順（題名順）を保つ")
+			})
+		}
+	})
+}
+
+func Test_題名検索_空の問い合わせは誤り(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	uc := usecase.NewSearchViewablePagesUseCase(repo)
+	_, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+		WorkspaceID: "ws-1", UserID: 7, Query: "   ",
+	})
+	// 空で全件を返す口にしない（見えるページの全数が数えられる口になる）。
+	assert.Error(t, err)
+	repo.AssertNotCalled(t, "SearchWorkspacePageViewFacts", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -102,6 +103,15 @@ func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) 
 	}
 	c := *s
 	return &c, nil
+}
+
+func (f *kbFakePages) UpdateSpaceName(_ context.Context, workspaceID, spaceID, name string) error {
+	s, ok := f.spaces[spaceID]
+	if !ok || s.WorkspaceID != workspaceID {
+		return repository.ErrSpaceNotFound
+	}
+	s.Name = name
+	return nil
 }
 
 func (f *kbFakePages) CreateSpace(_ context.Context, space *domain.Space) error {
@@ -628,6 +638,41 @@ func (f *kbFakePerms) PagePermissionFactsForUser(ctx context.Context, workspaceI
 		View:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityView, mine),
 		Edit:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityEdit, mine),
 	}, nil
+}
+
+// SearchWorkspacePageViewFacts は本番のクエリと同じ見方で候補と事実を返す:
+// 題名の部分一致（大文字小文字は区別しない）・現役のみ・ワークスペース境界。
+// 事実（役割と経路上の例外）は一覧（ListSpacePageViewFacts）と同じ作り方にする —
+// 検索だけ Role しか返さないと、deny のあるページが検索でだけ見える fake になり、
+// 本番との差がテストの穴になる。判定（ふるい）は usecase が行う。
+func (f *kbFakePerms) SearchWorkspacePageViewFacts(
+	_ context.Context, workspaceID string, userID uint64, query string,
+) ([]repository.PageWithViewFacts, error) {
+	f.countPermRead("SearchWorkspacePageViewFacts")
+	needle := strings.ToLower(query)
+	out := make([]repository.PageWithViewFacts, 0)
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return out, nil
+	}
+	for _, p := range f.pages.pages {
+		if p.WorkspaceID != workspaceID || p.ArchivedAt != nil {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(p.Title), needle) {
+			continue
+		}
+		mine := f.mine(workspaceID, p.SpaceID, userID)
+		out = append(out, repository.PageWithViewFacts{
+			Page: *p,
+			Facts: domain.PageViewFacts{
+				Role: roleFor(f.permFor(p.ID, userID)),
+				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
+			},
+		})
+	}
+	// map の巡回順に依存しない並び（本番は題名順）。
+	sort.Slice(out, func(i, j int) bool { return out[i].Page.Title < out[j].Page.Title })
+	return out, nil
 }
 
 func (f *kbFakePerms) ListSpacePageViewFacts(

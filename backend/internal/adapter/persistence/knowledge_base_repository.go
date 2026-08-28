@@ -201,6 +201,26 @@ func (r *knowledgeBaseRepository) FindPageByIDAcrossWorkspaces(ctx context.Conte
 	return &p, nil
 }
 
+func (r *knowledgeBaseRepository) ListAncestorPageIDs(ctx context.Context, workspaceID, pageID string) ([]string, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return []string{}, nil
+	}
+	rows, err := r.q.ListPageAncestorIDs(ctx, sqlcgen.ListPageAncestorIDsParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, id := range rows {
+		out = append(out, id.String())
+	}
+	return out, nil
+}
+
 func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)

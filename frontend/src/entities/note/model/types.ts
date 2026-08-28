@@ -103,7 +103,20 @@ export interface NotePageDoc {
  */
 export interface NoteResolvedPage {
   workspaceSlug: string;
+  /** ワークスペースの表示名（パンくず用）。 */
+  workspaceName: string;
   page: NotePage;
   doc: unknown;
   canEdit: boolean;
+  /**
+   * 閲覧できる祖先だけが根から順に入る（パンくず用）。
+   * 見えない祖先は行ごと無い — 木と同じ規則で、穴があき得る。
+   */
+  ancestors: NoteAncestorRef[];
+}
+
+/** パンくず 1 段分（ページ ID と現在の題名）。 */
+export interface NoteAncestorRef {
+  id: string;
+  title: string;
 }

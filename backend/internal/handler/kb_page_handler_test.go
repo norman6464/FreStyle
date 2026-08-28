@@ -1007,6 +1007,38 @@ func Test_ナレッジ基盤API_解決済みの題名を保存しても本文に
 	assert.NotContains(t, got.Body.String(), `"title":"`+child.Title+`"`)
 }
 
+// パンくず: 解決応答に閲覧できる祖先が根から順に載り、deny された祖先は行ごと消える
+// （題名どころか実在も知らせない — 木と同じ規則）。
+func Test_ナレッジ基盤API_IDだけの解決にパンくずが載る(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// 3 段の木: root → child → grandchild。
+	created := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/"+kbSpaceID+"/pages",
+		`{"parentId":"`+kbChildPageID+`","title":"孫ページ"}`)
+	require.Equal(t, http.StatusCreated, created.Code)
+	var grandchild kbPageResponse
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &grandchild))
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+grandchild.ID, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	var res struct {
+		WorkspaceName string `json:"workspaceName"`
+		Ancestors     []struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"ancestors"`
+	}
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+	assert.NotEmpty(t, res.WorkspaceName)
+	require.Len(t, res.Ancestors, 2, "祖先が根から順に載る")
+	assert.Equal(t, kbRootPageID, res.Ancestors[0].ID)
+	assert.Equal(t, kbChildPageID, res.Ancestors[1].ID)
+
+	// 祖先への deny はこの fake では経路全体に効き、孫自身も 404 になる
+	// （＝この経路で「祖先だけ消える」形は作れない）。見えない祖先が行ごと
+	// 落ちること・並びが closure の順であることは usecase の単体テストが固定する。
+}
+
 // ResolveByID（/p の入口）は Get と別経路で WorkspaceID / UserID を組み立てるため、
 // 題名解決が挟まっていることをこちらでも独立に固定する。
 func Test_ナレッジ基盤API_IDだけの解決でも参照の題名が現在の値になる(t *testing.T) {
@@ -1112,6 +1144,7 @@ func Test_ナレッジ基盤API_middlewareを通らないルートは成功し�
 		usecase.NewUnarchivePageUseCase(pages),
 		usecase.NewReplacePageBlocksUseCase(pages),
 		usecase.NewResolvePageRefTitlesUseCase(perms),
+		usecase.NewListViewableAncestorsUseCase(pages, perms),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

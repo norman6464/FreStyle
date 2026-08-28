@@ -84,6 +84,11 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 	}
 	titles := make(map[string]string, len(rows))
 	for _, row := range rows {
+		// アーカイブ済みは題名に採らない（隠したページの現在の題名を本文へ映さない —
+		// 検索が現役だけを対象にするのと同じ線引き）。パンくず側は逆に含める。
+		if row.Page.ArchivedAt != nil {
+			continue
+		}
 		if domain.ResolvePageView(row.Facts) {
 			titles[row.Page.ID] = row.Page.Title
 		}
@@ -231,4 +236,67 @@ func canonicalPageRefID(id string) (string, bool) {
 		return "", false
 	}
 	return parsed.String(), true
+}
+
+// AncestorRef はパンくず 1 段分（ページ ID と現在の題名）。
+type AncestorRef struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// ListViewableAncestorsUseCase はページの祖先のうち、読み手が閲覧できるものだけを
+// 根から順に返す（パンくず用）。
+//
+// 見えない祖先は**行ごと出さない**（題名どころか実在も知らせない）。木の応答が
+// 見えない親の配下を出さないのと同じ規則で、可視の判定も同じ事実
+// （ListWorkspacePageViewFactsByIDs + domain.ResolvePageView）を通す。
+// 結果、パンくずには穴があき得るが、それは木と同じ見え方 — パンくずだけ別の
+// 判定を持つと「木には出ないのに道筋には出る」穴になる。
+//
+// **アーカイブ済みの祖先は含める**（閲覧できる限り）。アーカイブ済みのページは
+// /p/{id} で開けるので、経路から抜くと「その段が無い」かのように場所を偽る。
+type ListViewableAncestorsUseCase struct {
+	pages repository.KnowledgeBaseRepository
+	perms repository.KnowledgeBasePermissionRepository
+}
+
+func NewListViewableAncestorsUseCase(
+	pages repository.KnowledgeBaseRepository,
+	perms repository.KnowledgeBasePermissionRepository,
+) *ListViewableAncestorsUseCase {
+	return &ListViewableAncestorsUseCase{pages: pages, perms: perms}
+}
+
+type ListViewableAncestorsInput struct {
+	WorkspaceID string
+	UserID      uint64
+	PageID      string
+}
+
+func (u *ListViewableAncestorsUseCase) Execute(ctx context.Context, in ListViewableAncestorsInput) ([]AncestorRef, error) {
+	ids, err := u.pages.ListAncestorPageIDs(ctx, in.WorkspaceID, in.PageID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []AncestorRef{}, nil
+	}
+	rows, err := u.perms.ListWorkspacePageViewFactsByIDs(ctx, in.WorkspaceID, in.UserID, ids)
+	if err != nil {
+		return nil, err
+	}
+	viewable := make(map[string]string, len(rows))
+	for _, row := range rows {
+		if domain.ResolvePageView(row.Facts) {
+			viewable[row.Page.ID] = row.Page.Title
+		}
+	}
+	// 並びは closure の順（根から）を保つ。facts の応答順は題名順なので使わない。
+	out := make([]AncestorRef, 0, len(ids))
+	for _, id := range ids {
+		if title, ok := viewable[id]; ok {
+			out = append(out, AncestorRef{ID: id, Title: title})
+		}
+	}
+	return out, nil
 }

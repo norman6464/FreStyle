@@ -239,12 +239,14 @@ type KnowledgeBasePermissionRepository interface {
 	// （% _ \ のエスケープは実装が行う — 呼び出し側に SQL の都合を漏らさない）。
 	// ParentArchived は常に false（検索は現役だけを対象にするため集めない）。
 	SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]PageWithViewFacts, error)
-	// ListWorkspacePageViewFactsByIDs は指定 ID 群の現役ページの閲覧の事実を返す
-	// （本文中のページ参照の題名解決用）。事実の見方は検索と同一で、判定は呼び出し側が
-	// domain.ResolvePageView で行う。UUID として読めない ID・他ワークスペースの ID・
-	// アーカイブ済みは行にならない（エラーにしない — 参照は本文の中身であり、
-	// 壊れた参照でページ全体の読み出しを落とさない）。
-	// ParentArchived は常に false（検索と同じく現役だけが対象なので集めない）。
+	// ListWorkspacePageViewFactsByIDs は指定 ID 群のページの閲覧の事実を返す
+	// （ページ参照の題名解決とパンくずが使う）。事実の見方は検索と同一で、判定は
+	// 呼び出し側が domain.ResolvePageView で行う。UUID として読めない ID・
+	// 他ワークスペースの ID は行にならない（エラーにしない — 壊れた参照で
+	// ページ全体の読み出しを落とさない）。**アーカイブ済みも行として返す**
+	// （Page.ArchivedAt に載る）。除外するかは用途で違うため呼び出し側が決める —
+	// 題名解決は除外し、パンくずは含める（経路から抜くと場所を偽る）。
+	// ParentArchived は集めない（この口の用途では使わない）。常に false。
 	ListWorkspacePageViewFactsByIDs(ctx context.Context, workspaceID string, userID uint64, pageIDs []string) ([]PageWithViewFacts, error)
 	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める。
 	// 判定は domain.ResolveScopePermission が行う。スペースが無い・別ワークスペースなら

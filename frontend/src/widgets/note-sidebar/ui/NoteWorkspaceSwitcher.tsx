@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, ChevronUpDownIcon, PlusIcon } from '@heroicons/react/24/outline';
+import NoteCreateForm from './NoteCreateForm';
 import type { NoteWorkspace } from '@/entities/note';
 
 export interface NoteWorkspaceSwitcherProps {
   workspaces: NoteWorkspace[];
   activeSlug: string | null;
   onSelect: (slug: string) => void;
+  /** ワークスペースを作る。**失敗は投げてくる**（フォームが入力を保つ）。 */
+  onCreate: (input: { name: string }) => Promise<void>;
 }
 
 /**
@@ -19,8 +22,11 @@ export default function NoteWorkspaceSwitcher({
   workspaces,
   activeSlug,
   onSelect,
+  onCreate,
 }: NoteWorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
+  // ポップアップ内の「ワークスペースを追加」フォームの開閉。閉じるたびに畳む。
+  const [adding, setAdding] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const active = workspaces.find((w) => w.slug === activeSlug) ?? null;
@@ -41,6 +47,10 @@ export default function NoteWorkspaceSwitcher({
     // Escape で閉じる。開いたものを閉じる手段がキーボードから無いのは、
     // 役割を名乗る名乗らないに関わらず困る。
     const onKeyDown = (event: KeyboardEvent) => {
+      // 日本語入力の変換キャンセルの Escape で閉じない。閉じるとポップアップ内の
+      // 作成フォームごと消え、打ちかけのワークスペース名が失われる（keyCode 229 は
+      // Safari の変換中の値）。
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') setOpen(false);
     };
     document.addEventListener('mousedown', onDocumentMouseDown);
@@ -51,20 +61,14 @@ export default function NoteWorkspaceSwitcher({
     };
   }, [open]);
 
-  // 所属が 1 つしか無いなら切り替える先が無いので、押せる見た目にしない。
-  if (workspaces.length <= 1) {
-    return (
-      <p className="truncate px-2 py-2 text-sm font-semibold text-[var(--color-text-primary)]">
-        {active?.name ?? 'ワークスペースがありません'}
-      </p>
-    );
-  }
-
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          setOpen((prev) => !prev);
+          setAdding(false);
+        }}
         aria-expanded={open}
         className="flex w-full items-center gap-1 rounded-md px-2 py-2 text-left hover:bg-surface-2"
       >
@@ -103,6 +107,33 @@ export default function NoteWorkspaceSwitcher({
               </button>
             </li>
           ))}
+          <li className="mt-1 border-t border-surface-3 pt-1">
+            {/*
+              追加の入口はここに置く。見本合わせ — ワークスペース水準の操作は
+              上部の切替ポップアップに集める。この入口が無いと、1 つ作った時点で
+              新しいワークスペースを作る手段が UI から消える（スペースで踏んだ轍）。
+            */}
+            {adding ? (
+              <NoteCreateForm
+                what="ワークスペース"
+                onCreate={async (input) => {
+                  await onCreate(input);
+                  // 成功したら閉じる（作った先へは呼び出し側の hook が切り替える）。
+                  setAdding(false);
+                  setOpen(false);
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-sm text-[var(--color-text-muted)] hover:bg-surface-2"
+              >
+                <PlusIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>ワークスペースを追加</span>
+              </button>
+            )}
+          </li>
         </ul>
       )}
     </div>

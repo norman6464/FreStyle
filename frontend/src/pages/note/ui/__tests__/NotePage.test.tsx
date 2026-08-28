@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NotePage from '../NotePage';
@@ -58,6 +58,8 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
 
 const resolved = (canEdit: boolean) => ({
   workspaceSlug: 'w-3f2a9c',
+  workspaceName: '開発チーム',
+  ancestors: [{ id: 'anc-1', title: '親ページの親' }],
   page: {
     id: 'p1',
     spaceId: 's1',
@@ -138,6 +140,41 @@ describe('NotePage の配線', () => {
       expect(hoisted.showToast).toHaveBeenCalledWith('error', '子ページを作成できませんでした'),
     );
     expect(hoisted.navigate).not.toHaveBeenCalled();
+  });
+
+  it('パンくずにワークスペース名・閲覧できる祖先・現在のページが並ぶ', async () => {
+    renderPage();
+    const nav = await screen.findByRole('navigation', { name: 'ページの場所' });
+
+    expect(within(nav).getByText('開発チーム')).toBeInTheDocument();
+    // 祖先はリンク（押すとそのページへ）。現在のページはリンクにしない。
+    expect(within(nav).getByRole('link', { name: '親ページの親' })).toHaveAttribute(
+      'href',
+      '/p/anc-1',
+    );
+    expect(within(nav).getByText('親ページ')).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: '親ページ' })).not.toBeInTheDocument();
+  });
+
+  it('ancestors の無い旧応答でも画面は落ちない（デプロイ順の防御）', async () => {
+    const legacy = { ...resolved(true) } as Record<string, unknown>;
+    delete legacy.ancestors;
+    delete legacy.workspaceName;
+    hoisted.resolvePage.mockResolvedValue(legacy);
+    renderPage();
+
+    const nav = await screen.findByRole('navigation', { name: 'ページの場所' });
+    // ワークスペース名が無ければ slug で代用する。
+    expect(within(nav).getByText('w-3f2a9c')).toBeInTheDocument();
+  });
+
+  it('祖先が空でもパンくずは壊れない（根ページ・穴だけの経路）', async () => {
+    hoisted.resolvePage.mockResolvedValue({ ...resolved(true), ancestors: [] });
+    renderPage();
+    const nav = await screen.findByRole('navigation', { name: 'ページの場所' });
+
+    expect(within(nav).getByText('開発チーム')).toBeInTheDocument();
+    expect(within(nav).queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('編集できないページでは /page を渡さない（読むだけの人にメニューを見せない）', async () => {

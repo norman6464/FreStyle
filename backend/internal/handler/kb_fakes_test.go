@@ -105,6 +105,24 @@ func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID str
 	return &c, nil
 }
 
+// ListAncestorPageIDs は親の連鎖を根から順に返す（closure table の代わりに素直に辿る）。
+func (f *kbFakePages) ListAncestorPageIDs(_ context.Context, workspaceID, pageID string) ([]string, error) {
+	out := []string{}
+	current, ok := f.pages[pageID]
+	if !ok || current.WorkspaceID != workspaceID {
+		return out, nil
+	}
+	for current.ParentID != nil {
+		parent, ok := f.pages[*current.ParentID]
+		if !ok {
+			break
+		}
+		out = append([]string{parent.ID}, out...)
+		current = parent
+	}
+	return out, nil
+}
+
 func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	s, ok := f.spaces[spaceID]
 	if !ok || s.WorkspaceID != workspaceID {
@@ -699,7 +717,8 @@ func (f *kbFakePerms) ListWorkspacePageViewFactsByIDs(
 		wanted[id] = true
 	}
 	for _, p := range f.pages.pages {
-		if p.WorkspaceID != workspaceID || p.ArchivedAt != nil || !wanted[p.ID] {
+		// アーカイブ済みも行として返す（本番と同じ）。除外の判断は呼び出し側が持つ。
+		if p.WorkspaceID != workspaceID || !wanted[p.ID] {
 			continue
 		}
 		mine := f.mine(workspaceID, p.SpaceID, userID)

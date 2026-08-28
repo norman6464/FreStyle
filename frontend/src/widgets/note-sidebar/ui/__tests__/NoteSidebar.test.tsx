@@ -319,6 +319,30 @@ describe('NoteSidebar', () => {
       );
     });
 
+    it('未所属の常設フォームから作っても /notes へ戻る（入口ごとの差を作らない）', async () => {
+      hoisted.fetchWorkspaces.mockResolvedValue([]);
+      hoisted.createWorkspace.mockResolvedValue(workspace('w-new', '新チーム'));
+      let entryPath = '';
+      function EntryPathProbe() {
+        entryPath = useLocation().pathname;
+        return null;
+      }
+      render(
+        <MemoryRouter initialEntries={['/p/stale-page']}>
+          <EntryPathProbe />
+          <NoteSidebar />
+        </MemoryRouter>,
+      );
+      await screen.findByText(/まだワークスペースがありません/);
+
+      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+        target: { value: '新チーム' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+      await waitFor(() => expect(entryPath).toBe('/notes'));
+    });
+
     it('スペースが無いときも行き止まりにしない', async () => {
       // ワークスペースを作っただけではスペースは付いてこない。
       hoisted.fetchSpaces.mockResolvedValue([]);
@@ -1135,6 +1159,18 @@ describe('題名で検索（モーダル）', () => {
     expect(currentPath).toBe('/p/hit-2');
   });
 
+  it('日本語入力の変換キャンセルの Escape ではモーダルを閉じない（打ちかけの検索語を守る）', async () => {
+    const input = await openSearch();
+    fireEvent.change(input, { target: { value: 'けんさ' } });
+
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
+    expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
+    expect(input).toHaveValue('けんさ');
+
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
+    expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
+  });
+
   it('Escape と外側クリックで閉じる', async () => {
     const input = await openSearch();
 
@@ -1383,5 +1419,92 @@ describe('ページ画面からの通知に木が追従する', () => {
 
     expect(await screen.findByText('設計メモ v2')).toBeInTheDocument();
     expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+  });
+});
+
+describe('ワークスペース切替ポップアップ', () => {
+  let popPath = '';
+  function PopPathProbe() {
+    popPath = useLocation().pathname;
+    return null;
+  }
+
+  it('所属が 1 つでも開け、追加の入口から名前だけで作れる', async () => {
+    popPath = '';
+    render(
+      <MemoryRouter initialEntries={['/p/p1']}>
+        <PopPathProbe />
+        <NoteSidebar workspaceSlug="acme" activePageId="p1" />
+      </MemoryRouter>,
+    );
+    await screen.findByText('設計メモ');
+
+    // 1 件でも見出しではなくボタン（ポップアップに追加の入口があるため）。
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    hoisted.createWorkspace.mockResolvedValue(workspace('w-new', '新チーム'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+      target: { value: '新チーム' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.createWorkspace).toHaveBeenCalledWith({ name: '新チーム' }),
+    );
+    // 成功したらポップアップは閉じ、一覧（/notes）へ戻る — 開いていた旧ワークスペースの
+    // ページと、新ワークスペースを指すサイドバーが食い違ったまま残らないように。
+    await waitFor(() =>
+      expect(screen.queryByLabelText('ワークスペースの名前')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(popPath).toBe('/notes'));
+  });
+
+  it('日本語入力の変換キャンセルの Escape ではポップアップを閉じない（打ちかけの名前を守る）', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを追加' }));
+    const input = screen.getByLabelText('ワークスペースの名前');
+    fireEvent.change(input, { target: { value: '開発ちー' } });
+
+    // 変換中の Escape（isComposing=true）は document のリスナーに届いても無視される。
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
+    expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('開発ちー');
+
+    // Safari は変換中を keyCode 229 で伝える。こちらの分岐でも閉じない。
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
+    expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('開発ちー');
+
+    // 変換していない Escape では従来どおり閉じる。
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('ワークスペースの名前')).not.toBeInTheDocument(),
+    );
+  });
+
+  it('失敗したら知らせを出し、入力は消さない', async () => {
+    hoisted.createWorkspace.mockRejectedValue(new Error('boom'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+      target: { value: '新チーム' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを作成できませんでした'),
+    );
+    expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('新チーム');
+  });
+
+  it('スペース一覧に「チームスペース」の節見出しが付く（見出しとして名乗る）', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    expect(screen.getByRole('heading', { name: 'チームスペース' })).toBeInTheDocument();
   });
 });

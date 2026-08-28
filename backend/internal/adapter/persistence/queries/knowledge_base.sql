@@ -309,3 +309,12 @@ ON CONFLICT (page_id) DO UPDATE SET doc = EXCLUDED.doc, built_at = now();
 SELECT ps.* FROM page_snapshots ps
 JOIN pages p ON p.id = ps.page_id
 WHERE p.workspace_id = $1 AND ps.page_id = $2;
+
+-- name: ListPageAncestorIDs :many
+-- ページの祖先 ID を根から順（depth の大きい順）に返す。自分自身（depth=0）は含まない。
+-- パンくず用の骨組みで、**題名や可視性はここでは返さない** — 可視の判定は
+-- ListWorkspacePageViewFactsByIDs と domain.ResolvePageView が持つ（判定の写経をしない）。
+SELECT pp.ancestor_id
+FROM page_paths pp
+WHERE pp.workspace_id = $1 AND pp.page_id = $2 AND pp.depth > 0
+ORDER BY pp.depth DESC;

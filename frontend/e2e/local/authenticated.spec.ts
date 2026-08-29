@@ -171,11 +171,18 @@ test.describe('ノート作成導線（POST モック）', () => {
 
     await page.goto('/notes');
     await expect(page).toHaveURL(/\/notes/);
-    // 行き止まりにしない: 作成フォームが出る。
-    await expect(page.getByText(/まだワークスペースがありません/)).toBeVisible();
 
-    await page.getByLabel('ワークスペースの名前').fill('開発チーム');
-    await page.getByRole('button', { name: 'ワークスペースを作る' }).click();
+    // SecondaryPanel はモバイル用・デスクトップ用の DOM を両方持ち、CSS で表示を
+    // 切り替える（NoteSidebar もその分だけ複製される）。Desktop Chrome では
+    // デスクトップ側だけが見えるが、ロケータ自体は両方に一致するため visible な
+    // 方だけに絞る（絞らないと strict mode 違反で落ちる）。
+    const visible = page.locator(':visible');
+
+    // 行き止まりにしない: 作成フォームが出る。
+    await expect(page.getByText(/まだワークスペースがありません/).and(visible)).toBeVisible();
+
+    await page.getByLabel('ワークスペースの名前').and(visible).fill('開発チーム');
+    await page.getByRole('button', { name: 'ワークスペースを作る' }).and(visible).click();
 
     // 名前だけが送られる（URL に出る短い名前はサーバーが自動採番する）。
     await expect
@@ -184,8 +191,8 @@ test.describe('ノート作成導線（POST モック）', () => {
 
     // 201 を受けて画面も進む: 作ったワークスペースが選ばれ、最上段に名前が出る
     //（所属が 1 つだけの間は切替ボタンではなく見出しとして出る仕様）。
-    await expect(page.getByText('開発チーム')).toBeVisible();
-    await expect(page.getByText(/まだワークスペースがありません/)).not.toBeVisible();
+    await expect(page.getByText('開発チーム').and(visible)).toBeVisible();
+    await expect(page.getByText(/まだワークスペースがありません/).and(visible)).not.toBeVisible();
   });
 });
 

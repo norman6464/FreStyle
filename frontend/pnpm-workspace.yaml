@@ -1,0 +1,7 @@
+# pnpm は依存の install スクリプト（postinstall 等）を既定で実行しない。
+# 任意のコードがインストールのたびに走るのを止めるためで、要るものだけを名指しで許す。
+#
+# esbuild: 自分のプラットフォーム向けバイナリを配置するために要る（vite / vitest が使う）。
+#          許さないと "You installed esbuild for another platform" でビルドが落ちる。
+allowBuilds:
+  esbuild: true

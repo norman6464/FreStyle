@@ -130,7 +130,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - **バックエンド（単体）**: `testing` + `stretchr/testify`（`go test ./...`）— usecase は interface モック（testify/mock）、handler は `httptest` + `gin.New()`、infra は境界で fake / stub 注入。**DB を必要としないものだけ**をここに置く
 - **バックエンド（結合）**: repository は **本物の PostgreSQL** で検証する（sqlite は使わない。依存も入れていない）。ファイル先頭に `//go:build integration`、テスト関数名に `Integration` を含める。ローカルは `make test-integration`（docker で postgres 起動 → 実行 → 必ず破棄）、CI は専用ジョブ `integration tests (postgres)` が `-tags=integration` で実行する
 - 結合テストの接続は `internal/testsupport.OpenTestDB`。`TruncateAll` が TRUNCATE CASCADE するため、**DSN が Supabase / 本番 pooler を指す場合は接続前に落とす安全弁**が入っている（誤設定で本番データを消さないため）
-- フロントエンド: Vitest + React Testing Library（`npm test`）— `render` + `screen.getByRole` でアクセシビリティも検証、Hook は `renderHook`
+- フロントエンド: Vitest + React Testing Library（`pnpm test`）。**`vitest` / `@vitest/browser-playwright` / `@vitest/coverage-v8` は同じ版に固定する**（`^` を付けない）。本体とブラウザ側でプロトコルが一致している必要があり、ずれると story のテストが「ブラウザセッションに接続できない」で丸ごと止まる（実際に踏んだ）— `render` + `screen.getByRole` でアクセシビリティも検証、Hook は `renderHook`
 
 ### 3.4 コメント
 
@@ -221,7 +221,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - `cp .env.example .env` して接続情報を記入。主な環境変数: `DATABASE_URL`（推奨・`DB_HOST` 等より優先）/ `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `AWS_REGION` / `BEDROCK_MODEL_ID` / `DYNAMODB_AI_CHAT_TABLE`（dev は `fre_style_ai_chat_dev`）/ `NOTE_IMAGES_BUCKET`
 - **接続情報の実値は git に commit しない**（`.env` または AWS Secrets Manager）。Supabase 接続 URL の取得・pooler の使い分け・runbook は private リポ `frestyle-infrastructure` の docs を参照
 - backend は `DATABASE_URL` セット時、pgbouncer 互換のため `PrepareStmt: false` + simple query protocol を自動適用（host 名で自動判定）。GORM AutoMigrate もそのまま動く
-- 起動: backend は `cd backend && go run ./cmd/server`（確認は `go build ./... && go test ./...`）、frontend は `cd frontend && npm install && npm run dev`
+- 起動: backend は `cd backend && go run ./cmd/server`（確認は `go build ./... && go test ./...`）、frontend は `cd frontend && pnpm install && pnpm run dev`（pnpm は `corepack enable` で用意する）
 
 ---
 

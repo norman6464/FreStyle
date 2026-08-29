@@ -38,6 +38,6 @@ jobs:
       - name: Trivy scan (backend)
         run: trivy fs --scanners vuln,misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress backend
 
-      # frontend: 依存 CVE（package-lock.json）
+      # frontend: 依存 CVE（pnpm-lock.yaml）
       - name: Trivy scan (frontend)
         run: trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress frontend

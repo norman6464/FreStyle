@@ -32,7 +32,7 @@ export default defineConfig({
   },
   // ビルド済み dist/ を vite preview で配信する（SPA history fallback 込み）。
   webServer: {
-    command: 'npm run preview -- --port 4173 --strictPort',
+    command: 'pnpm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

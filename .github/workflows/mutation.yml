@@ -90,20 +90,25 @@ jobs:
           persist-credentials: false
 
       # 本番 sandbox / ローカル検証と揃えた Node で走らせる (node 20 依存の初期テスト失敗を避ける)。
+      # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
+      # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # src 全体 (テスト・生成物を除く) を変異させ、レポートを artifact 保存する。
       - name: Stryker (full)
         env:
           STRYKER_FULL: '1'
-        run: npx stryker run
+        run: pnpm exec stryker run
 
       - name: Upload stryker report
         if: always()

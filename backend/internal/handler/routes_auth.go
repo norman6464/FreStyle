@@ -18,10 +18,12 @@ import (
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
 	invitations := persistence.NewAdminInvitationRepository(deps.db)
+	transactionRunner := persistence.NewUserInvitationTransactionRunner(deps.db)
 	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(
 		deps.userRepo,
 		invitations,
 		deps.cfg.BootstrapSuperAdminEmail,
+		transactionRunner,
 	)
 	ensurePersonalWorkspace := usecase.NewEnsurePersonalWorkspaceUseCase(
 		persistence.NewKnowledgeBaseRepository(deps.db),

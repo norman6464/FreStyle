@@ -52,7 +52,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 	const rounds = 5
 	for round := range rounds {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(users, nil, bootstrapEmail)
+		uc := usecase.NewUpsertUserFromIDTokenUseCase(users, nil, bootstrapEmail, persistence.NewUserInvitationTransactionRunner(sqlDB))
 
 		results := make([]*domain.User, len(variants))
 		errs := make([]error, len(variants))

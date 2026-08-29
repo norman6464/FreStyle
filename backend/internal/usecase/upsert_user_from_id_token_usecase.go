@@ -21,8 +21,9 @@ type UpsertUserFromIDTokenInput struct {
 
 // UpsertUserFromIDTokenUseCase は認証済みユーザーの作成・更新を行う。
 type UpsertUserFromIDTokenUseCase struct {
-	users       repository.UserRepository
-	invitations repository.AdminInvitationRepository
+	users             repository.UserRepository
+	invitations       repository.AdminInvitationRepository
+	transactionRunner repository.UserInvitationTransactionRunner
 	// bootstrapSuperAdminEmail は招待なしのサインアップを許す唯一の例外アドレス
 	// （空なら例外なし）。詳しくは bootstrapSignupAllowed を参照。
 	bootstrapSuperAdminEmail string
@@ -34,10 +35,12 @@ func NewUpsertUserFromIDTokenUseCase(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
 	bootstrapSuperAdminEmail string,
+	transactionRunner repository.UserInvitationTransactionRunner,
 ) *UpsertUserFromIDTokenUseCase {
 	return &UpsertUserFromIDTokenUseCase{
 		users:                    users,
 		invitations:              invitations,
+		transactionRunner:        transactionRunner,
 		bootstrapSuperAdminEmail: domain.NormalizeEmail(bootstrapSuperAdminEmail),
 	}
 }
@@ -343,24 +346,46 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		return user, nil
 	}
 
-	if err := u.users.CreateWithOidcIdentity(ctx, user, domain.OidcProviderCognito, sub); err != nil {
+	if u.transactionRunner == nil {
+		return nil, errors.New("user invitation transaction runner not configured")
+	}
+
+	if err := u.transactionRunner.WithinTransaction(
+		ctx,
+		func(
+			users repository.UserWithOidcIdentityCreator,
+			invitations repository.InvitationStatusUpdater,
+		) error {
+			if err := users.CreateWithOidcIdentity(
+				ctx,
+				user,
+				domain.OidcProviderCognito,
+				sub,
+			); err != nil {
+				return fmt.Errorf("create user with oidc identity: %w", err)
+			}
+
+			// 招待を経ない自己サインアップでは inv が nil のまま（受諾する招待が無い）。
+			if inv == nil {
+				return nil
+			}
+			if err := invitations.UpdateStatus(
+				ctx,
+				inv.ID,
+				domain.InvitationStatusAccepted,
+			); err != nil {
+				return fmt.Errorf("accept invitation: %w", err)
+			}
+			return nil
+		},
+	); err != nil {
 		if errors.Is(err, repository.ErrEmailTaken) {
 			// 同じ email で同時にサインアップが競合した（同一人物の二重送信・招待の
 			// 二重受諾など）。別の sub で先に確定しているだけなので、拒否ではなく nil, nil。
 			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup", "cognitoSub", sub, "email", email)
 			return nil, nil
 		}
-		return nil, fmt.Errorf("create user with oidc identity: %w", err)
-	}
-
-	if inv != nil {
-		if err := u.invitations.UpdateStatus(
-			ctx,
-			inv.ID,
-			domain.InvitationStatusAccepted,
-		); err != nil {
-			return nil, fmt.Errorf("accept invitation: %w", err)
-		}
+		return nil, fmt.Errorf("create user and accept invitation: %w", err)
 	}
 
 	return user, nil

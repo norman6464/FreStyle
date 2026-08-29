@@ -275,18 +275,29 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 // identity 側が (provider, subject) 競合などで失敗するとトランザクションごと巻き戻り、
 // users 行だけが残る（＝ログイン不能な孤児）状態を作らない。
 func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error {
-	q := r.queries()
+	return r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
+		return createWithOidcIdentity(ctx, qtx, user, provider, subject)
+	})
+}
+
+// createWithOidcIdentity は渡された接続またはトランザクション上で
+// users行とOIDC identityを作成する。
+func createWithOidcIdentity(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	user *domain.User,
+	provider string,
+	subject string,
+) error {
 	roleID, err := resolveRoleID(ctx, q, user.Role)
 	if err != nil {
 		return err
 	}
 	user.RoleID = roleID
-	return r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
-		if err := insertUserTx(ctx, qtx, user); err != nil {
-			return err
-		}
-		return ensureOidcIdentityTx(ctx, qtx, user.ID, provider, subject)
-	})
+	if err := insertUserTx(ctx, q, user); err != nil {
+		return err
+	}
+	return ensureOidcIdentityTx(ctx, q, user.ID, provider, subject)
 }
 
 // bootstrapSuperAdminLockKey は「最初の運営管理者を作る」経路を直列化する advisory lock のキー。

@@ -182,7 +182,7 @@ docker compose stop backend            # コンテナ側を止めて 8080 を空
 cd backend && make run                 # ホストで起動（.env の localhost 宛の設定を使う）
 ```
 
-フロントエンド（Vite）は HMR が効くホスト実行のままです（`cd frontend && npm run dev`）。
+フロントエンド（Vite）は HMR が効くホスト実行のままです（`cd frontend && pnpm run dev`）。
 
 **ログイン（ローカル）**: `make local-seed` 後、ログイン画面のメール / パスワードフォームからそのまま入れます（外部 ID プロバイダーへの接続は不要です）。
 
@@ -230,16 +230,22 @@ make local-reset                # volume ごと破棄してまっさらに（bac
 # 1. リポジトリをクローンして frontend ディレクトリに移動
 cd frontend
 
-# 2. 依存パッケージをインストール
-npm install
+# 2. パッケージ管理は pnpm。Node 同梱の corepack が package.json の
+#    packageManager が指す版を用意する。
+#    corepack が無い / 使えない環境（Homebrew の node など）は npm から入れる:
+#      npm install -g pnpm
+corepack enable
 
-# 3. 動作確認
-npm run dev
+# 3. 依存パッケージをインストール
+pnpm install
 
-# 4. Tailwind CSS が動作しない場合
-npm uninstall tailwindcss
-npm install -D tailwindcss@バージョン指定
-npx tailwindcss init -p
+# 4. 動作確認
+pnpm run dev
+
+# 5. Tailwind CSS が動作しない場合
+pnpm remove tailwindcss
+pnpm add -D tailwindcss@バージョン指定
+pnpm exec tailwindcss init -p
 ```
 
 ## Makefile コマンド一覧（backend/）

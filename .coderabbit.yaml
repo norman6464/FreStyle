@@ -40,7 +40,7 @@ reviews:
   # 未登録パス) の照合に CodeRabbit がこの契約ファイルを参照する必要があるため (下の指示 (6) 参照)。
   path_filters:
     - "!**/*.lock"
-    - "!**/package-lock.json"
+    - "!**/pnpm-lock.yaml"
     - "!backend/docs/**"
     - "!frontend/public/lang/**"
     - "!**/*.min.js"

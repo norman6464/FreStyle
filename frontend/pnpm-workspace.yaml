@@ -1,0 +1,14 @@
+# pnpm は依存の install スクリプト（postinstall 等）を既定で実行しない。
+# 任意のコードがインストールのたびに走るのを止めるためで、要るものだけを名指しで許す。
+#
+# esbuild: 自分のプラットフォーム向けバイナリを配置するために要る（vite / vitest が使う）。
+#          許さないと "You installed esbuild for another platform" でビルドが落ちる。
+allowBuilds:
+  esbuild: true
+
+# 依存の版を上書きする。**npm の package.json "overrides" は pnpm が読まない**ので、
+# 移行のときにここへ移した（残したままだと固定が黙って効かなくなる）。
+#
+# form-data: 4.0.4 未満に境界値の生成に不備があり、脆弱な版が推移的に入らないよう下限を上げる。
+overrides:
+  form-data: ^4.0.6

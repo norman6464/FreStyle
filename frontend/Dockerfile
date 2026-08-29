@@ -10,12 +10,17 @@
 # 空（相対パス）でよい。
 
 # --- Build stage ---
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
+# pnpm は Node に同梱の corepack から、package.json の packageManager が指す版で用意する
+# （端末・CI・ここで同じ版に揃える）。
+RUN corepack enable
+
 # 依存だけ先に入れてレイヤキャッシュを効かせる。
-COPY package.json package-lock.json ./
-RUN npm ci
+# pnpm-workspace.yaml も要る（install スクリプトを許すパッケージの一覧がここにある）。
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
@@ -34,7 +39,7 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_RESPONSE_TYPE=$VITE_RESPONSE_TYPE \
     VITE_SCOPE=$VITE_SCOPE
 
-RUN npm run build
+RUN pnpm run build
 
 # --- Runtime stage ---
 FROM nginx:1.27-alpine

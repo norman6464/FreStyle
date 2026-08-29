@@ -26,37 +26,46 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
+      # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # この action は run ステップではないので defaults.run.working-directory が
+          # 効かない。リポジトリ直下に package.json は無いので、版を読む先を明示する。
+          package_json_file: frontend/package.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Storybook の story はブラウザモードの Vitest プロジェクト（projects.storybook）で
       # そのままテストとして走る。headless Chromium が要るのでここで入れる。
       - name: Install Playwright Chromium (Storybook tests)
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       # TypeScript 型チェック (production code 限定 / test ファイルは tsconfig.exclude で除外済み)。
       # tsc が 1 エラーでも報告したら fail する。React / TypeScript Handbook の
       # "static type-checking before runtime" を CI で強制する。
       - name: TypeScript type-check
-        run: npx tsc --noEmit
+        run: pnpm exec tsc --noEmit
 
       # ESLint で 1 件でも warning があれば fail させる（将来のドリフト防止）。
       # rules は eslint.config.js で管理。
       - name: ESLint (max-warnings=0)
-        run: npx eslint . --max-warnings=0
+        run: pnpm exec eslint . --max-warnings=0
 
       # Vitest をカバレッジ付きで実行し、サマリを PR の Checks に表示する。
       - name: Run Vitest (coverage)
         run: |
           set -o pipefail
-          npx vitest run --coverage --coverage.reporter=text-summary | tee /tmp/vitest-out.txt
+          pnpm exec vitest run --coverage --coverage.reporter=text-summary | tee /tmp/vitest-out.txt
           {
             echo "## Frontend test coverage"
             echo '```'
@@ -70,7 +79,7 @@ jobs:
       - name: Run Storybook tests (browser)
         env:
           WITH_STORYBOOK_TESTS: '1'
-        run: npx vitest run --project=storybook
+        run: pnpm exec vitest run --project=storybook
 
       - name: Build (verify only)
         # ビルドが通るかだけ確認。S3 sync / CloudFront invalidation は CD 側で実施。
@@ -82,7 +91,7 @@ jobs:
           VITE_REDIRECT_URI: https://example.invalid/callback
           VITE_RESPONSE_TYPE: code
           VITE_SCOPE: openid
-        run: npm run build
+        run: pnpm run build
 
   # 未使用ファイル / 未使用依存 / 未宣言(phantom)依存を knip で検出する。
   # 必須チェック(Vitest + Build)とは独立した job にし、デッドコードの可視化に徹する。
@@ -90,7 +99,7 @@ jobs:
   # knip 設定は frontend/knip.json(rules で files/dependencies/unlisted に集中、
   # FSD の Public API barrel の未使用 export ノイズは当面 off)。
   # 非ブロッキング化は「knip 実行 step だけ」continue-on-error にする(下記)。
-  # checkout / npm ci の失敗は job を赤くして可視化する(握り潰さない)。本 job は
+  # checkout / pnpm install --frozen-lockfile の失敗は job を赤くして可視化する(握り潰さない)。本 job は
   # 必須チェックではないため、赤くなっても PR マージはブロックしない。
   knip:
     name: Dead code (knip)
@@ -103,29 +112,38 @@ jobs:
       - uses: actions/checkout@v6
         with:
           # この job は push しないため、GITHUB_TOKEN を作業ツリーに残さない
-          # (後続で PR コードの npm ci / npx knip を走らせるため)。
+          # (後続で PR コードの pnpm install --frozen-lockfile / pnpm exec knip を走らせるため)。
           persist-credentials: false
+
+      # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
+      # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # この action は run ステップではないので defaults.run.working-directory が
+          # 効かない。リポジトリ直下に package.json は無いので、版を読む先を明示する。
+          package_json_file: frontend/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # 検出結果を PR の Job Summary に markdown で残す。knip の exit code は
       # 「dead code 検出 = 非 0」になり得るが、それを握り潰さず保持する
       # (設定エラー・起動失敗も Summary に出力してから同じ code で終了)。
       # continue-on-error はこの step だけに付け、非 0 でも job を止めない
-      # (checkout / npm ci の失敗は job を赤くして可視化する)。
+      # (checkout / pnpm install --frozen-lockfile の失敗は job を赤くして可視化する)。
       - name: Run knip (report only)
         continue-on-error: true
         run: |
           set +e
-          npx knip --reporter markdown > /tmp/knip-report.md 2>&1
+          pnpm exec knip --reporter markdown > /tmp/knip-report.md 2>&1
           status=$?
           {
             echo "## Frontend dead code (knip)"
@@ -138,7 +156,7 @@ jobs:
   # 独立した job にし、サイズの可視化と回帰検知に徹する。上限(.size-limit.json)は現状 +
   # ヘッドルームで、超過はシグナルとして扱う。厳密な gating は数値が安定してから別途。
   # 非ブロッキング化は「size-limit 実行 step だけ」continue-on-error にする(下記)。
-  # npm ci / build の失敗は job を赤くして可視化する(握り潰さない)。本 job は必須チェック
+  # pnpm install --frozen-lockfile / build の失敗は job を赤くして可視化する(握り潰さない)。本 job は必須チェック
   # ではないため、赤くなっても PR マージはブロックしない。
   size-limit:
     name: Bundle size (size-limit)
@@ -153,15 +171,24 @@ jobs:
           # この job は push しないため GITHUB_TOKEN を作業ツリーに残さない。
           persist-credentials: false
 
+      # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
+      # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # この action は run ステップではないので defaults.run.working-directory が
+          # 効かない。リポジトリ直下に package.json は無いので、版を読む先を明示する。
+          package_json_file: frontend/package.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # size-limit は dist/assets/* の実出力を計測するため、先に本番ビルドする。
       # VITE_* はサイズ計測が目的なのでダミーで良い(コード量は本番と同じ)。
@@ -173,16 +200,16 @@ jobs:
           VITE_REDIRECT_URI: https://example.invalid/callback
           VITE_RESPONSE_TYPE: code
           VITE_SCOPE: openid
-        run: npm run build
+        run: pnpm run build
 
       # 計測結果を Job Summary に残す。上限超過で size-limit は非 0 を返すが、
       # continue-on-error はこの step だけに付け、非 0 でも job を止めない
-      # (build / npm ci の失敗はこの step の前段で job を赤くする)。
+      # (build / pnpm install --frozen-lockfile の失敗はこの step の前段で job を赤くする)。
       - name: Run size-limit (report only)
         continue-on-error: true
         run: |
           set +e
-          npx size-limit > /tmp/size-report.txt 2>&1
+          pnpm exec size-limit > /tmp/size-report.txt 2>&1
           status=$?
           {
             echo "## Frontend bundle size (size-limit, gzip)"

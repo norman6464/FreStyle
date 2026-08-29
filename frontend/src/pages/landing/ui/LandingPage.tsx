@@ -168,17 +168,17 @@ export default function LandingPage() {
                 </p>
                 <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
                   <Link
-                    to="/company-application"
+                    to="/signup"
                     className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand-600 px-6 py-3 font-bold text-white shadow-[0_1px_2px_rgba(29,78,216,0.3),0_8px_24px_-8px_rgba(37,99,235,0.5)] transition hover:-translate-y-px hover:bg-brand-700"
                   >
-                    企業の方：導入・利用申請
+                    アカウントを作成
                     <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
                   </Link>
                   <Link
                     to="/login"
                     className="inline-flex items-center justify-center rounded-[10px] border border-slate-300 bg-white px-6 py-3 font-bold text-slate-800 transition hover:border-brand-200 hover:bg-brand-50"
                   >
-                    受講者の方：ログイン
+                    ログイン
                   </Link>
                 </div>
                 <div className="mt-11">
@@ -419,21 +419,21 @@ export default function LandingPage() {
               研修の実施と管理を、FreStyle で。
             </h2>
             <p className="mt-4 text-brand-100">
-              まずは企業の利用申請から。受講者の方は招待リンクからログインできます。
+              メールアドレスがあれば、すぐに始められます。
             </p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                to="/company-application"
+                to="/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-white px-6 py-3 font-bold text-brand-700 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.4)] transition hover:-translate-y-px hover:bg-brand-50"
               >
-                企業の方：導入・利用申請
+                アカウントを作成
                 <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link
                 to="/login"
                 className="inline-flex items-center justify-center rounded-[10px] border border-white/35 px-6 py-3 font-bold text-white transition hover:border-white/60 hover:bg-white/10"
               >
-                受講者の方：ログイン
+                ログイン
               </Link>
             </div>
           </div>
@@ -453,8 +453,8 @@ export default function LandingPage() {
             <Link to="/login" className="transition hover:text-white">
               ログイン
             </Link>
-            <Link to="/company-application" className="transition hover:text-white">
-              利用申請
+            <Link to="/signup" className="transition hover:text-white">
+              アカウントを作成
             </Link>
           </nav>
         </div>

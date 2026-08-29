@@ -2,9 +2,9 @@ import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '@/shared/ui/PublicHeader';
 import InputField from '@/shared/ui/InputField';
 import Button from '@/shared/ui/Button';
-import SNSSignInButton from './SNSSignInButton';
+import SNSSignInButton from '@/shared/ui/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
-import { getCognitoAuthUrl } from '../lib/auth';
+import { getCognitoAuthUrl } from '@/features/auth';
 import { useLoginPage } from '../model/useLoginPage';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
@@ -123,9 +123,9 @@ export default function LoginPage() {
           />
 
           <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
-            招待された方は招待メールのリンクからログインしてください。
+            招待された方は招待メールのリンクからログインできます。
             <br />
-            企業の方は <LinkText to="/company-application">利用申請</LinkText> から。
+            アカウントをお持ちでない方は <LinkText to="/signup">アカウントを作成</LinkText>。
           </p>
         </>
       )}

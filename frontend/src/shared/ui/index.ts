@@ -11,6 +11,7 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 export { default as InputField } from './InputField';
 export { default as TextareaField } from './TextareaField';
 export { default as LinkText } from './LinkText';
+export { default as SNSSignInButton } from './SNSSignInButton';
 export { default as Loading } from './Loading';
 export { default as Avatar } from './Avatar';
 

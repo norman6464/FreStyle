@@ -3,8 +3,10 @@
  *
  * provider を渡すと特定の IdP(例: Google)へ直行する。省略すると identity_provider を付けず、
  * Cognito Hosted UI のログイン画面(メール/パスワード + ソーシャルを選べる)へ遷移する。
+ * screenHint に 'signup' を渡すと、自己登録が有効な場合サインアップタブへ直行する
+ * （Hosted UI 標準の screen_hint パラメータ）。
  */
-export function getCognitoAuthUrl(provider?: string): string {
+export function getCognitoAuthUrl(provider?: string, screenHint?: 'signup' | 'signin'): string {
   const url = new URL(
     `https://${import.meta.env.VITE_COGNITO_DOMAIN}/oauth2/authorize`
   );
@@ -16,6 +18,9 @@ export function getCognitoAuthUrl(provider?: string): string {
   url.searchParams.append('state', generateRandomState());
   if (provider) {
     url.searchParams.append('identity_provider', provider);
+  }
+  if (screenHint) {
+    url.searchParams.append('screen_hint', screenHint);
   }
 
   return url.toString();

@@ -16,11 +16,11 @@ import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReloa
    意味を持たない。実ロジック（NavigationToast / AppRoutes）は計測対象のまま残す。 */
 // 認証不要ページ
 const LoginPage = lazyWithReload(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })), 'LoginPage');
+const SignupPage = lazyWithReload(() => import('@/pages/signup').then((m) => ({ default: m.SignupPage })), 'SignupPage');
 const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then((m) => ({ default: m.LoginCallback })), 'LoginCallback');
 const ForgotPasswordPage = lazyWithReload(() => import('@/pages/forgot-password').then((m) => ({ default: m.ForgotPasswordPage })), 'ForgotPasswordPage');
 const ConfirmForgotPasswordPage = lazyWithReload(() => import('@/pages/confirm-forgot-password').then((m) => ({ default: m.ConfirmForgotPasswordPage })), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('@/pages/accept-invitation').then((m) => ({ default: m.AcceptInvitationPage })), 'AcceptInvitationPage');
-const CompanyApplicationPage = lazyWithReload(() => import('@/pages/company-application').then((m) => ({ default: m.CompanyApplicationPage })), 'CompanyApplicationPage');
 // 公開ランディング（SEO 対象・認証不要）。ログイン済みは /dashboard へ送る。
 const LandingPage = lazyWithReload(() => import('@/pages/landing').then((m) => ({ default: m.LandingPage })), 'LandingPage');
 
@@ -85,6 +85,7 @@ export default function App() {
       {/* 公開トップ（SEO 対象）。ログイン済みは LandingPage 内で /dashboard へ送る。 */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route
@@ -93,7 +94,6 @@ export default function App() {
       />
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
-      <Route path="/company-application" element={<CompanyApplicationPage />} />
       {/* inkwell UI カタログ（見た目確認用・認証不要） */}
       <Route path="/dev/inkwell" element={<InkwellShowcasePage />} />
 

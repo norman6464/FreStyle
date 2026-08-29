@@ -50,9 +50,6 @@ export interface AuthState {
   role: string | null;
 }
 
-/** SNSプロバイダー */
-export type SnsProvider = 'google' | 'facebook' | 'x';
-
 /** 日次学習活動サマリー（`GET /api/v2/me/dashboard` の recentActivity 要素）。 */
 export interface UserDailyActivity {
   userId: number;

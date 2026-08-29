@@ -5,3 +5,4 @@
  * 認証状態そのものは entities/user の Redux slice が持ち、ここはそれを操作する feature。
  */
 export { useAuth } from './model/useAuth';
+export { getCognitoAuthUrl } from './lib/cognitoAuthUrl';

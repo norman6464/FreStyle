@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getCognitoAuthUrl } from '../auth';
+import { getCognitoAuthUrl } from '../cognitoAuthUrl';
 
 const mockEnv = {
   VITE_COGNITO_DOMAIN: 'test.auth.ap-northeast-1.amazoncognito.com',
@@ -65,5 +65,15 @@ describe('getCognitoAuthUrl', () => {
   it('異なるプロバイダを渡せる', () => {
     const url = new URL(getCognitoAuthUrl('LoginWithAmazon'));
     expect(url.searchParams.get('identity_provider')).toBe('LoginWithAmazon');
+  });
+
+  it('screenHint を渡すと screen_hint パラメータが設定される', () => {
+    const url = new URL(getCognitoAuthUrl(undefined, 'signup'));
+    expect(url.searchParams.get('screen_hint')).toBe('signup');
+  });
+
+  it('screenHint を渡さなければ screen_hint パラメータは付かない', () => {
+    const url = new URL(getCognitoAuthUrl('Google'));
+    expect(url.searchParams.has('screen_hint')).toBe(false);
   });
 });

@@ -55,8 +55,8 @@ vi.mock('@/entities/note', async () => {
   };
 });
 
-function workspace(slug: string, name = slug): NoteWorkspace {
-  return { slug, name, createdAt: '2026-08-01T00:00:00Z' };
+function workspace(slug: string, name = slug, canManage = true): NoteWorkspace {
+  return { slug, name, createdAt: '2026-08-01T00:00:00Z', canManage };
 }
 
 function space(
@@ -1428,6 +1428,36 @@ describe('ページ画面からの通知に木が追従する', () => {
     expect(await screen.findByText('設計メモ v2')).toBeInTheDocument();
     expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
   });
+
+  // ヘッダーの切替（useWorkspaceList）は別インスタンスなので、そちら側で作成・削除
+  // しても props の再取得だけでは知れない。noteTreeEvents 経由でこちら側の一覧が
+  // 追従することを固定する。
+  it('workspace-created で他インスタンスが作った所属を一覧へ足す', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    act(() => {
+      emitNoteTreeEvent({ type: 'workspace-created', workspace: workspace('beta', 'Beta 社') });
+    });
+
+    // 切替ポップアップを開くと、他インスタンスが作った所属が見える。
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    expect(await screen.findByRole('button', { name: 'Beta 社' })).toBeInTheDocument();
+  });
+
+  it('workspace-deleted で他インスタンスが消した所属を一覧から外す', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社'), workspace('beta', 'Beta 社')]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    await screen.findByRole('button', { name: 'Beta 社' });
+
+    act(() => {
+      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'beta' });
+    });
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Beta 社' })).not.toBeInTheDocument());
+  });
 });
 
 describe('ワークスペース切替ポップアップ', () => {
@@ -1817,5 +1847,14 @@ describe('ワークスペースの削除', () => {
     await waitFor(() =>
       expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを削除できませんでした'),
     );
+  });
+
+  it('admin でない所属には削除アイコンを出さない（押しても403になるだけの操作を並べない）', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社', false)]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    expect(screen.queryByRole('button', { name: 'Acme 社 を削除' })).not.toBeInTheDocument();
   });
 });

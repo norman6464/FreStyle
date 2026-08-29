@@ -47,13 +47,19 @@ export default function NotePage() {
   // 自分か祖先が物理削除されたら一覧へ戻る（消えた場所に立ち続けない）。
   // 祖先はサーバー応答（ancestors — アーカイブ済みも含む）で知っているので、
   // サイドバーの現役の木に載っていないページを開いていても正しく判定できる。
+  // ワークスペースごと削除されたとき（配下は FK CASCADE で全消去）も同じ理由で戻る。
   useEffect(() => {
     if (!pageId || !data) return undefined;
     return subscribeNoteTreeEvents((event) => {
-      if (event.type !== 'page-deleted') return;
-      const hit =
-        event.pageId === pageId || (data.ancestors ?? []).some((ancestor) => ancestor.id === event.pageId);
-      if (hit) navigate('/notes');
+      if (event.type === 'page-deleted') {
+        const hit =
+          event.pageId === pageId || (data.ancestors ?? []).some((ancestor) => ancestor.id === event.pageId);
+        if (hit) navigate('/notes');
+        return;
+      }
+      if (event.type === 'workspace-deleted' && event.workspaceSlug === data.workspaceSlug) {
+        navigate('/notes');
+      }
     });
   }, [pageId, data, navigate]);
 

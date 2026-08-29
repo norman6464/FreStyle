@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useWorkspaceList } from '../useWorkspaceList';
+import { emitNoteTreeEvent, subscribeNoteTreeEvents } from '../noteTreeEvents';
 
 const hoisted = vi.hoisted(() => ({
   fetchWorkspaces: vi.fn(),
@@ -71,5 +72,42 @@ describe('useWorkspaceList', () => {
     hoisted.fetchWorkspaces.mockResolvedValueOnce([WS_A, WS_B]);
     act(() => result.current.retry());
     await waitFor(() => expect(result.current.workspaces).toEqual([WS_A, WS_B]));
+  });
+
+  // SecondaryPanel はモバイル用/デスクトップ用の DOM を常に両方マウントするため、
+  // NoteSidebar 側（useNoteTree）とこのフックは別インスタンスとして同時に走る。
+  // 片方の操作をもう片方が知るのは noteTreeEvents 経由だけ。
+  it('他インスタンスが作ったワークスペースを noteTreeEvents 経由で一覧へ足す', async () => {
+    const { result } = renderHook(() => useWorkspaceList());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => emitNoteTreeEvent({ type: 'workspace-created', workspace: WS_B }));
+
+    expect(result.current.workspaces).toEqual([WS_A, WS_B]);
+  });
+
+  it('他インスタンスが消したワークスペースを noteTreeEvents 経由で一覧から外す', async () => {
+    const { result } = renderHook(() => useWorkspaceList());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'a' }));
+
+    expect(result.current.workspaces).toEqual([]);
+  });
+
+  it('作成すると他インスタンス向けに workspace-created を発行する', async () => {
+    hoisted.createWorkspace.mockResolvedValue(WS_B);
+    const { result } = renderHook(() => useWorkspaceList());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const listener = vi.fn();
+    const unsubscribe = subscribeNoteTreeEvents(listener);
+
+    await act(async () => {
+      await result.current.createWorkspace({ name: 'B' });
+    });
+
+    expect(listener).toHaveBeenCalledWith({ type: 'workspace-created', workspace: WS_B });
+    unsubscribe();
   });
 });

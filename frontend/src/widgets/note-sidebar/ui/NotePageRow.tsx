@@ -153,7 +153,9 @@ export default function NotePageRow({
         setContextOpenSignal((prev) => prev + 1);
       }}
       className={`group flex items-center gap-1 rounded-md pr-1 transition-colors ${
-        active ? 'bg-brand-500/10 text-brand-600' : 'hover:bg-surface-2'
+        // いま開いている行は**背景と字の太さ**で示す。文字色まで変えると、行の中の
+        // 操作メニューまで色を継ぎ、木全体が青く見える（文字は黒で揃える）。
+        active ? 'bg-brand-500/10' : 'hover:bg-surface-2'
       } ${dragging ? 'opacity-40' : ''} ${dropClass}`}
       style={{ paddingLeft: depth * KB_INDENT_PX }}
     >
@@ -199,7 +201,9 @@ export default function NotePageRow({
             // いま開いているページであることは、role ではなくここが表す。
             aria-current={active ? 'page' : undefined}
             className={`flex min-w-0 flex-1 items-center gap-1.5 py-1 text-sm ${
-              active ? 'font-medium' : 'text-[var(--color-text-primary)]'
+              active
+                ? 'font-medium text-[var(--color-text-primary)]'
+                : 'text-[var(--color-text-primary)]'
             }`}
           >
             <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />

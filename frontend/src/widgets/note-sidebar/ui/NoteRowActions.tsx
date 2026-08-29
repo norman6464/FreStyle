@@ -106,7 +106,7 @@ export default function NoteRowActions({
                     setMenuOpen(false);
                     onRename();
                   }}
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-surface-2"
+                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-surface-2"
                 >
                   名前を変更
                 </button>
@@ -136,7 +136,7 @@ export default function NoteRowActions({
                           setMenuOpen(false);
                           onMove(target);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-surface-2"
+                        className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-surface-2"
                       >
                         {text}
                       </button>
@@ -151,7 +151,7 @@ export default function NoteRowActions({
                       setMenuOpen(false);
                       onArchive();
                     }}
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-surface-2"
+                    className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-surface-2"
                   >
                     アーカイブ
                   </button>

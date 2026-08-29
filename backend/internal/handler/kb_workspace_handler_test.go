@@ -447,6 +447,29 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		assert.JSONEq(t, `[]`, w.Body.String())
 	})
 
+	t.Run("取り消した役割は一覧を開いても戻らない", func(t *testing.T) {
+		// 役割の取り消しは grant の行を消すだけで、主体の行は残る。自動所属が
+		// 「主体があっても役割を足す」作りだと、admin が取り消した権限が
+		// その人の次の読み取りで戻ってしまい、権限管理が効かなくなる。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		principal, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
+		require.NoError(t, err)
+		require.NoError(t, f.perms.GrantWorkspaceRoleIfAbsent(
+			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleEditor))
+		// admin が役割を取り消す（主体は残る）。
+		require.NoError(t, f.perms.DeleteWorkspaceGrant(
+			context.Background(), kbWorkspaceID, principal.ID))
+		f.perms.setCompanyWorkspace(kbUserID, kbWorkspaceID)
+
+		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		facts, err := f.perms.WorkspacePermissionFactsForUser(
+			context.Background(), kbWorkspaceID, kbUserID)
+		require.NoError(t, err)
+		assert.Empty(t, facts.Roles, "取り消した役割が読み取りで戻ってはいけない")
+	})
+
 	t.Run("既にある役割は踏み潰さない（admin を editor へ落とさない）", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
 		// 本番と同じ形で admin の grant 行を張る（実効権限の写しではなく行を作る）。

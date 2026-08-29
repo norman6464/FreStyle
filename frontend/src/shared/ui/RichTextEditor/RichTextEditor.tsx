@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { ACCEPTED_IMAGE_ACCEPT_ATTR } from '@/shared/config/imageUpload';
 import { createEditorExtensions } from './editorExtensions';
@@ -9,7 +8,6 @@ import { acceptedImageFiles, insertUploadedImages } from './imageInsertion';
 import { sanitizeDocLinks } from './linkSafety';
 import { openClickedLink } from './linkClick';
 import BubbleFormatMenu from './BubbleFormatMenu';
-import FormatMenuBar from './FormatMenuBar';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
 import type { RichDocContent } from './emptyRichDoc';
 import './richTextEditor.css';
@@ -50,14 +48,6 @@ export interface RichTextEditorProps {
    * 書式ボタン列を上部に常設する（編集できるときだけ）。バブルメニュー（選択時に
    * 浮かぶ方）はそのまま併存する — どちらも同じコマンドレジストリを叩くので二重実装にはならない。
    */
-  toolbar?: boolean;
-  /**
-   * 常設ツールバーの置き場所。渡すとツールバーはこの要素の中へポータルで描画される
-   * （題名より上・ヘッダー直下など、エディタの外側に固定するため）。
-   * 無ければ本文の直上に出す。editor はこの部品の中で生まれるので、外に置きたい側が
-   * editor を受け取るのではなく、置き場所だけを差し出す（editor を外へ漏らさない）。
-   */
-  toolbarContainer?: HTMLElement | null;
   /**
    * 本文中の内部ページリンク（/p/{id}）を開くときの遷移。渡すとアプリ内遷移になる
    * （渡さなければ素の遷移）。外部リンクは常に新しいタブで開く。
@@ -112,8 +102,6 @@ export default function RichTextEditor({
   onImageUpload,
   onCreate,
   extraSlashCommands,
-  toolbar = false,
-  toolbarContainer = null,
   onNavigateToPage,
   focusSignal = 0,
   className = '',
@@ -269,14 +257,7 @@ export default function RichTextEditor({
         }
       }}
     >
-      {toolbar && editable && editor && toolbarContainer &&
-        createPortal(<FormatMenuBar editor={editor} />, toolbarContainer)}
       <div className="rte-content prose max-w-none">
-        {toolbar && editable && editor && !toolbarContainer && (
-          <div className="mb-2 border-b border-surface-3 pb-2">
-            <FormatMenuBar editor={editor} />
-          </div>
-        )}
         <EditorContent editor={editor} />
       </div>
       {editable && editor && <BubbleFormatMenu editor={editor} />}

@@ -88,7 +88,7 @@ export default function Header() {
         supports で backdrop-filter を持つ環境だけ半透明にし、無い環境では
         不透明の地色に落とす（透けたまま読めなくならないように）。
       */}
-      <header className="flex-shrink-0 h-16 bg-[var(--color-nav)] supports-[backdrop-filter]:bg-[var(--color-nav)]/75 backdrop-blur-md flex items-center gap-2 px-3">
+      <header className="app-header-surface flex-shrink-0 h-16 flex items-center gap-2 px-3">
         {/* ロゴは favicon と同じ画像（favicon.svg = 三角の飛翔マーク）に揃える。 */}
         <Link to="/dashboard" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
           <img src="/favicon.svg" alt="" aria-hidden="true" className="w-7 h-7 flex-shrink-0" />
@@ -181,7 +181,7 @@ export default function Header() {
 
       {/* モバイルメニュー */}
       {mobileOpen && (
-        <div className="md:hidden bg-[var(--color-nav)] supports-[backdrop-filter]:bg-[var(--color-nav)]/75 backdrop-blur-md">
+        <div className="app-header-surface md:hidden">
           <nav className="px-3 py-2 space-y-0.5" aria-label="モバイルナビゲーション">
             {visibleNav.map((item) => (
               <Link key={item.id} to={item.to} className={`block ${navLinkClass(navActive(item, location.pathname))}`}>

@@ -80,11 +80,13 @@ func (u *ResolveWorkspaceUseCase) joinCompany(
 	if companyWorkspaceID != workspaceID {
 		return false, nil
 	}
+	// ここに来るのは IsWorkspaceMember が false のときだけなので、主体はまだ無い。
+	// 主体を作り、最初の役割を与える。**既にある人には触らない**という規則は
+	// JoinCompanyWorkspaceUseCase と同じ（取り消した権限を読み取りで戻さない）。
 	principal, err := u.permissions.EnsureUserPrincipal(ctx, workspaceID, userID)
 	if err != nil {
 		return false, err
 	}
-	// 既定は editor（読むだけの人を作らない）。既にある役割は触らない。
 	if err := u.permissions.GrantWorkspaceRoleIfAbsent(
 		ctx, workspaceID, principal.ID, domain.GrantRoleEditor,
 	); err != nil {

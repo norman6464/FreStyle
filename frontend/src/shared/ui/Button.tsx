@@ -12,7 +12,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white shadow-sm hover:shadow',
+  // 白文字に対して brand-500 は 3.7:1 で読みやすさの基準（4.5:1）に届かない。600 から始める（5.2:1）。
+  primary: 'bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white shadow-sm hover:shadow',
   secondary:
     'border border-[var(--color-border-hover)] bg-surface-1 shadow-sm hover:bg-surface-2 hover:shadow active:bg-surface-3 text-[var(--color-text-secondary)]',
   ghost: 'hover:bg-surface-2 active:bg-surface-3 text-[var(--color-text-secondary)]',

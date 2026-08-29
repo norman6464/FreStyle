@@ -25,7 +25,11 @@ import (
 // # 与える役割
 //
 // editor（読むだけの人を作らない — .claude/CLAUDE.md の「広い既定 + 狭い例外」）。
-// 既に役割があれば触らない。admin を editor へ格下げしない。
+//
+// **役割を与えるのは、主体をこのとき新しく作った場合だけ。** 既に主体がある人には
+// 一切触らない。触ると「admin が誰かの役割を取り消したのに、その人が一覧を開いた
+// 瞬間に editor へ戻る」という形で権限管理が効かなくなる（役割の取り消しは
+// workspace_grants の行を消すだけで、主体の行は残るため）。
 //
 // # プライベートスペースには届かない
 //
@@ -56,12 +60,19 @@ func (u *JoinCompanyWorkspaceUseCase) Execute(
 	if err != nil {
 		return "", err
 	}
+	// 既に主体があるなら、この人の所属も役割も既に決まっている。何もしない。
+	// ここで役割を足すと、取り消したはずの権限が次の読み取りで戻る。
+	if _, err := u.permissions.FindUserPrincipal(ctx, workspaceID, in.UserID); err == nil {
+		return workspaceID, nil
+	} else if !errors.Is(err, repository.ErrPrincipalNotFound) {
+		return "", err
+	}
+
 	principal, err := u.permissions.EnsureUserPrincipal(ctx, workspaceID, in.UserID)
 	if err != nil {
 		return "", err
 	}
-	// 既定の役割は「無いときだけ」与える。既にある役割は触らない
-	// （admin を editor へ落とさない・個別に絞った設定を毎回踏み潰さない）。
+	// ここへ来るのは主体を新しく作ったときだけ。最初の役割を与える。
 	if err := u.permissions.GrantWorkspaceRoleIfAbsent(
 		ctx, workspaceID, principal.ID, domain.GrantRoleEditor,
 	); err != nil {

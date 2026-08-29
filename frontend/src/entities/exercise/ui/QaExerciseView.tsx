@@ -91,7 +91,9 @@ export default function QaExerciseView({
               spellCheck={false}
               autoComplete="off"
               autoCapitalize="off"
-              className="flex-1 bg-transparent outline-none text-white placeholder:text-[var(--color-text-muted)]"
+              // 端末風の暗い地（#1e1e1e）に置く欄なので、白地向けの補助色は使わない
+              // （明るい面で読めるよう濃くした色は、暗い面では逆に沈む）。
+              className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400"
               placeholder="ここにコマンドを入力..."
               aria-label="コマンドを入力"
             />

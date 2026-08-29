@@ -68,19 +68,14 @@ const sampleDoc = (): RichDocContent => ({
 });
 
 /**
- * ノート画面の形の再現。ツールバーは**ヘッダー直下の sticky バー**に置かれ、
- * 題名より上に出る（並びは ツールバー → 題名 → 本文）。
- * エディタには置き場所（toolbarContainer）だけを渡す。
+ * ノート画面の形の再現（題名 → 本文）。書式は**選んだときに出るバブル**で変える。
+ * 画面上部に固定する帯は置かない（場所を取るわりに、使うのは書式を変える一瞬だけ）。
  */
 function NotePageLayout() {
-  const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
   // 題名で Enter を押したら本文へ移る合図（ノート画面と同じ配線）。
   const [bodyFocusSignal, setBodyFocusSignal] = useState(0);
   return (
     <div style={{ height: '100vh', overflowY: 'auto' }}>
-      <div className="sticky top-0 z-30 border-b border-surface-3 bg-surface">
-        <div ref={setToolbarHost} className="mx-auto w-full max-w-3xl px-6 py-1.5" data-testid="toolbar-host" />
-      </div>
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         <input
           aria-label="ページの題名"
@@ -92,36 +87,11 @@ function NotePageLayout() {
           }}
           className="mb-4 w-full border-none bg-transparent p-0 text-3xl font-bold outline-none"
         />
-        <RichTextEditor
-          value={sampleDoc()}
-          editable
-          toolbar
-          toolbarContainer={toolbarHost}
-          focusSignal={bodyFocusSignal}
-        />
+        <RichTextEditor value={sampleDoc()} editable focusSignal={bodyFocusSignal} />
       </div>
     </div>
   );
 }
-
-export const 題名の上のツールバー: Story = {
-  // render で全体を差し替えるので args は使わないが、型の上では必須（value を満たしておく）。
-  args: { value: emptyRichDoc() },
-  render: () => <NotePageLayout />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    // ツールバーが出るまで待つ（editor の初期化は非同期）。
-    const toolbar = await canvas.findByRole('toolbar', { name: '書式メニュー' });
-    const title = canvas.getByRole('textbox', { name: 'ページの題名' });
-    const host = canvas.getByTestId('toolbar-host');
-    // ツールバーは sticky バー（host）の中に入っている（ポータルが効いている）。
-    await expect(host.contains(toolbar)).toBe(true);
-    // DOM 上でツールバーが題名より前 = 画面で題名より上に出る。
-    await expect(
-      Boolean(toolbar.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true);
-  },
-};
 
 /**
  * 題名で Enter を押すと本文の先頭へ移る。
@@ -152,7 +122,7 @@ export const 題名でEnterすると本文へ移る: Story = {
 
 /** ページを開いただけでは本文がフォーカスを奪わない（マウント時の合図では動かない）。 */
 export const 開いただけでは本文にフォーカスしない: Story = {
-  args: { value: sampleDoc(), editable: true, toolbar: true, focusSignal: 3 },
+  args: { value: sampleDoc(), editable: true, focusSignal: 3 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = await canvas.findByRole('textbox', { name: '本文' });
@@ -160,18 +130,9 @@ export const 開いただけでは本文にフォーカスしない: Story = {
   },
 };
 
-/** 置き場所を渡さないときの既定: 本文の直上に出る（後方互換の形）。 */
-export const 本文の直上のツールバー: Story = {
-  args: { value: sampleDoc(), editable: true, toolbar: true },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await canvas.findByRole('toolbar', { name: '書式メニュー' });
-  },
-};
-
-/** 読み取り専用ではツールバーを出さない（押せない操作を見せない）。 */
+/** 読み取り専用。書式のバブルも出ない（押せない操作を見せない）。 */
 export const 読み取り専用: Story = {
-  args: { value: sampleDoc(), editable: false, toolbar: true },
+  args: { value: sampleDoc(), editable: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // 本文は出る。
@@ -184,5 +145,5 @@ export const 読み取り専用: Story = {
 
 /** 空の本文（プレースホルダの確認）。 */
 export const 空の本文: Story = {
-  args: { value: emptyRichDoc(), editable: true, toolbar: true },
+  args: { value: emptyRichDoc(), editable: true },
 };

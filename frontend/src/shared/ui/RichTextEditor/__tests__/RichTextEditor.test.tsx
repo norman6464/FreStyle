@@ -169,22 +169,6 @@ describe('doc の同一性はキー順に依らない', () => {
   });
 });
 
-describe('常設ツールバー', () => {
-  it('toolbar を渡すと書式ボタン列が常に出る（編集できるときだけ）', async () => {
-    render(<RichTextEditor value={emptyRichDoc()} toolbar />);
-    await waitFor(() => expect(screen.getByRole('textbox', { name: '本文' })).toBeInTheDocument());
-
-    expect(screen.getByRole('toolbar', { name: '書式メニュー' })).toBeInTheDocument();
-  });
-
-  it('読み取り専用ではツールバーを出さない（押せない操作を見せない）', async () => {
-    render(<RichTextEditor value={emptyRichDoc()} toolbar editable={false} />);
-    await waitFor(() => expect(screen.getByRole('textbox', { name: '本文' })).toBeInTheDocument());
-
-    expect(screen.queryByRole('toolbar', { name: '書式メニュー' })).not.toBeInTheDocument();
-  });
-});
-
 const PAGE_UUID = '01a045ef-35de-7e9d-b637-84a5eb6fad77';
 
 /** 内部（相対・絶対）と外部のリンクを 1 段落に並べた doc。 */

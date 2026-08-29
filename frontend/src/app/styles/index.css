@@ -318,8 +318,27 @@
 
 @layer components {
   /* 白文字に対して brand-500 は 3.7:1 で基準（4.5:1）に届かない。600 から始める（5.2:1）。 */
-  .btn-primary {
-    @apply bg-brand-600 text-white font-medium py-2.5 rounded-lg shadow-sm hover:bg-brand-700 hover:shadow active:bg-brand-800 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  /*
+   * ヘッダーの下の境界は線ではなく**ぼかし**で表す。
+   *
+   * Tailwind の `bg-[var(--color-nav)]/75` は効かない — 不透明度を混ぜるには色が
+   * rgb() の形で分解できる必要があり、CSS 変数の #FFFFFF はそのまま使われて
+   * クラス自体が生成されない（実際に生成物を見て空だった）。ここは素の CSS で書く。
+   *
+   * backdrop-filter を持たない環境では半透明にしない（下が透けたまま文字が重なると
+   * 読めなくなる）。その場合だけ細い線を引いて、境目が消えないようにする。
+   */
+  .app-header-surface {
+    background-color: var(--color-nav);
+    border-bottom: 1px solid var(--color-surface-3);
+  }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .app-header-surface {
+      background-color: color-mix(in srgb, var(--color-nav) 75%, transparent);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border-bottom: none;
+    }
   }
 
   /* 純白の body に埋もれないよう、輪郭が見える境界色 + 影で「押せる」感を出す。 */

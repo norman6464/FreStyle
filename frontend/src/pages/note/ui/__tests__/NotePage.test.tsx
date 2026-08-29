@@ -198,14 +198,14 @@ describe('NotePage の配線', () => {
     act(() => {
       emitNoteTreeEvent({ type: 'page-deleted', pageId: 'anc-1' });
     });
-    expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
 
     // 自分自身の削除でも戻る。
     hoisted.navigate.mockClear();
     act(() => {
       emitNoteTreeEvent({ type: 'page-deleted', pageId: 'p1' });
     });
-    expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
   });
 
   it('編集できないページでは /page を渡さない（読むだけの人にメニューを見せない）', async () => {

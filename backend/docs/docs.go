@@ -753,7 +753,7 @@ const docTemplate = `{
         },
         "/auth/cognito/login": {
             "post": {
-                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -795,7 +795,13 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "招待 なし の 新規 user",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -871,7 +877,13 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "招待が必要",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -887,7 +899,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
-                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -929,7 +941,13 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "招待 なし の 新規 user",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

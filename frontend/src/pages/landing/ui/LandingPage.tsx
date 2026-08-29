@@ -24,16 +24,6 @@ const LANGUAGES = ['PHP', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Ruby', 'C',
 
 const FEATURES: { icon: typeof BookOpenIcon; title: string; body: string }[] = [
   {
-    icon: ChatBubbleLeftRightIcon,
-    title: 'AI チャットで質問',
-    body: '詰まったところを AI にその場で相談。学習の流れを止めずに、疑問を解消しながら進められる。',
-  },
-  {
-    icon: ChartBarIcon,
-    title: '学習レポート',
-    body: '取り組んだ量や進み具合をレポートで可視化。受講者は自分の伸びを、研修担当はチームの状況を把握できる。',
-  },
-  {
     icon: UserGroupIcon,
     title: 'メンバーの学習状況（管理者）',
     body: '企業の研修担当は、メンバーごとの進捗・つまずきを一覧で確認。招待もマジックリンクで簡単に行える。',
@@ -55,13 +45,13 @@ const STEPS: { title: string; body: string }[] = [
   { title: '利用申請', body: '企業の研修担当が利用申請を送信。折り返しご案内します。' },
   { title: 'メンバー招待', body: '受講者をマジックリンクで招待。受け取ったリンクから参加できます。' },
   { title: '学習開始', body: 'コース学習とコーディング演習で、手を動かしながら研修を進めます。' },
-  { title: '進捗の確認', body: '学習レポートで、受講者・研修担当の双方が伸びを確認できます。' },
+  { title: '進捗の確認', body: 'コースの進み具合を、受講者・研修担当の双方が確認できます。' },
 ];
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: 'FreStyle とは何ですか？',
-    a: 'FreStyle は、新卒 IT エンジニア向けの統合研修プラットフォームです。コース学習・多言語のコーディング演習・AI チャット・学習レポートを1つにまとめ、研修の実施と進捗管理を支援します。',
+    a: 'FreStyle は、新卒 IT エンジニア向けの統合研修プラットフォームです。コース学習・多言語のコーディング演習・ノートを1つにまとめ、研修の実施と進捗管理を支援します。',
   },
   {
     q: '誰が使うサービスですか？',
@@ -131,7 +121,7 @@ export default function LandingPage() {
   useDocumentMeta({
     title: 'FreStyle | 新卒ITエンジニア向け研修プラットフォーム',
     description:
-      'FreStyle は新卒・若手 IT エンジニア向けの研修プラットフォーム。コース学習・多言語のコーディング演習・AI チャット・学習レポートで、研修の実施と進捗管理を支援します。',
+      'FreStyle は新卒・若手 IT エンジニア向けの研修プラットフォーム。コース学習・多言語のコーディング演習・ノートで、研修の実施と進捗管理を支援します。',
     canonical: SITE_URL,
   });
 
@@ -173,7 +163,7 @@ export default function LandingPage() {
                   <span className="text-brand-600">新卒ITエンジニア向け研修プラットフォーム</span>
                 </h1>
                 <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg lg:mx-0">
-                  コース学習・多言語のコーディング演習・AI チャット・学習レポートを1つに。
+                  コース学習・多言語のコーディング演習・ノートを1つに。
                   手を動かして学び、研修の進捗をまとめて管理できます。
                 </p>
                 <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">

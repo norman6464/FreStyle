@@ -29,7 +29,6 @@ const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ defa
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
 const NotePage = lazyWithReload(() => import('@/pages/note').then((m) => ({ default: m.NotePage })), 'NotePage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
-const LearningReportPage = lazyWithReload(() => import('@/pages/learning-report').then((m) => ({ default: m.LearningReportPage })), 'LearningReportPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 const AdminInvitationsPage = lazyWithReload(() => import('@/pages/admin-invitations').then((m) => ({ default: m.AdminInvitationsPage })), 'AdminInvitationsPage');
 const AdminCompaniesPage = lazyWithReload(() => import('@/pages/admin-companies').then((m) => ({ default: m.AdminCompaniesPage })), 'AdminCompaniesPage');
@@ -124,7 +123,6 @@ export default function App() {
         <Route path="/kb/:workspaceSlug" element={<Navigate to="/notes" replace />} />
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
-        <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />
         {/* コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段(FRESTYLE-152)。
             /lang/:language は 2 セグメントなので 1 セグメントの :slug とは衝突しない。 */}

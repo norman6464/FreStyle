@@ -334,25 +334,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 		require.Equal(t, uint64(4), one.ID)
 	})
 
-	t.Run("learning_reports: period_to 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "learning_reports")
-		repo := persistence.NewLearningReportRepository(sqlDB)
-		for i := uint64(1); i <= 4; i++ {
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO learning_reports (id, user_id, period_from, period_to, status, s3_key, created_at)
-				 VALUES ($1, 7, $2, $3, $4, '', $3)`,
-				i, tie.Add(-7*24*time.Hour), tie, domain.LearningReportStatusReady)
-			require.NoError(t, err)
-		}
-		rows, err := repo.ListByUserID(ctx, 7)
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, []uint64{4, 3, 2, 1}, ids)
-	})
-
 	t.Run("user_chapter_views: last_viewed_at 同着は chapter_id 降順", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "user_chapter_views")
 		repo := persistence.NewUserChapterViewRepository(sqlDB)

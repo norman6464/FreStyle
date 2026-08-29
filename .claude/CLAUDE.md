@@ -15,10 +15,8 @@
 - **バックエンド**: Go 1.x / Gin / sqlc（`backend/`、ECS Fargate）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6（Supabase / Transaction pooler、2026-05 に RDS から移行）。データアクセスは **sqlc**（SQL から型付き Go を生成）。**GORM は撤去済み**（依存にも無い）
-- **NoSQL**: DynamoDB（`fre_style_ai_chat` — AI チャットメッセージ）
 - **認証**: AWS Cognito（OIDC + JWT HttpOnly Cookie、招待マジックリンク方式）
-- **AI**: AWS Bedrock（Claude Sonnet 4.5 / Inference Profile 経由）
-- **非同期処理**: SQS（学習レポート生成キュー） / **チャット通信**: SSE on ECS
+- **チャット通信**: SSE on ECS（非同期キュー（SQS）は学習レポートの撤去にともない廃止）
 - **IaC**: Terraform（private リポ `frestyle-infrastructure` で管理）
 
 ---
@@ -44,7 +42,7 @@ handler → usecase → repository / infra → domain
 | middleware | `backend/internal/handler/middleware` | JWT 認証、CORS、current user 注入、CSRF 等の横断的処理 |
 | usecase | `backend/internal/usecase` | 1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
 | repository (port) | `backend/internal/usecase/repository` | usecase が依存する repository interface の定義 |
-| persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / DynamoDB / S3 / SQS 等の repository 実装 |
+| persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / S3 等の repository 実装 |
 | infra | `backend/internal/infra/{bedrock,s3,ses,cognito,database,...}` | 外部サービス連携（AWS SDK ラッパ）、DB 接続、設定読み込み |
 | domain | `backend/internal/domain` | エンティティ + ビジネス定数。JSON tag のみ直書き（永続化の都合は持ち込まない）。他層を import しない |
 

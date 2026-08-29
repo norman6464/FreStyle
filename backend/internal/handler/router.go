@@ -77,7 +77,6 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	registerCourseRoutes(authed, deps)
 	registerTeachingMaterialRoutes(authed, deps)
 	registerLessonProgressRoutes(authed, deps)
-	registerLearningReportRoutes(authed, deps)
 	registerCompanyApplicationAdminRoutes(authed, companyAppHandler, audit)
 	registerDashboardRoutes(authed, deps)
 	registerDailyGoalsRoutes(authed, deps)

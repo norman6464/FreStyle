@@ -31,13 +31,11 @@
 
 ユーザーのブラウザから、フロントエンド（静的配信）とバックエンド（API）に分かれて届き、バックエンドが各データストア・認証サービスを束ねます。
 
-ブラウザ → フロントエンド（React / CloudFront + S3）とバックエンド（Go / ALB + ECS）→ Supabase・SQS・SES・Cognito、という構成。
+- **フロントエンド**: React 19 / TypeScript / Vite / Tailwind。ビルド成果物を静的配信。
+- **バックエンド**: Go / Gin（+ コード実行用の `code-runner` サイドカー）。
+- **データ / 連携**: メイン DB は **PostgreSQL**、認証は **JWT を HttpOnly Cookie** で保持。
 
-- **フロントエンド**: React 19 / TypeScript / Vite / Tailwind。ビルド成果物を **CloudFront + S3** で配信。
-- **バックエンド**: Go / Gin / GORM。**ALB + ECS Fargate**（+ コード実行用の `code-runner` サイドカー）。
-- **データ / 連携**: メイン DB は **Supabase(PostgreSQL)**、非同期は **SQS**、メールは **SES**、認証は **Cognito(JWT を HttpOnly Cookie)**。
-
-> AWS リソースレベルの詳細は下の「[AWSアーキテクチャ構成図](#awsアーキテクチャ構成図)」を参照。
+> 実行基盤の構成（クラウドのリソース定義）は private リポ [`frestyle-infrastructure`](https://github.com/norman6464/frestyle-infrastructure) で管理する。
 
 ## 使用技術
 
@@ -51,7 +49,7 @@
 <img src="https://skillicons.dev/icons?i=go,gin&theme=dark" alt="Backend">
 </a>
 
-> Go / Gin / GORM / PostgreSQL（`backend/`）。クリーンアーキテクチャ（依存方向を archlint で強制）。
+> Go / Gin / sqlc / PostgreSQL（`backend/`）。クリーンアーキテクチャ（依存方向を archlint で強制）。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
@@ -87,25 +85,19 @@
 
 
 ### 技術面：
-- Cognito発行のJWT を HttpOnly Cookie に保存（XSS 対策）
+- 発行された JWT を HttpOnly Cookie に保存（XSS 対策）
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行
 - OIDC & JWK を活用した堅牢な認証フロー（Google認証をできるようにした）
 - NoSQL、RDBのユースケースによって適した使い分け
-- バックエンドはアーキテクチャを言語非依存に保ち、Go と Java/Spring Boot を行き来して比較検証してきた。極小 Fargate + 夜間 teardown の構成では **Go の即起動・低メモリ** が有利なため、現在は **Go / Gin / GORM** を本番採用し、**クリーンアーキテクチャ（依存方向を `archlint` で強制）** で構成している（`backend/`）。ECS Fargate 最小スペックで運用
-- 夜間は ECS を停止してコストを抑える運用（詳細は[インフラリポジトリ](https://github.com/norman6464/frestyle-infrastructure)の docs を参照）
+- バックエンドはアーキテクチャを言語非依存に保ち、Go と Java/Spring Boot を行き来して比較検証してきた。極小のコンテナで動かし夜間は停止する構成では **Go の即起動・低メモリ** が有利なため、現在は **Go / Gin** を本番採用し、**クリーンアーキテクチャ（依存方向を `archlint` で強制）** で構成している（`backend/`）
+- 夜間はコンテナを停止してコストを抑える運用（詳細は[インフラリポジトリ](https://github.com/norman6464/frestyle-infrastructure)の docs を参照）
 
 | 観点 | 数値 |
 |---|---|
-| ECS Fargate スペック | 0.25 vCPU / 0.5 GB（最小） |
+| コンテナのスペック | 0.25 vCPU / 0.5 GB（最小） |
 | ランタイム | Go（静的バイナリ）/ Gin |
-| スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL・ナレッジ基盤は明示 DDL）|
-| 永続化 | クエリは読み書きとも sqlc 生成コード（生 SQL）が主体・GORM は接続と AutoMigrate に残る（PostgreSQL）/ AWS SDK v2（S3・SQS）|
-
-## AWSアーキテクチャ構成図
-
-CloudFront + S3 が SPA を配信し、ALB 経由で ECS Fargate 上の Go API へ。データストアは Supabase（PostgreSQL）、非同期は SQS、メールは SES、認証は Cognito。
-
-インフラ定義（Terraform）は private リポ `frestyle-infrastructure` で管理する。
+| スキーマ管理 | `schema/*.sql`（明示 DDL）を起動時に冪等適用。同じファイルが sqlc の型付け入力 |
+| 永続化 | クエリは読み書きとも sqlc 生成コード（生 SQL）。オブジェクト保存はクラウドのストレージ SDK |
 
 ---
 
@@ -146,7 +138,7 @@ app > pages > widgets > features > entities > shared の一方向（Feature-Slic
 ### バックエンド (Go / Gin) — `backend/`
 
 ```bash
-# 1) 設定ファイルを用意する（リポジトリ直下。Cognito / AWS などの値を書く。DB だけなら無くても動く）
+# 1) 設定ファイルを用意する（リポジトリ直下。認証などの値を書く。DB だけなら無くても動く）
 cp .env.example .env
 
 # 2) DB・メールキャッチャー・バックエンドをまとめて起動

@@ -265,36 +265,6 @@ CREATE TABLE IF NOT EXISTS exercise_submissions (
 CREATE INDEX IF NOT EXISTS idx_submissions_user_at
     ON exercise_submissions (user_id, submitted_at DESC);
 
--- コースを構成する章。本文は doc(jsonb) が正本で、未移行の章は NULL。
-CREATE TABLE IF NOT EXISTS course_chapters (
-    id                 bigserial PRIMARY KEY,
-    company_id         bigint NOT NULL,
-    course_id          bigint NOT NULL,
-    created_by_user_id bigint NOT NULL,
-    title              text NOT NULL DEFAULT '',
-    doc                jsonb,
-    revision           bigint NOT NULL DEFAULT 1,
-    schema_version     bigint NOT NULL DEFAULT 1,
-    sort_order         bigint NOT NULL DEFAULT 100,
-    is_published       boolean NOT NULL DEFAULT false,
-    created_at         timestamptz NOT NULL,
-    updated_at         timestamptz NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_course_chapters_company_id ON course_chapters (company_id);
-CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
-
--- 学習レポート（週次・月次集計を非同期生成）。updated_at は持たない。
-CREATE TABLE IF NOT EXISTS learning_reports (
-    id          bigserial PRIMARY KEY,
-    user_id     bigint NOT NULL,
-    period_from timestamptz NOT NULL,
-    period_to   timestamptz NOT NULL,
-    status      text NOT NULL DEFAULT '',
-    s3_key      text NOT NULL DEFAULT '',
-    created_at  timestamptz NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_learning_reports_user_id ON learning_reports (user_id);
-
 -- 章の完了記録。(user_id, chapter_id) は複合 UNIQUE（同じ章の二重記録を防ぐ）。
 CREATE TABLE IF NOT EXISTS user_chapter_progress (
     id           bigserial PRIMARY KEY,

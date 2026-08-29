@@ -11,7 +11,6 @@ import { CompanyRepository, CompanyApplicationRepository } from '@/entities/comp
 import { CourseRepository, LessonProgressRepository } from '@/entities/course';
 import { ExerciseRepository } from '@/entities/exercise';
 import { AdminInvitationRepository } from '@/entities/invitation';
-import { LearningReportRepository } from '@/entities/learning-report';
 import { AdminMemberRepository } from '@/entities/member';
 import { NotificationRepository } from '@/entities/notification';
 
@@ -43,13 +42,12 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
     ['演習の言語別集計', () => ExerciseRepository.listLanguageSummary()],
     ['演習の提出履歴', () => ExerciseRepository.listSubmissions(1)],
     ['招待一覧', () => AdminInvitationRepository.list()],
-    ['学習レポート一覧', () => LearningReportRepository.getAll()],
     ['従業員一覧', () => AdminMemberRepository.listMembers()],
     ['通知一覧', () => NotificationRepository.getAll()],
   ];
 
   it('正規化対象の全経路を網羅している', () => {
-    expect(cases).toHaveLength(13);
+    expect(cases).toHaveLength(12);
   });
 
   it.each(cases)('%s は null でも空配列になる', async (_name, call) => {

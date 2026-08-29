@@ -5590,125 +5590,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/learning-reports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 学習 レポート 一覧
-         * @description current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"][];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/learning-reports/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 月次 学習 レポート 生成 要求
-         * @description current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。 202 Accepted を 返す。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description year + month */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.requestReportReq"];
-                };
-            };
-            responses: {
-                /** @description Accepted */
-                202: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"];
-                    };
-                };
-                /** @description バリデーション */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/lesson-progress": {
         parameters: {
             query?: never;
@@ -7321,15 +7202,6 @@ export interface components {
             db?: string;
             status?: string;
         };
-        "github_com_norman6464_FreStyle_backend_internal_domain.LearningReport": {
-            createdAt?: string;
-            id?: number;
-            periodFrom?: string;
-            periodTo?: string;
-            s3Key?: string;
-            status?: string;
-            userId?: number;
-        };
         "github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise": {
             category?: string;
             chapterId?: number;
@@ -8051,10 +7923,6 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
-        };
-        "internal_handler.requestReportReq": {
-            month: number;
-            year: number;
         };
         "internal_handler.setCompanyActiveRequest": {
             active: boolean;

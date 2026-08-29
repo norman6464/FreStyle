@@ -51,13 +51,6 @@ export const IMAGES = {
 
 export const RANKING = `${API_V2}/ranking` as const;
 
-export const LEARNING_REPORTS = {
-  list: `${API_V2}/learning-reports`,
-  generate: `${API_V2}/learning-reports/generate`,
-  yearMonth: (year: number, month: number) =>
-    `${API_V2}/learning-reports/${year}/${month}`,
-} as const;
-
 /** 練習モード（シナリオ / セッション / ブックマーク / 共有セッション） */
 export const PRACTICE = {
   scenarios: `${API_V2}/practice/scenarios`,

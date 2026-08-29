@@ -135,14 +135,7 @@ export default function MenuPage() {
                   description="学習メモを書き留め、いつでも振り返れます。"
                   color="taupe"
                 />
-                <FeatureCard
-                  to="/reports"
-                  icon={DocumentChartBarIcon}
-                  title="学習レポート"
-                  description="月次の学習サマリーを確認できます。"
-                  color="taupe"
-                />
-              </FeatureSection>
+                              </FeatureSection>
 
               {role === 'company_admin' && (
                 <FeatureSection title="管理">

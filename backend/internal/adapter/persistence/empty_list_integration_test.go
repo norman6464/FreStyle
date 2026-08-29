@@ -91,12 +91,6 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name: "学習レポート一覧",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewLearningReportRepository(db).ListByUserID(ctx, noSuchID)
-			},
-		},
-		{
 			name: "日次の学習活動",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

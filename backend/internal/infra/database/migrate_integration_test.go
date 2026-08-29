@@ -42,7 +42,7 @@ func TestMigrate_Integration(t *testing.T) {
 			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
 			"company_exercises", "exercise_submissions", "notes",
 			"notifications", "invitations", "audit_events",
-			"learning_reports", "rich_documents",
+			"rich_documents",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
 		}

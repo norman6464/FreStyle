@@ -28,7 +28,6 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
   // ノートは共有される木（旧ナレッジを統合）。ページの URL は /p/{pageId}。
   { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: ['/notes', '/p'] },
-  { id: 'reports', label: 'レポート', to: '/reports', matchExact: true },
 ];
 
 // super_admin は企業管理に専念するロールなので**学習系**メニューは出さない。

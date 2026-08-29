@@ -536,6 +536,22 @@ BEGIN
 END
 $fill$;
 
+-- invitations.status は Go 側では pending/accepted/canceled の3値だけを書くが、
+-- DB 側には制約が無かった。既存データに想定外の値があれば追加せず警告に留める。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_invitations_status') THEN
+        IF EXISTS (
+            SELECT 1 FROM invitations
+            WHERE status NOT IN ('pending', 'accepted', 'canceled')
+        ) THEN
+            RAISE WARNING 'invitations.status に想定外の値があるため ck_invitations_status を作成できません';
+        ELSE
+            ALTER TABLE invitations ADD CONSTRAINT ck_invitations_status
+                CHECK (status IN ('pending', 'accepted', 'canceled'));
+        END IF;
+    END IF;
+END $$;
+
 -- =====================================================================
 -- Ⅱ. ノートの骨格（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
 -- =====================================================================

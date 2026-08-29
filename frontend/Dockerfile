@@ -10,7 +10,7 @@
 # 空（相対パス）でよい。
 
 # --- Build stage ---
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 # pnpm は Node に同梱の corepack から、package.json の packageManager が指す版で用意する

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckIcon, ChevronUpDownIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { ConfirmModal } from '@/shared/ui';
-import NoteCreateForm from './NoteCreateForm';
-import type { NoteWorkspace } from '@/entities/note';
+import { ConfirmModal, NoteCreateForm } from '@/shared/ui';
+import type { NoteWorkspace } from '../model/types';
 
 export interface NoteWorkspaceSwitcherProps {
   workspaces: NoteWorkspace[];

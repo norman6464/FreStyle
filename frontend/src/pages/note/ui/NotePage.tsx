@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { NoteSidebar } from '@/widgets/note-sidebar';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/shared/ui/RichTextEditor';
@@ -22,8 +22,12 @@ import NotePageTitle from './NotePageTitle';
 export default function NotePage() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const { data, loading, error, saveStatus, onDocChange, renameTitle } = useNotePageDoc(pageId);
+  // ヘッダーのワークスペース切替から来たときだけ、開くワークスペースの初期値に使う
+  // （ページを開いているときは data.workspaceSlug が正なのでそちらを優先する）。
+  const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
 
   const handleRename = useCallback(
     async (title: string) => {
@@ -86,7 +90,7 @@ export default function NotePage() {
       {/* サイドバーはコースの章一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
           一時表示 / ⌘\ で切替）。画面ごとに別の作りを持たない — 覚えることを増やさない。 */}
       <SecondaryPanel title="ノート" peekable storageKey="frestyle.panel.note">
-        <NoteSidebar workspaceSlug={data?.workspaceSlug} activePageId={pageId} />
+        <NoteSidebar workspaceSlug={data?.workspaceSlug ?? navigationWorkspaceSlug} activePageId={pageId} />
       </SecondaryPanel>
 
       <main className="min-w-0 flex-1 overflow-y-auto">

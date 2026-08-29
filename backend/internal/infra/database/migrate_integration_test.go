@@ -36,7 +36,7 @@ func TestMigrate_Integration(t *testing.T) {
 
 	t.Run("中核テーブルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
-			"roles", "users", "user_oidc_identities", "companies", "company_applications",
+			"roles", "users", "user_oidc_identities", "companies",
 			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
 			"company_exercises", "exercise_submissions", "notes",
 			"notifications", "invitations", "audit_events",
@@ -76,11 +76,14 @@ func TestMigrate_Integration(t *testing.T) {
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
 	})
 
-	t.Run("Migrate はデータを書かない（roles / companies を seed しない）", func(t *testing.T) {
+	t.Run("Migrate は roles マスタだけ投入し companies は seed しない", func(t *testing.T) {
+		// roles は users.role_id の FK 先なので、新規環境でも初回から使えるよう投入する
+		// （SeedRoles は ON CONFLICT DO NOTHING で冪等）。companies は固定参照データではなく
+		// 実データなので引き続き投入しない。
 		var roles, companies int64
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM roles`).Scan(&roles))
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM companies`).Scan(&companies))
-		require.EqualValues(t, 0, roles)
+		require.EqualValues(t, 3, roles)
 		require.EqualValues(t, 0, companies)
 	})
 

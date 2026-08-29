@@ -49,8 +49,9 @@ type Executor interface {
 // 埋め込まれている。RESET_DB=true のときは public schema を完全 wipe してから再構築する
 // （一回限りの初期構築用）。
 //
-// roles マスタ・既定の会社のような固定参照データは投入しない（起動のたびに書く必要がない
-// 固定値のため。ローカル/結合テストでの用意は database.SeedRoles を明示的に呼ぶ）。
+// roles マスタは users.role_id が参照する FK 先なので投入まで行う（SeedRoles は
+// ON CONFLICT DO NOTHING で冪等・既存行は書き換えない）。新規環境・DR 復元で
+// 真っさらな DB に対して起動しても、ユーザー作成・招待受諾が初回から通る。
 func Migrate(ctx context.Context, db *sql.DB) error {
 	// スキーマの作り直しは他タスクの DDL 適用と重なると壊れるため、後段と同じ advisory lock で
 	// 直列化する。ロックを取らずに DROP すると、先行タスクが CREATE 中のオブジェクトを
@@ -72,6 +73,11 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	log.Println("migrate: core schema done")
+	if err := withMigrateTx(ctx, db, "ロールマスタの投入", func(tx *sql.Tx) error {
+		return SeedRoles(ctx, tx)
+	}); err != nil {
+		return err
+	}
 	// 演習データ(PHP / Go / Docker / Linux / Git など)は問題文・期待出力を公開リポに露出させない
 	// ため本体には埋め込まず、非公開の教材リポ(frestyle-teaching-materials/exercises/<lang>/*.md)を
 	// 唯一の正本とし、seed.py が生成する UPSERT SQL を Supabase に流して投入する。
@@ -178,9 +184,8 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	}
 }
 
-// SeedRoles はロールマスタを投入する（固定 ID・冪等）。起動時の Migrate からは呼ばない
-// （本番には既に投入済みで、以後は書く必要のない固定値のため）。ローカルの初回構築と
-// 結合テストのスキーマ構築（testsupport.OpenTestDB）が明示的に呼ぶ。
+// SeedRoles はロールマスタを投入する（固定 ID・冪等）。起動時の Migrate が呼ぶ他、
+// 結合テストのスキーマ構築（testsupport.OpenTestDB）も明示的に呼ぶ。
 // 既存行は書き換えない（運用で説明文を直しても呼び直すたびに戻さない）。
 func SeedRoles(ctx context.Context, db Executor) error {
 	seeds := []domain.Role{

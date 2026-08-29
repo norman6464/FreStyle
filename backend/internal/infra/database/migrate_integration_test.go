@@ -86,7 +86,8 @@ func TestMigrate_Integration(t *testing.T) {
 
 	t.Run("会社があれば、ワークスペースへのバックフィルが 1 回だけ効く", func(t *testing.T) {
 		var companyID int64
-		require.NoError(t, db.QueryRowContext(ctx,
+		require.NoError(t, db.QueryRowContext(
+			ctx,
 			`INSERT INTO companies (name, created_at, updated_at) VALUES ('検証用の会社', NOW(), NOW()) RETURNING id`,
 		).Scan(&companyID))
 		require.NoError(t, database.Migrate(ctx, db))

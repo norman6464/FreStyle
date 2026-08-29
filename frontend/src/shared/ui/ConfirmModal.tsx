@@ -125,10 +125,12 @@ export default function ConfirmModal({
           <button
             ref={confirmRef}
             onClick={onConfirm}
+            // 白文字に対して 500 番は 3.7:1 で、読みやすさの基準（4.5:1）に届かない。
+            // 600 番（赤 4.8:1 / 青 5.2:1）から始める。
             className={`flex-1 px-4 py-2.5 font-medium rounded-xl transition-colors duration-150 ${
               isDanger
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-brand-500 hover:bg-brand-600 text-white'
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-brand-600 hover:bg-brand-700 text-white'
             }`}
           >
             {confirmText}

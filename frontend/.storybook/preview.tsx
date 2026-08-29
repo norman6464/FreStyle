@@ -17,10 +17,9 @@ const preview: Preview = {
     },
 
     a11y: {
-      // 'todo' - show a11y violations in the test UI only
-      // 'error' - fail CI on a11y violations
-      // 'off' - skip a11y checks entirely
-      test: 'todo'
+      // 見つけたら落とす。story は CI でテストとして走るので、
+      // 'todo'（表示だけ）にしておくと違反が積もっても誰も気づけない。
+      test: 'error'
     }
   },
 };

@@ -248,7 +248,10 @@ export default function RichTextEditor({
   // 開き直しただけで本文が奪ってしまわないため（サイドバーの openSignal と同じ形）。
   const seenFocusSignal = useRef(focusSignal);
   useEffect(() => {
-    if (editor && focusSignal > seenFocusSignal.current) {
+    // editor がまだ無いときは**合図を消費しない**。ここで見たことにすると、
+    // 初期化中に題名で Enter を押した合図が捨てられ、本文へ移らないまま終わる。
+    if (!editor) return;
+    if (focusSignal > seenFocusSignal.current) {
       editor.commands.focus('start');
     }
     seenFocusSignal.current = focusSignal;

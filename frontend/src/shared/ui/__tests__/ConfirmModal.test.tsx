@@ -77,7 +77,7 @@ describe('ConfirmModal', () => {
       <ConfirmModal isOpen={true} message="実行しますか？" isDanger={false} onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
     );
     const confirmBtn = screen.getByText('削除');
-    expect(confirmBtn.className).toContain('bg-brand-500');
+    expect(confirmBtn.className).toContain('bg-brand-600');
   });
 
   it('isDanger=trueで確認ボタンがredスタイルになる', () => {
@@ -85,7 +85,7 @@ describe('ConfirmModal', () => {
       <ConfirmModal isOpen={true} message="削除しますか？" isDanger={true} onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
     );
     const confirmBtn = screen.getByText('削除');
-    expect(confirmBtn.className).toContain('bg-red-500');
+    expect(confirmBtn.className).toContain('bg-red-600');
   });
 
   it('オーバーレイクリックでonCancelが呼ばれる', () => {
@@ -167,6 +167,6 @@ describe('ConfirmModal', () => {
       <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
     );
     const confirmBtn = screen.getByText('削除');
-    expect(confirmBtn.className).toContain('bg-red-500');
+    expect(confirmBtn.className).toContain('bg-red-600');
   });
 });

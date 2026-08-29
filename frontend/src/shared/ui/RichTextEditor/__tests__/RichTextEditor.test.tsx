@@ -226,9 +226,9 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('内部リンク'));
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
 
     expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
   });
@@ -238,9 +238,9 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('共有URL')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '共有URL' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('共有URL'));
+    fireEvent.click(screen.getByRole('link', { name: '共有URL' }));
 
     expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
   });
@@ -251,9 +251,9 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('外部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '外部リンク' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('外部リンク'));
+    fireEvent.click(screen.getByRole('link', { name: '外部リンク' }));
 
     expect(open).toHaveBeenCalledWith('https://example.com/docs', '_blank', 'noopener,noreferrer');
     expect(navigateToPage).not.toHaveBeenCalled();
@@ -268,14 +268,14 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
 
     const selection = window.getSelection();
     const range = document.createRange();
-    range.selectNodeContents(screen.getByText('内部リンク'));
+    range.selectNodeContents(screen.getByRole('link', { name: '内部リンク' }));
     selection?.removeAllRanges();
     selection?.addRange(range);
-    fireEvent.click(screen.getByText('内部リンク'));
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
 
     expect(navigateToPage).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();
@@ -289,9 +289,9 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('内部リンク'), { shiftKey: true });
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { shiftKey: true });
 
     expect(open).not.toHaveBeenCalled();
     expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
@@ -301,9 +301,9 @@ describe('リンクのクリック', () => {
   it('読み取り専用の Shift+クリックは新しいタブで開く（選択を伸ばす操作が無い面）', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     render(<RichTextEditor value={docWithLinks()} editable={false} onNavigateToPage={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('内部リンク'), { shiftKey: true });
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { shiftKey: true });
 
     expect(open).toHaveBeenCalled();
     open.mockRestore();
@@ -315,9 +315,9 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('内部リンク'), { metaKey: true });
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { metaKey: true });
 
     expect(open).toHaveBeenCalled();
     expect(navigateToPage).not.toHaveBeenCalled();
@@ -329,9 +329,9 @@ describe('リンクのクリック', () => {
     render(
       <RichTextEditor value={docWithLinks()} editable={false} onNavigateToPage={navigateToPage} />,
     );
-    await waitFor(() => expect(screen.getByText('内部リンク')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('内部リンク'));
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
 
     expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
   });

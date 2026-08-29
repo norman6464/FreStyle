@@ -60,6 +60,8 @@ export default defineConfig({
       })],
       test: {
         name: 'storybook',
+        // preview の設定と a11y 検査を story のテスト実行にも効かせる。
+        setupFiles: ['./.storybook/vitest.setup.ts'],
         browser: {
           enabled: true,
           headless: true,

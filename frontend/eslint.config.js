@@ -161,7 +161,9 @@ export default defineConfig([globalIgnores(['dist', 'coverage']), {
   },
 }, {
   // ビルド・テストの設定ファイルは Node で動く（src はブラウザ）。
-  files: ['*.config.{js,ts,mjs}', '.storybook/**/*.{ts,tsx}'],
+  // preview.tsx はブラウザで動くので含めない（Node のグローバルを許すと
+  // ブラウザに無い識別子の間違いを ESLint が見逃す）。
+  files: ['*.config.{js,ts,mjs}', '.storybook/main.ts'],
   languageOptions: { globals: globals.node },
 }, ...fsdBoundaryConfigs, ...selfReferenceConfigs, ...storybook.configs["flat/recommended"], {
   // story 名もテスト名と同じく日本語で書く（このリポジトリの流儀）。PascalCase の強制だけ外す。

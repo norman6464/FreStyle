@@ -198,6 +198,34 @@ export function useTeachingMaterialEditor({ selectedId, selected, update, onDocS
     [scheduleSave, editTitle],
   );
 
+  /**
+   * 待っている保存を今すぐ送る。**画面を離れる前に呼ぶ。**
+   *
+   * 保存は打鍵から 800ms 待って送る作りで、待っている間にアンマウントされると
+   * タイマーは捨てられるだけ（＝ 直近の入力が消える）。本文のリンクを押して
+   * 別のページへ移るときのように、こちらから離れると分かっている場面では、
+   * 捨てる前に送り切る。
+   */
+  const flushSave = useCallback(() => {
+    if (docTimerRef.current) {
+      clearTimeout(docTimerRef.current);
+      docTimerRef.current = null;
+      const id = selectedIdRef.current;
+      if (id != null) void runDocSave(id);
+    }
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      if (selectedId != null && selected) {
+        void update(selectedId, {
+          title: editTitle,
+          orderInCourse: selected.orderInCourse,
+          isPublished: editIsPublished,
+        });
+      }
+    }
+  }, [runDocSave, selectedId, selected, update, editTitle, editIsPublished]);
+
   return {
     editTitle,
     editDoc,
@@ -206,5 +234,6 @@ export function useTeachingMaterialEditor({ selectedId, selected, update, onDocS
     handleTitleChange,
     handleDocChange,
     handleIsPublishedChange,
+    flushSave,
   };
 }

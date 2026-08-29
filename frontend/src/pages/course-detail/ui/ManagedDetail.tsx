@@ -47,8 +47,12 @@ export default function ManagedDetail({
               placeholder="本文を入力…（'/' でコマンド）"
               onImageUpload={(file) => ImageUploadRepository.upload(file)}
               // 本文にノートのページへのリンクが貼られていることがある。渡さないと
-              // クリックが全画面リロードになり、保存待ちの入力（打ってから 1 秒弱）が消える。
-              onNavigateToPage={(path) => navigate(path)}
+              // クリックが全画面リロードになる。アプリ内遷移でも、待っている保存は
+              // アンマウントで捨てられるので、離れる前に送り切る。
+              onNavigateToPage={(path) => {
+                editor.flushSave();
+                navigate(path);
+              }}
             />
           </div>
         </div>

@@ -12,9 +12,16 @@ function renderAt(path: string) {
 }
 
 describe('PublicHeader', () => {
-  it('アカウント作成への導線がある', () => {
+  it('ログイン画面ではアカウント作成への導線がある', () => {
     renderAt('/login');
     const signup = screen.getByRole('link', { name: /アカウントを作成/ });
     expect(signup).toHaveAttribute('href', '/signup');
+  });
+
+  it('サインアップ画面では自己参照リンクを出さず、ログインへの導線を出す', () => {
+    renderAt('/signup');
+    expect(screen.queryByRole('link', { name: /アカウントを作成/ })).not.toBeInTheDocument();
+    const login = screen.getByRole('link', { name: /ログイン/ });
+    expect(login).toHaveAttribute('href', '/login');
   });
 });

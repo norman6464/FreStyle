@@ -286,156 +286,6 @@
                 }
             }
         },
-        "/admin/company-applications": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "受け付けた企業申請を新しい順で返す。super_admin 専用。",
-                "tags": [
-                    "admin"
-                ],
-                "summary": "企業申請一覧（super_admin）",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未認証",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/company-applications/{id}/status": {
-            "patch": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "申請を approved / rejected / pending に更新する。super_admin 専用。",
-                "tags": [
-                    "admin"
-                ],
-                "summary": "企業申請の status 更新（super_admin）",
-                "parameters": [
-                    {
-                        "description": "申請 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_handler.updateCompanyApplicationStatusReq"
-                            }
-                        }
-                    },
-                    "description": "status",
-                    "required": true
-                },
-                "responses": {
-                    "204": {
-                        "description": "成功（本文なし）"
-                    },
-                    "400": {
-                        "description": "id / status 不正",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未認証",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "申請が存在しない",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "DB 更新失敗",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/admin/invitations": {
             "get": {
                 "security": [
@@ -948,7 +798,7 @@
         },
         "/auth/cognito/login": {
             "post": {
-                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
                 "tags": [
                     "auth"
                 ],
@@ -996,7 +846,17 @@
                         }
                     },
                     "403": {
-                        "description": "招待 なし の 新規 user",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1096,7 +956,17 @@
                         }
                     },
                     "403": {
-                        "description": "招待が必要",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1120,7 +990,7 @@
         },
         "/auth/login": {
             "post": {
-                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
                 "tags": [
                     "auth"
                 ],
@@ -1168,7 +1038,17 @@
                         }
                     },
                     "403": {
-                        "description": "招待 なし の 新規 user",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1457,76 +1337,6 @@
                     },
                     "401": {
                         "description": "未 認証",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/company-applications": {
-            "post": {
-                "description": "ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。",
-                "tags": [
-                    "company-applications"
-                ],
-                "summary": "企業利用申請（公開 / 認証不要）",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_handler.createCompanyApplicationReq"
-                            }
-                        }
-                    },
-                    "description": "申請内容",
-                    "required": true
-                },
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "バリデーションエラー",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "429": {
-                        "description": "レート制限超過",
-                        "headers": {
-                            "Retry-After": {
-                                "description": "再試行までの秒数 (例: 60)",
-                                "schema": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "内部エラー",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -7569,35 +7379,6 @@
                     }
                 }
             },
-            "github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication": {
-                "type": "object",
-                "properties": {
-                    "applicantName": {
-                        "type": "string"
-                    },
-                    "companyName": {
-                        "type": "string"
-                    },
-                    "createdAt": {
-                        "type": "string"
-                    },
-                    "email": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "integer"
-                    },
-                    "message": {
-                        "type": "string"
-                    },
-                    "status": {
-                        "type": "string"
-                    },
-                    "updatedAt": {
-                        "type": "string"
-                    }
-                }
-            },
             "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
                 "type": "object",
                 "properties": {
@@ -8445,28 +8226,6 @@
                     },
                     "role": {
                         "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_domain.RoleName"
-                    }
-                }
-            },
-            "internal_handler.createCompanyApplicationReq": {
-                "type": "object",
-                "required": [
-                    "applicantName",
-                    "companyName",
-                    "email"
-                ],
-                "properties": {
-                    "applicantName": {
-                        "type": "string"
-                    },
-                    "companyName": {
-                        "type": "string"
-                    },
-                    "email": {
-                        "type": "string"
-                    },
-                    "message": {
-                        "type": "string"
                     }
                 }
             },
@@ -9495,17 +9254,6 @@
                     "expectedRevision": {
                         "type": "integer",
                         "minimum": 1
-                    }
-                }
-            },
-            "internal_handler.updateCompanyApplicationStatusReq": {
-                "type": "object",
-                "required": [
-                    "status"
-                ],
-                "properties": {
-                    "status": {
-                        "type": "string"
                     }
                 }
             },

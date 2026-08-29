@@ -69,6 +69,30 @@ func TestKnowledgeBaseProvisionWorkspace_Integration(t *testing.T) {
 		assert.False(t, member, "失敗した作成が既存ワークスペースへの所属を作ってはいけない")
 	})
 
+	t.Run("個人ワークスペースの重複作成はErrPersonalWorkspaceAlreadyExists", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		provisioner := persistence.NewWorkspaceProvisioner(sqlDB)
+		owner := f.alice
+
+		_, err := provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
+			Slug: "personal-1", Name: "個人 1", OwnerUserID: owner, PersonalOwnerUserID: &owner,
+		})
+		require.NoError(t, err)
+
+		// 同じ人がもう 1 つ作ろうとすると uq_workspaces_personal_owner に当たる。
+		// slug は別物なので、ErrWorkspaceSlugTaken ではなく専用エラーで区別できることを固定する。
+		_, err = provisioner.ProvisionWorkspace(ctx, repository.WorkspaceProvisionInput{
+			Slug: "personal-2", Name: "個人 2", OwnerUserID: owner, PersonalOwnerUserID: &owner,
+		})
+		assert.ErrorIs(t, err, repository.ErrPersonalWorkspaceAlreadyExists)
+
+		var count int
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT count(*) FROM workspaces WHERE slug = 'personal-2'`,
+		).Scan(&count))
+		assert.Zero(t, count, "失敗した 2 個目の行が残ってはいけない")
+	})
+
 	t.Run("途中で失敗したらワークスペースの行も残らない", func(t *testing.T) {
 		setupKBPermission(t, sqlDB)
 		provisioner := persistence.NewWorkspaceProvisioner(sqlDB)

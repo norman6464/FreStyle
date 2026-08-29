@@ -33,10 +33,6 @@ const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ defa
 const AdminInvitationsPage = lazyWithReload(() => import('@/pages/admin-invitations').then((m) => ({ default: m.AdminInvitationsPage })), 'AdminInvitationsPage');
 const AdminCompaniesPage = lazyWithReload(() => import('@/pages/admin-companies').then((m) => ({ default: m.AdminCompaniesPage })), 'AdminCompaniesPage');
 const AdminMembersPage = lazyWithReload(() => import('@/pages/admin-members').then((m) => ({ default: m.AdminMembersPage })), 'AdminMembersPage');
-const AdminCompanyApplicationsPage = lazyWithReload(
-  () => import('@/pages/admin-company-applications').then((m) => ({ default: m.AdminCompanyApplicationsPage })),
-  'AdminCompanyApplicationsPage',
-);
 const AdminDashboardPage = lazyWithReload(() => import('@/pages/admin-dashboard').then((m) => ({ default: m.AdminDashboardPage })), 'AdminDashboardPage');
 const AdminAuditLogPage = lazyWithReload(() => import('@/pages/admin-audit-log').then((m) => ({ default: m.AdminAuditLogPage })), 'AdminAuditLogPage');
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
@@ -152,14 +148,6 @@ export default function App() {
           element={
             <RequireRole allow={['super_admin']}>
               <AdminCompaniesPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/applications"
-          element={
-            <RequireRole allow={['super_admin']} requireAdminFlag>
-              <AdminCompanyApplicationsPage />
             </RequireRole>
           }
         />

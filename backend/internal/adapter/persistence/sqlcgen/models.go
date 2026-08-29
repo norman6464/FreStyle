@@ -44,17 +44,6 @@ type Company struct {
 	WorkspaceID uuid.NullUUID
 }
 
-type CompanyApplication struct {
-	ID            int64
-	CompanyName   string
-	ApplicantName string
-	Email         string
-	Message       string
-	Status        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
 type CompanyExercise struct {
 	ID             int64
 	CompanyID      int64

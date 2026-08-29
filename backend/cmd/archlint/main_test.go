@@ -59,12 +59,12 @@ func Test_import分類(t *testing.T) {
 
 func Test_wiringファイル判定(t *testing.T) {
 	cases := map[string]bool{
-		"router.go":                     true,
-		"routes_auth.go":                true,
-		"routes_company_application.go": true,
-		"auth_handler.go":               false,
-		"handler.go":                    false,
-		"routes.go":                     false, // routes_ プレフィックスではない
+		"router.go":                true,
+		"routes_auth.go":           true,
+		"routes_knowledge_base.go": true,
+		"auth_handler.go":          false,
+		"handler.go":               false,
+		"routes.go":                false, // routes_ プレフィックスではない
 	}
 	for name, want := range cases {
 		if got := isWiringFile(name); got != want {

@@ -175,17 +175,6 @@ export const LESSON_PROGRESS = {
   incomplete: (id: number | string) => `${API_V2}/lesson-progress/${id}`,
 } as const;
 
-/** 企業利用申請（公開フォーム → super_admin 通知）*/
-export const COMPANY_APPLICATIONS = {
-  /** POST /api/v2/company-applications — 認証不要の申請作成 */
-  create: `${API_V2}/company-applications`,
-  /** GET /api/v2/admin/company-applications — super_admin 専用一覧 */
-  adminList: `${API_V2}/admin/company-applications`,
-  /** PATCH /api/v2/admin/company-applications/:id/status — status 更新 */
-  adminUpdateStatus: (id: number | string) =>
-    `${API_V2}/admin/company-applications/${id}/status`,
-} as const;
-
 /** ダッシュボード（streak / 活動カレンダー / 章閲覧履歴）*/
 export const DASHBOARD = {
   /** GET /api/v2/me/dashboard — ログインユーザーの学習サマリー */

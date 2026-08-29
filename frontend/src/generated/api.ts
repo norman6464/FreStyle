@@ -294,162 +294,6 @@ export interface paths {
         };
         trace?: never;
     };
-    "/admin/company-applications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 企業申請一覧（super_admin）
-         * @description 受け付けた企業申請を新しい順で返す。super_admin 専用。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"][];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description super_admin 以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/company-applications/{id}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * 企業申請の status 更新（super_admin）
-         * @description 申請を approved / rejected / pending に更新する。super_admin 専用。
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 申請 ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            /** @description status */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.updateCompanyApplicationStatusReq"];
-                };
-            };
-            responses: {
-                /** @description 成功（本文なし） */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description id / status 不正 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description super_admin 以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 申請が存在しない */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 更新失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/admin/invitations": {
         parameters: {
             query?: never;
@@ -987,7 +831,7 @@ export interface paths {
         put?: never;
         /**
          * ログイン (メール / パスワード)
-         * @description email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+         * @description email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。
          */
         post: {
             parameters: {
@@ -1030,8 +874,17 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 招待 なし の 新規 user */
+                /** @description 最初の運営管理者作成の競合負け */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 同じ email での同時サインアップ競合 */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1131,8 +984,17 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 招待が必要 */
+                /** @description 最初の運営管理者作成の競合負け */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 同じ email での同時サインアップ競合 */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1168,7 +1030,7 @@ export interface paths {
         put?: never;
         /**
          * ログイン (認可 コード → token 交換)
-         * @description Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+         * @description Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。
          */
         post: {
             parameters: {
@@ -1211,8 +1073,17 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 招待 なし の 新規 user */
+                /** @description 最初の運営管理者作成の競合負け */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 同じ email での同時サインアップ競合 */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1539,79 +1410,6 @@ export interface paths {
                 };
                 /** @description 未 認証 */
                 401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/company-applications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 企業利用申請（公開 / 認証不要）
-         * @description ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 申請内容 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.createCompanyApplicationReq"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"];
-                    };
-                };
-                /** @description バリデーションエラー */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description レート制限超過 */
-                429: {
-                    headers: {
-                        /** @description 再試行までの秒数 (例: 60) */
-                        "Retry-After"?: string;
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 内部エラー */
-                500: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -7159,16 +6957,6 @@ export interface components {
             name?: string;
             updatedAt?: string;
         };
-        "github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication": {
-            applicantName?: string;
-            companyName?: string;
-            createdAt?: string;
-            email?: string;
-            id?: number;
-            message?: string;
-            status?: string;
-            updatedAt?: string;
-        };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             category?: string;
             companyId?: number;
@@ -7496,12 +7284,6 @@ export interface components {
             method?: "magic_link" | "temporary_password";
             name?: string;
             role: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
-        };
-        "internal_handler.createCompanyApplicationReq": {
-            applicantName: string;
-            companyName: string;
-            email: string;
-            message?: string;
         };
         "internal_handler.documentCreateReq": {
             doc: Record<string, never>;
@@ -7947,9 +7729,6 @@ export interface components {
         "internal_handler.updateChapterDocRequest": {
             doc: number[];
             expectedRevision: number;
-        };
-        "internal_handler.updateCompanyApplicationStatusReq": {
-            status: string;
         };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;

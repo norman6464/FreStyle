@@ -258,26 +258,6 @@ func (m *mockCompanyRepo) UpdateActive(ctx context.Context, companyID uint64, ac
 	return m.Called(ctx, companyID, active).Error(0)
 }
 
-// --- mock: CompanyApplicationRepository ---
-
-type mockCompanyAppRepo struct{ mock.Mock }
-
-var _ repository.CompanyApplicationRepository = (*mockCompanyAppRepo)(nil)
-
-func (m *mockCompanyAppRepo) Create(ctx context.Context, app *domain.CompanyApplication) error {
-	return m.Called(ctx, app).Error(0)
-}
-
-func (m *mockCompanyAppRepo) ListAll(ctx context.Context) ([]domain.CompanyApplication, error) {
-	args := m.Called(ctx)
-	rows, _ := args.Get(0).([]domain.CompanyApplication)
-	return rows, args.Error(1)
-}
-
-func (m *mockCompanyAppRepo) UpdateStatus(ctx context.Context, id uint64, status string) error {
-	return m.Called(ctx, id, status).Error(0)
-}
-
 // --- mock: CompanyLearningActivitySummarizer ---
 
 type mockLearningSummarizer struct{ mock.Mock }

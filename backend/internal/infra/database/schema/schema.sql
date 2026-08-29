@@ -180,20 +180,6 @@ CREATE TABLE IF NOT EXISTS companies (
     workspace_id                 uuid
 );
 
--- 公開フォームからの利用申請。
-CREATE TABLE IF NOT EXISTS company_applications (
-    id             bigserial PRIMARY KEY,
-    company_name   varchar(200) NOT NULL,
-    applicant_name varchar(120) NOT NULL,
-    email          varchar(255) NOT NULL,
-    message        text NOT NULL DEFAULT '',
-    status         varchar(16) NOT NULL DEFAULT 'pending',
-    created_at     timestamptz NOT NULL,
-    updated_at     timestamptz NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_company_applications_email ON company_applications (email);
-CREATE INDEX IF NOT EXISTS idx_company_applications_status ON company_applications (status);
-
 -- 教材コース。
 CREATE TABLE IF NOT EXISTS courses (
     id                 bigserial PRIMARY KEY,

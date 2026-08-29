@@ -37,11 +37,6 @@ func TestCoreSchema_列の型が本番の実列と一致する_Integration(t *te
 		{"users", "role_id", "integer", 0, "roles.id と同じ型でなければ FK を張れない"},
 		// migration 0011 が ALTER ADD COLUMN で作った列。AutoMigrate は fresh DB に bigint を作っていた。
 		{"master_exercises", "sort_order", "integer", 0, "本番の master_exercises.sort_order は integer"},
-		// 公開フォームの申請は本番が varchar(n)。text にすると長さの壁が DB から消える。
-		{"company_applications", "company_name", "character varying", 200, "本番は varchar(200)"},
-		{"company_applications", "applicant_name", "character varying", 120, "本番は varchar(120)"},
-		{"company_applications", "email", "character varying", 255, "本番は varchar(255)"},
-		{"company_applications", "status", "character varying", 16, "本番は varchar(16)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.table+"."+tt.column, func(t *testing.T) {

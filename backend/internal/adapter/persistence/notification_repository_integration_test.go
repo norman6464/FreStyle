@@ -57,9 +57,9 @@ func TestNotificationRepository_CreateMany_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "notifications")
 
 		ns := []domain.Notification{
-			{UserID: 1, Type: "company_application", Title: "申請", Body: "A 社から申請"},
-			{UserID: 2, Type: "company_application", Title: "申請", Body: "A 社から申請"},
-			{UserID: 3, Type: "company_application", Title: "申請", Body: "A 社から申請"},
+			{UserID: 1, Type: "invitation", Title: "招待", Body: "会社から招待"},
+			{UserID: 2, Type: "invitation", Title: "招待", Body: "会社から招待"},
+			{UserID: 3, Type: "invitation", Title: "招待", Body: "会社から招待"},
 		}
 		require.NoError(t, repo.CreateMany(ctx, ns))
 
@@ -103,7 +103,7 @@ func TestNotificationRepository_CreateManyIssuesSingleInsert_Integration(t *test
 	ns := make([]domain.Notification, 0, 10)
 	for i := uint64(1); i <= 10; i++ {
 		ns = append(ns, domain.Notification{
-			UserID: i, Type: "company_application", Title: "申請", Body: "A 社から申請",
+			UserID: i, Type: "invitation", Title: "招待", Body: "会社から招待",
 		})
 	}
 	require.NoError(t, repo.CreateMany(context.Background(), ns))

@@ -27,7 +27,8 @@ function actionLabel(action: string): string {
   if (a.startsWith('DELETE') && a.includes('/MEMBERS/')) return '従業員を削除';
   if (a.startsWith('POST') && a.includes('/INVITATIONS')) return '招待を作成';
   if (a.startsWith('DELETE') && a.includes('/INVITATIONS/')) return '招待を取消';
-  if (a.includes('/COMPANY-APPLICATIONS/') && a.includes('STATUS')) return '利用申請を承認/却下';
+  // 企業申請フローは撤去済み（新規には記録されない）。過去の監査ログの可読性のために残す。
+  if (a.includes('/COMPANY-APPLICATIONS/') && a.includes('STATUS')) return '利用申請を承認/却下（撤去済み機能）';
   return action;
 }
 

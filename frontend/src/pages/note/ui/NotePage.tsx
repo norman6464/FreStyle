@@ -6,7 +6,8 @@ import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/s
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/lib/hooks/useToast';
-import { DocumentTextIcon } from '@heroicons/react/24/outline';
+import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { DocumentTextIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotePageDoc } from '../model/useNotePageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { subscribeNoteTreeEvents } from '@/entities/note';
@@ -28,6 +29,7 @@ export default function NotePage() {
   // ヘッダーのワークスペース切替から来たときだけ、開くワークスペースの初期値に使う
   // （ページを開いているときは data.workspaceSlug が正なのでそちらを優先する）。
   const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
 
   const handleRename = useCallback(
     async (title: string) => {
@@ -89,11 +91,28 @@ export default function NotePage() {
     <div className="flex h-full">
       {/* サイドバーはコースの章一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
           一時表示 / ⌘\ で切替）。画面ごとに別の作りを持たない — 覚えることを増やさない。 */}
-      <SecondaryPanel title="ノート" peekable storageKey="frestyle.panel.note">
+      <SecondaryPanel
+        title="ノート"
+        peekable
+        storageKey="frestyle.panel.note"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={closeMobilePanel}
+      >
         <NoteSidebar workspaceSlug={data?.workspaceSlug ?? navigationWorkspaceSlug} activePageId={pageId} />
       </SecondaryPanel>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
+        {/* モバイルヘッダー: md 以上は SecondaryPanel 自身の一時表示機構（左端ホバー / ☰）が
+            効くのでここには出さない。md 未満はこのボタンだけがサイドバーを開く唯一の手段。 */}
+        <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
+          <button
+            onClick={openMobilePanel}
+            className="p-1.5 hover:bg-surface-2 rounded transition-colors"
+            aria-label="ノート一覧を開く"
+          >
+            <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
+          </button>
+        </div>
         <div className="mx-auto w-full max-w-3xl px-6 py-10">
           {!pageId && (
             <EmptyState

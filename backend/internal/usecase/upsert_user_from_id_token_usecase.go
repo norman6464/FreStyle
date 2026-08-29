@@ -183,7 +183,8 @@ func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 }
 
 // Execute はユーザー情報と招待情報を基にユーザーを作成・更新し、解決した user を返す。
-// nil, nil は bootstrap の同時実行負け、または同じ email での同時サインアップ競合のときに返る。
+// nil, nil は bootstrap の同時実行負けのときに返る。同じ email での同時サインアップ競合は
+// nil, repository.ErrEmailTaken を返す（呼び出し元が原因を区別できるよう別扱いにする）。
 func (u *UpsertUserFromIDTokenUseCase) Execute(
 	ctx context.Context,
 	in UpsertUserFromIDTokenInput,
@@ -381,9 +382,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	); err != nil {
 		if errors.Is(err, repository.ErrEmailTaken) {
 			// 同じ email で同時にサインアップが競合した（同一人物の二重送信・招待の
-			// 二重受諾など）。別の sub で先に確定しているだけなので、拒否ではなく nil, nil。
+			// 二重受諾など）。別の sub で先に確定しているだけなので、呼び出し元が
+			// bootstrap 競合負け（nil, nil）と区別できるよう ErrEmailTaken をそのまま返す。
 			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup", "cognitoSub", sub, "email", email)
-			return nil, nil
+			return nil, repository.ErrEmailTaken
 		}
 		return nil, fmt.Errorf("create user and accept invitation: %w", err)
 	}

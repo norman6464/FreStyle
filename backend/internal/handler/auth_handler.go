@@ -14,6 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // passwordAuthenticator は email / password を Cognito で検証して token を返す境界。
@@ -140,10 +141,10 @@ type passwordLoginReq struct {
 }
 
 // Login は email / password を Cognito(USER_PASSWORD_AUTH)で検証して HttpOnly Cookie を発行する。
-// Hosted UI を経由しないアプリ内ログインフォーム用。招待ゲートは Callback と同じく upsert 側で効かせる。
+// Hosted UI を経由しないアプリ内ログインフォーム用。ユーザー作成は Callback と同じく upsert 側で行う。
 //
 //	@Summary      ログイン (メール / パスワード)
-//	@Description  email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+//	@Description  email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。
 //	@Tags         auth
 //	@Accept       json
 //	@Produce      json
@@ -151,7 +152,8 @@ type passwordLoginReq struct {
 //	@Success      200   {object}  messageResponse
 //	@Failure      400   {object}  errorResponse  "入力 不正 (email 形式 / password 欠落)"
 //	@Failure      401   {object}  errorResponse  "資格 情報 誤り"
-//	@Failure      403   {object}  errorResponse  "招待 なし の 新規 user"
+//	@Failure      403   {object}  errorResponse  "最初の運営管理者作成の競合負け"
+//	@Failure      409   {object}  errorResponse  "同じ email での同時サインアップ競合"
 //	@Failure      500   {object}  errorResponse  "内部 エラー (Cognito 未 設定 / DB 失敗 等)"
 //	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
@@ -198,25 +200,45 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // finishPasswordLogin は取得済みトークンでユーザーを解決し、Cookie を発行する。
 // パスワードログイン（Login）と新パスワード設定（NewPassword）で共有する。
 func (h *AuthHandler) finishPasswordLogin(c *gin.Context, tok *cognito.Token) {
-	// Callback と同じ経路。内部エラー(DB/decode)は 500、最初の運営管理者作成の競合負けは 403。
 	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
-	if upErr != nil {
-		log.Printf("cognito password login: upsert failed: %v", upErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+	if !h.respondUpsertOutcome(c, "cognito password login", tok, user, upErr) {
 		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
+}
+
+// respondUpsertOutcome は upsertUserFromIDToken の結果を HTTP レスポンスへ変換する。
+// 成功時のみ Cookie を発行して true を返す。false を返したときは呼び出し元がそのまま return する。
+//
+// upErr は原因ごとに扱いを分ける: 内部エラー(DB/decode)は 500、同じ email での同時サインアップ
+// 競合(repository.ErrEmailTaken)は 409、最初の運営管理者作成の競合負け(user == nil, err == nil)は
+// 403。ErrEmailTaken を bootstrap 競合負けと同じ 403 に丸めると、招待とは無関係の一時的な
+// 二重送信なのに「招待を受けてください」という見当違いの案内を返してしまう。
+func (h *AuthHandler) respondUpsertOutcome(c *gin.Context, logPrefix string, tok *cognito.Token, user *domain.User, upErr error) bool {
+	if upErr != nil {
+		if errors.Is(upErr, repository.ErrEmailTaken) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "email_taken",
+				"message": "同じメールアドレスでの登録が別のリクエストで同時に完了しました。もう一度ログインし直してください。",
+			})
+			return false
+		}
+		log.Printf("%s: upsert failed: %v", logPrefix, upErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return false
 	}
 	if user == nil {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "bootstrap_admin_race_lost",
 			"message": "最初の運営管理者は既に作成されています。招待を受けてログインしてください。",
 		})
-		return
+		return false
 	}
 
 	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
 	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-
-	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
+	return true
 }
 
 type newPasswordReq struct {
@@ -238,7 +260,8 @@ type newPasswordReq struct {
 //	@Success      200   {object}  messageResponse  "設定してログイン"
 //	@Failure      400   {object}  errorResponse    "入力エラー / パスワードポリシー違反"
 //	@Failure      401   {object}  errorResponse    "session 失効等"
-//	@Failure      403   {object}  errorResponse    "招待が必要"
+//	@Failure      403   {object}  errorResponse    "最初の運営管理者作成の競合負け"
+//	@Failure      409   {object}  errorResponse    "同じ email での同時サインアップ競合"
 //	@Failure      429   {object}  errorResponse    "レート制限超過"
 //	@Router       /auth/cognito/new-password [post]
 func (h *AuthHandler) NewPassword(c *gin.Context) {
@@ -278,10 +301,10 @@ type cognitoCallbackReq struct {
 }
 
 // Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
-// 招待ゲート: 新規ユーザーは Cognito group admin か pending invitation 受信者でなければ 403 で拒否する。
+// 招待が無くても新規ユーザーを自己サインアップとして作成する（招待は役割・所属先の指定としてだけ働く）。
 //
 //	@Summary      ログイン (認可 コード → token 交換)
-//	@Description  Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+//	@Description  Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。
 //	@Tags         auth
 //	@Accept       json
 //	@Produce      json
@@ -289,7 +312,8 @@ type cognitoCallbackReq struct {
 //	@Success      200   {object}  messageResponse
 //	@Failure      400   {object}  errorResponse  "code 欠落 等"
 //	@Failure      401   {object}  errorResponse  "token 交換 失敗"
-//	@Failure      403   {object}  errorResponse  "招待 なし の 新規 user"
+//	@Failure      403   {object}  errorResponse  "最初の運営管理者作成の競合負け"
+//	@Failure      409   {object}  errorResponse  "同じ email での同時サインアップ競合"
 //	@Failure      500   {object}  errorResponse  "Cognito 未 設定 等 の 内部 エラー"
 //	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
@@ -310,23 +334,10 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する
 	// （招待が無くても個人サインアップとして新規作成する。招待は役割・所属先の指定としてだけ働く）。
-	// 内部エラー(DB/decode)は 500、最初の運営管理者作成の競合負けは 403。
 	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
-	if upErr != nil {
-		log.Printf("cognito callback: upsert failed: %v", upErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+	if !h.respondUpsertOutcome(c, "cognito callback", tok, user, upErr) {
 		return
 	}
-	if user == nil {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error":   "bootstrap_admin_race_lost",
-			"message": "最初の運営管理者は既に作成されています。招待を受けてログインしてください。",
-		})
-		return
-	}
-
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }

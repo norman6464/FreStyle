@@ -1273,6 +1273,38 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 	}
 }
 
+// Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrEmailTakenを返す は、
+// bootstrap 競合負け（nil, nil）と区別できるよう、repository.ErrEmailTaken を
+// そのまま呼び出し元へ返すことを固定する（呼び出し元の 403/409 の出し分けが前提にする契約）。
+func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrEmailTakenを返す(t *testing.T) {
+	users := &upsertUserRepoSpy{createErr: repository.ErrEmailTaken}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        70,
+			Role:      domain.RoleTrainee,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
+		},
+	}
+	runner := &fakeUserInvitationTransactionRunner{users: users, invitations: invitations}
+	uc := NewUpsertUserFromIDTokenUseCase(users, invitations, "", runner)
+
+	user, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "race-sub",
+			Email:      "race@example.com",
+		},
+	)
+
+	if user != nil {
+		t.Fatal("email 衝突時にユーザーを返してはいけない")
+	}
+	if !errors.Is(err, repository.ErrEmailTaken) {
+		t.Fatalf("error = %v, want wrapped %v", err, repository.ErrEmailTaken)
+	}
+}
+
 func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{

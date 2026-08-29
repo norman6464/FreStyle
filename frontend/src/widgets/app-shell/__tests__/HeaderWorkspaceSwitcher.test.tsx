@@ -5,10 +5,21 @@ import HeaderWorkspaceSwitcher from '../ui/HeaderWorkspaceSwitcher';
 
 const hoisted = vi.hoisted(() => ({
   fetchWorkspaces: vi.fn(),
+  createWorkspace: vi.fn(),
+  deleteWorkspace: vi.fn(),
+  showToast: vi.fn(),
 }));
 
 vi.mock('@/entities/note/api/noteRepository', () => ({
-  default: { fetchWorkspaces: hoisted.fetchWorkspaces },
+  default: {
+    fetchWorkspaces: hoisted.fetchWorkspaces,
+    createWorkspace: hoisted.createWorkspace,
+    deleteWorkspace: hoisted.deleteWorkspace,
+  },
+}));
+
+vi.mock('@/shared/lib/hooks/useToast', () => ({
+  useToast: () => ({ showToast: hoisted.showToast, toasts: [], removeToast: vi.fn() }),
 }));
 
 // 遷移先の state を検査するための踏み台。
@@ -51,5 +62,19 @@ describe('HeaderWorkspaceSwitcher', () => {
 
     const probe = await screen.findByTestId('location-state');
     expect(probe.textContent).toBe(JSON.stringify({ workspaceSlug: 'acme' }));
+  });
+
+  it('削除に失敗するとトーストで知らせる', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([{ slug: 'acme', name: 'Acme', createdAt: '' }]);
+    hoisted.deleteWorkspace.mockRejectedValue(new Error('403'));
+    renderSwitcher();
+
+    fireEvent.click(await screen.findByRole('button', { name: /ワークスペースを選択/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme を削除' }));
+    fireEvent.click(await screen.findByRole('button', { name: '削除', exact: true }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを削除できませんでした'),
+    );
   });
 });

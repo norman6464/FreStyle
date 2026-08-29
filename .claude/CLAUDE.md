@@ -210,7 +210,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 
 - **バックエンド**: `gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy`（ECR build/push + ECS force-update）。ヘルスチェックは本番 API ドメインの `GET /api/v2/health`（CloudFront 配下の SPA パスに叩くと一律 200 になり誤認する）
 - **フロントエンド**: `gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy`
-- **DB マイグレーション**: スキーマの正本は `backend/internal/infra/database/schema/*.sql`（`core.sql` / `knowledge_base.sql` / `knowledge_base_permissions.sql`）で、ECS 起動時にこの埋め込み DDL をそのまま流す。**同じファイルが sqlc の型付け入力**でもあるので、定義が二重化しない（変更したら `make sqlc`）
+- **DB マイグレーション**: スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅰ. 中核` / `-- Ⅱ. ノートの骨格` / `-- Ⅲ. ノートの権限` / `-- Ⅳ. テナント橋渡し` の節印で区切った 1 ファイル）で、ECS 起動時にこの埋め込み DDL をそのまま流す。**同じファイルが sqlc の型付け入力**でもあるので、定義が二重化しない（変更したら `make sqlc`）
   - **列の追加・変更もこのファイルに書く。** `CREATE ... IF NOT EXISTS` と、カタログを見て足りないときだけ `ALTER` する `DO` ブロックで冪等にする（実例: `spaces.visibility` の追加）。**`ALTER TABLE` を素で書かない** — 列が既に在って何もしない場合でも先に ACCESS EXCLUSIVE ロックを取り、毎回の起動でその表を止めるため
   - **`backend/migrations/` は置かない**（2026-08 に撤去）。GORM を使っていた頃の置き場で、AutoMigrate では表せない差分を別ファイルに逃がすためのものだった。GORM を撤去して DDL が正本になった今、置き場を 2 つ持つ理由が無い（どちらが正か分からなくなる）
   - 1 回きりのデータ移行（既存行の書き換え）は起動時 DDL には向かない。SQL を private リポ `frestyle-infrastructure` 側で管理して流す。**流す前に §5.1 の手順でローカルの実 PostgreSQL で検証する**
@@ -229,12 +229,10 @@ cd backend
 # 1. 結合テスト用の PostgreSQL を起動（本番と同じ 17.6・tmpfs で毎回まっさら）
 docker compose -f docker-compose.integration.yml up -d --wait
 
-# 2. スキーマを正本のまま流す（core → 骨格 → 権限 の順。順序は FK の依存で決まる）
-for f in core knowledge_base knowledge_base_permissions; do
-  docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
-    psql -U frestyle -d frestyle_integration -v ON_ERROR_STOP=1 -q \
-    < internal/infra/database/schema/$f.sql
-done
+# 2. スキーマを正本のまま流す（中核 → 骨格 → 権限 → テナント橋渡し の節印順に 1 ファイルへ並んでいる）
+docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
+  psql -U frestyle -d frestyle_integration -v ON_ERROR_STOP=1 -q \
+  < internal/infra/database/schema/schema.sql
 
 # 3. 本番に近いデータを作ってから、検証したい SQL を流す
 docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
@@ -260,15 +258,15 @@ docker compose -f docker-compose.integration.yml down -v
 
 #### sqlc と噛み合う理由（この手順を標準にする根拠）
 
-**同じ `schema/*.sql` が、sqlc の型付け入力でもあり psql への入力でもある。** だからローカルに立てた DB は、sqlc が見ている定義と必ず一致する。別に用意した検証用スキーマとずれる、という事故が構造的に起きない。
+**同じ `schema/schema.sql` が、sqlc の型付け入力でもあり psql への入力でもある。** だからローカルに立てた DB は、sqlc が見ている定義と必ず一致する。別に用意した検証用スキーマとずれる、という事故が構造的に起きない。
 
 **sqlc が見るのは「スキーマと噛み合っているか」まで。** 列名や型の食い違いは `sqlc generate` が落として教えてくれるが、**そのクエリが意図した行を返すか**は見ない。結合で行が重複していないか、`NULL` の行が落ちていないか、`LEFT JOIN` のつもりが内部結合になっていないか——ここは実際に流して目で見るしかない。`sqlc vet` も静的解析なので同じ（見えるのは処理後の SQL 文字列だけで、スキーマも実データも見えない。詳細は `backend/sqlc.yaml` の rules のコメント）。
 
 **手順が自然に噛み合う。** psql で書いて確かめる → 固まったクエリを `queries/*.sql` へ置く → `make sqlc` で型を起こす。この順なら、生成の段階で型の食い違いが出ない（先に実データで通っているため）。逆順（先に Go を書いて後で確かめる）だと、生成し直すたびに手戻りする。
 
 要するに **sqlc は「書いたものがスキーマと合っているか」を、psql は「書いたものが正しいか」を受け持つ**。両方を通して初めて本番へ出せる。
-- **ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）のスキーマ**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は ORM の構造体タグでは表現できず、書けたとしても定義が二重化するため（この設計が GORM 撤去の理由の 1 つでもある）。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
-  - 権限側は `users` へ FK を張るので、適用順は 中核（core）→ 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
+- **ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）のスキーマ**。実スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅱ. ノートの骨格` と `-- Ⅲ. ノートの権限` の節。`CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は ORM の構造体タグでは表現できず、書けたとしても定義が二重化するため（この設計が GORM 撤去の理由の 1 つでもある）。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
+  - 権限側は `users` へ FK を張るので、適用順は 中核 → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）
   - **実効権限の規則は `domain.ResolvePagePermission` だけが持つ**。SQL が返すのは事実（既定の役割・経路上の制限の集計）だけで、優先規則を SQL 側へ写経しない
   - 例外の集計は「deny は経路全体・allow リストは最も近い段」という見方で、`domain.RestrictionFacts` の 3 つの事実に畳む — `DeniedAnywhere`（経路上のどこかに自分を deny する行があるか）/ `HasAllowList`（経路上に許可リスト制の段があるか。数えるのは印 `page_allow_lists` であって allow 行ではない）/ `AllowedAtNearest`（最も近い許可リスト制の段に自分を allow する行があるか）。**deny を「最も近い段」だけで見てはいけない**（deny 行だけの段が最近段になった瞬間に、より遠い祖先の限定公開が第三者への deny 1 行で解除される）

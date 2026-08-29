@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { NoteWorkspaceSwitcher, useWorkspaceList } from '@/entities/note';
+import { useToast } from '@/shared/lib/hooks/useToast';
 
 /**
  * HeaderWorkspaceSwitcher はヘッダーから所属ワークスペースを切り替える入口。
@@ -10,6 +11,7 @@ import { NoteWorkspaceSwitcher, useWorkspaceList } from '@/entities/note';
  */
 export default function HeaderWorkspaceSwitcher() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const { workspaces, loading, createWorkspace, deleteWorkspace } = useWorkspaceList();
 
   if (loading && workspaces.length === 0) return null;
@@ -22,10 +24,21 @@ export default function HeaderWorkspaceSwitcher() {
         activeSlug={null}
         onSelect={(slug) => navigate('/notes', { state: { workspaceSlug: slug } })}
         onCreate={async (input) => {
-          const workspace = await createWorkspace(input);
-          navigate('/notes', { state: { workspaceSlug: workspace.slug } });
+          try {
+            const workspace = await createWorkspace(input);
+            navigate('/notes', { state: { workspaceSlug: workspace.slug } });
+          } catch {
+            showToast('error', 'ワークスペースを作成できませんでした');
+            throw new Error('create workspace failed');
+          }
         }}
-        onDelete={deleteWorkspace}
+        onDelete={async (slug) => {
+          try {
+            await deleteWorkspace(slug);
+          } catch {
+            showToast('error', 'ワークスペースを削除できませんでした');
+          }
+        }}
       />
     </div>
   );

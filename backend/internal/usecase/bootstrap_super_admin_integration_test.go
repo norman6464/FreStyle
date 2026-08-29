@@ -5,6 +5,7 @@ package usecase_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,9 +75,15 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 		close(start)
 		wg.Wait()
 
+		// bootstrap の免除が既に閉じたラウンド（2 回目以降）では、12 通り全員が同じ
+		// email で通常の自己サインアップ経路に流れ、最初の 1 人以外は
+		// repository.ErrEmailTaken で拒否される。これは免除が閉じた後の正常な衝突なので
+		// エラー扱いしない。それ以外のエラー（DB 障害等）だけを異常として拾う。
 		accepted := 0
 		for i := range variants {
-			assert.NoErrorf(t, errs[i], "round %d: %q でエラー", round, variants[i])
+			if errs[i] != nil && !errors.Is(errs[i], repository.ErrEmailTaken) {
+				t.Errorf("round %d: %q で想定外のエラー: %v", round, variants[i], errs[i])
+			}
 			if results[i] != nil {
 				accepted++
 			}

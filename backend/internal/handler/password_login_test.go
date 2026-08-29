@@ -13,6 +13,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // fakePasswordAuth は passwordAuthenticator のテスト用スタブ。
@@ -207,6 +208,27 @@ func Test_ログイン_未設定_500(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// 同じ email での同時サインアップ競合（ErrEmailTaken）は、bootstrap 競合負けと同じ
+// 403「招待を受けてください」ではなく 409 を返す（原因が違うので案内も分ける）。
+func Test_ログイン_email衝突は409(t *testing.T) {
+	idTok := makeIDToken(t, map[string]any{"sub": "s1", "email": "u@example.com"})
+	users := &fakeUserRepo{createErr: repository.ErrEmailTaken}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	h.passwordAuth = &fakePasswordAuth{
+		token: &cognito.Token{
+			AccessToken:  "AT",
+			IDToken:      idTok,
+			RefreshToken: "RT",
+		},
+	}
+	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
+	h.Login(c)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

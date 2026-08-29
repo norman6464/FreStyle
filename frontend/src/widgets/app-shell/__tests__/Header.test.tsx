@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '@/entities/user/model/authSlice';
+import { ToastProvider } from '@/app/providers/ToastProvider';
 import Header from '../ui/Header';
 
 vi.mock('@/entities/user/api/profileRepository', () => ({
@@ -29,9 +30,11 @@ function renderHeader(authState: Record<string, unknown>) {
   });
   return render(
     <Provider store={store}>
-      <MemoryRouter initialEntries={['/']}>
-        <Header />
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Header />
+        </MemoryRouter>
+      </ToastProvider>
     </Provider>,
   );
 }

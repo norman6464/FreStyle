@@ -231,7 +231,9 @@ make local-reset                # volume ごと破棄してまっさらに（bac
 cd frontend
 
 # 2. パッケージ管理は pnpm。Node 同梱の corepack が package.json の
-#    packageManager が指す版を用意する（別途インストールは不要）
+#    packageManager が指す版を用意する。
+#    corepack が無い / 使えない環境（Homebrew の node など）は npm から入れる:
+#      npm install -g pnpm
 corepack enable
 
 # 3. 依存パッケージをインストール

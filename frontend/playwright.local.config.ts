@@ -11,7 +11,7 @@ import { defineConfig, devices } from '@playwright/test';
  * CSP connect-src 'self' に収め、Playwright route がモックを差し込めるようにするため。
  * cross-origin のダミーホストにすると CSP でブロックされ route に到達しない。
  *
- *   npm run e2e:local            # build 済み前提（CI は build → preview → test）
+ *   pnpm run e2e:local           # build 済み前提（CI は build → preview → test）
  */
 export default defineConfig({
   testDir: './e2e/local',
@@ -32,7 +32,9 @@ export default defineConfig({
   },
   // ビルド済み dist/ を vite preview で配信する（SPA history fallback 込み）。
   webServer: {
-    command: 'pnpm run preview -- --port 4173 --strictPort',
+    // pnpm は `--` を引数として素通しするため、付けると vite が `--` を受け取って
+    // 後ろの --port が効かない（npm とは違う）。区切りは書かない。
+    command: 'pnpm run preview --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -16,6 +16,7 @@
       "Bash(make:*)",
       "Bash(npm:*)",
       "Bash(npx:*)",
+      "Bash(pnpm:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",

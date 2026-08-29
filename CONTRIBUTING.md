@@ -19,8 +19,9 @@ go run ./cmd/server        # DATABASE_URL 等は .env で設定
 
 # フロントエンド
 cd frontend
-npm install
-npm run dev
+corepack enable   # pnpm を用意する（入らない環境では npm i -g pnpm）
+pnpm install
+pnpm run dev
 ```
 
 DB 接続情報・環境変数は `.env`（gitignore 済）に置き、**絶対にコミットしない**。
@@ -97,9 +98,9 @@ make test-integration  # docker-compose で本物の PostgreSQL に対する結�
 
 # フロントエンド
 cd frontend
-npm run test:run     # Vitest
-npm run e2e          # Playwright 本番スモーク
-npm run e2e:local    # ローカルビルド + API モックの認証導線 E2E（要 build）
+pnpm run test:run     # Vitest
+ppnpm run e2e          # Playwright 本番スモーク
+pnpm run e2e:local    # ローカルビルド + API モックの認証導線 E2E（要 build）
 ```
 
 - **単体**: 依存を interface で差し替え（**手書き fake が基本**・状態 / 戻り値を検証。`testify/mock` は相互作用が仕様のときだけ）

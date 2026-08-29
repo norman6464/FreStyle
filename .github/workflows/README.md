@@ -7,7 +7,7 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 | ファイル | 種別 | トリガー | やること |
 |---|---|---|---|
 | `ci-backend.yml` | CI | PR / push to main（`FreStyle/**`） | `./gradlew test` + Docker image ビルド検証 |
-| `ci-frontend.yml` | CI | PR / push to main（`frontend/**`） | `npm test` + `npm run build` |
+| `ci-frontend.yml` | CI | PR / push to main（`frontend/**`） | `pnpm test` + `pnpm run build` |
 | `cd-backend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | ECR push + ECS ローリング再起動（タスク定義は infra リポの Terraform が管理。CFn 依存は FRESTYLE-61 で撤去） |
 | `cd-frontend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | S3 sync + CloudFront invalidation |
 

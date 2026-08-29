@@ -23,8 +23,5 @@ func ctxJSON(method, body string, params gin.Params, user *domain.User) (*httpte
 	return w, c
 }
 
-func superAdmin() *domain.User   { return &domain.User{ID: 1, Role: domain.RoleSuperAdmin} }
-func companyAdmin() *domain.User { return &domain.User{ID: 2, Role: domain.RoleCompanyAdmin} }
-
 // idParam は gin の :id パスパラメータを模す。
 func idParam(v string) gin.Params { return gin.Params{{Key: "id", Value: v}} }

@@ -487,27 +487,50 @@ func (q *Queries) IsWorkspaceMember(ctx context.Context, arg IsWorkspaceMemberPa
 }
 
 const listMemberWorkspaces = `-- name: ListMemberWorkspaces :many
-SELECT w.id, w.slug, w.name, w.is_active, w.personal_owner_user_id, w.created_at, w.updated_at FROM workspaces w
+SELECT w.id, w.slug, w.name, w.is_active, w.personal_owner_user_id, w.created_at, w.updated_at, (COALESCE(wg.role, '') = 'admin') AS is_admin FROM workspaces w
 JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = $1
+LEFT JOIN workspace_grants wg
+  ON wg.workspace_id = w.id AND wg.principal_id = p.id
 ORDER BY w.slug
 `
 
-// そのユーザーが所属するワークスペース一覧。
+type ListMemberWorkspacesRow struct {
+	ID                  uuid.UUID
+	Slug                string
+	Name                string
+	IsActive            bool
+	PersonalOwnerUserID sql.NullInt64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	IsAdmin             bool
+}
+
+// そのユーザーが所属するワークスペース一覧と、自分がそこの admin かどうか。
 //
 // 所属の正本は principals（kind='user'）の行なので、JOIN の結果がそのまま答えになる。
 // このファイルの作法（WHERE に workspace_id を必ず含める）に対する唯一の例外で、
 // テナントを絞る手前の「どのテナントに入れるか」を答えるクエリだから workspace_id を取らない。
 // 代わりに principals 側で user_id を必ず縛る（ここが緩むと全テナントが漏れる）。
-func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64) ([]Workspace, error) {
+//
+// is_admin は workspace_grants を自分の principal で LEFT JOIN するだけで求まる
+// （admin だけが consequential なので role = 'admin' の 1 行があるかどうかだけを見る）。
+// DeleteWorkspace が要求する権限（CanManage）と同じ判定を、一覧の段階で添えて返す。
+//
+// grant が 1 行も無い所属では wg.role が NULL になり、(wg.role = 'admin') も NULL になる
+// （SQL の三値論理）。COALESCE(wg.role, ”) で先に text を NULL 抜きにしてから比較すると、
+// 比較結果そのものは NULL になり得ない。COALESCE(bool式, false) だと sqlc の型推論が
+// interface{} に落ちてしまうため、text 側で COALESCE する形にしている
+// （driver が NULL を bool へ Scan できずに落ちることをローカル PostgreSQL で確認済み）。
+func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64) ([]ListMemberWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMemberWorkspaces, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Workspace{}
+	items := []ListMemberWorkspacesRow{}
 	for rows.Next() {
-		var i Workspace
+		var i ListMemberWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
@@ -516,6 +539,7 @@ func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64
 			&i.PersonalOwnerUserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAdmin,
 		); err != nil {
 			return nil, err
 		}

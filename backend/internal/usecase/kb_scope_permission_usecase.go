@@ -217,7 +217,7 @@ type ListMemberWorkspacesInput struct {
 	UserID uint64
 }
 
-func (u *ListMemberWorkspacesUseCase) Execute(ctx context.Context, in ListMemberWorkspacesInput) ([]domain.Workspace, error) {
+func (u *ListMemberWorkspacesUseCase) Execute(ctx context.Context, in ListMemberWorkspacesInput) ([]domain.MemberWorkspace, error) {
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
 	}

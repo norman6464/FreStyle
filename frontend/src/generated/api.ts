@@ -7626,6 +7626,11 @@ export interface components {
             updatedAt?: string;
         };
         "internal_handler.kbWorkspaceResponse": {
+            /**
+             * @description CanManage は自分がこのワークスペースの admin か（削除操作を出してよいかの判定に使う。
+             *     DeleteWorkspace が要求する権限と同じ）。
+             */
+            canManage?: boolean;
             createdAt?: string;
             /** @example Acme 社 */
             name?: string;

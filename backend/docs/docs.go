@@ -7403,6 +7403,10 @@ const docTemplate = `{
         "internal_handler.kbWorkspaceResponse": {
             "type": "object",
             "properties": {
+                "canManage": {
+                    "description": "CanManage は自分がこのワークスペースの admin か（削除操作を出してよいかの判定に使う。\nDeleteWorkspace が要求する権限と同じ）。",
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "type": "string"
                 },

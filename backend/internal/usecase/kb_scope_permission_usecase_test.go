@@ -102,20 +102,21 @@ func Test_所属ワークスペース一覧_必須項目の検証(t *testing.T) 
 func Test_所属ワークスペース一覧_repositoryの結果をそのまま返す(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListMemberWorkspaces", mock.Anything, uint64(7)).
-		Return([]domain.Workspace{{ID: kbWS, Slug: "acme"}}, nil)
+		Return([]domain.MemberWorkspace{{Workspace: domain.Workspace{ID: kbWS, Slug: "acme"}, CanManage: true}}, nil)
 	uc := usecase.NewListMemberWorkspacesUseCase(repo)
 
 	got, err := uc.Execute(context.Background(), usecase.ListMemberWorkspacesInput{UserID: 7})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "acme", got[0].Slug)
+	assert.True(t, got[0].CanManage)
 }
 
 func Test_所属ワークスペース一覧_失敗はそのまま伝える(t *testing.T) {
 	wantErr := errors.New("db down")
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListMemberWorkspaces", mock.Anything, uint64(7)).
-		Return([]domain.Workspace(nil), wantErr)
+		Return([]domain.MemberWorkspace(nil), wantErr)
 	uc := usecase.NewListMemberWorkspacesUseCase(repo)
 
 	_, err := uc.Execute(context.Background(), usecase.ListMemberWorkspacesInput{UserID: 7})

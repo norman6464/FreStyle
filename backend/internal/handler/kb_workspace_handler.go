@@ -68,10 +68,13 @@ type kbWorkspaceResponse struct {
 	Slug      string    `json:"slug" example:"acme"`
 	Name      string    `json:"name" example:"Acme 社"`
 	CreatedAt time.Time `json:"createdAt"`
+	// CanManage は自分がこのワークスペースの admin か（削除操作を出してよいかの判定に使う。
+	// DeleteWorkspace が要求する権限と同じ）。
+	CanManage bool `json:"canManage"`
 }
 
-func toKbWorkspaceResponse(w *domain.Workspace) kbWorkspaceResponse {
-	return kbWorkspaceResponse{Slug: w.Slug, Name: w.Name, CreatedAt: w.CreatedAt}
+func toKbWorkspaceResponse(w *domain.Workspace, canManage bool) kbWorkspaceResponse {
+	return kbWorkspaceResponse{Slug: w.Slug, Name: w.Name, CreatedAt: w.CreatedAt, CanManage: canManage}
 }
 
 // kbSpaceResponse はスペース 1 件の返却形。
@@ -128,7 +131,7 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 	}
 	out := make([]kbWorkspaceResponse, 0, len(workspaces))
 	for i := range workspaces {
-		out = append(out, toKbWorkspaceResponse(&workspaces[i]))
+		out = append(out, toKbWorkspaceResponse(&workspaces[i].Workspace, workspaces[i].CanManage))
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -178,7 +181,8 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, toKbWorkspaceResponse(ws))
+	// 作成者は同じトランザクションで admin の grant を受け取る（ProvisionWorkspace の契約）。
+	c.JSON(http.StatusCreated, toKbWorkspaceResponse(ws, true))
 }
 
 // ListSpaces はワークスペース配下のスペースのうち、自分が閲覧できるものだけを返す。

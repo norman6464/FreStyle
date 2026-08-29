@@ -115,7 +115,7 @@ export default function NoteWorkspaceSwitcher({
                   <CheckIcon className="h-4 w-4 shrink-0 text-brand-500" aria-hidden="true" />
                 )}
               </button>
-              {onDelete && (
+              {onDelete && workspace.canManage && (
                 <button
                   type="button"
                   onClick={() => setDeleting(workspace)}

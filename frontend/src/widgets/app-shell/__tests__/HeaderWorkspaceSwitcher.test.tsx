@@ -65,7 +65,9 @@ describe('HeaderWorkspaceSwitcher', () => {
   });
 
   it('削除に失敗するとトーストで知らせる', async () => {
-    hoisted.fetchWorkspaces.mockResolvedValue([{ slug: 'acme', name: 'Acme', createdAt: '' }]);
+    hoisted.fetchWorkspaces.mockResolvedValue([
+      { slug: 'acme', name: 'Acme', createdAt: '', canManage: true },
+    ]);
     hoisted.deleteWorkspace.mockRejectedValue(new Error('403'));
     renderSwitcher();
 

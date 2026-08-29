@@ -1029,14 +1029,15 @@ func (f *kbFakePerms) setScopeRole(scopeID string, userID uint64, role domain.Gr
 }
 
 // ListMemberWorkspaces は kind='user' の主体があるワークスペースを slug 順で返す。
-func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]domain.Workspace, error) {
+func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]domain.MemberWorkspace, error) {
 	if f.listWorkspacesErr != nil {
 		return nil, f.listWorkspacesErr
 	}
-	out := []domain.Workspace{}
+	out := []domain.MemberWorkspace{}
 	for _, ws := range f.pages.workspaces {
 		if f.userPrincipal(ws.ID, userID) != nil {
-			out = append(out, *ws)
+			role := f.scopeRoles[kbScopeKey{scopeID: ws.ID, userID: userID}]
+			out = append(out, domain.MemberWorkspace{Workspace: *ws, CanManage: role == domain.GrantRoleAdmin})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })

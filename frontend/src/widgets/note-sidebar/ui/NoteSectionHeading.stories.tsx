@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import NoteSectionHeading from './NoteSectionHeading';
 
 /**
@@ -43,7 +43,16 @@ export const ホバーしたとき: Story = {
     // CSS の :hover は JS から起こせないので、focus で focus-within を効かせて
     // 「操作が現れた状態」を絵に出す（実物のホバーと同じ見え方になる）。
     canvas.getByRole('button', { name: 'プライベートスペースを追加' }).focus();
-    await expect(canvas.getByRole('button', { name: 'プライベート の操作' })).toBeVisible();
+    // 濃くなり切るまで待つ。transition-opacity の途中で見ると 0 のまま読める。
+    // toBeVisible は親の opacity を見ないので、**不透明度そのもの**を確かめる。
+    const actions = canvas.getByRole('button', { name: 'プライベート の操作' })
+      .parentElement as HTMLElement;
+    await waitFor(
+      async () => {
+        await expect(getComputedStyle(actions).opacity).toBe('1');
+      },
+      { timeout: 5000 },
+    );
   },
 };
 

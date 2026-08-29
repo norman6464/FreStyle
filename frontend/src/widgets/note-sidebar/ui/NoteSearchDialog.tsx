@@ -111,7 +111,7 @@ export default function NoteSearchDialog({ workspaceSlug, spaces, onClose }: Not
         onClick={() => open(page)}
         className={`flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
           page.id === selectedPage?.id
-            ? 'bg-brand-500/10 font-medium text-brand-600'
+            ? 'bg-brand-500/10 font-medium text-[var(--color-text-primary)]'
             : 'text-[var(--color-text-primary)] hover:bg-surface-2'
         }`}
       >

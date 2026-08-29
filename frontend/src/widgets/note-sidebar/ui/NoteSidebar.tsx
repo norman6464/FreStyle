@@ -257,7 +257,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           aria-label={archivedMode ? '現役のページに戻る' : 'アーカイブしたページを表示'}
           className={`mt-2 flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors ${
             archivedMode
-              ? 'bg-brand-500/10 text-brand-600'
+              ? 'bg-brand-500/10 text-[var(--color-text-primary)]'
               : 'text-[var(--color-text-muted)] hover:bg-surface-2'
           }`}
         >

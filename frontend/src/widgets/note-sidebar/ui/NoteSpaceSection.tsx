@@ -230,7 +230,7 @@ export default function NoteSpaceSection({
                       setSpaceMenuOpen(false);
                       setRenamingSpace(true);
                     }}
-                    className="w-full px-3 py-1.5 text-left text-sm normal-case tracking-normal hover:bg-surface-2"
+                    className="w-full px-3 py-1.5 text-left text-sm normal-case tracking-normal text-[var(--color-text-primary)] hover:bg-surface-2"
                   >
                     スペースの名前を変更
                   </button>

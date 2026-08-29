@@ -192,8 +192,11 @@
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   /* WCAG AA(4.5:1) を満たすよう微調整（旧 #787774 は 4.48:1 で未達）。現 4.68:1。 */
-  --color-text-tertiary: #757470;
-  --color-text-muted: #A4A4A0;
+  /* 白地に対する読みやすさ（コントラスト比）を基準に決める。小さな文字は 4.5:1 が要る。
+     muted は #A4A4A0 で 2.5:1 しか無く、節見出し・ラベル・補助文の全部が読みにくかった
+     （story の a11y 検査が拾った）。tertiary との差が潰れないよう両方を一段濃くする。 */
+  --color-text-tertiary: #5C5B57; /* 6.6:1 */
+  --color-text-muted: #767671; /* 4.6:1 */
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
@@ -314,8 +317,9 @@
 }
 
 @layer components {
+  /* 白文字に対して brand-500 は 3.7:1 で基準（4.5:1）に届かない。600 から始める（5.2:1）。 */
   .btn-primary {
-    @apply bg-brand-500 text-white font-medium py-2.5 rounded-lg shadow-sm hover:bg-brand-600 hover:shadow active:bg-brand-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-brand-600 text-white font-medium py-2.5 rounded-lg shadow-sm hover:bg-brand-700 hover:shadow active:bg-brand-800 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   /* 純白の body に埋もれないよう、輪郭が見える境界色 + 影で「押せる」感を出す。 */

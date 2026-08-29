@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArchiveBoxIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import NoteCreateForm from './NoteCreateForm';
+import NoteSectionHeading from './NoteSectionHeading';
 import { useNoteTree } from '../model/useNoteTree';
 import NoteWorkspaceSwitcher from './NoteWorkspaceSwitcher';
 import NoteSpaceSection from './NoteSpaceSection';
@@ -137,23 +138,20 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
             チームスペース（workspace = 全員に届く）と、プライベート（付与された人だけ）。
             アーカイブ一覧では節を分けない（対象の絞り込みが主で、場所の区分は騒がしい）。 */}
         {activeSlug && !archivedMode && spaces.length > 0 && (
-          <div className="flex items-center justify-between px-2 pb-1">
-            {/* 見出しとして名乗る（p だと見出し一覧からこの節へ飛べない）。 */}
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-              チームスペース
-            </h2>
-            {/* 作る入口は節の見出しに置く（見本合わせ — 一覧の下だと、増えるほど遠くなる）。
-                作成可否の判定はサーバーが持つ。 */}
-            <button
-              type="button"
-              onClick={() => setAddingSpace((prev) => !prev)}
-              aria-label="スペースを追加"
-              title="スペースを追加"
-              className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-surface-2"
-            >
-              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </div>
+          // 作る入口は節の見出しに置く（一覧の下だと、増えるほど遠くなる）。
+          // 作成可否の判定はサーバーが持つ。
+          <NoteSectionHeading
+            label="チームスペース"
+            onAdd={() => setAddingSpace((prev) => !prev)}
+            addLabel="スペースを追加"
+            menuItems={[
+              { label: 'スペースを作成', onSelect: () => setAddingSpace(true) },
+              {
+                label: archivedMode ? '現役のページに戻る' : 'アーカイブしたページ',
+                onSelect: () => setArchivedMode(!archivedMode),
+              },
+            ]}
+          />
         )}
         {activeSlug && !archivedMode && spaces.length > 0 && addingSpace && (
           <div className="mb-1 rounded-md border border-surface-3">
@@ -238,20 +236,19 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
             あること自体に気づけない。作成はメンバーなら誰でもできる（サーバーが判定）。 */}
         {activeSlug && !archivedMode && (
           <>
-            <div className="mt-3 flex items-center justify-between px-2 pb-1">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                プライベート
-              </h2>
-              <button
-                type="button"
-                onClick={() => setAddingPrivateSpace((prev) => !prev)}
-                aria-label="プライベートスペースを追加"
-                title="自分だけに見えるスペースを作成"
-                className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-surface-2"
-              >
-                <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            </div>
+            {/* チームの木のあとに線で区切って置く（どこからが自分だけの区画かを線で示す）。 */}
+            <NoteSectionHeading
+              label="プライベート"
+              divider
+              onAdd={() => setAddingPrivateSpace((prev) => !prev)}
+              addLabel="プライベートスペースを追加"
+              menuItems={[
+                {
+                  label: 'プライベートスペースを作成',
+                  onSelect: () => setAddingPrivateSpace(true),
+                },
+              ]}
+            />
             {addingPrivateSpace && (
               <div className="mb-1 rounded-md border border-surface-3">
                 <NoteCreateForm

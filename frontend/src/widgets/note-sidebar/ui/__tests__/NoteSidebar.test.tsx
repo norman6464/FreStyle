@@ -1740,12 +1740,15 @@ describe('プライベートとチームの節分け', () => {
     );
   });
 
-  it('読み込み中はプライベート節の「まだ無い」案内を出さない', async () => {
-    // 応答を待たせる。あるものを無いと断言しないこと。
-    hoisted.fetchSpaces.mockReturnValue(new Promise(() => {}));
+  it('読み込みに失敗したらプライベート節の「まだ無い」案内を出さない', async () => {
+    // あるものを無いと断言しない。読み込み中も同じ扱いだが、そちらは「読み込み中…」の
+    // 文言が木の側にも出るため待ち先が曖昧になる。失敗は文言が 1 つに決まるので、
+    // 同じ規則（成功したときだけ言い切る）をこちらで固定する。
+    hoisted.fetchSpaces.mockRejectedValue(new Error('down'));
     renderSidebar();
 
-    await screen.findByRole('heading', { name: 'プライベート' });
+    await screen.findByText('スペースを読み込めませんでした');
+    expect(screen.getByRole('heading', { name: 'プライベート' })).toBeInTheDocument();
     expect(screen.queryByText('自分だけに見える区画。＋で作れます。')).not.toBeInTheDocument();
   });
 

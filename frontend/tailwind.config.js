@@ -78,17 +78,7 @@ export default {
         '2xl': '0.5rem',
       },
       fontFamily: {
-        // アプリ全体の既定書体。Noto Sans JP を自前配信し（app/index.tsx で読み込み）、
-        // 読み込み前・失敗時は各 OS の日本語ゴシックへ落とす。
-        sans: [
-          '"Noto Sans JP"',
-          '"Hiragino Kaku Gothic ProN"',
-          '"Hiragino Sans"',
-          'Meiryo',
-          'system-ui',
-          'sans-serif',
-        ],
-        // font-roboto を付けた要素だけに適用。
+        // font-roboto を付けた要素だけに適用（アプリ全体の既定フォントは変えない）。
         roboto: ['Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
       transitionTimingFunction: {

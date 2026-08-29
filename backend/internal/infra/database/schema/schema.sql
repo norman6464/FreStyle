@@ -398,6 +398,132 @@ CREATE TABLE IF NOT EXISTS course_chapters (
 CREATE INDEX IF NOT EXISTS idx_course_chapters_company_id ON course_chapters (company_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
 
+-- 本番に欠けている NOT NULL と既定値を、定義（このファイルの上のほう）に合わせて埋める。
+--
+-- なぜ要るか: これらの表は ORM が作っていた頃のもので、ORM は既存の列へ後から
+-- NOT NULL を付け直さない。DDL を正本にした今も、過去に作られた列だけが緩いままで、
+-- 「定義では必須なのに本番では NULL を入れられる」状態が 60 列残っていた。
+--
+-- 手順は 3 段。**この順序でないと落ちる**:
+--   1. 既定値を付ける（以後の INSERT で NULL が入らなくなる）
+--   2. 既に入っている NULL を埋める（NOT NULL は 1 行でも NULL があると付けられない）
+--   3. NOT NULL を付ける
+--
+-- 冪等にするため、カタログを見て「まだ足りないときだけ」実行する。
+-- 素の ALTER TABLE を毎回流すと、何もしない場合でも ACCESS EXCLUSIVE ロックを取り、
+-- 起動のたびにその表を止めてしまう（このファイルの冒頭の約束）。
+DO $fill$
+DECLARE
+    r record;
+BEGIN
+    -- 1. 既定値（宣言にあるのに本番で欠けているものだけ）
+    FOR r IN
+        SELECT * FROM (VALUES
+            ('audit_events', 'action', $$''::character varying$$),
+            ('audit_events', 'actor_email', $$''::character varying$$),
+            ('audit_events', 'actor_role', $$''::character varying$$),
+            ('company_applications', 'message', $$''::text$$),
+            ('invitations', 'email', $$''::text$$),
+            ('invitations', 'name', $$''::text$$),
+            ('invitations', 'role', $$''::text$$),
+            ('invitations', 'status', $$''::text$$),
+            ('notes', 'content', $$''::text$$),
+            ('notes', 'is_public', $$false$$),
+            ('notes', 'title', $$''::text$$),
+            ('notifications', 'body', $$''::text$$),
+            ('notifications', 'is_read', $$false$$),
+            ('notifications', 'title', $$''::text$$),
+            ('notifications', 'type', $$''::text$$),
+            ('profiles', 'avatar_url', $$''::text$$),
+            ('profiles', 'bio', $$''::text$$),
+            ('users', 'email', $$''::text$$),
+            ('users', 'name', $$''::text$$)
+        ) AS v(tbl, col, expr)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.columns ic
+            WHERE ic.table_schema = 'public' AND ic.table_name = v.tbl
+              AND ic.column_name = v.col AND ic.column_default IS NOT NULL
+        )
+    LOOP
+        EXECUTE format('ALTER TABLE %I ALTER COLUMN %I SET DEFAULT %s', r.tbl, r.col, r.expr);
+    END LOOP;
+
+    -- 2. 残っている NULL を埋めてから 3. NOT NULL を付ける
+    FOR r IN
+        SELECT * FROM (VALUES
+            ('audit_events', 'action', $$''::character varying$$),
+            ('audit_events', 'actor_email', $$''::character varying$$),
+            ('audit_events', 'actor_id', $$0$$),
+            ('audit_events', 'actor_role', $$''::character varying$$),
+            ('audit_events', 'created_at', $$now()$$),
+            ('audit_events', 'target_id', $$0$$),
+            ('companies', 'created_at', $$now()$$),
+            ('companies', 'updated_at', $$now()$$),
+            ('company_applications', 'created_at', $$now()$$),
+            ('company_applications', 'message', $$''::text$$),
+            ('company_applications', 'updated_at', $$now()$$),
+            ('company_exercises', 'created_at', $$now()$$),
+            ('company_exercises', 'updated_at', $$now()$$),
+            ('course_chapters', 'course_id', $$0$$),
+            ('course_chapters', 'created_at', $$now()$$),
+            ('course_chapters', 'updated_at', $$now()$$),
+            ('courses', 'created_at', $$now()$$),
+            ('courses', 'updated_at', $$now()$$),
+            ('invitations', 'company_id', $$0$$),
+            ('invitations', 'created_at', $$now()$$),
+            ('invitations', 'email', $$''::text$$),
+            ('invitations', 'expires_at', $$now()$$),
+            ('invitations', 'name', $$''::text$$),
+            ('invitations', 'role', $$''::text$$),
+            ('invitations', 'status', $$''::text$$),
+            ('master_exercise_examples', 'created_at', $$now()$$),
+            ('master_exercise_examples', 'updated_at', $$now()$$),
+            ('master_exercises', 'created_at', $$now()$$),
+            ('master_exercises', 'updated_at', $$now()$$),
+            ('notes', 'content', $$''::text$$),
+            ('notes', 'created_at', $$now()$$),
+            ('notes', 'is_pinned', $$false$$),
+            ('notes', 'is_public', $$false$$),
+            ('notes', 'title', $$''::text$$),
+            ('notes', 'updated_at', $$now()$$),
+            ('notes', 'user_id', $$0$$),
+            ('notifications', 'body', $$''::text$$),
+            ('notifications', 'created_at', $$now()$$),
+            ('notifications', 'is_read', $$false$$),
+            ('notifications', 'title', $$''::text$$),
+            ('notifications', 'type', $$''::text$$),
+            ('notifications', 'user_id', $$0$$),
+            ('profiles', 'avatar_url', $$''::text$$),
+            ('profiles', 'bio', $$''::text$$),
+            ('profiles', 'status_message', $$''::text$$),
+            ('profiles', 'updated_at', $$now()$$),
+            ('rich_documents', 'created_at', $$now()$$),
+            ('rich_documents', 'updated_at', $$now()$$),
+            ('roles', 'created_at', $$now()$$),
+            ('roles', 'updated_at', $$now()$$),
+            ('user_chapter_progress', 'created_at', $$now()$$),
+            ('user_chapter_views', 'course_id', $$0$$),
+            ('user_chapter_views', 'first_viewed_at', $$now()$$),
+            ('user_chapter_views', 'last_viewed_at', $$now()$$),
+            ('user_oidc_identities', 'created_at', $$now()$$),
+            ('user_oidc_identities', 'updated_at', $$now()$$),
+            ('users', 'created_at', $$now()$$),
+            ('users', 'email', $$''::text$$),
+            ('users', 'name', $$''::text$$),
+            ('users', 'updated_at', $$now()$$)
+        ) AS v(tbl, col, fill)
+        WHERE EXISTS (
+            SELECT 1 FROM information_schema.columns ic
+            WHERE ic.table_schema = 'public' AND ic.table_name = v.tbl
+              AND ic.column_name = v.col AND ic.is_nullable = 'YES'
+        )
+    LOOP
+        EXECUTE format('UPDATE %I SET %I = %s WHERE %I IS NULL', r.tbl, r.col, r.fill, r.col);
+        EXECUTE format('ALTER TABLE %I ALTER COLUMN %I SET NOT NULL', r.tbl, r.col);
+    END LOOP;
+END
+$fill$;
+
 -- =====================================================================
 -- Ⅱ. ノートの骨格（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
 -- =====================================================================

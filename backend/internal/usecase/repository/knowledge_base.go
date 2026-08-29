@@ -27,6 +27,12 @@ var ErrWorkspaceSlugTaken = errors.New("workspace slug is already taken")
 // ErrSpaceKeyTaken は作成しようとした key が同じワークスペースで既に使われているときに返す。
 var ErrSpaceKeyTaken = errors.New("space key is already taken")
 
+// ErrPersonalWorkspaceAlreadyExists は、その人の個人ワークスペースを新規作成しようとした瞬間に
+// 別のリクエストが先に作り終えていたときに返す（uq_workspaces_personal_owner の競合）。
+// サインアップの二重送信・同時実行で起き得る。呼び出し側は失敗として扱わず、
+// FindPersonalWorkspaceByOwner で先に作られた方を引き直す。
+var ErrPersonalWorkspaceAlreadyExists = errors.New("personal workspace already exists for this user")
+
 // ErrPageNotFound は対象ページが存在しない（または別ワークスペースのもの）ときに返す。
 // テナント越えのアクセスは「無い」と同じ扱いにする（存在の有無自体を漏らさない）。
 var ErrPageNotFound = errors.New("page not found")
@@ -89,6 +95,10 @@ type KnowledgeBaseRepository interface {
 	FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error)
 	// FindWorkspaceBySlug は URL に出る slug からワークスペースを引く。無ければ ErrWorkspaceNotFound。
 	FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error)
+	// FindPersonalWorkspaceByOwner はそのユーザーの個人ワークスペースを引く。無ければ
+	// ErrWorkspaceNotFound（uq_workspaces_personal_owner が 1 人 1 つを守るので、
+	// 見つかれば必ず 1 件）。サインアップの「作る前に既に在るか見る」に使う。
+	FindPersonalWorkspaceByOwner(ctx context.Context, userID uint64) (*domain.Workspace, error)
 	// FindSpace はスペースを 1 件引く。無い・別ワークスペースなら ErrSpaceNotFound。
 	FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error)
 	// UpdateSpaceName はスペースの表示名だけを変える（key は URL・権限の参照に使うので不変）。

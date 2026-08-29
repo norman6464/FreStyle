@@ -17,6 +17,10 @@ type WorkspaceProvisionInput struct {
 	// OwnerUserID は作成者。作成と同じトランザクションで主体（kind='user'）になり、
 	// admin の grant を受け取る。
 	OwnerUserID uint64
+	// PersonalOwnerUserID はサインアップで自動作成する個人ワークスペースのときだけ設定する
+	// （通常のワークスペース作成では nil のまま）。値を設定すると workspaces.personal_owner_user_id
+	// に書かれ、1 人 1 つを uq_workspaces_personal_owner が守る。
+	PersonalOwnerUserID *uint64
 }
 
 // WorkspaceProvisioner はワークスペースを「入れる人ごと」作る単一責務の port。

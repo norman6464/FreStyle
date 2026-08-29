@@ -23,9 +23,17 @@ WHERE slug = $1;
 -- name: InsertWorkspace :one
 -- ワークスペースの作成。slug はグローバルに一意（uq_workspaces_slug）なので、
 -- 重複は一意制約違反として返り、repository が「その slug は使用済み」へ翻訳する。
-INSERT INTO workspaces (id, slug, name)
-VALUES ($1, $2, $3)
+-- personal_owner_user_id は個人ワークスペースだけ非 NULL（uq_workspaces_personal_owner で
+-- 1 人 1 つ）。通常のチームワークスペースは NULL のまま渡す。
+INSERT INTO workspaces (id, slug, name, personal_owner_user_id)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
+
+-- name: GetPersonalWorkspaceByOwner :one
+-- 個人ワークスペースを持ち主から引く。サインアップの「作る前に既に在るか見る」に使う
+-- （uq_workspaces_personal_owner が 1 人 1 つを守るので、あれば必ず 1 行）。
+SELECT * FROM workspaces
+WHERE personal_owner_user_id = $1;
 
 -- name: InsertSpace :one
 -- スペースの作成。key はワークスペース内で一意（uq_spaces_workspace_key）。

@@ -64,6 +64,18 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == sqlStateUniqueViolation
 }
 
+// uniqueViolationConstraint は一意制約違反のとき、違反した制約名を返す。
+// 1 つの INSERT が複数の一意制約を持ちうる場合、名前を見ないとどの制約が競合したか
+// 区別できず、意味の違うエラー（本当に重複 / 別の要求が既に作っていた等）を
+// 取り違えて返してしまう。
+func uniqueViolationConstraint(err error) (string, bool) {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != sqlStateUniqueViolation {
+		return "", false
+	}
+	return pgErr.ConstraintName, true
+}
+
 // isForeignKeyViolation は外部キー違反（参照先が無い）かを返す。
 func isForeignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
@@ -185,6 +197,22 @@ func (r *knowledgeBaseRepository) FindWorkspaceByID(ctx context.Context, workspa
 		return nil, repository.ErrWorkspaceNotFound
 	}
 	row, err := r.q.GetWorkspaceByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	ws := toDomainWorkspace(row)
+	return &ws, nil
+}
+
+func (r *knowledgeBaseRepository) FindPersonalWorkspaceByOwner(ctx context.Context, userID uint64) (*domain.Workspace, error) {
+	id, ok := toInt64ID(userID)
+	if !ok {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	row, err := r.q.GetPersonalWorkspaceByOwner(ctx, sql.NullInt64{Int64: id, Valid: true})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrWorkspaceNotFound
 	}

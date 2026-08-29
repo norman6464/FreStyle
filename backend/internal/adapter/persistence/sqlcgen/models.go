@@ -373,12 +373,13 @@ type UserOidcIdentity struct {
 }
 
 type Workspace struct {
-	ID        uuid.UUID
-	Slug      string
-	Name      string
-	IsActive  sql.NullBool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                  uuid.UUID
+	Slug                string
+	Name                string
+	IsActive            bool
+	PersonalOwnerUserID sql.NullInt64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type WorkspaceGrant struct {

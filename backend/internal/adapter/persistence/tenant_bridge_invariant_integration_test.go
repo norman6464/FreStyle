@@ -229,11 +229,6 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 			ws1.UUID,
 		)
 		require.NoError(t, err)
-		_, err = sqlDB.Exec(
-			`UPDATE workspaces SET is_active = NULL WHERE id = $1`,
-			ws2.UUID,
-		)
-		require.NoError(t, err)
 		// 他社のワークスペースを指してしまったユーザーと、写し漏れたユーザー。
 		_, err = sqlDB.Exec(`UPDATE users SET workspace_id = $1 WHERE id = $2`, ws2.UUID, userA)
 		require.NoError(t, err)

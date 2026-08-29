@@ -479,19 +479,6 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 	return items, nil
 }
 
-const mirrorUserWorkspace = `-- name: MirrorUserWorkspace :exec
-UPDATE users SET workspace_id = c.workspace_id
-FROM companies c
-WHERE users.id = $1 AND users.company_id = c.id
-`
-
-// users.workspace_id を所属会社のワークスペースに合わせる。対応表の正本は companies.workspace_id
-// ただ 1 つで、値をアプリ側で覚えて写経しない。未所属や対応する会社行が無い場合は 0 件更新。
-func (q *Queries) MirrorUserWorkspace(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, mirrorUserWorkspace, id)
-	return err
-}
-
 const softDeleteUser = `-- name: SoftDeleteUser :execrows
 UPDATE users SET deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
@@ -525,10 +512,7 @@ func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActivePara
 }
 
 const updateUserCompanyID = `-- name: UpdateUserCompanyID :execrows
-UPDATE users SET
-  company_id = $2,
-  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
-WHERE users.id = $1
+UPDATE users SET company_id = $2 WHERE users.id = $1
 `
 
 type UpdateUserCompanyIDParams struct {
@@ -536,8 +520,8 @@ type UpdateUserCompanyIDParams struct {
 	CompanyID sql.NullInt64
 }
 
-// 所属会社を付け替える。company_id と、その写しである workspace_id を同じ 1 文で書く
-// （片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
+// 所属会社を付け替える。ワークスペースは users.company_id → companies.workspace_id の
+// JOIN でその場に求める（GetUserCompanyWorkspaceID）ので、写しをここで書く必要はない。
 // 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)

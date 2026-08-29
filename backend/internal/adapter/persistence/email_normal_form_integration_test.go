@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,10 +92,10 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		dup := &domain.User{Email: "space@example.com", Role: domain.RoleTrainee}
-		require.ErrorContains(
+		require.ErrorIs(
 			t,
 			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "space-1"),
-			"uq_users_email_active",
+			repository.ErrEmailTaken,
 		)
 	})
 

@@ -264,18 +264,20 @@ func (q *Queries) GetSpaceEveryonePrincipal(ctx context.Context, arg GetSpaceEve
 }
 
 const getUserCompanyWorkspaceID = `-- name: GetUserCompanyWorkspaceID :one
-SELECT workspace_id FROM users
-WHERE id = $1 AND workspace_id IS NOT NULL AND deleted_at IS NULL
+SELECT c.workspace_id FROM users u
+JOIN companies c ON c.id = u.company_id
+WHERE u.id = $1 AND c.workspace_id IS NOT NULL AND u.deleted_at IS NULL
 `
 
-// そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
+// そのユーザーの会社に対応するワークスペース ID。
 //
-// 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
-// ノートの所属の正本はあくまで principals（kind='user'）の行で、この列は
+// 対応は companies.workspace_id が唯一の正本。写し（バックフィル）を持たず、
+// users.company_id → companies.id の JOIN でその場に求める。
+// ノートの所属の正本はあくまで principals（kind='user'）の行で、この結果は
 // 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
 // （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
 //
-// 会社に属さないユーザー（company_id が NULL → workspace_id も NULL）は 0 行。
+// 会社に属さないユーザー（company_id が NULL）・対応するワークスペースが無い会社は 0 行。
 func (q *Queries) GetUserCompanyWorkspaceID(ctx context.Context, id int64) (uuid.NullUUID, error) {
 	row := q.db.QueryRowContext(ctx, getUserCompanyWorkspaceID, id)
 	var workspace_id uuid.NullUUID
@@ -485,7 +487,7 @@ func (q *Queries) IsWorkspaceMember(ctx context.Context, arg IsWorkspaceMemberPa
 }
 
 const listMemberWorkspaces = `-- name: ListMemberWorkspaces :many
-SELECT w.id, w.slug, w.name, w.is_active, w.created_at, w.updated_at FROM workspaces w
+SELECT w.id, w.slug, w.name, w.is_active, w.personal_owner_user_id, w.created_at, w.updated_at FROM workspaces w
 JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = $1
 ORDER BY w.slug
@@ -511,6 +513,7 @@ func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64
 			&i.Slug,
 			&i.Name,
 			&i.IsActive,
+			&i.PersonalOwnerUserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

@@ -179,18 +179,19 @@ func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 	return nil
 }
 
-// Execute はユーザー情報と招待情報を基にユーザーを作成・更新する。
+// Execute はユーザー情報と招待情報を基にユーザーを作成・更新し、解決した user を返す。
+// nil, nil は bootstrap の同時実行負け、または同じ email での同時サインアップ競合のときに返る。
 func (u *UpsertUserFromIDTokenUseCase) Execute(
 	ctx context.Context,
 	in UpsertUserFromIDTokenInput,
-) (allowed bool, err error) {
+) (user *domain.User, err error) {
 	if u.users == nil {
-		return false, errors.New("user repository not configured")
+		return nil, errors.New("user repository not configured")
 	}
 
 	sub := in.CognitoSub
 	if sub == "" {
-		return false, errors.New("id_token missing sub")
+		return nil, errors.New("id_token missing sub")
 	}
 
 	// email はここで 1 度だけ正規形へ畳み、以後の照会・比較・保存すべてでこの値を使う。
@@ -207,7 +208,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			var findErr error
 			inv, findErr = u.invitations.FindPendingByToken(ctx, invitationToken)
 			if findErr != nil {
-				return false, fmt.Errorf(
+				return nil, fmt.Errorf(
 					"find pending invitation by token: %w",
 					findErr,
 				)
@@ -218,7 +219,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			var findErr error
 			inv, findErr = u.invitations.FindPendingByEmail(ctx, email)
 			if findErr != nil {
-				return false, fmt.Errorf(
+				return nil, fmt.Errorf(
 					"find pending invitation by email: %w",
 					findErr,
 				)
@@ -228,7 +229,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 
 	existing, findErr := u.users.FindByCognitoSub(ctx, sub)
 	if findErr != nil {
-		return false, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"find user by cognito sub: %w",
 			findErr,
 		)
@@ -242,7 +243,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			oidcName,
 			isCognitoAdmin,
 		); err != nil {
-			return false, fmt.Errorf("update existing user: %w", err)
+			return nil, fmt.Errorf("update existing user: %w", err)
 		}
 		// user_oidc_identities への冪等な保険。FindByCognitoSub は identity を突き合わせ条件に
 		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
@@ -250,33 +251,32 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		if err := u.users.EnsureOidcIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
 			slog.WarnContext(ctx, "ensure oidc identity failed (self-heal, non-fatal)", "userID", existing.ID, "err", err)
 		}
-		return true, nil
+		return existing, nil
 	}
 
+	// bootstrap 以外の招待なし新規ユーザーは、下の通常経路（role は既定の trainee）へ流れる。
 	bootstrap := false
 	if inv == nil {
 		var bootstrapErr error
 		bootstrap, bootstrapErr = u.bootstrapSignupAllowed(ctx, email, isCognitoAdmin)
 		if bootstrapErr != nil {
-			return false, bootstrapErr
+			return nil, bootstrapErr
 		}
-		if !bootstrap {
+		if bootstrap {
 			slog.WarnContext(
 				ctx,
-				"signup blocked: invitation required",
+				"bootstrap signup allowed: creating the first super admin without invitation",
 				"cognitoSub", sub,
 				"email", email,
-				"tokenProvided", invitationToken != "",
-				"cognitoAdminGroup", isCognitoAdmin,
 			)
-			return false, nil
+		} else {
+			slog.InfoContext(
+				ctx,
+				"self signup: creating a new user without invitation",
+				"cognitoSub", sub,
+				"email", email,
+			)
 		}
-		slog.WarnContext(
-			ctx,
-			"bootstrap signup allowed: creating the first super admin without invitation",
-			"cognitoSub", sub,
-			"email", email,
-		)
 	}
 
 	role := domain.RoleTrainee
@@ -287,7 +287,9 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		name = oidcName
 	}
 
-	if isCognitoAdmin {
+	// Cognito admin グループへの所属だけでは super_admin にしない（招待か bootstrap が要る）。
+	// 外すとグループ名 1 つで招待統制を経ない super_admin が作れてしまう。
+	if isCognitoAdmin && (inv != nil || bootstrap) {
 		role = domain.RoleSuperAdmin
 	}
 	if inv != nil {
@@ -306,7 +308,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		}
 	}
 
-	user := &domain.User{
+	user = &domain.User{
 		Email:     email,
 		Name:      name,
 		Role:      role,
@@ -326,7 +328,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			ctx, user, domain.OidcProviderCognito, sub,
 		)
 		if createErr != nil {
-			return false, fmt.Errorf("create first super admin: %w", createErr)
+			return nil, fmt.Errorf("create first super admin: %w", createErr)
 		}
 		if !created {
 			// 判定と作成のあいだに別の運営管理者ができた。免除は既に閉じているので拒否する。
@@ -336,13 +338,19 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 				"cognitoSub", sub,
 				"email", email,
 			)
-			return false, nil
+			return nil, nil
 		}
-		return true, nil
+		return user, nil
 	}
 
 	if err := u.users.CreateWithOidcIdentity(ctx, user, domain.OidcProviderCognito, sub); err != nil {
-		return false, fmt.Errorf("create user with oidc identity: %w", err)
+		if errors.Is(err, repository.ErrEmailTaken) {
+			// 同じ email で同時にサインアップが競合した（同一人物の二重送信・招待の
+			// 二重受諾など）。別の sub で先に確定しているだけなので、拒否ではなく nil, nil。
+			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup", "cognitoSub", sub, "email", email)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("create user with oidc identity: %w", err)
 	}
 
 	if inv != nil {
@@ -351,9 +359,9 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			inv.ID,
 			domain.InvitationStatusAccepted,
 		); err != nil {
-			return false, fmt.Errorf("accept invitation: %w", err)
+			return nil, fmt.Errorf("accept invitation: %w", err)
 		}
 	}
 
-	return true, nil
+	return user, nil
 }

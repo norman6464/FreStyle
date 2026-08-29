@@ -6,7 +6,7 @@
 // testsupport.OpenTestDB は Migrate を呼ばず、Apply*Schema / Seed* を自前の順序で並べ直して
 // いる。そちらだけを回していると Migrate の適用順を壊しても結合テストは緑のまま通り、
 // 実起動だけが relation does not exist で落ちる。ここで Migrate を丸ごと流して、適用順と
-// 冪等性と seed の結果をまとめて固定する。
+// 冪等性をまとめて固定する。
 package database_test
 
 import (
@@ -15,14 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
 
-// TestMigrate_Integration は空の DB へ Migrate を 2 回続けて流し、
-// 適用順・冪等性・seed の結果を固定する。
+// TestMigrate_Integration は空の DB へ Migrate を 2 回続けて流し、適用順・冪等性を固定する。
 //
 // 1 回目はまっさらな schema から始めるので、段の順序を入れ替えると
 // 後段が前段の作ったテーブルを見つけられずエラーになる
@@ -78,45 +76,35 @@ func TestMigrate_Integration(t *testing.T) {
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
 	})
 
-	t.Run("seed は 2 回流しても重複しない", func(t *testing.T) {
-		// ロールマスタ（固定 ID）。
-		rows, err := db.QueryContext(ctx, `SELECT id, name FROM roles ORDER BY id`)
-		require.NoError(t, err)
-		defer func() { _ = rows.Close() }()
-		got := map[int64]string{}
-		for rows.Next() {
-			var id int64
-			var name string
-			require.NoError(t, rows.Scan(&id, &name))
-			got[id] = name
-		}
-		require.NoError(t, rows.Err())
-		require.Equal(t, map[int64]string{
-			int64(domain.RoleIDSuperAdmin):   string(domain.RoleSuperAdmin),
-			int64(domain.RoleIDCompanyAdmin): string(domain.RoleCompanyAdmin),
-			int64(domain.RoleIDTrainee):      string(domain.RoleTrainee),
-		}, got)
-
-		// 既定の会社。
-		var companies int64
-		var name string
+	t.Run("Migrate はデータを書かない（roles / companies を seed しない）", func(t *testing.T) {
+		var roles, companies int64
+		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM roles`).Scan(&roles))
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM companies`).Scan(&companies))
-		require.EqualValues(t, 1, companies)
-		require.NoError(t, db.QueryRowContext(ctx, `SELECT name FROM companies WHERE id = 1`).Scan(&name))
-		require.Equal(t, "株式会社FreStyle", name)
+		require.EqualValues(t, 0, roles)
+		require.EqualValues(t, 0, companies)
 	})
 
-	t.Run("会社からワークスペースへのバックフィルが 1 回だけ効く", func(t *testing.T) {
+	t.Run("会社があれば、ワークスペースへのバックフィルが 1 回だけ効く", func(t *testing.T) {
+		var companyID int64
+		require.NoError(t, db.QueryRowContext(ctx,
+			`INSERT INTO companies (name, created_at, updated_at) VALUES ('検証用の会社', NOW(), NOW()) RETURNING id`,
+		).Scan(&companyID))
+		require.NoError(t, database.Migrate(ctx, db))
+
 		var workspaces int64
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM workspaces`).Scan(&workspaces))
-		require.EqualValues(t, 1, workspaces, "2 回流してもワークスペースは増えない")
+		require.EqualValues(t, 1, workspaces)
 
 		var slug string
 		require.NoError(t, db.QueryRowContext(
 			ctx,
-			`SELECT w.slug FROM workspaces w JOIN companies c ON c.workspace_id = w.id WHERE c.id = 1`,
+			`SELECT w.slug FROM workspaces w JOIN companies c ON c.workspace_id = w.id WHERE c.id = $1`, companyID,
 		).Scan(&slug))
 		require.Regexp(t, `^ws-[0-9a-f]{32}$`, slug)
+
+		require.NoError(t, database.Migrate(ctx, db), "2 回目")
+		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM workspaces`).Scan(&workspaces))
+		require.EqualValues(t, 1, workspaces, "2 回流してもワークスペースは増えない")
 	})
 }
 

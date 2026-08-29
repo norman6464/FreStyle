@@ -89,6 +89,12 @@ func (f *kbFakePages) FindWorkspaceBySlug(_ context.Context, slug string) (*doma
 	return &c, nil
 }
 
+// FindPersonalWorkspaceByOwner はこのフェイクでは使わない（個人ワークスペースの確保は
+// サインアップ経路のテストが別途持つ）。インターフェースを満たすためだけに実装する。
+func (f *kbFakePages) FindPersonalWorkspaceByOwner(_ context.Context, _ uint64) (*domain.Workspace, error) {
+	return nil, repository.ErrWorkspaceNotFound
+}
+
 // hasWorkspaceID は ID でワークスペースの実在を確かめる（マップの鍵は slug なので走査する）。
 func (f *kbFakePages) hasWorkspaceID(workspaceID string) bool {
 	for _, ws := range f.workspaces {

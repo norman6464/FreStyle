@@ -437,9 +437,20 @@ BEGIN
             ('profiles', 'avatar_url', $$''::text$$),
             ('profiles', 'bio', $$''::text$$),
             ('users', 'email', $$''::text$$),
-            ('users', 'name', $$''::text$$)
+            ('users', 'name', $$''::text$$),
+            -- workspaces は Ⅱ（ノート）が作る表なので、まっさらな DB では初回この時点でまだ無い。
+            -- 下の EXISTS(table) 側の絞りで対象に上がらず no-op になる
+            -- （Ⅱ の CREATE TABLE 自体が NOT NULL DEFAULT true で作るので、そもそも埋める必要が無い）。
+            -- 本番は workspaces が既に存在するので、次回の起動でここが効く。
+            ('workspaces', 'is_active', $$true$$)
         ) AS v(tbl, col, expr)
-        WHERE NOT EXISTS (
+        WHERE EXISTS (
+            -- 表そのものが無ければここで弾く。無いと NOT EXISTS(列の既定値) は「表が無い」でも
+            -- 真になり、Ⅱ がまだ作っていない workspaces へ初回起動で ALTER をぶつけて落ちる
+            -- （実 PostgreSQL で確認済み）。
+            SELECT 1 FROM information_schema.tables t
+            WHERE t.table_schema = 'public' AND t.table_name = v.tbl
+        ) AND NOT EXISTS (
             SELECT 1 FROM information_schema.columns ic
             WHERE ic.table_schema = 'public' AND ic.table_name = v.tbl
               AND ic.column_name = v.col AND ic.column_default IS NOT NULL
@@ -510,7 +521,8 @@ BEGIN
             ('users', 'created_at', $$now()$$),
             ('users', 'email', $$''::text$$),
             ('users', 'name', $$''::text$$),
-            ('users', 'updated_at', $$now()$$)
+            ('users', 'updated_at', $$now()$$),
+            ('workspaces', 'is_active', $$true$$)
         ) AS v(tbl, col, fill)
         WHERE EXISTS (
             SELECT 1 FROM information_schema.columns ic
@@ -565,10 +577,13 @@ CREATE TABLE IF NOT EXISTS workspaces (
     -- slug は URL に出る短い識別子。テナント内ではなくグローバルに一意。
     slug       varchar(64) NOT NULL,
     name       varchar(200) NOT NULL,
-    -- テナントの設定。今は companies の同名列が正本で、ここはその写し（移行期間だけ NULL 可）。
-    -- companies を畳んだあとはこの列が正本になり、NOT NULL DEFAULT true へ締める。
-    -- 「NULL = まだ写していない」と「値がある = 写し済み」を区別したいので、既定値は今は置かない。
-    is_active  boolean,
+    is_active  boolean NOT NULL DEFAULT true,
+    -- 個人サインアップで自動作成した、その人専用のワークスペース。1 人 1 つ
+    -- （uq_workspaces_personal_owner）。列と制約は workspace_ownership_schema.go が
+    -- ALTER TABLE ADD COLUMN IF NOT EXISTS で足す（本番の既存 workspaces へ列を
+    -- 届ける経路がそれしか無いため）。CREATE TABLE 側にも書くのは、まっさらな DB では
+    -- ここで最初から作られるようにするため。
+    personal_owner_user_id bigint,
     -- GORM の autoCreateTime / autoUpdateTime は使わないため、DB 側の既定値で必ず埋まるようにする。
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),

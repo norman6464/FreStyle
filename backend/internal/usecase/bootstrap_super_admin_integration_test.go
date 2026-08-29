@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
 		uc := usecase.NewUpsertUserFromIDTokenUseCase(users, nil, bootstrapEmail)
 
-		allowed := make([]bool, len(variants))
+		results := make([]*domain.User, len(variants))
 		errs := make([]error, len(variants))
 		start := make(chan struct{})
 		var wg sync.WaitGroup
@@ -62,7 +63,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start // 全員を同じ瞬間に走らせる
-				allowed[i], errs[i] = uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+				results[i], errs[i] = uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
 					CognitoSub:     fmt.Sprintf("race-%d-%d", round, i),
 					Email:          email,
 					IsCognitoAdmin: true,
@@ -75,7 +76,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 		accepted := 0
 		for i := range variants {
 			assert.NoErrorf(t, errs[i], "round %d: %q でエラー", round, variants[i])
-			if allowed[i] {
+			if results[i] != nil {
 				accepted++
 			}
 		}

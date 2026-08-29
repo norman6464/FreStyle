@@ -103,12 +103,10 @@ func Test_ログイン_認証情報不正_401(t *testing.T) {
 	}
 }
 
-func Test_ログイン_招待なし新規ユーザー_403(t *testing.T) {
+func Test_ログイン_招待なし新規ユーザーも自己サインアップできる(t *testing.T) {
+	users := &fakeUserRepo{}
 	idTok := makeIDToken(t, map[string]any{"sub": "new-sub", "email": "new@example.com"})
-	h := newTestAuthHandler(
-		&fakeUserRepo{},
-		&fakeInvitationRepo{},
-	)
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
 	h.passwordAuth = &fakePasswordAuth{
 		token: &cognito.Token{
 			AccessToken:  "AT",
@@ -124,27 +122,21 @@ func Test_ログイン_招待なし新規ユーザー_403(t *testing.T) {
 		strings.NewReader(`{"email":"new@example.com","password":"secret123"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(&http.Cookie{
-		Name:  middleware.CookieAccessToken,
-		Value: "existing-access-token",
-	})
-	req.AddCookie(&http.Cookie{
-		Name:  middleware.CookieRefreshToken,
-		Value: "existing-refresh-token",
-	})
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), `"error":"invitation_required"`) {
-		t.Fatalf("body = %s, want invitation_required", rec.Body.String())
+	if users.created == nil {
+		t.Fatal("user was not created")
 	}
-	assertAuthCookiesUnchanged(t, rec)
+	if len(rec.Result().Cookies()) == 0 {
+		t.Error("expected auth cookies to be set on success")
+	}
 }
 
-func Test_コールバック_招待なし新規ユーザー_403(t *testing.T) {
+func Test_コールバック_招待なし新規ユーザーも自己サインアップできる(t *testing.T) {
 	idToken := makeIDToken(t, map[string]any{
 		"sub":   "new-callback-sub",
 		"email": "new-callback@example.com",
@@ -165,10 +157,8 @@ func Test_コールバック_招待なし新規ユーザー_403(t *testing.T) {
 	))
 	defer tokenServer.Close()
 
-	h := newTestAuthHandler(
-		&fakeUserRepo{},
-		&fakeInvitationRepo{},
-	)
+	users := &fakeUserRepo{}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
 	h.tokens = cognito.NewTokenExchangerWithClient(
 		cognito.Config{
 			ClientID:    "test-client",
@@ -186,24 +176,18 @@ func Test_コールバック_招待なし新規ユーザー_403(t *testing.T) {
 		strings.NewReader(`{"code":"authorization-code"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(&http.Cookie{
-		Name:  middleware.CookieAccessToken,
-		Value: "existing-access-token",
-	})
-	req.AddCookie(&http.Cookie{
-		Name:  middleware.CookieRefreshToken,
-		Value: "existing-refresh-token",
-	})
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), `"error":"invitation_required"`) {
-		t.Fatalf("body = %s, want invitation_required", rec.Body.String())
+	if users.created == nil {
+		t.Fatal("user was not created")
 	}
-	assertAuthCookiesUnchanged(t, rec)
+	if len(rec.Result().Cookies()) == 0 {
+		t.Error("expected auth cookies to be set on success")
+	}
 }
 
 func Test_ログイン_パスワード欠落_400(t *testing.T) {

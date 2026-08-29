@@ -371,6 +371,12 @@ func (m *mockKnowledgeBaseRepo) FindWorkspaceBySlug(ctx context.Context, slug st
 	return w, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) FindPersonalWorkspaceByOwner(ctx context.Context, userID uint64) (*domain.Workspace, error) {
+	args := m.Called(ctx, userID)
+	w, _ := args.Get(0).(*domain.Workspace)
+	return w, args.Error(1)
+}
+
 func (m *mockKnowledgeBaseRepo) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	args := m.Called(ctx, workspaceID, spaceID)
 	s, _ := args.Get(0).(*domain.Space)

@@ -10,6 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -169,10 +170,10 @@ func TestUserNormalization_Integration(t *testing.T) {
 
 		// 同じ email のアクティブ行は作れない（users 行の INSERT が失敗 → トランザクションごと巻き戻る）。
 		dup := &domain.User{Email: "dup@example.com", Role: domain.RoleTrainee}
-		require.ErrorContains(
+		require.ErrorIs(
 			t,
 			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "mail-2"),
-			"uq_users_email_active",
+			repository.ErrEmailTaken,
 		)
 		// identity も巻き戻っている（片方だけ残らない）。
 		var count int64
@@ -350,10 +351,10 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u1, domain.OidcProviderCognito, "case-1"))
 
 		dup := &domain.User{Email: "CASE@Example.com", Role: domain.RoleTrainee}
-		require.ErrorContains(
+		require.ErrorIs(
 			t,
 			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "case-2"),
-			"uq_users_email_active",
+			repository.ErrEmailTaken,
 		)
 	})
 

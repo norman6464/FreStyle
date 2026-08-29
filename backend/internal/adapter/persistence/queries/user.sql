@@ -122,13 +122,6 @@ WHERE provider = $1 AND subject = $2;
 -- ユーザーの OIDC identity をすべて消し、subject の占有を解く（同じアカウントの再招待を可能にする）。
 DELETE FROM user_oidc_identities WHERE user_id = $1;
 
--- name: MirrorUserWorkspace :exec
--- users.workspace_id を所属会社のワークスペースに合わせる。対応表の正本は companies.workspace_id
--- ただ 1 つで、値をアプリ側で覚えて写経しない。未所属や対応する会社行が無い場合は 0 件更新。
-UPDATE users SET workspace_id = c.workspace_id
-FROM companies c
-WHERE users.id = $1 AND users.company_id = c.id;
-
 -- name: UpdateUserActive :execrows
 -- アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。
 UPDATE users SET is_active = $2, updated_at = now() WHERE id = $1;
@@ -144,13 +137,10 @@ UPDATE users SET name = $2, updated_at = now() WHERE id = $1;
 UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpdateUserCompanyID :execrows
--- 所属会社を付け替える。company_id と、その写しである workspace_id を同じ 1 文で書く
--- （片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
+-- 所属会社を付け替える。ワークスペースは users.company_id → companies.workspace_id の
+-- JOIN でその場に求める（GetUserCompanyWorkspaceID）ので、写しをここで書く必要はない。
 -- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
-UPDATE users SET
-  company_id = $2,
-  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
-WHERE users.id = $1;
+UPDATE users SET company_id = $2 WHERE users.id = $1;
 
 -- name: SoftDeleteUser :execrows
 -- ユーザーを論理削除する。既に削除済み / 存在しない場合は 0 件（呼び出し側が not-found にする）。

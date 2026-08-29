@@ -29,28 +29,31 @@ type passwordAuthenticator interface {
 // AuthHandler は Cognito 関連の認証エンドポイントを提供する。
 // OAuth2 通信は infra/cognito.TokenExchanger に切り出し、ここは HTTP 境界と user upsert だけを持つ。
 type AuthHandler struct {
-	getCurrentUser *usecase.GetCurrentUserUseCase
-	upsertUser     *usecase.UpsertUserFromIDTokenUseCase
-	promoteAdmin   *usecase.PromoteCognitoAdminRoleUseCase
-	cognitoCfg     *config.CognitoConfig
-	tokens         *cognito.TokenExchanger
-	passwordAuth   passwordAuthenticator
+	getCurrentUser          *usecase.GetCurrentUserUseCase
+	upsertUser              *usecase.UpsertUserFromIDTokenUseCase
+	ensurePersonalWorkspace *usecase.EnsurePersonalWorkspaceUseCase
+	promoteAdmin            *usecase.PromoteCognitoAdminRoleUseCase
+	cognitoCfg              *config.CognitoConfig
+	tokens                  *cognito.TokenExchanger
+	passwordAuth            passwordAuthenticator
 }
 
 // NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
+	ensurePersonalWorkspace *usecase.EnsurePersonalWorkspaceUseCase,
 	promoteAdmin *usecase.PromoteCognitoAdminRoleUseCase,
 	cognitoCfg *config.CognitoConfig,
 	passwordAuth passwordAuthenticator,
 ) *AuthHandler {
 	return &AuthHandler{
-		getCurrentUser: getCurrentUser,
-		upsertUser:     upsertUser,
-		promoteAdmin:   promoteAdmin,
-		cognitoCfg:     cognitoCfg,
-		passwordAuth:   passwordAuth,
+		getCurrentUser:          getCurrentUser,
+		upsertUser:              upsertUser,
+		ensurePersonalWorkspace: ensurePersonalWorkspace,
+		promoteAdmin:            promoteAdmin,
+		cognitoCfg:              cognitoCfg,
+		passwordAuth:            passwordAuth,
 		tokens: cognito.NewTokenExchanger(cognito.Config{
 			ClientID:     cognitoCfg.ClientID,
 			ClientSecret: cognitoCfg.ClientSecret,
@@ -192,20 +195,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	h.finishPasswordLogin(c, tok)
 }
 
-// finishPasswordLogin は取得済みトークンで招待ゲートを通し、Cookie を発行する。
+// finishPasswordLogin は取得済みトークンでユーザーを解決し、Cookie を発行する。
 // パスワードログイン（Login）と新パスワード設定（NewPassword）で共有する。
 func (h *AuthHandler) finishPasswordLogin(c *gin.Context, tok *cognito.Token) {
-	// Callback と同じ招待ゲート。内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
-	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
+	// Callback と同じ経路。内部エラー(DB/decode)は 500、最初の運営管理者作成の競合負けは 403。
+	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
 	if upErr != nil {
 		log.Printf("cognito password login: upsert failed: %v", upErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
-	if !allowed {
+	if user == nil {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":   "invitation_required",
-			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
+			"error":   "bootstrap_admin_race_lost",
+			"message": "最初の運営管理者は既に作成されています。招待を受けてログインしてください。",
 		})
 		return
 	}
@@ -305,18 +308,19 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する。
-	// 内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
-	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
+	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する
+	// （招待が無くても個人サインアップとして新規作成する。招待は役割・所属先の指定としてだけ働く）。
+	// 内部エラー(DB/decode)は 500、最初の運営管理者作成の競合負けは 403。
+	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
 	if upErr != nil {
 		log.Printf("cognito callback: upsert failed: %v", upErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
-	if !allowed {
+	if user == nil {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":   "invitation_required",
-			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
+			"error":   "bootstrap_admin_race_lost",
+			"message": "最初の運営管理者は既に作成されています。招待を受けてログインしてください。",
 		})
 		return
 	}
@@ -444,18 +448,21 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 }
 
 // upsertUserFromIDToken はIDトークンから認証情報を取得し、ユーザー更新をusecaseへ委譲する。
+// 続けて個人ワークスペースの確保まで行う（無ければ作る。既存なら 1 回の SELECT で終わる）。
+// user が nil かつ err が nil のときだけ、最初の運営管理者作成の競合負けで弾かれたことを表す
+// （招待必須のゲートは撤去済みで、それ以外の新規ユーザーはここで弾かれない）。
 func (h *AuthHandler) upsertUserFromIDToken(
 	c *gin.Context,
 	idToken string,
 	invitationToken string,
-) (allowed bool, err error) {
+) (user *domain.User, err error) {
 	claims, decodeErr := middleware.DecodeClaims(idToken)
 	if decodeErr != nil {
-		return false, fmt.Errorf("failed to decode id_token: %w", decodeErr)
+		return nil, fmt.Errorf("failed to decode id_token: %w", decodeErr)
 	}
 
 	if h.upsertUser == nil {
-		return false, errors.New("upsert user usecase not configured")
+		return nil, errors.New("upsert user usecase not configured")
 	}
 
 	sub, _ := claims["sub"].(string)
@@ -464,7 +471,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
-	return h.upsertUser.Execute(
+	user, err = h.upsertUser.Execute(
 		c.Request.Context(),
 		usecase.UpsertUserFromIDTokenInput{
 			CognitoSub:      sub,
@@ -474,4 +481,19 @@ func (h *AuthHandler) upsertUserFromIDToken(
 			InvitationToken: invitationToken,
 		},
 	)
+	if err != nil || user == nil {
+		return nil, err
+	}
+
+	// 失敗してもログインは失敗させない（次回ログイン時に自己修復する）。
+	if h.ensurePersonalWorkspace != nil {
+		if _, wsErr := h.ensurePersonalWorkspace.Execute(
+			c.Request.Context(),
+			usecase.EnsurePersonalWorkspaceInput{UserID: user.ID, Name: user.Name},
+		); wsErr != nil {
+			slog.ErrorContext(c.Request.Context(), "ensure personal workspace failed (non-fatal)", "userID", user.ID, "err", wsErr)
+		}
+	}
+
+	return user, nil
 }

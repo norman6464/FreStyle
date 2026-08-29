@@ -19,6 +19,65 @@ import (
 // ワークスペース / スペースの API は判定対象がページではないので、kbEndpoints の表
 // （ページ 1 枚の権限を軸に回す）とは別にここで検証する。
 
+func Test_ノートAPI_ワークスペース削除(t *testing.T) {
+	t.Run("admin は配下ごと消せる", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+
+		w := f.do(t, http.MethodDelete, "/api/v2/kb/workspaces/"+kbWorkspaceSlug, "")
+
+		require.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
+		// 配下も消える（本番は FK の CASCADE・fake も同じ結果に揃えてある）。
+		assert.Nil(t, f.pages.spaces[kbSpaceID])
+		assert.Nil(t, f.pages.pages[kbChildPageID])
+	})
+
+	t.Run("admin でなければ 403（実在は既に知っている相手なので理由を返す）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleEditor)
+
+		w := f.do(t, http.MethodDelete, "/api/v2/kb/workspaces/"+kbWorkspaceSlug, "")
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.JSONEq(t, `{"error":"forbidden"}`, w.Body.String())
+		assert.NotNil(t, f.pages.spaces[kbSpaceID], "拒否したのに消えてはいけない")
+	})
+
+	t.Run("会社のワークスペースは admin でも消せない", func(t *testing.T) {
+		// 会社全員のノートが入るうえ、消しても起動時のバックフィルが作り直すので、
+		// 中身だけが消えた空のワークスペースが残る。誰であっても消させない。
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+		companyWorkspaceIDs[kbWorkspaceID] = true
+		t.Cleanup(func() { delete(companyWorkspaceIDs, kbWorkspaceID) })
+
+		w := f.do(t, http.MethodDelete, "/api/v2/kb/workspaces/"+kbWorkspaceSlug, "")
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.JSONEq(t, `{"error":"company_workspace_undeletable"}`, w.Body.String())
+		assert.NotNil(t, f.pages.spaces[kbSpaceID], "会社のワークスペースの中身が消えてはいけない")
+	})
+
+	t.Run("別のワークスペースの slug では 404（所属していないため）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+
+		w := f.do(t, http.MethodDelete, "/api/v2/kb/workspaces/"+kbOtherWorkspaceSlug, "")
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("repository の失敗は 500", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
+		f.pages.failWith = errors.New("db down")
+
+		w := f.do(t, http.MethodDelete, "/api/v2/kb/workspaces/"+kbWorkspaceSlug, "")
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
 func Test_ノートAPI_所属ワークスペース一覧は所属しているものだけを返す(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 

@@ -354,6 +354,11 @@ type mockKnowledgeBaseRepo struct{ mock.Mock }
 
 var _ repository.KnowledgeBaseRepository = (*mockKnowledgeBaseRepo)(nil)
 
+func (m *mockKnowledgeBaseRepo) DeleteWorkspace(ctx context.Context, workspaceID string) error {
+	args := m.Called(ctx, workspaceID)
+	return args.Error(0)
+}
+
 func (m *mockKnowledgeBaseRepo) FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error) {
 	args := m.Called(ctx, workspaceID)
 	w, _ := args.Get(0).(*domain.Workspace)

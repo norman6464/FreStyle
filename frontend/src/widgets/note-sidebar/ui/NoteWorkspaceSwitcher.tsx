@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, ChevronUpDownIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, ChevronUpDownIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ConfirmModal } from '@/shared/ui';
 import NoteCreateForm from './NoteCreateForm';
 import type { NoteWorkspace } from '@/entities/note';
 
@@ -9,6 +10,11 @@ export interface NoteWorkspaceSwitcherProps {
   onSelect: (slug: string) => void;
   /** ワークスペースを作る。**失敗は投げてくる**（フォームが入力を保つ）。 */
   onCreate: (input: { name: string }) => Promise<void>;
+  /**
+   * ワークスペースを配下ごと消す。**失敗は投げてくる**前提（知らせは呼び出し側）。
+   * 未指定なら削除の入口自体を出さない（押せない印を並べない）。
+   */
+  onDelete?: (slug: string) => Promise<void>;
 }
 
 /**
@@ -23,10 +29,13 @@ export default function NoteWorkspaceSwitcher({
   activeSlug,
   onSelect,
   onCreate,
+  onDelete,
 }: NoteWorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   // ポップアップ内の「ワークスペースを追加」フォームの開閉。閉じるたびに畳む。
   const [adding, setAdding] = useState(false);
+  // 消す対象。null は「確認していない」。戻せない操作なので必ず一度確かめる。
+  const [deleting, setDeleting] = useState<NoteWorkspace | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const active = workspaces.find((w) => w.slug === activeSlug) ?? null;
@@ -90,7 +99,9 @@ export default function NoteWorkspaceSwitcher({
           className="absolute left-0 right-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-surface-3 bg-surface-1 py-1 shadow-lg"
         >
           {workspaces.map((workspace) => (
-            <li key={workspace.slug}>
+            // 触れている間だけ捨てる入口を出す。常に見えていると、選ぶ操作の隣に
+            // 戻せない操作が並び続けることになる。
+            <li key={workspace.slug} className="group flex items-center">
               <button
                 type="button"
                 aria-current={workspace.slug === activeSlug}
@@ -98,13 +109,23 @@ export default function NoteWorkspaceSwitcher({
                   onSelect(workspace.slug);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-surface-2"
+                className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-surface-2"
               >
                 <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
                 {workspace.slug === activeSlug && (
                   <CheckIcon className="h-4 w-4 shrink-0 text-brand-500" aria-hidden="true" />
                 )}
               </button>
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => setDeleting(workspace)}
+                  aria-label={`${workspace.name} を削除`}
+                  className="mr-1 shrink-0 rounded p-1 text-[var(--color-text-tertiary)] opacity-0 transition-opacity hover:bg-surface-3 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
             </li>
           ))}
           <li className="mt-1 border-t border-surface-3 pt-1">
@@ -135,6 +156,22 @@ export default function NoteWorkspaceSwitcher({
             )}
           </li>
         </ul>
+      )}
+
+      {onDelete && deleting && (
+        <ConfirmModal
+          isOpen
+          title="ワークスペースを削除"
+          message={`「${deleting.name}」を中のスペース・ページごと削除します。元に戻せません。`}
+          confirmText="削除"
+          onConfirm={() => {
+            const target = deleting;
+            setDeleting(null);
+            setOpen(false);
+            void onDelete(target.slug);
+          }}
+          onCancel={() => setDeleting(null)}
+        />
       )}
     </div>
   );

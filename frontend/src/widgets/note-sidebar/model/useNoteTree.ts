@@ -270,6 +270,25 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
   );
 
   /**
+   * ワークスペースを配下ごと消す。**失敗は握り潰さず投げる。**
+   *
+   * 消したものを開いたままにしない。残っているワークスペースの先頭へ切り替える
+   * （1 つも残らなければ選択なしに戻し、一覧の空表示に任せる）。
+   */
+  const deleteWorkspace = useCallback(
+    async (slug: string): Promise<void> => {
+      await NoteRepository.deleteWorkspace(slug);
+      setWorkspaces((prev) => {
+        const rest = prev.filter((w) => w.slug !== slug);
+        // いま開いているものを消したときだけ移す。別のものを消したなら動かさない。
+        setActiveSlug((current) => (current === slug ? (rest[0]?.slug ?? null) : current));
+        return rest;
+      });
+    },
+    [],
+  );
+
+  /**
    * スペースを作る。**失敗は握り潰さず投げる。**
    *
    * 作ったら一覧に足して開いておく。取り直さないのは、いま作ったものが必ず含まれると
@@ -548,6 +567,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     unarchivePage,
     movePage,
     createWorkspace,
+    deleteWorkspace,
     createSpace,
     renameSpace,
     selectWorkspace: setActiveSlug,

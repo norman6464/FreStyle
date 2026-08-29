@@ -34,6 +34,21 @@ INSERT INTO spaces (id, workspace_id, "key", name, visibility)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
+-- name: DeleteWorkspace :execrows
+-- ワークスペースを消す。**会社に紐づくものは消さない**（WHERE で弾く）。
+--
+-- 配下（spaces / pages / blocks / page_paths / principals / grants / 例外 / 共有リンク）は
+-- すべて workspaces への FK が ON DELETE CASCADE で連なっているので、この 1 文で消える。
+--
+-- 会社のワークスペースを守るのは 2 つの理由から:
+--   1. そこには会社の全員のノートが入る。1 人の操作で会社全体の資産が消えてよいはずがない
+--   2. 消しても起動時のバックフィル（tenant_bridge）が companies.workspace_id を見て
+--      作り直すので、中身だけが消えた空のワークスペースが再び現れる（最悪の結果になる）
+-- 判定は companies を見る。呼び出し側の引数に頼ると、そこを間違えたときに守りが消える。
+DELETE FROM workspaces w
+WHERE w.id = $1
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.workspace_id = w.id);
+
 -- name: GetSpace :one
 -- スペースの存在確認。workspace_id を含めることで別テナントのスペース ID を弾く。
 SELECT * FROM spaces

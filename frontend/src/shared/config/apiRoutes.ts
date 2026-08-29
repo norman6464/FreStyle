@@ -218,6 +218,8 @@ export const CHAPTER_VIEW = {
 export const NOTES_API = {
   /** GET(所属一覧) / POST(作成) — /api/v2/kb/workspaces */
   workspaces: `${API_V2}/kb/workspaces`,
+  /** DELETE(削除) — /api/v2/kb/workspaces/:slug。配下ごと消える。会社のものは消せない */
+  workspace: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
   spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/spaces`,
   /**

@@ -45,6 +45,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
     expandedPageIds,
     togglePage,
     createWorkspace,
+    deleteWorkspace,
     createSpace,
     renameSpace,
     selectWorkspace,
@@ -93,6 +94,13 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           navigate('/notes');
         }}
         onCreate={handleCreateWorkspace}
+        onDelete={async (slug) => {
+          try {
+            await deleteWorkspace(slug);
+          } catch {
+            showToast('error', 'ワークスペースを削除できませんでした');
+          }
+        }}
       />
 
       {workspacesLoading && (

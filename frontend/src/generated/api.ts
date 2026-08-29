@@ -3315,6 +3315,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kb/workspaces/{workspaceSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * ノート の ワークスペース 削除
+         * @description ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も 消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ワークスペース の admin で は ない、 または 会社 の ワークスペース */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ワークスペース が 無い か 未 所属 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/kb/workspaces/{workspaceSlug}/grants/{principalId}": {
         parameters: {
             query?: never;
@@ -4961,7 +5037,7 @@ export interface paths {
         put?: never;
         /**
          * ノート の スペース 作成
-         * @description ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
+         * @description ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 プライベート で は key を 指定 でき ない (必ず 自動 採番。 key の 衝突 応答 から 他人 の プライベート スペース の 実在 が 読め ない よう に する ため)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
          */
         post: {
             parameters: {

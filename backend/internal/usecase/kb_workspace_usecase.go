@@ -94,3 +94,28 @@ func (u *ResolveWorkspaceUseCase) joinCompany(
 	}
 	return true, nil
 }
+
+// DeleteWorkspaceUseCase はワークスペースを配下ごと消す。
+//
+// 誰が消せるか（ワークスペースの admin か）の判定はここではなく handler が
+// CheckWorkspacePermissionUseCase で先に行う（認可は 1 か所・ほかの操作と同じ組み立て）。
+// 「会社のワークスペースは消さない」という規則だけは repository（さらに SQL）が持つ。
+// 認可と違って**誰であっても消してはいけない**ものなので、入口ではなく最も内側で守る。
+type DeleteWorkspaceUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewDeleteWorkspaceUseCase(r repository.KnowledgeBaseRepository) *DeleteWorkspaceUseCase {
+	return &DeleteWorkspaceUseCase{repo: r}
+}
+
+type DeleteWorkspaceInput struct {
+	WorkspaceID string
+}
+
+func (u *DeleteWorkspaceUseCase) Execute(ctx context.Context, in DeleteWorkspaceInput) error {
+	if in.WorkspaceID == "" {
+		return errors.New("workspaceID is required")
+	}
+	return u.repo.DeleteWorkspace(ctx, in.WorkspaceID)
+}

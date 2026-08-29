@@ -109,6 +109,44 @@ func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID str
 }
 
 // DeletePageSubtree はページと子孫を map から消す（本番の CASCADE の代わりに素直に辿る）。
+// companyWorkspaceIDs は「会社に紐づくワークスペース」の集合（本番の companies.workspace_id）。
+// 本番は SQL の WHERE が守るので、fake でも同じ規則をここで写す。
+var companyWorkspaceIDs = map[string]bool{}
+
+func (f *kbFakePages) DeleteWorkspace(_ context.Context, workspaceID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	// 実在しないものは「無かった」。消えたことにしない。
+	var found *domain.Workspace
+	for _, ws := range f.workspaces {
+		if ws.ID == workspaceID {
+			found = ws
+			break
+		}
+	}
+	if found == nil {
+		return repository.ErrWorkspaceNotFound
+	}
+	// 会社のものは誰であっても消せない（本番と同じ順序: 実在 → 会社かどうか）。
+	if companyWorkspaceIDs[workspaceID] {
+		return repository.ErrCompanyWorkspaceUndeletable
+	}
+	delete(f.workspaces, found.Slug)
+	// 配下は本番では FK の CASCADE で消える。fake でも同じ結果にする。
+	for id, sp := range f.spaces {
+		if sp.WorkspaceID == workspaceID {
+			delete(f.spaces, id)
+		}
+	}
+	for id, pg := range f.pages {
+		if pg.WorkspaceID == workspaceID {
+			delete(f.pages, id)
+		}
+	}
+	return nil
+}
+
 func (f *kbFakePages) DeletePageSubtree(_ context.Context, workspaceID, pageID string) error {
 	if f.failWith != nil {
 		return f.failWith

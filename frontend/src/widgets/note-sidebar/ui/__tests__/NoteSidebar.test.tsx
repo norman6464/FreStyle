@@ -16,6 +16,7 @@ const hoisted = vi.hoisted(() => ({
   unarchivePage: vi.fn(),
   movePage: vi.fn(),
   createWorkspace: vi.fn(),
+  deleteWorkspace: vi.fn(),
   createSpace: vi.fn(),
   renameSpace: vi.fn(),
   searchPages: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('@/entities/note', async () => {
       unarchivePage: hoisted.unarchivePage,
       movePage: hoisted.movePage,
       createWorkspace: hoisted.createWorkspace,
+      deleteWorkspace: hoisted.deleteWorkspace,
       createSpace: hoisted.createSpace,
       renameSpace: hoisted.renameSpace,
       searchPages: hoisted.searchPages,
@@ -1763,6 +1765,57 @@ describe('プライベートとチームの節分け', () => {
     fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: 'プライベート' })).not.toBeInTheDocument(),
+    );
+  });
+});
+
+describe('ワークスペースの削除', () => {
+  it('確認してから消し、開いていたものを消したら残りの先頭へ移る', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([
+      workspace('acme', 'Acme 社'),
+      workspace('other', '別の場所'),
+    ]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
+
+    // 戻せない操作なので、ブラウザ標準ではなくアプリのモーダルで確かめる。
+    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '削除' }));
+
+    await waitFor(() => expect(hoisted.deleteWorkspace).toHaveBeenCalledWith('acme'));
+    // 消したものを開いたままにしない。
+    await waitFor(() =>
+      expect(hoisted.fetchSpaces).toHaveBeenCalledWith('other'),
+    );
+  });
+
+  it('やめたら消さない', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
+    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'キャンセル' }));
+
+    expect(hoisted.deleteWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('失敗したら知らせを出す（会社のワークスペースはサーバーが断る）', async () => {
+    hoisted.deleteWorkspace.mockRejectedValue(new Error('forbidden'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
+    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '削除' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを削除できませんでした'),
     );
   });
 });

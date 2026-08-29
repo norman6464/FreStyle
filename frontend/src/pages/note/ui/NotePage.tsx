@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { NoteSidebar } from '@/widgets/note-sidebar';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
 import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/shared/ui/RichTextEditor';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
@@ -82,9 +83,11 @@ export default function NotePage() {
 
   return (
     <div className="flex h-full">
-      <aside className="w-64 shrink-0 border-r border-surface-3 bg-surface-1">
+      {/* サイドバーはコースの章一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
+          一時表示 / ⌘\ で切替）。画面ごとに別の作りを持たない — 覚えることを増やさない。 */}
+      <SecondaryPanel title="ノート" peekable storageKey="frestyle.panel.note">
         <NoteSidebar workspaceSlug={data?.workspaceSlug} activePageId={pageId} />
-      </aside>
+      </SecondaryPanel>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-10">

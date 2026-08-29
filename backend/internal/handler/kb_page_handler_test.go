@@ -202,6 +202,8 @@ const (
 	kbSpacePatchPath = "/api/v2/kb/workspaces/{slug}/spaces/" + kbSpaceID
 	// kbSearchPath は題名検索。判定は所属 + 可視のふるい（結果に出るかどうか）。
 	kbSearchPath = "/api/v2/kb/workspaces/{slug}/search"
+	// kbWorkspacePath はワークスペースの削除。判定はワークスペース単位（管理）。
+	kbWorkspacePath = "/api/v2/kb/workspaces/{slug}"
 )
 
 func kbFill(s, slug, pageID string) string {
@@ -257,6 +259,8 @@ func Test_ノートAPI_登録済みルートは全て認可テストの対象に
 		// 下 2 本は Test_ノートAPI_スペース改名の認可 / 題名検索 が直接叩く。
 		http.MethodPatch + " " + kbRoutePattern(kbSpacePatchPath): true,
 		http.MethodGet + " " + kbRoutePattern(kbSearchPath):       true,
+		// ワークスペース削除。Test_ノートAPI_ワークスペース削除 が直接叩く。
+		http.MethodDelete + " " + kbRoutePattern(kbWorkspacePath): true,
 		// /p/{pageId} の解決。Test_ノートAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
 	}

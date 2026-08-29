@@ -3267,6 +3267,76 @@
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も 消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。",
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ワークスペース 削除",
+                "parameters": [
+                    {
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "削除 成功 (本文 なし)"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "ワークスペース の admin で は ない、 または 会社 の ワークスペース",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "ワークスペース が 無い か 未 所属",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/grants/{principalId}": {
             "put": {
                 "security": [
@@ -5207,7 +5277,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
+                "description": "ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 プライベート で は key を 指定 でき ない (必ず 自動 採番。 key の 衝突 応答 から 他人 の プライベート スペース の 実在 が 読め ない よう に する ため)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
                 "tags": [
                     "knowledge-base"
                 ],

@@ -3171,6 +3171,43 @@ paths:
       summary: ノート の ワークスペース 作成
       tags:
       - knowledge-base
+  /kb/workspaces/{workspaceSlug}:
+    delete:
+      description: ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ
+        / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も
+        消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 削除 成功 (本文 なし)
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: ワークスペース の admin で は ない、 または 会社 の ワークスペース
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: ワークスペース が 無い か 未 所属
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート の ワークスペース 削除
+      tags:
+      - knowledge-base
   /kb/workspaces/{workspaceSlug}/grants/{principalId}:
     delete:
       description: ワークスペース 全体 で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる

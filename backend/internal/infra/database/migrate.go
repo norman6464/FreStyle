@@ -49,7 +49,7 @@ type Executor interface {
 //
 // 適用順序は依存関係で決まっており崩せない:
 //
-//	中核スキーマ → seed / バックフィル / 明示制約 → ナレッジ基盤 → 権限モデル → テナント橋渡し
+//	中核スキーマ → seed / バックフィル / 明示制約 → ノート → 権限モデル → テナント橋渡し
 //
 // 権限モデルは users を、テナント橋渡しは workspaces を参照する。
 func Migrate(ctx context.Context, db *sql.DB) error {
@@ -121,7 +121,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	log.Println("migrate: knowledge base schema done")
 
 	// テナント統合の Expand（companies → workspaces）。workspaces を参照する FK を張るため
-	// ナレッジ基盤スキーマの後に置く。DDL もバックフィルも冪等で、埋まっていれば no-op。
+	// ノートスキーマの後に置く。DDL もバックフィルも冪等で、埋まっていれば no-op。
 	// 読み取りは引き続き company_id を見るので、この時点で挙動は何も変わらない。
 	log.Println("migrate: tenant bridge start")
 	if err := ApplyTenantBridgeSchema(ctx, db); err != nil {

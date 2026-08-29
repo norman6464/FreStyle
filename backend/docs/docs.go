@@ -2409,7 +2409,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の 共有 リンク 検証",
+                "summary": "ノート の 共有 リンク 検証",
                 "parameters": [
                     {
                         "description": "トークン と (必要 なら) パスワード",
@@ -2480,14 +2480,14 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ナレッジ 基盤 API が URL に 使う slug を 知る ため の 入口。",
+                "description": "ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ノート API が URL に 使う slug を 知る ため の 入口。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の 所属 ワークスペース 一覧",
+                "summary": "ノート の 所属 ワークスペース 一覧",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2528,7 +2528,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ワークスペース 作成",
+                "summary": "ノート の ワークスペース 作成",
                 "parameters": [
                     {
                         "description": "作成 内容 (name 必須。 slug は 空 なら 自動 採番)",
@@ -2603,7 +2603,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ワークスペース 権限 付与",
+                "summary": "ノート の ワークスペース 権限 付与",
                 "parameters": [
                     {
                         "type": "string",
@@ -2681,7 +2681,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ワークスペース 権限 取り消し",
+                "summary": "ノート の ワークスペース 権限 取り消し",
                 "parameters": [
                     {
                         "type": "string",
@@ -2746,7 +2746,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の グループ 作成",
+                "summary": "ノート の グループ 作成",
                 "parameters": [
                     {
                         "type": "string",
@@ -2819,7 +2819,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の グループ メンバー 追加",
+                "summary": "ノート の グループ メンバー 追加",
                 "parameters": [
                     {
                         "type": "string",
@@ -2886,7 +2886,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の グループ メンバー 削除",
+                "summary": "ノート の グループ メンバー 削除",
                 "parameters": [
                     {
                         "type": "string",
@@ -2955,7 +2955,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の メンバー 追加",
+                "summary": "ノート の メンバー 追加",
                 "parameters": [
                     {
                         "type": "string",
@@ -3030,7 +3030,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の メンバー 削除",
+                "summary": "ノート の メンバー 削除",
                 "parameters": [
                     {
                         "type": "string",
@@ -3098,7 +3098,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 取得",
+                "summary": "ノート の ページ 取得",
                 "parameters": [
                     {
                         "type": "string",
@@ -3155,7 +3155,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 削除",
+                "summary": "ノート の ページ 削除",
                 "parameters": [
                     {
                         "type": "string",
@@ -3218,7 +3218,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 改名",
+                "summary": "ノート の ページ 改名",
                 "parameters": [
                     {
                         "type": "string",
@@ -3301,7 +3301,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ アーカイブ",
+                "summary": "ノート の ページ アーカイブ",
                 "parameters": [
                     {
                         "type": "string",
@@ -3366,7 +3366,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 本文 置き換え",
+                "summary": "ノート の ページ 本文 置き換え",
                 "parameters": [
                     {
                         "type": "string",
@@ -3455,7 +3455,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 移動",
+                "summary": "ノート の ページ 移動",
                 "parameters": [
                     {
                         "type": "string",
@@ -3544,7 +3544,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 例外 設定",
+                "summary": "ノート の ページ 例外 設定",
                 "parameters": [
                     {
                         "type": "string",
@@ -3630,7 +3630,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 例外 解除",
+                "summary": "ノート の ページ 例外 解除",
                 "parameters": [
                     {
                         "type": "string",
@@ -3706,7 +3706,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の 共有 リンク 一覧",
+                "summary": "ノート の 共有 リンク 一覧",
                 "parameters": [
                     {
                         "type": "string",
@@ -3769,7 +3769,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の 共有 リンク 発行",
+                "summary": "ノート の 共有 リンク 発行",
                 "parameters": [
                     {
                         "type": "string",
@@ -3843,7 +3843,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の 共有 リンク 失効",
+                "summary": "ノート の 共有 リンク 失効",
                 "parameters": [
                     {
                         "type": "string",
@@ -3906,7 +3906,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 復帰",
+                "summary": "ノート の ページ 復帰",
                 "parameters": [
                     {
                         "type": "string",
@@ -3977,7 +3977,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 題名 検索",
+                "summary": "ノート の ページ 題名 検索",
                 "parameters": [
                     {
                         "type": "string",
@@ -4045,7 +4045,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の スペース 一覧",
+                "summary": "ノート の スペース 一覧",
                 "parameters": [
                     {
                         "type": "string",
@@ -4091,7 +4091,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
+                "description": "ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 プライベート で は key を 指定 でき ない (必ず 自動 採番。 key の 衝突 応答 から 他人 の プライベート スペース の 実在 が 読め ない よう に する ため)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。",
                 "consumes": [
                     "application/json"
                 ],
@@ -4101,7 +4101,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の スペース 作成",
+                "summary": "ノート の スペース 作成",
                 "parameters": [
                     {
                         "type": "string",
@@ -4183,7 +4183,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の スペース 改名",
+                "summary": "ノート の スペース 改名",
                 "parameters": [
                     {
                         "type": "string",
@@ -4266,7 +4266,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の スペース 権限 付与",
+                "summary": "ノート の スペース 権限 付与",
                 "parameters": [
                     {
                         "type": "string",
@@ -4345,7 +4345,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の スペース 権限 取り消し",
+                "summary": "ノート の スペース 権限 取り消し",
                 "parameters": [
                     {
                         "type": "string",
@@ -4408,7 +4408,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ ツリー",
+                "summary": "ノート の ページ ツリー",
                 "parameters": [
                     {
                         "type": "string",
@@ -4474,7 +4474,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の ページ 作成",
+                "summary": "ノート の ページ 作成",
                 "parameters": [
                     {
                         "type": "string",
@@ -4560,7 +4560,7 @@ const docTemplate = `{
                 "tags": [
                     "knowledge-base"
                 ],
-                "summary": "ナレッジ 基盤 の スペース 全員 主体 の 用意",
+                "summary": "ノート の スペース 全員 主体 の 用意",
                 "parameters": [
                     {
                         "type": "string",
@@ -7213,6 +7213,15 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 200,
                     "example": "開発部"
+                },
+                "visibility": {
+                    "description": "Visibility は省略時 workspace（チームスペース）。private は自分だけの区画で、\nメンバーなら誰でも作れる（作れる範囲の非対称は handler が判定する）。",
+                    "type": "string",
+                    "enum": [
+                        "workspace",
+                        "private"
+                    ],
+                    "example": "workspace"
                 }
             }
         },
@@ -7605,6 +7614,11 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "開発部"
+                },
+                "visibility": {
+                    "description": "Visibility はサイドバーの節分けに使う（workspace = チーム / private = プライベート）。",
+                    "type": "string",
+                    "example": "workspace"
                 }
             }
         },

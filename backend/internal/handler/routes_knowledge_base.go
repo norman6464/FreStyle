@@ -23,9 +23,13 @@ const (
 	kbShareLinkVerifyBurst     = 5
 	kbAddMemberPerMinute       = 30
 	kbAddMemberBurst           = 10
+	// スペース作成はプライベートの導入でメンバー全員に開いた書き込みの口。
+	// 人が手で作る回数としては十分に余裕があり、連打での作り散らかしだけを抑える。
+	kbCreateSpacePerMinute = 20
+	kbCreateSpaceBurst     = 10
 )
 
-// registerKnowledgeBaseRoutes はナレッジ基盤のページ操作と権限操作のエンドポイントを登録する。
+// registerKnowledgeBaseRoutes はノートのページ操作と権限操作のエンドポイントを登録する。
 //
 // ワークスペースは URL の slug から middleware が解決するので、ルートはすべて
 // /kb/workspaces/:workspaceSlug 以下に置き、その middleware を通す group に登録する
@@ -40,7 +44,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps, audit gin.
 	)
 }
 
-// registerKnowledgeBasePublicRoutes は認証不要のナレッジ基盤エンドポイントを登録する。
+// registerKnowledgeBasePublicRoutes は認証不要のノートエンドポイントを登録する。
 //
 // ここに置いてよいのは「ログインしていない相手が使う」ものだけ。今のところ共有リンクの
 // 検証 1 本で、認可はトークン（と任意のパスワード）そのものが担う。
@@ -92,9 +96,10 @@ func registerKnowledgeBaseRoutesWith(
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
 		usecase.NewListMemberWorkspacesUseCase(permissions),
+		usecase.NewJoinCompanyWorkspaceUseCase(permissions),
 		usecase.NewCreateWorkspaceUseCase(provisioner),
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
-		usecase.NewCreateSpaceUseCase(pages),
+		usecase.NewCreateSpaceUseCase(pages, provisioner),
 		usecase.NewListViewableSpacesUseCase(permissions),
 		usecase.NewCheckSpacePermissionUseCase(permissions),
 		usecase.NewRenameSpaceUseCase(pages),
@@ -166,7 +171,8 @@ func registerKnowledgeBaseRoutesWith(
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
 	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
-	kb.POST("/kb/workspaces/:workspaceSlug/spaces", wh.CreateSpace)
+	kb.POST("/kb/workspaces/:workspaceSlug/spaces",
+		middleware.RateLimitPerMinutePerUser(kbCreateSpacePerMinute, kbCreateSpaceBurst), wh.CreateSpace)
 	kb.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)
 	// 検索は /pages/:pageId と衝突しないよう /search を独立させる。
 	kb.GET("/kb/workspaces/:workspaceSlug/search", wh.SearchPages)

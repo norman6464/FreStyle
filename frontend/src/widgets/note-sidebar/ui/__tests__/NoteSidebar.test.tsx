@@ -57,8 +57,12 @@ function workspace(slug: string, name = slug): NoteWorkspace {
   return { slug, name, createdAt: '2026-08-01T00:00:00Z' };
 }
 
-function space(id: string, name = id): NoteSpace {
-  return { id, key: id, name, createdAt: '2026-08-01T00:00:00Z' };
+function space(
+  id: string,
+  name = id,
+  visibility: NoteSpace['visibility'] = 'workspace',
+): NoteSpace {
+  return { id, key: id, name, visibility, createdAt: '2026-08-01T00:00:00Z' };
 }
 
 function page(id: string, title = id): NotePage {
@@ -1651,5 +1655,114 @@ describe('ページの削除', () => {
     // ⋯ と同じメニュー（別のメニューを作らない）。
     expect(screen.getByRole('button', { name: '名前を変更' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+  });
+});
+
+describe('プライベートとチームの節分け', () => {
+  it('private のスペースはプライベート節に、workspace のスペースはチームスペース節に出る', async () => {
+    hoisted.fetchSpaces.mockResolvedValue([
+      space('space-1', '開発部'),
+      space('space-2', '自分の下書き', 'private'),
+    ]);
+    renderSidebar();
+    await screen.findByText('開発部');
+
+    const teamHeading = screen.getByRole('heading', { name: 'チームスペース' });
+    const privateHeading = screen.getByRole('heading', { name: 'プライベート' });
+    // DOM 上でプライベート節はチーム節より後ろ。private のスペースは
+    // プライベート見出しより後ろに出る（節の中に入っている）。
+    const privateSpace = await screen.findByText('自分の下書き');
+    expect(
+      Boolean(
+        privateHeading.compareDocumentPosition(privateSpace) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+    expect(
+      Boolean(teamHeading.compareDocumentPosition(privateHeading) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    // チームのスペース（開発部）はプライベート見出しより前。
+    expect(
+      Boolean(
+        screen.getByText('開発部').compareDocumentPosition(privateHeading) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+  });
+
+  it('プライベート節は空でも見出しと作る入口を出す', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    expect(screen.getByRole('heading', { name: 'プライベート' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'プライベートスペースを追加' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('自分だけに見える区画。＋で作れます。')).toBeInTheDocument();
+  });
+
+  it('＋から作ると visibility=private で作成される', async () => {
+    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き', 'private'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
+      target: { value: '自分の下書き' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.createSpace).toHaveBeenCalledWith('acme', {
+        name: '自分の下書き',
+        visibility: 'private',
+      }),
+    );
+    // 作ったスペースが（プライベート節に）現れる。
+    await screen.findByText('自分の下書き');
+  });
+
+  it('頼んだ見え方と違うスペースが返ったら失敗として知らせる', async () => {
+    // 列が届く前のサーバーが相手だと visibility を持たない応答が返る。そのまま
+    // 受け入れると、プライベートのつもりが全員に見えるスペースとして作られたまま
+    // 「成功」に見えてしまう。
+    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを追加' }));
+    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
+      target: { value: '自分の下書き' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'スペースを作成できませんでした'),
+    );
+  });
+
+  it('読み込みに失敗したらプライベート節の「まだ無い」案内を出さない', async () => {
+    // あるものを無いと断言しない。読み込み中も同じ扱いだが、そちらは「読み込み中…」の
+    // 文言が木の側にも出るため待ち先が曖昧になる。失敗は文言が 1 つに決まるので、
+    // 同じ規則（成功したときだけ言い切る）をこちらで固定する。
+    hoisted.fetchSpaces.mockRejectedValue(new Error('down'));
+    renderSidebar();
+
+    await screen.findByText('スペースを読み込めませんでした');
+    expect(screen.getByRole('heading', { name: 'プライベート' })).toBeInTheDocument();
+    expect(screen.queryByText('自分だけに見える区画。＋で作れます。')).not.toBeInTheDocument();
+  });
+
+  it('アーカイブ一覧では節を分けない（見出しを出さない）', async () => {
+    hoisted.fetchSpaces.mockResolvedValue([
+      space('space-1', '開発部'),
+      space('space-2', '自分の下書き', 'private'),
+    ]);
+    renderSidebar();
+    await screen.findByText('開発部');
+
+    fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'プライベート' })).not.toBeInTheDocument(),
+    );
   });
 });

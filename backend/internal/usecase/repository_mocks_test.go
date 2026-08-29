@@ -474,6 +474,11 @@ type mockKBPermissionRepo struct{ mock.Mock }
 
 var _ repository.KnowledgeBasePermissionRepository = (*mockKBPermissionRepo)(nil)
 
+func (m *mockKBPermissionRepo) FindUserCompanyWorkspaceID(ctx context.Context, userID uint64) (string, error) {
+	args := m.Called(ctx, userID)
+	return args.String(0), args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	args := m.Called(ctx, workspaceID, userID)
 	p, _ := args.Get(0).(*domain.Principal)

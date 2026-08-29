@@ -318,6 +318,7 @@ type Space struct {
 	WorkspaceID uuid.UUID
 	Key         string
 	Name        string
+	Visibility  string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

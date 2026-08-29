@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -10,7 +11,7 @@ import (
 )
 
 // workspaceProvisioner は [repository.WorkspaceProvisioner] の実装。
-// ナレッジ基盤は GORM を通さないので、sqlc 生成コード + 素の *sql.DB で書く。
+// ノートは GORM を通さないので、sqlc 生成コード + 素の *sql.DB で書く。
 type workspaceProvisioner struct {
 	db *sql.DB
 	q  *sqlcgen.Queries
@@ -86,5 +87,76 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 		return nil, err
 	}
 	created := toDomainWorkspace(ws)
+	return &created, nil
+}
+
+// ProvisionPrivateSpace はプライベートスペースと作成者への space_grant(admin) を
+// 1 トランザクションで作る（分けない理由は port の doc）。
+func (p *workspaceProvisioner) ProvisionPrivateSpace(
+	ctx context.Context, in repository.PrivateSpaceProvisionInput,
+) (*domain.Space, error) {
+	wsID, ok := kbParseID(in.WorkspaceID)
+	if !ok {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	// principals.user_id は bigint。範囲外はどの主体にも一致し得ないので先に止める
+	// （ProvisionWorkspace と同じ判断）。
+	creatorID, ok := toInt64ID(in.CreatorUserID)
+	if !ok {
+		return nil, outOfRangeIDError("user_id", in.CreatorUserID)
+	}
+	spaceID, err := kbNewID()
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+
+	qtx := p.q.WithTx(tx)
+	// 作成者の主体（＝ 所属そのもの）。無ければ非メンバーで、作らせない。
+	principal, err := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: creatorID, Valid: true},
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, repository.ErrPrincipalNotFound
+		}
+		return nil, err
+	}
+	row, err := qtx.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
+		ID:          spaceID,
+		WorkspaceID: wsID,
+		Key:         in.Key,
+		Name:        in.Name,
+		Visibility:  string(domain.SpaceVisibilityPrivate),
+	})
+	if err != nil {
+		// key の重複は一意制約を唯一の判定にする（CreateSpace と同じ）。
+		if isUniqueViolation(err) {
+			return nil, repository.ErrSpaceKeyTaken
+		}
+		if isForeignKeyViolation(err) {
+			return nil, repository.ErrWorkspaceNotFound
+		}
+		return nil, err
+	}
+	// ワークスペース既定が届かないスペースなので、この grant が作成者の唯一の入口。
+	if _, err := qtx.UpsertSpaceGrant(ctx, sqlcgen.UpsertSpaceGrantParams{
+		WorkspaceID: wsID,
+		SpaceID:     spaceID,
+		PrincipalID: principal.ID,
+		Role:        string(domain.GrantRoleAdmin),
+	}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	created := toDomainSpace(row)
 	return &created, nil
 }

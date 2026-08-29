@@ -57,9 +57,6 @@ export default function NotePage() {
   // 「ページ」という業務の語彙はこの画面が持ち、エディタは項目を並べるだけ。
   const subpageContext = useRef({ data, navigate, showToast });
   subpageContext.current = { data, navigate, showToast };
-  // ツールバーの描画先（ヘッダー直下の sticky バー）。callback ref で持つのは、
-  // 要素が現れた瞬間に再レンダーへつなげてポータルを張り直すため（useRef だと張られない）。
-  const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null);
   // 題名で Enter → 本文の先頭へ（見出しから書き出しへ流れるように移る）。
   const [bodyFocusSignal, setBodyFocusSignal] = useState(0);
 
@@ -90,19 +87,6 @@ export default function NotePage() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
-        {/*
-          書式ツールバーはヘッダー直下に固定する（題名より上）。本文の途中で書式を
-          変えるときにスクロールで手が届かなくならないよう、sticky で留める。
-          中身はエディタがポータルで描き込む（editor はエディタの中に閉じたまま）。
-        */}
-        {pageId && !loading && !error && data?.canEdit && (
-          // z-30: 本文側の浮遊 UI（コードブロックの操作バー z-10・その言語メニュー z-30）
-          // より上に出す。選択中に出るバブル（z-50）はこの上のまま — あちらは
-          // 選んだ場所に出るので、覆われると書式を変えられない。
-          <div className="sticky top-0 z-30 border-b border-surface-3 bg-surface">
-            <div ref={setToolbarHost} className="mx-auto w-full max-w-3xl px-6 py-1.5" />
-          </div>
-        )}
         <div className="mx-auto w-full max-w-3xl px-6 py-10">
           {!pageId && (
             <EmptyState
@@ -171,10 +155,6 @@ export default function NotePage() {
                 saveStatus={data.canEdit ? saveStatus : 'idle'}
                 ariaLabel={`${data.page.title} の本文`}
                 extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
-                // host が現れてから出す。最初の描画で host はまだ null なので、
-                // 常に true にすると一瞬だけ本文の直上に出てから跳ぶ（ちらつく）。
-                toolbar={toolbarHost !== null}
-                toolbarContainer={toolbarHost}
                 onNavigateToPage={(path) => navigate(path)}
                 focusSignal={bodyFocusSignal}
 

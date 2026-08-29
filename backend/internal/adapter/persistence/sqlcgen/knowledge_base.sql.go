@@ -230,7 +230,7 @@ func (q *Queries) GetPageSnapshot(ctx context.Context, arg GetPageSnapshotParams
 }
 
 const getSpace = `-- name: GetSpace :one
-SELECT id, workspace_id, key, name, created_at, updated_at FROM spaces
+SELECT id, workspace_id, key, name, visibility, created_at, updated_at FROM spaces
 WHERE workspace_id = $1 AND id = $2
 `
 
@@ -248,6 +248,7 @@ func (q *Queries) GetSpace(ctx context.Context, arg GetSpaceParams) (Space, erro
 		&i.WorkspaceID,
 		&i.Key,
 		&i.Name,
+		&i.Visibility,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -260,7 +261,7 @@ SELECT id, slug, name, is_active, created_at, updated_at FROM workspaces
 WHERE id = $1
 `
 
-// ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）のクエリ。
+// ノート（workspaces / spaces / pages / blocks / page_paths / page_snapshots）のクエリ。
 //
 // 作法（このファイル全体の前提）:
 //   - すべての SELECT / UPDATE / DELETE の WHERE に workspace_id を含める。
@@ -454,9 +455,9 @@ func (q *Queries) InsertPagePathSelf(ctx context.Context, arg InsertPagePathSelf
 }
 
 const insertSpace = `-- name: InsertSpace :one
-INSERT INTO spaces (id, workspace_id, "key", name)
-VALUES ($1, $2, $3, $4)
-RETURNING id, workspace_id, key, name, created_at, updated_at
+INSERT INTO spaces (id, workspace_id, "key", name, visibility)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, workspace_id, key, name, visibility, created_at, updated_at
 `
 
 type InsertSpaceParams struct {
@@ -464,15 +465,18 @@ type InsertSpaceParams struct {
 	WorkspaceID uuid.UUID
 	Key         string
 	Name        string
+	Visibility  string
 }
 
 // スペースの作成。key はワークスペース内で一意（uq_spaces_workspace_key）。
+// visibility の値は domain.SpaceVisibility が正（'workspace' / 'private'）。
 func (q *Queries) InsertSpace(ctx context.Context, arg InsertSpaceParams) (Space, error) {
 	row := q.db.QueryRowContext(ctx, insertSpace,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.Key,
 		arg.Name,
+		arg.Visibility,
 	)
 	var i Space
 	err := row.Scan(
@@ -480,6 +484,7 @@ func (q *Queries) InsertSpace(ctx context.Context, arg InsertSpaceParams) (Space
 		&i.WorkspaceID,
 		&i.Key,
 		&i.Name,
+		&i.Visibility,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

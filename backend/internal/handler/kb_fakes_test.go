@@ -12,7 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ナレッジ基盤 handler テスト用の fake repository。
+// ノート handler テスト用の fake repository。
 //
 // 権限は「事実」まで組み立てて domain.ResolvePagePermission に通す（判定結果を直接返さない）。
 // fake が判定を肩代わりすると、本番と違う規則でテストが緑になってしまうため。
@@ -50,7 +50,10 @@ func (f *kbFakePages) addWorkspace(id, slug string) {
 }
 
 func (f *kbFakePages) addSpace(workspaceID, spaceID string) {
-	f.spaces[spaceID] = &domain.Space{ID: spaceID, WorkspaceID: workspaceID, Key: spaceID, Name: spaceID}
+	f.spaces[spaceID] = &domain.Space{
+		ID: spaceID, WorkspaceID: workspaceID, Key: spaceID, Name: spaceID,
+		Visibility: domain.SpaceVisibilityWorkspace,
+	}
 }
 
 func (f *kbFakePages) addPage(p domain.Page) *domain.Page {
@@ -516,6 +519,8 @@ type kbFakePerms struct {
 	// ページ単位の perPage とは別に持つ（スペースの判定はページの例外を見ないため、
 	// 同じ入れ物にまとめると fake が本番より賢くなってしまう）。
 	scopeRoles map[kbScopeKey]domain.GrantRole
+	// companyWorkspaces は users.workspace_id の写し（会社のワークスペース）。
+	companyWorkspaces map[uint64]string
 	// grants は workspace_grants / space_grants の行。入れ物 ID が
 	// ワークスペースかスペースかの違いしかないので 1 つの map で持つ。
 	grants map[kbGrantKey]domain.GrantRole
@@ -547,16 +552,17 @@ var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
 
 func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakePerms {
 	return &kbFakePerms{
-		pages:        pages,
-		principals:   map[string]*domain.Principal{},
-		groupMembers: map[string]map[string]bool{},
-		restrictions: map[kbRestrictionKey]domain.RestrictionMode{},
-		allowLists:   map[kbAllowListKey]bool{},
-		perPage:      map[kbPermKey]domain.PagePermission{},
-		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
-		grants:       map[kbGrantKey]domain.GrantRole{},
-		shareLinks:   map[string]*domain.ShareLink{},
-		fallback:     fallback,
+		pages:             pages,
+		principals:        map[string]*domain.Principal{},
+		groupMembers:      map[string]map[string]bool{},
+		restrictions:      map[kbRestrictionKey]domain.RestrictionMode{},
+		allowLists:        map[kbAllowListKey]bool{},
+		perPage:           map[kbPermKey]domain.PagePermission{},
+		scopeRoles:        map[kbScopeKey]domain.GrantRole{},
+		companyWorkspaces: map[uint64]string{},
+		grants:            map[kbGrantKey]domain.GrantRole{},
+		shareLinks:        map[string]*domain.ShareLink{},
+		fallback:          fallback,
 	}
 }
 
@@ -625,9 +631,12 @@ func (f *kbFakePerms) mine(workspaceID, spaceID string, userID uint64) map[strin
 			out[groupID] = true
 		}
 	}
-	for _, p := range f.principals {
-		if p.WorkspaceID == workspaceID && p.Kind == domain.PrincipalKindSpaceAll && p.SpaceID != nil && *p.SpaceID == spaceID {
-			out[p.ID] = true
+	// private のスペースには space_all（そのスペースの全員）を届かせない（本番と同じ規則）。
+	if sp, ok := f.pages.spaces[spaceID]; !ok || sp.Visibility != domain.SpaceVisibilityPrivate {
+		for _, p := range f.principals {
+			if p.WorkspaceID == workspaceID && p.Kind == domain.PrincipalKindSpaceAll && p.SpaceID != nil && *p.SpaceID == spaceID {
+				out[p.ID] = true
+			}
 		}
 	}
 	return out
@@ -958,6 +967,11 @@ func (f *kbFakePerms) rolesAt(key kbScopeKey, workspaceID string, userID uint64)
 		roles = append(roles, role)
 	}
 	if key.scopeID != workspaceID {
+		// private のスペースにはワークスペース既定の役割を届かせない（本番のクエリと同じ規則。
+		// ここを写さないと「fake では見えるが本番では見えない」逆向きの穴になる）。
+		if sp, ok := f.pages.spaces[key.scopeID]; ok && sp.Visibility == domain.SpaceVisibilityPrivate {
+			return roles
+		}
 		if role, ok := f.scopeRoles[kbScopeKey{scopeID: workspaceID, userID: userID}]; ok {
 			roles = append(roles, role)
 		}
@@ -983,6 +997,20 @@ func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
 	return out, nil
+}
+
+// FindUserCompanyWorkspaceID は「そのユーザーの会社のワークスペース」を返す。
+// fake では companyWorkspaces（テストが明示的に設定する）だけを見る。
+func (f *kbFakePerms) FindUserCompanyWorkspaceID(_ context.Context, userID uint64) (string, error) {
+	if ws, ok := f.companyWorkspaces[userID]; ok {
+		return ws, nil
+	}
+	return "", repository.ErrWorkspaceNotFound
+}
+
+// setCompanyWorkspace はそのユーザーの会社のワークスペースを決める（本番の users.workspace_id）。
+func (f *kbFakePerms) setCompanyWorkspace(userID uint64, workspaceID string) {
+	f.companyWorkspaces[userID] = workspaceID
 }
 
 func (f *kbFakePerms) EnsureUserPrincipal(_ context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
@@ -1367,5 +1395,31 @@ func (f *kbFakeProvisioner) ProvisionWorkspace(
 	}
 	f.perms.setScopeRole(id, in.OwnerUserID, domain.GrantRoleAdmin)
 	c := *ws
+	return &c, nil
+}
+
+// ProvisionPrivateSpace はプライベートスペースと作成者への space_grant(admin) を
+// 「まとめて」入れる（本番は 1 トランザクション）。grant を省くと、ワークスペース既定が
+// 届かないスペースなので作った本人にも見えない — 本番で最も避けたい状態そのもの。
+func (f *kbFakeProvisioner) ProvisionPrivateSpace(
+	ctx context.Context, in repository.PrivateSpaceProvisionInput,
+) (*domain.Space, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	if f.perms.userPrincipal(in.WorkspaceID, in.CreatorUserID) == nil {
+		return nil, repository.ErrPrincipalNotFound
+	}
+	space := &domain.Space{
+		WorkspaceID: in.WorkspaceID,
+		Key:         in.Key,
+		Name:        in.Name,
+		Visibility:  domain.SpaceVisibilityPrivate,
+	}
+	if err := f.pages.CreateSpace(ctx, space); err != nil {
+		return nil, err
+	}
+	f.perms.setScopeRole(space.ID, in.CreatorUserID, domain.GrantRoleAdmin)
+	c := *space
 	return &c, nil
 }

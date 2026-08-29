@@ -25,7 +25,7 @@ var ErrUserNotFound = errors.New("user not found")
 
 // ErrLastWorkspaceAdmin は「ユーザーの admin が 1 人も残らなくなる操作」を断ったときに返す。
 //
-// ナレッジ基盤の権限は principals / grants / restrictions だけで閉じており、
+// ノートの権限は principals / grants / restrictions だけで閉じており、
 // 「アプリの super_admin なら通る」という抜け道を意図的に持たない（domain/grant.go）。
 // その裏返しとして、ワークスペースの admin が 0 人になった瞬間、そのワークスペースの
 // 権限を変えられる人は API のどこにも居なくなる。**元 admin を含めて誰も復旧できず、
@@ -116,7 +116,7 @@ type PageScopeFacts struct {
 	Facts   domain.ScopeFacts
 }
 
-// KnowledgeBasePermissionRepository はナレッジ基盤の権限モデル（principals /
+// KnowledgeBasePermissionRepository はノートの権限モデル（principals /
 // principal_members / workspace_grants / space_grants / page_restrictions / share_links）への
 // アクセスを提供する。
 //
@@ -130,6 +130,13 @@ type PageScopeFacts struct {
 // 読み取りは pages / page_paths をまたぐ（実効権限の解決に closure が要る）が、
 // 境界を決めるのは書き込みのトランザクション単位なので問題にしない。
 type KnowledgeBasePermissionRepository interface {
+	// FindUserCompanyWorkspaceID はそのユーザーの会社に対応するワークスペース ID を返す
+	// （users.workspace_id）。会社に属さないユーザーは ErrWorkspaceNotFound。
+	//
+	// 所属の正本は principals の行で、この値は「会社のワークスペースへ自動で入れてよいか」の
+	// 根拠にだけ使う。所属の表現を 2 つ持たないため、入れた事実は必ず principals に書く。
+	FindUserCompanyWorkspaceID(ctx context.Context, userID uint64) (string, error)
+
 	// EnsureUserPrincipal はユーザーの主体を作る（既にあればそれを返す）。
 	// この行があること自体がワークスペース所属を意味する。
 	EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error)
@@ -157,7 +164,7 @@ type KnowledgeBasePermissionRepository interface {
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
 	// ListMemberWorkspaces はそのユーザーが所属するワークスペースを返す（slug 順）。
 	// 所属は principals（kind='user'）の行が唯一の表現なので、その JOIN がそのまま答えになる。
-	// ナレッジ基盤で唯一テナントを跨いで読むメソッド（どのテナントに入れるかを答える口）で、
+	// ノートで唯一テナントを跨いで読むメソッド（どのテナントに入れるかを答える口）で、
 	// 絞り込みは user_id だけが行う。
 	ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error)
 

@@ -6,7 +6,7 @@ import (
 	_ "embed"
 )
 
-// knowledgeBaseSchemaDDL はナレッジ基盤の骨格 6 テーブルの DDL（実スキーマの正本）。
+// knowledgeBaseSchemaDDL はノートの骨格 6 テーブルの DDL（実スキーマの正本）。
 // バイナリに埋め込んで起動時に流すため、デプロイ物とスキーマ定義が必ず同じ版になる。
 //
 //go:embed schema/knowledge_base.sql
@@ -18,7 +18,7 @@ var knowledgeBaseSchemaDDL string
 //go:embed schema/knowledge_base_permissions.sql
 var knowledgeBasePermissionSchemaDDL string
 
-// ApplyKnowledgeBaseSchema はナレッジ基盤（workspaces / spaces / pages / blocks /
+// ApplyKnowledgeBaseSchema はノート（workspaces / spaces / pages / blocks /
 // page_paths / page_snapshots と、権限モデルの principals / principal_members /
 // workspace_grants / space_grants / page_restrictions / page_allow_lists / share_links）の
 // スキーマを適用する（冪等）。
@@ -31,7 +31,7 @@ var knowledgeBasePermissionSchemaDDL string
 // 失敗したらエラーを返して起動を止める（スキーマが半端なまま listen を始めない）。
 func ApplyKnowledgeBaseSchema(ctx context.Context, db *sql.DB) error {
 	return applyEmbeddedSchema(
-		ctx, db, "ナレッジ基盤スキーマ",
+		ctx, db, "ノートスキーマ",
 		knowledgeBaseSchemaDDL, knowledgeBasePermissionSchemaDDL,
 	)
 }

@@ -16,7 +16,7 @@ import (
 )
 
 // knowledgeBaseRepository は [repository.KnowledgeBaseRepository] の実装。
-// ナレッジ基盤は GORM を通さない方針（スキーマの正本は infra/database/schema/knowledge_base.sql）
+// ノートは GORM を通さない方針（スキーマの正本は infra/database/schema/knowledge_base.sql）
 // のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
 // 複数テーブルにまたがる書き込み（ページ作成・移動・本文置き換え）は BeginTx で
 // この層に閉じたトランザクションにする（usecase に *sql.Tx を漏らさない）。
@@ -25,7 +25,7 @@ type knowledgeBaseRepository struct {
 	q  *sqlcgen.Queries
 }
 
-// NewKnowledgeBaseRepository はナレッジ基盤の repository を組み立てる。
+// NewKnowledgeBaseRepository はノートの repository を組み立てる。
 func NewKnowledgeBaseRepository(db *sql.DB) repository.KnowledgeBaseRepository {
 	return &knowledgeBaseRepository{db: db, q: sqlcgen.New(db)}
 }
@@ -96,6 +96,7 @@ func toDomainSpace(row sqlcgen.Space) domain.Space {
 		WorkspaceID: row.WorkspaceID.String(),
 		Key:         row.Key,
 		Name:        row.Name,
+		Visibility:  domain.SpaceVisibility(row.Visibility),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
@@ -285,11 +286,18 @@ func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain
 	if err != nil {
 		return err
 	}
+	// ゼロ値（visibility 未指定の呼び出し）は既定の 'workspace' に倒す。
+	// 空文字のまま送ると CHECK 制約（ck_spaces_visibility）で落ちる。
+	visibility := space.Visibility
+	if visibility == "" {
+		visibility = domain.SpaceVisibilityWorkspace
+	}
 	row, err := r.q.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Key:         space.Key,
 		Name:        space.Name,
+		Visibility:  string(visibility),
 	})
 	if err != nil {
 		// key の重複（uq_spaces_workspace_key）は入口の検証では防げない

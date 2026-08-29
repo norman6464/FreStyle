@@ -15,7 +15,7 @@ import (
 )
 
 // knowledgeBasePermissionRepository は [repository.KnowledgeBasePermissionRepository] の実装。
-// ナレッジ基盤は GORM を通さない方針のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
+// ノートは GORM を通さない方針のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
 //
 // # ユーザー ID の境界（uint64 → bigint）について
 //
@@ -43,7 +43,7 @@ type knowledgeBasePermissionRepository struct {
 	q  *sqlcgen.Queries
 }
 
-// NewKnowledgeBasePermissionRepository はナレッジ基盤の権限 repository を組み立てる。
+// NewKnowledgeBasePermissionRepository はノートの権限 repository を組み立てる。
 func NewKnowledgeBasePermissionRepository(db *sql.DB) repository.KnowledgeBasePermissionRepository {
 	return &knowledgeBasePermissionRepository{db: db, q: sqlcgen.New(db)}
 }
@@ -143,6 +143,29 @@ func restrictionFacts(restricted, deniedAnywhere, hasAllowList, allowedAtNearest
 		HasAllowList:     hasAllowList,
 		AllowedAtNearest: allowedAtNearest,
 	}
+}
+
+// FindUserCompanyWorkspaceID はそのユーザーの会社に対応するワークスペース ID を返す。
+// 会社に属さない・削除済み・範囲外の ID はいずれも ErrWorkspaceNotFound
+// （呼び出し側の分岐を増やさない。どれも「自動で入れる先が無い」で同じ扱いになる）。
+func (r *knowledgeBasePermissionRepository) FindUserCompanyWorkspaceID(
+	ctx context.Context, userID uint64,
+) (string, error) {
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return "", repository.ErrWorkspaceNotFound
+	}
+	row, err := r.q.GetUserCompanyWorkspaceID(ctx, uid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", repository.ErrWorkspaceNotFound
+		}
+		return "", err
+	}
+	if !row.Valid {
+		return "", repository.ErrWorkspaceNotFound
+	}
+	return row.UUID.String(), nil
 }
 
 func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
@@ -473,7 +496,7 @@ func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Con
 // # なぜここまでするのか
 //
 // ワークスペースの admin が 0 人になると、そのワークスペースの権限を変えられる人は
-// API のどこにも居なくなる。ナレッジ基盤は「アプリの super_admin なら通る」という
+// API のどこにも居なくなる。ノートは「アプリの super_admin なら通る」という
 // 抜け道を意図的に持たないため、**元 admin を含めて誰も復旧できない**（DB を直接
 // 触るしかない）。逆に「最後の 1 人は自分を外せない」で詰まる場面は、先に別の誰かへ
 // admin を渡せば必ず解ける。取り返しがつかない側だけを禁じる。
@@ -1255,6 +1278,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceSpaceScopeFacts(
 					WorkspaceID: row.WorkspaceID,
 					Key:         row.Key,
 					Name:        row.Name,
+					Visibility:  row.Visibility,
 					CreatedAt:   row.CreatedAt,
 					UpdatedAt:   row.UpdatedAt,
 				}),

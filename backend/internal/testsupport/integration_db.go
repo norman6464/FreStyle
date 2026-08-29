@@ -104,7 +104,7 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	if err := database.ApplyRichDocumentConstraints(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
 	}
-	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）も同じ明示 DDL を流す。
+	// ノート（workspaces / spaces / pages / blocks / …）も同じ明示 DDL を流す。
 	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
 	}

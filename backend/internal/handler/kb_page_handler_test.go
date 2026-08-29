@@ -224,7 +224,7 @@ func kbRoutePattern(p string) string {
 
 // 認可テストの表に載っていないルートが増えていないかを見る。
 // 表に足し忘れたエンドポイントは認可の検証をすり抜けてしまうので、ここで機械的に塞ぐ。
-// 登録されているナレッジ基盤のルートが、1 本残らず認可テストの表に載っていることを見る。
+// 登録されているノートのルートが、1 本残らず認可テストの表に載っていることを見る。
 //
 // # なぜ結合テストではなく単体テストに置いているのか
 //
@@ -245,19 +245,19 @@ func kbRoutePattern(p string) string {
 //
 // gin のルート表からは middleware が見えないので、「このルートに audit を挟んだか」は
 // ここでは分からない。それを見ているのは表を総当たりする側のテスト
-// （Test_ナレッジ基盤権限API_権限を変える経路は全て監査ログに残る）で、この検査は
+// （Test_ノート権限API_権限を変える経路は全て監査ログに残る）で、この検査は
 // 「新しいルートを必ずその表へ載せさせる」ことでそちらへ橋渡ししている。
-func Test_ナレッジ基盤API_登録済みルートは全て認可テストの対象になっている(t *testing.T) {
+func Test_ノートAPI_登録済みルートは全て認可テストの対象になっている(t *testing.T) {
 	covered := map[string]bool{
 		http.MethodGet + " " + kbRoutePattern(kbTreePath):    true,
 		http.MethodGet + " " + kbWorkspacesPath:              true,
 		http.MethodPost + " " + kbWorkspacesPath:             true,
 		http.MethodGet + " " + kbRoutePattern(kbSpacesPath):  true,
 		http.MethodPost + " " + kbRoutePattern(kbSpacesPath): true,
-		// 下 2 本は Test_ナレッジ基盤API_スペース改名の認可 / 題名検索 が直接叩く。
+		// 下 2 本は Test_ノートAPI_スペース改名の認可 / 題名検索 が直接叩く。
 		http.MethodPatch + " " + kbRoutePattern(kbSpacePatchPath): true,
 		http.MethodGet + " " + kbRoutePattern(kbSearchPath):       true,
-		// /p/{pageId} の解決。Test_ナレッジ基盤API_IDだけでの解決 が直接叩く。
+		// /p/{pageId} の解決。Test_ノートAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
 	}
 	for _, e := range kbEndpoints {
@@ -285,7 +285,7 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 	}
 }
 
-func Test_ナレッジ基盤API_編集できるユーザーは全経路を通れる(t *testing.T) {
+func Test_ノートAPI_編集できるユーザーは全経路を通れる(t *testing.T) {
 	for _, e := range kbEndpoints {
 		t.Run(e.name, func(t *testing.T) {
 			f := newKbFixture(kbCanEdit, kbUserID)
@@ -295,7 +295,7 @@ func Test_ナレッジ基盤API_編集できるユーザーは全経路を通れ
 	}
 }
 
-func Test_ナレッジ基盤API_権限が無いユーザーは全経路で404(t *testing.T) {
+func Test_ノートAPI_権限が無いユーザーは全経路で404(t *testing.T) {
 	for _, e := range kbEndpoints {
 		t.Run(e.name, func(t *testing.T) {
 			f := newKbFixture(kbNoPerm, kbUserID)
@@ -314,7 +314,7 @@ func Test_ナレッジ基盤API_権限が無いユーザーは全経路で404(t 
 	})
 }
 
-func Test_ナレッジ基盤API_閲覧だけのユーザーは書き込み経路で403(t *testing.T) {
+func Test_ノートAPI_閲覧だけのユーザーは書き込み経路で403(t *testing.T) {
 	for _, e := range kbEndpoints {
 		t.Run(e.name, func(t *testing.T) {
 			f := newKbFixture(kbCanView, kbUserID)
@@ -329,7 +329,7 @@ func Test_ナレッジ基盤API_閲覧だけのユーザーは書き込み経路
 	}
 }
 
-func Test_ナレッジ基盤API_別ワークスペースのslugは全経路で404(t *testing.T) {
+func Test_ノートAPI_別ワークスペースのslugは全経路で404(t *testing.T) {
 	for _, e := range kbEndpoints {
 		t.Run(e.name, func(t *testing.T) {
 			// 権限は最強にしておく。それでも所属していないテナントには触れないことを見る。
@@ -346,7 +346,7 @@ func Test_ナレッジ基盤API_別ワークスペースのslugは全経路で40
 	})
 }
 
-func Test_ナレッジ基盤API_存在しないslugは所属していないslugと区別できない(t *testing.T) {
+func Test_ノートAPI_存在しないslugは所属していないslugと区別できない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	unknown := f.do(t, http.MethodGet,
 		kbFill("/api/v2/kb/workspaces/{slug}/pages/{page}", "no-such-workspace", kbChildPageID), "")
@@ -359,7 +359,7 @@ func Test_ナレッジ基盤API_存在しないslugは所属していないslug�
 		"slug の総当たりでテナントの実在が分からないこと")
 }
 
-func Test_ナレッジ基盤API_未認証は全経路で401(t *testing.T) {
+func Test_ノートAPI_未認証は全経路で401(t *testing.T) {
 	for _, e := range kbEndpoints {
 		t.Run(e.name, func(t *testing.T) {
 			f := newKbFixture(kbCanEdit, 0)
@@ -369,7 +369,7 @@ func Test_ナレッジ基盤API_未認証は全経路で401(t *testing.T) {
 	}
 }
 
-func Test_ナレッジ基盤API_存在しないページと権限の無いページは区別できない(t *testing.T) {
+func Test_ノートAPI_存在しないページと権限の無いページは区別できない(t *testing.T) {
 	const missingPageID = "0198a000-0000-7000-8000-00000000dead"
 	for _, e := range kbEndpoints {
 		t.Run(e.name, func(t *testing.T) {
@@ -390,7 +390,7 @@ func Test_ナレッジ基盤API_存在しないページと権限の無いペー
 	}
 }
 
-func Test_ナレッジ基盤ツリー_見えない親の子は根に浮かない(t *testing.T) {
+func Test_ノートツリー_見えない親の子は根に浮かない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// root(見えない) → child(見える) → grandchild(見える)、dest(見える) の形にする。
 	childID := kbChildPageID
@@ -411,7 +411,7 @@ func Test_ナレッジ基盤ツリー_見えない親の子は根に浮かない
 	assert.Empty(t, tree[0].Children)
 }
 
-func Test_ナレッジ基盤ツリー_見える親の下に子がぶら下がる(t *testing.T) {
+func Test_ノートツリー_見える親の下に子がぶら下がる(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
 	require.Equal(t, http.StatusOK, w.Code)
@@ -426,7 +426,7 @@ func Test_ナレッジ基盤ツリー_見える親の下に子がぶら下がる
 	assert.Equal(t, kbDestPageID, tree[1].Page.ID)
 }
 
-func Test_ナレッジ基盤ツリー_アーカイブ済みページは現れない(t *testing.T) {
+func Test_ノートツリー_アーカイブ済みページは現れない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	f.pages.pages[kbChildPageID].ArchivedAt = &at
@@ -441,7 +441,7 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みページは現れな
 	assert.Empty(t, tree[0].Children)
 }
 
-func Test_ナレッジ基盤ツリー_見えない子は有無だけ返す(t *testing.T) {
+func Test_ノートツリー_見えない子は有無だけ返す(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// 応答に混ざっていないことを確かめたいので、schema の項目名と衝突しない題名にする
 	// （既定の "child" は children 項目に含まれてしまい、検査が素通りする）。
@@ -467,7 +467,7 @@ func Test_ナレッジ基盤ツリー_見えない子は有無だけ返す(t *te
 	assert.NotContains(t, w.Body.String(), "機密の議事録", "題名は応答のどこにも出さない")
 }
 
-func Test_ナレッジ基盤ツリー_スペース直下の見えないページも印に出る(t *testing.T) {
+func Test_ノートツリー_スペース直下の見えないページも印に出る(t *testing.T) {
 	// 段ごとに「見えない子が居る」と示す以上、いちばん上の段だけ黙るのは筋が通らない。
 	// 1 枚でも見えていればスペースの実在は既に分かっているので、実在は新たに漏れない。
 	f := newKbFixture(kbCanEdit, kbUserID)
@@ -483,7 +483,7 @@ func Test_ナレッジ基盤ツリー_スペース直下の見えないページ
 	assert.True(t, body.HasHiddenChildren, "スペース直下で伏せた分を印に出す")
 }
 
-func Test_ナレッジ基盤ツリー_見える根が無いときは存在しないスペースと同じ応答(t *testing.T) {
+func Test_ノートツリー_見える根が無いときは存在しないスペースと同じ応答(t *testing.T) {
 	// 根が非公開で、その子だけ閲覧できる形。木には 1 行も出ない。
 	// このとき印を返すと、存在しないスペースと撃ち分けられて実在が漏れる。
 	f := newKbFixture(kbCanEdit, kbUserID)
@@ -501,7 +501,7 @@ func Test_ナレッジ基盤ツリー_見える根が無いときは存在しな
 		"存在しないスペースの応答と 1 バイトも変わらないこと")
 }
 
-func Test_ナレッジ基盤ツリー_並び順のキーを応答に出さない(t *testing.T) {
+func Test_ノートツリー_並び順のキーを応答に出さない(t *testing.T) {
 	// 分数インデックスの整数部は末尾追加のたびに 1 ずつ増える。a0 と a3 が見えて
 	// a1 a2 が見えなければ、その間に 2 枚あることがそのまま読める。
 	// hasHiddenChildren を有無に落として枚数を伏せた意味が、この 1 項目で消える。
@@ -516,7 +516,7 @@ func Test_ナレッジ基盤ツリー_並び順のキーを応答に出さない
 	assert.NotContains(t, w.Body.String(), `"a2"`)
 }
 
-func Test_ナレッジ基盤作成_URLのスペースが実在するかを応答から読めない(t *testing.T) {
+func Test_ノート作成_URLのスペースが実在するかを応答から読めない(t *testing.T) {
 	// 親を指定して作るとき、URL の spaceId は「親のスペースと同じか」の比較にしか使わない。
 	// スペースを引いて確かめると、実在しない ID は 404、実在する別の ID は 400 になり、
 	// 応答の差からそのスペースが在るかどうかが分かってしまう。
@@ -545,7 +545,7 @@ func Test_ナレッジ基盤作成_URLのスペースが実在するかを応答
 	assert.JSONEq(t, `{"error":"parent_space_mismatch"}`, onExisting.Body.String())
 }
 
-func Test_ナレッジ基盤ツリー_アーカイブ済みの一覧(t *testing.T) {
+func Test_ノートツリー_アーカイブ済みの一覧(t *testing.T) {
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	archivedPath := kbFill(kbTreePath, kbWorkspaceSlug, "") + "?archived=true"
 
@@ -611,7 +611,7 @@ func Test_ナレッジ基盤ツリー_アーカイブ済みの一覧(t *testing.
 	})
 }
 
-func Test_ナレッジ基盤移動_親を省くとスペース直下へ戻る(t *testing.T) {
+func Test_ノート移動_親を省くとスペース直下へ戻る(t *testing.T) {
 	movePath := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/move"
 
 	// snapshot は「断ったら何も書き換わらない」を確かめるための控え。ParentID だけを見ると、
@@ -667,7 +667,7 @@ func Test_ナレッジ基盤移動_親を省くとスペース直下へ戻る(t 
 	}
 }
 
-func Test_ナレッジ基盤移動_落とした位置に置く(t *testing.T) {
+func Test_ノート移動_落とした位置に置く(t *testing.T) {
 	movePath := func(pageID string) string {
 		return "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + pageID + "/move"
 	}
@@ -787,7 +787,7 @@ func Test_ナレッジ基盤移動_落とした位置に置く(t *testing.T) {
 	})
 }
 
-func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリー(t *testing.T) {
+func Test_ノートツリー_存在しないスペースは空のツリー(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	w := f.do(t, http.MethodGet,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/0198a000-0000-7000-8000-00000000beef/pages", "")
@@ -797,7 +797,7 @@ func Test_ナレッジ基盤ツリー_存在しないスペースは空のツリ
 		"存在しないスペースと中身が見えないスペースを撃ち分けない")
 }
 
-func Test_ナレッジ基盤移動_移動先の親の権限も見る(t *testing.T) {
+func Test_ノート移動_移動先の親の権限も見る(t *testing.T) {
 	movePath := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/move"
 	body := `{"parentId":"` + kbDestPageID + `"}`
 
@@ -826,7 +826,7 @@ func Test_ナレッジ基盤移動_移動先の親の権限も見る(t *testing.
 	})
 }
 
-func Test_ナレッジ基盤API_アーカイブ済みページの変更は409(t *testing.T) {
+func Test_ノートAPI_アーカイブ済みページの変更は409(t *testing.T) {
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	cases := []struct {
 		name   string
@@ -848,7 +848,7 @@ func Test_ナレッジ基盤API_アーカイブ済みページの変更は409(t 
 	}
 }
 
-func Test_ナレッジ基盤API_アーカイブは冪等で復帰すると現役に戻る(t *testing.T) {
+func Test_ノートAPI_アーカイブは冪等で復帰すると現役に戻る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbRootPageID
 
@@ -862,7 +862,7 @@ func Test_ナレッジ基盤API_アーカイブは冪等で復帰すると現役
 	assert.Nil(t, f.pages.pages[kbChildPageID].ArchivedAt, "一緒にアーカイブした子孫も戻る")
 }
 
-func Test_ナレッジ基盤API_入力の検証(t *testing.T) {
+func Test_ノートAPI_入力の検証(t *testing.T) {
 	cases := []struct {
 		name   string
 		method string
@@ -910,7 +910,7 @@ func Test_ナレッジ基盤API_入力の検証(t *testing.T) {
 	}
 }
 
-func Test_ナレッジ基盤API_取得は本文と作成したページを返す(t *testing.T) {
+func Test_ノートAPI_取得は本文と作成したページを返す(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	created := f.do(t, http.MethodPost,
@@ -941,7 +941,7 @@ func Test_ナレッジ基盤API_取得は本文と作成したページを返す
 
 // ページ参照（pageRef）は本文のインライン内容として往復し、読み出し時に
 // 読み手が閲覧できる参照だけ現在の題名へ差し替わる（正本は pages.title）。
-func Test_ナレッジ基盤API_本文のページ参照は読み出し時に現在の題名になる(t *testing.T) {
+func Test_ノートAPI_本文のページ参照は読み出し時に現在の題名になる(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	refDoc := `{"type":"doc","content":[{"type":"paragraph","content":[` +
@@ -961,7 +961,7 @@ func Test_ナレッジ基盤API_本文のページ参照は読み出し時に現
 	assert.NotContains(t, string(doc.Doc), `"title":"無題"`)
 }
 
-func Test_ナレッジ基盤API_閲覧できない参照の題名は差し替えない(t *testing.T) {
+func Test_ノートAPI_閲覧できない参照の題名は差し替えない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// 参照先そのものに自分への deny を張る（本文を読むページは見える）。
 	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
@@ -988,7 +988,7 @@ func Test_ナレッジ基盤API_閲覧できない参照の題名は差し替え
 
 // 題名の焼き込み（解決済みの題名が編集者の保存で本文に残り、閲覧できない読み手へ
 // 漏れる）を塞ぐ回帰: 解決済み title 入りの doc を保存しても、保存側には残らない。
-func Test_ナレッジ基盤API_解決済みの題名を保存しても本文に焼き込まれない(t *testing.T) {
+func Test_ノートAPI_解決済みの題名を保存しても本文に焼き込まれない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	child := f.pages.pages[kbChildPageID]
 
@@ -1013,7 +1013,7 @@ func Test_ナレッジ基盤API_解決済みの題名を保存しても本文に
 }
 
 // 削除は子孫ごと消え、木にも残らない（アーカイブと違い戻す口も無い）。
-func Test_ナレッジ基盤API_削除は子孫ごと消える(t *testing.T) {
+func Test_ノートAPI_削除は子孫ごと消える(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	created := f.do(t, http.MethodPost,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/"+kbSpaceID+"/pages",
@@ -1040,7 +1040,7 @@ func Test_ナレッジ基盤API_削除は子孫ごと消える(t *testing.T) {
 
 // 削除は戻せないので、配下に 1 枚でも編集できないページがあれば何もしない
 // （アーカイブと同じ二択: 全部できるか、何もしないか）。
-func Test_ナレッジ基盤API_配下に編集できないページがあれば削除しない(t *testing.T) {
+func Test_ノートAPI_配下に編集できないページがあれば削除しない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	created := f.do(t, http.MethodPost,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/spaces/"+kbSpaceID+"/pages",
@@ -1066,7 +1066,7 @@ func Test_ナレッジ基盤API_配下に編集できないページがあれば
 
 // アーカイブ済みのページも（権限があれば）直接削除できる。「隠してから完全に消す」
 // という自然な片付けの経路を API の水準で保つ（UI の入口は現役の行のみ）。
-func Test_ナレッジ基盤API_アーカイブ済みのページも削除できる(t *testing.T) {
+func Test_ノートAPI_アーカイブ済みのページも削除できる(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	archived := f.do(t, http.MethodPost,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/archive", "")
@@ -1079,7 +1079,7 @@ func Test_ナレッジ基盤API_アーカイブ済みのページも削除でき
 	assert.Nil(t, f.pages.pages[kbChildPageID])
 }
 
-func Test_ナレッジ基盤API_削除のrepository失敗は500(t *testing.T) {
+func Test_ノートAPI_削除のrepository失敗は500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.pages.failWith = errors.New("db down")
 
@@ -1092,7 +1092,7 @@ func Test_ナレッジ基盤API_削除のrepository失敗は500(t *testing.T) {
 
 // パンくず: 解決応答に閲覧できる祖先が根から順に載り、deny された祖先は行ごと消える
 // （題名どころか実在も知らせない — 木と同じ規則）。
-func Test_ナレッジ基盤API_IDだけの解決にパンくずが載る(t *testing.T) {
+func Test_ノートAPI_IDだけの解決にパンくずが載る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// 3 段の木: root → child → grandchild。
 	created := f.do(t, http.MethodPost,
@@ -1124,7 +1124,7 @@ func Test_ナレッジ基盤API_IDだけの解決にパンくずが載る(t *tes
 
 // ResolveByID（/p の入口）は Get と別経路で WorkspaceID / UserID を組み立てるため、
 // 題名解決が挟まっていることをこちらでも独立に固定する。
-func Test_ナレッジ基盤API_IDだけの解決でも参照の題名が現在の値になる(t *testing.T) {
+func Test_ノートAPI_IDだけの解決でも参照の題名が現在の値になる(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	refDoc := `{"type":"doc","content":[{"type":"paragraph","content":[` +
@@ -1140,7 +1140,7 @@ func Test_ナレッジ基盤API_IDだけの解決でも参照の題名が現在�
 	assert.Contains(t, got.Body.String(), `"title":"`+child.Title+`"`)
 }
 
-func Test_ナレッジ基盤API_所属判定が失敗したら500(t *testing.T) {
+func Test_ノートAPI_所属判定が失敗したら500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.membersErr = errors.New("db down")
 
@@ -1150,7 +1150,7 @@ func Test_ナレッジ基盤API_所属判定が失敗したら500(t *testing.T) 
 		"DB 障害を 404 に潰すと、落ちていることに気づけない")
 }
 
-func Test_ナレッジ基盤API_repositoryの失敗は500(t *testing.T) {
+func Test_ノートAPI_repositoryの失敗は500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.pages.failWith = errors.New("db down")
 
@@ -1169,7 +1169,7 @@ func Test_ナレッジ基盤API_repositoryの失敗は500(t *testing.T) {
 // usecase 側の必須チェック（workspaceID is required）で同じ 500 になり、
 // ガードが在るか無いかを区別できない。ここでは kbScope を直接呼び、
 // ガードを外したときに後続へ進んでしまうことまで見る。
-func Test_ナレッジ基盤API_ワークスペース未確定ならkbScopeが止める(t *testing.T) {
+func Test_ノートAPI_ワークスペース未確定ならkbScopeが止める(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	run := func(t *testing.T, withWorkspace bool) (*httptest.ResponseRecorder, bool) {
@@ -1208,7 +1208,7 @@ func Test_ナレッジ基盤API_ワークスペース未確定ならkbScopeが�
 
 // 配線のミス（middleware を通さない group への登録）が「成功する経路」にならないことを
 // 端から端まで見る。どの層で止まるかまでは固定しない（kbScope のガード自体は上のテスト）。
-func Test_ナレッジ基盤API_middlewareを通らないルートは成功しない(t *testing.T) {
+func Test_ノートAPI_middlewareを通らないルートは成功しない(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	pages := newKbFakePages()
 	perms := newKbFakePerms(pages, kbCanEdit)
@@ -1243,7 +1243,7 @@ func Test_ナレッジ基盤API_middlewareを通らないルートは成功し�
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func Test_ナレッジ基盤ツリー_事実の収集が失敗したら500(t *testing.T) {
+func Test_ノートツリー_事実の収集が失敗したら500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.listFactsErr = errors.New("db down")
 
@@ -1252,7 +1252,7 @@ func Test_ナレッジ基盤ツリー_事実の収集が失敗したら500(t *te
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func Test_ナレッジ基盤アーカイブ_repositoryの失敗は500(t *testing.T) {
+func Test_ノートアーカイブ_repositoryの失敗は500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.pages.failWith = errors.New("db down")
 
@@ -1262,7 +1262,7 @@ func Test_ナレッジ基盤アーカイブ_repositoryの失敗は500(t *testing
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func Test_ナレッジ基盤移動_スペース全員宛ての例外が失効する移動は409(t *testing.T) {
+func Test_ノート移動_スペース全員宛ての例外が失効する移動は409(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// 移動先スペース以外の「全員」宛て例外がサブツリーに残っている状態を repository が
 	// 同一トランザクションで検出して中止する経路。move handler は NewSpaceID を渡さないので、
@@ -1278,7 +1278,7 @@ func Test_ナレッジ基盤移動_スペース全員宛ての例外が失効す
 	assert.JSONEq(t, `{"error":"space_restriction_voided"}`, w.Body.String())
 }
 
-func Test_ナレッジ基盤アーカイブ_配下に編集できないページがあれば何もせず403(t *testing.T) {
+func Test_ノートアーカイブ_配下に編集できないページがあれば何もせず403(t *testing.T) {
 	// 子を直接 rename すれば 403 になる相手が、親のアーカイブ経由なら書き換えられる
 	// （見えない子まで巻き込む）状態を塞ぐ。edit を外した場合と view ごと外した場合の両方。
 	cases := map[string]domain.Capability{
@@ -1301,7 +1301,7 @@ func Test_ナレッジ基盤アーカイブ_配下に編集できないページ
 	}
 }
 
-func Test_ナレッジ基盤アーカイブ_子孫まで編集できるなら通る(t *testing.T) {
+func Test_ノートアーカイブ_子孫まで編集できるなら通る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	w := f.do(t, http.MethodPost,
@@ -1312,7 +1312,7 @@ func Test_ナレッジ基盤アーカイブ_子孫まで編集できるなら通
 	assert.NotNil(t, f.pages.pages[kbChildPageID].ArchivedAt)
 }
 
-func Test_ナレッジ基盤復帰_配下に編集できないページがあれば何もせず403(t *testing.T) {
+func Test_ノート復帰_配下に編集できないページがあれば何もせず403(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	f.pages.pages[kbRootPageID].ArchivedAt = &at
@@ -1327,7 +1327,7 @@ func Test_ナレッジ基盤復帰_配下に編集できないページがあれ
 	assert.NotNil(t, f.pages.pages[kbRootPageID].ArchivedAt, "アーカイブ済みのまま")
 }
 
-func Test_ナレッジ基盤アーカイブ_サブツリーの権限確認が失敗したら500(t *testing.T) {
+func Test_ノートアーカイブ_サブツリーの権限確認が失敗したら500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.subtreeFactsErr = errors.New("db down")
 
@@ -1338,7 +1338,7 @@ func Test_ナレッジ基盤アーカイブ_サブツリーの権限確認が失
 	assert.Nil(t, f.pages.pages[kbRootPageID].ArchivedAt, "確認できないなら書き換えない")
 }
 
-func Test_ナレッジ基盤作成_アーカイブ済みの親の下には作れない(t *testing.T) {
+func Test_ノート作成_アーカイブ済みの親の下には作れない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	f.pages.pages[kbRootPageID].ArchivedAt = &at
@@ -1351,7 +1351,7 @@ func Test_ナレッジ基盤作成_アーカイブ済みの親の下には作れ
 	assert.JSONEq(t, `{"error":"parent_archived"}`, w.Body.String())
 }
 
-func Test_ナレッジ基盤作成_親が別スペースなら400(t *testing.T) {
+func Test_ノート作成_親が別スペースなら400(t *testing.T) {
 	const otherSpaceID = "0198a000-0000-7000-8000-0000000000c1"
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.pages.addSpace(kbWorkspaceID, otherSpaceID)
@@ -1364,7 +1364,7 @@ func Test_ナレッジ基盤作成_親が別スペースなら400(t *testing.T) 
 	assert.JSONEq(t, `{"error":"parent_space_mismatch"}`, w.Body.String())
 }
 
-func Test_ナレッジ基盤復帰_親がアーカイブ中なら409(t *testing.T) {
+func Test_ノート復帰_親がアーカイブ中なら409(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	f.pages.pages[kbRootPageID].ArchivedAt = &at
@@ -1378,7 +1378,7 @@ func Test_ナレッジ基盤復帰_親がアーカイブ中なら409(t *testing.
 	assert.JSONEq(t, `{"error":"parent_archived"}`, w.Body.String())
 }
 
-func Test_ナレッジ基盤取得_本文が未保存でも空のdocを返す(t *testing.T) {
+func Test_ノート取得_本文が未保存でも空のdocを返す(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, "")
@@ -1441,7 +1441,7 @@ func kbTreeIDs(t *testing.T, f kbFixture) []string {
 	return ids
 }
 
-func Test_ナレッジ基盤権限_祖先のdenyは子孫にも効く(t *testing.T) {
+func Test_ノート権限_祖先のdenyは子孫にも効く(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityView, domain.RestrictionModeDeny)
 
@@ -1452,7 +1452,7 @@ func Test_ナレッジ基盤権限_祖先のdenyは子孫にも効く(t *testing
 		"1 ページの解決と一覧で畳み方が食い違わない")
 }
 
-func Test_ナレッジ基盤権限_許可リストに載っていなければ既定がeditorでも見えない(t *testing.T) {
+func Test_ノート権限_許可リストに載っていなければ既定がeditorでも見えない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbAlice), domain.CapabilityView, domain.RestrictionModeAllow)
 
@@ -1462,7 +1462,7 @@ func Test_ナレッジ基盤権限_許可リストに載っていなければ既
 	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f))
 }
 
-func Test_ナレッジ基盤権限_より近い許可リストが遠い許可リストを上書きする(t *testing.T) {
+func Test_ノート権限_より近い許可リストが遠い許可リストを上書きする(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbAlice), domain.CapabilityView, domain.RestrictionModeAllow)
 	kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityView, domain.RestrictionModeAllow)
@@ -1474,7 +1474,7 @@ func Test_ナレッジ基盤権限_より近い許可リストが遠い許可リ
 		"見える child も、見えない root の配下なのでツリーには出ない")
 }
 
-func Test_ナレッジ基盤権限_許可リストの主体を消しても限定公開は解けない(t *testing.T) {
+func Test_ノート権限_許可リストの主体を消しても限定公開は解けない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	alice := kbPrincipalOf(t, f, kbAlice)
 	kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
@@ -1496,7 +1496,7 @@ func Test_ナレッジ基盤権限_許可リストの主体を消しても限定
 		"限定公開であることは印にしか残らない（権限設定を見せるときは両方を読む）")
 }
 
-func Test_ナレッジ基盤権限_deny行を外しても限定公開は解けない(t *testing.T) {
+func Test_ノート権限_deny行を外しても限定公開は解けない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	me := kbPrincipalOf(t, f, kbUserID)
 	alice := kbPrincipalOf(t, f, kbAlice)
@@ -1515,7 +1515,7 @@ func Test_ナレッジ基盤権限_deny行を外しても限定公開は解け�
 	assert.Equal(t, []domain.Capability{domain.CapabilityView}, caps)
 }
 
-func Test_ナレッジ基盤権限_最後のallowを外すと既定へ戻る(t *testing.T) {
+func Test_ノート権限_最後のallowを外すと既定へ戻る(t *testing.T) {
 	t.Run("解除", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
 		alice := kbPrincipalOf(t, f, kbAlice)
@@ -1544,7 +1544,7 @@ func Test_ナレッジ基盤権限_最後のallowを外すと既定へ戻る(t *
 	})
 }
 
-func Test_ナレッジ基盤権限_editのdenyは閲覧を残したまま書き込みだけ止める(t *testing.T) {
+func Test_ノート権限_editのdenyは閲覧を残したまま書き込みだけ止める(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityEdit, domain.RestrictionModeDeny)
 
@@ -1554,7 +1554,7 @@ func Test_ナレッジ基盤権限_editのdenyは閲覧を残したまま書き�
 	assert.Equal(t, http.StatusForbidden, w.Code, "祖先で編集を外された子も書き込めない")
 }
 
-func Test_ナレッジ基盤移動_配下に編集できないページがあれば何も書き換えず403(t *testing.T) {
+func Test_ノート移動_配下に編集できないページがあれば何も書き換えず403(t *testing.T) {
 	// 移動はサブツリーごと動くので、子孫の祖先の並びが変わる ＝ そこから継承される
 	// 権限が変わる。操作者から見えない子孫の権限が、本人の知らないうちに書き換わる状態を塞ぐ。
 	// アーカイブと同じ判定に揃えてある（片方だけ緩いと、結局そちらから同じ結果を作れる）。
@@ -1583,7 +1583,7 @@ func Test_ナレッジ基盤移動_配下に編集できないページがあれ
 	}
 }
 
-func Test_ナレッジ基盤移動_子孫まで編集できるなら通る(t *testing.T) {
+func Test_ノート移動_子孫まで編集できるなら通る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	w := f.do(t, http.MethodPost,
@@ -1595,7 +1595,7 @@ func Test_ナレッジ基盤移動_子孫まで編集できるなら通る(t *te
 	assert.Equal(t, kbDestPageID, *f.pages.pages[kbRootPageID].ParentID)
 }
 
-func Test_ナレッジ基盤移動_サブツリーの権限確認が失敗したら500で何も書き換えない(t *testing.T) {
+func Test_ノート移動_サブツリーの権限確認が失敗したら500で何も書き換えない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.subtreeFactsErr = errors.New("db down")
 
@@ -1610,7 +1610,7 @@ func Test_ナレッジ基盤移動_サブツリーの権限確認が失敗した
 // スペース改名は「入れ物そのもの」の変更なので、ページのケイパビリティではなく
 // スペースの管理権限で判定する。拒否の畳み方は他の口と同じ:
 // 見えない相手には 404（実在を教えない）、見えるが管理できない相手には 403。
-func Test_ナレッジ基盤API_スペース改名の認可(t *testing.T) {
+func Test_ノートAPI_スペース改名の認可(t *testing.T) {
 	patch := func(f kbFixture, t *testing.T, spaceID string) *httptest.ResponseRecorder {
 		t.Helper()
 		path := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/spaces/" + spaceID
@@ -1654,7 +1654,7 @@ func Test_ナレッジ基盤API_スペース改名の認可(t *testing.T) {
 // 題名検索は「見えるページだけが結果に出る」ことが認可のすべて。
 // ふるいは木と同じ判定（usecase 側でテスト済み）なので、ここでは配線を確かめる:
 // 役割があれば一致した分が返り、無ければ空、q 無しは 400。
-func Test_ナレッジ基盤API_題名検索(t *testing.T) {
+func Test_ノートAPI_題名検索(t *testing.T) {
 	search := func(f kbFixture, t *testing.T, query string) *httptest.ResponseRecorder {
 		t.Helper()
 		path := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/search"
@@ -1700,7 +1700,7 @@ func Test_ナレッジ基盤API_題名検索(t *testing.T) {
 
 // /p/{pageId} は URL にテナントを持たない解決の口。判定は解決後に必ず通るので、
 // 「所属していないワークスペースのページ」と「存在しない ID」が同じ応答であることが要点。
-func Test_ナレッジ基盤API_IDだけでの解決(t *testing.T) {
+func Test_ノートAPI_IDだけでの解決(t *testing.T) {
 	resolve := func(f kbFixture, t *testing.T, pageID string) *httptest.ResponseRecorder {
 		t.Helper()
 		return f.do(t, http.MethodGet, "/api/v2/kb/pages/"+pageID, "")

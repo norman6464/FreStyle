@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Workspace はナレッジ基盤のテナント境界。配下の space / page / block はすべて workspace_id を持ち、
+// Workspace はノートのテナント境界。配下の space / page / block はすべて workspace_id を持ち、
 // 複合 FK で「別テナントの行を親にできない」ことを DB 側で保証する。
 //
 // スキーマの正本は infra/database/schema/knowledge_base.sql。

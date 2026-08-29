@@ -206,7 +206,7 @@ export const CHAPTER_VIEW = {
 } as const;
 
 /**
- * ナレッジ基盤（workspaces → spaces → pages の木）。
+ * ノート（workspaces → spaces → pages の木）。
  *
  * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧で、
  * UI は撤去済み（データは残っているが、フロントからはもう呼ばない）。

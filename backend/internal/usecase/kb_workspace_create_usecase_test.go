@@ -26,6 +26,14 @@ func (m *mockWorkspaceProvisioner) ProvisionWorkspace(
 	return ws, args.Error(1)
 }
 
+func (m *mockWorkspaceProvisioner) ProvisionPrivateSpace(
+	ctx context.Context, in repository.PrivateSpaceProvisionInput,
+) (*domain.Space, error) {
+	args := m.Called(ctx, in)
+	sp, _ := args.Get(0).(*domain.Space)
+	return sp, args.Error(1)
+}
+
 func Test_ワークスペース作成_入力の検証(t *testing.T) {
 	// 弾かれた入力が provisioner まで届かないこと（届くと DB の CHECK 頼みになり 500 になる）。
 	provisioner := &mockWorkspaceProvisioner{}
@@ -111,7 +119,7 @@ func Test_ワークスペース作成_slug衝突はそのまま伝える(t *test
 
 func Test_スペース作成_入力の検証(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
-	uc := usecase.NewCreateSpaceUseCase(repo)
+	uc := usecase.NewCreateSpaceUseCase(repo, &mockWorkspaceProvisioner{})
 	ctx := context.Background()
 
 	cases := []struct {
@@ -149,7 +157,7 @@ func Test_スペース作成_repositoryが確定させた行を返す(t *testing
 		space := args.Get(1).(*domain.Space)
 		space.ID = kbSpace // ID の採番は repository の責務。
 	}).Return(nil)
-	uc := usecase.NewCreateSpaceUseCase(repo)
+	uc := usecase.NewCreateSpaceUseCase(repo, &mockWorkspaceProvisioner{})
 
 	got, err := uc.Execute(context.Background(), usecase.CreateSpaceInput{
 		WorkspaceID: kbWS, Key: "eng", Name: "開発部",
@@ -163,7 +171,7 @@ func Test_スペース作成_repositoryが確定させた行を返す(t *testing
 func Test_スペース作成_key衝突はそのまま伝える(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("CreateSpace", mock.Anything, mock.Anything).Return(repository.ErrSpaceKeyTaken)
-	uc := usecase.NewCreateSpaceUseCase(repo)
+	uc := usecase.NewCreateSpaceUseCase(repo, &mockWorkspaceProvisioner{})
 
 	_, err := uc.Execute(context.Background(), usecase.CreateSpaceInput{
 		WorkspaceID: kbWS, Key: "eng", Name: "開発部",
@@ -235,7 +243,7 @@ func Test_スペース作成_keyが空なら自動採番される(t *testing.T) 
 	repo.On("CreateSpace", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { got, _ = args.Get(1).(*domain.Space) }).
 		Return(nil)
-	uc := usecase.NewCreateSpaceUseCase(repo)
+	uc := usecase.NewCreateSpaceUseCase(repo, &mockWorkspaceProvisioner{})
 
 	_, err := uc.Execute(context.Background(), usecase.CreateSpaceInput{WorkspaceID: "ws-1", Name: "開発部"})
 	require.NoError(t, err)

@@ -58,7 +58,7 @@ type BlockWrite struct {
 	Inline *string
 }
 
-// KnowledgeBaseRepository はナレッジ基盤（workspaces / spaces / pages / blocks /
+// KnowledgeBaseRepository はノート（workspaces / spaces / pages / blocks /
 // page_paths / page_snapshots）へのアクセスを提供する。
 //
 // 1 boundary = 1 fat interface（§2.6）。ページ・ブロック・closure・snapshot は

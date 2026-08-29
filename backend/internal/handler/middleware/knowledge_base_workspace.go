@@ -18,7 +18,7 @@ const (
 	ParamKnowledgeBaseWorkspaceSlug = "workspaceSlug"
 )
 
-// KnowledgeBaseWorkspace はナレッジ基盤の各エンドポイントの入口でテナントを確定させる。
+// KnowledgeBaseWorkspace はノートの各エンドポイントの入口でテナントを確定させる。
 //
 // workspace_id をリクエストボディやクエリで受け取らないのが要点。受け取る形にすると
 // 「クライアントが指定した任意のテナントで処理する」経路が API 契約として固まってしまい、

@@ -1,4 +1,4 @@
--- ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）の DDL。
+-- ノート（workspaces / spaces / pages / blocks / page_paths / page_snapshots）の DDL。
 --
 -- このファイルが実スキーマの正本であり、同時に sqlc の型付け入力でもある
 -- （backend/sqlc.yaml の schema に登録済み。列を足したら `make sqlc` で生成物を作り直す）。
@@ -29,7 +29,7 @@
 --   (2) 並び順は分数インデックス（internal/pkg/fracindex）が採番する文字列キー。
 --       同じ親の中で position が重複しないことを部分 UNIQUE で守り、既定値は置かない（採番はアプリ側）。
 
--- ワークスペース: ナレッジ基盤のテナント境界。
+-- ワークスペース: ノートのテナント境界。
 CREATE TABLE IF NOT EXISTS workspaces (
     id         uuid PRIMARY KEY,
     -- slug は URL に出る短い識別子。テナント内ではなくグローバルに一意。
@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS spaces (
     -- key はワークスペース内で一意な短い識別子（例: "eng"）。
     "key"        varchar(64) NOT NULL,
     name         varchar(200) NOT NULL,
+    -- visibility はワークスペース既定の grant が届くか（'workspace'）・届かないか（'private'）。
+    -- 'private' のスペースにはスペース単位の付与（space_grants）だけが届く。
+    -- 「プライベートかどうか」を grant の構成から導出しないための明示の印（値の正本は
+    -- domain.SpaceVisibility）。実効権限の畳み方は変えず、事実の集め方（workspace_grants を
+    -- 参照する各クエリ）がこの列でふるう。
+    visibility   varchar(16) NOT NULL DEFAULT 'workspace',
     created_at   timestamptz NOT NULL DEFAULT now(),
     updated_at   timestamptz NOT NULL DEFAULT now(),
 
@@ -65,10 +71,40 @@ CREATE TABLE IF NOT EXISTS spaces (
     -- pages からの複合 FK の参照先。id の PK があるので実データ上は冗長だが、
     -- 「テナント越えを FK で塞ぐ」ための足場として要る。
     CONSTRAINT uq_spaces_workspace_id UNIQUE (workspace_id, id),
-    CONSTRAINT ck_spaces_key_len CHECK (char_length("key") BETWEEN 1 AND 64)
+    CONSTRAINT ck_spaces_key_len CHECK (char_length("key") BETWEEN 1 AND 64),
+    CONSTRAINT ck_spaces_visibility CHECK (visibility IN ('workspace', 'private'))
 );
 
--- ページ: ナレッジ基盤の 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
+-- 既存 DB への visibility 列と CHECK の追加（新規 DB には上の CREATE TABLE が効く）。
+--
+-- **カタログを見て、足りないときだけ ALTER を出す。** ALTER TABLE は
+-- ADD COLUMN IF NOT EXISTS で「列が既に在るから何もしない」場合でも、判定より先に
+-- ACCESS EXCLUSIVE ロックを取り、トランザクションが終わるまで手放さない。この DDL は
+-- 起動時マイグレーションの 1 トランザクションで流れるので、素で書くと**毎回の起動
+-- （毎デプロイ）で spaces への読み書きが後続の DDL が終わるまで止まる**。
+-- 同じファイルの CREATE INDEX を「既にある索引は発行しない」形にしているのと同じ理由で、
+-- 列が出揃った通常の起動ではロックを 1 つも取らずに通り抜けさせる。
+DO $mig$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'spaces' AND column_name = 'visibility'
+    ) THEN
+        -- 既定 'workspace' で埋まるので、追加時点の既存スペースの見え方は変わらない。
+        ALTER TABLE spaces ADD COLUMN visibility varchar(16) NOT NULL DEFAULT 'workspace';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'ck_spaces_visibility' AND conrelid = 'spaces'::regclass
+    ) THEN
+        ALTER TABLE spaces ADD CONSTRAINT ck_spaces_visibility
+            CHECK (visibility IN ('workspace', 'private'));
+    END IF;
+END
+$mig$;
+
+-- ページ: ノートの 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
 CREATE TABLE IF NOT EXISTS pages (
     id                 uuid PRIMARY KEY,
     workspace_id       uuid NOT NULL,
@@ -81,7 +117,7 @@ CREATE TABLE IF NOT EXISTS pages (
     -- ORDER BY position がアプリの認識とずれる。列の定義で最初から揃えておく。
     "position"         text COLLATE "C" NOT NULL,
     title              varchar(200) NOT NULL DEFAULT '',
-    -- 作成者（users.id）。users への FK は張らない（ナレッジ基盤の骨格に閉じるため）。
+    -- 作成者（users.id）。users への FK は張らない（ノートの骨格に閉じるため）。
     created_by_user_id bigint NOT NULL,
     -- archived_at が NULL の行が現役。物理削除ではなくアーカイブで隠す運用のため、
     -- position の一意性はアーカイブ済みを除外した部分 UNIQUE で守る（下の CREATE UNIQUE INDEX）。

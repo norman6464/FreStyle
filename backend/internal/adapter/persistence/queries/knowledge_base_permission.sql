@@ -1,4 +1,4 @@
--- ナレッジ基盤の権限モデル（principals / principal_members / workspace_grants /
+-- ノートの権限モデル（principals / principal_members / workspace_grants /
 -- space_grants / page_restrictions / share_links）のクエリ。
 --
 -- 作法（knowledge_base.sql と同じ）:
@@ -91,7 +91,7 @@ WHERE workspace_id = $1 AND principal_id = $2;
 -- なぜロックまでするのか（検査を単一文にするだけでは足りなかった）:
 --   検査と削除が別トランザクションだと、2 人の admin をほぼ同時に外す要求が
 --   両方とも検査を通り抜け、ワークスペースの admin が 0 人になる。0 人になると
---   ナレッジ基盤には super_admin の抜け道が無いので、元 admin を含む誰も API から
+--   ノートには super_admin の抜け道が無いので、元 admin を含む誰も API から
 --   権限を張り直せない（復旧は DB を直接触るしかない）。
 --
 --   検査を DELETE の EXISTS へ畳んで単一文にしても、これは塞がらない。
@@ -298,8 +298,12 @@ SELECT EXISTS (
 -- CASCADE で消えるので、載っていた主体を消しただけでその段が「制限なし」に化ける。
 -- 印（page_allow_lists）は主体を参照しないため、誰が消えても段は残る。
 WITH target AS (
-    SELECT p.space_id
+    -- スペースの visibility も一緒に引く。'private' のスペースには
+    -- ワークスペース全体の grant と space_all（そのスペースの全員）を届かせない
+    -- （届かせ方の規則は domain のまま。ここで変えるのは「事実の集め方」だけ）。
+    SELECT p.space_id, s.visibility AS space_visibility
     FROM pages p
+    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
     WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.id = sqlc.arg(page_id)
 ),
 me AS (
@@ -325,6 +329,7 @@ mine AS (
     WHERE sp.workspace_id = sqlc.arg(workspace_id)
       AND sp.kind = 'space_all'
       AND sp.space_id = t.space_id
+      AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me WHERE me.kind = 'user')
 ),
 onpath AS (
@@ -371,8 +376,9 @@ SELECT
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                      WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
         FROM (
-            SELECT wg."role" FROM workspace_grants wg
+            SELECT wg."role" FROM workspace_grants wg CROSS JOIN target t
              WHERE wg.workspace_id = sqlc.arg(workspace_id)
+               AND t.space_visibility = 'workspace'
                AND wg.principal_id IN (SELECT id FROM mine)
             UNION ALL
             SELECT sg."role" FROM space_grants sg CROSS JOIN target t
@@ -433,6 +439,12 @@ mine AS (
     FROM principals sp
     WHERE sp.workspace_id = sqlc.arg(workspace_id)
       AND sp.kind = 'space_all' AND sp.space_id = sqlc.arg(space_id)
+      -- private のスペースには space_all を届かせない（1 枚解決と同じ規則）。
+      AND EXISTS (
+        SELECT 1 FROM spaces sv1
+        WHERE sv1.workspace_id = sqlc.arg(workspace_id) AND sv1.id = sqlc.arg(space_id)
+          AND sv1.visibility = 'workspace'
+      )
       AND EXISTS (SELECT 1 FROM me)
 ),
 onpath AS (
@@ -480,9 +492,15 @@ SELECT
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                      WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
         FROM (
+            -- private のスペースにはワークスペース全体の grant を届かせない。
             SELECT wg."role" FROM workspace_grants wg
              WHERE wg.workspace_id = sqlc.arg(workspace_id)
                AND wg.principal_id IN (SELECT id FROM mine)
+               AND EXISTS (
+                 SELECT 1 FROM spaces sv2
+                 WHERE sv2.workspace_id = sqlc.arg(workspace_id) AND sv2.id = sqlc.arg(space_id)
+                   AND sv2.visibility = 'workspace'
+               )
             UNION ALL
             SELECT sg."role" FROM space_grants sg
              WHERE sg.workspace_id = sqlc.arg(workspace_id) AND sg.space_id = sqlc.arg(space_id)
@@ -536,8 +554,10 @@ ORDER BY p."position";
 --     4 / 12 / 47 / 174 ms で、二乗には膨らまない
 -- 呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
 WITH target AS (
-    SELECT p.space_id
+    -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
+    SELECT p.space_id, s.visibility AS space_visibility
     FROM pages p
+    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
     WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.id = sqlc.arg(page_id)
 ),
 subtree AS (
@@ -565,6 +585,7 @@ mine AS (
     CROSS JOIN target t
     WHERE sp.workspace_id = sqlc.arg(workspace_id)
       AND sp.kind = 'space_all' AND sp.space_id = t.space_id
+      AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me)
 ),
 onpath AS (
@@ -603,8 +624,9 @@ grants AS (
                  WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                  WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS grant_rank
     FROM (
-        SELECT wg."role" FROM workspace_grants wg
+        SELECT wg."role" FROM workspace_grants wg CROSS JOIN target t
          WHERE wg.workspace_id = sqlc.arg(workspace_id)
+           AND t.space_visibility = 'workspace'
            AND wg.principal_id IN (SELECT id FROM mine)
         UNION ALL
         SELECT sg."role" FROM space_grants sg CROSS JOIN target t
@@ -630,6 +652,18 @@ LEFT JOIN allow_scope av ON av.page_id = s.page_id AND av.capability = 'view'
 LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
 LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id;
+
+-- name: GetUserCompanyWorkspaceID :one
+-- そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
+--
+-- 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
+-- ノートの所属の正本はあくまで principals（kind='user'）の行で、この列は
+-- 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
+-- （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
+--
+-- 会社に属さないユーザー（company_id が NULL → workspace_id も NULL）は 0 行。
+SELECT workspace_id FROM users
+WHERE id = $1 AND workspace_id IS NOT NULL AND deleted_at IS NULL;
 
 -- name: ListMemberWorkspaces :many
 -- そのユーザーが所属するワークスペース一覧。
@@ -669,8 +703,10 @@ ORDER BY w.slug;
 -- mine（自分に効く主体）の作り方は ListSpaceScopeGrantRoles と同じ。
 -- 「全員」主体だけはスペース ID が要るので、pg から引いた値を使う。
 WITH pg AS (
-    SELECT p.space_id
+    -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
+    SELECT p.space_id, s.visibility AS space_visibility
     FROM pages p
+    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
     WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.id = sqlc.arg(page_id)
 ),
 me AS (
@@ -692,13 +728,15 @@ mine AS (
     JOIN pg ON pg.space_id = sp.space_id
     WHERE sp.workspace_id = sqlc.arg(workspace_id)
       AND sp.kind = 'space_all'
+      AND pg.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me)
 )
--- ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+-- ワークスペースの grant は visibility='workspace' のスペースにだけ届く
+-- （private にはスペース単位の grant だけが届く）。スペースの grant と合わせて返す。
 -- pg を JOIN しているので、ページが無ければどちらの枝も 0 行になる。
 SELECT pg.space_id, wg."role"
   FROM workspace_grants wg
-  JOIN pg ON TRUE
+  JOIN pg ON pg.space_visibility = 'workspace'
  WHERE wg.workspace_id = sqlc.arg(workspace_id)
    AND wg.principal_id IN (SELECT id FROM mine)
 UNION
@@ -742,12 +780,24 @@ mine AS (
     FROM principals sp
     WHERE sp.workspace_id = sqlc.arg(workspace_id)
       AND sp.kind = 'space_all' AND sp.space_id = sqlc.arg(space_id)
+      -- private のスペースには space_all を届かせない。
+      AND EXISTS (
+        SELECT 1 FROM spaces sv3
+        WHERE sv3.workspace_id = sqlc.arg(workspace_id) AND sv3.id = sqlc.arg(space_id)
+          AND sv3.visibility = 'workspace'
+      )
       AND EXISTS (SELECT 1 FROM me)
 )
--- ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+-- ワークスペースの grant は visibility='workspace' のスペースにだけ届く。
+-- スペースの grant と合わせて返す。
 SELECT wg."role" FROM workspace_grants wg
  WHERE wg.workspace_id = sqlc.arg(workspace_id)
    AND wg.principal_id IN (SELECT id FROM mine)
+   AND EXISTS (
+     SELECT 1 FROM spaces sv4
+     WHERE sv4.workspace_id = sqlc.arg(workspace_id) AND sv4.id = sqlc.arg(space_id)
+       AND sv4.visibility = 'workspace'
+   )
 UNION
 SELECT sg."role" FROM space_grants sg
  WHERE sg.workspace_id = sqlc.arg(workspace_id) AND sg.space_id = sqlc.arg(space_id)
@@ -816,13 +866,15 @@ mine AS (
     WHERE pm.workspace_id = sqlc.arg(workspace_id)
 ),
 roles AS (
-    -- (a) ワークスペース全体の grant は配下の全スペースへ届く。
+    -- (a) ワークスペース全体の grant は visibility='workspace' のスペースへだけ届く。
+    -- private のスペースは (b) のスペース単位の付与だけで見える。
     SELECT s.id AS space_id, wg."role"
     FROM spaces s
     JOIN workspace_grants wg
       ON wg.workspace_id = sqlc.arg(workspace_id)
      AND wg.principal_id IN (SELECT id FROM mine)
     WHERE s.workspace_id = sqlc.arg(workspace_id)
+      AND s.visibility = 'workspace'
     UNION
     -- (b) スペース単位の grant のうち、自分 / 所属グループ宛てのもの。
     SELECT sg.space_id, sg."role"
@@ -838,6 +890,10 @@ roles AS (
     JOIN principals sa
       ON sa.workspace_id = sqlc.arg(workspace_id) AND sa.id = sg.principal_id
      AND sa.kind = 'space_all' AND sa.space_id = sg.space_id
+    -- private のスペースには space_all を届かせない。
+    JOIN spaces sv5
+      ON sv5.workspace_id = sqlc.arg(workspace_id) AND sv5.id = sg.space_id
+     AND sv5.visibility = 'workspace'
     WHERE sg.workspace_id = sqlc.arg(workspace_id)
       AND EXISTS (SELECT 1 FROM me)
 )
@@ -892,8 +948,11 @@ mine AS (
 ),
 space_allp AS (
     -- スペースごとの「全員」主体。自分がワークスペースの所属者のときだけ意味を持つ。
+    -- private のスペースには space_all を届かせない（スペース単位の付与だけが届く）。
     SELECT spx.space_id, spx.id
     FROM principals spx
+    JOIN spaces svx ON svx.workspace_id = sqlc.arg(workspace_id) AND svx.id = spx.space_id
+     AND svx.visibility = 'workspace'
     WHERE spx.workspace_id = sqlc.arg(workspace_id)
       AND spx.kind = 'space_all'
       AND EXISTS (SELECT 1 FROM me)
@@ -958,12 +1017,19 @@ sgrank AS (
 )
 SELECT
     cnd.*,
-    GREATEST((SELECT v FROM wsrank), COALESCE(sr.v, 0))::integer AS grant_rank,
+    -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
+    -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0)
+    )::integer AS grant_rank,
     (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
     COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
 FROM cand cnd
+-- pages → spaces は複合 FK があるので必ず 1 行に当たる。
+JOIN spaces spvis ON spvis.workspace_id = sqlc.arg(workspace_id) AND spvis.id = cnd.space_id
 LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
@@ -1003,8 +1069,11 @@ mine AS (
     WHERE pmb.workspace_id = sqlc.arg(workspace_id)
 ),
 space_allp AS (
+    -- private のスペースには space_all を届かせない（Search 側と同じ規則）。
     SELECT spx.space_id, spx.id
     FROM principals spx
+    JOIN spaces svy ON svy.workspace_id = sqlc.arg(workspace_id) AND svy.id = spx.space_id
+     AND svy.visibility = 'workspace'
     WHERE spx.workspace_id = sqlc.arg(workspace_id)
       AND spx.kind = 'space_all'
       AND EXISTS (SELECT 1 FROM me)
@@ -1069,12 +1138,19 @@ sgrank AS (
 )
 SELECT
     cnd.*,
-    GREATEST((SELECT v FROM wsrank), COALESCE(sr.v, 0))::integer AS grant_rank,
+    -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
+    -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0)
+    )::integer AS grant_rank,
     (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
     COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
 FROM cand cnd
+-- pages → spaces は複合 FK があるので必ず 1 行に当たる。
+JOIN spaces spvis ON spvis.workspace_id = sqlc.arg(workspace_id) AND spvis.id = cnd.space_id
 LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id

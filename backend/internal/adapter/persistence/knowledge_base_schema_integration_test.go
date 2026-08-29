@@ -26,7 +26,7 @@ const (
 	sqlStateCheckViolation            = "23514"
 )
 
-// kbTables はナレッジ基盤のテーブル（TRUNCATE 対象）。子から先に並べる。
+// kbTables はノートのテーブル（TRUNCATE 対象）。子から先に並べる。
 // 権限モデル（principals 以下）も含める。principals は users を親に持つが、
 // users はここで消さない（ほかの結合テストと共有するため。principals 側だけ空にすれば足りる）。
 var kbTables = []string{
@@ -456,9 +456,9 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		require.Equal(t, order, got)
 	})
 
-	// TruncateAll がナレッジ基盤の全テーブル（骨格 + 権限）を掃除できていること。
+	// TruncateAll がノートの全テーブル（骨格 + 権限）を掃除できていること。
 	// 掃除漏れがあるとサブテスト同士が前のデータを引きずり、UNIQUE 違反として顕在化する。
-	t.Run("TruncateAll がナレッジ基盤のテーブルを掃除する", func(t *testing.T) {
+	t.Run("TruncateAll がノートのテーブルを掃除する", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
@@ -570,7 +570,7 @@ func createSpace(t *testing.T, db *sql.DB, workspaceID, key string) string {
 }
 
 // insertPage は 1 ページを INSERT する。created_by_user_id は users への FK を張っていないため
-// 固定値で良い（ナレッジ基盤の骨格に閉じて検証する）。
+// 固定値で良い（ノートの骨格に閉じて検証する）。
 func insertPage(db *sql.DB, id, workspaceID, spaceID string, parentID *string, position string, archivedAt *time.Time) error {
 	_, err := db.Exec(
 		`INSERT INTO pages (id, workspace_id, space_id, parent_id, "position", title, created_by_user_id, archived_at)

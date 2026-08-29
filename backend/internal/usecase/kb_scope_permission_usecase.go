@@ -204,7 +204,7 @@ func (u *ListViewableSpacesUseCase) Execute(ctx context.Context, in ListViewable
 }
 
 // ListMemberWorkspacesUseCase は自分が所属するワークスペースを返す。
-// ナレッジ基盤のほかの経路と違い URL に slug を持たない（どの slug を開けるかを知るための口）。
+// ノートのほかの経路と違い URL に slug を持たない（どの slug を開けるかを知るための口）。
 type ListMemberWorkspacesUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }

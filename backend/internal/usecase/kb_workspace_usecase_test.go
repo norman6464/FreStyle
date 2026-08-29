@@ -35,6 +35,10 @@ func Test_ワークスペース解決_未所属は存在しないのと同じ(t 
 	member.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
 	memberPerm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
+	// 非メンバーでも、会社のワークスペースなら自動で入る。ここでは「会社が違う」ので
+	// 入れる先が無い（ErrWorkspaceNotFound）ことを表し、404 に倒れることを確かめる。
+	memberPerm.On("FindUserCompanyWorkspaceID", mock.Anything, uint64(1)).
+		Return("", repository.ErrWorkspaceNotFound)
 
 	unknown := &mockKnowledgeBaseRepo{}
 	unknown.On("FindWorkspaceBySlug", mock.Anything, "no-such").
@@ -48,6 +52,28 @@ func Test_ワークスペース解決_未所属は存在しないのと同じ(t 
 	require.ErrorIs(t, foreignErr, repository.ErrWorkspaceNotFound,
 		"未所属と不在を撃ち分けない（slug の総当たりでテナントの実在を漏らさない）")
 	require.ErrorIs(t, unknownErr, repository.ErrWorkspaceNotFound)
+}
+
+// 会社のワークスペースは、まだ principals の行が無くても開ける（その場で所属を用意する）。
+// これが無いと、会社ごとのワークスペースを作成者以外の誰も開けない。
+func Test_ワークスペース解決_会社のワークスペースなら所属を用意して通す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
+	perms.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
+	perms.On("FindUserCompanyWorkspaceID", mock.Anything, uint64(1)).Return(kbWS, nil)
+	perms.On("EnsureUserPrincipal", mock.Anything, kbWS, uint64(1)).
+		Return(&domain.Principal{ID: "principal-1", WorkspaceID: kbWS}, nil)
+	perms.On("GrantWorkspaceRoleIfAbsent", mock.Anything, kbWS, "principal-1", domain.GrantRoleEditor).
+		Return(nil)
+
+	ws, err := usecase.NewResolveWorkspaceUseCase(repo, perms).
+		Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
+
+	require.NoError(t, err)
+	assert.Equal(t, kbWS, ws.ID)
+	perms.AssertExpectations(t)
 }
 
 func Test_ワークスペース解決_入力の検証(t *testing.T) {

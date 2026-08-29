@@ -60,7 +60,7 @@ describe('Button', () => {
   describe('variant', () => {
     it('primary: brand-500クラスが付く', () => {
       render(<Button variant="primary">テスト</Button>);
-      expect(screen.getByRole('button').className).toContain('bg-brand-500');
+      expect(screen.getByRole('button').className).toContain('bg-brand-600');
     });
 
     it('secondary: 境界線と影で輪郭が出る（白背景に埋もれない）', () => {
@@ -75,9 +75,9 @@ describe('Button', () => {
       expect(screen.getByRole('button').className).toContain('bg-red-500');
     });
 
-    it('ghost: bg-brand-500クラスが付かない', () => {
+    it('ghost: bg-brand-600クラスが付かない', () => {
       render(<Button variant="ghost">テスト</Button>);
-      expect(screen.getByRole('button').className).not.toContain('bg-brand-500');
+      expect(screen.getByRole('button').className).not.toContain('bg-brand-600');
     });
   });
 

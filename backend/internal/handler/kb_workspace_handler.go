@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,15 +12,17 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// KnowledgeBaseWorkspaceHandler はナレッジ基盤のワークスペース / スペースの操作を受ける。
+// KnowledgeBaseWorkspaceHandler はノートのワークスペース / スペースの操作を受ける。
 //
 // ページ操作（KnowledgeBasePageHandler）と分けているのは、テナントの確定の仕方が違うため。
 // 一覧と作成は URL に slug を持たず middleware.KnowledgeBaseWorkspace を通れない
 // （通したら「まだ所属していない・まだ存在しない」ワークスペースを扱えない）。
 type KnowledgeBaseWorkspaceHandler struct {
 	listWorkspaces  *usecase.ListMemberWorkspacesUseCase
+	joinCompany     *usecase.JoinCompanyWorkspaceUseCase
 	createWorkspace *usecase.CreateWorkspaceUseCase
 	checkWorkspace  *usecase.CheckWorkspacePermissionUseCase
 	createSpace     *usecase.CreateSpaceUseCase
@@ -32,6 +35,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
 func NewKnowledgeBaseWorkspaceHandler(
 	listWorkspaces *usecase.ListMemberWorkspacesUseCase,
+	joinCompany *usecase.JoinCompanyWorkspaceUseCase,
 	createWorkspace *usecase.CreateWorkspaceUseCase,
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	createSpace *usecase.CreateSpaceUseCase,
@@ -42,6 +46,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:  listWorkspaces,
+		joinCompany:     joinCompany,
 		createWorkspace: createWorkspace,
 		checkWorkspace:  checkWorkspace,
 		createSpace:     createSpace,
@@ -69,20 +74,25 @@ func toKbWorkspaceResponse(w *domain.Workspace) kbWorkspaceResponse {
 // kbSpaceResponse はスペース 1 件の返却形。
 // id は載せる（ページ一覧・作成の URL がスペース ID を取るため）。
 type kbSpaceResponse struct {
-	ID        string    `json:"id"  example:"0198a000-0000-7000-8000-000000000002"`
-	Key       string    `json:"key" example:"eng"`
-	Name      string    `json:"name" example:"開発部"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID   string `json:"id"  example:"0198a000-0000-7000-8000-000000000002"`
+	Key  string `json:"key" example:"eng"`
+	Name string `json:"name" example:"開発部"`
+	// Visibility はサイドバーの節分けに使う（workspace = チーム / private = プライベート）。
+	Visibility string    `json:"visibility" example:"workspace"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 func toKbSpaceResponse(s *domain.Space) kbSpaceResponse {
-	return kbSpaceResponse{ID: s.ID, Key: s.Key, Name: s.Name, CreatedAt: s.CreatedAt}
+	return kbSpaceResponse{
+		ID: s.ID, Key: s.Key, Name: s.Name,
+		Visibility: string(s.Visibility), CreatedAt: s.CreatedAt,
+	}
 }
 
 // List は自分が所属するワークスペースの一覧を返す。
 //
-//	@Summary      ナレッジ 基盤 の 所属 ワークスペース 一覧
-//	@Description  ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ナレッジ 基盤 API が URL に 使う slug を 知る ため の 入口。
+//	@Summary      ノート の 所属 ワークスペース 一覧
+//	@Description  ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ノート API が URL に 使う slug を 知る ため の 入口。
 //	@Tags         knowledge-base
 //	@Produce      json
 //	@Success      200  {array}   kbWorkspaceResponse
@@ -94,6 +104,18 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
 		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	// 会社のワークスペースへは自動で入る。一覧はノートに入る最初の口なので、
+	// ここで所属を用意しておけば以降の経路（木・ページ・検索）は既存のままで通る。
+	//
+	// 会社に属さないユーザー（運営管理者など）は入れる先が無いだけなので、
+	// ErrWorkspaceNotFound は一覧の失敗にしない。それ以外の失敗は握り潰さず 500 にする
+	// （所属を用意できていないのに空の一覧を返すと「会社のページが無い」に見える）。
+	if _, err := h.joinCompany.Execute(c.Request.Context(), usecase.JoinCompanyWorkspaceInput{
+		UserID: uid,
+	}); err != nil && !errors.Is(err, repository.ErrWorkspaceNotFound) {
+		respondKnowledgeBaseErr(c, err)
 		return
 	}
 	workspaces, err := h.listWorkspaces.Execute(c.Request.Context(), usecase.ListMemberWorkspacesInput{UserID: uid})
@@ -117,7 +139,7 @@ type kbCreateWorkspaceRequest struct {
 
 // Create はワークスペースを作り、作成者をその admin にする。
 //
-//	@Summary      ナレッジ 基盤 の ワークスペース 作成
+//	@Summary      ノート の ワークスペース 作成
 //	@Description  ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -180,7 +202,7 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 // サイドバーはスペースごとに木を取るので、この一覧はスペースだけでよい。ページまで
 // 抱き合わせると、開いていないスペースの中身まで毎回引くことになる。
 //
-//	@Summary      ナレッジ 基盤 の スペース 一覧
+//	@Summary      ノート の スペース 一覧
 //	@Description  ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。 閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages で 取る)。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -220,12 +242,15 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 type kbCreateSpaceRequest struct {
 	Key  string `json:"key" example:"eng"`
 	Name string `json:"name" binding:"required,max=200" example:"開発部"`
+	// Visibility は省略時 workspace（チームスペース）。private は自分だけの区画で、
+	// メンバーなら誰でも作れる（作れる範囲の非対称は handler が判定する）。
+	Visibility string `json:"visibility,omitempty" binding:"omitempty,oneof=workspace private" example:"workspace"`
 }
 
 // CreateSpace はワークスペース配下にスペースを作る（ワークスペースの admin が要る）。
 //
-//	@Summary      ナレッジ 基盤 の スペース 作成
-//	@Description  ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
+//	@Summary      ノート の スペース 作成
+//	@Description  ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 プライベート で は key を 指定 でき ない (必ず 自動 採番。 key の 衝突 応答 から 他人 の プライベート スペース の 実在 が 読め ない よう に する ため)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -245,30 +270,48 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 	if !ok {
 		return
 	}
-	perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
-		WorkspaceID: scope.workspaceID,
-		UserID:      scope.userID,
-	})
-	if err != nil {
-		respondKnowledgeBaseErr(c, err)
-		return
-	}
-	if !perm.CanManage {
-		// ここに来る相手はワークスペースのメンバー（middleware が確かめている）なので、
-		// 実在は既に知っている。403 で理由を返してよい。
-		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
-		return
-	}
 	limitKnowledgeBaseBody(c)
 	var req kbCreateSpaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
+	// **プライベートでは key を人に決めさせない（必ず自動採番）。**
+	// key はワークスペース内で一意で、チームとプライベートで同じ名前空間を共有する。
+	// 明示指定を許すと、メンバーが任意の key で作成を試して「409 が返るか」だけで
+	// 一覧にも木にも出ないはずの他人のプライベートスペースの実在を言い当てられる
+	// （作成という書き込みの口が、伏せた実在を読む口になる）。あわせて、意味のある
+	// key（"eng" など）を先に取られて admin がチームスペースを作れなくなる占有も防ぐ。
+	// 自動採番の key は衝突しても usecase が引き直すので、409 自体が表に出ない。
+	if req.Visibility == string(domain.SpaceVisibilityPrivate) && req.Key != "" {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	// 作れる範囲は非対称: チームスペース（workspace）は全員に見える入れ物が増えるので
+	// admin だけ。プライベートは自分の区画が増えるだけ（他人の見えるものは変わらない）
+	// なので、メンバーなら誰でも作れる。所属は middleware が確かめ済み。
+	if req.Visibility != string(domain.SpaceVisibilityPrivate) {
+		perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
+			WorkspaceID: scope.workspaceID,
+			UserID:      scope.userID,
+		})
+		if err != nil {
+			respondKnowledgeBaseErr(c, err)
+			return
+		}
+		if !perm.CanManage {
+			// ここに来る相手はワークスペースのメンバー（middleware が確かめている）なので、
+			// 実在は既に知っている。403 で理由を返してよい。
+			c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+			return
+		}
+	}
 	space, err := h.createSpace.Execute(c.Request.Context(), usecase.CreateSpaceInput{
-		WorkspaceID: scope.workspaceID,
-		Key:         req.Key,
-		Name:        req.Name,
+		WorkspaceID:   scope.workspaceID,
+		Key:           req.Key,
+		Name:          req.Name,
+		Visibility:    domain.SpaceVisibility(req.Visibility),
+		CreatorUserID: scope.userID,
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)
@@ -283,7 +326,7 @@ type kbRenameSpaceRequest struct {
 
 // RenameSpace はスペースの表示名を変える（key は変えない）。
 //
-//	@Summary      ナレッジ 基盤 の スペース 改名
+//	@Summary      ノート の スペース 改名
 //	@Description  表示名 だけ を 変更 する。 key は URL・権限 の 参照 に 使う ため 不変。 スペース の 管理 権限 が 要る。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -344,7 +387,7 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 
 // SearchPages はワークスペース全体を題名で検索する（閲覧できるページだけが返る）。
 //
-//	@Summary      ナレッジ 基盤 の ページ 題名 検索
+//	@Summary      ノート の ページ 題名 検索
 //	@Description  ワークスペース 全体 から 題名 の 部分 一致 で 検索 する。 返る の は 閲覧 できる 現役 ページ のみ。 並び は 題名 順。
 //	@Tags         knowledge-base
 //	@Produce      json

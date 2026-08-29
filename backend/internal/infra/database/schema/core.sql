@@ -7,10 +7,10 @@
 --   2. sqlc の型付け … sqlc.yaml の schema 欄がこのファイルを直接読む。
 --
 -- 宣言（sqlc）と実体（DDL）が同じ 1 ファイルなので、片方だけ直してずれることが原理的に起きない。
--- ナレッジ基盤（schema/knowledge_base.sql / knowledge_base_permissions.sql）が先に採っている形に揃えてある。
+-- ノート（schema/knowledge_base.sql / knowledge_base_permissions.sql）が先に採っている形に揃えてある。
 --
 -- 適用順序（infra/database/migrate.go の Migrate が守る）:
---   このファイル → seed / バックフィル / 明示制約（ApplyXxxConstraints）→ ナレッジ基盤 → 権限モデル
+--   このファイル → seed / バックフィル / 明示制約（ApplyXxxConstraints）→ ノート → 権限モデル
 --   → テナント橋渡し（companies.workspace_id / users.workspace_id）。
 --   権限モデルは users を、テナント橋渡しは workspaces を参照するため順序は崩せない。
 --
@@ -19,7 +19,7 @@
 --   NOT NULL 化は migrations/000X_*.sql（明示 SQL）で行う。ここは「新しく作る DB の姿」の定義。
 --
 -- ここに置かないもの:
---   - ナレッジ基盤（骨格 workspaces / spaces / pages / blocks / page_paths / page_snapshots、
+--   - ノート（骨格 workspaces / spaces / pages / blocks / page_paths / page_snapshots、
 --     権限モデル principals / principal_members / workspace_grants / space_grants /
 --     page_restrictions / page_allow_lists / share_links）→ schema/knowledge_base*.sql が正本。
 --   - FK / CHECK / 部分 UNIQUE のうち、既存データの修復を伴うもの（users の正規化まわり）

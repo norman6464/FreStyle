@@ -236,7 +236,8 @@ test.describe('スペース追加導線（POST モック）', () => {
     // 見出し・行の＋・⋯ が同名を含むので exact で見出しだけを掴む。
     await expect(page.getByRole('button', { name: 'バックエンド定例', exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'スペースを追加' }).click();
+    // 「プライベートスペースを追加」も部分一致で当たるので厳密一致にする。
+    await page.getByRole('button', { name: 'スペースを追加', exact: true }).click();
     await page.getByLabel('スペースの名前').fill('営業定例');
     await page.getByRole('button', { name: 'スペースを作る' }).click();
 

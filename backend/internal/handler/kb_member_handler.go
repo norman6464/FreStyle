@@ -10,7 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// KnowledgeBaseMemberHandler はナレッジ基盤の主体（principals）の出し入れを受ける。
+// KnowledgeBaseMemberHandler はノートの主体（principals）の出し入れを受ける。
 //
 // ワークスペース所属・グループ・スペースの「全員」は、どれも principals の 1 行で表す
 // （専用のメンバーシップ表は持たない）。したがってこの handler が扱うのは
@@ -99,7 +99,7 @@ func kbUserIDParam(c *gin.Context) (uint64, bool) {
 
 // AddMember はユーザーをワークスペースのメンバーにする（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の メンバー 追加
+//	@Summary      ノート の メンバー 追加
 //	@Description  ユーザー を ワークスペース の メンバー に する。 所属 は principals (kind='user') の 行 が 唯一 の 表現 な の で、 この API は その 行 を 作る (既に あれ ば それ を 返す)。 所属 する だけ で は 何 も 見え ない (役割 が 1 つ も 無い) の で、 続け て 権限 付与 の API を 呼ぶ。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー ID 空間 の 走査 を 抑える ため、 呼び出し 元 の ユーザー 単位 で 回数 に 上限 が ある。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -144,7 +144,7 @@ func (h *KnowledgeBaseMemberHandler) AddMember(c *gin.Context) {
 
 // RemoveMember はユーザーをワークスペースから外す（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の メンバー 削除
+//	@Summary      ノート の メンバー 削除
 //	@Description  ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / 例外 / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -208,7 +208,7 @@ func (h *KnowledgeBaseMemberHandler) requireNotLastWorkspaceAdminByUser(
 
 // CreateGroup は権限をまとめて張るためのグループを作る。
 //
-//	@Summary      ナレッジ 基盤 の グループ 作成
+//	@Summary      ノート の グループ 作成
 //	@Description  権限 を まとめ て 張る ため の グループ (kind='group' の 主体) を 作る。 名前 は ワークスペース 内 で 一意 (同名 が 2 つ ある と 権限 を 張る 先 を 人 が 選べ ない)。 グループ の 入れ子 は 作れ ない。 呼べる の は ワークスペース の admin だけ。
 //	@Tags         knowledge-base
 //	@Accept       json
@@ -250,7 +250,7 @@ func (h *KnowledgeBaseMemberHandler) CreateGroup(c *gin.Context) {
 
 // AddGroupMember はグループにユーザーを加える（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の グループ メンバー 追加
+//	@Summary      ノート の グループ メンバー 追加
 //	@Description  グループ に ユーザー を 加える。 加える 相手 を 主体 ID で は なく ユーザー ID で 受ける の は、 この 入口 から グループ の 入れ子 を 作ら せ ない ため (DB 側 も 複合 FK で member を kind='user' に 固定 し て いる)。 対象 が ワークスペース の メンバー で なけれ ば 主体 が 無い の で 404。 呼べる の は ワークスペース の admin だけ。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -289,7 +289,7 @@ func (h *KnowledgeBaseMemberHandler) AddGroupMember(c *gin.Context) {
 
 // RemoveGroupMember はグループからユーザーを外す（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の グループ メンバー 削除
+//	@Summary      ノート の グループ メンバー 削除
 //	@Description  グループ から ユーザー を 外す。 元 から 載っ て い なけれ ば 何 も せ ず 成功 する (冪等)。 グループ 宛て の admin は 「最後 の admin」 の 数 に 入れ て い ない の で、 この 操作 が 409 に なる こと は ない。 呼べる の は ワークスペース の admin だけ。
 //	@Tags         knowledge-base
 //	@Produce      json
@@ -328,7 +328,7 @@ func (h *KnowledgeBaseMemberHandler) RemoveGroupMember(c *gin.Context) {
 
 // EnsureSpaceEveryone はスペースの「全員」を表す主体を用意して返す（冪等）。
 //
-//	@Summary      ナレッジ 基盤 の スペース 全員 主体 の 用意
+//	@Summary      ノート の スペース 全員 主体 の 用意
 //	@Description  「既定 で チーム 全員 が 編集 できる」 を grant 1 行 で 表す ため の 主体 (kind='space_all') を 用意 し て 返す。 既に あれ ば それ を 返す (冪等)。 スペース 作成 時 に は 作ら ない 設計 な の で、 権限 を 張る 直前 に この API で ID を 得る。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。
 //	@Tags         knowledge-base
 //	@Produce      json

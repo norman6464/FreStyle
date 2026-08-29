@@ -18,6 +18,9 @@ var ErrInvalidWorkspaceSlug = errors.New("invalid workspace slug")
 // ErrInvalidSpaceKey は key が保存してよい形でないときに返す。
 var ErrInvalidSpaceKey = errors.New("invalid space key")
 
+// ErrInvalidSpaceVisibility は visibility が既知の値（workspace / private）でないときに返す。
+var ErrInvalidSpaceVisibility = errors.New("invalid space visibility")
+
 // ErrInvalidName は表示名が空、または列幅（200 文字）を超えるときに返す。
 var ErrInvalidName = errors.New("invalid name")
 
@@ -26,7 +29,7 @@ var ErrInvalidName = errors.New("invalid name")
 // 「作れるのは誰か」は認証済みのユーザー全員とする。新しく作るのは中身が空のテナントで、
 // 既存のどのワークスペースへのアクセスも増えない（権限は principals / grants で閉じており、
 // 別テナントの主体には届かない）。逆に既存のアプリ内ロール（company_admin 等）で
-// 絞る案は採らない。ナレッジ基盤の権限は「特権ロールなら通る」という抜け道を
+// 絞る案は採らない。ノートの権限は「特権ロールなら通る」という抜け道を
 // 持たない設計で、作成だけをアプリ内ロールに結び付けると、権限の出どころが 2 系統になる。
 //
 // 作成者を admin にするのは repository（1 トランザクション）の責務。ここで
@@ -86,10 +89,15 @@ func (u *CreateWorkspaceUseCase) Execute(ctx context.Context, in CreateWorkspace
 // （認可は 1 か所、この usecase は「作る」だけを担う）。
 type CreateSpaceUseCase struct {
 	repo repository.KnowledgeBaseRepository
+	// provisioner は private のスペース作成に使う（スペース + 作成者への grant を
+	// 1 トランザクションで書く必要があり、単発の CreateSpace では表せない）。
+	provisioner repository.WorkspaceProvisioner
 }
 
-func NewCreateSpaceUseCase(r repository.KnowledgeBaseRepository) *CreateSpaceUseCase {
-	return &CreateSpaceUseCase{repo: r}
+func NewCreateSpaceUseCase(
+	r repository.KnowledgeBaseRepository, p repository.WorkspaceProvisioner,
+) *CreateSpaceUseCase {
+	return &CreateSpaceUseCase{repo: r, provisioner: p}
 }
 
 type CreateSpaceInput struct {
@@ -97,11 +105,25 @@ type CreateSpaceInput struct {
 	// Key は空でよい。空なら自動採番する（ワークスペースの slug と同じ方針）。
 	Key  string
 	Name string
+	// Visibility は空なら 'workspace'（今までどおりの共有スペース）。
+	Visibility domain.SpaceVisibility
+	// CreatorUserID は作成者。Visibility が 'private' のときに要る
+	//（作成者へ space_grant(admin) を張らないと、作った本人にも見えない）。
+	CreatorUserID uint64
 }
 
 func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (*domain.Space, error) {
 	if in.WorkspaceID == "" {
 		return nil, errors.New("workspaceID is required")
+	}
+	if in.Visibility == "" {
+		in.Visibility = domain.SpaceVisibilityWorkspace
+	}
+	if !domain.ValidSpaceVisibility(in.Visibility) {
+		return nil, ErrInvalidSpaceVisibility
+	}
+	if in.Visibility == domain.SpaceVisibilityPrivate && in.CreatorUserID == 0 {
+		return nil, errors.New("creatorUserID is required for private space")
 	}
 	autoKey := in.Key == ""
 	if autoKey {
@@ -114,8 +136,7 @@ func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (
 		return nil, ErrInvalidName
 	}
 	for {
-		space := &domain.Space{WorkspaceID: in.WorkspaceID, Key: in.Key, Name: in.Name}
-		err := u.repo.CreateSpace(ctx, space)
+		space, err := u.createOnce(ctx, in)
 		// 自動採番の衝突は引き直す（ワークスペースの slug と同じ方針）。
 		if autoKey && errors.Is(err, repository.ErrSpaceKeyTaken) {
 			in.Key = generatedURLKey("s")
@@ -126,6 +147,29 @@ func (u *CreateSpaceUseCase) Execute(ctx context.Context, in CreateSpaceInput) (
 		}
 		return space, nil
 	}
+}
+
+// createOnce は 1 回分の作成。private は provisioner（grant とセット）、
+// workspace は今までどおり repo の単発 INSERT。
+func (u *CreateSpaceUseCase) createOnce(ctx context.Context, in CreateSpaceInput) (*domain.Space, error) {
+	if in.Visibility == domain.SpaceVisibilityPrivate {
+		return u.provisioner.ProvisionPrivateSpace(ctx, repository.PrivateSpaceProvisionInput{
+			WorkspaceID:   in.WorkspaceID,
+			Key:           in.Key,
+			Name:          in.Name,
+			CreatorUserID: in.CreatorUserID,
+		})
+	}
+	space := &domain.Space{
+		WorkspaceID: in.WorkspaceID,
+		Key:         in.Key,
+		Name:        in.Name,
+		Visibility:  domain.SpaceVisibilityWorkspace,
+	}
+	if err := u.repo.CreateSpace(ctx, space); err != nil {
+		return nil, err
+	}
+	return space, nil
 }
 
 // RenameSpaceUseCase はスペースの表示名だけを変える。

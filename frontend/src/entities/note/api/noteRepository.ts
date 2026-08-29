@@ -11,7 +11,7 @@ import type {
 } from '../model/types';
 
 /**
- * ナレッジ基盤 API（/api/v2/kb/…）の薄いラッパ。
+ * ノートの API（/api/v2/kb/…）の薄いラッパ。
  *
  * 認可はすべて backend が持つ。ここでフィルタを掛けないこと。返ってくる一覧は
  * **既に「その人に見えるものだけ」**になっていて、見えないものは応答に存在しない。
@@ -75,7 +75,10 @@ const NoteRepository = {
    *
    * key はワークスペース内で一意。**失敗は例外として投げる。**
    */
-  async createSpace(workspaceSlug: string, input: { name: string }): Promise<NoteSpace> {
+  async createSpace(
+    workspaceSlug: string,
+    input: { name: string; visibility?: 'workspace' | 'private' },
+  ): Promise<NoteSpace> {
     const res = await apiClient.post<NoteSpace>(NOTES_API.spaces(workspaceSlug), input);
     return res.data;
   },

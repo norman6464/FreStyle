@@ -14,7 +14,7 @@ import (
 var coreSchemaDDL string
 
 // ApplyCoreSchema はアプリケーション中核テーブル（users / roles / courses / exercises …）の
-// スキーマを適用する（冪等）。ナレッジ基盤（[ApplyKnowledgeBaseSchema]）より先に呼ぶこと
+// スキーマを適用する（冪等）。ノート（[ApplyKnowledgeBaseSchema]）より先に呼ぶこと
 // （権限モデルが users を参照するため）。
 //
 // DDL は CREATE TABLE / CREATE INDEX の IF NOT EXISTS だけで冪等になっており、1 文ずつ

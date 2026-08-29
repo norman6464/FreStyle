@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTeachingMaterialEditor } from '../useTeachingMaterialEditor';
 import type { TeachingMaterial } from '@/entities/course';
+import TeachingMaterialRepository from '@/entities/course/api/teachingMaterialRepository';
+
+vi.mock('@/entities/course/api/teachingMaterialRepository', () => ({
+  default: { get: vi.fn(), updateDoc: vi.fn() },
+}));
 
 const sample = (id: number, title = `教材${id}`): TeachingMaterial => ({
   id,
@@ -64,5 +69,58 @@ describe('useTeachingMaterialEditor', () => {
     rerender({ selectedId: null, selected: null });
     expect(result.current.editTitle).toBe('');
     expect(result.current.editDoc).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] });
+  });
+});
+
+describe('flushSave（画面を離れる前に送り切る）', () => {
+  const doc = { type: 'doc', content: [] } as const;
+
+  it('待っている本文の保存を、遅延を待たずに送る', async () => {
+    // 保存は打鍵から 800ms 待って送る。待っている間に画面を離れると
+    // タイマーごと捨てられて直近の入力が消えるので、離れる前に送り切る。
+    vi.mocked(TeachingMaterialRepository.updateDoc).mockResolvedValue(sample(5));
+    const { result } = renderHook(() =>
+      useTeachingMaterialEditor({ selectedId: 5, selected: sample(5), update: vi.fn() }),
+    );
+
+    act(() => result.current.handleDocChange({ ...doc }));
+    expect(TeachingMaterialRepository.updateDoc).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.flushSave();
+    });
+
+    expect(TeachingMaterialRepository.updateDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('待っている題名の保存も送る', async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useTeachingMaterialEditor({ selectedId: 5, selected: sample(5), update }),
+    );
+
+    act(() => result.current.handleTitleChange('打ちかけの題名'));
+    expect(update).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.flushSave();
+    });
+
+    expect(update).toHaveBeenCalledWith(5, expect.objectContaining({ title: '打ちかけの題名' }));
+  });
+
+  it('待っている保存が無ければ何も送らない（離れるたびに書き込まない）', async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(TeachingMaterialRepository.updateDoc).mockClear();
+    const { result } = renderHook(() =>
+      useTeachingMaterialEditor({ selectedId: 5, selected: sample(5), update }),
+    );
+
+    await act(async () => {
+      result.current.flushSave();
+    });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(TeachingMaterialRepository.updateDoc).not.toHaveBeenCalled();
   });
 });

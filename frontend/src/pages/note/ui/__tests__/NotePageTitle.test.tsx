@@ -116,3 +116,79 @@ describe('NotePageTitle', () => {
     expect(input).toHaveValue('設計メモ');
   });
 });
+
+describe('Enter で本文へ移る合図（onEnter）', () => {
+  it('Enter で確定したとき onEnter が呼ばれる（題名が変わっていなくても）', () => {
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={vi.fn()} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), { key: 'Enter' });
+
+    expect(onEnter).toHaveBeenCalledTimes(1);
+  });
+
+  it('改名が走る場合も、失敗した場合も onEnter は 1 回だけ呼ばれる', async () => {
+    // 題名を変えずに Enter を押すと commit は何もせずに終わる。改名が実際に走る
+    // 経路（そして失敗する経路）でも、本文へ移る合図は同じように 1 回出る。
+    const onRename = vi.fn().mockRejectedValue(new Error('down'));
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={onRename} onEnter={onEnter} />,
+    );
+    const input = screen.getByRole('textbox', { name: 'ページの題名' });
+
+    fireEvent.change(input, { target: { value: '設計メモ（改訂）' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith('設計メモ（改訂）'));
+    expect(onEnter).toHaveBeenCalledTimes(1);
+    // 失敗しても打ちかけは残す（打ち直しにさせない）。
+    expect(input).toHaveValue('設計メモ（改訂）');
+  });
+
+  it('変換中の Enter は keyCode だけでも確定にしない（isComposing を持たない環境）', () => {
+    // Safari は変換中に isComposing を立てず keyCode 229 だけを送る。
+    const onRename = vi.fn();
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={onRename} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), {
+      key: 'Enter',
+      isComposing: false,
+      keyCode: 229,
+    });
+
+    expect(onEnter).not.toHaveBeenCalled();
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it('日本語入力の変換確定 Enter では呼ばれない', () => {
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={vi.fn()} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), {
+      key: 'Enter',
+      isComposing: true,
+      keyCode: 229,
+    });
+
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+
+  it('Escape では呼ばれない', () => {
+    const onEnter = vi.fn();
+    render(
+      <NotePageTitle title="設計メモ" canEdit onRename={vi.fn()} onEnter={onEnter} />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'ページの題名' }), { key: 'Escape' });
+
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+});

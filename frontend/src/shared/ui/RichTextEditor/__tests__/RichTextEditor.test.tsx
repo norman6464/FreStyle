@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Editor } from '@tiptap/react';
 import RichTextEditor from '../RichTextEditor';
 import SaveStatusIndicator from '../SaveStatusIndicator';
@@ -182,5 +182,178 @@ describe('常設ツールバー', () => {
     await waitFor(() => expect(screen.getByRole('textbox', { name: '本文' })).toBeInTheDocument());
 
     expect(screen.queryByRole('toolbar', { name: '書式メニュー' })).not.toBeInTheDocument();
+  });
+});
+
+const PAGE_UUID = '01a045ef-35de-7e9d-b637-84a5eb6fad77';
+
+/** 内部（相対・絶対）と外部のリンクを 1 段落に並べた doc。 */
+function docWithLinks(): RichDocContent {
+  return {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: '内部リンク',
+            marks: [{ type: 'link', attrs: { href: `/p/${PAGE_UUID}` } }],
+          },
+          { type: 'text', text: ' / ' },
+          {
+            type: 'text',
+            text: '共有URL',
+            marks: [
+              { type: 'link', attrs: { href: `${window.location.origin}/p/${PAGE_UUID}` } },
+            ],
+          },
+          { type: 'text', text: ' / ' },
+          {
+            type: 'text',
+            text: '外部リンク',
+            marks: [{ type: 'link', attrs: { href: 'https://example.com/docs' } }],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('リンクのクリック', () => {
+  it('内部ページリンクは編集中でもクリックでアプリ内遷移する', async () => {
+    const navigateToPage = vi.fn();
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
+
+    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+  });
+
+  it('同一オリジンの絶対 URL（共有 URL の貼り付け）もアプリ内遷移に畳む', async () => {
+    const navigateToPage = vi.fn();
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '共有URL' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '共有URL' }));
+
+    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+  });
+
+  it('外部リンクは新しいタブで開く（rel で opener を渡さない）', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const navigateToPage = vi.fn();
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '外部リンク' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '外部リンク' }));
+
+    expect(open).toHaveBeenCalledWith('https://example.com/docs', '_blank', 'noopener,noreferrer');
+    expect(navigateToPage).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it('文字を選んだだけのクリックでは開かない（リンクの文言を選べる）', async () => {
+    // リンクをドラッグで選ぶと mouseup のときに click も発火する。ここで開くと
+    // リンクの文言を打ち直す・リンクを外す、といった編集がマウスでできなくなる。
+    const navigateToPage = vi.fn();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(screen.getByRole('link', { name: '内部リンク' }));
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
+
+    expect(navigateToPage).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    selection?.removeAllRanges();
+    open.mockRestore();
+  });
+
+  it('編集中の Shift+クリックは選択を伸ばす操作なので、新しいタブを開かない', async () => {
+    const navigateToPage = vi.fn();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { shiftKey: true });
+
+    expect(open).not.toHaveBeenCalled();
+    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+    open.mockRestore();
+  });
+
+  it('読み取り専用の Shift+クリックは新しいタブで開く（選択を伸ばす操作が無い面）', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<RichTextEditor value={docWithLinks()} editable={false} onNavigateToPage={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { shiftKey: true });
+
+    expect(open).toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it('修飾キー付きのクリックは内部リンクでも新しいタブで開く', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const navigateToPage = vi.fn();
+    render(
+      <RichTextEditor value={docWithLinks()} editable onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { metaKey: true });
+
+    expect(open).toHaveBeenCalled();
+    expect(navigateToPage).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it('読み取り専用でもクリックでアプリ内遷移する（素の全画面リロードにしない）', async () => {
+    const navigateToPage = vi.fn();
+    render(
+      <RichTextEditor value={docWithLinks()} editable={false} onNavigateToPage={navigateToPage} />,
+    );
+    await waitFor(() => expect(screen.getByRole('link', { name: '内部リンク' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
+
+    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+  });
+});
+
+describe('focusSignal（題名で Enter → 本文へ）', () => {
+  it('合図が増えたら本文へフォーカスが移る', async () => {
+    const { rerender } = render(
+      <RichTextEditor value={emptyRichDoc()} editable focusSignal={0} />,
+    );
+    const textbox = await screen.findByRole('textbox', { name: '本文' });
+    expect(document.activeElement).not.toBe(textbox);
+
+    rerender(<RichTextEditor value={emptyRichDoc()} editable focusSignal={1} />);
+
+    await waitFor(() => expect(document.activeElement).toBe(textbox));
+  });
+
+  it('マウント時の値では動かない（ページを開いただけで本文が奪わない）', async () => {
+    render(<RichTextEditor value={emptyRichDoc()} editable focusSignal={5} />);
+    const textbox = await screen.findByRole('textbox', { name: '本文' });
+
+    expect(document.activeElement).not.toBe(textbox);
   });
 });

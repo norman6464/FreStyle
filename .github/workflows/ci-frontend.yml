@@ -36,6 +36,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Storybook の story はブラウザモードの Vitest プロジェクト（projects.storybook）で
+      # そのままテストとして走る。headless Chromium が要るのでここで入れる。
+      - name: Install Playwright Chromium (Storybook tests)
+        run: npx playwright install --with-deps chromium
+
       # TypeScript 型チェック (production code 限定 / test ファイルは tsconfig.exclude で除外済み)。
       # tsc が 1 エラーでも報告したら fail する。React / TypeScript Handbook の
       # "static type-checking before runtime" を CI で強制する。
@@ -58,6 +63,14 @@ jobs:
             grep -A6 "Coverage report" /tmp/vitest-out.txt || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # story はブラウザで実行するので unit とは別ステップ。カバレッジの閾値ゲートは
+      # 上の unit 実行だけで測る（story のレンダリング分が混ざると分母が変わり、
+      # ゲートが緩む方向に変質する）。
+      - name: Run Storybook tests (browser)
+        env:
+          WITH_STORYBOOK_TESTS: '1'
+        run: npx vitest run --project=storybook
 
       - name: Build (verify only)
         # ビルドが通るかだけ確認。S3 sync / CloudFront invalidation は CD 側で実施。

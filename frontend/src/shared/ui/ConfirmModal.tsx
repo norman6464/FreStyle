@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { TrashIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 interface ConfirmModalProps {
@@ -65,8 +66,22 @@ export default function ConfirmModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+  // document.body へ出す。呼び出し元の DOM の中に置くと、全面のオーバーレイが
+  // その要素の子孫になり、モーダルの上での右クリック・ドラッグ・クリックが
+  // 呼び出し元のハンドラへ伝わってしまう（行の右クリックメニューが背後で開く等）。
+  // 親の opacity / overflow / transform の影響も受けなくなる。
+  return createPortal(
+    // React のポータルは DOM を移すだけで、**イベントは React のツリーを辿って
+    // 呼び出し元へ伝わる**。モーダルの上での操作が背後の行や一覧に届くと、
+    // 右クリックでメニューが背後に開く・行のドラッグが始まる、といった取り違えになる。
+    // ここで止めて、モーダルが開いている間の入力はモーダルだけのものにする。
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
+      onDragStart={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
       {/* オーバーレイ */}
       <div
         className="absolute inset-0 bg-black/50 animate-fade-in"
@@ -110,16 +125,19 @@ export default function ConfirmModal({
           <button
             ref={confirmRef}
             onClick={onConfirm}
+            // 白文字に対して 500 番は 3.7:1 で、読みやすさの基準（4.5:1）に届かない。
+            // 600 番（赤 4.8:1 / 青 5.2:1）から始める。
             className={`flex-1 px-4 py-2.5 font-medium rounded-xl transition-colors duration-150 ${
               isDanger
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-brand-500 hover:bg-brand-600 text-white'
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-brand-600 hover:bg-brand-700 text-white'
             }`}
           >
             {confirmText}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

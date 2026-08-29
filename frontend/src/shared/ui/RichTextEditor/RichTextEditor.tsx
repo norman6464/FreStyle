@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { ACCEPTED_IMAGE_ACCEPT_ATTR } from '@/shared/config/imageUpload';
 import { createEditorExtensions } from './editorExtensions';
@@ -6,6 +7,7 @@ import type { EditorCommand } from './editorCommands';
 import { buildSlashItems } from './slashItems';
 import { acceptedImageFiles, insertUploadedImages } from './imageInsertion';
 import { sanitizeDocLinks } from './linkSafety';
+import { openClickedLink } from './linkClick';
 import BubbleFormatMenu from './BubbleFormatMenu';
 import FormatMenuBar from './FormatMenuBar';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
@@ -49,6 +51,20 @@ export interface RichTextEditorProps {
    * 浮かぶ方）はそのまま併存する — どちらも同じコマンドレジストリを叩くので二重実装にはならない。
    */
   toolbar?: boolean;
+  /**
+   * 常設ツールバーの置き場所。渡すとツールバーはこの要素の中へポータルで描画される
+   * （題名より上・ヘッダー直下など、エディタの外側に固定するため）。
+   * 無ければ本文の直上に出す。editor はこの部品の中で生まれるので、外に置きたい側が
+   * editor を受け取るのではなく、置き場所だけを差し出す（editor を外へ漏らさない）。
+   */
+  toolbarContainer?: HTMLElement | null;
+  /**
+   * 本文中の内部ページリンク（/p/{id}）を開くときの遷移。渡すとアプリ内遷移になる
+   * （渡さなければ素の遷移）。外部リンクは常に新しいタブで開く。
+   */
+  onNavigateToPage?: (path: string) => void;
+  /** 増えたら本文の先頭へフォーカスを移す合図（題名で Enter → 本文へ、のため）。 */
+  focusSignal?: number;
   /** 外枠に付与する追加クラス。 */
   className?: string;
 }
@@ -97,6 +113,9 @@ export default function RichTextEditor({
   onCreate,
   extraSlashCommands,
   toolbar = false,
+  toolbarContainer = null,
+  onNavigateToPage,
+  focusSignal = 0,
   className = '',
 }: RichTextEditorProps) {
   // onChange は props で差し替わり得るので ref 越しに最新を呼ぶ（onUpdate クロージャの陳腐化を防ぐ）。
@@ -225,10 +244,35 @@ export default function RichTextEditor({
     editor?.setEditable(editable);
   }, [editor, editable]);
 
+  // 「増えたときだけ」フォーカスを移す。マウント時の値では動かない — ページを
+  // 開き直しただけで本文が奪ってしまわないため（サイドバーの openSignal と同じ形）。
+  const seenFocusSignal = useRef(focusSignal);
+  useEffect(() => {
+    // editor がまだ無いときは**合図を消費しない**。ここで見たことにすると、
+    // 初期化中に題名で Enter を押した合図が捨てられ、本文へ移らないまま終わる。
+    if (!editor) return;
+    if (focusSignal > seenFocusSignal.current) {
+      editor.commands.focus('start');
+    }
+    seenFocusSignal.current = focusSignal;
+  }, [editor, focusSignal]);
+
   return (
-    <div className={`rte-root ${className}`}>
+    // リンクはクリックで開く（編集中も読み取り専用も同じ経路。linkClick.ts のコメント参照）。
+    // preventDefault は読み取り専用の素の <a> の既定遷移（全画面リロード）を止めるため。
+    // キーボードは別経路が既にある: <a> 上の Enter はブラウザが click として発火する。
+    <div
+      className={`rte-root ${className}`}
+      onClick={(event) => {
+        if (openClickedLink(event.nativeEvent, onNavigateToPage, { editable })) {
+          event.preventDefault();
+        }
+      }}
+    >
+      {toolbar && editable && editor && toolbarContainer &&
+        createPortal(<FormatMenuBar editor={editor} />, toolbarContainer)}
       <div className="rte-content prose max-w-none">
-        {toolbar && editable && editor && (
+        {toolbar && editable && editor && !toolbarContainer && (
           <div className="mb-2 border-b border-surface-3 pb-2">
             <FormatMenuBar editor={editor} />
           </div>

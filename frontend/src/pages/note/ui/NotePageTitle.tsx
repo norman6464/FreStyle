@@ -5,6 +5,8 @@ export interface NotePageTitleProps {
   canEdit: boolean;
   /** 確定。**失敗は投げてくる**前提（投げられたら入力を保つ。知らせは呼び出し側）。 */
   onRename: (title: string) => Promise<void>;
+  /** Enter で確定したとき（変換確定の Enter は除く）。本文へフォーカスを移すために使う。 */
+  onEnter?: () => void;
 }
 
 /**
@@ -15,7 +17,7 @@ export interface NotePageTitleProps {
  * 失敗しても入力は消さない — 消すと打ち直しになるうえ何が悪かったのか分からない
  * （サイドバーの改名・作成フォームと同じ約束）。
  */
-export default function NotePageTitle({ title, canEdit, onRename }: NotePageTitleProps) {
+export default function NotePageTitle({ title, canEdit, onRename, onEnter }: NotePageTitleProps) {
   // null は「編集していない」。編集中だけ下書きを持ち、確定・取消で null に戻す。
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -69,6 +71,9 @@ export default function NotePageTitle({ title, canEdit, onRename }: NotePageTitl
         if (event.key === 'Enter') {
           event.preventDefault();
           void commit();
+          // 確定の成否を待たずに本文へ移る（題名が変わっていなくても移る）。
+          // 失敗したら入力は残り、知らせが出る — 移動を止める理由にはならない。
+          onEnter?.();
         }
         if (event.key === 'Escape') {
           cancelledRef.current = true;

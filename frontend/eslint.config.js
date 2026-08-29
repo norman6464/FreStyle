@@ -1,3 +1,6 @@
+// For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
+import storybook from "eslint-plugin-storybook";
+
 import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -134,31 +137,36 @@ const selfReferenceConfigs = entitySlices.map((slice) => ({
   },
 }));
 
-export default defineConfig([
-  globalIgnores(['dist', 'coverage']),
-  {
-    files: ['**/*.{js,jsx,ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      ...tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        ecmaFeatures: { jsx: true },
-        sourceType: 'module',
-      },
-    },
-    rules: {
-      'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
+export default defineConfig([globalIgnores(['dist', 'coverage']), {
+  files: ['**/*.{js,jsx,ts,tsx}'],
+  extends: [
+    js.configs.recommended,
+    ...tseslint.configs.recommended,
+    reactHooks.configs['recommended-latest'],
+    reactRefresh.configs.vite,
+  ],
+  languageOptions: {
+    ecmaVersion: 2020,
+    globals: globals.browser,
+    parserOptions: {
+      ecmaVersion: 'latest',
+      ecmaFeatures: { jsx: true },
+      sourceType: 'module',
     },
   },
-  ...fsdBoundaryConfigs,
-  ...selfReferenceConfigs,
-]);
+  rules: {
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': 'off',
+    '@typescript-eslint/no-explicit-any': 'off',
+  },
+}, {
+  // ビルド・テストの設定ファイルは Node で動く（src はブラウザ）。
+  // preview.tsx はブラウザで動くので含めない（Node のグローバルを許すと
+  // ブラウザに無い識別子の間違いを ESLint が見逃す）。
+  files: ['*.config.{js,ts,mjs}', '.storybook/main.ts'],
+  languageOptions: { globals: globals.node },
+}, ...fsdBoundaryConfigs, ...selfReferenceConfigs, ...storybook.configs["flat/recommended"], {
+  // story 名もテスト名と同じく日本語で書く（このリポジトリの流儀）。PascalCase の強制だけ外す。
+  files: ['**/*.stories.@(ts|tsx)'],
+  rules: { 'storybook/prefer-pascal-case': 'off' },
+}]);

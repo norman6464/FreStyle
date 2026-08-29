@@ -38,3 +38,6 @@ coverage
 # Stryker (mutation testing) の生成物
 .stryker-tmp/
 reports/mutation/
+
+*storybook.log
+storybook-static

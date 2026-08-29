@@ -8,7 +8,3 @@
 export { default as CompanyRepository } from './api/companyRepository';
 export type { Company } from './api/companyRepository';
 export type { CompanyStat } from './api/companyRepository';
-export { CompanyApplicationRepository } from './api/companyApplicationRepository';
-export type { CompanyApplicationForm } from './api/companyApplicationRepository';
-export type { CompanyApplicationStatus } from './api/companyApplicationRepository';
-export type { CompanyApplication } from './api/companyApplicationRepository';

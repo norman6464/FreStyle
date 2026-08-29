@@ -64,6 +64,18 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == sqlStateUniqueViolation
 }
 
+// uniqueViolationConstraint は一意制約違反のとき、違反した制約名を返す。
+// 1 つの INSERT が複数の一意制約を持ちうる場合、名前を見ないとどの制約が競合したか
+// 区別できず、意味の違うエラー（本当に重複 / 別の要求が既に作っていた等）を
+// 取り違えて返してしまう。
+func uniqueViolationConstraint(err error) (string, bool) {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != sqlStateUniqueViolation {
+		return "", false
+	}
+	return pgErr.ConstraintName, true
+}
+
 // isForeignKeyViolation は外部キー違反（参照先が無い）かを返す。
 func isForeignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
@@ -154,12 +166,53 @@ func toDomainPageSnapshot(row sqlcgen.PageSnapshot) domain.PageSnapshot {
 	}
 }
 
+// DeleteWorkspace はワークスペースを配下ごと消す。
+//
+// 0 行だったときに「無かった」と「会社のものだから消さなかった」を撃ち分ける必要がある。
+// SQL 側は会社のものを WHERE で弾くだけなのでどちらも 0 行になる。ここで実在を引き直し、
+// 在るのに消えなかった＝会社のものと判定する（守りは SQL 側にあり、ここは理由付けだけ）。
+func (r *knowledgeBaseRepository) DeleteWorkspace(ctx context.Context, workspaceID string) error {
+	id, ok := kbParseID(workspaceID)
+	if !ok {
+		return repository.ErrWorkspaceNotFound
+	}
+	affected, err := r.q.DeleteWorkspace(ctx, id)
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		return nil
+	}
+	if _, err := r.q.GetWorkspaceByID(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		return repository.ErrWorkspaceNotFound
+	} else if err != nil {
+		return err
+	}
+	return repository.ErrCompanyWorkspaceUndeletable
+}
+
 func (r *knowledgeBaseRepository) FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error) {
 	id, ok := kbParseID(workspaceID)
 	if !ok {
 		return nil, repository.ErrWorkspaceNotFound
 	}
 	row, err := r.q.GetWorkspaceByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	ws := toDomainWorkspace(row)
+	return &ws, nil
+}
+
+func (r *knowledgeBaseRepository) FindPersonalWorkspaceByOwner(ctx context.Context, userID uint64) (*domain.Workspace, error) {
+	id, ok := toInt64ID(userID)
+	if !ok {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	row, err := r.q.GetPersonalWorkspaceByOwner(ctx, sql.NullInt64{Int64: id, Valid: true})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrWorkspaceNotFound
 	}

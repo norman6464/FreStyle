@@ -273,4 +273,33 @@ func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, got, "所属は principals の行が唯一の表現")
 	})
+
+	t.Run("CanManageはadmin grantを持つ人だけtrue", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		require.NoError(t, err)
+		bob := f.principalFor(ctx, t, f.bob)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleEditor)
+		require.NoError(t, err)
+		// carol は所属だけで grant が無い（LEFT JOIN が noなmatch になる側）。
+		// sqlc が (wg.role = 'admin') を非 null の bool と推論しているので、
+		// NULL のときに落ちずに false を返すことをここで確かめる。
+		f.principalFor(ctx, t, f.carol)
+
+		got, err := f.perm.ListMemberWorkspaces(ctx, f.alice)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.True(t, got[0].CanManage, "admin grant を持つ本人")
+
+		got, err = f.perm.ListMemberWorkspaces(ctx, f.bob)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.False(t, got[0].CanManage, "editor grant は admin ではない")
+
+		got, err = f.perm.ListMemberWorkspaces(ctx, f.carol)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.False(t, got[0].CanManage, "grant が無い所属（LEFT JOIN 不一致）は admin ではない")
+	})
 }

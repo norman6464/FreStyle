@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
+import HeaderWorkspaceSwitcher from './HeaderWorkspaceSwitcher';
 import { useSidebar } from '../model/useSidebar';
 import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
@@ -94,6 +95,8 @@ export default function Header() {
           <img src="/favicon.svg" alt="" aria-hidden="true" className="w-7 h-7 flex-shrink-0" />
           <span className="hidden sm:block text-sm font-semibold text-[var(--color-text-primary)]">FreStyle</span>
         </Link>
+
+        <HeaderWorkspaceSwitcher />
 
         {/* デスクトップ: テキスト横並びナビ */}
         <nav className="hidden md:flex items-center gap-1" aria-label="メインナビゲーション">

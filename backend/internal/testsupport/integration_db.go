@@ -87,7 +87,8 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 
 	serializeIntegration(t, sqlDB)
 
-	// 中核テーブル（users / roles / courses / …）は起動時（database.Migrate）と同じ明示 DDL で作る。
+	// 中核テーブル（users / roles / courses / … と FK / CHECK / 部分 UNIQUE）は
+	// 起動時（database.Migrate）と同じ明示 DDL（schema.sql Ⅰ）で作る。
 	if err := database.ApplyCoreSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyCoreSchema 失敗: %v", err)
 	}
@@ -96,23 +97,12 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	if err := database.SeedRoles(t.Context(), sqlDB); err != nil {
 		t.Fatalf("SeedRoles 失敗: %v", err)
 	}
-	// FK / CHECK / 部分 UNIQUE も本番（database.Migrate）と同じに揃える。
-	if err := database.ApplyUserNormalizationConstraints(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplyUserNormalizationConstraints 失敗: %v", err)
-	}
-	// rich_documents の FK / CHECK も本番（database.Migrate）と同じに揃える。
-	if err := database.ApplyRichDocumentConstraints(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
-	}
-	// ノート（workspaces / spaces / pages / blocks / …）も同じ明示 DDL を流す。
-	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
-	}
-	// companies / users の workspace_id 列と FK も本番（database.Migrate）と同じに揃える。
+	// ノート（workspaces / spaces / pages / blocks / …）と、テナント橋渡し列
+	// （companies / users の workspace_id）も同じ明示 DDL（schema.sql Ⅱ〜Ⅳ）を流す。
 	// バックフィルは呼ばない（テストが自分でデータを用意する。起動相当の再実行は
 	// バックフィル自身の結合テストが直接呼んで確かめる）。
-	if err := database.ApplyTenantBridgeSchema(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplyTenantBridgeSchema 失敗: %v", err)
+	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
+		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
 	}
 	return sqlDB
 }

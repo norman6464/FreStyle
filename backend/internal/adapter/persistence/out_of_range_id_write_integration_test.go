@@ -72,15 +72,6 @@ func outOfRangeWriteCases() []writeCase {
 			},
 		},
 		{
-			name: "学習レポートの作成（user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewLearningReportRepository(db).Create(ctx, &domain.LearningReport{
-					UserID: outOfRangeID, PeriodFrom: time.Now(), PeriodTo: time.Now(),
-					Status: domain.LearningReportStatusPending,
-				})
-			},
-		},
-		{
 			name: "ノートの作成（user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewNoteRepository(db).Create(ctx, &domain.Note{

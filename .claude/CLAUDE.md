@@ -12,13 +12,11 @@
 
 - **プロジェクト名**: FreStyle — 新卒 IT エンジニア向け統合研修プラットフォーム（B2B SaaS）
 - **本番URL**: https://frestyle.jp
-- **バックエンド**: Go 1.x / Gin / GORM（`backend/`、ECS Fargate）
+- **バックエンド**: Go 1.x / Gin / sqlc（`backend/`、ECS Fargate）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
-- **RDB**: PostgreSQL 17.6（Supabase / Transaction pooler / GORM AutoMigrate、2026-05 に RDS から移行）
-- **NoSQL**: DynamoDB（`fre_style_ai_chat` — AI チャットメッセージ）
+- **RDB**: PostgreSQL 17.6（Supabase / Transaction pooler、2026-05 に RDS から移行）。データアクセスは **sqlc**（SQL から型付き Go を生成）。**GORM は撤去済み**（依存にも無い）
 - **認証**: AWS Cognito（OIDC + JWT HttpOnly Cookie、招待マジックリンク方式）
-- **AI**: AWS Bedrock（Claude Sonnet 4.5 / Inference Profile 経由）
-- **非同期処理**: SQS（学習レポート生成キュー） / **チャット通信**: SSE on ECS
+- **チャット通信**: SSE on ECS（非同期キュー（SQS）は学習レポートの撤去にともない廃止）
 - **IaC**: Terraform（private リポ `frestyle-infrastructure` で管理）
 
 ---
@@ -34,7 +32,7 @@ handler → usecase → repository / infra → domain
 - **矢印の向き以外の依存は禁止**
 - handler は repository / infra を直接呼ばない。必ず usecase を経由する
 - usecase は handler を知らない（`*gin.Context` 等を引数で受けない）
-- repository / infra は usecase を知らない。domain は他のどの層にも依存しない（標準ライブラリ + GORM tag のみ）
+- repository / infra は usecase を知らない。domain は他のどの層にも依存しない（標準ライブラリのみ）
 
 ### 2.2 各層の責務
 
@@ -44,9 +42,9 @@ handler → usecase → repository / infra → domain
 | middleware | `backend/internal/handler/middleware` | JWT 認証、CORS、current user 注入、CSRF 等の横断的処理 |
 | usecase | `backend/internal/usecase` | 1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
 | repository (port) | `backend/internal/usecase/repository` | usecase が依存する repository interface の定義 |
-| persistence (adapter) | `backend/internal/adapter/persistence` | GORM / DynamoDB / S3 / SQS 等の repository 実装 |
+| persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / S3 等の repository 実装 |
 | infra | `backend/internal/infra/{bedrock,s3,ses,cognito,database,...}` | 外部サービス連携（AWS SDK ラッパ）、DB 接続、設定読み込み |
-| domain | `backend/internal/domain` | エンティティ + ビジネス定数。GORM tag は pragmatic に直書き。他層を import しない |
+| domain | `backend/internal/domain` | エンティティ + ビジネス定数。JSON tag のみ直書き（永続化の都合は持ち込まない）。他層を import しない |
 
 ### 2.3 1 構造体 1 責務（usecase）
 
@@ -126,7 +124,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - usecase: `[動詞][目的語]UseCase`（`NewXxxUseCase` / `Execute`）
 - repository interface: `[Entity]Repository`。実装は `persistence` の小文字 struct + `NewXxxRepository`
 - handler: `[ドメイン]Handler`、メソッドは `(h *XxxHandler) Action(c *gin.Context)`
-- domain: 名詞（`User` 等）。GORM tag + JSON tag 直書き、必要なら `TableName()`
+- domain: 名詞（`User` 等）。JSON tag のみ直書き（表名や列名は sqlc の生成物と repository が持つ）
 - request / response: handler 内 local 定義の `xxxRequest` / `xxxResponse`
 - infra: パッケージ名は領域別（`bedrock` / `s3` / `ses` / `cognito` / `database`）
 - フロントエンド コンポーネント: PascalCase、1 ファイル 1 コンポーネント
@@ -212,9 +210,63 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 
 - **バックエンド**: `gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy`（ECR build/push + ECS force-update）。ヘルスチェックは本番 API ドメインの `GET /api/v2/health`（CloudFront 配下の SPA パスに叩くと一律 200 になり誤認する）
 - **フロントエンド**: `gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy`
-- **DB マイグレーション**: 新規テーブル / 列追加は GORM AutoMigrate が ECS 起動時に自動適用。列削除 / リネーム / 型変更は `backend/migrations/000X_*.sql` に置き、private リポ `frestyle-infrastructure` の `make apply-migration-supabase` で適用（実引数・手順は同リポ docs 参照）。冪等性（`IF NOT EXISTS` 等）を必ず担保する
-- **例外: ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
-  - 権限側は `users` へ FK を張るので、適用順は AutoMigrate → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
+- **DB マイグレーション**: スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅰ. 中核` / `-- Ⅱ. ノートの骨格` / `-- Ⅲ. ノートの権限` / `-- Ⅳ. テナント橋渡し` の節印で区切った 1 ファイル）で、ECS 起動時にこの埋め込み DDL をそのまま流す。**同じファイルが sqlc の型付け入力**でもあるので、定義が二重化しない（変更したら `make sqlc`）
+  - **列の追加・変更もこのファイルに書く。** `CREATE ... IF NOT EXISTS` と、カタログを見て足りないときだけ `ALTER` する `DO` ブロックで冪等にする（実例: `spaces.visibility` の追加）。**`ALTER TABLE` を素で書かない** — 列が既に在って何もしない場合でも先に ACCESS EXCLUSIVE ロックを取り、毎回の起動でその表を止めるため
+  - **`backend/migrations/` は置かない**（2026-08 に撤去）。GORM を使っていた頃の置き場で、AutoMigrate では表せない差分を別ファイルに逃がすためのものだった。GORM を撤去して DDL が正本になった今、置き場を 2 つ持つ理由が無い（どちらが正か分からなくなる）
+  - 1 回きりのデータ移行（既存行の書き換え）は起動時 DDL には向かない。SQL を private リポ `frestyle-infrastructure` 側で管理して流す。**流す前に §5.1 の手順でローカルの実 PostgreSQL で検証する**
+
+### 5.1 SQL は本番へ流す前に必ずローカルの実 PostgreSQL で検証する（重要）
+
+**マイグレーション・データ移行・調査用のクエリは、本番（Supabase）へ流す前に必ずローカルの実 PostgreSQL で実際に実行して確かめる。** 「たぶん動く」で本番へ流さない。読み取りだけの調査クエリも、結合や集計を含むなら同じ扱いにする（列名の思い違い・NULL の扱い・結合の重複は流してみるまで分からない）。
+
+まず **クエリのロジックそのものが正しいか**を確かめる。構文が通ることと、意図した行を返すことは別物。期待する結果を先に言葉で書き、その通りになるかを実データに近い形で見る。
+
+#### 手順
+
+```bash
+cd backend
+
+# 1. 結合テスト用の PostgreSQL を起動（本番と同じ 17.6・tmpfs で毎回まっさら）
+docker compose -f docker-compose.integration.yml up -d --wait
+
+# 2. スキーマを正本のまま流す（中核 → 骨格 → 権限 → テナント橋渡し の節印順に 1 ファイルへ並んでいる）
+docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
+  psql -U frestyle -d frestyle_integration -v ON_ERROR_STOP=1 -q \
+  < internal/infra/database/schema/schema.sql
+
+# 3. 本番に近いデータを作ってから、検証したい SQL を流す
+docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
+  psql -U frestyle -d frestyle_integration -v ON_ERROR_STOP=1 < /path/to/migration.sql
+
+# 4. 対話で確かめる（列を見る・件数を数える・壊れ方を試す）
+docker compose -f docker-compose.integration.yml exec -it postgres-integration-test \
+  psql -U frestyle -d frestyle_integration
+
+# 5. 終わったら必ず破棄する（データを残さない）
+docker compose -f docker-compose.integration.yml down -v
+```
+
+#### 確かめること
+
+- **意図した行が返るか**（件数・中身を目で見る。0 件や全件は特に疑う）
+- **2 回流して同じ結果になるか**（冪等。2 回目が 0 件更新で終わること）
+- **検証クエリが、壊れたときに本当に止まるか**（わざとデータを壊して `RAISE EXCEPTION` が出ることを見る）
+- **FK・一意制約に触れないか**（このスキーマは複合 FK でテナント越えを塞いでいるので、更新の順序を誤ると落ちる）
+- 書き込みを含むなら**切り戻しの手順**も用意して、それも流して確かめる
+
+`-v ON_ERROR_STOP=1` は必ず付ける（付けないと途中でエラーが出ても最後まで流れ、成功に見える）。
+
+#### sqlc と噛み合う理由（この手順を標準にする根拠）
+
+**同じ `schema/schema.sql` が、sqlc の型付け入力でもあり psql への入力でもある。** だからローカルに立てた DB は、sqlc が見ている定義と必ず一致する。別に用意した検証用スキーマとずれる、という事故が構造的に起きない。
+
+**sqlc が見るのは「スキーマと噛み合っているか」まで。** 列名や型の食い違いは `sqlc generate` が落として教えてくれるが、**そのクエリが意図した行を返すか**は見ない。結合で行が重複していないか、`NULL` の行が落ちていないか、`LEFT JOIN` のつもりが内部結合になっていないか——ここは実際に流して目で見るしかない。`sqlc vet` も静的解析なので同じ（見えるのは処理後の SQL 文字列だけで、スキーマも実データも見えない。詳細は `backend/sqlc.yaml` の rules のコメント）。
+
+**手順が自然に噛み合う。** psql で書いて確かめる → 固まったクエリを `queries/*.sql` へ置く → `make sqlc` で型を起こす。この順なら、生成の段階で型の食い違いが出ない（先に実データで通っているため）。逆順（先に Go を書いて後で確かめる）だと、生成し直すたびに手戻りする。
+
+要するに **sqlc は「書いたものがスキーマと合っているか」を、psql は「書いたものが正しいか」を受け持つ**。両方を通して初めて本番へ出せる。
+- **ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）のスキーマ**。実スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅱ. ノートの骨格` と `-- Ⅲ. ノートの権限` の節。`CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は ORM の構造体タグでは表現できず、書けたとしても定義が二重化するため（この設計が GORM 撤去の理由の 1 つでもある）。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
+  - 権限側は `users` へ FK を張るので、適用順は 中核 → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）
   - **実効権限の規則は `domain.ResolvePagePermission` だけが持つ**。SQL が返すのは事実（既定の役割・経路上の制限の集計）だけで、優先規則を SQL 側へ写経しない
   - 例外の集計は「deny は経路全体・allow リストは最も近い段」という見方で、`domain.RestrictionFacts` の 3 つの事実に畳む — `DeniedAnywhere`（経路上のどこかに自分を deny する行があるか）/ `HasAllowList`（経路上に許可リスト制の段があるか。数えるのは印 `page_allow_lists` であって allow 行ではない）/ `AllowedAtNearest`（最も近い許可リスト制の段に自分を allow する行があるか）。**deny を「最も近い段」だけで見てはいけない**（deny 行だけの段が最近段になった瞬間に、より遠い祖先の限定公開が第三者への deny 1 行で解除される）
@@ -227,7 +279,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 
 - `cp .env.example .env` して接続情報を記入。主な環境変数: `DATABASE_URL`（推奨・`DB_HOST` 等より優先）/ `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `AWS_REGION` / `BEDROCK_MODEL_ID` / `DYNAMODB_AI_CHAT_TABLE`（dev は `fre_style_ai_chat_dev`）/ `NOTE_IMAGES_BUCKET`
 - **接続情報の実値は git に commit しない**（`.env` または AWS Secrets Manager）。Supabase 接続 URL の取得・pooler の使い分け・runbook は private リポ `frestyle-infrastructure` の docs を参照
-- backend は `DATABASE_URL` セット時、pgbouncer 互換のため `PrepareStmt: false` + simple query protocol を自動適用（host 名で自動判定）。GORM AutoMigrate もそのまま動く
+- backend は `DATABASE_URL` セット時、pgbouncer 互換のため simple query protocol を自動適用（host 名で自動判定）。起動時の DDL 適用もこの経路を通る
 - 起動: backend は `cd backend && go run ./cmd/server`（確認は `go build ./... && go test ./...`）、frontend は `cd frontend && pnpm install && pnpm run dev`（pnpm は `corepack enable` で用意する）
 
 ---

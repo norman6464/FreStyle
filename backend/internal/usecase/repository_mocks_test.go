@@ -258,26 +258,6 @@ func (m *mockCompanyRepo) UpdateActive(ctx context.Context, companyID uint64, ac
 	return m.Called(ctx, companyID, active).Error(0)
 }
 
-// --- mock: CompanyApplicationRepository ---
-
-type mockCompanyAppRepo struct{ mock.Mock }
-
-var _ repository.CompanyApplicationRepository = (*mockCompanyAppRepo)(nil)
-
-func (m *mockCompanyAppRepo) Create(ctx context.Context, app *domain.CompanyApplication) error {
-	return m.Called(ctx, app).Error(0)
-}
-
-func (m *mockCompanyAppRepo) ListAll(ctx context.Context) ([]domain.CompanyApplication, error) {
-	args := m.Called(ctx)
-	rows, _ := args.Get(0).([]domain.CompanyApplication)
-	return rows, args.Error(1)
-}
-
-func (m *mockCompanyAppRepo) UpdateStatus(ctx context.Context, id uint64, status string) error {
-	return m.Called(ctx, id, status).Error(0)
-}
-
 // --- mock: CompanyLearningActivitySummarizer ---
 
 type mockLearningSummarizer struct{ mock.Mock }
@@ -354,6 +334,11 @@ type mockKnowledgeBaseRepo struct{ mock.Mock }
 
 var _ repository.KnowledgeBaseRepository = (*mockKnowledgeBaseRepo)(nil)
 
+func (m *mockKnowledgeBaseRepo) DeleteWorkspace(ctx context.Context, workspaceID string) error {
+	args := m.Called(ctx, workspaceID)
+	return args.Error(0)
+}
+
 func (m *mockKnowledgeBaseRepo) FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error) {
 	args := m.Called(ctx, workspaceID)
 	w, _ := args.Get(0).(*domain.Workspace)
@@ -362,6 +347,12 @@ func (m *mockKnowledgeBaseRepo) FindWorkspaceByID(ctx context.Context, workspace
 
 func (m *mockKnowledgeBaseRepo) FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error) {
 	args := m.Called(ctx, slug)
+	w, _ := args.Get(0).(*domain.Workspace)
+	return w, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) FindPersonalWorkspaceByOwner(ctx context.Context, userID uint64) (*domain.Workspace, error) {
+	args := m.Called(ctx, userID)
 	w, _ := args.Get(0).(*domain.Workspace)
 	return w, args.Error(1)
 }
@@ -491,9 +482,9 @@ func (m *mockKBPermissionRepo) EnsureSpaceEveryonePrincipal(ctx context.Context,
 	return p, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error) {
+func (m *mockKBPermissionRepo) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error) {
 	args := m.Called(ctx, userID)
-	rows, _ := args.Get(0).([]domain.Workspace)
+	rows, _ := args.Get(0).([]domain.MemberWorkspace)
 	return rows, args.Error(1)
 }
 

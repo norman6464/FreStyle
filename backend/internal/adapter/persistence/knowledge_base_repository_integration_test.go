@@ -630,3 +630,47 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	require.Nil(t, byType[domain.BlockTypeHorizontalRule].Inline, "content の無いノードは inline NULL")
 	require.Nil(t, byType[domain.BlockTypeBulletList].Inline, "容器ノードは inline NULL")
 }
+
+// TestKnowledgeBaseDeleteWorkspace_Integration は DeleteWorkspace が会社ワークスペースを
+// 守り、それ以外は配下ごと消すことを実 PostgreSQL で固定する。
+func TestKnowledgeBaseDeleteWorkspace_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	truncTables := append([]string{"companies"}, kbTables...)
+
+	t.Run("会社に紐づくワークスペースは消さない", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, truncTables...)
+		ws := createWorkspace(t, sqlDB, "ws-company-owned")
+		insertCompany(t, sqlDB, 1, "会社", true)
+		_, err := sqlDB.Exec(`UPDATE companies SET workspace_id = $1 WHERE id = 1`, ws)
+		require.NoError(t, err)
+
+		err = repo.DeleteWorkspace(ctx, ws)
+		assert.ErrorIs(t, err, repository.ErrCompanyWorkspaceUndeletable)
+
+		var count int
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM workspaces WHERE id = $1`, ws).Scan(&count))
+		assert.Equal(t, 1, count, "会社のワークスペースは残っていなければならない")
+	})
+
+	t.Run("会社に紐づかないワークスペースは配下ごと消える", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, truncTables...)
+		ws := createWorkspace(t, sqlDB, "ws-personal")
+		createSpace(t, sqlDB, ws, "eng")
+
+		require.NoError(t, repo.DeleteWorkspace(ctx, ws))
+
+		var wsCount, spaceCount int
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM workspaces WHERE id = $1`, ws).Scan(&wsCount))
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM spaces WHERE workspace_id = $1`, ws).Scan(&spaceCount))
+		assert.Zero(t, wsCount)
+		assert.Zero(t, spaceCount, "配下は FK CASCADE で一緒に消える")
+	})
+
+	t.Run("存在しないワークスペースはErrWorkspaceNotFound", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, truncTables...)
+		err := repo.DeleteWorkspace(ctx, newID())
+		assert.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
+	})
+}

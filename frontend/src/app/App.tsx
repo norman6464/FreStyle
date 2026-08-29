@@ -16,11 +16,11 @@ import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReloa
    意味を持たない。実ロジック（NavigationToast / AppRoutes）は計測対象のまま残す。 */
 // 認証不要ページ
 const LoginPage = lazyWithReload(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })), 'LoginPage');
+const SignupPage = lazyWithReload(() => import('@/pages/signup').then((m) => ({ default: m.SignupPage })), 'SignupPage');
 const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then((m) => ({ default: m.LoginCallback })), 'LoginCallback');
 const ForgotPasswordPage = lazyWithReload(() => import('@/pages/forgot-password').then((m) => ({ default: m.ForgotPasswordPage })), 'ForgotPasswordPage');
 const ConfirmForgotPasswordPage = lazyWithReload(() => import('@/pages/confirm-forgot-password').then((m) => ({ default: m.ConfirmForgotPasswordPage })), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('@/pages/accept-invitation').then((m) => ({ default: m.AcceptInvitationPage })), 'AcceptInvitationPage');
-const CompanyApplicationPage = lazyWithReload(() => import('@/pages/company-application').then((m) => ({ default: m.CompanyApplicationPage })), 'CompanyApplicationPage');
 // 公開ランディング（SEO 対象・認証不要）。ログイン済みは /dashboard へ送る。
 const LandingPage = lazyWithReload(() => import('@/pages/landing').then((m) => ({ default: m.LandingPage })), 'LandingPage');
 
@@ -29,15 +29,10 @@ const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ defa
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
 const NotePage = lazyWithReload(() => import('@/pages/note').then((m) => ({ default: m.NotePage })), 'NotePage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
-const LearningReportPage = lazyWithReload(() => import('@/pages/learning-report').then((m) => ({ default: m.LearningReportPage })), 'LearningReportPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 const AdminInvitationsPage = lazyWithReload(() => import('@/pages/admin-invitations').then((m) => ({ default: m.AdminInvitationsPage })), 'AdminInvitationsPage');
 const AdminCompaniesPage = lazyWithReload(() => import('@/pages/admin-companies').then((m) => ({ default: m.AdminCompaniesPage })), 'AdminCompaniesPage');
 const AdminMembersPage = lazyWithReload(() => import('@/pages/admin-members').then((m) => ({ default: m.AdminMembersPage })), 'AdminMembersPage');
-const AdminCompanyApplicationsPage = lazyWithReload(
-  () => import('@/pages/admin-company-applications').then((m) => ({ default: m.AdminCompanyApplicationsPage })),
-  'AdminCompanyApplicationsPage',
-);
 const AdminDashboardPage = lazyWithReload(() => import('@/pages/admin-dashboard').then((m) => ({ default: m.AdminDashboardPage })), 'AdminDashboardPage');
 const AdminAuditLogPage = lazyWithReload(() => import('@/pages/admin-audit-log').then((m) => ({ default: m.AdminAuditLogPage })), 'AdminAuditLogPage');
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
@@ -86,6 +81,7 @@ export default function App() {
       {/* 公開トップ（SEO 対象）。ログイン済みは LandingPage 内で /dashboard へ送る。 */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route
@@ -94,7 +90,6 @@ export default function App() {
       />
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
-      <Route path="/company-application" element={<CompanyApplicationPage />} />
       {/* inkwell UI カタログ（見た目確認用・認証不要） */}
       <Route path="/dev/inkwell" element={<InkwellShowcasePage />} />
 
@@ -124,7 +119,6 @@ export default function App() {
         <Route path="/kb/:workspaceSlug" element={<Navigate to="/notes" replace />} />
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
-        <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />
         {/* コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段(FRESTYLE-152)。
             /lang/:language は 2 セグメントなので 1 セグメントの :slug とは衝突しない。 */}
@@ -154,14 +148,6 @@ export default function App() {
           element={
             <RequireRole allow={['super_admin']}>
               <AdminCompaniesPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/applications"
-          element={
-            <RequireRole allow={['super_admin']} requireAdminFlag>
-              <AdminCompanyApplicationsPage />
             </RequireRole>
           }
         />

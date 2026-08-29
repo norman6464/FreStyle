@@ -7,21 +7,21 @@ describe('LinkText', () => {
   it('リンクテキストが表示される', () => {
     render(
       <MemoryRouter>
-        <LinkText to="/company-application">利用申請</LinkText>
+        <LinkText to="/signup">サインアップ</LinkText>
       </MemoryRouter>
     );
 
-    expect(screen.getByText('利用申請')).toBeInTheDocument();
+    expect(screen.getByText('サインアップ')).toBeInTheDocument();
   });
 
   it('正しいリンク先が設定される', () => {
     render(
       <MemoryRouter>
-        <LinkText to="/company-application">利用申請</LinkText>
+        <LinkText to="/signup">サインアップ</LinkText>
       </MemoryRouter>
     );
 
-    expect(screen.getByText('利用申請').closest('a')).toHaveAttribute('href', '/company-application');
+    expect(screen.getByText('サインアップ').closest('a')).toHaveAttribute('href', '/signup');
   });
 
   it('aタグとしてレンダリングされる', () => {

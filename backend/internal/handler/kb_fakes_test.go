@@ -89,6 +89,12 @@ func (f *kbFakePages) FindWorkspaceBySlug(_ context.Context, slug string) (*doma
 	return &c, nil
 }
 
+// FindPersonalWorkspaceByOwner はこのフェイクでは使わない（個人ワークスペースの確保は
+// サインアップ経路のテストが別途持つ）。インターフェースを満たすためだけに実装する。
+func (f *kbFakePages) FindPersonalWorkspaceByOwner(_ context.Context, _ uint64) (*domain.Workspace, error) {
+	return nil, repository.ErrWorkspaceNotFound
+}
+
 // hasWorkspaceID は ID でワークスペースの実在を確かめる（マップの鍵は slug なので走査する）。
 func (f *kbFakePages) hasWorkspaceID(workspaceID string) bool {
 	for _, ws := range f.workspaces {
@@ -109,6 +115,44 @@ func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID str
 }
 
 // DeletePageSubtree はページと子孫を map から消す（本番の CASCADE の代わりに素直に辿る）。
+// companyWorkspaceIDs は「会社に紐づくワークスペース」の集合（本番の companies.workspace_id）。
+// 本番は SQL の WHERE が守るので、fake でも同じ規則をここで写す。
+var companyWorkspaceIDs = map[string]bool{}
+
+func (f *kbFakePages) DeleteWorkspace(_ context.Context, workspaceID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	// 実在しないものは「無かった」。消えたことにしない。
+	var found *domain.Workspace
+	for _, ws := range f.workspaces {
+		if ws.ID == workspaceID {
+			found = ws
+			break
+		}
+	}
+	if found == nil {
+		return repository.ErrWorkspaceNotFound
+	}
+	// 会社のものは誰であっても消せない（本番と同じ順序: 実在 → 会社かどうか）。
+	if companyWorkspaceIDs[workspaceID] {
+		return repository.ErrCompanyWorkspaceUndeletable
+	}
+	delete(f.workspaces, found.Slug)
+	// 配下は本番では FK の CASCADE で消える。fake でも同じ結果にする。
+	for id, sp := range f.spaces {
+		if sp.WorkspaceID == workspaceID {
+			delete(f.spaces, id)
+		}
+	}
+	for id, pg := range f.pages {
+		if pg.WorkspaceID == workspaceID {
+			delete(f.pages, id)
+		}
+	}
+	return nil
+}
+
 func (f *kbFakePages) DeletePageSubtree(_ context.Context, workspaceID, pageID string) error {
 	if f.failWith != nil {
 		return f.failWith
@@ -985,14 +1029,15 @@ func (f *kbFakePerms) setScopeRole(scopeID string, userID uint64, role domain.Gr
 }
 
 // ListMemberWorkspaces は kind='user' の主体があるワークスペースを slug 順で返す。
-func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]domain.Workspace, error) {
+func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]domain.MemberWorkspace, error) {
 	if f.listWorkspacesErr != nil {
 		return nil, f.listWorkspacesErr
 	}
-	out := []domain.Workspace{}
+	out := []domain.MemberWorkspace{}
 	for _, ws := range f.pages.workspaces {
 		if f.userPrincipal(ws.ID, userID) != nil {
-			out = append(out, *ws)
+			role := f.scopeRoles[kbScopeKey{scopeID: ws.ID, userID: userID}]
+			out = append(out, domain.MemberWorkspace{Workspace: *ws, CanManage: role == domain.GrantRoleAdmin})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })

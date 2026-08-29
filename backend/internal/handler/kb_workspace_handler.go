@@ -24,6 +24,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	listWorkspaces  *usecase.ListMemberWorkspacesUseCase
 	joinCompany     *usecase.JoinCompanyWorkspaceUseCase
 	createWorkspace *usecase.CreateWorkspaceUseCase
+	deleteWorkspace *usecase.DeleteWorkspaceUseCase
 	checkWorkspace  *usecase.CheckWorkspacePermissionUseCase
 	createSpace     *usecase.CreateSpaceUseCase
 	listSpaces      *usecase.ListViewableSpacesUseCase
@@ -37,6 +38,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 	listWorkspaces *usecase.ListMemberWorkspacesUseCase,
 	joinCompany *usecase.JoinCompanyWorkspaceUseCase,
 	createWorkspace *usecase.CreateWorkspaceUseCase,
+	deleteWorkspace *usecase.DeleteWorkspaceUseCase,
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	createSpace *usecase.CreateSpaceUseCase,
 	listSpaces *usecase.ListViewableSpacesUseCase,
@@ -48,6 +50,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 		listWorkspaces:  listWorkspaces,
 		joinCompany:     joinCompany,
 		createWorkspace: createWorkspace,
+		deleteWorkspace: deleteWorkspace,
 		checkWorkspace:  checkWorkspace,
 		createSpace:     createSpace,
 		listSpaces:      listSpaces,
@@ -65,10 +68,13 @@ type kbWorkspaceResponse struct {
 	Slug      string    `json:"slug" example:"acme"`
 	Name      string    `json:"name" example:"Acme 社"`
 	CreatedAt time.Time `json:"createdAt"`
+	// CanManage は自分がこのワークスペースの admin か（削除操作を出してよいかの判定に使う。
+	// DeleteWorkspace が要求する権限と同じ）。
+	CanManage bool `json:"canManage"`
 }
 
-func toKbWorkspaceResponse(w *domain.Workspace) kbWorkspaceResponse {
-	return kbWorkspaceResponse{Slug: w.Slug, Name: w.Name, CreatedAt: w.CreatedAt}
+func toKbWorkspaceResponse(w *domain.Workspace, canManage bool) kbWorkspaceResponse {
+	return kbWorkspaceResponse{Slug: w.Slug, Name: w.Name, CreatedAt: w.CreatedAt, CanManage: canManage}
 }
 
 // kbSpaceResponse はスペース 1 件の返却形。
@@ -125,7 +131,7 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 	}
 	out := make([]kbWorkspaceResponse, 0, len(workspaces))
 	for i := range workspaces {
-		out = append(out, toKbWorkspaceResponse(&workspaces[i]))
+		out = append(out, toKbWorkspaceResponse(&workspaces[i].Workspace, workspaces[i].CanManage))
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -175,7 +181,8 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, toKbWorkspaceResponse(ws))
+	// 作成者は同じトランザクションで admin の grant を受け取る（ProvisionWorkspace の契約）。
+	c.JSON(http.StatusCreated, toKbWorkspaceResponse(ws, true))
 }
 
 // ListSpaces はワークスペース配下のスペースのうち、自分が閲覧できるものだけを返す。
@@ -235,6 +242,63 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 		out = append(out, toKbSpaceResponse(&spaces[i]))
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// Delete はワークスペースを配下ごと消す（戻せない）。
+//
+// # 誰が消せるか
+//
+// そのワークスペースの admin だけ。所属は middleware が確かめており、ここに来る相手は
+// 必ずメンバーなので、admin でなければ 403 で理由を返してよい（実在は既に知っている）。
+//
+// # 会社のワークスペースは誰にも消せない
+//
+// 判定は repository（さらに SQL の WHERE）が持つ。認可と違って**誰であっても消しては
+// いけない**ものなので、入口ではなく最も内側で守る。会社のワークスペースには全員の
+// ノートが入るうえ、消しても起動時のバックフィルが作り直すため、中身だけが消えた
+// 空のワークスペースが残る。
+//
+// # 消えるもの
+//
+// 配下のスペース・ページ・本文・所属・権限・共有リンクがすべて消える（FK の CASCADE）。
+// ユーザー（users）は消えない — ノートの片付けで人を消さない。
+//
+//	@Summary      ノート の ワークスペース 削除
+//	@Description  ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も 消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
+//	@Success      204            "削除 成功 (本文 なし)"
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      403            {object}  errorResponse  "ワークスペース の admin で は ない、 または 会社 の ワークスペース"
+//	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug} [delete]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseWorkspaceHandler) Delete(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if !perm.CanManage {
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
+	if err := h.deleteWorkspace.Execute(c.Request.Context(), usecase.DeleteWorkspaceInput{
+		WorkspaceID: scope.workspaceID,
+	}); err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // kbCreateSpaceRequest はスペース作成の入力。

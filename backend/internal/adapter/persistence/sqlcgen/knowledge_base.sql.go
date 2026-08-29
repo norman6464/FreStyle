@@ -102,6 +102,31 @@ func (q *Queries) DeletePageBlocks(ctx context.Context, arg DeletePageBlocksPara
 	return err
 }
 
+const deleteWorkspace = `-- name: DeleteWorkspace :execrows
+DELETE FROM workspaces w
+WHERE w.id = $1
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.workspace_id = w.id)
+`
+
+// ワークスペースを消す。**会社に紐づくものは消さない**（WHERE で弾く）。
+//
+// 配下（spaces / pages / blocks / page_paths / principals / grants / 例外 / 共有リンク）は
+// すべて workspaces への FK が ON DELETE CASCADE で連なっているので、この 1 文で消える。
+//
+// 会社のワークスペースを守るのは 2 つの理由から:
+//  1. そこには会社の全員のノートが入る。1 人の操作で会社全体の資産が消えてよいはずがない
+//  2. 消しても起動時のバックフィル（tenant_bridge）が companies.workspace_id を見て
+//     作り直すので、中身だけが消えた空のワークスペースが再び現れる（最悪の結果になる）
+//
+// 判定は companies を見る。呼び出し側の引数に頼ると、そこを間違えたときに守りが消える。
+func (q *Queries) DeleteWorkspace(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteWorkspace, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const detachPageSubtreePaths = `-- name: DetachPageSubtreePaths :exec
 DELETE FROM page_paths
 WHERE page_paths.workspace_id = $1
@@ -229,6 +254,28 @@ func (q *Queries) GetPageSnapshot(ctx context.Context, arg GetPageSnapshotParams
 	return i, err
 }
 
+const getPersonalWorkspaceByOwner = `-- name: GetPersonalWorkspaceByOwner :one
+SELECT id, slug, name, is_active, personal_owner_user_id, created_at, updated_at FROM workspaces
+WHERE personal_owner_user_id = $1
+`
+
+// 個人ワークスペースを持ち主から引く。サインアップの「作る前に既に在るか見る」に使う
+// （uq_workspaces_personal_owner が 1 人 1 つを守るので、あれば必ず 1 行）。
+func (q *Queries) GetPersonalWorkspaceByOwner(ctx context.Context, personalOwnerUserID sql.NullInt64) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getPersonalWorkspaceByOwner, personalOwnerUserID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.IsActive,
+		&i.PersonalOwnerUserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getSpace = `-- name: GetSpace :one
 SELECT id, workspace_id, key, name, visibility, created_at, updated_at FROM spaces
 WHERE workspace_id = $1 AND id = $2
@@ -257,7 +304,7 @@ func (q *Queries) GetSpace(ctx context.Context, arg GetSpaceParams) (Space, erro
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 
-SELECT id, slug, name, is_active, created_at, updated_at FROM workspaces
+SELECT id, slug, name, is_active, personal_owner_user_id, created_at, updated_at FROM workspaces
 WHERE id = $1
 `
 
@@ -281,6 +328,7 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 		&i.Slug,
 		&i.Name,
 		&i.IsActive,
+		&i.PersonalOwnerUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -288,7 +336,7 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, slug, name, is_active, created_at, updated_at FROM workspaces
+SELECT id, slug, name, is_active, personal_owner_user_id, created_at, updated_at FROM workspaces
 WHERE slug = $1
 `
 
@@ -302,6 +350,7 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.Slug,
 		&i.Name,
 		&i.IsActive,
+		&i.PersonalOwnerUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -492,27 +541,36 @@ func (q *Queries) InsertSpace(ctx context.Context, arg InsertSpaceParams) (Space
 }
 
 const insertWorkspace = `-- name: InsertWorkspace :one
-INSERT INTO workspaces (id, slug, name)
-VALUES ($1, $2, $3)
-RETURNING id, slug, name, is_active, created_at, updated_at
+INSERT INTO workspaces (id, slug, name, personal_owner_user_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, slug, name, is_active, personal_owner_user_id, created_at, updated_at
 `
 
 type InsertWorkspaceParams struct {
-	ID   uuid.UUID
-	Slug string
-	Name string
+	ID                  uuid.UUID
+	Slug                string
+	Name                string
+	PersonalOwnerUserID sql.NullInt64
 }
 
 // ワークスペースの作成。slug はグローバルに一意（uq_workspaces_slug）なので、
 // 重複は一意制約違反として返り、repository が「その slug は使用済み」へ翻訳する。
+// personal_owner_user_id は個人ワークスペースだけ非 NULL（uq_workspaces_personal_owner で
+// 1 人 1 つ）。通常のチームワークスペースは NULL のまま渡す。
 func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspace, arg.ID, arg.Slug, arg.Name)
+	row := q.db.QueryRowContext(ctx, insertWorkspace,
+		arg.ID,
+		arg.Slug,
+		arg.Name,
+		arg.PersonalOwnerUserID,
+	)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
 		&i.Name,
 		&i.IsActive,
+		&i.PersonalOwnerUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

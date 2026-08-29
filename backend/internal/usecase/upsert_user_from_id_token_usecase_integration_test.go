@@ -94,7 +94,7 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 			runner,
 		)
 
-		allowed, err := uc.Execute(
+		user, err := uc.Execute(
 			ctx,
 			usecase.UpsertUserFromIDTokenInput{
 				CognitoSub: "commit-sub",
@@ -103,7 +103,7 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		require.True(t, allowed)
+		require.NotNil(t, user)
 
 		created, err := users.FindByCognitoSub(ctx, "commit-sub")
 		require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 			runner,
 		)
 
-		allowed, err := uc.Execute(
+		user, err := uc.Execute(
 			ctx,
 			usecase.UpsertUserFromIDTokenInput{
 				CognitoSub: "rollback-sub",
@@ -155,7 +155,7 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 			},
 		)
 
-		require.False(t, allowed)
+		require.Nil(t, user)
 		require.ErrorIs(t, err, updateErr)
 
 		created, err := users.FindByCognitoSub(ctx, "rollback-sub")

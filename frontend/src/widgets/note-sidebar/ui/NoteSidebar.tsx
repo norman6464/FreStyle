@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArchiveBoxIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/shared/lib/hooks/useToast';
-import NoteCreateForm from './NoteCreateForm';
+import { NoteCreateForm } from '@/shared/ui';
 import NoteSectionHeading from './NoteSectionHeading';
 import { useNoteTree } from '../model/useNoteTree';
-import NoteWorkspaceSwitcher from './NoteWorkspaceSwitcher';
 import NoteSpaceSection from './NoteSpaceSection';
 import NoteSearchDialog from './NoteSearchDialog';
-import { NoteRepository, type NotePage } from '@/entities/note';
+import { NoteRepository, NoteWorkspaceSwitcher, type NotePage } from '@/entities/note';
 
 export interface NoteSidebarProps {
   /** URL が指しているワークスペース。未指定なら所属の先頭を開く。 */
@@ -45,6 +44,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
     expandedPageIds,
     togglePage,
     createWorkspace,
+    deleteWorkspace,
     createSpace,
     renameSpace,
     selectWorkspace,
@@ -93,6 +93,13 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
           navigate('/notes');
         }}
         onCreate={handleCreateWorkspace}
+        onDelete={async (slug) => {
+          try {
+            await deleteWorkspace(slug);
+          } catch {
+            showToast('error', 'ワークスペースを削除できませんでした');
+          }
+        }}
       />
 
       {workspacesLoading && (

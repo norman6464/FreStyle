@@ -211,7 +211,7 @@ func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAccepted�
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "invited-sub",
@@ -222,7 +222,7 @@ func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAccepted�
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("有効な招待があるユーザーは許可されるべき")
 	}
 	if users.created == nil {
@@ -355,7 +355,7 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-sub",
@@ -365,7 +365,7 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("既存ユーザーは許可されるべき")
 	}
 	if users.created != nil {
@@ -399,11 +399,13 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 	}
 }
 
-func Test_UpsertUserFromIDToken_招待も管理者権限もない新規ユーザーを拒否(t *testing.T) {
-	users := &stubUserRepo{}
+// 招待ゲートは撤去済み（個人サインアップ）。招待も管理者権限も無い新規ユーザーは
+// 拒否されず、所属会社無しで作られる。
+func Test_UpsertUserFromIDToken_招待も管理者権限もない新規ユーザーは自己サインアップできる(t *testing.T) {
+	users := &upsertUserRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, nil)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "new-sub",
@@ -413,18 +415,28 @@ func Test_UpsertUserFromIDToken_招待も管理者権限もない新規ユーザ
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if allowed {
-		t.Fatal("招待も管理者権限もない新規ユーザーは拒否されるべき")
+	if user == nil {
+		t.Fatal("招待の無い新規ユーザーも自己サインアップできるべき")
+	}
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Role != domain.RoleTrainee {
+		t.Fatalf("role = %q, want %q", users.created.Role, domain.RoleTrainee)
+	}
+	if users.created.CompanyID != nil {
+		t.Fatalf("companyID = %v, want nil", users.created.CompanyID)
 	}
 }
 
 // Cognito の admin グループに属しているだけでは招待統制を迂回できない（グループ名 1 つで
-// 会社をまたぐ super_admin が作れてしまう穴を塞ぐ）。
-func Test_UpsertUserFromIDToken_CognitoAdminでも招待が無ければ新規作成を拒否(t *testing.T) {
+// 会社をまたぐ super_admin が作れてしまう穴を塞ぐ）。自己サインアップ自体は許すが、
+// 招待も bootstrap も無ければ super_admin へは昇格させない。
+func Test_UpsertUserFromIDToken_CognitoAdminでも招待が無ければSuperAdminへ昇格しない(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, nil)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "admin-sub",
@@ -436,11 +448,14 @@ func Test_UpsertUserFromIDToken_CognitoAdminでも招待が無ければ新規作
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if allowed {
-		t.Fatal("招待の無い新規ユーザーは Cognito admin グループでも拒否されるべき")
+	if user == nil {
+		t.Fatal("招待の無い新規ユーザーも自己サインアップできるべき")
 	}
-	if users.created != nil {
-		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Role != domain.RoleTrainee {
+		t.Fatalf("role = %q, want %q（Cognito admin グループだけで昇格してはいけない）", users.created.Role, domain.RoleTrainee)
 	}
 }
 
@@ -450,7 +465,7 @@ func Test_UpsertUserFromIDToken_ブートストラップ指定アドレスは招
 	users := &upsertUserRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "  Ops@Example.com ")
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "admin-sub",
@@ -462,7 +477,7 @@ func Test_UpsertUserFromIDToken_ブートストラップ指定アドレスは招
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("ブートストラップ指定アドレスは許可されるべき")
 	}
 	if users.created == nil {
@@ -476,14 +491,15 @@ func Test_UpsertUserFromIDToken_ブートストラップ指定アドレスは招
 	}
 }
 
-// ブートストラップは「最初の 1 人」限定。super_admin が既に居れば経路は閉じる。
+// ブートストラップは「最初の 1 人」限定。super_admin が既に居れば bootstrap は閉じ、
+// 通常の自己サインアップ（既定ロール）へ流れる。
 func Test_UpsertUserFromIDToken_ブートストラップはSuperAdmin在籍時に閉じる(t *testing.T) {
 	users := &upsertUserRepoSpy{
 		superAdmins: []domain.User{{ID: 1, Role: domain.RoleSuperAdmin}},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "admin-sub",
@@ -494,20 +510,24 @@ func Test_UpsertUserFromIDToken_ブートストラップはSuperAdmin在籍時�
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if allowed {
-		t.Fatal("既に super_admin が居るならブートストラップは効いてはいけない")
+	if user == nil {
+		t.Fatal("bootstrap が閉じても自己サインアップは許可されるべき")
 	}
-	if users.created != nil {
-		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
 	}
-	// 既に居ると分かっている以上、作成の試行まで進まずに拒否する
+	if users.created.Role != domain.RoleTrainee {
+		t.Fatalf("role = %q, want %q（bootstrap 対象外なら昇格しない）", users.created.Role, domain.RoleTrainee)
+	}
+	// 既に居ると分かっている以上、bootstrap の作成の試行まで進まない
 	// （作成側の再判定は同時実行のための最後の砦で、事前の照会の代わりではない）。
 	if users.createFirstSuperAdminCalls != 0 {
-		t.Fatalf("作成を試みてはいけない: %d 回呼ばれた", users.createFirstSuperAdminCalls)
+		t.Fatalf("bootstrap 作成を試みてはいけない: %d 回呼ばれた", users.createFirstSuperAdminCalls)
 	}
 }
 
-// ブートストラップは指定した 1 アドレスだけ。別アドレスや admin グループ非所属には効かない。
+// ブートストラップは指定した 1 アドレスだけ。別アドレスや admin グループ非所属には
+// 効かず、既定ロールで自己サインアップとして作られる。
 func Test_UpsertUserFromIDToken_ブートストラップは指定アドレス以外に効かない(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -523,7 +543,7 @@ func Test_UpsertUserFromIDToken_ブートストラップは指定アドレス以
 			users := &upsertUserRepoSpy{}
 			uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
 
-			allowed, err := uc.Execute(
+			user, err := uc.Execute(
 				context.Background(),
 				UpsertUserFromIDTokenInput{
 					CognitoSub:     "sub",
@@ -534,11 +554,14 @@ func Test_UpsertUserFromIDToken_ブートストラップは指定アドレス以
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if allowed {
-				t.Fatal("ブートストラップ対象外は拒否されるべき")
+			if user == nil {
+				t.Fatal("bootstrap 対象外でも自己サインアップは許可されるべき")
 			}
-			if users.created != nil {
-				t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+			if users.created == nil {
+				t.Fatal("ユーザーが作成されていない")
+			}
+			if users.created.Role != domain.RoleTrainee {
+				t.Fatalf("role = %q, want %q（bootstrap 対象外なら昇格しない）", users.created.Role, domain.RoleTrainee)
 			}
 		})
 	}
@@ -550,7 +573,7 @@ func Test_UpsertUserFromIDToken_ブートストラップ判定の照会失敗は
 	users := &upsertUserRepoSpy{listByRoleErr: listErr}
 	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "admin-sub",
@@ -558,7 +581,7 @@ func Test_UpsertUserFromIDToken_ブートストラップ判定の照会失敗は
 			IsCognitoAdmin: true,
 		},
 	)
-	if allowed {
+	if user != nil {
 		t.Fatal("照会に失敗したら許可してはいけない")
 	}
 	if !errors.Is(err, listErr) {
@@ -628,12 +651,12 @@ func Test_UpsertUserFromIDToken_検索エラーを返す(t *testing.T) {
 				tc.invitations,
 			)
 
-			allowed, err := uc.Execute(
+			user, err := uc.Execute(
 				context.Background(),
 				tc.input,
 			)
 
-			if allowed {
+			if user != nil {
 				t.Fatal("検索エラー時に許可してはいけない")
 			}
 			if !errors.Is(err, tc.wantErr) {
@@ -670,7 +693,7 @@ func Test_UpsertUserFromIDToken_招待トークンをメールより優先する
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:      "invited-sub",
@@ -681,7 +704,7 @@ func Test_UpsertUserFromIDToken_招待トークンをメールより優先する
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("有効なトークン招待があるユーザーは許可されるべき")
 	}
 	if !invitations.tokenFindCalled {
@@ -723,7 +746,7 @@ func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing
 	invitations := &upsertInvitationRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "",
@@ -731,7 +754,7 @@ func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing
 		},
 	)
 
-	if allowed {
+	if user != nil {
 		t.Fatal("CognitoSubが空のユーザーを許可してはいけない")
 	}
 	if err == nil {
@@ -782,7 +805,7 @@ func Test_UpsertUserFromIDToken_Cognito管理者は招待Roleで降格しない(
 				invitations,
 			)
 
-			allowed, err := uc.Execute(
+			user, err := uc.Execute(
 				context.Background(),
 				UpsertUserFromIDTokenInput{
 					CognitoSub:     "admin-with-invitation",
@@ -793,7 +816,7 @@ func Test_UpsertUserFromIDToken_Cognito管理者は招待Roleで降格しない(
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if !allowed {
+			if user == nil {
 				t.Fatal("Cognito管理者は許可されるべき")
 			}
 			if users.created == nil {
@@ -838,7 +861,7 @@ func Test_UpsertUserFromIDToken_未対応の招待Roleは適用しない(
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "unsupported-role",
@@ -848,7 +871,7 @@ func Test_UpsertUserFromIDToken_未対応の招待Roleは適用しない(
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("有効な招待があるユーザーは許可されるべき")
 	}
 	if users.created == nil {
@@ -884,7 +907,7 @@ func Test_UpsertUserFromIDToken_招待のCompanyIDが0なら未所属にする(
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "no-company",
@@ -894,7 +917,7 @@ func Test_UpsertUserFromIDToken_招待のCompanyIDが0なら未所属にする(
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("有効な招待があるユーザーは許可されるべき")
 	}
 	if users.created == nil {
@@ -931,7 +954,7 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-user",
@@ -940,7 +963,7 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 		},
 	)
 
-	if allowed {
+	if user != nil {
 		t.Fatal("名前補完の更新失敗時にユーザーを許可してはいけない")
 	}
 	if !errors.Is(err, mutationErr) {
@@ -977,7 +1000,7 @@ func Test_UpsertUserFromIDToken_ロール更新に失敗する(t *testing.T) {
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-user",
@@ -985,7 +1008,7 @@ func Test_UpsertUserFromIDToken_ロール更新に失敗する(t *testing.T) {
 		},
 	)
 
-	if allowed {
+	if user != nil {
 		t.Fatal("ロール更新失敗時にユーザーを許可してはいけない")
 	}
 	if !errors.Is(err, mutationErr) {
@@ -1022,7 +1045,7 @@ func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-user",
@@ -1030,7 +1053,7 @@ func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
 		},
 	)
 
-	if allowed {
+	if user != nil {
 		t.Fatal("会社更新失敗時にユーザーを許可してはいけない")
 	}
 	if !errors.Is(err, mutationErr) {
@@ -1070,7 +1093,7 @@ func Test_UpsertUserFromIDToken_招待ステータス更新に失敗する(t *te
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-user",
@@ -1078,7 +1101,7 @@ func Test_UpsertUserFromIDToken_招待ステータス更新に失敗する(t *te
 		},
 	)
 
-	if allowed {
+	if user != nil {
 		t.Fatal("招待ステータス更新失敗時にユーザーを許可してはいけない")
 	}
 	if !errors.Is(err, mutationErr) {
@@ -1112,7 +1135,7 @@ func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しな�
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "existing-admin",
@@ -1123,7 +1146,7 @@ func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しな�
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("Cognito管理者は許可されるべき")
 	}
 	if users.roleUpdateCalls != 1 ||
@@ -1210,7 +1233,7 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 				runner,
 			)
 
-			allowed, err := uc.Execute(
+			user, err := uc.Execute(
 				context.Background(),
 				UpsertUserFromIDTokenInput{
 					CognitoSub: "new-user-error",
@@ -1218,7 +1241,7 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 				},
 			)
 
-			if allowed {
+			if user != nil {
 				t.Fatal("トランザクション失敗時に許可してはいけない")
 			}
 			if !errors.Is(err, mutationErr) {
@@ -1250,6 +1273,38 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 	}
 }
 
+// Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrEmailTakenを返す は、
+// bootstrap 競合負け（nil, nil）と区別できるよう、repository.ErrEmailTaken を
+// そのまま呼び出し元へ返すことを固定する（呼び出し元の 403/409 の出し分けが前提にする契約）。
+func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrEmailTakenを返す(t *testing.T) {
+	users := &upsertUserRepoSpy{createErr: repository.ErrEmailTaken}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        70,
+			Role:      domain.RoleTrainee,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
+		},
+	}
+	runner := &fakeUserInvitationTransactionRunner{users: users, invitations: invitations}
+	uc := NewUpsertUserFromIDTokenUseCase(users, invitations, "", runner)
+
+	user, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "race-sub",
+			Email:      "race@example.com",
+		},
+	)
+
+	if user != nil {
+		t.Fatal("email 衝突時にユーザーを返してはいけない")
+	}
+	if !errors.Is(err, repository.ErrEmailTaken) {
+		t.Fatalf("error = %v, want wrapped %v", err, repository.ErrEmailTaken)
+	}
+}
+
 func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{
@@ -1261,7 +1316,7 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "new-sub-1",
@@ -1271,7 +1326,7 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("招待ありの新規ユーザーは許可されるべき")
 	}
 	// 新規ユーザーは users 行と identity を CreateWithOidcIdentity で不可分に作る。
@@ -1291,7 +1346,7 @@ func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒ�
 	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, &upsertInvitationRepoSpy{})
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "old-sub",
@@ -1301,7 +1356,7 @@ func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒ�
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("既存ユーザーは許可されるべき")
 	}
 	if users.ensureIdentityCalls != 1 {
@@ -1323,7 +1378,7 @@ func Test_UpsertUserFromIDToken_ブートストラップはenv未設定かつメ
 	users := &upsertUserRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, nil) // 免除アドレス未設定（本番の既定）
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "admin-sub",
@@ -1334,40 +1389,46 @@ func Test_UpsertUserFromIDToken_ブートストラップはenv未設定かつメ
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if allowed {
-		t.Fatal("env 未設定 + email 空 + admin グループを免除してはいけない")
+	if user == nil {
+		t.Fatal("self signup must be allowed even when bootstrap does not apply")
 	}
-	if users.created != nil {
-		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	if users.created == nil {
+		t.Fatal("user was not created")
+	}
+	if users.created.Role != domain.RoleTrainee {
+		t.Fatalf("role = %q, want %q (must not be promoted)", users.created.Role, domain.RoleTrainee)
 	}
 	if users.listByRoleCalls != 0 {
-		t.Fatalf("免除アドレス未設定なら既存 super_admin の照会まで進んではいけない: %d", users.listByRoleCalls)
+		t.Fatalf("must not query existing super admins when no bootstrap address is set: %d", users.listByRoleCalls)
 	}
 }
 
 // 免除の突き合わせは正規形どうしの一致で行う。
 // 大小文字・前後空白の違いは同じアドレスとして通し、逆に「畳めば同じだがバイトが違う」
-// 文字（U+017F など strings.EqualFold が畳む文字）は別アドレスとして拒否する。
+// 文字（U+017F など strings.EqualFold が畳む文字）は別アドレスとして扱う。
 func Test_UpsertUserFromIDToken_ブートストラップの突き合わせは正規形で行う(t *testing.T) {
 	tests := []struct {
 		name           string
 		bootstrapEmail string
 		claimEmail     string
-		wantAllowed    bool
+		wantSuperAdmin bool
+		wantSavedEmail string
 	}{
 		{
 			name:           "大小文字と前後空白の違いは同じアドレス",
 			bootstrapEmail: "ops@example.com",
 			claimEmail:     "  OPS@Example.com ",
-			wantAllowed:    true,
+			wantSuperAdmin: true,
+			wantSavedEmail: "ops@example.com",
 		},
 		{
 			// strings.EqualFold は U+017F(ſ) を 's' に畳むため、この 2 つを同一と見なしていた。
-			// 正規形（小文字化）では畳まれないので別アドレスとして拒否する。
-			name:           "単純フォールドでのみ一致する別アドレスは拒否",
+			// 正規形（小文字化）では畳まれないので別アドレスとして扱い、昇格させない。
+			name:           "単純フォールドでのみ一致する別アドレスは昇格させない",
 			bootstrapEmail: "sops@example.com",
 			claimEmail:     "\u017Fops@example.com",
-			wantAllowed:    false,
+			wantSuperAdmin: false,
+			wantSavedEmail: "\u017Fops@example.com",
 		},
 	}
 	for _, tt := range tests {
@@ -1375,7 +1436,7 @@ func Test_UpsertUserFromIDToken_ブートストラップの突き合わせは正
 			users := &upsertUserRepoSpy{}
 			uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, tt.bootstrapEmail)
 
-			allowed, err := uc.Execute(
+			user, err := uc.Execute(
 				context.Background(),
 				UpsertUserFromIDTokenInput{
 					CognitoSub:     "admin-sub",
@@ -1386,22 +1447,23 @@ func Test_UpsertUserFromIDToken_ブートストラップの突き合わせは正
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if allowed != tt.wantAllowed {
-				t.Fatalf("allowed = %t, want %t", allowed, tt.wantAllowed)
-			}
-			if !tt.wantAllowed {
-				if users.created != nil {
-					t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
-				}
-				return
+			if user == nil {
+				t.Fatal("招待ゲート撤去後は常にユーザーが作られるべき")
 			}
 			if users.created == nil {
 				t.Fatal("ユーザーが作成されていない")
 			}
+			wantRole := domain.RoleTrainee
+			if tt.wantSuperAdmin {
+				wantRole = domain.RoleSuperAdmin
+			}
+			if users.created.Role != wantRole {
+				t.Fatalf("role = %q, want %q", users.created.Role, wantRole)
+			}
 			// 保存されるのは生の claim 値ではなく正規形。生値のまま保存すると、以後の
 			// byte 一致検索・一意索引と食い違う。
-			if users.created.Email != "ops@example.com" {
-				t.Fatalf("保存された email = %q, want %q", users.created.Email, "ops@example.com")
+			if users.created.Email != tt.wantSavedEmail {
+				t.Fatalf("保存された email = %q, want %q", users.created.Email, tt.wantSavedEmail)
 			}
 		})
 	}
@@ -1413,7 +1475,7 @@ func Test_UpsertUserFromIDToken_ブートストラップは作成側で閉じら
 	users := &upsertUserRepoSpyRaceLoser{}
 	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub:     "admin-sub",
@@ -1424,7 +1486,7 @@ func Test_UpsertUserFromIDToken_ブートストラップは作成側で閉じら
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if allowed {
+	if user != nil {
 		t.Fatal("作成側が「既に super_admin が居る」と答えたら許可してはいけない")
 	}
 	if users.created != nil {
@@ -1459,7 +1521,7 @@ func Test_UpsertUserFromIDToken_招待の照会と保存に正規形のメール
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	allowed, err := uc.Execute(
+	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
 			CognitoSub: "member-sub",
@@ -1469,7 +1531,7 @@ func Test_UpsertUserFromIDToken_招待の照会と保存に正規形のメール
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !allowed {
+	if user == nil {
 		t.Fatal("招待があるなら許可されるべき")
 	}
 	if invitations.emailFindArg != "member@example.com" {

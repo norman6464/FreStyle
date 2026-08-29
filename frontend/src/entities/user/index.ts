@@ -24,7 +24,6 @@ export type {
   User,
   AuthState,
   UserRole,
-  SnsProvider,
   UserDailyActivity,
   UserDashboard,
 } from './model/types';

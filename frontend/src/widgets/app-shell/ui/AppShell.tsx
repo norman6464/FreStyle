@@ -57,33 +57,41 @@ export default function AppShell() {
           data-app-scroll
           className="flex-1 min-h-0 overflow-y-auto bg-[var(--color-reading-surface)]"
         >
-          {/* 上部ヘッダー（テキスト横並びナビ + 右側に通知/管理/ユーザー）。モバイルメニューも Header が持つ。 */}
-          <Header />
+          {/* 上部ヘッダー。**本文の上に留める**（sticky）。
+              ヘッダーの地は半透明 + ぼかしなので、下を本文が通って初めてぼけて見える。
+              並べるだけ（通常フロー）だと背後に何も無く、ぼかしは効かない。 */}
+          <div className="sticky top-0 z-40">
+            <Header />
+          </div>
           <main id="main-content" tabIndex={-1} className="outline-none">
             <Outlet />
           </main>
         </div>
       ) : (
-        <>
-          {/* 上部ヘッダー（テキスト横並びナビ + 右側に通知/管理/ユーザー）。モバイルメニューも Header が持つ。
-              headerHidden のとき margin-top 遷移でスライドして隠れ、本文が全高になる。 */}
+        // ヘッダーを本文の**上に重ねる**。並べる（縦に積む）と背後に何も無く、
+        // 半透明 + ぼかしの地が効かない。重ねたぶん本文の先頭に余白を入れて、
+        // 最初の行がヘッダーの裏に隠れないようにする。
+        <div className="relative flex-1 min-h-0">
+          {/* headerHidden のときは上へスライドして隠れる（本文が全高になる）。 */}
           <div
-            className={`flex-shrink-0 transition-[margin-top] duration-200 ease-out ${
-              headerVisibility.headerHidden ? '-mt-16' : 'mt-0'
+            className={`absolute inset-x-0 top-0 z-40 transition-transform duration-200 ease-out ${
+              headerVisibility.headerHidden ? '-translate-y-full' : 'translate-y-0'
             }`}
           >
             <Header />
           </div>
 
-          {/* メインコンテンツ */}
+          {/* メインコンテンツ。h-16 はヘッダーの高さ。隠れているときは余白も畳む。 */}
           <main
             id="main-content"
             tabIndex={-1}
-            className="flex-1 min-h-0 overflow-auto outline-none"
+            className={`h-full overflow-auto outline-none transition-[padding-top] duration-200 ease-out ${
+              headerVisibility.headerHidden ? 'pt-0' : 'pt-16'
+            }`}
           >
             <Outlet />
           </main>
-        </>
+        </div>
       )}
       <ScrollToTop targetId={documentScroll ? 'app-scroll' : 'main-content'} />
 

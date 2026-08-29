@@ -65,6 +65,14 @@ const NoteRepository = {
    * slug は**テナントをまたいで一意**なので、使われていれば 409 で返る
    * （FRESTYLE-385 でこの応答自体を見直す予定）。**失敗は例外として投げる。**
    */
+  /**
+   * ワークスペースを配下ごと消す。**戻せない。**
+   * 会社に紐づくワークスペースはサーバーが 403 で断る（誰であっても消せない）。
+   */
+  async deleteWorkspace(workspaceSlug: string): Promise<void> {
+    await apiClient.delete(NOTES_API.workspace(workspaceSlug));
+  },
+
   async createWorkspace(input: { name: string }): Promise<NoteWorkspace> {
     const res = await apiClient.post<NoteWorkspace>(NOTES_API.workspaces, input);
     return res.data;

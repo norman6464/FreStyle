@@ -47,17 +47,6 @@ vi.mock('@/pages/admin-audit-log/model/useAuditLog', () => ({
 vi.mock('@/pages/admin-dashboard/model/useAdminDashboard', () => ({
   useAdminDashboard: () => ({ summary: null, loading: false, error: null }),
 }));
-vi.mock('@/pages/admin-company-applications/model/useCompanyApplications', () => ({
-  useCompanyApplications: () => ({
-    applications: [],
-    pendingCount: 0,
-    loading: false,
-    error: null,
-    updatingId: null,
-    setStatus: vi.fn(),
-    reload: vi.fn(),
-  }),
-}));
 vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
   useAdminMembers: () => ({
     members: [],
@@ -73,7 +62,6 @@ vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
 // ページは App.tsx の配線と同じく Slice の Public API から取る。
 import { AdminDashboardPage } from '@/pages/admin-dashboard';
 import { AdminCompaniesPage } from '@/pages/admin-companies';
-import { AdminCompanyApplicationsPage } from '@/pages/admin-company-applications';
 import { AdminMembersPage } from '@/pages/admin-members';
 import { AdminAuditLogPage } from '@/pages/admin-audit-log';
 import { AdminInvitationsPage } from '@/pages/admin-invitations';
@@ -99,15 +87,6 @@ const ADMIN_ROUTES: { path: string; title: string; element: ReactElement }[] = [
     element: (
       <RequireRole allow={['super_admin']}>
         <AdminCompaniesPage />
-      </RequireRole>
-    ),
-  },
-  {
-    path: '/admin/applications',
-    title: '管理: 利用申請',
-    element: (
-      <RequireRole allow={['super_admin']} requireAdminFlag>
-        <AdminCompanyApplicationsPage />
       </RequireRole>
     ),
   },
@@ -174,7 +153,6 @@ const CASES: { label: string; auth: { isAdmin: boolean; role: string | null }; p
     pass: [
       '/admin/dashboard',
       '/admin/companies',
-      '/admin/applications',
       '/admin/members',
       '/admin/audit',
       '/admin/invitations',

@@ -66,8 +66,9 @@ func newMeHandler(users *fakeUserRepo) *AuthHandler {
 	return h
 }
 
-// Cognito の admin グループに属しているだけでは招待統制を迂回できない。
-func Test_IDトークンからユーザー登録_Cognito_adminでも招待なしの新規は拒否(t *testing.T) {
+// Cognito の admin グループに属しているだけでは招待統制を迂回できない。自己サインアップ
+// 自体は許可されるが、super_admin へは昇格しない。
+func Test_IDトークンからユーザー登録_Cognito_adminでも招待なしの新規はSuperAdminへ昇格しない(t *testing.T) {
 	users := &fakeUserRepo{}
 	h := newTestAuthHandler(users, &fakeInvitationRepo{})
 
@@ -77,11 +78,14 @@ func Test_IDトークンからユーザー登録_Cognito_adminでも招待なし
 		"cognito:groups": []string{"admin"},
 	})
 
-	if upsertAllowed(h, newGinCtx(), idToken, "") {
-		t.Fatal("招待の無い新規ユーザーは admin グループでも拒否されるべき")
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
+		t.Fatal("招待の無い新規ユーザーも自己サインアップできるべき")
 	}
-	if users.created != nil {
-		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Role == domain.RoleSuperAdmin {
+		t.Fatalf("admin グループだけで昇格してはいけない: %+v", users.created)
 	}
 }
 
@@ -107,7 +111,8 @@ func Test_IDトークンからユーザー登録_ブートストラップアド�
 	}
 }
 
-// ブートストラップは「最初の 1 人」限定。運営管理者が既に居れば効かない。
+// ブートストラップは「最初の 1 人」限定。運営管理者が既に居れば効かず、自己サインアップは
+// 通っても super_admin へは昇格しない。
 func Test_IDトークンからユーザー登録_ブートストラップは運営管理者在籍時に閉じる(t *testing.T) {
 	users := &fakeUserRepo{superAdmins: []domain.User{{ID: 1, Role: domain.RoleSuperAdmin}}}
 	h := newTestAuthHandlerWithBootstrap(users, &fakeInvitationRepo{}, "ops@example.com")
@@ -118,11 +123,14 @@ func Test_IDトークンからユーザー登録_ブートストラップは運�
 		"cognito:groups": []string{"admin"},
 	})
 
-	if upsertAllowed(h, newGinCtx(), idToken, "") {
-		t.Fatal("運営管理者が既に居るならブートストラップは効いてはいけない")
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
+		t.Fatal("bootstrap が閉じても自己サインアップは許可されるべき")
 	}
-	if users.created != nil {
-		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Role == domain.RoleSuperAdmin {
+		t.Fatalf("運営管理者が既に居るなら昇格してはいけない: %+v", users.created)
 	}
 }
 
@@ -150,8 +158,9 @@ func Test_IDトークンからユーザー登録_招待があるCognito_adminは
 	}
 }
 
-// 拒否は握り潰さずログに残す（誰がどのアドレスで弾かれたかを運用が追えるようにする）。
-func Test_IDトークンからユーザー登録_招待なしの拒否をログに残す(t *testing.T) {
+// 招待なしの自己サインアップは握り潰さずログに残す（誰がどのアドレスで作られたかを
+// 運用が追えるようにする）。
+func Test_IDトークンからユーザー登録_招待なしのサインアップをログに残す(t *testing.T) {
 	users := &fakeUserRepo{}
 	h := newTestAuthHandler(users, &fakeInvitationRepo{})
 	idToken := makeIDToken(t, map[string]any{
@@ -161,16 +170,16 @@ func Test_IDトークンからユーザー登録_招待なしの拒否をログ�
 	})
 
 	logs := captureSlogLines(t, func() {
-		if upsertAllowed(h, newGinCtx(), idToken, "") {
-			t.Fatal("拒否されるべき")
+		if !upsertAllowed(h, newGinCtx(), idToken, "") {
+			t.Fatal("許可されるべき")
 		}
 	})
 
-	got := findLog(logs, "signup blocked: invitation required")
+	got := findLog(logs, "self signup: creating a new user without invitation")
 	if got == nil {
-		t.Fatalf("拒否のログが出ていない: %+v", logs)
+		t.Fatalf("サインアップのログが出ていない: %+v", logs)
 	}
-	if got["email"] != "attacker@example.com" || got["cognitoAdminGroup"] != true {
+	if got["email"] != "attacker@example.com" {
 		t.Fatalf("ログの内容が足りない: %+v", got)
 	}
 }

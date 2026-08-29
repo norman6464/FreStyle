@@ -63,25 +63,6 @@ definitions:
       updatedAt:
         type: string
     type: object
-  github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication:
-    properties:
-      applicantName:
-        type: string
-      companyName:
-        type: string
-      createdAt:
-        type: string
-      email:
-        type: string
-      id:
-        type: integer
-      message:
-        type: string
-      status:
-        type: string
-      updatedAt:
-        type: string
-    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Course:
     properties:
       category:
@@ -139,23 +120,6 @@ definitions:
         type: string
       status:
         type: string
-    type: object
-  github_com_norman6464_FreStyle_backend_internal_domain.LearningReport:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: integer
-      periodFrom:
-        type: string
-      periodTo:
-        type: string
-      s3Key:
-        type: string
-      status:
-        type: string
-      userId:
-        type: integer
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise:
     properties:
@@ -692,21 +656,6 @@ definitions:
     - email
     - role
     type: object
-  internal_handler.createCompanyApplicationReq:
-    properties:
-      applicantName:
-        type: string
-      companyName:
-        type: string
-      email:
-        type: string
-      message:
-        type: string
-    required:
-    - applicantName
-    - companyName
-    - email
-    type: object
   internal_handler.documentCreateReq:
     properties:
       doc:
@@ -1235,6 +1184,11 @@ definitions:
     type: object
   internal_handler.kbWorkspaceResponse:
     properties:
+      canManage:
+        description: |-
+          CanManage は自分がこのワークスペースの admin か（削除操作を出してよいかの判定に使う。
+          DeleteWorkspace が要求する権限と同じ）。
+        type: boolean
       createdAt:
         type: string
       name:
@@ -1379,20 +1333,6 @@ definitions:
     - email
     - password
     type: object
-  internal_handler.requestReportReq:
-    properties:
-      month:
-        maximum: 12
-        minimum: 1
-        type: integer
-      year:
-        maximum: 2100
-        minimum: 2000
-        type: integer
-    required:
-    - month
-    - year
-    type: object
   internal_handler.setCompanyActiveRequest:
     properties:
       active:
@@ -1448,13 +1388,6 @@ definitions:
     required:
     - doc
     - expectedRevision
-    type: object
-  internal_handler.updateCompanyApplicationStatusReq:
-    properties:
-      status:
-        type: string
-    required:
-    - status
     type: object
   internal_handler.updateProfileReq:
     properties:
@@ -1620,82 +1553,6 @@ paths:
       security:
       - CookieAuth: []
       summary: 会社横断ビュー（メンバー集計・super_admin）
-      tags:
-      - admin
-  /admin/company-applications:
-    get:
-      description: 受け付けた企業申請を新しい順で返す。super_admin 専用。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication'
-            type: array
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: super_admin 以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 企業申請一覧（super_admin）
-      tags:
-      - admin
-  /admin/company-applications/{id}/status:
-    patch:
-      consumes:
-      - application/json
-      description: 申請を approved / rejected / pending に更新する。super_admin 専用。
-      parameters:
-      - description: 申請 ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: status
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.updateCompanyApplicationStatusReq'
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: 成功（本文なし）
-        "400":
-          description: id / status 不正
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: super_admin 以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 申請が存在しない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 更新失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 企業申請の status 更新（super_admin）
       tags:
       - admin
   /admin/invitations:
@@ -1965,8 +1822,8 @@ paths:
       consumes:
       - application/json
       description: email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access
-        / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group
-        必須。
+        / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito
+        admin group だけでは昇格しない）。
       parameters:
       - description: メール / パスワード
         in: body
@@ -1990,7 +1847,11 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "403":
-          description: 招待 なし の 新規 user
+          description: 最初の運営管理者作成の競合負け
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "409":
+          description: 同じ email での同時サインアップ競合
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
@@ -2042,7 +1903,11 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "403":
-          description: 招待が必要
+          description: 最初の運営管理者作成の競合負け
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "409":
+          description: 同じ email での同時サインアップ競合
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
@@ -2057,8 +1922,8 @@ paths:
       consumes:
       - application/json
       description: Cognito Hosted UI から の callback。 authorization code を access /
-        refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin
-        group 必須。
+        refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito
+        admin group だけでは昇格しない）。
       parameters:
       - description: Cognito callback (code 必須、 invitationToken 任意)
         in: body
@@ -2082,7 +1947,11 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "403":
-          description: 招待 なし の 新規 user
+          description: 最初の運営管理者作成の競合負け
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "409":
+          description: 同じ email での同時サインアップ競合
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
@@ -2243,44 +2112,6 @@ paths:
       summary: 実行環境 ウォームアップ
       tags:
       - code-execution
-  /company-applications:
-    post:
-      consumes:
-      - application/json
-      description: ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。
-      parameters:
-      - description: 申請内容
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.createCompanyApplicationReq'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication'
-        "400":
-          description: バリデーションエラー
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "429":
-          description: レート制限超過
-          headers:
-            Retry-After:
-              description: '再試行までの秒数 (例: 60)'
-              type: string
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: 内部エラー
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      summary: 企業利用申請（公開 / 認証不要）
-      tags:
-      - company-applications
   /courses:
     get:
       description: current user の role / company で 自動 フィルタ。 trainee は published のみ、
@@ -3169,6 +3000,43 @@ paths:
       security:
       - CookieAuth: []
       summary: ノート の ワークスペース 作成
+      tags:
+      - knowledge-base
+  /kb/workspaces/{workspaceSlug}:
+    delete:
+      description: ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ
+        / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も
+        消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 削除 成功 (本文 なし)
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: ワークスペース の admin で は ない、 または 会社 の ワークスペース
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: ワークスペース が 無い か 未 所属
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート の ワークスペース 削除
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/grants/{principalId}:
@@ -4556,64 +4424,6 @@ paths:
       summary: ノート の スペース 全員 主体 の 用意
       tags:
       - knowledge-base
-  /learning-reports:
-    get:
-      description: current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport'
-            type: array
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 学習 レポート 一覧
-      tags:
-      - learning-reports
-  /learning-reports/generate:
-    post:
-      consumes:
-      - application/json
-      description: current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。
-        202 Accepted を 返す。
-      parameters:
-      - description: year + month
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.requestReportReq'
-      produces:
-      - application/json
-      responses:
-        "202":
-          description: Accepted
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport'
-        "400":
-          description: バリデーション
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 月次 学習 レポート 生成 要求
-      tags:
-      - learning-reports
   /lesson-progress:
     get:
       description: current user が完了した教材（レッスン）の一覧を返す。進捗バー / 完了チェック表示用。userId は受け取らない（current

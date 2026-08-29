@@ -264,7 +264,32 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
       const workspace = await NoteRepository.createWorkspace({ name: input.name });
       setWorkspaces((prev) => [...prev, workspace]);
       setActiveSlug(workspace.slug);
+      // SecondaryPanel が同時にマウントするもう一方の NoteSidebar や、ヘッダーの
+      // 切替（useWorkspaceList）は別インスタンスなのでこの setState だけでは知れない。
+      emitNoteTreeEvent({ type: 'workspace-created', workspace });
       return workspace;
+    },
+    [],
+  );
+
+  /**
+   * ワークスペースを配下ごと消す。**失敗は握り潰さず投げる。**
+   *
+   * 消したものを開いたままにしない。残っているワークスペースの先頭へ切り替える
+   * （1 つも残らなければ選択なしに戻し、一覧の空表示に任せる）。
+   */
+  const deleteWorkspace = useCallback(
+    async (slug: string): Promise<void> => {
+      await NoteRepository.deleteWorkspace(slug);
+      setWorkspaces((prev) => {
+        const rest = prev.filter((w) => w.slug !== slug);
+        // いま開いているものを消したときだけ移す。別のものを消したなら動かさない。
+        setActiveSlug((current) => (current === slug ? (rest[0]?.slug ?? null) : current));
+        return rest;
+      });
+      // 配下は FK CASCADE で全消去。他の一覧・開いたままの本文画面（NotePage）へ知らせる
+      // （page-deleted と同じ理由。知らせないと存在しない場所を開いたまま残る）。
+      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: slug });
     },
     [],
   );
@@ -431,6 +456,11 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
 
   // ページ画面（/p）での作成・改名を木に映す。作成は木ごと取り直し（親子関係の
   // 差し込み位置をこちらで計算しない — サーバーの並び順が正）、改名は 1 枚差し替え。
+  //
+  // ワークスペースの作成・削除も同じ購読で映す。SecondaryPanel が同時にマウントする
+  // もう一方の NoteSidebar（別インスタンスの useNoteTree）や、自分自身が発行した
+  // イベントも等しく受け取るため、どちらも冪等な更新にしてある
+  // （無ければ足す・無ければ何もしない）。
   useEffect(() => {
     return subscribeNoteTreeEvents((event) => {
       if (event.type === 'page-created') {
@@ -441,14 +471,28 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
         loadSpaceTree(event.page.spaceId);
         return;
       }
-      if (event.type !== 'page-renamed') return;
-      setSpaceStates((prev) => {
-        const current = prev[event.page.spaceId];
-        if (!current?.tree) return prev;
-        const pages = replaceNotePageInTree(current.tree.pages, event.page);
-        if (pages === current.tree.pages) return prev;
-        return { ...prev, [event.page.spaceId]: { ...current, tree: { ...current.tree, pages } } };
-      });
+      if (event.type === 'page-renamed') {
+        setSpaceStates((prev) => {
+          const current = prev[event.page.spaceId];
+          if (!current?.tree) return prev;
+          const pages = replaceNotePageInTree(current.tree.pages, event.page);
+          if (pages === current.tree.pages) return prev;
+          return { ...prev, [event.page.spaceId]: { ...current, tree: { ...current.tree, pages } } };
+        });
+        return;
+      }
+      if (event.type === 'workspace-created') {
+        setWorkspaces((prev) => (prev.some((w) => w.slug === event.workspace.slug) ? prev : [...prev, event.workspace]));
+        return;
+      }
+      if (event.type === 'workspace-deleted') {
+        setWorkspaces((prev) => {
+          if (!prev.some((w) => w.slug === event.workspaceSlug)) return prev;
+          const rest = prev.filter((w) => w.slug !== event.workspaceSlug);
+          setActiveSlug((current) => (current === event.workspaceSlug ? (rest[0]?.slug ?? null) : current));
+          return rest;
+        });
+      }
     });
   }, [loadSpaceTree, setSpaceStates]);
 
@@ -548,6 +592,7 @@ export function useNoteTree(options: UseKnowledgeBaseTreeOptions = {}) {
     unarchivePage,
     movePage,
     createWorkspace,
+    deleteWorkspace,
     createSpace,
     renameSpace,
     selectWorkspace: setActiveSlug,

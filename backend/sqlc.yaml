@@ -8,11 +8,11 @@
 #     sqlc はその同じファイルから型を起こす。宣言と実体が同じ 1 ファイルなので、
 #     片方だけ直してずれることが原理的に起きない。
 #
-#       schema/core.sql                        … アプリ中核（users / courses / exercises …）
-#       schema/knowledge_base.sql              … ナレッジ基盤の骨格
-#       schema/knowledge_base_permissions.sql  … ナレッジ基盤の権限モデル
+#       schema/schema.sql  … 中核（Ⅰ）+ ノートの骨格（Ⅱ）+ ノートの権限（Ⅲ）
 #
-#     適用順序（core → 骨格 → 権限）は FK の依存で決まっており崩せない。
+#     ファイル内の並び順（Ⅰ → Ⅱ → Ⅲ）は FK の依存で決まっており崩せない。
+#     適用そのものは Ⅰ と Ⅱ+Ⅲ の 2 回に分かれる（あいだに seed とバックフィルが挟まる。
+#     理由は infra/database/migrate.go の Migrate と schema/schema.sql の冒頭）。
 #
 # 生成: backend/ で `make sqlc`
 # 検査: backend/ で `make sqlc-vet`（このファイル末尾の rules を全クエリに当てる。CI でも走る）
@@ -41,9 +41,7 @@ version: "2"
 sql:
   - engine: "postgresql"
     schema:
-      - "internal/infra/database/schema/core.sql"
-      - "internal/infra/database/schema/knowledge_base.sql"
-      - "internal/infra/database/schema/knowledge_base_permissions.sql"
+      - "internal/infra/database/schema/schema.sql"
     queries: "internal/adapter/persistence/queries"
 
     # このブロックのクエリすべてに当てる vet ルール。実体はファイル末尾の rules: に定義する。

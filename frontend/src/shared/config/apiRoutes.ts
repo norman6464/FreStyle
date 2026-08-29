@@ -51,13 +51,6 @@ export const IMAGES = {
 
 export const RANKING = `${API_V2}/ranking` as const;
 
-export const LEARNING_REPORTS = {
-  list: `${API_V2}/learning-reports`,
-  generate: `${API_V2}/learning-reports/generate`,
-  yearMonth: (year: number, month: number) =>
-    `${API_V2}/learning-reports/${year}/${month}`,
-} as const;
-
 /** 練習モード（シナリオ / セッション / ブックマーク / 共有セッション） */
 export const PRACTICE = {
   scenarios: `${API_V2}/practice/scenarios`,
@@ -182,17 +175,6 @@ export const LESSON_PROGRESS = {
   incomplete: (id: number | string) => `${API_V2}/lesson-progress/${id}`,
 } as const;
 
-/** 企業利用申請（公開フォーム → super_admin 通知）*/
-export const COMPANY_APPLICATIONS = {
-  /** POST /api/v2/company-applications — 認証不要の申請作成 */
-  create: `${API_V2}/company-applications`,
-  /** GET /api/v2/admin/company-applications — super_admin 専用一覧 */
-  adminList: `${API_V2}/admin/company-applications`,
-  /** PATCH /api/v2/admin/company-applications/:id/status — status 更新 */
-  adminUpdateStatus: (id: number | string) =>
-    `${API_V2}/admin/company-applications/${id}/status`,
-} as const;
-
 /** ダッシュボード（streak / 活動カレンダー / 章閲覧履歴）*/
 export const DASHBOARD = {
   /** GET /api/v2/me/dashboard — ログインユーザーの学習サマリー */
@@ -218,6 +200,8 @@ export const CHAPTER_VIEW = {
 export const NOTES_API = {
   /** GET(所属一覧) / POST(作成) — /api/v2/kb/workspaces */
   workspaces: `${API_V2}/kb/workspaces`,
+  /** DELETE(削除) — /api/v2/kb/workspaces/:slug。配下ごと消える。会社のものは消せない */
+  workspace: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
   spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/spaces`,
   /**

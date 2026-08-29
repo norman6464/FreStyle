@@ -55,8 +55,6 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	// 共有リンクの検証だけは未認証。リンクを受け取った相手はログインしていない
 	// （認可はトークンとパスワードそのものが担う）。
 	registerKnowledgeBasePublicRoutes(v2, deps)
-	companyAppHandler := newCompanyApplicationHandler(deps)
-	registerCompanyApplicationPublicRoutes(v2, companyAppHandler)
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
 	authed := v2.Group("")
@@ -77,8 +75,6 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	registerCourseRoutes(authed, deps)
 	registerTeachingMaterialRoutes(authed, deps)
 	registerLessonProgressRoutes(authed, deps)
-	registerLearningReportRoutes(authed, deps)
-	registerCompanyApplicationAdminRoutes(authed, companyAppHandler, audit)
 	registerDashboardRoutes(authed, deps)
 	registerDailyGoalsRoutes(authed, deps)
 	registerKnowledgeBaseRoutes(authed, deps, audit)

@@ -4,9 +4,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
+
+// ErrEmailTaken は作成しようとした email が既に別のアクティブユーザーに使われているときに返す
+// （uq_users_email_active）。同時サインアップ・招待の二重受諾で起き得る。
+var ErrEmailTaken = errors.New("email is already used by another active user")
 
 // UserRepository は users テーブルへのアクセスを提供する。
 type UserRepository interface {

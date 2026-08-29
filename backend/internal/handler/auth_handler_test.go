@@ -471,13 +471,13 @@ func Test_IDトークンからユーザー登録_表示名カスタム済みは�
 func Test_IDトークンからユーザー登録_デコード失敗を明示する(t *testing.T) {
 	h := &AuthHandler{}
 
-	allowed, err := h.upsertUserFromIDToken(
+	user, err := h.upsertUserFromIDToken(
 		newGinCtx(),
 		"invalid-id-token",
 		"",
 	)
 
-	if allowed {
+	if user != nil {
 		t.Fatal("不正なIDトークンを許可してはいけない")
 	}
 	if err == nil {

@@ -24,16 +24,6 @@ const LANGUAGES = ['PHP', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Ruby', 'C',
 
 const FEATURES: { icon: typeof BookOpenIcon; title: string; body: string }[] = [
   {
-    icon: ChatBubbleLeftRightIcon,
-    title: 'AI チャットで質問',
-    body: '詰まったところを AI にその場で相談。学習の流れを止めずに、疑問を解消しながら進められる。',
-  },
-  {
-    icon: ChartBarIcon,
-    title: '学習レポート',
-    body: '取り組んだ量や進み具合をレポートで可視化。受講者は自分の伸びを、研修担当はチームの状況を把握できる。',
-  },
-  {
     icon: UserGroupIcon,
     title: 'メンバーの学習状況（管理者）',
     body: '企業の研修担当は、メンバーごとの進捗・つまずきを一覧で確認。招待もマジックリンクで簡単に行える。',
@@ -55,13 +45,13 @@ const STEPS: { title: string; body: string }[] = [
   { title: '利用申請', body: '企業の研修担当が利用申請を送信。折り返しご案内します。' },
   { title: 'メンバー招待', body: '受講者をマジックリンクで招待。受け取ったリンクから参加できます。' },
   { title: '学習開始', body: 'コース学習とコーディング演習で、手を動かしながら研修を進めます。' },
-  { title: '進捗の確認', body: '学習レポートで、受講者・研修担当の双方が伸びを確認できます。' },
+  { title: '進捗の確認', body: 'コースの進み具合を、受講者・研修担当の双方が確認できます。' },
 ];
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: 'FreStyle とは何ですか？',
-    a: 'FreStyle は、新卒 IT エンジニア向けの統合研修プラットフォームです。コース学習・多言語のコーディング演習・AI チャット・学習レポートを1つにまとめ、研修の実施と進捗管理を支援します。',
+    a: 'FreStyle は、新卒 IT エンジニア向けの統合研修プラットフォームです。コース学習・多言語のコーディング演習・ノートを1つにまとめ、研修の実施と進捗管理を支援します。',
   },
   {
     q: '誰が使うサービスですか？',
@@ -131,7 +121,7 @@ export default function LandingPage() {
   useDocumentMeta({
     title: 'FreStyle | 新卒ITエンジニア向け研修プラットフォーム',
     description:
-      'FreStyle は新卒・若手 IT エンジニア向けの研修プラットフォーム。コース学習・多言語のコーディング演習・AI チャット・学習レポートで、研修の実施と進捗管理を支援します。',
+      'FreStyle は新卒・若手 IT エンジニア向けの研修プラットフォーム。コース学習・多言語のコーディング演習・ノートで、研修の実施と進捗管理を支援します。',
     canonical: SITE_URL,
   });
 
@@ -173,22 +163,22 @@ export default function LandingPage() {
                   <span className="text-brand-600">新卒ITエンジニア向け研修プラットフォーム</span>
                 </h1>
                 <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg lg:mx-0">
-                  コース学習・多言語のコーディング演習・AI チャット・学習レポートを1つに。
+                  コース学習・多言語のコーディング演習・ノートを1つに。
                   手を動かして学び、研修の進捗をまとめて管理できます。
                 </p>
                 <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
                   <Link
-                    to="/company-application"
+                    to="/signup"
                     className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand-600 px-6 py-3 font-bold text-white shadow-[0_1px_2px_rgba(29,78,216,0.3),0_8px_24px_-8px_rgba(37,99,235,0.5)] transition hover:-translate-y-px hover:bg-brand-700"
                   >
-                    企業の方：導入・利用申請
+                    アカウントを作成
                     <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
                   </Link>
                   <Link
                     to="/login"
                     className="inline-flex items-center justify-center rounded-[10px] border border-slate-300 bg-white px-6 py-3 font-bold text-slate-800 transition hover:border-brand-200 hover:bg-brand-50"
                   >
-                    受講者の方：ログイン
+                    ログイン
                   </Link>
                 </div>
                 <div className="mt-11">
@@ -429,21 +419,21 @@ export default function LandingPage() {
               研修の実施と管理を、FreStyle で。
             </h2>
             <p className="mt-4 text-brand-100">
-              まずは企業の利用申請から。受講者の方は招待リンクからログインできます。
+              メールアドレスがあれば、すぐに始められます。
             </p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                to="/company-application"
+                to="/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-white px-6 py-3 font-bold text-brand-700 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.4)] transition hover:-translate-y-px hover:bg-brand-50"
               >
-                企業の方：導入・利用申請
+                アカウントを作成
                 <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link
                 to="/login"
                 className="inline-flex items-center justify-center rounded-[10px] border border-white/35 px-6 py-3 font-bold text-white transition hover:border-white/60 hover:bg-white/10"
               >
-                受講者の方：ログイン
+                ログイン
               </Link>
             </div>
           </div>
@@ -463,8 +453,8 @@ export default function LandingPage() {
             <Link to="/login" className="transition hover:text-white">
               ログイン
             </Link>
-            <Link to="/company-application" className="transition hover:text-white">
-              利用申請
+            <Link to="/signup" className="transition hover:text-white">
+              アカウントを作成
             </Link>
           </nav>
         </div>

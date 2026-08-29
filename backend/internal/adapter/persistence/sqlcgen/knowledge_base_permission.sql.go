@@ -264,18 +264,20 @@ func (q *Queries) GetSpaceEveryonePrincipal(ctx context.Context, arg GetSpaceEve
 }
 
 const getUserCompanyWorkspaceID = `-- name: GetUserCompanyWorkspaceID :one
-SELECT workspace_id FROM users
-WHERE id = $1 AND workspace_id IS NOT NULL AND deleted_at IS NULL
+SELECT c.workspace_id FROM users u
+JOIN companies c ON c.id = u.company_id
+WHERE u.id = $1 AND c.workspace_id IS NOT NULL AND u.deleted_at IS NULL
 `
 
-// そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
+// そのユーザーの会社に対応するワークスペース ID。
 //
-// 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
-// ノートの所属の正本はあくまで principals（kind='user'）の行で、この列は
+// 対応は companies.workspace_id が唯一の正本。写し（バックフィル）を持たず、
+// users.company_id → companies.id の JOIN でその場に求める。
+// ノートの所属の正本はあくまで principals（kind='user'）の行で、この結果は
 // 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
 // （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
 //
-// 会社に属さないユーザー（company_id が NULL → workspace_id も NULL）は 0 行。
+// 会社に属さないユーザー（company_id が NULL）・対応するワークスペースが無い会社は 0 行。
 func (q *Queries) GetUserCompanyWorkspaceID(ctx context.Context, id int64) (uuid.NullUUID, error) {
 	row := q.db.QueryRowContext(ctx, getUserCompanyWorkspaceID, id)
 	var workspace_id uuid.NullUUID
@@ -485,34 +487,59 @@ func (q *Queries) IsWorkspaceMember(ctx context.Context, arg IsWorkspaceMemberPa
 }
 
 const listMemberWorkspaces = `-- name: ListMemberWorkspaces :many
-SELECT w.id, w.slug, w.name, w.is_active, w.created_at, w.updated_at FROM workspaces w
+SELECT w.id, w.slug, w.name, w.is_active, w.personal_owner_user_id, w.created_at, w.updated_at, (COALESCE(wg.role, '') = 'admin') AS is_admin FROM workspaces w
 JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = $1
+LEFT JOIN workspace_grants wg
+  ON wg.workspace_id = w.id AND wg.principal_id = p.id
 ORDER BY w.slug
 `
 
-// そのユーザーが所属するワークスペース一覧。
+type ListMemberWorkspacesRow struct {
+	ID                  uuid.UUID
+	Slug                string
+	Name                string
+	IsActive            bool
+	PersonalOwnerUserID sql.NullInt64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	IsAdmin             bool
+}
+
+// そのユーザーが所属するワークスペース一覧と、自分がそこの admin かどうか。
 //
 // 所属の正本は principals（kind='user'）の行なので、JOIN の結果がそのまま答えになる。
 // このファイルの作法（WHERE に workspace_id を必ず含める）に対する唯一の例外で、
 // テナントを絞る手前の「どのテナントに入れるか」を答えるクエリだから workspace_id を取らない。
 // 代わりに principals 側で user_id を必ず縛る（ここが緩むと全テナントが漏れる）。
-func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64) ([]Workspace, error) {
+//
+// is_admin は workspace_grants を自分の principal で LEFT JOIN するだけで求まる
+// （admin だけが consequential なので role = 'admin' の 1 行があるかどうかだけを見る）。
+// DeleteWorkspace が要求する権限（CanManage）と同じ判定を、一覧の段階で添えて返す。
+//
+// grant が 1 行も無い所属では wg.role が NULL になり、(wg.role = 'admin') も NULL になる
+// （SQL の三値論理）。COALESCE(wg.role, ”) で先に text を NULL 抜きにしてから比較すると、
+// 比較結果そのものは NULL になり得ない。COALESCE(bool式, false) だと sqlc の型推論が
+// interface{} に落ちてしまうため、text 側で COALESCE する形にしている
+// （driver が NULL を bool へ Scan できずに落ちることをローカル PostgreSQL で確認済み）。
+func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64) ([]ListMemberWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMemberWorkspaces, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Workspace{}
+	items := []ListMemberWorkspacesRow{}
 	for rows.Next() {
-		var i Workspace
+		var i ListMemberWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
 			&i.Name,
 			&i.IsActive,
+			&i.PersonalOwnerUserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsAdmin,
 		); err != nil {
 			return nil, err
 		}

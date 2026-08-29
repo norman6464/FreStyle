@@ -44,17 +44,6 @@ type Company struct {
 	WorkspaceID uuid.NullUUID
 }
 
-type CompanyApplication struct {
-	ID            int64
-	CompanyName   string
-	ApplicantName string
-	Email         string
-	Message       string
-	Status        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
 type CompanyExercise struct {
 	ID             int64
 	CompanyID      int64
@@ -125,16 +114,6 @@ type Invitation struct {
 	Token     sql.NullString
 	ExpiresAt time.Time
 	CreatedAt time.Time
-}
-
-type LearningReport struct {
-	ID         int64
-	UserID     int64
-	PeriodFrom time.Time
-	PeriodTo   time.Time
-	Status     string
-	S3Key      string
-	CreatedAt  time.Time
 }
 
 type MasterExercise struct {
@@ -383,12 +362,13 @@ type UserOidcIdentity struct {
 }
 
 type Workspace struct {
-	ID        uuid.UUID
-	Slug      string
-	Name      string
-	IsActive  sql.NullBool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                  uuid.UUID
+	Slug                string
+	Name                string
+	IsActive            bool
+	PersonalOwnerUserID sql.NullInt64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type WorkspaceGrant struct {

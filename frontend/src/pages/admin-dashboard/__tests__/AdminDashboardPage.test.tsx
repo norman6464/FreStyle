@@ -14,12 +14,6 @@ function makeHookReturn() {
       companyTotal: 3,
       companyActive: 2,
       companyInactive: 1,
-      applicationTotal: 4,
-      pendingApplications: 2,
-      recentPending: [
-        { id: 1, companyName: 'アクメ社', applicantName: '山田', email: 'y@acme.co.jp', message: '', status: 'pending', createdAt: '', updatedAt: '' },
-        { id: 2, companyName: 'ベータ社', applicantName: '佐藤', email: 's@beta.co.jp', message: '', status: 'pending', createdAt: '', updatedAt: '' },
-      ],
     },
     loading: false,
     error: null as string | null,
@@ -47,17 +41,10 @@ describe('AdminDashboardPage（運営ダッシュボード）', () => {
     hookReturn = makeHookReturn();
   });
 
-  it('会社数と承認待ち件数のカードを表示する', () => {
+  it('会社数のカードを表示する', () => {
     renderPage();
     expect(screen.getByText('会社数')).toBeInTheDocument();
-    expect(screen.getByText('承認待ちの申請')).toBeInTheDocument();
     expect(screen.getByText('有効 2 / 無効 1')).toBeInTheDocument();
-  });
-
-  it('承認待ちの申請を一覧に出す', () => {
-    renderPage();
-    expect(screen.getByText('アクメ社')).toBeInTheDocument();
-    expect(screen.getByText('ベータ社')).toBeInTheDocument();
   });
 
   // 通過条件（誰が入れて誰が /dashboard へ戻されるか）はルート側の RequireRole が持つ。

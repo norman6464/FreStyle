@@ -24,7 +24,7 @@ const missingID uint64 = 9_000_000_000
 // （既存行に偶然当たって「0 行ではなかった」ことを見落とさないため）。
 var missingRowTables = []string{
 	"notes", "notifications", "courses", "course_chapters",
-	"invitations", "company_applications", "companies", "users",
+	"invitations", "companies", "users",
 }
 
 // missingRowCase は「存在しない行を狙う書き込み」1 件分の検証定義。
@@ -82,13 +82,6 @@ func missingRowWriteCases() []missingRowCase {
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewAdminInvitationRepository(db).
 					UpdateStatus(ctx, missingID, domain.InvitationStatusCanceled)
-			},
-		},
-		{
-			name: "利用申請の status 更新",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCompanyApplicationRepository(db).
-					UpdateStatus(ctx, missingID, domain.CompanyApplicationStatusApproved)
 			},
 		},
 		{

@@ -654,27 +654,41 @@ LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id;
 
 -- name: GetUserCompanyWorkspaceID :one
--- そのユーザーの会社に対応するワークスペース ID（users.workspace_id）。
+-- そのユーザーの会社に対応するワークスペース ID。
 --
--- 会社ごとのワークスペースは tenant_bridge が起動時に用意し、users.workspace_id へ写している。
--- ノートの所属の正本はあくまで principals（kind='user'）の行で、この列は
+-- 対応は companies.workspace_id が唯一の正本。写し（バックフィル）を持たず、
+-- users.company_id → companies.id の JOIN でその場に求める。
+-- ノートの所属の正本はあくまで principals（kind='user'）の行で、この結果は
 -- 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
 -- （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
 --
--- 会社に属さないユーザー（company_id が NULL → workspace_id も NULL）は 0 行。
-SELECT workspace_id FROM users
-WHERE id = $1 AND workspace_id IS NOT NULL AND deleted_at IS NULL;
+-- 会社に属さないユーザー（company_id が NULL）・対応するワークスペースが無い会社は 0 行。
+SELECT c.workspace_id FROM users u
+JOIN companies c ON c.id = u.company_id
+WHERE u.id = $1 AND c.workspace_id IS NOT NULL AND u.deleted_at IS NULL;
 
 -- name: ListMemberWorkspaces :many
--- そのユーザーが所属するワークスペース一覧。
+-- そのユーザーが所属するワークスペース一覧と、自分がそこの admin かどうか。
 --
 -- 所属の正本は principals（kind='user'）の行なので、JOIN の結果がそのまま答えになる。
 -- このファイルの作法（WHERE に workspace_id を必ず含める）に対する唯一の例外で、
 -- テナントを絞る手前の「どのテナントに入れるか」を答えるクエリだから workspace_id を取らない。
 -- 代わりに principals 側で user_id を必ず縛る（ここが緩むと全テナントが漏れる）。
-SELECT w.* FROM workspaces w
+--
+-- is_admin は workspace_grants を自分の principal で LEFT JOIN するだけで求まる
+-- （admin だけが consequential なので role = 'admin' の 1 行があるかどうかだけを見る）。
+-- DeleteWorkspace が要求する権限（CanManage）と同じ判定を、一覧の段階で添えて返す。
+--
+-- grant が 1 行も無い所属では wg.role が NULL になり、(wg.role = 'admin') も NULL になる
+-- （SQL の三値論理）。COALESCE(wg.role, '') で先に text を NULL 抜きにしてから比較すると、
+-- 比較結果そのものは NULL になり得ない。COALESCE(bool式, false) だと sqlc の型推論が
+-- interface{} に落ちてしまうため、text 側で COALESCE する形にしている
+-- （driver が NULL を bool へ Scan できずに落ちることをローカル PostgreSQL で確認済み）。
+SELECT w.*, (COALESCE(wg.role, '') = 'admin') AS is_admin FROM workspaces w
 JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = sqlc.arg(user_id)
+LEFT JOIN workspace_grants wg
+  ON wg.workspace_id = w.id AND wg.principal_id = p.id
 ORDER BY w.slug;
 
 -- name: ListPageSpaceScopeGrantRoles :many

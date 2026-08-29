@@ -19,6 +19,15 @@ type Workspace struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// MemberWorkspace はワークスペースと、そのユーザーから見た実効権限の組。
+// 一覧 API は削除アイコンの出し分けに要る CanManage だけを添えて返す
+// （フロントは canManage を見ずに全員へ削除操作を出しており、押しても 403 になる問題があった）。
+type MemberWorkspace struct {
+	Workspace
+	// CanManage は自分がこのワークスペースの admin か（DeleteWorkspace が要求する権限と同じ）。
+	CanManage bool `json:"canManage"`
+}
+
 // WorkspaceSlugMaxLen / WorkspaceNameMaxLen は workspaces の列幅（varchar(64) / varchar(200)）。
 // DB の CHECK / 列幅と同じ値を入口でも見て、桁あふれを 500 ではなく 400 で返せるようにする。
 const (

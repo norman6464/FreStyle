@@ -231,6 +231,9 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	if user.ID == 0 {
 		row, err := q.InsertUser(ctx, params)
 		if err != nil {
+			if isUniqueViolation(err) {
+				return repository.ErrEmailTaken
+			}
 			return err
 		}
 		newID, newCreatedAt, newUpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
@@ -252,6 +255,9 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			DeletedAt:    params.DeletedAt,
 		})
 		if err != nil {
+			if isUniqueViolation(err) {
+				return repository.ErrEmailTaken
+			}
 			return err
 		}
 		newID, newCreatedAt, newUpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
@@ -291,10 +297,7 @@ func createWithOidcIdentity(
 	if err := insertUserTx(ctx, q, user); err != nil {
 		return err
 	}
-	if err := ensureOidcIdentityTx(ctx, q, user.ID, provider, subject); err != nil {
-		return err
-	}
-	return mirrorUserWorkspaceTx(ctx, q, user.ID)
+	return ensureOidcIdentityTx(ctx, q, user.ID, provider, subject)
 }
 
 // bootstrapSuperAdminLockKey は「最初の運営管理者を作る」経路を直列化する advisory lock のキー。
@@ -345,9 +348,6 @@ func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
 		if err := ensureOidcIdentityTx(ctx, qtx, user.ID, provider, subject); err != nil {
 			return err
 		}
-		if err := mirrorUserWorkspaceTx(ctx, qtx, user.ID); err != nil {
-			return err
-		}
 		created = true
 		return nil
 	})
@@ -355,21 +355,6 @@ func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
 		return false, err
 	}
 	return created, nil
-}
-
-// mirrorUserWorkspaceTx は users.workspace_id を所属会社のワークスペースに合わせる。
-//
-// テナントの正本を companies から workspaces へ移す移行中は、所属という 1 つの事実を
-// 2 つの列で持つ。どちらを書き忘れてもずれるので、company_id を書く経路では必ずこれを通す。
-// 対応表の正本は companies.workspace_id ただ 1 つで、値をアプリ側で覚えて写経しない。
-// 会社に属さないユーザー（company_id IS NULL）や、対応する会社行が無い場合は 0 件更新で、
-// workspace_id は NULL のまま残る。
-func mirrorUserWorkspaceTx(ctx context.Context, q *sqlcgen.Queries, userID uint64) error {
-	id64, ok := toInt64ID(userID)
-	if !ok {
-		return nil // 存在し得ない id = 写す相手がいない
-	}
-	return q.MirrorUserWorkspace(ctx, id64)
 }
 
 // EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
@@ -501,9 +486,8 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	return nil
 }
 
-// UpdateCompanyID は所属会社を付け替える。company_id と、その写しである workspace_id を
-// 同じ 1 文で書く（片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
-// 読み取りは引き続き company_id を見る。
+// UpdateCompanyID は所属会社を付け替える。ワークスペースは写しを持たず、読み出し側
+// （GetUserCompanyWorkspaceID）が companies.workspace_id を都度 JOIN で求める。
 func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {

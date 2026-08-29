@@ -233,125 +233,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/company-applications": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "受け付けた企業申請を新しい順で返す。super_admin 専用。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "企業申請一覧（super_admin）",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/company-applications/{id}/status": {
-            "patch": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "申請を approved / rejected / pending に更新する。super_admin 専用。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "企業申請の status 更新（super_admin）",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "申請 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "status",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.updateCompanyApplicationStatusReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "成功（本文なし）"
-                    },
-                    "400": {
-                        "description": "id / status 不正",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "申請が存在しない",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 更新失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/admin/invitations": {
             "get": {
                 "security": [
@@ -753,7 +634,7 @@ const docTemplate = `{
         },
         "/auth/cognito/login": {
             "post": {
-                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -795,7 +676,13 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "招待 なし の 新規 user",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -871,7 +758,13 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "招待が必要",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -887,7 +780,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
-                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -929,7 +822,13 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "招待 なし の 新規 user",
+                        "description": "最初の運営管理者作成の競合負け",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "同じ email での同時サインアップ競合",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -1163,64 +1062,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/company-applications": {
-            "post": {
-                "description": "ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "company-applications"
-                ],
-                "summary": "企業利用申請（公開 / 認証不要）",
-                "parameters": [
-                    {
-                        "description": "申請内容",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.createCompanyApplicationReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"
-                        }
-                    },
-                    "400": {
-                        "description": "バリデーションエラー",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "429": {
-                        "description": "レート制限超過",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        },
-                        "headers": {
-                            "Retry-After": {
-                                "type": "string",
-                                "description": "再試行までの秒数 (例: 60)"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "内部エラー",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -2575,6 +2416,61 @@ const docTemplate = `{
                                 "type": "string",
                                 "description": "再試行までの秒数 (例: 60)"
                             }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も 消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ワークスペース 削除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "削除 成功 (本文 なし)"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "ワークスペース の admin で は ない、 または 会社 の ワークスペース",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "ワークスペース が 無い か 未 所属",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "500": {
@@ -4605,97 +4501,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/learning-reports": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "learning-reports"
-                ],
-                "summary": "学習 レポート 一覧",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/learning-reports/generate": {
-            "post": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。 202 Accepted を 返す。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "learning-reports"
-                ],
-                "summary": "月次 学習 レポート 生成 要求",
-                "parameters": [
-                    {
-                        "description": "year + month",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.requestReportReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"
-                        }
-                    },
-                    "400": {
-                        "description": "バリデーション",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/lesson-progress": {
             "get": {
                 "security": [
@@ -6019,35 +5824,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication": {
-            "type": "object",
-            "properties": {
-                "applicantName": {
-                    "type": "string"
-                },
-                "companyName": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             "type": "object",
             "properties": {
@@ -6130,32 +5906,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
-                }
-            }
-        },
-        "github_com_norman6464_FreStyle_backend_internal_domain.LearningReport": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "periodFrom": {
-                    "type": "string"
-                },
-                "periodTo": {
-                    "type": "string"
-                },
-                "s3Key": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "userId": {
-                    "type": "integer"
                 }
             }
         },
@@ -6924,28 +6674,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.createCompanyApplicationReq": {
-            "type": "object",
-            "required": [
-                "applicantName",
-                "companyName",
-                "email"
-            ],
-            "properties": {
-                "applicantName": {
-                    "type": "string"
-                },
-                "companyName": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_handler.documentCreateReq": {
             "type": "object",
             "required": [
@@ -7675,6 +7403,10 @@ const docTemplate = `{
         "internal_handler.kbWorkspaceResponse": {
             "type": "object",
             "properties": {
+                "canManage": {
+                    "description": "CanManage は自分がこのワークスペースの admin か（削除操作を出してよいかの判定に使う。\nDeleteWorkspace が要求する権限と同じ）。",
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -7888,25 +7620,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.requestReportReq": {
-            "type": "object",
-            "required": [
-                "month",
-                "year"
-            ],
-            "properties": {
-                "month": {
-                    "type": "integer",
-                    "maximum": 12,
-                    "minimum": 1
-                },
-                "year": {
-                    "type": "integer",
-                    "maximum": 2100,
-                    "minimum": 2000
-                }
-            }
-        },
         "internal_handler.setCompanyActiveRequest": {
             "type": "object",
             "required": [
@@ -7990,17 +7703,6 @@ const docTemplate = `{
                 "expectedRevision": {
                     "type": "integer",
                     "minimum": 1
-                }
-            }
-        },
-        "internal_handler.updateCompanyApplicationStatusReq": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "status": {
-                    "type": "string"
                 }
             }
         },

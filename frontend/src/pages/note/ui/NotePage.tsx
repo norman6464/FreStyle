@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { NoteSidebar } from '@/widgets/note-sidebar';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
 import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/shared/ui/RichTextEditor';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/lib/hooks/useToast';
-import { DocumentTextIcon } from '@heroicons/react/24/outline';
+import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { DocumentTextIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotePageDoc } from '../model/useNotePageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { subscribeNoteTreeEvents } from '@/entities/note';
@@ -21,8 +23,13 @@ import NotePageTitle from './NotePageTitle';
 export default function NotePage() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const { data, loading, error, saveStatus, onDocChange, renameTitle } = useNotePageDoc(pageId);
+  // ヘッダーのワークスペース切替から来たときだけ、開くワークスペースの初期値に使う
+  // （ページを開いているときは data.workspaceSlug が正なのでそちらを優先する）。
+  const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
 
   const handleRename = useCallback(
     async (title: string) => {
@@ -40,13 +47,19 @@ export default function NotePage() {
   // 自分か祖先が物理削除されたら一覧へ戻る（消えた場所に立ち続けない）。
   // 祖先はサーバー応答（ancestors — アーカイブ済みも含む）で知っているので、
   // サイドバーの現役の木に載っていないページを開いていても正しく判定できる。
+  // ワークスペースごと削除されたとき（配下は FK CASCADE で全消去）も同じ理由で戻る。
   useEffect(() => {
     if (!pageId || !data) return undefined;
     return subscribeNoteTreeEvents((event) => {
-      if (event.type !== 'page-deleted') return;
-      const hit =
-        event.pageId === pageId || (data.ancestors ?? []).some((ancestor) => ancestor.id === event.pageId);
-      if (hit) navigate('/notes');
+      if (event.type === 'page-deleted') {
+        const hit =
+          event.pageId === pageId || (data.ancestors ?? []).some((ancestor) => ancestor.id === event.pageId);
+        if (hit) navigate('/notes');
+        return;
+      }
+      if (event.type === 'workspace-deleted' && event.workspaceSlug === data.workspaceSlug) {
+        navigate('/notes');
+      }
     });
   }, [pageId, data, navigate]);
 
@@ -82,11 +95,30 @@ export default function NotePage() {
 
   return (
     <div className="flex h-full">
-      <aside className="w-64 shrink-0 border-r border-surface-3 bg-surface-1">
-        <NoteSidebar workspaceSlug={data?.workspaceSlug} activePageId={pageId} />
-      </aside>
+      {/* サイドバーはコースの章一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
+          一時表示 / ⌘\ で切替）。画面ごとに別の作りを持たない — 覚えることを増やさない。 */}
+      <SecondaryPanel
+        title="ノート"
+        peekable
+        storageKey="frestyle.panel.note"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={closeMobilePanel}
+      >
+        <NoteSidebar workspaceSlug={data?.workspaceSlug ?? navigationWorkspaceSlug} activePageId={pageId} />
+      </SecondaryPanel>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
+        {/* モバイルヘッダー: md 以上は SecondaryPanel 自身の一時表示機構（左端ホバー / ☰）が
+            効くのでここには出さない。md 未満はこのボタンだけがサイドバーを開く唯一の手段。 */}
+        <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
+          <button
+            onClick={openMobilePanel}
+            className="p-1.5 hover:bg-surface-2 rounded transition-colors"
+            aria-label="ノート一覧を開く"
+          >
+            <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
+          </button>
+        </div>
         <div className="mx-auto w-full max-w-3xl px-6 py-10">
           {!pageId && (
             <EmptyState

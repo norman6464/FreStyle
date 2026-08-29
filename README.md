@@ -16,7 +16,6 @@
 | **コード学習** | 演習問題を解きながら手を動かしてプログラミングを学ぶ。Monaco Editor + 言語サンドボックス（PHP / Go / bash / **SQL**）。SQL は同居の使い捨て PostgreSQL に対し非 superuser で実行し方言を正確に再現 |
 | **学習コース** | CompanyAdmin が作成した Markdown 教材をコース単位で閲覧。trainee は各教材を「完了にする」でチェックでき、コースごとの進捗バー（完了数 / 全体）で到達度を可視化 |
 | **ノート** | 学習ログ・振り返りメモを残せる。画像添付に対応 |
-| **レポート** | 月次の学習サマリー |
 | **通知** | システム通知（招待・案内など） |
 | **プロフィール** | 表示名・アイコン・所属の確認 / 編集 |
 | **管理（SuperAdmin / CompanyAdmin）** | 会社一覧 / 招待管理（CompanyAdmin から trainee を招待） |
@@ -25,5 +24,4 @@
 ## デプロイURL
 
 [https://frestyle.jp](https://frestyle.jp)
-
 

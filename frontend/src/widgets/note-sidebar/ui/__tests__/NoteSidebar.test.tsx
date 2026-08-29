@@ -16,6 +16,7 @@ const hoisted = vi.hoisted(() => ({
   unarchivePage: vi.fn(),
   movePage: vi.fn(),
   createWorkspace: vi.fn(),
+  deleteWorkspace: vi.fn(),
   createSpace: vi.fn(),
   renameSpace: vi.fn(),
   searchPages: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('@/entities/note', async () => {
       unarchivePage: hoisted.unarchivePage,
       movePage: hoisted.movePage,
       createWorkspace: hoisted.createWorkspace,
+      deleteWorkspace: hoisted.deleteWorkspace,
       createSpace: hoisted.createSpace,
       renameSpace: hoisted.renameSpace,
       searchPages: hoisted.searchPages,
@@ -53,8 +55,8 @@ vi.mock('@/entities/note', async () => {
   };
 });
 
-function workspace(slug: string, name = slug): NoteWorkspace {
-  return { slug, name, createdAt: '2026-08-01T00:00:00Z' };
+function workspace(slug: string, name = slug, canManage = true): NoteWorkspace {
+  return { slug, name, createdAt: '2026-08-01T00:00:00Z', canManage };
 }
 
 function space(
@@ -1426,6 +1428,36 @@ describe('ページ画面からの通知に木が追従する', () => {
     expect(await screen.findByText('設計メモ v2')).toBeInTheDocument();
     expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
   });
+
+  // ヘッダーの切替（useWorkspaceList）は別インスタンスなので、そちら側で作成・削除
+  // しても props の再取得だけでは知れない。noteTreeEvents 経由でこちら側の一覧が
+  // 追従することを固定する。
+  it('workspace-created で他インスタンスが作った所属を一覧へ足す', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    act(() => {
+      emitNoteTreeEvent({ type: 'workspace-created', workspace: workspace('beta', 'Beta 社') });
+    });
+
+    // 切替ポップアップを開くと、他インスタンスが作った所属が見える。
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    expect(await screen.findByRole('button', { name: 'Beta 社' })).toBeInTheDocument();
+  });
+
+  it('workspace-deleted で他インスタンスが消した所属を一覧から外す', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社'), workspace('beta', 'Beta 社')]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    await screen.findByRole('button', { name: 'Beta 社' });
+
+    act(() => {
+      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'beta' });
+    });
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Beta 社' })).not.toBeInTheDocument());
+  });
 });
 
 describe('ワークスペース切替ポップアップ', () => {
@@ -1764,5 +1796,65 @@ describe('プライベートとチームの節分け', () => {
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: 'プライベート' })).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe('ワークスペースの削除', () => {
+  it('確認してから消し、開いていたものを消したら残りの先頭へ移る', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([
+      workspace('acme', 'Acme 社'),
+      workspace('other', '別の場所'),
+    ]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
+
+    // 戻せない操作なので、ブラウザ標準ではなくアプリのモーダルで確かめる。
+    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '削除' }));
+
+    await waitFor(() => expect(hoisted.deleteWorkspace).toHaveBeenCalledWith('acme'));
+    // 消したものを開いたままにしない。
+    await waitFor(() =>
+      expect(hoisted.fetchSpaces).toHaveBeenCalledWith('other'),
+    );
+  });
+
+  it('やめたら消さない', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
+    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'キャンセル' }));
+
+    expect(hoisted.deleteWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('失敗したら知らせを出す（会社のワークスペースはサーバーが断る）', async () => {
+    hoisted.deleteWorkspace.mockRejectedValue(new Error('forbidden'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
+    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '削除' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを削除できませんでした'),
+    );
+  });
+
+  it('admin でない所属には削除アイコンを出さない（押しても403になるだけの操作を並べない）', async () => {
+    hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社', false)]);
+    renderSidebar();
+    await screen.findByText('設計メモ');
+
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    expect(screen.queryByRole('button', { name: 'Acme 社 を削除' })).not.toBeInTheDocument();
   });
 });

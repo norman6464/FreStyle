@@ -10,6 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,14 +111,14 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.ErrorContains(t, repo.UpdateRole(ctx, u.ID, "no_such_role"), "unknown role")
 	})
 
-	t.Run("BackfillUserNormalization は起動のたびに冪等に流せる（既存行を壊さない）", func(t *testing.T) {
+	t.Run("正規化のバックフィルは起動のたびに冪等に流せる（既存行を壊さない）", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "bf@example.com", Role: domain.RoleCompanyAdmin}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "bf-1"))
 
 		// 何度流しても role_id / identity を壊さない（role_id を旧 role 基準で巻き戻さない）。
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
@@ -169,10 +170,10 @@ func TestUserNormalization_Integration(t *testing.T) {
 
 		// 同じ email のアクティブ行は作れない（users 行の INSERT が失敗 → トランザクションごと巻き戻る）。
 		dup := &domain.User{Email: "dup@example.com", Role: domain.RoleTrainee}
-		require.ErrorContains(
+		require.ErrorIs(
 			t,
 			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "mail-2"),
-			"uq_users_email_active",
+			repository.ErrEmailTaken,
 		)
 		// identity も巻き戻っている（片方だけ残らない）。
 		var count int64
@@ -262,7 +263,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		_, err := sqlDB.Exec(`UPDATE users SET deleted_at = NOW() WHERE id = $1`, u.ID)
 		require.NoError(t, err)
 
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		var count int64
 		require.NoError(t, sqlDB.QueryRow(
@@ -327,7 +328,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		_, err := sqlDB.Exec(`DROP INDEX IF EXISTS uq_users_email_active`)
 		require.NoError(t, err)
 		defer func() {
-			require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+			require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		}()
 
 		for _, sub := range []string{"dup-a", "dup-b"} {
@@ -345,15 +346,15 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("DB 制約: 大小文字だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
 		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
-		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		u1 := &domain.User{Email: "case@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u1, domain.OidcProviderCognito, "case-1"))
 
 		dup := &domain.User{Email: "CASE@Example.com", Role: domain.RoleTrainee}
-		require.ErrorContains(
+		require.ErrorIs(
 			t,
 			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "case-2"),
-			"uq_users_email_active",
+			repository.ErrEmailTaken,
 		)
 	})
 
@@ -404,14 +405,14 @@ func TestUserNormalization_Integration(t *testing.T) {
 		}
 
 		// 起動時の制約適用は落ちず（WARNING のみ）、旧索引がそのまま残る。
-		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		require.NotContains(t, indexdef(t), "btrim")
 		require.Contains(t, indexdef(t), "email")
 
 		// 重複を解消すれば、次の起動で正規形（lower(btrim(email, ...))）へ張り替わる。
 		_, err = sqlDB.Exec(`DELETE FROM users WHERE email = 'MIX@Example.com'`)
 		require.NoError(t, err)
-		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		require.Contains(t, indexdef(t), "btrim")
 	})
 }

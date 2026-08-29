@@ -11,6 +11,11 @@ import (
 // ErrWorkspaceNotFound は対象ワークスペースが存在しないときに返す。
 var ErrWorkspaceNotFound = errors.New("workspace not found")
 
+// ErrCompanyWorkspaceUndeletable は会社に紐づくワークスペースを消そうとしたときに返す。
+// そこには会社の全員のノートが入るうえ、消しても起動時のバックフィルが作り直すので、
+// 中身だけが消えた空のワークスペースが残る（最悪の結果になる）。
+var ErrCompanyWorkspaceUndeletable = errors.New("company workspace is not deletable")
+
 // ErrSpaceNotFound は対象スペースが存在しない（または別ワークスペースのもの）ときに返す。
 var ErrSpaceNotFound = errors.New("space not found")
 
@@ -21,6 +26,12 @@ var ErrWorkspaceSlugTaken = errors.New("workspace slug is already taken")
 
 // ErrSpaceKeyTaken は作成しようとした key が同じワークスペースで既に使われているときに返す。
 var ErrSpaceKeyTaken = errors.New("space key is already taken")
+
+// ErrPersonalWorkspaceAlreadyExists は、その人の個人ワークスペースを新規作成しようとした瞬間に
+// 別のリクエストが先に作り終えていたときに返す（uq_workspaces_personal_owner の競合）。
+// サインアップの二重送信・同時実行で起き得る。呼び出し側は失敗として扱わず、
+// FindPersonalWorkspaceByOwner で先に作られた方を引き直す。
+var ErrPersonalWorkspaceAlreadyExists = errors.New("personal workspace already exists for this user")
 
 // ErrPageNotFound は対象ページが存在しない（または別ワークスペースのもの）ときに返す。
 // テナント越えのアクセスは「無い」と同じ扱いにする（存在の有無自体を漏らさない）。
@@ -75,10 +86,19 @@ type KnowledgeBaseRepository interface {
 	// パンくず用の骨組み。題名・可視性は返さない — 可視の判定は権限側の口が持つ。
 	// ページが無い・根ページなら空（エラーにしない。実在の確認は呼び出し側が済ませている）。
 	ListAncestorPageIDs(ctx context.Context, workspaceID, pageID string) ([]string, error)
+	// DeleteWorkspace はワークスペースを配下ごと消す（FK の CASCADE で連なる）。
+	// **会社に紐づくワークスペースは消さない** — その場合 ErrCompanyWorkspaceUndeletable。
+	// 対象が無ければ ErrWorkspaceNotFound（消えたことにしない — 押した人に結果を返す）。
+	DeleteWorkspace(ctx context.Context, workspaceID string) error
+
 	// FindWorkspaceByID はワークスペースを 1 件引く。無ければ ErrWorkspaceNotFound。
 	FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error)
 	// FindWorkspaceBySlug は URL に出る slug からワークスペースを引く。無ければ ErrWorkspaceNotFound。
 	FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error)
+	// FindPersonalWorkspaceByOwner はそのユーザーの個人ワークスペースを引く。無ければ
+	// ErrWorkspaceNotFound（uq_workspaces_personal_owner が 1 人 1 つを守るので、
+	// 見つかれば必ず 1 件）。サインアップの「作る前に既に在るか見る」に使う。
+	FindPersonalWorkspaceByOwner(ctx context.Context, userID uint64) (*domain.Workspace, error)
 	// FindSpace はスペースを 1 件引く。無い・別ワークスペースなら ErrSpaceNotFound。
 	FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error)
 	// UpdateSpaceName はスペースの表示名だけを変える（key は URL・権限の参照に使うので不変）。

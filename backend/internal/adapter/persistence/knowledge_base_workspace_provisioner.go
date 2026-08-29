@@ -34,6 +34,14 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 	if !ok {
 		return nil, outOfRangeIDError("user_id", in.OwnerUserID)
 	}
+	var personalOwnerID sql.NullInt64
+	if in.PersonalOwnerUserID != nil {
+		pid, ok := toInt64ID(*in.PersonalOwnerUserID)
+		if !ok {
+			return nil, outOfRangeIDError("personal_owner_user_id", *in.PersonalOwnerUserID)
+		}
+		personalOwnerID = sql.NullInt64{Int64: pid, Valid: true}
+	}
 	wsID, err := kbNewID()
 	if err != nil {
 		return nil, err
@@ -51,15 +59,24 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 
 	qtx := p.q.WithTx(tx)
 	ws, err := qtx.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
-		ID:   wsID,
-		Slug: in.Slug,
-		Name: in.Name,
+		ID:                  wsID,
+		Slug:                in.Slug,
+		Name:                in.Name,
+		PersonalOwnerUserID: personalOwnerID,
 	})
 	if err != nil {
 		// slug はグローバルに一意（uq_workspaces_slug）。検査してから INSERT するまでの間に
 		// 別の要求が同じ slug を取り得るので、一意制約を唯一の判定にする。
-		if isUniqueViolation(err) {
-			return nil, repository.ErrWorkspaceSlugTaken
+		// personal_owner_user_id も同じ理由で 1 人 1 つ（uq_workspaces_personal_owner）。
+		// どちらの制約が競合したかで意味が違うため、制約名を見て振り分ける
+		// （slug は本当に使用済み、personal_owner は「もう作られていた」で失敗ではない）。
+		if name, ok := uniqueViolationConstraint(err); ok {
+			switch name {
+			case "uq_workspaces_personal_owner":
+				return nil, repository.ErrPersonalWorkspaceAlreadyExists
+			default:
+				return nil, repository.ErrWorkspaceSlugTaken
+			}
 		}
 		return nil, err
 	}

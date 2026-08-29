@@ -198,14 +198,31 @@ describe('NotePage の配線', () => {
     act(() => {
       emitNoteTreeEvent({ type: 'page-deleted', pageId: 'anc-1' });
     });
-    expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
 
     // 自分自身の削除でも戻る。
     hoisted.navigate.mockClear();
     act(() => {
       emitNoteTreeEvent({ type: 'page-deleted', pageId: 'p1' });
     });
-    expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
+  });
+
+  it('開いているワークスペースが削除されたら一覧へ戻る（配下ごと消えるため）', async () => {
+    renderPage();
+    await screen.findByRole('navigation', { name: 'ページの場所' });
+
+    // 無関係なワークスペースの削除では動かない。
+    act(() => {
+      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'unrelated' });
+    });
+    expect(hoisted.navigate).not.toHaveBeenCalled();
+
+    // resolved() の workspaceSlug と一致する削除では戻る。
+    act(() => {
+      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'w-3f2a9c' });
+    });
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
   });
 
   it('編集できないページでは /page を渡さない（読むだけの人にメニューを見せない）', async () => {

@@ -5,13 +5,16 @@ package usecase_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,9 +54,9 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 	const rounds = 5
 	for round := range rounds {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(users, nil, bootstrapEmail, nil)
+		uc := usecase.NewUpsertUserFromIDTokenUseCase(users, nil, bootstrapEmail, persistence.NewUserInvitationTransactionRunner(sqlDB))
 
-		allowed := make([]bool, len(variants))
+		results := make([]*domain.User, len(variants))
 		errs := make([]error, len(variants))
 		start := make(chan struct{})
 		var wg sync.WaitGroup
@@ -62,7 +65,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start // 全員を同じ瞬間に走らせる
-				allowed[i], errs[i] = uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+				results[i], errs[i] = uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
 					CognitoSub:     fmt.Sprintf("race-%d-%d", round, i),
 					Email:          email,
 					IsCognitoAdmin: true,
@@ -72,10 +75,16 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 		close(start)
 		wg.Wait()
 
+		// bootstrap の免除が既に閉じたラウンド（2 回目以降）では、12 通り全員が同じ
+		// email で通常の自己サインアップ経路に流れ、最初の 1 人以外は
+		// repository.ErrEmailTaken で拒否される。これは免除が閉じた後の正常な衝突なので
+		// エラー扱いしない。それ以外のエラー（DB 障害等）だけを異常として拾う。
 		accepted := 0
 		for i := range variants {
-			assert.NoErrorf(t, errs[i], "round %d: %q でエラー", round, variants[i])
-			if allowed[i] {
+			if errs[i] != nil && !errors.Is(errs[i], repository.ErrEmailTaken) {
+				t.Errorf("round %d: %q で想定外のエラー: %v", round, variants[i], errs[i])
+			}
+			if results[i] != nil {
 				accepted++
 			}
 		}

@@ -7,11 +7,10 @@ vi.mock('@/shared/api/axios', () => ({
 import apiClient from '@/shared/api/axios';
 // 各 Slice の Public API（index.ts）経由で参照する（FSD の境界ルール / CLAUDE.md §2.5）。
 import { AuditRepository } from '@/entities/audit';
-import { CompanyRepository, CompanyApplicationRepository } from '@/entities/company';
+import { CompanyRepository } from '@/entities/company';
 import { CourseRepository, LessonProgressRepository } from '@/entities/course';
 import { ExerciseRepository } from '@/entities/exercise';
 import { AdminInvitationRepository } from '@/entities/invitation';
-import { LearningReportRepository } from '@/entities/learning-report';
 import { AdminMemberRepository } from '@/entities/member';
 import { NotificationRepository } from '@/entities/notification';
 
@@ -25,7 +24,7 @@ const mockGet = vi.mocked(apiClient.get);
  * backend 側でも空配列を保証しているが、片側だけの対策では
  * 「もう一方が壊れた瞬間にユーザーへ影響が出る」ため両側で守る。
  *
- * 正規化している 15 経路をすべて網羅する（1 つでも漏れるとそこだけ無防備になる）。
+ * 正規化している 11 経路をすべて網羅する（1 つでも漏れるとそこだけ無防備になる）。
  */
 describe('一覧 repository は null 応答でも配列を返す', () => {
   beforeEach(() => {
@@ -36,20 +35,18 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
     ['監査ログ一覧', () => AuditRepository.list()],
     ['会社一覧', () => CompanyRepository.list()],
     ['会社の統計一覧', () => CompanyRepository.listStats()],
-    ['利用申請一覧', () => CompanyApplicationRepository.adminList()],
     ['コース一覧', () => CourseRepository.list()],
     ['教材一覧', () => CourseRepository.listMaterials(1)],
     ['章の進捗一覧', () => LessonProgressRepository.list()],
     ['演習の言語別集計', () => ExerciseRepository.listLanguageSummary()],
     ['演習の提出履歴', () => ExerciseRepository.listSubmissions(1)],
     ['招待一覧', () => AdminInvitationRepository.list()],
-    ['学習レポート一覧', () => LearningReportRepository.getAll()],
     ['従業員一覧', () => AdminMemberRepository.listMembers()],
     ['通知一覧', () => NotificationRepository.getAll()],
   ];
 
   it('正規化対象の全経路を網羅している', () => {
-    expect(cases).toHaveLength(13);
+    expect(cases).toHaveLength(11);
   });
 
   it.each(cases)('%s は null でも空配列になる', async (_name, call) => {

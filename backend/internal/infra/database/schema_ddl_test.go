@@ -119,13 +119,19 @@ func TestCreateIndexName(t *testing.T) {
 // TestSplitSQLStatements_埋め込みスキーマ は正本の DDL がそのまま分割できること
 // （分割結果に空文が無く、索引名を持つ文が実際に取り出せること）を確かめる。
 func TestSplitSQLStatements_埋め込みスキーマ(t *testing.T) {
+	core, err := coreSchemaSection()
+	require.NoError(t, err)
+	note, err := noteSchemaSection()
+	require.NoError(t, err)
+
 	for _, ddl := range []struct {
 		name string
 		body string
 	}{
-		{"core", coreSchemaDDL},
-		{"knowledge_base", knowledgeBaseSchemaDDL},
-		{"knowledge_base_permissions", knowledgeBasePermissionSchemaDDL},
+		// 1 ファイルだが適用は 2 回に分かれるので、切り出した節ごとに確かめる。
+		{"中核", core},
+		{"ノート", note},
+		{"全体", schemaDDL},
 	} {
 		t.Run(ddl.name, func(t *testing.T) {
 			stmts := splitSQLStatements(ddl.body)

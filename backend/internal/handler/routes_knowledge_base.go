@@ -98,6 +98,7 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewListMemberWorkspacesUseCase(permissions),
 		usecase.NewJoinCompanyWorkspaceUseCase(permissions),
 		usecase.NewCreateWorkspaceUseCase(provisioner),
+		usecase.NewDeleteWorkspaceUseCase(pages),
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
 		usecase.NewCreateSpaceUseCase(pages, provisioner),
 		usecase.NewListViewableSpacesUseCase(permissions),
@@ -171,6 +172,8 @@ func registerKnowledgeBaseRoutesWith(
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
 	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
+	// ワークスペースの削除（配下ごと・戻せない）。会社のワークスペースは SQL 側で守る。
+	kb.DELETE("/kb/workspaces/:workspaceSlug", audit, wh.Delete)
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces",
 		middleware.RateLimitPerMinutePerUser(kbCreateSpacePerMinute, kbCreateSpaceBurst), wh.CreateSpace)
 	kb.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)

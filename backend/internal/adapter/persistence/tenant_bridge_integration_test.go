@@ -13,6 +13,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,10 +51,10 @@ func userWorkspaceID(t *testing.T, db *sql.DB, userID uint64) uuid.NullUUID {
 	return got
 }
 
-// runStartupBackfill は起動時に走る処理（スキーマ適用 → バックフィル）と同じ順で 1 回分を流す。
+// runStartupBackfill は起動時に走る会社→ワークスペースのバックフィルを 1 回分流す。
+// スキーマ（列 / FK）は testsupport.OpenTestDB が既に適用済み。
 func runStartupBackfill(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
-	require.NoError(t, database.ApplyTenantBridgeSchema(ctx, db))
 	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, db))
 }
 
@@ -173,13 +174,15 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 	})
 }
 
-// TestTenantBridgeDualWrite_Integration は所属を書く経路が company_id と workspace_id の
-// 両方を埋めることを固定する。読み取りは company_id のままで変えていない。
+// TestTenantBridgeDualWrite_Integration は所属の解決（FindUserCompanyWorkspaceID）が
+// users.company_id → companies.workspace_id の JOIN で正しく求まることを固定する。
+// users.workspace_id への書き込みはもう無い（都度 JOIN で求めるため）。
 func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
+	permissions := persistence.NewKnowledgeBasePermissionRepository(sqlDB)
 
-	t.Run("招待からのユーザー作成で両方の列が埋まる", func(t *testing.T) {
+	t.Run("招待からのユーザー作成で所属先ワークスペースが求まる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
@@ -194,10 +197,12 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		got, err := repo.FindByCognitoSub(ctx, "sub-new")
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), *got.CompanyID)
-		require.Equal(t, ws1, userWorkspaceID(t, sqlDB, got.ID))
+		wsID, err := permissions.FindUserCompanyWorkspaceID(ctx, got.ID)
+		require.NoError(t, err)
+		require.Equal(t, ws1.UUID.String(), wsID)
 	})
 
-	t.Run("未所属のまま作られたユーザーは workspace_id も NULL", func(t *testing.T) {
+	t.Run("未所属のまま作られたユーザーは所属先ワークスペースが無い", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		repo := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
@@ -207,10 +212,11 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		got, err := repo.FindByCognitoSub(ctx, "sub-root")
 		require.NoError(t, err)
 		require.Nil(t, got.CompanyID)
-		require.False(t, userWorkspaceID(t, sqlDB, got.ID).Valid)
+		_, err = permissions.FindUserCompanyWorkspaceID(ctx, got.ID)
+		require.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
 	})
 
-	t.Run("会社の付け替えで workspace_id も追随する", func(t *testing.T) {
+	t.Run("会社の付け替えで所属先ワークスペースも追随する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
@@ -225,14 +231,18 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		}, domain.OidcProviderCognito, "sub-move"))
 		got, err := repo.FindByCognitoSub(ctx, "sub-move")
 		require.NoError(t, err)
-		require.Equal(t, ws1, userWorkspaceID(t, sqlDB, got.ID))
+		wsID, err := permissions.FindUserCompanyWorkspaceID(ctx, got.ID)
+		require.NoError(t, err)
+		require.Equal(t, ws1.UUID.String(), wsID)
 
 		require.NoError(t, repo.UpdateCompanyID(ctx, got.ID, 2))
 
 		moved, err := repo.FindByID(ctx, got.ID)
 		require.NoError(t, err)
 		require.Equal(t, uint64(2), *moved.CompanyID)
-		require.Equal(t, ws2, userWorkspaceID(t, sqlDB, got.ID))
+		wsID, err = permissions.FindUserCompanyWorkspaceID(ctx, got.ID)
+		require.NoError(t, err)
+		require.Equal(t, ws2.UUID.String(), wsID)
 	})
 
 	t.Run("会社設定の更新がワークスペースへ写る", func(t *testing.T) {

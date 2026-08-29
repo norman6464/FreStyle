@@ -213,6 +213,49 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - **バックエンド**: `gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy`（ECR build/push + ECS force-update）。ヘルスチェックは本番 API ドメインの `GET /api/v2/health`（CloudFront 配下の SPA パスに叩くと一律 200 になり誤認する）
 - **フロントエンド**: `gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy`
 - **DB マイグレーション**: 新規テーブル / 列追加は GORM AutoMigrate が ECS 起動時に自動適用。列削除 / リネーム / 型変更は `backend/migrations/000X_*.sql` に置き、private リポ `frestyle-infrastructure` の `make apply-migration-supabase` で適用（実引数・手順は同リポ docs 参照）。冪等性（`IF NOT EXISTS` 等）を必ず担保する
+
+### 5.1 SQL は本番へ流す前に必ずローカルの実 PostgreSQL で検証する（重要）
+
+**マイグレーション・データ移行・調査用のクエリは、本番（Supabase）へ流す前に必ずローカルの実 PostgreSQL で実際に実行して確かめる。** 「たぶん動く」で本番へ流さない。読み取りだけの調査クエリも、結合や集計を含むなら同じ扱いにする（列名の思い違い・NULL の扱い・結合の重複は流してみるまで分からない）。
+
+まず **クエリのロジックそのものが正しいか**を確かめる。構文が通ることと、意図した行を返すことは別物。期待する結果を先に言葉で書き、その通りになるかを実データに近い形で見る。
+
+#### 手順
+
+```bash
+cd backend
+
+# 1. 結合テスト用の PostgreSQL を起動（本番と同じ 17.6・tmpfs で毎回まっさら）
+docker compose -f docker-compose.integration.yml up -d --wait
+
+# 2. スキーマを正本のまま流す（core → 骨格 → 権限 の順。順序は FK の依存で決まる）
+for f in core knowledge_base knowledge_base_permissions; do
+  docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
+    psql -U frestyle -d frestyle_integration -v ON_ERROR_STOP=1 -q \
+    < internal/infra/database/schema/$f.sql
+done
+
+# 3. 本番に近いデータを作ってから、検証したい SQL を流す
+docker compose -f docker-compose.integration.yml exec -T postgres-integration-test \
+  psql -U frestyle -d frestyle_integration -v ON_ERROR_STOP=1 < /path/to/migration.sql
+
+# 4. 対話で確かめる（列を見る・件数を数える・壊れ方を試す）
+docker compose -f docker-compose.integration.yml exec -it postgres-integration-test \
+  psql -U frestyle -d frestyle_integration
+
+# 5. 終わったら必ず破棄する（データを残さない）
+docker compose -f docker-compose.integration.yml down -v
+```
+
+#### 確かめること
+
+- **意図した行が返るか**（件数・中身を目で見る。0 件や全件は特に疑う）
+- **2 回流して同じ結果になるか**（冪等。2 回目が 0 件更新で終わること）
+- **検証クエリが、壊れたときに本当に止まるか**（わざとデータを壊して `RAISE EXCEPTION` が出ることを見る）
+- **FK・一意制約に触れないか**（このスキーマは複合 FK でテナント越えを塞いでいるので、更新の順序を誤ると落ちる）
+- 書き込みを含むなら**切り戻しの手順**も用意して、それも流して確かめる
+
+`-v ON_ERROR_STOP=1` は必ず付ける（付けないと途中でエラーが出ても最後まで流れ、成功に見える）。
 - **例外: ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
   - 権限側は `users` へ FK を張るので、適用順は AutoMigrate → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）

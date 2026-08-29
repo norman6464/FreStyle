@@ -127,16 +127,6 @@ type Invitation struct {
 	CreatedAt time.Time
 }
 
-type LearningReport struct {
-	ID         int64
-	UserID     int64
-	PeriodFrom time.Time
-	PeriodTo   time.Time
-	Status     string
-	S3Key      string
-	CreatedAt  time.Time
-}
-
 type MasterExercise struct {
 	ID             int64
 	Slug           string

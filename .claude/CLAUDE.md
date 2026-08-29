@@ -256,6 +256,16 @@ docker compose -f docker-compose.integration.yml down -v
 - 書き込みを含むなら**切り戻しの手順**も用意して、それも流して確かめる
 
 `-v ON_ERROR_STOP=1` は必ず付ける（付けないと途中でエラーが出ても最後まで流れ、成功に見える）。
+
+#### sqlc と噛み合う理由（この手順を標準にする根拠）
+
+**同じ `schema/*.sql` が、sqlc の型付け入力でもあり psql への入力でもある。** だからローカルに立てた DB は、sqlc が見ている定義と必ず一致する。別に用意した検証用スキーマとずれる、という事故が構造的に起きない。
+
+**sqlc が見るのは「スキーマと噛み合っているか」まで。** 列名や型の食い違いは `sqlc generate` が落として教えてくれるが、**そのクエリが意図した行を返すか**は見ない。結合で行が重複していないか、`NULL` の行が落ちていないか、`LEFT JOIN` のつもりが内部結合になっていないか——ここは実際に流して目で見るしかない。`sqlc vet` も静的解析なので同じ（見えるのは処理後の SQL 文字列だけで、スキーマも実データも見えない。詳細は `backend/sqlc.yaml` の rules のコメント）。
+
+**手順が自然に噛み合う。** psql で書いて確かめる → 固まったクエリを `queries/*.sql` へ置く → `make sqlc` で型を起こす。この順なら、生成の段階で型の食い違いが出ない（先に実データで通っているため）。逆順（先に Go を書いて後で確かめる）だと、生成し直すたびに手戻りする。
+
+要するに **sqlc は「書いたものがスキーマと合っているか」を、psql は「書いたものが正しいか」を受け持つ**。両方を通して初めて本番へ出せる。
 - **例外: ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
   - 権限側は `users` へ FK を張るので、適用順は AutoMigrate → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）

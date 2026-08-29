@@ -26,7 +26,7 @@ func (k DocumentKind) Valid() bool {
 type RichDocument struct {
 	// ID は推測不能な UUID（Notion 風の URL）。作成時に repository が採番する。
 	ID string `json:"id"`
-	// OwnerID は作成者。users.id への FK（制約は ApplyRichDocumentConstraints が張る）。
+	// OwnerID は作成者。users.id への FK（制約は schema.sql の fk_rich_documents_owner が張る）。
 	OwnerID uint64 `json:"ownerId"`
 	// CompanyID は作成時に作成者の所属会社を写し取る列で、公開文書の閲覧範囲を同一会社内へ
 	// 閉じるためのテナント境界として使う（判定は CanBeReadBy が持つ）。

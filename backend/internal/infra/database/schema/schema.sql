@@ -552,6 +552,123 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- email をアプリと同じ正規形（lower + 前後空白除去）へ畳む。索引の式を正規形にするだけでは、
+-- 生の値のまま残った既存行に対して正規形の一意性を守れない環境が残る。畳むと衝突する行だけは
+-- 触らない（別人かもしれない 2 行を勝手に 1 つのアドレスへ寄せない）。btrim の文字集合は
+-- Go の domain.EmailTrimCutset と同じものを明示列挙する。
+UPDATE users u
+   SET email = lower(btrim(u.email, E'\t\n\x0B\f\r '))
+ WHERE u.deleted_at IS NULL
+   AND u.email <> lower(btrim(u.email, E'\t\n\x0B\f\r '))
+   AND NOT EXISTS (
+       SELECT 1 FROM users o
+        WHERE o.id <> u.id
+          AND o.deleted_at IS NULL
+          AND lower(btrim(o.email, E'\t\n\x0B\f\r ')) = lower(btrim(u.email, E'\t\n\x0B\f\r '))
+   );
+
+-- 招待の email も同じ正規形へ畳む（保留中のみ）。招待ゲートは正規形の OIDC メールで引くため、
+-- 大文字混じり・空白付きのまま残った pending 行は「招待したのに見つからない」になる。
+UPDATE invitations
+   SET email = lower(btrim(email, E'\t\n\x0B\f\r '))
+ WHERE status = 'pending'
+   AND email <> lower(btrim(email, E'\t\n\x0B\f\r '));
+
+-- 論理削除済みユーザーに紐付く identity を掃除する（SoftDelete 側でも消すが、過去データと
+-- 削除処理の失敗に対する自己修復として毎起動流す）。放置すると同じ OIDC subject を占有され、
+-- 再招待した本人がログインできなくなる。
+DELETE FROM user_oidc_identities oi USING users u
+ WHERE oi.user_id = u.id AND u.deleted_at IS NOT NULL;
+
+-- roles.name: 空文字禁止。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_roles_name_not_empty') THEN
+        ALTER TABLE roles ADD CONSTRAINT ck_roles_name_not_empty CHECK (name <> '');
+    END IF;
+END $$;
+
+-- users.role_id → roles.id。ロールマスタの行は参照されている限り消せない（RESTRICT 相当）。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_role') THEN
+        ALTER TABLE users ADD CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id);
+    END IF;
+END $$;
+
+-- user_oidc_identities.user_id → users.id。ユーザーの物理削除で identity も消す。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_oidc_identities_user') THEN
+        ALTER TABLE user_oidc_identities
+            ADD CONSTRAINT fk_user_oidc_identities_user
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- identity の provider / subject: 空文字禁止。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_user_oidc_identities_not_empty') THEN
+        ALTER TABLE user_oidc_identities
+            ADD CONSTRAINT ck_user_oidc_identities_not_empty CHECK (provider <> '' AND subject <> '');
+    END IF;
+END $$;
+
+-- users.email: アクティブ行（未論理削除）かつ正規形が非空に限った部分 UNIQUE。論理削除→同メール
+-- 再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする。キーは email その
+-- ものではなく上の UPDATE と同じ正規形 lower(btrim(email, ...))。既存データに（畳んでも解決
+-- できない）重複がある場合は作成せず警告に留める（起動を落とさず、修正は運用判断に委ねる）。
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active'
+          AND indexdef NOT LIKE '%btrim%'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM users
+        WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''
+        GROUP BY lower(btrim(email, E'\t\n\x0B\f\r ')) HAVING count(*) > 1
+    ) THEN
+        DROP INDEX uq_users_email_active;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active') THEN
+        IF EXISTS (
+            SELECT 1 FROM users
+            WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''
+            GROUP BY lower(btrim(email, E'\t\n\x0B\f\r ')) HAVING count(*) > 1
+        ) THEN
+            RAISE WARNING 'users.email に（大小文字・前後空白を無視した）重複があるため uq_users_email_active を作成できません（重複を解消して再起動してください）';
+        ELSE
+            CREATE UNIQUE INDEX uq_users_email_active
+                ON users (lower(btrim(email, E'\t\n\x0B\f\r ')))
+                WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> '';
+        END IF;
+    END IF;
+END $$;
+
+-- rich_documents: owner_id → users.id。ユーザーの物理削除で文書も消す（論理削除運用なので通常は
+-- 発火しない）。存在判定は conrelid（テーブル）でも絞る（制約名は表単位でしか一意でないため）。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_owner' AND conrelid = 'rich_documents'::regclass) THEN
+        ALTER TABLE rich_documents
+            ADD CONSTRAINT fk_rich_documents_owner
+            FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- rich_documents.doc は tiptap のドキュメント JSON（object かつ type='doc'）に限る。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_doc' AND conrelid = 'rich_documents'::regclass) THEN
+        ALTER TABLE rich_documents
+            ADD CONSTRAINT ck_rich_documents_doc
+            CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc');
+    END IF;
+END $$;
+
+-- rich_documents.title 長の上限（アプリ側検証と二重の壁）。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_title_len' AND conrelid = 'rich_documents'::regclass) THEN
+        ALTER TABLE rich_documents
+            ADD CONSTRAINT ck_rich_documents_title_len
+            CHECK (char_length(title) <= 200);
+    END IF;
+END $$;
+
 -- =====================================================================
 -- Ⅱ. ノートの骨格（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
 -- =====================================================================
@@ -1185,3 +1302,91 @@ CREATE INDEX IF NOT EXISTS idx_page_restrictions_principal
     ON page_restrictions (workspace_id, principal_id);
 CREATE INDEX IF NOT EXISTS idx_share_links_page ON share_links (workspace_id, page_id);
 CREATE INDEX IF NOT EXISTS idx_share_links_created_by ON share_links (created_by_user_id);
+
+-- =====================================================================
+-- Ⅳ. テナント橋渡し（companies.workspace_id / users.workspace_id）と
+--     個人ワークスペースの所有者（workspaces.personal_owner_user_id）
+-- =====================================================================
+--
+-- companies / users は Ⅰ（中核）が作る表だが、workspaces を参照する列なので
+-- workspaces（Ⅱ）より後に置く。CREATE TABLE ではなく ALTER TABLE ADD COLUMN
+-- IF NOT EXISTS で足すのは、CREATE TABLE IF NOT EXISTS が既存の表へ列を追加しない
+-- ため（本番に届く経路がこれしかない）。カタログを見て未作成のときだけ ALTER する
+-- のは、素の ALTER TABLE が列が既に在ってスキップする場合でも先に
+-- AccessExclusiveLock を取り、トランザクションが終わるまで手放さないため
+-- （列が出揃っている通常の起動で companies / users / workspaces を掴まないようにする）。
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'companies' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE companies ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'users' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE users ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+-- 会社とワークスペースは 1:1。移行中に 2 つの会社が同じワークスペースを指す状態を作らない。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_companies_workspace_id') THEN
+        CREATE UNIQUE INDEX uq_companies_workspace_id ON companies (workspace_id) WHERE workspace_id IS NOT NULL;
+    END IF;
+END $$;
+
+-- 存在しないワークスペースを指せないようにする（company_id には FK が無く、同じ轍を踏まない）。
+-- 参照されている workspaces の行は消せない（既定の NO ACTION）。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_companies_workspace' AND conrelid = 'companies'::regclass) THEN
+        ALTER TABLE companies
+            ADD CONSTRAINT fk_companies_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_workspace' AND conrelid = 'users'::regclass) THEN
+        ALTER TABLE users
+            ADD CONSTRAINT fk_users_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+-- 個人サインアップで自動作成した、その人専用のワークスペースの持ち主。
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'workspaces' AND column_name = 'personal_owner_user_id'
+    ) THEN
+        ALTER TABLE workspaces ADD COLUMN personal_owner_user_id bigint;
+    END IF;
+END $$;
+
+-- 作った人を物理削除しても中身は消さない。持ち主のいない箱として残り、招かれた他の
+-- メンバーはそのまま使い続けられる。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_workspaces_personal_owner' AND conrelid = 'workspaces'::regclass) THEN
+        ALTER TABLE workspaces
+            ADD CONSTRAINT fk_workspaces_personal_owner
+            FOREIGN KEY (personal_owner_user_id) REFERENCES users (id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- 1 人につき個人ワークスペースは 1 つ。サインアップの再送・並行実行でも 2 つ目が作れない
+-- （check-then-act をアプリに書かずに済む。ON CONFLICT の推論先にもなる）。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_workspaces_personal_owner') THEN
+        CREATE UNIQUE INDEX uq_workspaces_personal_owner
+            ON workspaces (personal_owner_user_id) WHERE personal_owner_user_id IS NOT NULL;
+    END IF;
+END $$;

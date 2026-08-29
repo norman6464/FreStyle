@@ -51,10 +51,10 @@ func userWorkspaceID(t *testing.T, db *sql.DB, userID uint64) uuid.NullUUID {
 	return got
 }
 
-// runStartupBackfill は起動時に走る処理（スキーマ適用 → バックフィル）と同じ順で 1 回分を流す。
+// runStartupBackfill は起動時に走る会社→ワークスペースのバックフィルを 1 回分流す。
+// スキーマ（列 / FK）は testsupport.OpenTestDB が既に適用済み。
 func runStartupBackfill(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
-	require.NoError(t, database.ApplyTenantBridgeSchema(ctx, db))
 	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, db))
 }
 

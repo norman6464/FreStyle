@@ -84,7 +84,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	// 一意索引のキーも同じ正規形。空白だけ違う 2 行を別キーとして通してはいけない。
 	t.Run("DB 制約: 前後空白だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
-		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		_, err := sqlDB.Exec(
 			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
 			 VALUES ('  space@example.com  ', 'space', 3, true, NOW(), NOW())`,
@@ -101,7 +101,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 
 	// 既存行そのものを正規形へ畳む。式を揃えるだけだと、旧索引しか張れていない環境では
 	// 「' a@x.com' が在るのに 'a@x.com' も作れる」状態が残る。
-	t.Run("BackfillUserNormalization は既存行の email を正規形へ畳む", func(t *testing.T) {
+	t.Run("正規化のバックフィルは既存行の email を正規形へ畳む", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
 			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
@@ -109,7 +109,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		var email string
 		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM users WHERE name = 'fold'`).Scan(&email))
@@ -118,7 +118,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 
 	// 畳むと別の行と同じアドレスになる行は触らない（別人かもしれない 2 行を勝手に寄せない）。
 	// 残った衝突は索引の張り替えを見送らせ、ログインは曖昧として拒否される（fail closed）。
-	t.Run("BackfillUserNormalization は畳むと衝突する行を触らず、索引の張り替えも見送る", func(t *testing.T) {
+	t.Run("正規化のバックフィルは畳むと衝突する行を触らず、索引の張り替えも見送る", func(t *testing.T) {
 		truncate(t)
 		// 正規形の索引がある限りこの 2 行は作れない。張り替え前の環境を再現するため一時的に落とす。
 		_, err := sqlDB.Exec(`DROP INDEX IF EXISTS uq_users_email_active`)
@@ -126,7 +126,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		defer func() {
 			_, err := sqlDB.Exec(`DELETE FROM users`)
 			require.NoError(t, err)
-			require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+			require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		}()
 		_, err = sqlDB.Exec(
 			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
@@ -135,7 +135,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		emails := make([]string, 0, 2)
 		rows, err := sqlDB.Query(`SELECT email FROM users ORDER BY name`)
@@ -150,7 +150,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		require.Equal(t, []string{" clash@example.com ", "Clash@Example.com"}, emails)
 
 		// 衝突が残っている間は索引を作らない（起動は落とさず WARNING）。
-		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		var indexdef string
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT COALESCE(max(indexdef), '') FROM pg_indexes WHERE indexname = 'uq_users_email_active'`,
@@ -160,11 +160,11 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		// 衝突を解消すれば畳めるようになり、索引も張れる。
 		_, err = sqlDB.Exec(`DELETE FROM users WHERE name = 'b'`)
 		require.NoError(t, err)
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		var email string
 		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM users WHERE name = 'a'`).Scan(&email))
 		require.Equal(t, "clash@example.com", email)
-		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT COALESCE(max(indexdef), '') FROM pg_indexes WHERE indexname = 'uq_users_email_active'`,
 		).Scan(&indexdef))
@@ -211,7 +211,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	})
 
 	// 既存の pending 行も起動時に畳む（invitations に一意制約は無いので衝突判定は要らない）。
-	t.Run("BackfillUserNormalization は保留中の招待の email も畳む", func(t *testing.T) {
+	t.Run("正規化のバックフィルは保留中の招待の email も畳む", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
 			`INSERT INTO invitations (company_id, email, role, name, status, token, expires_at, created_at)
@@ -222,7 +222,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		var pending string
 		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM invitations WHERE token = 'tok-legacy'`).Scan(&pending))

@@ -9,100 +9,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// このファイルは「テナントの正本を companies から workspaces へ移す」移行のうち、
-// 事実を両側に持たせる段（Expand）だけを担う。読み取りは 1 つも変えない。
+// companies を workspaces へ畳む移行のうち、事実を両側に持たせる段（Expand）を担う。
+// ローリングデプロイ中は companies を読む旧タスクと workspaces を読む新タスクが同時に
+// 走るため、両側が常に同じ事実を語っている必要がある（不変条件は
+// tenant_bridge_invariant_integration_test.go が固定する）。正本は companies。
 //
-// なぜ 2 つのテナント表現が並ぶのか:
-//   - companies は現行アプリのテナント。users.company_id が指すが、FK は 1 本も無く
-//     境界はアプリの if だけが守っている。行を増やす経路も本番コードに存在しない。
-//   - workspaces はノートのテナント。配下は複合 FK で DB が境界を守っている。
-//
-// 最終的に companies は畳んで消し、workspaces を唯一のテナントにする。
-// ただし本番は ECS のローリングデプロイで新旧タスクが同時に走る瞬間があるため、
-// 旧タスクが読み書きする列を先に消すと落ちる。そこで
-// 「両方に書く（この段） → 読みを移す → 旧列を消す」の順で進める。
-//
-// したがって companies.workspace_id は恒久的な 1:1 の関連ではなく、移行期間だけの橋渡しで、
-// companies を畳むときに列ごと消える。users.workspace_id だけが残って所属の正本になる。
+// companies.workspace_id / users.workspace_id は移行期間だけの橋渡しで、
+// companies を畳むときに列ごと消える。
 
 // workspaceSlugPrefix は自動採番した workspaces.slug の接頭辞。
 const workspaceSlugPrefix = "ws-"
-
-// tenantBridgeSchemaStatements は Expand で足す列と制約（冪等）。
-//
-// companies / users は schema/core.sql が作るテーブルだが、この 2 列だけは CREATE TABLE ではなく
-// ALTER TABLE ADD COLUMN IF NOT EXISTS で足す。CREATE TABLE IF NOT EXISTS は既に在るテーブルへ
-// 列を追加しないため、既に本番にあるテーブルへ列を届ける経路がこれしかないから。
-//
-// 列は必ずテーブルの末尾に付く（ALTER TABLE ADD COLUMN の挙動）。schema/core.sql でも
-// 最後に書いてあることが前提で、ずれると SELECT * の詰め替えが位置ずれで壊れる。
-//
-// ADD COLUMN IF NOT EXISTS を素で流さず、カタログを見て未作成のときだけ ALTER する。
-// ALTER TABLE は列が既に在ってスキップする場合でも先に AccessExclusiveLock を取り、
-// トランザクションが終わるまで手放さない（読み取りまで止まる）。列が出揃っている通常の起動で
-// companies / users を掴まないよう、事前チェックで ALTER 自体を出さない。
-var tenantBridgeSchemaStatements = []string{
-	addWorkspaceIDColumnStatement("companies"),
-	addWorkspaceIDColumnStatement("users"),
-	// 会社とワークスペースは 1:1。移行中に 2 つの会社が同じワークスペースを指す状態を作らない。
-	`DO $$ BEGIN
-		IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_companies_workspace_id') THEN
-			CREATE UNIQUE INDEX uq_companies_workspace_id ON companies (workspace_id) WHERE workspace_id IS NOT NULL;
-		END IF;
-	END $$;`,
-	// 存在しないワークスペースを指せないようにする（company_id には FK が無く、
-	// 同じ轍を踏まないために新しい列には最初から DB の壁を立てる）。
-	// 参照されている workspaces の行は消せない（既定の NO ACTION）。テナントの実体を
-	// 消す操作は所属の付け替えを伴うべきで、黙って道連れにしてよいものではない。
-	`DO $$ BEGIN
-		IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_companies_workspace' AND conrelid = 'companies'::regclass) THEN
-			ALTER TABLE companies
-				ADD CONSTRAINT fk_companies_workspace
-				FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-		END IF;
-	END $$;`,
-	`DO $$ BEGIN
-		IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_workspace' AND conrelid = 'users'::regclass) THEN
-			ALTER TABLE users
-				ADD CONSTRAINT fk_users_workspace
-				FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-		END IF;
-	END $$;`,
-}
-
-// addWorkspaceIDColumnStatement は workspace_id 列を「無ければ足す」DO ブロックを組み立てる。
-// テーブル名は呼び出し側のリテラルだけを渡す（外部入力は来ない）。
-func addWorkspaceIDColumnStatement(table string) string {
-	return `DO $$ BEGIN
-		IF NOT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			 WHERE table_schema = current_schema()
-			   AND table_name = '` + table + `' AND column_name = 'workspace_id'
-		) THEN
-			ALTER TABLE ` + table + ` ADD COLUMN workspace_id uuid;
-		END IF;
-	END $$;`
-}
-
-// ApplyTenantBridgeSchema は companies / users に workspace_id 列と制約を足す（冪等）。
-// workspaces を参照する FK を張るため、ApplyKnowledgeBaseSchema の後に呼ぶこと。
-func ApplyTenantBridgeSchema(ctx context.Context, db *sql.DB) error {
-	return withMigrateTx(ctx, db, "テナント橋渡しスキーマ", func(tx *sql.Tx) error {
-		for _, stmt := range tenantBridgeSchemaStatements {
-			if _, err := tx.ExecContext(ctx, stmt); err != nil {
-				return fmt.Errorf("DDL の適用に失敗: %w", err)
-			}
-		}
-		return nil
-	})
-}
 
 // BackfillWorkspacesFromCompanies は既存の会社に対応する workspaces 行を作り、
 // companies.workspace_id / users.workspace_id を埋める（冪等）。
 //
 // 起動のたびに走るが、埋まっている行は対象から外れるので実質 no-op になる。
-// 途中まで進んだ状態から再開しても矛盾しないよう、各段階の WHERE を
-// 「まだ埋まっていない行だけ」に絞ってある。
 func BackfillWorkspacesFromCompanies(ctx context.Context, db *sql.DB) error {
 	return withMigrateTx(ctx, db, "会社→ワークスペースのバックフィル", func(tx *sql.Tx) error {
 		if err := createWorkspacesForCompanies(ctx, tx); err != nil {
@@ -175,8 +96,7 @@ func createWorkspacesForCompanies(ctx context.Context, tx *sql.Tx) error {
 
 // mirrorCompanySettingsToWorkspaces は会社のテナント設定をワークスペースへ写す。
 // 書き込み経路（company repository）でも同じ写しを行うが、ここでも毎起動ずれを直す。
-// 移行中の正本は companies 側なので、食い違ったら companies に合わせるのが常に正しい
-// （正本が workspaces へ移る段で、この向きは逆転させて撤去する）。
+// 移行中の正本は companies 側なので、食い違ったら companies に合わせるのが常に正しい。
 // 一致していれば 0 件更新で、updated_at も動かない。
 func mirrorCompanySettingsToWorkspaces(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(

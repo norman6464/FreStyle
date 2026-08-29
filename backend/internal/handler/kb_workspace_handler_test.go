@@ -455,17 +455,20 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		principal, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
 		require.NoError(t, err)
 		require.NoError(t, f.perms.GrantWorkspaceRoleIfAbsent(
-			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleEditor))
+			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleEditor,
+		))
 		// admin が役割を取り消す（主体は残る）。
 		require.NoError(t, f.perms.DeleteWorkspaceGrant(
-			context.Background(), kbWorkspaceID, principal.ID))
+			context.Background(), kbWorkspaceID, principal.ID,
+		))
 		f.perms.setCompanyWorkspace(kbUserID, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		facts, err := f.perms.WorkspacePermissionFactsForUser(
-			context.Background(), kbWorkspaceID, kbUserID)
+			context.Background(), kbWorkspaceID, kbUserID,
+		)
 		require.NoError(t, err)
 		assert.Empty(t, facts.Roles, "取り消した役割が読み取りで戻ってはいけない")
 	})

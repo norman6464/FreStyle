@@ -53,6 +53,10 @@ jobs:
       # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          # この action は run ステップではないので defaults.run.working-directory が
+          # 効かない。リポジトリ直下に package.json は無いので、版を読む先を明示する。
+          package_json_file: frontend/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -105,6 +109,10 @@ jobs:
       # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          # この action は run ステップではないので defaults.run.working-directory が
+          # 効かない。リポジトリ直下に package.json は無いので、版を読む先を明示する。
+          package_json_file: frontend/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

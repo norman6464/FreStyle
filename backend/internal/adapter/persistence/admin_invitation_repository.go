@@ -182,12 +182,21 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 //	呼び出し側（Cancel / ログイン時の受諾）はどちらも直前に招待を読み出しているので、
 //	ここに落ちるのは「読み出しと更新のあいだに招待が消えた」競合のときだけ。
 func (r *adminInvitationRepository) UpdateStatus(ctx context.Context, id uint64, status string) error {
+	return updateInvitationStatus(ctx, sqlcgen.New(r.db), id, status)
+}
+
+func updateInvitationStatus(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	id uint64,
+	status string,
+) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
 	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 行でも成功と区別が付かない）。
-	affected, err := sqlcgen.New(r.db).UpdateInvitationStatus(ctx, sqlcgen.UpdateInvitationStatusParams{
+	affected, err := q.UpdateInvitationStatus(ctx, sqlcgen.UpdateInvitationStatusParams{
 		ID:     id64,
 		Status: status,
 	})

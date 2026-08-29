@@ -21,8 +21,9 @@ type UpsertUserFromIDTokenInput struct {
 
 // UpsertUserFromIDTokenUseCase は認証済みユーザーの作成・更新を行う。
 type UpsertUserFromIDTokenUseCase struct {
-	users       repository.UserRepository
-	invitations repository.AdminInvitationRepository
+	users             repository.UserRepository
+	invitations       repository.AdminInvitationRepository
+	transactionRunner repository.UserInvitationTransactionRunner
 	// bootstrapSuperAdminEmail は招待なしのサインアップを許す唯一の例外アドレス
 	// （空なら例外なし）。詳しくは bootstrapSignupAllowed を参照。
 	bootstrapSuperAdminEmail string
@@ -34,10 +35,12 @@ func NewUpsertUserFromIDTokenUseCase(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
 	bootstrapSuperAdminEmail string,
+	transactionRunner repository.UserInvitationTransactionRunner,
 ) *UpsertUserFromIDTokenUseCase {
 	return &UpsertUserFromIDTokenUseCase{
 		users:                    users,
 		invitations:              invitations,
+		transactionRunner:        transactionRunner,
 		bootstrapSuperAdminEmail: domain.NormalizeEmail(bootstrapSuperAdminEmail),
 	}
 }
@@ -341,18 +344,37 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		return true, nil
 	}
 
-	if err := u.users.CreateWithOidcIdentity(ctx, user, domain.OidcProviderCognito, sub); err != nil {
-		return false, fmt.Errorf("create user with oidc identity: %w", err)
+	if u.transactionRunner == nil {
+		return false, errors.New("user invitation transaction runner not configured")
 	}
 
-	if inv != nil {
-		if err := u.invitations.UpdateStatus(
-			ctx,
-			inv.ID,
-			domain.InvitationStatusAccepted,
-		); err != nil {
-			return false, fmt.Errorf("accept invitation: %w", err)
-		}
+	if err := u.transactionRunner.WithinTransaction(
+		ctx,
+		func(
+			users repository.UserWithOidcIdentityCreator,
+			invitations repository.InvitationStatusUpdater,
+		) error {
+			if err := users.CreateWithOidcIdentity(
+				ctx,
+				user,
+				domain.OidcProviderCognito,
+				sub,
+			); err != nil {
+				return fmt.Errorf("create user with oidc identity: %w", err)
+			}
+
+			if err := invitations.UpdateStatus(
+				ctx,
+				inv.ID,
+				domain.InvitationStatusAccepted,
+			); err != nil {
+				return fmt.Errorf("accept invitation: %w", err)
+			}
+
+			return nil
+		},
+	); err != nil {
+		return false, fmt.Errorf("create user and accept invitation: %w", err)
 	}
 
 	return true, nil

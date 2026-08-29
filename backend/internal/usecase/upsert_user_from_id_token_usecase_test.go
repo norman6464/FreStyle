@@ -78,6 +78,26 @@ type upsertInvitationRepoSpy struct {
 	updatedStatus   string
 }
 
+type fakeUserInvitationTransactionRunner struct {
+	users       repository.UserWithOidcIdentityCreator
+	invitations repository.InvitationStatusUpdater
+	rollback    func()
+}
+
+func (r *fakeUserInvitationTransactionRunner) WithinTransaction(
+	ctx context.Context,
+	fn func(
+		users repository.UserWithOidcIdentityCreator,
+		invitations repository.InvitationStatusUpdater,
+	) error,
+) error {
+	err := fn(r.users, r.invitations)
+	if err != nil && r.rollback != nil {
+		r.rollback()
+	}
+	return err
+}
+
 func (s *upsertInvitationRepoSpy) ListAll(
 	_ context.Context,
 ) ([]domain.AdminInvitation, error) {
@@ -150,7 +170,15 @@ func newUpsertUserFromIDTokenUseCaseForTest(
 	invitations repository.AdminInvitationRepository,
 ) *UpsertUserFromIDTokenUseCase {
 	// ブートストラップ免除なし（本番の既定）。
-	return NewUpsertUserFromIDTokenUseCase(users, invitations, "")
+	return NewUpsertUserFromIDTokenUseCase(
+		users,
+		invitations,
+		"",
+		&fakeUserInvitationTransactionRunner{
+			users:       users,
+			invitations: invitations,
+		},
+	)
 }
 
 // newUpsertUserFromIDTokenUseCaseWithBootstrap はブートストラップ用アドレスを設定した usecase を返す。
@@ -159,7 +187,15 @@ func newUpsertUserFromIDTokenUseCaseWithBootstrap(
 	invitations repository.AdminInvitationRepository,
 	bootstrapEmail string,
 ) *UpsertUserFromIDTokenUseCase {
-	return NewUpsertUserFromIDTokenUseCase(users, invitations, bootstrapEmail)
+	return NewUpsertUserFromIDTokenUseCase(
+		users,
+		invitations,
+		bootstrapEmail,
+		&fakeUserInvitationTransactionRunner{
+			users:       users,
+			invitations: invitations,
+		},
+	)
 }
 
 func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAcceptedにする(t *testing.T) {
@@ -1160,9 +1196,18 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 			}
 			tc.configure(users, invitations)
 
-			uc := newUpsertUserFromIDTokenUseCaseForTest(
+			runner := &fakeUserInvitationTransactionRunner{
+				users:       users,
+				invitations: invitations,
+				rollback: func() {
+					users.created = nil
+				},
+			}
+			uc := NewUpsertUserFromIDTokenUseCase(
 				users,
 				invitations,
+				"",
+				runner,
 			)
 
 			allowed, err := uc.Execute(
@@ -1182,6 +1227,9 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 					err,
 					mutationErr,
 				)
+			}
+			if users.created != nil {
+				t.Fatal("処理失敗時にユーザーを残してはいけない")
 			}
 			if users.createCalls != tc.wantCreateCalls {
 				t.Fatalf(

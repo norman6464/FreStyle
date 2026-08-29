@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
@@ -123,6 +124,21 @@ type fakeInvitationRepo struct {
 	updatedStatus  string
 }
 
+type fakeUserInvitationTransactionRunner struct {
+	users       repository.UserWithOidcIdentityCreator
+	invitations repository.InvitationStatusUpdater
+}
+
+func (r *fakeUserInvitationTransactionRunner) WithinTransaction(
+	ctx context.Context,
+	fn func(
+		users repository.UserWithOidcIdentityCreator,
+		invitations repository.InvitationStatusUpdater,
+	) error,
+) error {
+	return fn(r.users, r.invitations)
+}
+
 func (r *fakeInvitationRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
 	return nil, nil
 }
@@ -185,7 +201,15 @@ func newTestAuthHandlerWithBootstrap(
 	bootstrapEmail string,
 ) *AuthHandler {
 	return &AuthHandler{
-		upsertUser:   usecase.NewUpsertUserFromIDTokenUseCase(users, invitations, bootstrapEmail),
+		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
+			users,
+			invitations,
+			bootstrapEmail,
+			&fakeUserInvitationTransactionRunner{
+				users:       users,
+				invitations: invitations,
+			},
+		),
 		promoteAdmin: usecase.NewPromoteCognitoAdminRoleUseCase(users),
 	}
 }

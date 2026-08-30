@@ -156,20 +156,32 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, beyondInt32, got.OrderInCourse)
 	})
 
-	t.Run("GetByID は本文 doc を含めて返し、未存在は domain.ErrNotFound", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+	t.Run("GetByID は本文 doc・workspace_id を含めて返し、未存在は domain.ErrNotFound", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		require.True(t, ws1.Valid)
+
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		// doc を入れてから GetByID で本文込みで往復することを確認する。
 		doc := `{"type":"doc","content":[{"type":"paragraph"}]}`
-		_, err := repo.UpdateDocWithRevision(ctx, m.ID, doc, 1)
+		updated, err := repo.UpdateDocWithRevision(ctx, m.ID, doc, 1)
 		require.NoError(t, err)
+		// FRESTYLE-403: UpdateChapterDocWithRevision の RETURNING にも workspace_id を
+		// 追加したため、更新直後の戻り値でも取得できることを確認する。
+		require.NotNil(t, updated.WorkspaceID)
+		require.Equal(t, ws1.UUID.String(), *updated.WorkspaceID)
 
 		got, err := repo.GetByID(ctx, m.ID)
 		require.NoError(t, err)
 		require.Equal(t, "章", got.Title)
 		require.NotNil(t, got.Doc)
 		require.Contains(t, *got.Doc, "paragraph")
+		// FRESTYLE-403: GetByID が workspace_id も返すこと（canRead の対象側比較が使う値）。
+		require.NotNil(t, got.WorkspaceID)
+		require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
 
 		_, err = repo.GetByID(ctx, 999999)
 		require.ErrorIs(t, err, domain.ErrNotFound)

@@ -19,7 +19,11 @@ ORDER BY sort_order ASC, id ASC;
 
 -- name: GetChapterByID :one
 -- 単一教材を返す（本文 doc を含む）。存在しなければ sql.ErrNoRows。
-SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at
+--
+-- FRESTYLE-403（段4横展開）: canRead の対象側比較に使うため workspace_id を追加した。
+-- UpdateChapterDocWithRevision の RETURNING と列リストを揃えている
+-- （teaching_material_repository.go の chapterRow 型エイリアスが同一構成を前提にするため）。
+SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE id = sqlc.arg(id);
 
@@ -80,7 +84,7 @@ UPDATE course_chapters SET
   revision   = revision + 1,
   updated_at = now()
 WHERE id = sqlc.arg(id) AND revision = sqlc.arg(expected_revision)
-RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at;
+RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id;
 
 -- name: DeleteChapter :execrows
 -- 教材を物理削除する（course_chapters は soft delete 列を持たない）。

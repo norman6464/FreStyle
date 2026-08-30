@@ -95,30 +95,19 @@ func (q *Queries) DeleteChaptersByCourse(ctx context.Context, courseID int64) er
 }
 
 const getChapterByID = `-- name: GetChapterByID :one
-SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at
+SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE id = $1
 `
 
-type GetChapterByIDRow struct {
-	ID              int64
-	CompanyID       int64
-	CourseID        int64
-	CreatedByUserID int64
-	Title           string
-	Doc             *json.RawMessage
-	Revision        int64
-	SchemaVersion   int64
-	SortOrder       int64
-	IsPublished     bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
 // 単一教材を返す（本文 doc を含む）。存在しなければ sql.ErrNoRows。
-func (q *Queries) GetChapterByID(ctx context.Context, id int64) (GetChapterByIDRow, error) {
+//
+// FRESTYLE-403（段4横展開）: canRead の対象側比較に使うため workspace_id を追加した。
+// UpdateChapterDocWithRevision の RETURNING と列リストを揃えている
+// （teaching_material_repository.go の chapterRow 型エイリアスが同一構成を前提にするため）。
+func (q *Queries) GetChapterByID(ctx context.Context, id int64) (CourseChapter, error) {
 	row := q.db.QueryRowContext(ctx, getChapterByID, id)
-	var i GetChapterByIDRow
+	var i CourseChapter
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,
@@ -132,6 +121,7 @@ func (q *Queries) GetChapterByID(ctx context.Context, id int64) (GetChapterByIDR
 		&i.IsPublished,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -368,7 +358,7 @@ UPDATE course_chapters SET
   revision   = revision + 1,
   updated_at = now()
 WHERE id = $2 AND revision = $3
-RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at
+RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
 `
 
 type UpdateChapterDocWithRevisionParams struct {
@@ -377,27 +367,12 @@ type UpdateChapterDocWithRevisionParams struct {
 	ExpectedRevision int64
 }
 
-type UpdateChapterDocWithRevisionRow struct {
-	ID              int64
-	CompanyID       int64
-	CourseID        int64
-	CreatedByUserID int64
-	Title           string
-	Doc             *json.RawMessage
-	Revision        int64
-	SchemaVersion   int64
-	SortOrder       int64
-	IsPublished     bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
 // リッチ本文（tiptap JSON）を楽観ロックで更新する。expected_revision が現在値と一致した行だけを
 // 更新し、revision を +1・updated_at を now() へ進める。0 行なら sql.ErrNoRows（呼び出し側が
 // 存在確認で 404 / 409 を切り分ける）。RETURNING で更新後の行全体を返す。
-func (q *Queries) UpdateChapterDocWithRevision(ctx context.Context, arg UpdateChapterDocWithRevisionParams) (UpdateChapterDocWithRevisionRow, error) {
+func (q *Queries) UpdateChapterDocWithRevision(ctx context.Context, arg UpdateChapterDocWithRevisionParams) (CourseChapter, error) {
 	row := q.db.QueryRowContext(ctx, updateChapterDocWithRevision, arg.Doc, arg.ID, arg.ExpectedRevision)
-	var i UpdateChapterDocWithRevisionRow
+	var i CourseChapter
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,
@@ -411,6 +386,7 @@ func (q *Queries) UpdateChapterDocWithRevision(ctx context.Context, arg UpdateCh
 		&i.IsPublished,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }

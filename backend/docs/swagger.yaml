@@ -300,6 +300,11 @@ definitions:
         type: string
       updatedAt:
         type: string
+      workspaceId:
+        description: |-
+          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
+          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+        type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView:
     properties:
@@ -579,6 +584,11 @@ definitions:
       title:
         type: string
       updatedAt:
+        type: string
+      workspaceId:
+        description: |-
+          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
+          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
         type: string
     type: object
   internal_handler.codeExecuteRequest:

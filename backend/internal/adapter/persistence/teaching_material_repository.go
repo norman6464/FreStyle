@@ -33,14 +33,15 @@ func chapterDocPtr(raw *json.RawMessage) *string {
 	return &s
 }
 
-// toDomainChapter は行全体（本文 doc 含む）を domain へ写す。
-// chapterRow は行全体（doc 含む）を返すクエリの共通の行形（workspace_id は含まない。
-// 読み取りはまだ切り替えない FRESTYLE-399 のスコープに合わせ、各クエリの列リストは
-// 変更していない）。
-type chapterRow = sqlcgen.GetChapterByIDRow
+// toDomainChapter は行全体（本文 doc・workspace_id 含む）を domain へ写す。
+// chapterRow は行全体を返すクエリの共通の行形。GetChapterByID / UpdateChapterDocWithRevision は
+// course_chapters の全列を返すため、sqlc は個別の Row 型を生成せずテーブル型
+// （sqlcgen.CourseChapter）をそのまま再利用する（FRESTYLE-403 で workspace_id を追加した際、
+// 既存の列リストと一致し全列になったことでこの型に切り替わった）。
+type chapterRow = sqlcgen.CourseChapter
 
 func toDomainChapter(row chapterRow) domain.TeachingMaterial {
-	return domain.TeachingMaterial{
+	m := domain.TeachingMaterial{
 		ID:              uint64(row.ID),
 		CompanyID:       uint64(row.CompanyID),
 		CourseID:        uint64(row.CourseID),
@@ -54,6 +55,11 @@ func toDomainChapter(row chapterRow) domain.TeachingMaterial {
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}
+	if row.WorkspaceID.Valid {
+		wid := row.WorkspaceID.UUID.String()
+		m.WorkspaceID = &wid
+	}
+	return m
 }
 
 // toDomainChapterSummary は一覧用の軽量行（本文 doc を含まない）を domain へ写す。Doc は nil のまま。
@@ -260,7 +266,7 @@ func (r *teachingMaterialRepository) UpdateDocWithRevision(ctx context.Context, 
 		}
 		return nil, mapChapterDocError(err)
 	}
-	m := toDomainChapter(chapterRow(row))
+	m := toDomainChapter(row)
 	return &m, nil
 }
 

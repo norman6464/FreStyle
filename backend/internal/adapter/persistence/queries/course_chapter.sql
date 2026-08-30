@@ -2,7 +2,10 @@
 -- 会社内の全教材（章）を更新日降順で返す backward-compat 用。
 -- include_unpublished=false なら公開済み（is_published=true）のみに絞る。
 -- 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
+--
+-- FRESTYLE-403: 一覧結果の TeachingMaterial.WorkspaceID を欠けたままにしないよう workspace_id
+-- を追加した（未使用でも domain 上の値が常に埋まっている方が呼び出し側の取り違えを防ぐ）。
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE company_id = sqlc.arg(company_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)
@@ -11,7 +14,9 @@ ORDER BY updated_at DESC, id DESC;
 -- name: ListChaptersByCourse :many
 -- コース内の章を sort_order 昇順（同値時 id 昇順）で返す。
 -- 一覧は本文（doc・jsonb）を返さない（章ごとに重く、全章を先読みすると非効率）。
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
+--
+-- FRESTYLE-403: ListChaptersByCompany と同じ理由で workspace_id を追加した。
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE course_id = sqlc.arg(course_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)
@@ -19,7 +24,11 @@ ORDER BY sort_order ASC, id ASC;
 
 -- name: GetChapterByID :one
 -- 単一教材を返す（本文 doc を含む）。存在しなければ sql.ErrNoRows。
-SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at
+--
+-- FRESTYLE-403（段4横展開）: canRead の対象側比較に使うため workspace_id を追加した。
+-- UpdateChapterDocWithRevision の RETURNING と列リストを揃えている
+-- （teaching_material_repository.go の chapterRow 型エイリアスが同一構成を前提にするため）。
+SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE id = sqlc.arg(id);
 
@@ -80,7 +89,7 @@ UPDATE course_chapters SET
   revision   = revision + 1,
   updated_at = now()
 WHERE id = sqlc.arg(id) AND revision = sqlc.arg(expected_revision)
-RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at;
+RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id;
 
 -- name: DeleteChapter :execrows
 -- 教材を物理削除する（course_chapters は soft delete 列を持たない）。

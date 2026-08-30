@@ -84,7 +84,7 @@ func (h *LessonProgressHandler) Complete(c *gin.Context) {
 	}
 	err := h.complete.Execute(c.Request.Context(), usecase.MarkLessonCompletedInput{
 		UserID:             user.ID,
-		ActorCompany:       user.CompanyRef(),
+		ActorWorkspace:     user.WorkspaceRef(),
 		ActorRole:          user.Role,
 		TeachingMaterialID: req.TeachingMaterialID,
 	})

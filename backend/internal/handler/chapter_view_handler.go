@@ -46,7 +46,7 @@ func (h *ChapterViewHandler) RecordView(c *gin.Context) {
 	// ベストエフォート — 失敗しても 204 で返す。
 	_ = h.record.Execute(c.Request.Context(), usecase.RecordChapterViewInput{
 		UserID:             user.ID,
-		ActorCompany:       user.CompanyRef(),
+		ActorWorkspace:     user.WorkspaceRef(),
 		ActorRole:          user.Role,
 		TeachingMaterialID: mid,
 	})

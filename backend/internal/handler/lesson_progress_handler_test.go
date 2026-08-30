@@ -81,12 +81,20 @@ func (f *fakeCourseRepoH) Create(context.Context, *domain.Course) error { return
 func (f *fakeCourseRepoH) Update(context.Context, *domain.Course) error { return nil }
 func (f *fakeCourseRepoH) Delete(context.Context, uint64) error         { return nil }
 
+// lessonProgressWsA / lessonProgressWsB は actor / 対象教材の workspace_id 比較を
+// 固定するための 2 つのワークスペース ID（wsA が自社、wsB が別会社）。
+const (
+	lessonProgressWsA = "0198a000-0000-7000-8000-0000000000c1"
+	lessonProgressWsB = "0198a000-0000-7000-8000-0000000000c2"
+)
+
 // engineOpts はテストルータ構築のオプション。
 type engineOpts struct {
-	material  *fakeMaterialRepoH
-	course    *domain.Course
-	withUser  bool
-	companyID uint64
+	material    *fakeMaterialRepoH
+	course      *domain.Course
+	withUser    bool
+	companyID   uint64
+	workspaceID string
 }
 
 // newLessonProgressEngine は実際の gin engine にルートを張ったテスト用ルータを返す。
@@ -109,10 +117,14 @@ func newLessonProgressEngine(o engineOpts) *gin.Engine {
 	r := gin.New()
 	if o.withUser {
 		companyID := o.companyID
+		var workspaceID *string
+		if o.workspaceID != "" {
+			workspaceID = &o.workspaceID
+		}
 		r.Use(func(c *gin.Context) {
 			c.Set(middleware.ContextKeyCurrentUserID, uint64(7))
 			c.Set(middleware.ContextKeyCurrentUser, &domain.User{
-				ID: 7, CompanyID: &companyID, Role: domain.RoleTrainee,
+				ID: 7, CompanyID: &companyID, WorkspaceID: workspaceID, Role: domain.RoleTrainee,
 			})
 			c.Next()
 		})
@@ -136,12 +148,13 @@ func doLessonProgressReq(r *gin.Engine, method, path, body string) *httptest.Res
 	return w
 }
 
-// publishedMaterial は自社・公開教材 + 公開コースの正常系セットを返す。
+// publishedMaterial は自社（lessonProgressWsA）・公開教材 + 公開コースの正常系セットを返す。
 func publishedMaterial(companyID, courseID uint64) (*fakeMaterialRepoH, *domain.Course) {
+	wid := lessonProgressWsA
 	mat := &fakeMaterialRepoH{m: &domain.TeachingMaterial{
-		ID: 5, CompanyID: companyID, CourseID: courseID, IsPublished: true,
+		ID: 5, CompanyID: companyID, CourseID: courseID, WorkspaceID: &wid, IsPublished: true,
 	}}
-	crs := &domain.Course{ID: courseID, CompanyID: companyID, IsPublished: true}
+	crs := &domain.Course{ID: courseID, CompanyID: companyID, WorkspaceID: &wid, IsPublished: true}
 	return mat, crs
 }
 
@@ -155,7 +168,7 @@ func Test_進捗ハンドラ_一覧_正常系(t *testing.T) {
 
 func Test_進捗ハンドラ_完了_正常系(t *testing.T) {
 	mat, crs := publishedMaterial(10, 9)
-	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, companyID: 10})
+	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, companyID: 10, workspaceID: lessonProgressWsA})
 	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("want 204, got %d", w.Code)
@@ -163,8 +176,21 @@ func Test_進捗ハンドラ_完了_正常系(t *testing.T) {
 }
 
 func Test_進捗ハンドラ_完了_他社教材は403(t *testing.T) {
-	mat, crs := publishedMaterial(10, 9) // company 10 の教材
-	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, companyID: 20})
+	mat, crs := publishedMaterial(10, 9) // workspace lessonProgressWsA の教材
+	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, companyID: 20, workspaceID: lessonProgressWsB})
+	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", w.Code)
+	}
+}
+
+// company_id は教材と同じまま workspace_id だけを変えて 403 を確認する。company_id ベースの
+// 認可が残っていても本テストは company_id 一致で通ってしまうため、workspace_id 単体の切替が
+// 効いていることを company_id 一致のケースで区別して固定する（他社教材テストは company_id も
+// 変えてしまうため、この観点を見分けられない）。
+func Test_進捗ハンドラ_完了_同一company別workspaceは403(t *testing.T) {
+	mat, crs := publishedMaterial(10, 9) // workspace lessonProgressWsA の教材
+	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, companyID: 10, workspaceID: lessonProgressWsB})
 	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d", w.Code)
@@ -173,7 +199,7 @@ func Test_進捗ハンドラ_完了_他社教材は403(t *testing.T) {
 
 func Test_進捗ハンドラ_完了_存在しない教材は404(t *testing.T) {
 	mat := &fakeMaterialRepoH{getErr: domain.ErrNotFound}
-	r := newLessonProgressEngine(engineOpts{material: mat, withUser: true, companyID: 10})
+	r := newLessonProgressEngine(engineOpts{material: mat, withUser: true, companyID: 10, workspaceID: lessonProgressWsA})
 	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", w.Code)

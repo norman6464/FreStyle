@@ -19,9 +19,20 @@ type TeachingMaterial struct {
 	// Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。
 	Revision int `json:"revision"`
 	// SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。
-	SchemaVersion int       `json:"schemaVersion"`
-	OrderInCourse int       `json:"orderInCourse"`
-	IsPublished   bool      `json:"isPublished"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	SchemaVersion int  `json:"schemaVersion"`
+	OrderInCourse int  `json:"orderInCourse"`
+	IsPublished   bool `json:"isPublished"`
+	// WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
+	// 通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+	WorkspaceID *string   `json:"workspaceId,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// WorkspaceRef は所属ワークスペースへの参照を返す。未設定(workspace_id = NULL)は NoWorkspace。
+func (m TeachingMaterial) WorkspaceRef() WorkspaceRef {
+	if m.WorkspaceID == nil {
+		return NoWorkspace()
+	}
+	return WorkspaceRefOf(*m.WorkspaceID)
 }

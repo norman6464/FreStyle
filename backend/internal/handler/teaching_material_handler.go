@@ -61,7 +61,7 @@ func (h *TeachingMaterialHandler) List(c *gin.Context) {
 //	@Router       /courses/{id}/materials [get]
 //	@Security     CookieAuth
 func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -70,7 +70,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid course id"})
 		return
 	}
-	rows, err := h.uc.ListByCourse(c.Request.Context(), courseID, actorCompany, role)
+	rows, err := h.uc.ListByCourse(c.Request.Context(), courseID, actorWorkspace, role)
 	if err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の取得に失敗しました")
 		return
@@ -91,7 +91,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 // @Router       /teaching-materials/{id} [get]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Get(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (h *TeachingMaterialHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	m, err := h.uc.Get(c.Request.Context(), id, actorCompany, role)
+	m, err := h.uc.Get(c.Request.Context(), id, actorWorkspace, role)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教材が見つかりません"})
@@ -155,7 +155,7 @@ type updateChapterDocRequest struct {
 //	@Router       /teaching-materials/{id}/doc [put]
 //	@Security     CookieAuth
 func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -171,7 +171,7 @@ func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
 	}
 	m, err := h.uc.UpdateDoc(c.Request.Context(), usecase.UpdateChapterDocInput{
 		ID:               id,
-		ActorCompany:     actorCompany,
+		ActorWorkspace:   actorWorkspace,
 		ActorRole:        role,
 		Doc:              string(req.Doc),
 		ExpectedRevision: req.ExpectedRevision,
@@ -220,7 +220,7 @@ type teachingMaterialUpdateRequest struct {
 // @Router       /teaching-materials [post]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Create(c *gin.Context) {
-	uid, actorCompany, role, ok := actorFromContext(c)
+	uid, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -230,13 +230,13 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 		return
 	}
 	m, err := h.uc.Create(c.Request.Context(), usecase.CreateTeachingMaterialInput{
-		ActorUserID:   uid,
-		ActorCompany:  actorCompany,
-		ActorRole:     role,
-		CourseID:      req.CourseID,
-		Title:         req.Title,
-		OrderInCourse: req.OrderInCourse,
-		IsPublished:   req.IsPublished,
+		ActorUserID:    uid,
+		ActorWorkspace: actorWorkspace,
+		ActorRole:      role,
+		CourseID:       req.CourseID,
+		Title:          req.Title,
+		OrderInCourse:  req.OrderInCourse,
+		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の作成に失敗しました")
@@ -260,7 +260,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 // @Router       /teaching-materials/{id} [put]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Update(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -275,12 +275,12 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 		return
 	}
 	m, err := h.uc.Update(c.Request.Context(), usecase.UpdateTeachingMaterialInput{
-		ID:            id,
-		ActorCompany:  actorCompany,
-		ActorRole:     role,
-		Title:         req.Title,
-		OrderInCourse: req.OrderInCourse,
-		IsPublished:   req.IsPublished,
+		ID:             id,
+		ActorWorkspace: actorWorkspace,
+		ActorRole:      role,
+		Title:          req.Title,
+		OrderInCourse:  req.OrderInCourse,
+		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の更新に失敗しました")
@@ -302,7 +302,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 // @Router       /teaching-materials/{id} [delete]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -311,7 +311,7 @@ func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := h.uc.Delete(c.Request.Context(), id, actorCompany, role); err != nil {
+	if err := h.uc.Delete(c.Request.Context(), id, actorWorkspace, role); err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の削除に失敗しました")
 		return
 	}

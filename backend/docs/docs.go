@@ -6165,6 +6165,10 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "workspaceId": {
+                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。",
+                    "type": "string"
                 }
             }
         },
@@ -6565,6 +6569,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。",
                     "type": "string"
                 }
             }

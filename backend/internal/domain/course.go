@@ -52,9 +52,20 @@ type Course struct {
 	Category        string `json:"category"`
 	// Language は主に扱う言語・技術（例: "go" / "docker" / "terraform"。空 = 言語が主題でない）。
 	// 演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
-	Language    string    `json:"language"`
-	SortOrder   int       `json:"sortOrder"`
+	Language  string `json:"language"`
+	SortOrder int    `json:"sortOrder"`
+	// WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
+	// 通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。
+	WorkspaceID *string   `json:"workspaceId,omitempty"`
 	IsPublished bool      `json:"isPublished"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// WorkspaceRef は所属ワークスペースへの参照を返す。未設定(workspace_id = NULL)は NoWorkspace。
+func (c Course) WorkspaceRef() WorkspaceRef {
+	if c.WorkspaceID == nil {
+		return NoWorkspace()
+	}
+	return WorkspaceRefOf(*c.WorkspaceID)
 }

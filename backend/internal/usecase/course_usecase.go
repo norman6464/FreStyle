@@ -23,23 +23,30 @@ func NewCourseUseCase(courses repository.CourseRepository, materials repository.
 	return &CourseUseCase{courses: courses, materials: materials}
 }
 
-func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actorCompany domain.CompanyRef, actorRole domain.RoleName) (*domain.Course, error) {
+func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) (*domain.Course, error) {
 	c, err := uc.courses.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if !canReadCourse(c, actorCompany, actorRole) {
+	if !canReadCourse(c, actorWorkspace, actorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	return c, nil
 }
 
-func canReadCourse(c *domain.Course, actorCompany domain.CompanyRef, actorRole domain.RoleName) bool {
+// canReadCourse は対象コースを actorWorkspace が閲覧できるかを判定する。
+// FRESTYLE-402（段4横展開）: 対象コースとの比較を company_id 直読みから workspace_id 経由へ
+// 切り替え済み。courses.workspace_id は起動時バックフィル + InsertCourse の dual-write
+// （FRESTYLE-399）により、リクエストを捌く時点で必ず埋まっているため company_id との
+// 併用フォールバックは持たない。
+func canReadCourse(c *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
 	if actorRole == domain.RoleSuperAdmin {
 		return true
 	}
-	// 未所属の actor はどの会社のコースとも一致しないため、super_admin 以外は閲覧できない。
-	if !actorCompany.Matches(c.CompanyID) {
+	wid, ok := c.WorkspaceRef().WorkspaceID()
+	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ないため、
+	// super_admin 以外は閲覧できない。
+	if !ok || !actorWorkspace.Matches(wid) {
 		return false
 	}
 	if !c.IsPublished && !canManage(actorRole) {
@@ -89,15 +96,15 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 }
 
 type UpdateCourseInput struct {
-	ID           uint64
-	ActorCompany domain.CompanyRef
-	ActorRole    domain.RoleName
-	Title        string
-	Description  string
-	Category     string
-	Language     string
-	SortOrder    int
-	IsPublished  bool
+	ID             uint64
+	ActorWorkspace domain.WorkspaceRef
+	ActorRole      domain.RoleName
+	Title          string
+	Description    string
+	Category       string
+	Language       string
+	SortOrder      int
+	IsPublished    bool
 }
 
 func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*domain.Course, error) {
@@ -108,8 +115,10 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
-	// 未所属の actor は Matches が常に false になるため、super_admin 以外は更新できない。
-	if in.ActorRole != domain.RoleSuperAdmin && !in.ActorCompany.Matches(existing.CompanyID) {
+	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ないため、
+	// super_admin 以外は更新できない。
+	wid, ok := existing.WorkspaceRef().WorkspaceID()
+	if in.ActorRole != domain.RoleSuperAdmin && (!ok || !in.ActorWorkspace.Matches(wid)) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	if !domain.IsValidCourseCategory(in.Category) {
@@ -128,7 +137,7 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 }
 
 // Delete はコースと配下教材を同時に削除する（cascade 相当）。
-func (uc *CourseUseCase) Delete(ctx context.Context, id uint64, actorCompany domain.CompanyRef, actorRole domain.RoleName) error {
+func (uc *CourseUseCase) Delete(ctx context.Context, id uint64, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) error {
 	existing, err := uc.courses.GetByID(ctx, id)
 	if err != nil {
 		return err
@@ -136,8 +145,10 @@ func (uc *CourseUseCase) Delete(ctx context.Context, id uint64, actorCompany dom
 	if !canManage(actorRole) {
 		return fmt.Errorf("forbidden")
 	}
-	// 未所属の actor は Matches が常に false になるため、super_admin 以外は削除できない。
-	if actorRole != domain.RoleSuperAdmin && !actorCompany.Matches(existing.CompanyID) {
+	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ないため、
+	// super_admin 以外は削除できない。
+	wid, ok := existing.WorkspaceRef().WorkspaceID()
+	if actorRole != domain.RoleSuperAdmin && (!ok || !actorWorkspace.Matches(wid)) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := uc.materials.DeleteByCourse(ctx, id); err != nil {

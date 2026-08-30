@@ -56,6 +56,8 @@ func TestCourseRepository_Integration(t *testing.T) {
 
 	t.Run("Create→GetByID→Update→Delete の一連", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "courses")
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		require.True(t, ws1.Valid)
 
 		c := mk(1, "lifecycle", true, 1)
 		require.NoError(t, repo.Create(ctx, c))
@@ -64,6 +66,11 @@ func TestCourseRepository_Integration(t *testing.T) {
 		got, err := repo.GetByID(ctx, c.ID)
 		require.NoError(t, err)
 		require.Equal(t, "lifecycle", got.Title)
+		// FRESTYLE-402: GetByID が workspace_id も返すこと（canReadCourse の対象側比較が
+		// 使う値）。SELECT * のため列自体は FRESTYLE-399 から取得できていたが、domain へ
+		// 写す側は本チケットで追加した。
+		require.NotNil(t, got.WorkspaceID)
+		require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
 
 		got.Title = "updated"
 		require.NoError(t, repo.Update(ctx, got))

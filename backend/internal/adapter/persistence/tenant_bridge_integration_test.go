@@ -5,8 +5,10 @@ package persistence_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
@@ -278,5 +280,130 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		companies := persistence.NewCompanyRepository(sqlDB)
 		require.NoError(t, companies.UpdateActive(ctx, 1, false))
 		require.False(t, companyWorkspaceID(t, sqlDB, 1).Valid)
+	})
+}
+
+// businessTablesWithWorkspaceMirror は FRESTYLE-399 で workspace_id を足した業務テーブルのうち、
+// 書き込み経路を持つもの（company_exercises は repository / usecase が未実装のため対象外）。
+var businessTablesWithWorkspaceMirror = []string{"courses", "course_chapters", "invitations", "rich_documents"}
+
+// businessTableWorkspaceMirrorTruncateTables はこの節のテストが TRUNCATE する対象。
+var businessTableWorkspaceMirrorTruncateTables = append(
+	append([]string{}, tenantBridgeTables...),
+	businessTablesWithWorkspaceMirror...,
+)
+
+// tableWorkspaceID は業務テーブル 1 行の workspace_id を返す。table は本ファイル内の
+// ハードコードされた定数のみを渡す（外部入力を SQL に組み込まない）。
+func tableWorkspaceID(t *testing.T, db *sql.DB, table string, id any) uuid.NullUUID {
+	t.Helper()
+	var got uuid.NullUUID
+	require.NoError(t, db.QueryRow(fmt.Sprintf(`SELECT workspace_id FROM %s WHERE id = $1`, table), id).Scan(&got))
+	return got
+}
+
+// TestTenantBridgeBusinessTableBackfill_Integration は FRESTYLE-399（courses / course_chapters /
+// invitations / rich_documents への workspace_id 列追加）のバックフィルと dual-write を
+// 実 PostgreSQL で固定する。読み取りは何も変えていない段なので、ここで確かめるのは
+// 新しい列の中身だけ（company_id 側の挙動は既存テストがそのまま守る）。
+func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	t.Run("新規作成の直後に workspace_id が入る（dual-write）", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		require.True(t, ws1.Valid)
+
+		users := persistence.NewUserRepository(sqlDB)
+		cid := uint64(1)
+		require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
+			Email: "author@example.com", Name: "作成者", Role: domain.RoleCompanyAdmin, CompanyID: &cid,
+		}, domain.OidcProviderCognito, "sub-author"))
+		author, err := users.FindByCognitoSub(ctx, "sub-author")
+		require.NoError(t, err)
+
+		courses := persistence.NewCourseRepository(sqlDB)
+		course := &domain.Course{CompanyID: 1, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
+		require.NoError(t, courses.Create(ctx, course))
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が workspace_id を dual-write する")
+
+		materials := persistence.NewTeachingMaterialRepository(sqlDB)
+		chapter := &domain.TeachingMaterial{CompanyID: 1, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
+		require.NoError(t, materials.Create(ctx, chapter))
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が workspace_id を dual-write する")
+
+		invitations := persistence.NewAdminInvitationRepository(sqlDB)
+		inv := &domain.AdminInvitation{
+			CompanyID: 1, Email: "invitee@example.com", Role: domain.RoleTrainee,
+			Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(24 * time.Hour),
+		}
+		require.NoError(t, invitations.Create(ctx, inv))
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "invitations", inv.ID), "InsertInvitation が workspace_id を dual-write する")
+
+		richDocs := persistence.NewRichDocumentRepository(sqlDB)
+		doc := &domain.RichDocument{
+			OwnerID: author.ID, CompanyID: &cid, Kind: domain.DocumentKindNote,
+			Title: "メモ", Doc: `{"type":"doc","content":[]}`,
+		}
+		require.NoError(t, richDocs.Create(ctx, doc))
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が workspace_id を dual-write する")
+	})
+
+	t.Run("会社を持たない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+		users := persistence.NewUserRepository(sqlDB)
+		require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
+			Email: "root@example.com", Name: "運営", Role: domain.RoleSuperAdmin,
+		}, domain.OidcProviderCognito, "sub-root"))
+		root, err := users.FindByCognitoSub(ctx, "sub-root")
+		require.NoError(t, err)
+
+		richDocs := persistence.NewRichDocumentRepository(sqlDB)
+		doc := &domain.RichDocument{
+			OwnerID: root.ID, CompanyID: nil, Kind: domain.DocumentKindNote,
+			Title: "運営メモ", Doc: `{"type":"doc","content":[]}`,
+		}
+		require.NoError(t, richDocs.Create(ctx, doc))
+		require.False(t, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID).Valid)
+	})
+
+	t.Run("バックフィル前に作られた行は起動時バックフィルで写る", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		runStartupBackfill(ctx, t, sqlDB) // 会社→ワークスペースの対応だけ先に作る
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+
+		// dual-write を経由しない、直接 INSERT でバックフィル前の状態（workspace_id 未設定）を再現する。
+		var courseID int64
+		require.NoError(t, sqlDB.QueryRow(
+			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
+			 VALUES (1, 1, 'legacy', NOW(), NOW()) RETURNING id`,
+		).Scan(&courseID))
+		require.False(t, tableWorkspaceID(t, sqlDB, "courses", courseID).Valid, "作成直後はまだ写っていない")
+
+		runStartupBackfill(ctx, t, sqlDB)
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "courses", courseID))
+	})
+
+	t.Run("何度流しても workspace_id がぶれない", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		var courseID int64
+		require.NoError(t, sqlDB.QueryRow(
+			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
+			 VALUES (1, 1, 'legacy', NOW(), NOW()) RETURNING id`,
+		).Scan(&courseID))
+
+		runStartupBackfill(ctx, t, sqlDB)
+		first := tableWorkspaceID(t, sqlDB, "courses", courseID)
+		require.True(t, first.Valid)
+
+		for i := 0; i < 2; i++ { // 起動 2 回目・3 回目
+			runStartupBackfill(ctx, t, sqlDB)
+			require.Equal(t, first, tableWorkspaceID(t, sqlDB, "courses", courseID))
+		}
 	})
 }

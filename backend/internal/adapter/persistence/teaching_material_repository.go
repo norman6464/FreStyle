@@ -34,7 +34,12 @@ func chapterDocPtr(raw *json.RawMessage) *string {
 }
 
 // toDomainChapter は行全体（本文 doc 含む）を domain へ写す。
-func toDomainChapter(row sqlcgen.CourseChapter) domain.TeachingMaterial {
+// chapterRow は行全体（doc 含む）を返すクエリの共通の行形（workspace_id は含まない。
+// 読み取りはまだ切り替えない FRESTYLE-399 のスコープに合わせ、各クエリの列リストは
+// 変更していない）。
+type chapterRow = sqlcgen.GetChapterByIDRow
+
+func toDomainChapter(row chapterRow) domain.TeachingMaterial {
 	return domain.TeachingMaterial{
 		ID:              uint64(row.ID),
 		CompanyID:       uint64(row.CompanyID),
@@ -255,7 +260,7 @@ func (r *teachingMaterialRepository) UpdateDocWithRevision(ctx context.Context, 
 		}
 		return nil, mapChapterDocError(err)
 	}
-	m := toDomainChapter(row)
+	m := toDomainChapter(chapterRow(row))
 	return &m, nil
 }
 

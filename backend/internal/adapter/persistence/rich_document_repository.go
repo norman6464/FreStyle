@@ -40,8 +40,13 @@ func NewRichDocumentRepository(db *sql.DB) repository.RichDocumentRepository {
 	return &richDocumentRepository{db: db}
 }
 
+// richDocumentRow は行全体（doc / deleted_at 含む）を返すクエリの共通の行形
+// （workspace_id は含まない。読み取りはまだ切り替えない FRESTYLE-399 のスコープに
+// 合わせ、各クエリの列リストは変更していない）。
+type richDocumentRow = sqlcgen.GetRichDocumentByIDRow
+
 // toDomainRichDocument は行全体（doc / deleted_at 含む）を domain へ写す。
-func toDomainRichDocument(row sqlcgen.RichDocument) domain.RichDocument {
+func toDomainRichDocument(row richDocumentRow) domain.RichDocument {
 	d := domain.RichDocument{
 		ID:            row.ID.String(),
 		OwnerID:       uint64(row.OwnerID),
@@ -195,7 +200,7 @@ func (r *richDocumentRepository) UpdateWithRevision(ctx context.Context, doc *do
 		return mapPgDataError(err)
 	}
 	// 更新後の正確な行（revision / updated_at など）を doc に反映する。
-	*doc = toDomainRichDocument(row)
+	*doc = toDomainRichDocument(richDocumentRow(row))
 	return nil
 }
 

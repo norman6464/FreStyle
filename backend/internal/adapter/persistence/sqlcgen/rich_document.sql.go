@@ -20,12 +20,27 @@ FROM rich_documents
 WHERE id = $1 AND deleted_at IS NULL
 `
 
+type GetRichDocumentByIDRow struct {
+	ID            uuid.UUID
+	OwnerID       int64
+	CompanyID     sql.NullInt64
+	Kind          string
+	Title         string
+	IsPublic      bool
+	SchemaVersion int64
+	Doc           json.RawMessage
+	Revision      int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+}
+
 // ID で 1 件引く（論理削除は除外）。無ければ sql.ErrNoRows。
 // 誰が読めるか（テナント境界）は domain.RichDocument.CanBeReadBy が決めるので、ここでは
 // 可視性条件を足さない（SQL 側へ写経すると片方だけ直したときに食い違う）。
-func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (RichDocument, error) {
+func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (GetRichDocumentByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getRichDocumentByID, id)
-	var i RichDocument
+	var i GetRichDocumentByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -45,11 +60,12 @@ func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (RichDo
 
 const insertRichDocument = `-- name: InsertRichDocument :one
 INSERT INTO rich_documents
-  (id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
+  (id, owner_id, company_id, workspace_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
 VALUES (
   $1,
   $2,
   $3,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $3),
   $4,
   $5,
   $6,
@@ -87,6 +103,10 @@ type InsertRichDocumentRow struct {
 // created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当。
 // ゼロなら呼び出し側で now() を入れる）。schema_version / revision は 0 のとき既定 1 を当てる
 // （GORM の `default:1` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+//
+// workspace_id は company_id からその場で引く（FRESTYLE-399。理由は course.sql の
+// InsertCourse と同じ）。company_id が NULL（会社を持たない文書）ならサブクエリは
+// 0 行になり workspace_id も自然に NULL になる。
 func (q *Queries) InsertRichDocument(ctx context.Context, arg InsertRichDocumentParams) (InsertRichDocumentRow, error) {
 	row := q.db.QueryRowContext(ctx, insertRichDocument,
 		arg.ID,
@@ -215,10 +235,25 @@ type UpdateRichDocumentWithRevisionParams struct {
 	ExpectedRevision int64
 }
 
+type UpdateRichDocumentWithRevisionRow struct {
+	ID            uuid.UUID
+	OwnerID       int64
+	CompanyID     sql.NullInt64
+	Kind          string
+	Title         string
+	IsPublic      bool
+	SchemaVersion int64
+	Doc           json.RawMessage
+	Revision      int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+}
+
 // 楽観ロック付き更新。expected_revision が現在値と一致し論理削除されていない行だけを更新し、
 // revision を +1・updated_at を now() へ進める。0 行なら sql.ErrNoRows（呼び出し側が存在確認で
 // 404 / 409 を切り分ける）。RETURNING で更新後の行全体を返し struct に反映する。
-func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg UpdateRichDocumentWithRevisionParams) (RichDocument, error) {
+func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg UpdateRichDocumentWithRevisionParams) (UpdateRichDocumentWithRevisionRow, error) {
 	row := q.db.QueryRowContext(ctx, updateRichDocumentWithRevision,
 		arg.Title,
 		arg.IsPublic,
@@ -227,7 +262,7 @@ func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg Update
 		arg.ID,
 		arg.ExpectedRevision,
 	)
-	var i RichDocument
+	var i UpdateRichDocumentWithRevisionRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,

@@ -37,10 +37,14 @@ GROUP BY course_id;
 -- created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当）。
 -- revision / schema_version は 0 のとき既定 1、sort_order は 0 のとき既定 100 を当てる
 -- （GORM の `default:` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+--
+-- workspace_id は company_id からその場で引く（FRESTYLE-399。理由は course.sql の
+-- InsertCourse と同じ）。
 INSERT INTO course_chapters
-  (company_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
+  (company_id, workspace_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
 VALUES (
   sqlc.arg(company_id),
+  (SELECT c.workspace_id FROM companies c WHERE c.id = sqlc.arg(company_id)),
   sqlc.arg(course_id),
   sqlc.arg(created_by_user_id),
   sqlc.arg(title),

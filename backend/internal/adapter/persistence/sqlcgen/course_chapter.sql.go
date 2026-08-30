@@ -96,10 +96,25 @@ FROM course_chapters
 WHERE id = $1
 `
 
+type GetChapterByIDRow struct {
+	ID              int64
+	CompanyID       int64
+	CourseID        int64
+	CreatedByUserID int64
+	Title           string
+	Doc             *json.RawMessage
+	Revision        int64
+	SchemaVersion   int64
+	SortOrder       int64
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 // 単一教材を返す（本文 doc を含む）。存在しなければ sql.ErrNoRows。
-func (q *Queries) GetChapterByID(ctx context.Context, id int64) (CourseChapter, error) {
+func (q *Queries) GetChapterByID(ctx context.Context, id int64) (GetChapterByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getChapterByID, id)
-	var i CourseChapter
+	var i GetChapterByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,
@@ -119,9 +134,10 @@ func (q *Queries) GetChapterByID(ctx context.Context, id int64) (CourseChapter, 
 
 const insertChapter = `-- name: InsertChapter :one
 INSERT INTO course_chapters
-  (company_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
+  (company_id, workspace_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
 VALUES (
   $1,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $1),
   $2,
   $3,
   $4,
@@ -161,6 +177,9 @@ type InsertChapterRow struct {
 // created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当）。
 // revision / schema_version は 0 のとき既定 1、sort_order は 0 のとき既定 100 を当てる
 // （GORM の `default:` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+//
+// workspace_id は company_id からその場で引く（FRESTYLE-399。理由は course.sql の
+// InsertCourse と同じ）。
 func (q *Queries) InsertChapter(ctx context.Context, arg InsertChapterParams) (InsertChapterRow, error) {
 	row := q.db.QueryRowContext(ctx, insertChapter,
 		arg.CompanyID,
@@ -354,12 +373,27 @@ type UpdateChapterDocWithRevisionParams struct {
 	ExpectedRevision int64
 }
 
+type UpdateChapterDocWithRevisionRow struct {
+	ID              int64
+	CompanyID       int64
+	CourseID        int64
+	CreatedByUserID int64
+	Title           string
+	Doc             *json.RawMessage
+	Revision        int64
+	SchemaVersion   int64
+	SortOrder       int64
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 // リッチ本文（tiptap JSON）を楽観ロックで更新する。expected_revision が現在値と一致した行だけを
 // 更新し、revision を +1・updated_at を now() へ進める。0 行なら sql.ErrNoRows（呼び出し側が
 // 存在確認で 404 / 409 を切り分ける）。RETURNING で更新後の行全体を返す。
-func (q *Queries) UpdateChapterDocWithRevision(ctx context.Context, arg UpdateChapterDocWithRevisionParams) (CourseChapter, error) {
+func (q *Queries) UpdateChapterDocWithRevision(ctx context.Context, arg UpdateChapterDocWithRevisionParams) (UpdateChapterDocWithRevisionRow, error) {
 	row := q.db.QueryRowContext(ctx, updateChapterDocWithRevision, arg.Doc, arg.ID, arg.ExpectedRevision)
-	var i CourseChapter
+	var i UpdateChapterDocWithRevisionRow
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,

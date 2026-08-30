@@ -15,10 +15,15 @@ WHERE id = $1;
 -- 書き戻す。created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当。
 -- ゼロなら呼び出し側で now() を入れる）。sort_order は 0 のとき既定 100 を当てる
 -- （GORM の `default:100` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+--
+-- workspace_id は company_id からその場で引く（FRESTYLE-399。dual-write を起動時
+-- バックフィルだけに任せると、次の起動までのあいだに作ったコースが workspace_id 経由の
+-- 一覧から漏れる。FRESTYLE-397 の InsertUser と同じ理由・同じ形）。
 INSERT INTO courses
-  (company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
+  (company_id, workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
 VALUES (
   sqlc.arg(company_id),
+  (SELECT c.workspace_id FROM companies c WHERE c.id = sqlc.arg(company_id)),
   sqlc.arg(created_by_user_id),
   sqlc.arg(title),
   sqlc.arg(description),

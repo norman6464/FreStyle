@@ -131,3 +131,45 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 		require.NotContains(t, strings.ToLower(string(b)), "\"token\"", "token フィールド自体を出さない")
 	})
 }
+
+// TestAdminInvitationRepository_ListByWorkspaceID_Integration は CompanyAdmin 経路
+// （FRESTYLE-401）が別ワークスペースの招待を返さないこと、pending のみ返すことを
+// 実 Postgres で固定する。InsertInvitation の company_id→workspace_id dual-write
+// （FRESTYLE-399）に依存するため repo.Create 経由でデータを作る。
+func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewAdminInvitationRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	insertCompany(t, sqlDB, 2, "会社 B", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1 := companyWorkspaceID(t, sqlDB, 1)
+	ws2 := companyWorkspaceID(t, sqlDB, 2)
+	require.True(t, ws1.Valid)
+	require.True(t, ws2.Valid)
+	require.NotEqual(t, ws1.UUID, ws2.UUID)
+
+	mk := func(companyID uint64, email string) *domain.AdminInvitation {
+		return &domain.AdminInvitation{
+			CompanyID: companyID, Email: email, Role: domain.RoleCompanyAdmin,
+			Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
+		}
+	}
+	require.NoError(t, repo.Create(ctx, mk(1, "pending-a@example.com")))
+	require.NoError(t, repo.Create(ctx, mk(2, "other-workspace@example.com")))
+
+	accepted := mk(1, "accepted-a@example.com")
+	require.NoError(t, repo.Create(ctx, accepted))
+	require.NoError(t, repo.UpdateStatus(ctx, accepted.ID, domain.InvitationStatusAccepted))
+
+	got, err := repo.ListByWorkspaceID(ctx, ws1.UUID.String())
+	require.NoError(t, err)
+	require.Len(t, got, 1, "他ワークスペースの招待・pending 以外は混ざらない")
+	require.Equal(t, "pending-a@example.com", got[0].Email)
+
+	empty, err := repo.ListByWorkspaceID(ctx, "")
+	require.NoError(t, err)
+	require.Empty(t, empty, "空 ID は該当なし扱い")
+}

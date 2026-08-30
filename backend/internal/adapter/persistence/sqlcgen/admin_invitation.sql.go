@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const findInvitationByID = `-- name: FindInvitationByID :one
@@ -267,7 +269,8 @@ type ListPendingInvitationsByCompanyRow struct {
 	CreatedAt time.Time
 }
 
-// 自社の pending 招待のみ返す（CompanyAdmin 用）。
+// 自社の pending 招待のみ返す（SuperAdmin が ?companyId= で任意の会社を指定するときに使う。
+// CompanyAdmin 自身の一覧は ListPendingInvitationsByWorkspace を使う。FRESTYLE-401）。
 func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListPendingInvitationsByCompanyParams) ([]ListPendingInvitationsByCompanyRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingInvitationsByCompany, arg.CompanyID, arg.Status)
 	if err != nil {
@@ -277,6 +280,67 @@ func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListP
 	items := []ListPendingInvitationsByCompanyRow{}
 	for rows.Next() {
 		var i ListPendingInvitationsByCompanyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Email,
+			&i.Role,
+			&i.Name,
+			&i.Status,
+			&i.Token,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingInvitationsByWorkspace = `-- name: ListPendingInvitationsByWorkspace :many
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+FROM invitations
+WHERE workspace_id = $1 AND status = $2
+ORDER BY created_at DESC, id DESC
+`
+
+type ListPendingInvitationsByWorkspaceParams struct {
+	WorkspaceID uuid.NullUUID
+	Status      string
+}
+
+type ListPendingInvitationsByWorkspaceRow struct {
+	ID        int64
+	CompanyID int64
+	Email     string
+	Role      string
+	Name      string
+	Status    string
+	Token     sql.NullString
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+// 自社の pending 招待のみ返す（CompanyAdmin が自分の所属で見る用）。
+// FRESTYLE-401（段4横展開）: CompanyAdmin 経路だけを company_id 直読みから
+// workspace_id 経由へ切り替え済み。SuperAdmin の ?companyId= 絞り込みは
+// ListPendingInvitationsByCompany のまま変えていない（API 契約を変えないため）。
+func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, arg ListPendingInvitationsByWorkspaceParams) ([]ListPendingInvitationsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingInvitationsByWorkspace, arg.WorkspaceID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPendingInvitationsByWorkspaceRow{}
+	for rows.Next() {
+		var i ListPendingInvitationsByWorkspaceRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CompanyID,

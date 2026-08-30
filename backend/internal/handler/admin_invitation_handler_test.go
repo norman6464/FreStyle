@@ -32,6 +32,11 @@ func (r *fakeAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) 
 	r.called = "company"
 	return r.company, nil
 }
+
+func (r *fakeAdminInvRepo) ListByWorkspaceID(_ context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
+	r.called = "workspace"
+	return r.company, nil
+}
 func (r *fakeAdminInvRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
 func (r *fakeAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error  { return nil }
 func (r *fakeAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
@@ -117,7 +122,8 @@ func Test_招待ハンドラ_一覧_運営管理者_会社IDクエリ付き(t *t
 func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(t *testing.T) {
 	repo := &fakeAdminInvRepo{company: []domain.AdminInvitation{{ID: 7}}}
 	cid := uint64(123)
-	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+	wid := "0198a000-0000-7000-8000-0000000000c1"
+	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: &wid})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/invitations", nil)
 	w := httptest.NewRecorder()
@@ -126,14 +132,14 @@ func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
-	if repo.called != "company" {
-		t.Fatalf("expected ListByCompanyID, got %q", repo.called)
+	if repo.called != "workspace" {
+		t.Fatalf("expected ListByWorkspaceID, got %q", repo.called)
 	}
 }
 
 func Test_招待ハンドラ_一覧_会社管理者_会社IDなしは禁止(t *testing.T) {
 	repo := &fakeAdminInvRepo{}
-	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: nil})
+	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: nil})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/invitations", nil)
 	w := httptest.NewRecorder()

@@ -111,6 +111,13 @@ func (s *upsertInvitationRepoSpy) ListByCompanyID(
 	return nil, nil
 }
 
+func (s *upsertInvitationRepoSpy) ListByWorkspaceID(
+	_ context.Context,
+	_ string,
+) ([]domain.AdminInvitation, error) {
+	return nil, nil
+}
+
 func (s *upsertInvitationRepoSpy) FindPendingByEmail(
 	_ context.Context,
 	email string,

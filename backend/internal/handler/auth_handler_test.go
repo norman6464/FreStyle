@@ -147,6 +147,10 @@ func (r *fakeInvitationRepo) ListByCompanyID(_ context.Context, _ uint64) ([]dom
 	return nil, nil
 }
 
+func (r *fakeInvitationRepo) ListByWorkspaceID(_ context.Context, _ string) ([]domain.AdminInvitation, error) {
+	return nil, nil
+}
+
 func (r *fakeInvitationRepo) FindPendingByEmail(_ context.Context, email string) (*domain.AdminInvitation, error) {
 	if v, ok := r.pendingByEmail[email]; ok {
 		return v, nil

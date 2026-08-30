@@ -70,14 +70,15 @@ func (h *AdminInvitationHandler) List(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, rows)
 	case domain.RoleCompanyAdmin:
-		// CompanyAdmin は自社のみ。所属会社が無ければ絞り込み先が決まらないので 403 (誤用防止)。
-		// company_id = 0 は採番上あり得ない値なので、未所属と同じく弾く。
-		companyID, affiliated := user.CompanyRef().CompanyID()
-		if !affiliated || companyID == 0 {
+		// CompanyAdmin は自社のみ。所属ワークスペースが無ければ絞り込み先が決まらないので
+		// 403 (誤用防止)。FRESTYLE-401 段4横展開: company_id 直読みから workspace_id 経由へ
+		// 切り替え済み（SuperAdmin の ?companyId= 絞り込みは company_id のまま変えていない）。
+		workspaceID, affiliated := user.WorkspaceRef().WorkspaceID()
+		if !affiliated {
 			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
 			return
 		}
-		rows, err := h.list.ListByCompanyID(c.Request.Context(), companyID)
+		rows, err := h.list.ListByWorkspaceID(c.Request.Context(), workspaceID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return

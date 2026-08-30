@@ -7,10 +7,21 @@ WHERE status = sqlc.arg(status)
 ORDER BY created_at DESC, id DESC;
 
 -- name: ListPendingInvitationsByCompany :many
--- 自社の pending 招待のみ返す（CompanyAdmin 用）。
+-- 自社の pending 招待のみ返す（SuperAdmin が ?companyId= で任意の会社を指定するときに使う。
+-- CompanyAdmin 自身の一覧は ListPendingInvitationsByWorkspace を使う。FRESTYLE-401）。
 SELECT id, company_id, email, role, name, status, token, expires_at, created_at
 FROM invitations
 WHERE company_id = sqlc.arg(company_id) AND status = sqlc.arg(status)
+ORDER BY created_at DESC, id DESC;
+
+-- name: ListPendingInvitationsByWorkspace :many
+-- 自社の pending 招待のみ返す（CompanyAdmin が自分の所属で見る用）。
+-- FRESTYLE-401（段4横展開）: CompanyAdmin 経路だけを company_id 直読みから
+-- workspace_id 経由へ切り替え済み。SuperAdmin の ?companyId= 絞り込みは
+-- ListPendingInvitationsByCompany のまま変えていない（API 契約を変えないため）。
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+FROM invitations
+WHERE workspace_id = sqlc.arg(workspace_id) AND status = sqlc.arg(status)
 ORDER BY created_at DESC, id DESC;
 
 -- name: FindPendingInvitationByEmail :one

@@ -22,9 +22,9 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
-	mk := func(companyID, courseID uint64, title string, published bool) *domain.TeachingMaterial {
+	mk := func(companyID uint64, workspaceID *string, courseID uint64, title string, published bool) *domain.TeachingMaterial {
 		return &domain.TeachingMaterial{
-			CompanyID: companyID, CourseID: courseID, CreatedByUserID: 1,
+			CompanyID: companyID, WorkspaceID: workspaceID, CourseID: courseID, CreatedByUserID: 1,
 			Title: title, OrderInCourse: 1, IsPublished: published,
 		}
 	}
@@ -35,15 +35,19 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	runStartupBackfill(ctx, t, sqlDB)
 	ws1 := companyWorkspaceID(t, sqlDB, 1)
 	require.True(t, ws1.Valid)
+	ws1Str := ws1.UUID.String()
+	ws2 := companyWorkspaceID(t, sqlDB, 2)
+	require.True(t, ws2.Valid)
+	ws2Str := ws2.UUID.String()
 
-	// InsertChapter が company_id から workspace_id を dual-write する（FRESTYLE-400）。
+	// Create は呼び出し側（usecase）が解決した workspace_id をそのまま書く。
 	// 会社 A: course 10 に published 2 + draft 1、course 20 に published 1
-	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-pub-1", true)))
-	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-pub-2", true)))
-	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-draft", false)))
-	require.NoError(t, repo.Create(ctx, mk(1, 20, "c20-pub", true)))
+	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 10, "c10-pub-1", true)))
+	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 10, "c10-pub-2", true)))
+	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 10, "c10-draft", false)))
+	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 20, "c20-pub", true)))
 	// 会社 B: 他社分は集計に含まれない
-	require.NoError(t, repo.Create(ctx, mk(2, 10, "other-company", true)))
+	require.NoError(t, repo.Create(ctx, mk(2, &ws2Str, 10, "other-company", true)))
 
 	t.Run("published のみ (trainee 相当)", func(t *testing.T) {
 		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), false)
@@ -162,8 +166,10 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		require.True(t, ws1.Valid)
+		ws1Str := ws1.UUID.String()
 
 		m := mk(1, 10, "章", 1, true)
+		m.WorkspaceID = &ws1Str
 		require.NoError(t, repo.Create(ctx, m))
 		// doc を入れてから GetByID で本文込みで往復することを確認する。
 		doc := `{"type":"doc","content":[{"type":"paragraph"}]}`
@@ -258,10 +264,15 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.True(t, ws1.Valid)
 		require.True(t, ws2.Valid)
 		require.NotEqual(t, ws1.UUID, ws2.UUID)
+		ws1Str := ws1.UUID.String()
+		ws2Str := ws2.UUID.String()
 
 		a := mk(1, 10, "a", 1, true)
+		a.WorkspaceID = &ws1Str
 		b := mk(1, 20, "b", 1, false) // draft
+		b.WorkspaceID = &ws1Str
 		foreign := mk(2, 10, "foreign", 1, true)
+		foreign.WorkspaceID = &ws2Str
 		for _, m := range []*domain.TeachingMaterial{a, b, foreign} {
 			require.NoError(t, repo.Create(ctx, m))
 		}
@@ -307,8 +318,10 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		require.True(t, ws1.Valid)
+		ws1Str := ws1.UUID.String()
 
 		m := mk(1, 10, "章", 1, true)
+		m.WorkspaceID = &ws1Str
 		require.NoError(t, repo.Create(ctx, m))
 
 		byCourse, err := repo.ListByCourse(ctx, 10, true)

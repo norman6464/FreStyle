@@ -96,9 +96,9 @@ WHERE r.name = $1 AND u.deleted_at IS NULL;
 --
 -- workspace_id は company_id からその場で引く（$4 の会社が指す companies.workspace_id）。
 -- 起動時バックフィル（tenant_bridge.go）だけに任せると、次の起動までのあいだに作った
--- ユーザーの workspace_id が NULL のままになり、ListUsersByWorkspaceID の一覧から漏れる
--- （CodeRabbit 指摘、FRESTYLE-397 PR #2362 で発覚）。会社が workspace_id を持たない
--- （バックフィル未到達）場合はサブクエリが 0 行になり、その場合も NULL のままで正しい。
+-- ユーザーの workspace_id が NULL のままになり、ListUsersByWorkspaceID の一覧から漏れる。
+-- 会社が workspace_id を持たない（バックフィル未到達）場合はサブクエリが 0 行になり、
+-- その場合も NULL のままで正しい。
 INSERT INTO users (
   email, password_hash, name, company_id, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at

@@ -59,13 +59,15 @@ func Test_コース_作成_会社管理者は成功(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
 		Title: "Web 基礎", Description: "HTTP / REST", SortOrder: 10, IsPublished: true,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, cstore.created)
 	assert.Equal(t, uint64(7), cstore.created.CreatedByUserID)
 	assert.Equal(t, uint64(10), cstore.created.CompanyID)
+	require.NotNil(t, cstore.created.WorkspaceID)
+	assert.Equal(t, wsA, *cstore.created.WorkspaceID)
 	assert.Equal(t, "Web 基礎", cstore.created.Title)
 	assert.Equal(t, "HTTP / REST", cstore.created.Description)
 	assert.Equal(t, 10, cstore.created.SortOrder)
@@ -136,7 +138,7 @@ func Test_コース_作成_カテゴリ付きで成功(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
 		Title: "PostgreSQL 徹底入門", Category: domain.CourseCategoryDatabase,
 	})
 	require.NoError(t, err)
@@ -148,7 +150,7 @@ func Test_コース_作成_不正なカテゴリは拒否(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
 		Title: "X", Category: "unknown-category",
 	})
 	require.Error(t, err)
@@ -161,11 +163,24 @@ func Test_コース_作成_カテゴリ未分類は許可(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
 		Title: "X", Category: "",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "", got.Category)
+}
+
+func Test_コース_作成_ワークスペース未所属は禁止(t *testing.T) {
+	crepo, cstore := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorWorkspace: domain.NoWorkspace(), ActorRole: domain.RoleCompanyAdmin,
+		Title: "X",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workspace")
+	assert.Nil(t, cstore.created)
 }
 
 func Test_コース_更新_カテゴリを変更できる(t *testing.T) {
@@ -185,7 +200,7 @@ func Test_コース_作成_言語付きで成功(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
 		Title: "Go 言語徹底攻略", Category: domain.CourseCategoryBackend, Language: "go",
 	})
 	require.NoError(t, err)

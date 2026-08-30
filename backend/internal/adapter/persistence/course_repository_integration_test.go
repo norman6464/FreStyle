@@ -20,9 +20,9 @@ func TestCourseRepository_Integration(t *testing.T) {
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 
-	mk := func(companyID uint64, title string, published bool, sortOrder int) *domain.Course {
+	mk := func(companyID uint64, workspaceID *string, title string, published bool, sortOrder int) *domain.Course {
 		return &domain.Course{
-			CompanyID: companyID, CreatedByUserID: 1, Title: title,
+			CompanyID: companyID, WorkspaceID: workspaceID, CreatedByUserID: 1, Title: title,
 			IsPublished: published, SortOrder: sortOrder,
 		}
 	}
@@ -34,20 +34,24 @@ func TestCourseRepository_Integration(t *testing.T) {
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		require.True(t, ws1.Valid)
+		ws1Str := ws1.UUID.String()
+		ws2 := companyWorkspaceID(t, sqlDB, 2)
+		require.True(t, ws2.Valid)
+		ws2Str := ws2.UUID.String()
 
-		// InsertCourse が company_id から workspace_id を dual-write する（FRESTYLE-400）。
-		require.NoError(t, repo.Create(ctx, mk(1, "published", true, 20)))
-		require.NoError(t, repo.Create(ctx, mk(1, "draft", false, 10)))
-		require.NoError(t, repo.Create(ctx, mk(2, "other-company", true, 5)))
+		// Create は呼び出し側（usecase）が解決した workspace_id をそのまま書く。
+		require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, "published", true, 20)))
+		require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, "draft", false, 10)))
+		require.NoError(t, repo.Create(ctx, mk(2, &ws2Str, "other-company", true, 5)))
 
 		// includeUnpublished=false → 会社 A の published のみ。
-		pub, err := repo.ListByWorkspaceID(ctx, ws1.UUID.String(), false)
+		pub, err := repo.ListByWorkspaceID(ctx, ws1Str, false)
 		require.NoError(t, err)
 		require.Len(t, pub, 1)
 		require.Equal(t, "published", pub[0].Title)
 
 		// includeUnpublished=true → 会社 A の全件を sort_order 昇順（draft=10, published=20）。
-		all, err := repo.ListByWorkspaceID(ctx, ws1.UUID.String(), true)
+		all, err := repo.ListByWorkspaceID(ctx, ws1Str, true)
 		require.NoError(t, err)
 		require.Len(t, all, 2)
 		require.Equal(t, "draft", all[0].Title, "sort_order 昇順")
@@ -58,8 +62,9 @@ func TestCourseRepository_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "courses")
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		require.True(t, ws1.Valid)
+		ws1Str := ws1.UUID.String()
 
-		c := mk(1, "lifecycle", true, 1)
+		c := mk(1, &ws1Str, "lifecycle", true, 1)
 		require.NoError(t, repo.Create(ctx, c))
 		require.NotZero(t, c.ID)
 

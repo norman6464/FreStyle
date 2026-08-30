@@ -51,15 +51,15 @@ VALUES (
   $1,
   $2,
   $3,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $3),
   $4,
   $5,
   $6,
-  COALESCE(NULLIF($7::bigint, 0), 1),
-  $8,
-  COALESCE(NULLIF($9::bigint, 0), 1),
-  $10,
-  $11
+  $7,
+  COALESCE(NULLIF($8::bigint, 0), 1),
+  $9,
+  COALESCE(NULLIF($10::bigint, 0), 1),
+  $11,
+  $12
 )
 RETURNING schema_version, revision, created_at, updated_at
 `
@@ -68,6 +68,7 @@ type InsertRichDocumentParams struct {
 	ID            uuid.UUID
 	OwnerID       int64
 	CompanyID     sql.NullInt64
+	WorkspaceID   uuid.NullUUID
 	Kind          string
 	Title         string
 	IsPublic      bool
@@ -90,14 +91,14 @@ type InsertRichDocumentRow struct {
 // ゼロなら呼び出し側で now() を入れる）。schema_version / revision は 0 のとき既定 1 を当てる
 // （GORM の `default:1` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 //
-// workspace_id は company_id からその場で引く（FRESTYLE-399。理由は course.sql の
-// InsertCourse と同じ）。company_id が NULL（会社を持たない文書）ならサブクエリは
-// 0 行になり workspace_id も自然に NULL になる。
+// workspace_id は company_id から引き直さず、呼び出し側が渡す値をそのまま書く
+// （会社を持たない所有者の文書は呼び出し側が NULL を渡す）。
 func (q *Queries) InsertRichDocument(ctx context.Context, arg InsertRichDocumentParams) (InsertRichDocumentRow, error) {
 	row := q.db.QueryRowContext(ctx, insertRichDocument,
 		arg.ID,
 		arg.OwnerID,
 		arg.CompanyID,
+		arg.WorkspaceID,
 		arg.Kind,
 		arg.Title,
 		arg.IsPublic,

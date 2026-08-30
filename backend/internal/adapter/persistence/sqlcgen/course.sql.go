@@ -64,22 +64,23 @@ INSERT INTO courses
   (company_id, workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
 VALUES (
   $1,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $1),
   $2,
   $3,
   $4,
   $5,
   $6,
-  COALESCE(NULLIF($7::bigint, 0), 100),
-  $8,
+  $7,
+  COALESCE(NULLIF($8::bigint, 0), 100),
   $9,
-  $10
+  $10,
+  $11
 )
 RETURNING id, sort_order, created_at, updated_at
 `
 
 type InsertCourseParams struct {
 	CompanyID       int64
+	WorkspaceID     uuid.NullUUID
 	CreatedByUserID int64
 	Title           string
 	Description     string
@@ -103,12 +104,12 @@ type InsertCourseRow struct {
 // ゼロなら呼び出し側で now() を入れる）。sort_order は 0 のとき既定 100 を当てる
 // （GORM の `default:100` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 //
-// workspace_id は company_id からその場で引く（FRESTYLE-399。dual-write を起動時
-// バックフィルだけに任せると、次の起動までのあいだに作ったコースが workspace_id 経由の
-// 一覧から漏れる。FRESTYLE-397 の InsertUser と同じ理由・同じ形）。
+// workspace_id は company_id から引き直さず、呼び出し側（actor の所属ワークスペース）が
+// そのまま渡す値をそのまま書く。
 func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (InsertCourseRow, error) {
 	row := q.db.QueryRowContext(ctx, insertCourse,
 		arg.CompanyID,
+		arg.WorkspaceID,
 		arg.CreatedByUserID,
 		arg.Title,
 		arg.Description,

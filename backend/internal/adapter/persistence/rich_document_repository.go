@@ -136,6 +136,10 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 		// nullCompanyID は nil のとき必ず ok=true なので、ここでは非 nil が保証される。
 		return outOfRangeIDError("company_id", *doc.CompanyID)
 	}
+	workspaceID, ok := nullWorkspaceID(doc.WorkspaceID)
+	if !ok {
+		return fmt.Errorf("workspace_id が不正な形式です: %q", *doc.WorkspaceID)
+	}
 	now := time.Now()
 	createdAt := doc.CreatedAt
 	if createdAt.IsZero() {
@@ -149,6 +153,7 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 		ID:            id,
 		OwnerID:       ownerID,
 		CompanyID:     companyID,
+		WorkspaceID:   workspaceID,
 		Kind:          string(doc.Kind),
 		Title:         doc.Title,
 		IsPublic:      doc.IsPublic,

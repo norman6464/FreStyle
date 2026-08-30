@@ -44,3 +44,17 @@ func toNullUUID(id string) (uuid.NullUUID, bool) {
 	}
 	return uuid.NullUUID{UUID: parsed, Valid: true}, true
 }
+
+// nullWorkspaceID は domain の *string（workspace_id）を書き込み用の uuid.NullUUID へ変換する。
+// nil（未所属）は NULL を書く正当な値なので ok=true のまま返す。不正な形式の文字列だけを
+// ok=false にする（1 行も書けていないと呼び出し側へ伝えるため。toInt64ID と同じ役割分担）。
+func nullWorkspaceID(workspaceID *string) (uuid.NullUUID, bool) {
+	if workspaceID == nil {
+		return uuid.NullUUID{}, true
+	}
+	nu, ok := toNullUUID(*workspaceID)
+	if !ok {
+		return uuid.NullUUID{}, false
+	}
+	return nu, true
+}

@@ -62,17 +62,20 @@ func courseBelongsToWorkspace(c *domain.Course, actorWorkspace domain.WorkspaceR
 }
 
 type CreateCourseInput struct {
-	ActorUserID  uint64
-	ActorCompany domain.CompanyRef
-	ActorRole    domain.RoleName
-	Title        string
-	Description  string
-	Category     string
-	Language     string
-	SortOrder    int
-	IsPublished  bool
+	ActorUserID    uint64
+	ActorCompany   domain.CompanyRef
+	ActorWorkspace domain.WorkspaceRef
+	ActorRole      domain.RoleName
+	Title          string
+	Description    string
+	Category       string
+	Language       string
+	SortOrder      int
+	IsPublished    bool
 }
 
+// Create はコースを作る。workspace_id は company_id からの SQL 側 dual-write に頼らず、
+// actor の所属ワークスペースをそのまま書き込む。
 func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*domain.Course, error) {
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden: only company_admin or super_admin can create courses")
@@ -82,11 +85,16 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 	if !affiliated {
 		return nil, fmt.Errorf("actor must belong to a company")
 	}
+	workspaceID, workspaceAffiliated := in.ActorWorkspace.WorkspaceID()
+	if !workspaceAffiliated {
+		return nil, fmt.Errorf("actor must belong to a workspace")
+	}
 	if !domain.IsValidCourseCategory(in.Category) {
 		return nil, fmt.Errorf("invalid course category: %s", in.Category)
 	}
 	c := &domain.Course{
 		CompanyID:       companyID,
+		WorkspaceID:     &workspaceID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,
 		Description:     in.Description,

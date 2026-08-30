@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -31,6 +32,7 @@ type materialFakeConfig struct {
 	getErr   error
 	counts   map[uint64]int
 	countErr error
+	listErr  error
 }
 
 // materialRepo は TeachingMaterialRepository の mock に、このクラスタが使う応答を
@@ -48,7 +50,7 @@ func materialRepo(cfg materialFakeConfig) (*mockMaterialRepo, *materialStore) {
 		Run(func(args mock.Arguments) {
 			st.listWorkspaceID = args.Get(1).(string)
 			st.listWorkspaceIncludeAll = args.Get(2).(bool)
-		}).Return(nil, nil).Maybe()
+		}).Return(nil, cfg.listErr).Maybe()
 	repo.On("CountByCourseForWorkspace", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			include := args.Get(2).(bool)
@@ -139,6 +141,15 @@ func Test_教材_ワークスペース別一覧_未所属は空を返しrepoを�
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 	mrepo.AssertNotCalled(t, "ListByWorkspace", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_教材_ワークスペース別一覧_repositoryエラーをそのまま返す(t *testing.T) {
+	wantErr := errors.New("repository failed")
+	mrepo, _ := materialRepo(materialFakeConfig{listErr: wantErr})
+	crepo, _ := courseRepo(courseFakeConfig{})
+	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
+	_, err := uc.List(context.Background(), domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
+	assert.ErrorIs(t, err, wantErr)
 }
 
 func Test_教材_コース別一覧_traineeは公開のみ(t *testing.T) {

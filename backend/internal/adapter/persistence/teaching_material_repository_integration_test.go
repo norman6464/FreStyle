@@ -265,8 +265,12 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		for _, m := range []*domain.TeachingMaterial{a, b, foreign} {
 			require.NoError(t, repo.Create(ctx, m))
 		}
+		// a に doc を入れておく（それでも一覧は doc を返さないことを確認する）。
+		// updated_at を now() へ進めるので、先に済ませてから並び順を固定する。
+		_, err := repo.UpdateDocWithRevision(ctx, a.ID, `{"type":"doc","content":[]}`, 1)
+		require.NoError(t, err)
 		// updated_at を明示的に置いて降順を固定する（Go 時計と DB 時計の差でフレークしないように）。
-		_, err := sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = $1`, b.ID)
+		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = $1`, b.ID)
 		require.NoError(t, err)
 		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = $1`, a.ID)
 		require.NoError(t, err)
@@ -275,7 +279,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, pub, 1) // published の a のみ（b は draft、foreign は別ワークスペース）
 		require.Equal(t, "a", pub[0].Title)
-		require.Nil(t, pub[0].Doc) // 一覧は本文を読み込まない
+		require.Nil(t, pub[0].Doc) // 一覧は本文を読み込まない（応答でも json:"-" で出ない）
 
 		all, err := repo.ListByWorkspace(ctx, ws1.UUID.String(), true)
 		require.NoError(t, err)

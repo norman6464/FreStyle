@@ -314,6 +314,9 @@ func Test_現在ユーザー取得_所属していればcompanyIdとworkspaceId�
 
 	h.Me(c)
 
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (body=%s)", rec.Code, rec.Body.String())
+	}
 	var body map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -336,6 +339,11 @@ func Test_現在ユーザー取得_未所属はcompanyIdとworkspaceIdを省略�
 
 	h.Me(c)
 
+	// エラー応答（500/404 等）でも companyId/workspaceId は含まれない。ステータスを
+	// 確認せずキー不在だけで判定すると、失敗レスポンスでもこのテストが偽陽性で通ってしまう。
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (body=%s)", rec.Code, rec.Body.String())
+	}
 	var body map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal: %v", err)

@@ -25,8 +25,9 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	// ListByRole は指定 role のユーザー一覧を返す（super_admin への一斉通知などに使う）。
 	ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error)
-	// ListByCompanyID は会社単位の従業員一覧を返す（company_admin の従業員管理画面用）。
-	ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error)
+	// ListByWorkspaceID はワークスペース単位の従業員一覧を返す（company_admin の従業員管理画面用）。
+	// FRESTYLE-355 段4: company_id 直読み（旧 ListByCompanyID）から workspace_id 経由へ切り替え済み。
+	ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error)
 	// CreateWithOidcIdentity は users 行と OIDC identity（provider + subject）を
 	// 単一トランザクションで作成する。正規化後は「識別子を持たないユーザー」は存在し得ない
 	// ため、ユーザー作成は必ず identity 作成と不可分に行う（片方だけ成功する状態を作らない）。

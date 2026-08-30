@@ -23,7 +23,9 @@ func (s *stubUsers) ListByRole(context.Context, domain.RoleName) ([]domain.User,
 	return nil, nil
 }
 
-func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, error) { return nil, nil }
+func (s *stubUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
+	return nil, nil
+}
 
 func (s *stubUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
 	return nil

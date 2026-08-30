@@ -140,6 +140,7 @@ func NewCreateRichDocumentUseCase(r repository.RichDocumentRepository) *CreateRi
 type CreateRichDocumentInput struct {
 	OwnerID       uint64
 	CompanyID     *uint64
+	WorkspaceID   *string
 	Kind          domain.DocumentKind
 	Title         string
 	Doc           string
@@ -167,6 +168,7 @@ func (u *CreateRichDocumentUseCase) Execute(ctx context.Context, in CreateRichDo
 	doc := &domain.RichDocument{
 		OwnerID:       in.OwnerID,
 		CompanyID:     in.CompanyID,
+		WorkspaceID:   in.WorkspaceID,
 		Kind:          in.Kind,
 		Title:         in.Title,
 		IsPublic:      in.IsPublic,

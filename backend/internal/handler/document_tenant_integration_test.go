@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
@@ -73,9 +74,24 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		require.NoError(t, err)
 		return got
 	}
+	// companyWorkspaceID は company の workspace_id を返す（companies.workspace_id を直接引く）。
+	companyWorkspaceID := func(companyID *uint64) *string {
+		if companyID == nil {
+			return nil
+		}
+		var wid uuid.NullUUID
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT workspace_id FROM companies WHERE id = $1`, *companyID).Scan(&wid))
+		if !wid.Valid {
+			return nil
+		}
+		s := wid.UUID.String()
+		return &s
+	}
 	mkDoc := func(owner uint64, companyID *uint64, title string, isPublic bool) *domain.RichDocument {
+		// workspace_id は呼び出し側（usecase）が解決して渡す設計のため、ここでも company から
+		// 明示的に引いて渡す。
 		d := &domain.RichDocument{
-			OwnerID: owner, CompanyID: companyID, Kind: domain.DocumentKindNote,
+			OwnerID: owner, CompanyID: companyID, WorkspaceID: companyWorkspaceID(companyID), Kind: domain.DocumentKindNote,
 			Title: title, IsPublic: isPublic, Doc: tenantDocBody, Revision: 1, SchemaVersion: 1,
 		}
 		require.NoError(t, docRepo.Create(ctx, d))

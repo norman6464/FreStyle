@@ -41,6 +41,15 @@ func currentCompanyID(c *gin.Context) *uint64 {
 	return nil
 }
 
+// currentWorkspaceID は current user の所属ワークスペース ID を返す（未所属/未設定なら nil）。
+// currentCompanyID と対で、作成時に文書へ写す用。
+func currentWorkspaceID(c *gin.Context) *string {
+	if u := middleware.CurrentUserFromContext(c); u != nil {
+		return u.WorkspaceID
+	}
+	return nil
+}
+
 // NewDocumentHandler は DocumentHandler を組み立てる。
 func NewDocumentHandler(
 	g *usecase.GetRichDocumentUseCase,
@@ -212,6 +221,7 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 	doc, err := h.create.Execute(c.Request.Context(), usecase.CreateRichDocumentInput{
 		OwnerID:       uid,
 		CompanyID:     currentCompanyID(c),
+		WorkspaceID:   currentWorkspaceID(c),
 		Kind:          domain.DocumentKind(req.Kind),
 		Title:         req.Title,
 		Doc:           string(req.Doc),

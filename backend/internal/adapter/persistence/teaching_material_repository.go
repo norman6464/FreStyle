@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -207,6 +208,10 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("company_id", m.CompanyID)
 	}
+	workspaceID, ok := nullWorkspaceID(m.WorkspaceID)
+	if !ok {
+		return fmt.Errorf("workspace_id が不正な形式です: %q", *m.WorkspaceID)
+	}
 	courseID, ok := toInt64ID(m.CourseID)
 	if !ok {
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
@@ -228,6 +233,7 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 	}
 	row, err := sqlcgen.New(r.db).InsertChapter(ctx, sqlcgen.InsertChapterParams{
 		CompanyID:       companyID,
+		WorkspaceID:     workspaceID,
 		CourseID:        courseID,
 		CreatedByUserID: createdBy,
 		Title:           m.Title,

@@ -382,6 +382,7 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		require.True(t, ws1.Valid)
+		ws1Str := ws1.UUID.String()
 
 		users := persistence.NewUserRepository(sqlDB)
 		cid := uint64(1)
@@ -391,16 +392,19 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 		author, err := users.FindByCognitoSub(ctx, "sub-author")
 		require.NoError(t, err)
 
+		// courses / course_chapters / rich_documents は usecase 側（actor の所属ワークスペース）が
+		// workspace_id を決めて渡す設計のため、ここでも同じ値を明示して渡す。
 		courses := persistence.NewCourseRepository(sqlDB)
-		course := &domain.Course{CompanyID: 1, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
+		course := &domain.Course{CompanyID: 1, WorkspaceID: &ws1Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
 		require.NoError(t, courses.Create(ctx, course))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が workspace_id を dual-write する")
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が渡された workspace_id を書く")
 
 		materials := persistence.NewTeachingMaterialRepository(sqlDB)
-		chapter := &domain.TeachingMaterial{CompanyID: 1, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
+		chapter := &domain.TeachingMaterial{CompanyID: 1, WorkspaceID: &ws1Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
 		require.NoError(t, materials.Create(ctx, chapter))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が workspace_id を dual-write する")
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が渡された workspace_id を書く")
 
+		// invitations はまだ company_id からの dual-write（SQL 側のサブクエリ）に依存している。
 		invitations := persistence.NewAdminInvitationRepository(sqlDB)
 		inv := &domain.AdminInvitation{
 			CompanyID: 1, Email: "invitee@example.com", Role: domain.RoleTrainee,
@@ -411,11 +415,11 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
-			OwnerID: author.ID, CompanyID: &cid, Kind: domain.DocumentKindNote,
+			OwnerID: author.ID, CompanyID: &cid, WorkspaceID: &ws1Str, Kind: domain.DocumentKindNote,
 			Title: "メモ", Doc: `{"type":"doc","content":[]}`,
 		}
 		require.NoError(t, richDocs.Create(ctx, doc))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が workspace_id を dual-write する")
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が渡された workspace_id を書く")
 	})
 
 	t.Run("会社を持たない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {

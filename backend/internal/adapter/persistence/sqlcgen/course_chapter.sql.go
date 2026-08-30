@@ -131,22 +131,23 @@ INSERT INTO course_chapters
   (company_id, workspace_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
 VALUES (
   $1,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $1),
   $2,
   $3,
   $4,
-  COALESCE(NULLIF($5::bigint, 0), 1),
+  $5,
   COALESCE(NULLIF($6::bigint, 0), 1),
-  COALESCE(NULLIF($7::bigint, 0), 100),
-  $8,
+  COALESCE(NULLIF($7::bigint, 0), 1),
+  COALESCE(NULLIF($8::bigint, 0), 100),
   $9,
-  $10
+  $10,
+  $11
 )
 RETURNING id, revision, schema_version, sort_order, created_at, updated_at
 `
 
 type InsertChapterParams struct {
 	CompanyID       int64
+	WorkspaceID     uuid.NullUUID
 	CourseID        int64
 	CreatedByUserID int64
 	Title           string
@@ -172,11 +173,12 @@ type InsertChapterRow struct {
 // revision / schema_version は 0 のとき既定 1、sort_order は 0 のとき既定 100 を当てる
 // （GORM の `default:` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 //
-// workspace_id は company_id からその場で引く（FRESTYLE-399。理由は course.sql の
-// InsertCourse と同じ）。
+// workspace_id は company_id から引き直さず、呼び出し側（所属コースの workspace_id）が
+// そのまま渡す値をそのまま書く。
 func (q *Queries) InsertChapter(ctx context.Context, arg InsertChapterParams) (InsertChapterRow, error) {
 	row := q.db.QueryRowContext(ctx, insertChapter,
 		arg.CompanyID,
+		arg.WorkspaceID,
 		arg.CourseID,
 		arg.CreatedByUserID,
 		arg.Title,

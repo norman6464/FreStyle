@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
@@ -85,6 +86,10 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("company_id", c.CompanyID)
 	}
+	wid, ok := nullWorkspaceID(c.WorkspaceID)
+	if !ok {
+		return fmt.Errorf("workspace_id が不正な形式です: %q", *c.WorkspaceID)
+	}
 	createdBy, ok := toInt64ID(c.CreatedByUserID)
 	if !ok {
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
@@ -101,6 +106,7 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 	}
 	row, err := sqlcgen.New(r.db).InsertCourse(ctx, sqlcgen.InsertCourseParams{
 		CompanyID:       cid,
+		WorkspaceID:     wid,
 		CreatedByUserID: createdBy,
 		Title:           c.Title,
 		Description:     c.Description,

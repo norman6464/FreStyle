@@ -140,8 +140,8 @@ type InsertInvitationRow struct {
 // （GORM autoCreateTime 相当。ゼロなら now を入れる）。updated_at 列は持たない。
 // token は未設定を NULL にして UNIQUE を避けるため nullable。
 //
-// workspace_id は company_id（$1）からその場で引く（FRESTYLE-399。理由は
-// course.sql の InsertCourse と同じ）。
+// workspace_id は company_id（$1）からその場で引く（理由は course.sql の
+// InsertCourse と同じ）。
 func (q *Queries) InsertInvitation(ctx context.Context, arg InsertInvitationParams) (InsertInvitationRow, error) {
 	row := q.db.QueryRowContext(ctx, insertInvitation,
 		arg.CompanyID,

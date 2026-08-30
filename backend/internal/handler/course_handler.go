@@ -151,21 +151,26 @@ func (h *CourseHandler) Create(c *gin.Context) {
 	if !ok {
 		return
 	}
+	_, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	if !ok {
+		return
+	}
 	var req courseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	course, err := h.uc.Create(c.Request.Context(), usecase.CreateCourseInput{
-		ActorUserID:  uid,
-		ActorCompany: actorCompany,
-		ActorRole:    role,
-		Title:        req.Title,
-		Description:  req.Description,
-		Category:     req.Category,
-		Language:     req.Language,
-		SortOrder:    req.SortOrder,
-		IsPublished:  req.IsPublished,
+		ActorUserID:    uid,
+		ActorCompany:   actorCompany,
+		ActorWorkspace: actorWorkspace,
+		ActorRole:      role,
+		Title:          req.Title,
+		Description:    req.Description,
+		Category:       req.Category,
+		Language:       req.Language,
+		SortOrder:      req.SortOrder,
+		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "コースが見つかりません", "コースの作成に失敗しました")

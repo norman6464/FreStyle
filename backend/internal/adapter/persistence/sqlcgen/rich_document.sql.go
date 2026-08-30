@@ -7,7 +7,6 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 )
 
 const getRichDocumentByID = `-- name: GetRichDocumentByID :one
-SELECT id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
+SELECT id, owner_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
 FROM rich_documents
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -29,7 +28,6 @@ func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (RichDo
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
-		&i.CompanyID,
 		&i.Kind,
 		&i.Title,
 		&i.IsPublic,
@@ -46,7 +44,7 @@ func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (RichDo
 
 const insertRichDocument = `-- name: InsertRichDocument :one
 INSERT INTO rich_documents
-  (id, owner_id, company_id, workspace_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
+  (id, owner_id, workspace_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
 VALUES (
   $1,
   $2,
@@ -54,12 +52,11 @@ VALUES (
   $4,
   $5,
   $6,
-  $7,
-  COALESCE(NULLIF($8::bigint, 0), 1),
-  $9,
-  COALESCE(NULLIF($10::bigint, 0), 1),
-  $11,
-  $12
+  COALESCE(NULLIF($7::bigint, 0), 1),
+  $8,
+  COALESCE(NULLIF($9::bigint, 0), 1),
+  $10,
+  $11
 )
 RETURNING schema_version, revision, created_at, updated_at
 `
@@ -67,7 +64,6 @@ RETURNING schema_version, revision, created_at, updated_at
 type InsertRichDocumentParams struct {
 	ID            uuid.UUID
 	OwnerID       int64
-	CompanyID     sql.NullInt64
 	WorkspaceID   uuid.NullUUID
 	Kind          string
 	Title         string
@@ -91,13 +87,11 @@ type InsertRichDocumentRow struct {
 // ゼロなら呼び出し側で now() を入れる）。schema_version / revision は 0 のとき既定 1 を当てる
 // （GORM の `default:1` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 //
-// workspace_id は company_id から引き直さず、呼び出し側が渡す値をそのまま書く
-// （会社を持たない所有者の文書は呼び出し側が NULL を渡す）。
+// workspace_id は呼び出し側が渡す値をそのまま書く（会社を持たない所有者の文書は NULL）。
 func (q *Queries) InsertRichDocument(ctx context.Context, arg InsertRichDocumentParams) (InsertRichDocumentRow, error) {
 	row := q.db.QueryRowContext(ctx, insertRichDocument,
 		arg.ID,
 		arg.OwnerID,
-		arg.CompanyID,
 		arg.WorkspaceID,
 		arg.Kind,
 		arg.Title,
@@ -119,7 +113,7 @@ func (q *Queries) InsertRichDocument(ctx context.Context, arg InsertRichDocument
 }
 
 const listRichDocumentsByOwner = `-- name: ListRichDocumentsByOwner :many
-SELECT id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at, workspace_id
+SELECT id, owner_id, kind, title, is_public, schema_version, revision, created_at, updated_at, workspace_id
 FROM rich_documents
 WHERE owner_id = $1
   AND deleted_at IS NULL
@@ -135,7 +129,6 @@ type ListRichDocumentsByOwnerParams struct {
 type ListRichDocumentsByOwnerRow struct {
 	ID            uuid.UUID
 	OwnerID       int64
-	CompanyID     sql.NullInt64
 	Kind          string
 	Title         string
 	IsPublic      bool
@@ -160,7 +153,6 @@ func (q *Queries) ListRichDocumentsByOwner(ctx context.Context, arg ListRichDocu
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
-			&i.CompanyID,
 			&i.Kind,
 			&i.Title,
 			&i.IsPublic,
@@ -212,7 +204,7 @@ UPDATE rich_documents SET
   revision       = revision + 1,
   updated_at     = now()
 WHERE id = $5 AND revision = $6 AND deleted_at IS NULL
-RETURNING id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
+RETURNING id, owner_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
 `
 
 type UpdateRichDocumentWithRevisionParams struct {
@@ -240,7 +232,6 @@ func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg Update
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
-		&i.CompanyID,
 		&i.Kind,
 		&i.Title,
 		&i.IsPublic,

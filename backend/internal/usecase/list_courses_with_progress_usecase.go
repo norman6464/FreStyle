@@ -38,7 +38,7 @@ func NewListCoursesWithProgressUseCase(
 
 // ListCoursesWithProgressInput は一覧取得の actor 情報(認証 context 由来)。
 //
-// ActorWorkspace は FRESTYLE-400 段4横展開で ActorCompany（domain.CompanyRef）から
+// ActorWorkspace は ActorCompany（domain.CompanyRef）から
 // 切り替え済み。CourseWithProgress を組む courses / materials の絞り込みが
 // workspace_id 経由になったため。
 type ListCoursesWithProgressInput struct {

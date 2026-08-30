@@ -39,10 +39,6 @@ func (f *fakeCourseRepo) Delete(context.Context, uint64) error         { return 
 // fakeMaterialRepo は repository.TeachingMaterialRepository の no-op fake（Delete cascade 用）。
 type fakeMaterialRepo struct{}
 
-func (fakeMaterialRepo) ListByCompany(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
-	return nil, nil
-}
-
 func (fakeMaterialRepo) ListByWorkspace(context.Context, string, bool) ([]domain.TeachingMaterial, error) {
 	return nil, nil
 }
@@ -93,12 +89,20 @@ func newCourseHandlerWithViews(cr repository.CourseRepository, cv repository.Use
 	)
 }
 
-// superAdminCo は company_id / workspace_id 付きの super_admin
-// （course handler の actorContext / actorWorkspaceContext 用）。
+// courseWorkspaceID は actor と対象コースを同じワークスペースに置くためのテスト用 ID。
+const courseWorkspaceID = "0198a000-0000-7000-8000-0000000000c1"
+
+// superAdminCo は workspace_id 付きの super_admin（course handler の actorWorkspaceFromContext 用）。
 func superAdminCo() *domain.User {
-	cid := uint64(1)
-	wid := "0198a000-0000-7000-8000-0000000000c1"
-	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: &cid, WorkspaceID: &wid}
+	wid := courseWorkspaceID
+	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, WorkspaceID: &wid}
+}
+
+// courseInWorkspace は actor と同じワークスペースに属するコースを組み立てる。
+func courseInWorkspace(c domain.Course) *domain.Course {
+	wid := courseWorkspaceID
+	c.WorkspaceID = &wid
+	return &c
 }
 
 func Test_コースハンドラ_一覧(t *testing.T) {
@@ -135,7 +139,7 @@ func Test_コースハンドラ_取得(t *testing.T) {
 	})
 	t.Run("正常系", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("5"), superAdminCo())
-		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1, Title: "C"}}).Get(c)
+		newCourseHandler(&fakeCourseRepo{one: courseInWorkspace(domain.Course{ID: 5, Title: "C"})}).Get(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
@@ -169,7 +173,7 @@ func Test_コースハンドラ_更新(t *testing.T) {
 	})
 	t.Run("正常系 → 200", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"X"}`, idParam("5"), superAdminCo())
-		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Update(c)
+		newCourseHandler(&fakeCourseRepo{one: courseInWorkspace(domain.Course{ID: 5})}).Update(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
@@ -186,7 +190,7 @@ func Test_コースハンドラ_削除(t *testing.T) {
 	})
 	t.Run("正常系 → 204", func(t *testing.T) {
 		_, c := ctxJSON(http.MethodDelete, "", idParam("5"), superAdminCo())
-		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Delete(c)
+		newCourseHandler(&fakeCourseRepo{one: courseInWorkspace(domain.Course{ID: 5})}).Delete(c)
 		if c.Writer.Status() != http.StatusNoContent {
 			t.Fatalf("want 204, got %d", c.Writer.Status())
 		}
@@ -194,7 +198,7 @@ func Test_コースハンドラ_削除(t *testing.T) {
 }
 
 func Test_コースハンドラ_最終閲覧章(t *testing.T) {
-	course := &domain.Course{ID: 5, CompanyID: 1, IsPublished: true}
+	course := courseInWorkspace(domain.Course{ID: 5, IsPublished: true})
 
 	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("abc"), superAdminCo())

@@ -35,10 +35,8 @@ func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actorWorkspace doma
 }
 
 // canReadCourse は対象コースを actorWorkspace が閲覧できるかを判定する。
-// FRESTYLE-402（段4横展開）: 対象コースとの比較を company_id 直読みから workspace_id 経由へ
-// 切り替え済み。courses.workspace_id は起動時バックフィル + InsertCourse の dual-write
-// （FRESTYLE-399）により、リクエストを捌く時点で必ず埋まっているため company_id との
-// 併用フォールバックは持たない。
+// courses.workspace_id は起動時バックフィルと InsertCourse の書き込みにより、
+// リクエストを捌く時点で必ず埋まっている。
 func canReadCourse(c *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
 	if !courseBelongsToWorkspace(c, actorWorkspace, actorRole) {
 		return false
@@ -63,7 +61,6 @@ func courseBelongsToWorkspace(c *domain.Course, actorWorkspace domain.WorkspaceR
 
 type CreateCourseInput struct {
 	ActorUserID    uint64
-	ActorCompany   domain.CompanyRef
 	ActorWorkspace domain.WorkspaceRef
 	ActorRole      domain.RoleName
 	Title          string
@@ -74,17 +71,13 @@ type CreateCourseInput struct {
 	IsPublished    bool
 }
 
-// Create はコースを作る。workspace_id は company_id からの SQL 側 dual-write に頼らず、
-// actor の所属ワークスペースをそのまま書き込む。
+// Create はコースを作る。所属参照は workspace_id ただ 1 つで、actor の所属ワークスペースを
+// そのまま書き込む。
 func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*domain.Course, error) {
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden: only company_admin or super_admin can create courses")
 	}
 	// 作成したコースの所属先が決まらないため、未所属の actor は super_admin でも作成できない。
-	companyID, affiliated := in.ActorCompany.CompanyID()
-	if !affiliated {
-		return nil, fmt.Errorf("actor must belong to a company")
-	}
 	workspaceID, workspaceAffiliated := in.ActorWorkspace.WorkspaceID()
 	if !workspaceAffiliated {
 		return nil, fmt.Errorf("actor must belong to a workspace")
@@ -93,7 +86,6 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 		return nil, fmt.Errorf("invalid course category: %s", in.Category)
 	}
 	c := &domain.Course{
-		CompanyID:       companyID,
 		WorkspaceID:     &workspaceID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,

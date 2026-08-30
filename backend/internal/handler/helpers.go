@@ -11,22 +11,11 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 )
 
-// actorFromContext は middleware が注入した current user から (userID, company, role) を取り出す。
-// 未認証なら 401 を書き込んで ok=false を返すので、呼び出し側は ok を見て早期 return する。
-// 各 handler が同じ「user 取得 + 401」を書かずに済むための共通小道具。
-// company は未所属(company_id = NULL)を表せる domain.CompanyRef で、0 には潰さない。
-func actorFromContext(c *gin.Context) (userID uint64, company domain.CompanyRef, role domain.RoleName, ok bool) {
-	user := middleware.CurrentUserFromContext(c)
-	if user == nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return 0, domain.NoCompany(), "", false
-	}
-	return user.ID, user.CompanyRef(), user.Role, true
-}
-
-// actorWorkspaceFromContext は actorFromContext の workspace 版。読み取りが workspace_id
-// 経由へ切り替わった handler（FRESTYLE-355 段4）が使う。company_id 直読みのまま残る他の
-// handler は引き続き actorFromContext を使うため、既存の関数は変更せずこちらを新設した。
+// actorWorkspaceFromContext は middleware が注入した current user から
+// (userID, workspace, role) を取り出す。未認証なら 401 を書き込んで ok=false を返すので、
+// 呼び出し側は ok を見て早期 return する。各 handler が同じ「user 取得 + 401」を書かずに
+// 済むための共通小道具。workspace は未所属(workspace_id = NULL)を表せる
+// domain.WorkspaceRef で、空文字には潰さない。
 func actorWorkspaceFromContext(c *gin.Context) (userID uint64, workspace domain.WorkspaceRef, role domain.RoleName, ok bool) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
@@ -37,14 +26,14 @@ func actorWorkspaceFromContext(c *gin.Context) (userID uint64, workspace domain.
 }
 
 // respondEntityErr は usecase が返したエラーを HTTP ステータスへ振り分ける共通処理。
-// レコード未検出は 404(notFoundMsg)、認可エラー(forbidden* / 会社未所属)は 403、
+// レコード未検出は 404(notFoundMsg)、認可エラー(forbidden* / ワークスペース未所属)は 403、
 // それ以外は 500(fallback) を返す。エンティティ別の文言は notFoundMsg / fallback で渡す。
 func respondEntityErr(c *gin.Context, err error, notFoundMsg, fallback string) {
 	if errors.Is(err, domain.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": notFoundMsg})
 		return
 	}
-	if strings.HasPrefix(err.Error(), "forbidden") || err.Error() == "actor must belong to a company" {
+	if strings.HasPrefix(err.Error(), "forbidden") || err.Error() == "actor must belong to a workspace" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "操作権限がありません"})
 		return
 	}

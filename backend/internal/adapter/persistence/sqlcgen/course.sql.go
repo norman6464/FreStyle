@@ -34,7 +34,7 @@ func (q *Queries) DeleteCourse(ctx context.Context, id int64) (int64, error) {
 }
 
 const getCourseByID = `-- name: GetCourseByID :one
-SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
+SELECT id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
 WHERE id = $1
 `
 
@@ -44,7 +44,6 @@ func (q *Queries) GetCourseByID(ctx context.Context, id int64) (Course, error) {
 	var i Course
 	err := row.Scan(
 		&i.ID,
-		&i.CompanyID,
 		&i.CreatedByUserID,
 		&i.Title,
 		&i.Description,
@@ -61,7 +60,7 @@ func (q *Queries) GetCourseByID(ctx context.Context, id int64) (Course, error) {
 
 const insertCourse = `-- name: InsertCourse :one
 INSERT INTO courses
-  (company_id, workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
+  (workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
 VALUES (
   $1,
   $2,
@@ -69,17 +68,15 @@ VALUES (
   $4,
   $5,
   $6,
-  $7,
-  COALESCE(NULLIF($8::bigint, 0), 100),
+  COALESCE(NULLIF($7::bigint, 0), 100),
+  $8,
   $9,
-  $10,
-  $11
+  $10
 )
 RETURNING id, sort_order, created_at, updated_at
 `
 
 type InsertCourseParams struct {
-	CompanyID       int64
 	WorkspaceID     uuid.NullUUID
 	CreatedByUserID int64
 	Title           string
@@ -104,11 +101,9 @@ type InsertCourseRow struct {
 // ゼロなら呼び出し側で now() を入れる）。sort_order は 0 のとき既定 100 を当てる
 // （GORM の `default:100` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 //
-// workspace_id は company_id から引き直さず、呼び出し側（actor の所属ワークスペース）が
-// そのまま渡す値をそのまま書く。
+// workspace_id は呼び出し側（actor の所属ワークスペース）が渡す値をそのまま書く。
 func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (InsertCourseRow, error) {
 	row := q.db.QueryRowContext(ctx, insertCourse,
-		arg.CompanyID,
 		arg.WorkspaceID,
 		arg.CreatedByUserID,
 		arg.Title,
@@ -131,7 +126,7 @@ func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (Ins
 }
 
 const listCoursesByWorkspace = `-- name: ListCoursesByWorkspace :many
-SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
+SELECT id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
 WHERE workspace_id = $1
   AND ($2::bool OR is_published = TRUE)
 ORDER BY sort_order ASC, id ASC
@@ -144,8 +139,6 @@ type ListCoursesByWorkspaceParams struct {
 
 // 自社のコースを sort_order 昇順（同値時 id 昇順）で返す。
 // include_unpublished=false なら公開済み（is_published=true）のみに絞る。
-//
-// FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
 func (q *Queries) ListCoursesByWorkspace(ctx context.Context, arg ListCoursesByWorkspaceParams) ([]Course, error) {
 	rows, err := q.db.QueryContext(ctx, listCoursesByWorkspace, arg.WorkspaceID, arg.IncludeUnpublished)
 	if err != nil {
@@ -157,7 +150,6 @@ func (q *Queries) ListCoursesByWorkspace(ctx context.Context, arg ListCoursesByW
 		var i Course
 		if err := rows.Scan(
 			&i.ID,
-			&i.CompanyID,
 			&i.CreatedByUserID,
 			&i.Title,
 			&i.Description,
@@ -202,7 +194,7 @@ type UpdateCourseParams struct {
 }
 
 // コースを部分更新する。書くのは title / description / sort_order / is_published の 4 列だけで、
-// created_by_user_id / company_id / category / language / created_at は不変（GORM の Updates(map) と同じ）。
+// created_by_user_id / category / language / created_at は不変（GORM の Updates(map) と同じ）。
 // updated_at は now() へ進めて RETURNING で書き戻す（autoUpdateTime 相当）。
 func (q *Queries) UpdateCourse(ctx context.Context, arg UpdateCourseParams) (time.Time, error) {
 	row := q.db.QueryRowContext(ctx, updateCourse,

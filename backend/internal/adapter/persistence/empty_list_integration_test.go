@@ -50,9 +50,9 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name: "招待一覧（会社別）",
+			name: "招待一覧（ワークスペース別）",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewAdminInvitationRepository(db).ListByCompanyID(ctx, noSuchID)
+				return persistence.NewAdminInvitationRepository(db).ListByWorkspaceID(ctx, noSuchWorkspaceID)
 			},
 		},
 		{
@@ -69,9 +69,9 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name: "教材一覧（会社別）",
+			name: "教材一覧（ワークスペース別）",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewTeachingMaterialRepository(db).ListByCompany(ctx, noSuchID, true)
+				return persistence.NewTeachingMaterialRepository(db).ListByWorkspace(ctx, noSuchWorkspaceID, true)
 			},
 		},
 		{
@@ -108,14 +108,14 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name:     "会社ごとの在籍数",
+			name:     "ワークスペースごとの在籍数",
 			truncate: []string{"users"},
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewCompanyStatsRepository(db).CountMembersByCompany(ctx)
+				return persistence.NewCompanyStatsRepository(db).CountMembersByWorkspace(ctx)
 			},
 		},
 		{
-			name: "会社の在籍ユーザー一覧",
+			name: "ワークスペースの在籍ユーザー一覧",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				return persistence.NewUserRepository(db).ListByWorkspaceID(ctx, noSuchWorkspaceID)
 			},

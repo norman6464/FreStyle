@@ -72,8 +72,6 @@ definitions:
     properties:
       category:
         type: string
-      companyId:
-        type: integer
       createdAt:
         type: string
       createdByUserId:
@@ -97,8 +95,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission:
@@ -281,8 +279,6 @@ definitions:
     - RoleTrainee
   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial:
     properties:
-      companyId:
-        type: integer
       courseId:
         type: integer
       createdAt:
@@ -307,8 +303,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView:
@@ -441,8 +437,6 @@ definitions:
     properties:
       category:
         type: string
-      companyId:
-        type: integer
       completedCount:
         description: CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount
           以下)。
@@ -473,8 +467,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput:
@@ -562,8 +556,6 @@ definitions:
     type: object
   internal_handler.chapterDetailResponse:
     properties:
-      companyId:
-        type: integer
       courseId:
         type: integer
       createdAt:
@@ -592,8 +584,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   internal_handler.codeExecuteRequest:
@@ -700,9 +692,6 @@ definitions:
     type: object
   internal_handler.documentResponse:
     properties:
-      companyId:
-        example: 1
-        type: integer
       createdAt:
         type: string
       doc:
@@ -735,9 +724,6 @@ definitions:
     type: object
   internal_handler.documentSummaryResponse:
     properties:
-      companyId:
-        example: 1
-        type: integer
       createdAt:
         type: string
       id:

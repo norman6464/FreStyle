@@ -5834,9 +5834,6 @@ const docTemplate = `{
                 "category": {
                     "type": "string"
                 },
-                "companyId": {
-                    "type": "integer"
-                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -5866,7 +5863,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。",
+                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -6135,9 +6132,6 @@ const docTemplate = `{
         "github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer"
-                },
                 "courseId": {
                     "type": "integer"
                 },
@@ -6171,7 +6165,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。",
+                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -6359,9 +6353,6 @@ const docTemplate = `{
                 "category": {
                     "type": "string"
                 },
-                "companyId": {
-                    "type": "integer"
-                },
                 "completedCount": {
                     "description": "CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。",
                     "type": "integer"
@@ -6399,7 +6390,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。",
+                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -6534,9 +6525,6 @@ const docTemplate = `{
         "internal_handler.chapterDetailResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer"
-                },
                 "courseId": {
                     "type": "integer"
                 },
@@ -6576,7 +6564,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。",
+                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -6722,10 +6710,6 @@ const docTemplate = `{
         "internal_handler.documentResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -6771,10 +6755,6 @@ const docTemplate = `{
         "internal_handler.documentSummaryResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "createdAt": {
                     "type": "string"
                 },

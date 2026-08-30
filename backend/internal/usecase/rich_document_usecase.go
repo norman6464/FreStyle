@@ -167,7 +167,6 @@ func (u *CreateRichDocumentUseCase) Execute(ctx context.Context, in CreateRichDo
 	}
 	doc := &domain.RichDocument{
 		OwnerID:       in.OwnerID,
-		CompanyID:     in.CompanyID,
 		WorkspaceID:   in.WorkspaceID,
 		Kind:          in.Kind,
 		Title:         in.Title,

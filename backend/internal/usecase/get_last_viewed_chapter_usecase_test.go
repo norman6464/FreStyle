@@ -22,7 +22,7 @@ func chapterViewRepo(lastViewed *domain.UserChapterView, getErr error) *mockChap
 }
 
 func Test_最終閲覧章_履歴があれば返す(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	view := &domain.UserChapterView{UserID: 7, TeachingMaterialID: 42, CourseID: 5, LastViewedAt: time.Now()}
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(view, nil))
 
@@ -35,7 +35,7 @@ func Test_最終閲覧章_履歴があれば返す(t *testing.T) {
 }
 
 func Test_最終閲覧章_履歴なしはnilを返す(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	got, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
@@ -45,8 +45,8 @@ func Test_最終閲覧章_履歴なしはnilを返す(t *testing.T) {
 	assert.Nil(t, got, "初めて開くコースは履歴なし = 正常系")
 }
 
-func Test_最終閲覧章_他社コースは禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+func Test_最終閲覧章_別ワークスペースのコースは禁止(t *testing.T) {
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
@@ -57,7 +57,7 @@ func Test_最終閲覧章_他社コースは禁止(t *testing.T) {
 }
 
 func Test_最終閲覧章_traineeは未公開コース禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: false}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{

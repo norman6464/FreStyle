@@ -88,10 +88,10 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		return &s
 	}
 	mkDoc := func(owner uint64, companyID *uint64, title string, isPublic bool) *domain.RichDocument {
-		// workspace_id は呼び出し側（usecase）が解決して渡す設計のため、ここでも company から
-		// 明示的に引いて渡す。
+		// rich_documents の所属参照は workspace_id だけになった。呼び出し側（usecase）が
+		// 解決して渡す設計なので、ここでも会社から明示的に引いて渡す。
 		d := &domain.RichDocument{
-			OwnerID: owner, CompanyID: companyID, WorkspaceID: companyWorkspaceID(companyID), Kind: domain.DocumentKindNote,
+			OwnerID: owner, WorkspaceID: companyWorkspaceID(companyID), Kind: domain.DocumentKindNote,
 			Title: title, IsPublic: isPublic, Doc: tenantDocBody, Revision: 1, SchemaVersion: 1,
 		}
 		require.NoError(t, docRepo.Create(ctx, d))

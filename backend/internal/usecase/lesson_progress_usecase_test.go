@@ -50,13 +50,13 @@ func progressRepo(cfg progressFakeConfig) (*mockProgressRepo, *progressStore) {
 	return repo, st
 }
 
-// publishedSetup は「自社・公開教材・公開コース」の正常に完了できる組み合わせを作る。
-func publishedSetup(materialID, companyID, courseID uint64) (*mockMaterialRepo, *mockCourseRepo) {
+// publishedSetup は「同一ワークスペース（wsA）・公開教材・公開コース」の正常に完了できる組み合わせを作る。
+func publishedSetup(materialID, courseID uint64) (*mockMaterialRepo, *mockCourseRepo) {
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: materialID, CompanyID: companyID, CourseID: courseID, WorkspaceID: strPtr(wsA), IsPublished: true,
+		ID: materialID, CourseID: courseID, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})
 	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{
-		ID: courseID, CompanyID: companyID, WorkspaceID: strPtr(wsA), IsPublished: true,
+		ID: courseID, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})
 	return mat, crs
 }
@@ -72,9 +72,9 @@ func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time
 	return nil, nil
 }
 
-func Test_レッスン完了_自社の公開教材はcourse_idを解決して記録する(t *testing.T) {
+func Test_レッスン完了_同一ワークスペースの公開教材はcourse_idを解決して記録する(t *testing.T) {
 	progress, pstore := progressRepo(progressFakeConfig{})
-	mat, crs := publishedSetup(5, 10, 99)
+	mat, crs := publishedSetup(5, 99)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
@@ -84,9 +84,9 @@ func Test_レッスン完了_自社の公開教材はcourse_idを解決して記
 	assert.Equal(t, uint64(99), pstore.completed[5]) // 教材の course_id が使われる
 }
 
-func Test_レッスン完了_他社の教材は403相当で弾く(t *testing.T) {
+func Test_レッスン完了_別ワークスペースの教材は403相当で弾く(t *testing.T) {
 	progress, pstore := progressRepo(progressFakeConfig{})
-	mat, crs := publishedSetup(5, 10, 99) // company 10 の教材
+	mat, crs := publishedSetup(5, 99) // wsA の教材
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
@@ -99,9 +99,9 @@ func Test_レッスン完了_他社の教材は403相当で弾く(t *testing.T) 
 func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testing.T) {
 	progress, _ := progressRepo(progressFakeConfig{})
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 5, CompanyID: 10, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: false, // 下書き
+		ID: 5, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: false, // 下書き
 	}})
-	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
@@ -124,7 +124,7 @@ func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 func Test_レッスン完了_記録失敗を伝播(t *testing.T) {
 	wantErr := errors.New("db")
 	progress, _ := progressRepo(progressFakeConfig{completeErr: wantErr})
-	mat, crs := publishedSetup(5, 10, 1)
+	mat, crs := publishedSetup(5, 1)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{

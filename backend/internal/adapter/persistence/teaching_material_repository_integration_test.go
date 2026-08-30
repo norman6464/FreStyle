@@ -22,9 +22,9 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
-	mk := func(companyID uint64, workspaceID *string, courseID uint64, title string, published bool) *domain.TeachingMaterial {
+	mk := func(workspaceID *string, courseID uint64, title string, published bool) *domain.TeachingMaterial {
 		return &domain.TeachingMaterial{
-			CompanyID: companyID, WorkspaceID: workspaceID, CourseID: courseID, CreatedByUserID: 1,
+			WorkspaceID: workspaceID, CourseID: courseID, CreatedByUserID: 1,
 			Title: title, OrderInCourse: 1, IsPublished: published,
 		}
 	}
@@ -41,13 +41,13 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	ws2Str := ws2.UUID.String()
 
 	// Create は呼び出し側（usecase）が解決した workspace_id をそのまま書く。
-	// 会社 A: course 10 に published 2 + draft 1、course 20 に published 1
-	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 10, "c10-pub-1", true)))
-	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 10, "c10-pub-2", true)))
-	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 10, "c10-draft", false)))
-	require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, 20, "c20-pub", true)))
-	// 会社 B: 他社分は集計に含まれない
-	require.NoError(t, repo.Create(ctx, mk(2, &ws2Str, 10, "other-company", true)))
+	// ワークスペース A: course 10 に published 2 + draft 1、course 20 に published 1
+	require.NoError(t, repo.Create(ctx, mk(&ws1Str, 10, "c10-pub-1", true)))
+	require.NoError(t, repo.Create(ctx, mk(&ws1Str, 10, "c10-pub-2", true)))
+	require.NoError(t, repo.Create(ctx, mk(&ws1Str, 10, "c10-draft", false)))
+	require.NoError(t, repo.Create(ctx, mk(&ws1Str, 20, "c20-pub", true)))
+	// ワークスペース B: 別ワークスペース分は集計に含まれない
+	require.NoError(t, repo.Create(ctx, mk(&ws2Str, 10, "other-workspace", true)))
 
 	t.Run("published のみ (trainee 相当)", func(t *testing.T) {
 		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), false)
@@ -77,7 +77,7 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 
 	testsupport.TruncateAll(t, sqlDB, "course_chapters")
 	m := &domain.TeachingMaterial{
-		CompanyID: 1, CourseID: 10, CreatedByUserID: 1,
+		CourseID: 10, CreatedByUserID: 1,
 		Title: "章", OrderInCourse: 1, IsPublished: true,
 	}
 	require.NoError(t, repo.Create(ctx, m))
@@ -118,16 +118,16 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
-	mk := func(companyID, courseID uint64, title string, order int, published bool) *domain.TeachingMaterial {
+	mk := func(courseID uint64, title string, order int, published bool) *domain.TeachingMaterial {
 		return &domain.TeachingMaterial{
-			CompanyID: companyID, CourseID: courseID, CreatedByUserID: 7,
+			CourseID: courseID, CreatedByUserID: 7,
 			Title: title, OrderInCourse: order, IsPublished: published,
 		}
 	}
 
 	t.Run("Create は id 採番・既定 revision/schema_version=1・created_at を現在時刻で埋める", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		m := mk(1, 10, "章", 1, true)
+		m := mk(10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.NotZero(t, m.ID)
 		require.Equal(t, 1, m.Revision)      // GORM default:1 相当
@@ -138,7 +138,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Create は sort_order=0 のとき既定 100 を当てる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		m := mk(1, 10, "章", 0, true)
+		m := mk(10, "章", 0, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.Equal(t, 100, m.OrderInCourse) // GORM default:100 相当
 	})
@@ -148,7 +148,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		// revision / schema_version / sort_order はいずれも bigint 列。パラメータを int4 に
 		// 落とすとこの値は負数へ巻き戻り、エラーも出ないまま別の値が保存される。
 		const beyondInt32 = math.MaxInt32 + 1
-		m := mk(1, 10, "章", beyondInt32, true)
+		m := mk(10, "章", beyondInt32, true)
 		m.Revision = beyondInt32
 		m.SchemaVersion = beyondInt32
 		require.NoError(t, repo.Create(ctx, m))
@@ -168,15 +168,14 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.True(t, ws1.Valid)
 		ws1Str := ws1.UUID.String()
 
-		m := mk(1, 10, "章", 1, true)
+		m := mk(10, "章", 1, true)
 		m.WorkspaceID = &ws1Str
 		require.NoError(t, repo.Create(ctx, m))
 		// doc を入れてから GetByID で本文込みで往復することを確認する。
 		doc := `{"type":"doc","content":[{"type":"paragraph"}]}`
 		updated, err := repo.UpdateDocWithRevision(ctx, m.ID, doc, 1)
 		require.NoError(t, err)
-		// FRESTYLE-403: UpdateChapterDocWithRevision の RETURNING にも workspace_id を
-		// 追加したため、更新直後の戻り値でも取得できることを確認する。
+		// UpdateDocWithRevision の戻り値にも workspace_id が含まれること。
 		require.NotNil(t, updated.WorkspaceID)
 		require.Equal(t, ws1.UUID.String(), *updated.WorkspaceID)
 
@@ -185,7 +184,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, "章", got.Title)
 		require.NotNil(t, got.Doc)
 		require.Contains(t, *got.Doc, "paragraph")
-		// FRESTYLE-403: GetByID が workspace_id も返すこと（canRead の対象側比較が使う値）。
+		// GetByID が workspace_id も返すこと（canRead の対象側比較が使う値）。
 		require.NotNil(t, got.WorkspaceID)
 		require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
 
@@ -195,10 +194,10 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("ListByCourse は sort_order 昇順・published フィルタ・doc 本体なし", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		c3 := mk(1, 10, "c3", 3, true)
-		c1 := mk(1, 10, "c1", 1, true)
-		c2 := mk(1, 10, "c2", 2, false) // draft
-		other := mk(1, 20, "other-course", 1, true)
+		c3 := mk(10, "c3", 3, true)
+		c1 := mk(10, "c1", 1, true)
+		c2 := mk(10, "c2", 2, false) // draft
+		other := mk(20, "other-course", 1, true)
 		for _, m := range []*domain.TeachingMaterial{c3, c1, c2, other} {
 			require.NoError(t, repo.Create(ctx, m))
 		}
@@ -223,37 +222,6 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, []string{"c1", "c2", "c3"}, []string{all[0].Title, all[1].Title, all[2].Title})
 	})
 
-	t.Run("ListByCompany は会社で絞り・published フィルタ・更新日降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		a := mk(1, 10, "a", 1, true)
-		b := mk(1, 20, "b", 1, false) // draft
-		foreign := mk(2, 10, "foreign", 1, true)
-		for _, m := range []*domain.TeachingMaterial{a, b, foreign} {
-			require.NoError(t, repo.Create(ctx, m))
-		}
-		// a に doc を入れておく（それでも一覧は doc を返さないことを確認する）。
-		// updated_at を now() へ進めるので、先に済ませてから並び順を固定する。
-		_, err := repo.UpdateDocWithRevision(ctx, a.ID, `{"type":"doc","content":[]}`, 1)
-		require.NoError(t, err)
-		// updated_at を明示的に置いて降順を固定する（Go 時計と DB 時計の差でフレークしないように）。
-		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = $1`, b.ID)
-		require.NoError(t, err)
-		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = $1`, a.ID)
-		require.NoError(t, err)
-
-		pub, err := repo.ListByCompany(ctx, 1, false)
-		require.NoError(t, err)
-		require.Len(t, pub, 1) // published の a のみ（b は draft、foreign は他社）
-		require.Equal(t, "a", pub[0].Title)
-		require.Nil(t, pub[0].Doc) // 一覧は本文を読み込まない（応答でも json:"-" で出ない）
-
-		all, err := repo.ListByCompany(ctx, 1, true)
-		require.NoError(t, err)
-		require.Len(t, all, 2)
-		require.Equal(t, "a", all[0].Title) // updated_at 降順
-		require.Equal(t, "b", all[1].Title)
-	})
-
 	t.Run("ListByWorkspace はワークスペースで絞り・published フィルタ・更新日降順", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
@@ -267,11 +235,11 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		ws1Str := ws1.UUID.String()
 		ws2Str := ws2.UUID.String()
 
-		a := mk(1, 10, "a", 1, true)
+		a := mk(10, "a", 1, true)
 		a.WorkspaceID = &ws1Str
-		b := mk(1, 20, "b", 1, false) // draft
+		b := mk(20, "b", 1, false) // draft
 		b.WorkspaceID = &ws1Str
-		foreign := mk(2, 10, "foreign", 1, true)
+		foreign := mk(10, "foreign", 1, true)
 		foreign.WorkspaceID = &ws2Str
 		for _, m := range []*domain.TeachingMaterial{a, b, foreign} {
 			require.NoError(t, repo.Create(ctx, m))
@@ -312,7 +280,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Empty(t, invalid, "不正な形式の ID も該当なし扱い")
 	})
 
-	t.Run("ListByCourse / ListByCompany は workspace_id も含めて返す", func(t *testing.T) {
+	t.Run("ListByCourse / ListByWorkspace は workspace_id も含めて返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
@@ -320,7 +288,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.True(t, ws1.Valid)
 		ws1Str := ws1.UUID.String()
 
-		m := mk(1, 10, "章", 1, true)
+		m := mk(10, "章", 1, true)
 		m.WorkspaceID = &ws1Str
 		require.NoError(t, repo.Create(ctx, m))
 
@@ -330,16 +298,23 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.NotNil(t, byCourse[0].WorkspaceID)
 		require.Equal(t, ws1.UUID.String(), *byCourse[0].WorkspaceID)
 
-		byCompany, err := repo.ListByCompany(ctx, 1, true)
+		byWorkspace, err := repo.ListByWorkspace(ctx, ws1Str, true)
 		require.NoError(t, err)
-		require.Len(t, byCompany, 1)
-		require.NotNil(t, byCompany[0].WorkspaceID)
-		require.Equal(t, ws1.UUID.String(), *byCompany[0].WorkspaceID)
+		require.Len(t, byWorkspace, 1)
+		require.NotNil(t, byWorkspace[0].WorkspaceID)
+		require.Equal(t, ws1.UUID.String(), *byWorkspace[0].WorkspaceID)
 	})
 
 	t.Run("Update は title/sort_order/is_published を書き・不変列を保ち・updated_at を進める", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		m := mk(1, 10, "旧", 1, false)
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1Str := companyWorkspaceID(t, sqlDB, 1).UUID.String()
+		ws2Str := companyWorkspaceID(t, sqlDB, 2).UUID.String()
+
+		m := mk(10, "旧", 1, false)
+		m.WorkspaceID = &ws1Str
 		require.NoError(t, repo.Create(ctx, m))
 		// doc を入れて revision を 2 に進めておく（Update が doc/revision を触らないことの確認用）。
 		_, err := repo.UpdateDocWithRevision(ctx, m.ID, `{"type":"doc","content":[]}`, 1)
@@ -351,6 +326,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		m.Title = "新"
 		m.OrderInCourse = 5
 		m.IsPublished = true
+		m.WorkspaceID = &ws2Str // 更新対象外なので書かれてはいけない
 		require.NoError(t, repo.Update(ctx, m))
 
 		got, err := repo.GetByID(ctx, m.ID)
@@ -358,7 +334,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, "新", got.Title)
 		require.Equal(t, 5, got.OrderInCourse)
 		require.True(t, got.IsPublished)
-		require.Equal(t, uint64(1), got.CompanyID)                        // 不変
+		require.Equal(t, ws1Str, *got.WorkspaceID)                        // 不変
 		require.Equal(t, uint64(10), got.CourseID)                        // 不変
 		require.Equal(t, uint64(7), got.CreatedByUserID)                  // 不変
 		require.Equal(t, 2, got.Revision)                                 // 不変（doc 更新の版のまま）
@@ -369,10 +345,10 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	t.Run("Update は存在しない id で domain.ErrNotFound を返す（黙って成功にしない）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		// 巻き添えで他の行が書き換わらないことも同時に見るため 1 件だけ残しておく。
-		keep := mk(1, 10, "残す", 1, true)
+		keep := mk(10, "残す", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
 
-		ghost := mk(1, 10, "消えた章", 1, true)
+		ghost := mk(10, "消えた章", 1, true)
 		ghost.ID = 999999
 		require.ErrorIs(t, repo.Update(ctx, ghost), domain.ErrNotFound)
 
@@ -383,7 +359,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Update は取得後に消えた章でも domain.ErrNotFound を返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		m := mk(1, 10, "章", 1, true)
+		m := mk(10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		// usecase は Update の前に GetByID する。その隙に行が消える競合を再現する。
 		require.NoError(t, repo.Delete(ctx, m.ID))
@@ -405,7 +381,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	//   not-found にすると空のコースを削除できなくなる。
 	t.Run("存在しない id への Delete は not-found / DeleteByCourse は 0 件でも成功", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		keep := mk(1, 20, "keep", 1, true)
+		keep := mk(20, "keep", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
 
 		require.ErrorIs(t, repo.Delete(ctx, 999999), domain.ErrNotFound)
@@ -418,7 +394,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Delete は 1 件を物理削除する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		m := mk(1, 10, "章", 1, true)
+		m := mk(10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.NoError(t, repo.Delete(ctx, m.ID))
 		_, err := repo.GetByID(ctx, m.ID)
@@ -427,9 +403,9 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("DeleteByCourse はコース配下を全削除し他コースは残す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
-		a1 := mk(1, 10, "a1", 1, true)
-		a2 := mk(1, 10, "a2", 2, true)
-		keep := mk(1, 20, "keep", 1, true)
+		a1 := mk(10, "a1", 1, true)
+		a2 := mk(10, "a2", 2, true)
+		keep := mk(20, "keep", 1, true)
 		for _, m := range []*domain.TeachingMaterial{a1, a2, keep} {
 			require.NoError(t, repo.Create(ctx, m))
 		}

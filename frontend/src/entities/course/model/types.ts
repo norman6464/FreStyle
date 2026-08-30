@@ -10,14 +10,14 @@ import type { RichDocContent } from '@/shared/ui/RichTextEditor';
 /**
  * Course は教材を束ねる「コース（プロジェクト）」。 backend `domain.Course` と 1:1。
  *
- * 階層: Company 1 ── * Course 1 ── * TeachingMaterial
+ * 階層: Workspace 1 ── * Course 1 ── * TeachingMaterial
  *
  * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
  * - trainee: 自社の `isPublished=true` コースのみ閲覧可
  */
 export interface Course {
   id: number;
-  companyId: number;
+  workspaceId?: string;
   createdByUserId: number;
   title: string;
   description: string;
@@ -51,7 +51,7 @@ export interface CourseWithProgress extends Course {
  */
 export interface TeachingMaterial {
   id: number;
-  companyId: number;
+  workspaceId?: string;
   courseId: number;
   createdByUserId: number;
   title: string;

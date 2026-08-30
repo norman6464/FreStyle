@@ -59,10 +59,6 @@ func toDomainRichDocument(row richDocumentRow) domain.RichDocument {
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 	}
-	if row.CompanyID.Valid {
-		c := uint64(row.CompanyID.Int64)
-		d.CompanyID = &c
-	}
 	if row.DeletedAt.Valid {
 		t := row.DeletedAt.Time
 		d.DeletedAt = &t
@@ -87,27 +83,11 @@ func toDomainRichDocumentSummary(row sqlcgen.ListRichDocumentsByOwnerRow) domain
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 	}
-	if row.CompanyID.Valid {
-		c := uint64(row.CompanyID.Int64)
-		d.CompanyID = &c
-	}
 	if row.WorkspaceID.Valid {
 		wid := row.WorkspaceID.UUID.String()
 		d.WorkspaceID = &wid
 	}
 	return d
-}
-
-// nullCompanyID は *uint64 の会社 ID を sql.NullInt64 へ変換する（NULL 可）。
-func nullCompanyID(companyID *uint64) (sql.NullInt64, bool) {
-	if companyID == nil {
-		return sql.NullInt64{}, true
-	}
-	cid, ok := toInt64ID(*companyID)
-	if !ok {
-		return sql.NullInt64{}, false
-	}
-	return sql.NullInt64{Int64: cid, Valid: true}, true
 }
 
 func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDocument) error {
@@ -130,12 +110,6 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("owner_id", doc.OwnerID)
 	}
-	companyID, ok := nullCompanyID(doc.CompanyID)
-	if !ok {
-		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
-		// nullCompanyID は nil のとき必ず ok=true なので、ここでは非 nil が保証される。
-		return outOfRangeIDError("company_id", *doc.CompanyID)
-	}
 	workspaceID, ok := nullWorkspaceID(doc.WorkspaceID)
 	if !ok {
 		return fmt.Errorf("workspace_id が不正な形式です: %q", *doc.WorkspaceID)
@@ -152,7 +126,6 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 	row, err := sqlcgen.New(r.db).InsertRichDocument(ctx, sqlcgen.InsertRichDocumentParams{
 		ID:            id,
 		OwnerID:       ownerID,
-		CompanyID:     companyID,
 		WorkspaceID:   workspaceID,
 		Kind:          string(doc.Kind),
 		Title:         doc.Title,

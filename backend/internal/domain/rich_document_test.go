@@ -57,17 +57,6 @@ func Test_RichDocument_CanBeReadBy(t *testing.T) {
 	}
 }
 
-func Test_RichDocument_CompanyRef(t *testing.T) {
-	if _, affiliated := (&RichDocument{}).CompanyRef().CompanyID(); affiliated {
-		t.Fatal("company_id が NULL の文書は未所属を返すべき")
-	}
-	id := uint64(3)
-	got, affiliated := (&RichDocument{CompanyID: &id}).CompanyRef().CompanyID()
-	if !affiliated || got != id {
-		t.Fatalf("CompanyRef() = (%d, %v), want (3, true)", got, affiliated)
-	}
-}
-
 func Test_RichDocument_WorkspaceRef(t *testing.T) {
 	if _, affiliated := (&RichDocument{}).WorkspaceRef().WorkspaceID(); affiliated {
 		t.Fatal("workspace_id が NULL の文書は未所属を返すべき")

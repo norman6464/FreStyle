@@ -70,7 +70,7 @@
 -- 型と NULL 可否の方針:
 --   created_at / updated_at はアプリが必ず値を入れるため NOT NULL とする（sqlc が sql.NullTime では
 --   なく time.Time を生成し、domain への詰め替えが素直になる）。同じ理由で、アプリが必ず値を入れる
---   文字列・数値も NOT NULL + DEFAULT を付ける。実際に NULL を取り得るもの（未所属の company_id、
+--   文字列・数値も NOT NULL + DEFAULT を付ける。実際に NULL を取り得るもの（未所属の workspace_id、
 --   論理削除の deleted_at、任意項目の hint_text など）だけ nullable にする。
 
 -- 演習の入力例 / 期待出力例。(exercise_id, order_index) は同一問題内で一意。
@@ -183,7 +183,6 @@ CREATE TABLE IF NOT EXISTS companies (
 -- 教材コース。
 CREATE TABLE IF NOT EXISTS courses (
     id                 bigserial PRIMARY KEY,
-    company_id         bigint NOT NULL,
     created_by_user_id bigint NOT NULL,
     title              text NOT NULL DEFAULT '',
     description        text NOT NULL DEFAULT '',
@@ -194,10 +193,9 @@ CREATE TABLE IF NOT EXISTS courses (
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id       uuid
 );
-CREATE INDEX IF NOT EXISTS idx_courses_company_id ON courses (company_id);
 
 -- 運営 / 管理者の重要操作の監査記録。
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -226,11 +224,11 @@ CREATE TABLE IF NOT EXISTS invitations (
     expires_at   timestamptz NOT NULL,
     created_at   timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- invitations は company_id をまだ所属の正本として読み書きしており、この列は写し
+    -- （撤去は後続のチケット）。毎起動の移送がレガシー行の workspace_id を埋め続ける。
     workspace_id uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
-CREATE INDEX IF NOT EXISTS idx_invitations_company_id ON invitations (company_id);
 
 -- 運営が用意した練習問題マスタ。
 -- sort_order は migration 0011 が ALTER ADD COLUMN で integer として作った列（本番の実列も integer）。
@@ -260,7 +258,6 @@ CREATE INDEX IF NOT EXISTS idx_master_exercises_language ON master_exercises (la
 -- 会社独自の演習（論理削除あり）。
 CREATE TABLE IF NOT EXISTS company_exercises (
     id              bigserial PRIMARY KEY,
-    company_id      bigint NOT NULL,
     language        varchar(32) NOT NULL,
     title           varchar(200) NOT NULL,
     description     text NOT NULL,
@@ -275,10 +272,9 @@ CREATE TABLE IF NOT EXISTS company_exercises (
     updated_at      timestamptz NOT NULL,
     deleted_at      timestamptz,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id    uuid
 );
-CREATE INDEX IF NOT EXISTS idx_company_exercises_company_id ON company_exercises (company_id);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_language ON company_exercises (language);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_deleted_at ON company_exercises (deleted_at);
 
@@ -328,7 +324,6 @@ CREATE TABLE IF NOT EXISTS user_chapter_views (
 CREATE TABLE IF NOT EXISTS rich_documents (
     id             uuid PRIMARY KEY,
     owner_id       bigint NOT NULL,
-    company_id     bigint,
     kind           text NOT NULL,
     title          text NOT NULL,
     is_public      boolean NOT NULL DEFAULT false,
@@ -339,7 +334,7 @@ CREATE TABLE IF NOT EXISTS rich_documents (
     updated_at     timestamptz NOT NULL,
     deleted_at     timestamptz,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。未所属の文書もあるため nullable。
     workspace_id   uuid,
     CONSTRAINT fk_rich_documents_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT ck_rich_documents_doc CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc'),
@@ -381,7 +376,6 @@ CREATE TABLE IF NOT EXISTS score_cards (
 -- コースを構成する章。本文は doc(jsonb) が正本で、未移行の章は NULL。
 CREATE TABLE IF NOT EXISTS course_chapters (
     id                 bigserial PRIMARY KEY,
-    company_id         bigint NOT NULL,
     course_id          bigint NOT NULL,
     created_by_user_id bigint NOT NULL,
     title              text NOT NULL DEFAULT '',
@@ -393,10 +387,9 @@ CREATE TABLE IF NOT EXISTS course_chapters (
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id       uuid
 );
-CREATE INDEX IF NOT EXISTS idx_course_chapters_company_id ON course_chapters (company_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
 
 -- 本番に欠けている NOT NULL と既定値を、定義（このファイルの上のほう）に合わせて埋める。
@@ -1393,14 +1386,17 @@ DO $$ BEGIN
 END $$;
 
 -- =====================================================================
--- Ⅴ. テナント統合 段5 の準備（courses / course_chapters / company_exercises /
+-- Ⅴ. テナント統合（courses / course_chapters / company_exercises /
 --     invitations / rich_documents への workspace_id 列追加）
 -- =====================================================================
 --
--- FRESTYLE-399。company_id はまだ正本のまま（読み取りは変えない）。ここでは
--- 列を足して FK を張るところまでで、バックフィルは起動時に Go 側（tenant_bridge.go）が
--- 冪等に行う。company_id には FK が無く、同じ轍を踏まないため workspace_id 側にだけ張る
--- （companies / users で既に採った方針と同じ）。
+-- courses / course_chapters / company_exercises / rich_documents は workspace_id が唯一の
+-- 所属参照（company_id は撤去済み）。invitations は company_id をまだ正本として持ち、
+-- workspace_id はその写し（撤去は後続のチケット）。
+-- 列を足して FK を張る。FK は workspace_id 側にだけ張る（companies / users と同じ方針）。
+-- 新規に作る DB では上の CREATE TABLE で最初から workspace_id を持つため、この節は
+-- 既存 DB（起動時点でまだ列が無い環境）へ届かせるための ALTER TABLE ADD COLUMN
+-- IF NOT EXISTS 経路。
 
 DO $$ BEGIN
     IF NOT EXISTS (
@@ -1474,8 +1470,8 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- rich_documents.company_id は nullable（他の 4 テーブルと違い未所属のドキュメントがある）
--- ので workspace_id も同じく NULL を許容する。列追加・FK の作法自体は他と同じ。
+-- rich_documents は他の 4 テーブルと違い未所属のドキュメントがあるため、
+-- workspace_id は NULL を許容する。列追加・FK の作法自体は他と同じ。
 DO $$ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -1493,3 +1489,10 @@ DO $$ BEGIN
             FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
     END IF;
 END $$;
+
+-- workspace_id の索引は列を足したあとに作る。節Ⅰ（CREATE TABLE 群）へ置くと、既存 DB では
+-- まだ列が無い時点で CREATE INDEX が走って落ちる（IF NOT EXISTS は索引の有無しか見ず、
+-- 列の不在は防げない）。
+CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);

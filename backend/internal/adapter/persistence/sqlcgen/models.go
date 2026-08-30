@@ -46,7 +46,6 @@ type Company struct {
 
 type CompanyExercise struct {
 	ID             int64
-	CompanyID      int64
 	Language       string
 	Title          string
 	Description    string
@@ -65,7 +64,6 @@ type CompanyExercise struct {
 
 type Course struct {
 	ID              int64
-	CompanyID       int64
 	CreatedByUserID int64
 	Title           string
 	Description     string
@@ -80,7 +78,6 @@ type Course struct {
 
 type CourseChapter struct {
 	ID              int64
-	CompanyID       int64
 	CourseID        int64
 	CreatedByUserID int64
 	Title           string
@@ -246,7 +243,6 @@ type Profile struct {
 type RichDocument struct {
 	ID            uuid.UUID
 	OwnerID       int64
-	CompanyID     sql.NullInt64
 	Kind          string
 	Title         string
 	IsPublic      bool

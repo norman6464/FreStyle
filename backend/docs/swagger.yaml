@@ -825,6 +825,9 @@ definitions:
       role:
         example: trainee
         type: string
+      workspaceId:
+        example: 0198a000-0000-7000-8000-000000000001
+        type: string
     type: object
   internal_handler.issueProfileImageReq:
     properties:
@@ -1289,6 +1292,9 @@ definitions:
         example: trainee
         type: string
       updatedAt:
+        type: string
+      workspaceId:
+        example: 0198a000-0000-7000-8000-000000000001
         type: string
     type: object
   internal_handler.memberResponse:

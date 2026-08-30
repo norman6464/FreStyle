@@ -115,9 +115,12 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"groups":    groups,
 		"isAdmin":   isAdmin,
 	}
-	// companyId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
+	// companyId / workspaceId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
 	if user.CompanyID != nil {
 		resp["companyId"] = user.CompanyID
+	}
+	if user.WorkspaceID != nil {
+		resp["workspaceId"] = user.WorkspaceID
 	}
 	c.JSON(http.StatusOK, resp)
 }

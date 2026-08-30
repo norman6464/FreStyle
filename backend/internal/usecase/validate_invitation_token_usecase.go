@@ -28,6 +28,7 @@ type ValidatedInvitation struct {
 	Name        string
 	CompanyID   uint64
 	CompanyName string
+	WorkspaceID *string
 }
 
 func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token string) (*ValidatedInvitation, error) {
@@ -55,6 +56,7 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 		Name:        inv.Name,
 		CompanyID:   inv.CompanyID,
 		CompanyName: companyName,
+		WorkspaceID: inv.WorkspaceID,
 	}, nil
 }
 

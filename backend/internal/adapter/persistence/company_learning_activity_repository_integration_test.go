@@ -82,3 +82,54 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, empty)
 }
+
+// TestCompanyLearningActivityRepository_ByWorkspace_Integration は
+// ListMemberActivitiesByWorkspace が workspace_id で正しく絞り、他ワークスペースの
+// メンバー集計が混ざらないことを実 Postgres で検証する。
+func TestCompanyLearningActivityRepository_ByWorkspace_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewCompanyLearningActivityRepository(sqlDB)
+	activities := persistence.NewUserDailyActivityRepository(sqlDB)
+	userRepo := persistence.NewUserRepository(sqlDB)
+	ctx := context.Background()
+
+	testsupport.TruncateAll(t, sqlDB, append([]string{"user_daily_activities", "users"}, tenantBridgeTables...)...)
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	insertCompany(t, sqlDB, 2, "会社 B", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1 := companyWorkspaceID(t, sqlDB, 1)
+	ws2 := companyWorkspaceID(t, sqlDB, 2)
+	require.True(t, ws1.Valid)
+	require.True(t, ws2.Valid)
+	require.NotEqual(t, ws1.UUID, ws2.UUID)
+
+	mkUser := func(id uint64, name string, role domain.RoleName, company uint64) {
+		u := &domain.User{
+			ID: id, Email: name + "@example.com", Name: name,
+			CompanyID: &company, Role: role, IsActive: true,
+		}
+		// CreateWithOidcIdentity(InsertUser) が company_id から workspace_id を dual-write する。
+		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, name))
+	}
+	mkUser(21, "ws1-trainee", domain.RoleTrainee, 1)
+	mkUser(22, "ws2-trainee", domain.RoleTrainee, 2)
+
+	today := time.Now().UTC()
+	inc := repository.UserDailyActivityIncrement{LessonCount: 1}
+	require.NoError(t, activities.Increment(ctx, 21, today, inc))
+	require.NoError(t, activities.Increment(ctx, 22, today, inc))
+
+	fromDate := today.AddDate(0, 0, -6)
+	rows, err := repo.ListMemberActivitiesByWorkspace(ctx, ws1.UUID.String(), fromDate)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "他ワークスペースのメンバーが混ざらない")
+	require.Equal(t, uint64(21), rows[0].UserID)
+	require.Equal(t, 1, rows[0].RecentActivityCount)
+
+	// 不正 / 空の workspace_id は該当なし扱い（toNullUUID の失敗経路を両方とも確認する）。
+	for _, invalid := range []string{"", "not-a-uuid"} {
+		empty, err := repo.ListMemberActivitiesByWorkspace(ctx, invalid, fromDate)
+		require.NoError(t, err)
+		require.Empty(t, empty, "workspaceID=%q", invalid)
+	}
+}

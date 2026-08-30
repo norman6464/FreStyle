@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const listCompanyMemberActivities = `-- name: ListCompanyMemberActivities :many
@@ -69,6 +71,75 @@ func (q *Queries) ListCompanyMemberActivities(ctx context.Context, arg ListCompa
 	items := []ListCompanyMemberActivitiesRow{}
 	for rows.Next() {
 		var i ListCompanyMemberActivitiesRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Name,
+			&i.LastActiveDate,
+			&i.RecentActivityCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCompanyMemberActivitiesByWorkspace = `-- name: ListCompanyMemberActivitiesByWorkspace :many
+WITH agg AS (
+  SELECT
+    a.user_id AS user_id,
+    MAX(a.activity_date)::date AS last_active_date,
+    SUM(
+      CASE WHEN a.activity_date >= $3
+           THEN a.exercise_count + a.chapter_count + a.note_count
+           ELSE 0 END
+    )::bigint AS recent_activity_count
+  FROM user_daily_activities a
+  GROUP BY a.user_id
+)
+SELECT
+  u.id AS user_id,
+  u.name AS name,
+  agg.last_active_date,
+  COALESCE(agg.recent_activity_count, 0)::bigint AS recent_activity_count
+FROM users u
+LEFT JOIN agg ON agg.user_id = u.id
+WHERE u.workspace_id = $1
+  AND u.role_id = $2
+  AND u.deleted_at IS NULL
+ORDER BY agg.last_active_date DESC NULLS LAST, u.id ASC
+`
+
+type ListCompanyMemberActivitiesByWorkspaceParams struct {
+	WorkspaceID   uuid.NullUUID
+	TraineeRoleID int32
+	FromDate      time.Time
+}
+
+type ListCompanyMemberActivitiesByWorkspaceRow struct {
+	UserID              int64
+	Name                string
+	LastActiveDate      sql.NullTime
+	RecentActivityCount int64
+}
+
+// ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版。
+// users.workspace_id は company_id から dual-write 済み。
+func (q *Queries) ListCompanyMemberActivitiesByWorkspace(ctx context.Context, arg ListCompanyMemberActivitiesByWorkspaceParams) ([]ListCompanyMemberActivitiesByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCompanyMemberActivitiesByWorkspace, arg.WorkspaceID, arg.TraineeRoleID, arg.FromDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCompanyMemberActivitiesByWorkspaceRow{}
+	for rows.Next() {
+		var i ListCompanyMemberActivitiesByWorkspaceRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Name,

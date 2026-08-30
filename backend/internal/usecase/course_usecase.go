@@ -40,19 +40,25 @@ func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actorWorkspace doma
 // （FRESTYLE-399）により、リクエストを捌く時点で必ず埋まっているため company_id との
 // 併用フォールバックは持たない。
 func canReadCourse(c *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
-	if actorRole == domain.RoleSuperAdmin {
-		return true
-	}
-	wid, ok := c.WorkspaceRef().WorkspaceID()
-	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は閲覧できない。
-	if !ok || !actorWorkspace.Matches(wid) {
+	if !courseBelongsToWorkspace(c, actorWorkspace, actorRole) {
 		return false
 	}
 	if !c.IsPublished && !canManage(actorRole) {
 		return false
 	}
 	return true
+}
+
+// courseBelongsToWorkspace は super_admin か、対象コースが actorWorkspace に属するかを返す。
+// Get（canReadCourse 経由）/ Update / Delete で同じ形の所属チェックが個別に書かれていた
+// 重複を、この 1 つに集約した（判定結果は変えない）。
+func courseBelongsToWorkspace(c *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
+	if actorRole == domain.RoleSuperAdmin {
+		return true
+	}
+	wid, ok := c.WorkspaceRef().WorkspaceID()
+	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ない。
+	return ok && actorWorkspace.Matches(wid)
 }
 
 type CreateCourseInput struct {
@@ -115,10 +121,7 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
-	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は更新できない。
-	wid, ok := existing.WorkspaceRef().WorkspaceID()
-	if in.ActorRole != domain.RoleSuperAdmin && (!ok || !in.ActorWorkspace.Matches(wid)) {
+	if !courseBelongsToWorkspace(existing, in.ActorWorkspace, in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	if !domain.IsValidCourseCategory(in.Category) {
@@ -145,10 +148,7 @@ func (uc *CourseUseCase) Delete(ctx context.Context, id uint64, actorWorkspace d
 	if !canManage(actorRole) {
 		return fmt.Errorf("forbidden")
 	}
-	// 未所属の actor・対象コースの workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は削除できない。
-	wid, ok := existing.WorkspaceRef().WorkspaceID()
-	if actorRole != domain.RoleSuperAdmin && (!ok || !actorWorkspace.Matches(wid)) {
+	if !courseBelongsToWorkspace(existing, actorWorkspace, actorRole) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := uc.materials.DeleteByCourse(ctx, id); err != nil {

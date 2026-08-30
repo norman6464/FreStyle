@@ -16,24 +16,27 @@ import (
 
 // summarizerArgs は mock が受け取った引数の控え。usecase が「何を渡したか」を検証するために使う。
 type summarizerArgs struct {
-	companyID uint64
-	fromDate  time.Time
+	workspaceID string
+	fromDate    time.Time
 }
 
 // learningActivityRepo は指定の結果を返す mock と、渡された引数の控えを返す。
 func learningActivityRepo(rows []repository.MemberLearningActivity, err error) (*mockLearningSummarizer, *summarizerArgs) {
 	got := &summarizerArgs{}
 	repo := &mockLearningSummarizer{}
-	repo.On("ListMemberActivities", mock.Anything, mock.Anything, mock.Anything).
+	repo.On("ListMemberActivitiesByWorkspace", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
-			got.companyID = args.Get(1).(uint64)
+			got.workspaceID = args.Get(1).(string)
 			got.fromDate = args.Get(2).(time.Time)
 		}).Return(rows, err).Maybe()
 	return repo, got
 }
 
+const summaryWorkspaceID = "0198a000-0000-7000-8000-0000000000c1"
+
 func companyAdminActor(companyID uint64) *domain.User {
-	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &companyID}
+	wid := summaryWorkspaceID
+	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &companyID, WorkspaceID: &wid}
 }
 
 func datePtr(t time.Time) *time.Time { return &t }
@@ -52,7 +55,7 @@ func Test_メンバー学習サマリー_集計される(t *testing.T) {
 
 	out, err := uc.Execute(context.Background(), companyAdminActor(10))
 	require.NoError(t, err)
-	assert.Equal(t, uint64(10), got.companyID)
+	assert.Equal(t, summaryWorkspaceID, got.workspaceID)
 	assert.Equal(t, 4, out.TraineeCount)
 	assert.Equal(t, 1, out.ActiveToday)
 	assert.Equal(t, 2, out.ActiveThisWeek, "直近 7 日の活動回数 > 0 の 2 名")
@@ -89,7 +92,22 @@ func Test_メンバー学習サマリー_会社未所属は空サマリー(t *te
 	assert.Equal(t, 0, out.TraineeCount)
 	assert.NotNil(t, out.RecentMembers)
 	assert.Empty(t, out.RecentMembers)
-	repo.AssertNotCalled(t, "ListMemberActivities", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "ListMemberActivitiesByWorkspace", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// company_id はあってもワークスペースへのバックフィルが未到達（workspace_id が nil）の actor は、
+// company_id 経由でフォールバックせず空サマリーを返す（company_id への依存が残っていないことの確認）。
+func Test_メンバー学習サマリー_workspace未所属は会社IDがあっても空サマリー(t *testing.T) {
+	repo, _ := learningActivityRepo(nil, nil)
+	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
+
+	companyID := uint64(10)
+	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &companyID, WorkspaceID: nil}
+	out, err := uc.Execute(context.Background(), actor)
+	require.NoError(t, err)
+	assert.Equal(t, 0, out.TraineeCount)
+	assert.Empty(t, out.RecentMembers)
+	repo.AssertNotCalled(t, "ListMemberActivitiesByWorkspace", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_メンバー学習サマリー_集計ウィンドウは今日を含む7日間(t *testing.T) {

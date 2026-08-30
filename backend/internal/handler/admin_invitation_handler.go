@@ -245,11 +245,11 @@ func (h *AdminInvitationHandler) Cancel(c *gin.Context) {
 		return
 	}
 
-	// 所属会社は SuperAdmin では未所属になり得る（usecase 側で role により無視される）。
+	// 所属ワークスペースは SuperAdmin では未所属になり得る（usecase 側で role により無視される）。
 	err = h.cancel.Execute(c.Request.Context(), usecase.CancelAdminInvitationInput{
-		ID:           id,
-		ActorRole:    user.Role,
-		ActorCompany: user.CompanyRef(),
+		ID:             id,
+		ActorRole:      user.Role,
+		ActorWorkspace: user.WorkspaceRef(),
 	})
 	switch {
 	case err == nil:

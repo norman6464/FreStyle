@@ -19,10 +19,10 @@ func NewAdminInvitationRepository(db *sql.DB) repository.AdminInvitationReposito
 	return &adminInvitationRepository{db: db}
 }
 
-// invitationRow は招待系の読み取りクエリが返す共通の行形（company_id までの列で、
-// workspace_id は含まない。読み取りはまだ切り替えない FRESTYLE-399 のスコープに合わせ、
-// 各クエリの列リストは変更していない）。
-type invitationRow = sqlcgen.ListPendingInvitationsRow
+// invitationRow は招待系の読み取りクエリが返す共通の行形。全クエリの SELECT に workspace_id
+// を加えた結果、列リストが invitations の全列と一致し、sqlc は個別の Row 型ではなくテーブル型
+// （sqlcgen.Invitation）をそのまま返すようになった。
+type invitationRow = sqlcgen.Invitation
 
 func toDomainAdminInvitation(row invitationRow) domain.AdminInvitation {
 	inv := domain.AdminInvitation{
@@ -39,6 +39,10 @@ func toDomainAdminInvitation(row invitationRow) domain.AdminInvitation {
 		// token は *string（未設定を NULL にして UNIQUE を避ける）。NULL は nil のまま。
 		tok := row.Token.String
 		inv.Token = &tok
+	}
+	if row.WorkspaceID.Valid {
+		wid := row.WorkspaceID.UUID.String()
+		inv.WorkspaceID = &wid
 	}
 	return inv
 }
@@ -66,11 +70,7 @@ func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, company
 	if err != nil {
 		return nil, err
 	}
-	out := make([]invitationRow, len(rows))
-	for i, row := range rows {
-		out[i] = invitationRow(row)
-	}
-	return toDomainAdminInvitations(out), nil
+	return toDomainAdminInvitations(rows), nil
 }
 
 func (r *adminInvitationRepository) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
@@ -85,11 +85,7 @@ func (r *adminInvitationRepository) ListByWorkspaceID(ctx context.Context, works
 	if err != nil {
 		return nil, err
 	}
-	out := make([]invitationRow, len(rows))
-	for i, row := range rows {
-		out[i] = invitationRow(row)
-	}
-	return toDomainAdminInvitations(out), nil
+	return toDomainAdminInvitations(rows), nil
 }
 
 func toDomainAdminInvitations(rows []invitationRow) []domain.AdminInvitation {
@@ -119,7 +115,7 @@ func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, emai
 	if err != nil {
 		return nil, err
 	}
-	inv := toDomainAdminInvitation(invitationRow(row))
+	inv := toDomainAdminInvitation(row)
 	return &inv, nil
 }
 
@@ -138,7 +134,7 @@ func (r *adminInvitationRepository) FindByID(ctx context.Context, id uint64) (*d
 	if err != nil {
 		return nil, err
 	}
-	inv := toDomainAdminInvitation(invitationRow(row))
+	inv := toDomainAdminInvitation(row)
 	return &inv, nil
 }
 
@@ -159,7 +155,7 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 	if err != nil {
 		return nil, err
 	}
-	inv := toDomainAdminInvitation(invitationRow(row))
+	inv := toDomainAdminInvitation(row)
 	return &inv, nil
 }
 

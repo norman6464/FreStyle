@@ -151,9 +151,9 @@ func NewCancelAdminInvitationUseCase(r repository.AdminInvitationRepository) *Ca
 
 // CancelAdminInvitationInput は取消対象と、取消を要求している管理者を表す。
 type CancelAdminInvitationInput struct {
-	ID           uint64
-	ActorRole    domain.RoleName
-	ActorCompany domain.CompanyRef
+	ID             uint64
+	ActorRole      domain.RoleName
+	ActorWorkspace domain.WorkspaceRef
 }
 
 // ErrInvitationNotFound は対象の招待が存在しない場合に返す。
@@ -177,8 +177,10 @@ func (u *CancelAdminInvitationUseCase) Execute(ctx context.Context, in CancelAdm
 	if inv == nil {
 		return ErrInvitationNotFound
 	}
-	// 未所属の company_admin はどの招待とも一致しないため、常に「見つからない」扱いになる。
-	if in.ActorRole == domain.RoleCompanyAdmin && !in.ActorCompany.Matches(inv.CompanyID) {
+	// 未所属の company_admin・招待の workspace_id 未設定はどちらも一致し得ないため、
+	// 常に「見つからない」扱いになる。
+	wid, ok := inv.WorkspaceRef().WorkspaceID()
+	if in.ActorRole == domain.RoleCompanyAdmin && (!ok || !in.ActorWorkspace.Matches(wid)) {
 		return ErrInvitationNotFound
 	}
 

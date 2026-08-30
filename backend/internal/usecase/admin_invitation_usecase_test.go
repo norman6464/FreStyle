@@ -9,6 +9,14 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
+// invWsA / invWsB は招待の workspace_id 比較を固定するための 2 つのワークスペース ID。
+const (
+	invWsA = "0198a000-0000-7000-8000-0000000000c1"
+	invWsB = "0198a000-0000-7000-8000-0000000000c2"
+)
+
+func strPtr(v string) *string { return &v }
+
 type stubAdminInvRepo struct {
 	rows []domain.AdminInvitation
 	err  error
@@ -273,11 +281,11 @@ func Test_招待取消_IDが必須(t *testing.T) {
 
 // 招待取消は管理者専用。trainee が他人の招待を取り消せてはならない（認可欠落の回帰防止）。
 func Test_招待取消_管理者以外は拒否(t *testing.T) {
-	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7, CompanyID: 1}}}
+	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: strPtr(invWsA)}}}
 	uc := NewCancelAdminInvitationUseCase(repo)
 
 	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
-		ID: 7, ActorRole: domain.RoleTrainee, ActorCompany: domain.CompanyRefOf(1),
+		ID: 7, ActorRole: domain.RoleTrainee, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
 	})
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("trainee は拒否されるべき: got %v", err)
@@ -286,12 +294,15 @@ func Test_招待取消_管理者以外は拒否(t *testing.T) {
 
 // company_admin は自社の招待だけ取り消せる。他社分は存在を漏らさず not found にする。
 func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
-	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1}, {ID: 8, CompanyID: 2}}
+	rows := []domain.AdminInvitation{
+		{ID: 7, CompanyID: 1, WorkspaceID: strPtr(invWsA)},
+		{ID: 8, CompanyID: 2, WorkspaceID: strPtr(invWsB)},
+	}
 
 	t.Run("自社は取消できる", func(t *testing.T) {
 		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
 		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
-			ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorCompany: domain.CompanyRefOf(1),
+			ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
 		})
 		if err != nil {
 			t.Fatalf("err: %v", err)
@@ -301,12 +312,56 @@ func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
 	t.Run("他社は not found", func(t *testing.T) {
 		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
 		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
-			ID: 8, ActorRole: domain.RoleCompanyAdmin, ActorCompany: domain.CompanyRefOf(1),
+			ID: 8, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
 		})
 		if !errors.Is(err, ErrInvitationNotFound) {
 			t.Fatalf("他社の招待は not found であるべき: got %v", err)
 		}
 	})
+}
+
+// company_id は招待と同じまま workspace_id だけを変えて not found を確認する。company_id
+// ベースの認可が残っていても本テストは company_id 一致で通ってしまうため、workspace_id
+// 単体の切替が効いていることを company_id 一致のケースで区別して固定する（「他社は not found」
+// テストは company_id も変えてしまうため、この観点を見分けられない）。
+func Test_招待取消_同一company別workspaceはnot_found(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: strPtr(invWsA)}}
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsB),
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("workspace_id 不一致は not found であるべき: got %v", err)
+	}
+}
+
+// ワークスペース未所属の company_admin は、どの招待の workspace_id とも一致し得ないため
+// 常に not found になる（company_admin が super_admin のように昇格しないことの確認）。
+func Test_招待取消_ワークスペース未所属actorはnot_found(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: strPtr(invWsA)}}
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.NoWorkspace(),
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("未所属 actor は not found であるべき: got %v", err)
+	}
+}
+
+// バックフィル未到達（workspace_id が nil）の招待は、actor が有効なワークスペースを持っていても
+// 一致し得ないため not found になる（fail-closed。誤って通す方向に倒れない）。
+func Test_招待取消_招待のworkspace_id未設定はnot_found(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: nil}}
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("招待の workspace_id 未設定は not found であるべき: got %v", err)
+	}
 }
 
 // 認可判定は FindByID の結果に依存するため、取得に失敗したら status を更新せずエラーを返す。

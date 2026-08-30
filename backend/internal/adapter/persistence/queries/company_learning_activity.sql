@@ -32,3 +32,30 @@ WHERE u.company_id = sqlc.arg(company_id)::bigint
   AND u.role_id = sqlc.arg(trainee_role_id)
   AND u.deleted_at IS NULL
 ORDER BY agg.last_active_date DESC NULLS LAST, u.id ASC;
+
+-- name: ListCompanyMemberActivitiesByWorkspace :many
+-- ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版。
+-- users.workspace_id は company_id から dual-write 済み。
+WITH agg AS (
+  SELECT
+    a.user_id AS user_id,
+    MAX(a.activity_date)::date AS last_active_date,
+    SUM(
+      CASE WHEN a.activity_date >= sqlc.arg(from_date)
+           THEN a.exercise_count + a.chapter_count + a.note_count
+           ELSE 0 END
+    )::bigint AS recent_activity_count
+  FROM user_daily_activities a
+  GROUP BY a.user_id
+)
+SELECT
+  u.id AS user_id,
+  u.name AS name,
+  agg.last_active_date,
+  COALESCE(agg.recent_activity_count, 0)::bigint AS recent_activity_count
+FROM users u
+LEFT JOIN agg ON agg.user_id = u.id
+WHERE u.workspace_id = sqlc.arg(workspace_id)
+  AND u.role_id = sqlc.arg(trainee_role_id)
+  AND u.deleted_at IS NULL
+ORDER BY agg.last_active_date DESC NULLS LAST, u.id ASC;

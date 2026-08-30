@@ -177,3 +177,42 @@ func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, invalid, "不正な形式の ID も該当なし扱い")
 }
+
+// TestAdminInvitationRepository_FindByID_WorkspaceID_Integration は FindByID が
+// workspace_id も返すこと（招待取消の対象側比較が使う値）を実 Postgres で固定する。
+func TestAdminInvitationRepository_FindByID_WorkspaceID_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewAdminInvitationRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1 := companyWorkspaceID(t, sqlDB, 1)
+	require.True(t, ws1.Valid)
+
+	inv := &domain.AdminInvitation{
+		CompanyID: 1, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
+		Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	require.NoError(t, repo.Create(ctx, inv))
+
+	got, err := repo.FindByID(ctx, inv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, got.WorkspaceID)
+	require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
+
+	// バックフィル前に作られた行を模して workspace_id を直接 NULL のまま挿入する
+	// （repo.Create は dual-write するため経由できない）。domain 側は nil のまま返すこと。
+	_, err = sqlDB.Exec(
+		`INSERT INTO invitations (id, company_id, workspace_id, email, role, name, status, expires_at, created_at)
+		 VALUES (999999, 1, NULL, 'legacy@example.com', 'company_admin', 'n', 'pending', $1, now())`,
+		time.Now().UTC().Add(time.Hour),
+	)
+	require.NoError(t, err)
+	legacy, err := repo.FindByID(ctx, 999999)
+	require.NoError(t, err)
+	require.NotNil(t, legacy)
+	require.Nil(t, legacy.WorkspaceID, "バックフィル未到達の行は workspace_id が nil のまま")
+}

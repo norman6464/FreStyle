@@ -14,28 +14,16 @@ import (
 )
 
 const findInvitationByID = `-- name: FindInvitationByID :one
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE id = $1
 LIMIT 1
 `
 
-type FindInvitationByIDRow struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
-}
-
-// ID 一致の招待を返す（会社スコープの認可判定に使う。status は問わない）。
-func (q *Queries) FindInvitationByID(ctx context.Context, id int64) (FindInvitationByIDRow, error) {
+// ID 一致の招待を返す（ワークスペーススコープの認可判定に使う。status は問わない）。
+func (q *Queries) FindInvitationByID(ctx context.Context, id int64) (Invitation, error) {
 	row := q.db.QueryRowContext(ctx, findInvitationByID, id)
-	var i FindInvitationByIDRow
+	var i Invitation
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,
@@ -46,12 +34,13 @@ func (q *Queries) FindInvitationByID(ctx context.Context, id int64) (FindInvitat
 		&i.Token,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const findPendingInvitationByEmail = `-- name: FindPendingInvitationByEmail :one
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE lower(btrim(email, E'\t\n\x0B\f\r ')) = $1
   AND status = $2
@@ -64,25 +53,13 @@ type FindPendingInvitationByEmailParams struct {
 	Status      string
 }
 
-type FindPendingInvitationByEmailRow struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
-}
-
 // pending の招待を email で引く（受諾フロー判定用）。突き合わせは domain.NormalizeEmail と同じ
 // 正規形どうしで行う。引数は Go 側で畳み、列は users の一意索引と同じ SQL 式
 // lower(btrim(email, EmailTrimCutset)) で畳む。expires は問わない（pending なら期限切れでも返す）。
 // 1 件しか返さないため、順序が揺れると「どの招待が受理されるか」が変わる。created_at DESC, id DESC で固定。
-func (q *Queries) FindPendingInvitationByEmail(ctx context.Context, arg FindPendingInvitationByEmailParams) (FindPendingInvitationByEmailRow, error) {
+func (q *Queries) FindPendingInvitationByEmail(ctx context.Context, arg FindPendingInvitationByEmailParams) (Invitation, error) {
 	row := q.db.QueryRowContext(ctx, findPendingInvitationByEmail, arg.EmailNormal, arg.Status)
-	var i FindPendingInvitationByEmailRow
+	var i Invitation
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,
@@ -93,12 +70,13 @@ func (q *Queries) FindPendingInvitationByEmail(ctx context.Context, arg FindPend
 		&i.Token,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const findPendingInvitationByToken = `-- name: FindPendingInvitationByToken :one
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE token = $1
   AND status = $2
@@ -113,24 +91,12 @@ type FindPendingInvitationByTokenParams struct {
 	Now    time.Time
 }
 
-type FindPendingInvitationByTokenRow struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
-}
-
 // token 一致 かつ pending かつ 未期限切れの招待のみ返す。期限比較は DB 関数でなく
 // Go の UTC 現在時刻をバインドする（DB エンジン非依存 / ローカル TZ 設定に左右されない）。
 // token は UNIQUE なので 1 行だが、順序を固定するため id ASC を置く。
-func (q *Queries) FindPendingInvitationByToken(ctx context.Context, arg FindPendingInvitationByTokenParams) (FindPendingInvitationByTokenRow, error) {
+func (q *Queries) FindPendingInvitationByToken(ctx context.Context, arg FindPendingInvitationByTokenParams) (Invitation, error) {
 	row := q.db.QueryRowContext(ctx, findPendingInvitationByToken, arg.Token, arg.Status, arg.Now)
-	var i FindPendingInvitationByTokenRow
+	var i Invitation
 	err := row.Scan(
 		&i.ID,
 		&i.CompanyID,
@@ -141,6 +107,7 @@ func (q *Queries) FindPendingInvitationByToken(ctx context.Context, arg FindPend
 		&i.Token,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -192,35 +159,23 @@ func (q *Queries) InsertInvitation(ctx context.Context, arg InsertInvitationPara
 }
 
 const listPendingInvitations = `-- name: ListPendingInvitations :many
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE status = $1
 ORDER BY created_at DESC, id DESC
 `
 
-type ListPendingInvitationsRow struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
-}
-
 // 全社横断で pending の招待を返す（SuperAdmin 用）。物理削除はせず status のみ更新するため
 // accepted / canceled は WHERE で除外する。created_at は一意でないため id DESC をタイブレークに置く。
-func (q *Queries) ListPendingInvitations(ctx context.Context, status string) ([]ListPendingInvitationsRow, error) {
+func (q *Queries) ListPendingInvitations(ctx context.Context, status string) ([]Invitation, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingInvitations, status)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPendingInvitationsRow{}
+	items := []Invitation{}
 	for rows.Next() {
-		var i ListPendingInvitationsRow
+		var i Invitation
 		if err := rows.Scan(
 			&i.ID,
 			&i.CompanyID,
@@ -231,6 +186,7 @@ func (q *Queries) ListPendingInvitations(ctx context.Context, status string) ([]
 			&i.Token,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -246,7 +202,7 @@ func (q *Queries) ListPendingInvitations(ctx context.Context, status string) ([]
 }
 
 const listPendingInvitationsByCompany = `-- name: ListPendingInvitationsByCompany :many
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE company_id = $1 AND status = $2
 ORDER BY created_at DESC, id DESC
@@ -257,29 +213,17 @@ type ListPendingInvitationsByCompanyParams struct {
 	Status    string
 }
 
-type ListPendingInvitationsByCompanyRow struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
-}
-
 // 自社の pending 招待のみ返す（SuperAdmin が ?companyId= で任意の会社を指定するときに使う。
 // CompanyAdmin 自身の一覧は ListPendingInvitationsByWorkspace を使う。FRESTYLE-401）。
-func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListPendingInvitationsByCompanyParams) ([]ListPendingInvitationsByCompanyRow, error) {
+func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListPendingInvitationsByCompanyParams) ([]Invitation, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingInvitationsByCompany, arg.CompanyID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPendingInvitationsByCompanyRow{}
+	items := []Invitation{}
 	for rows.Next() {
-		var i ListPendingInvitationsByCompanyRow
+		var i Invitation
 		if err := rows.Scan(
 			&i.ID,
 			&i.CompanyID,
@@ -290,6 +234,7 @@ func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListP
 			&i.Token,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -305,7 +250,7 @@ func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListP
 }
 
 const listPendingInvitationsByWorkspace = `-- name: ListPendingInvitationsByWorkspace :many
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE workspace_id = $1 AND status = $2
 ORDER BY created_at DESC, id DESC
@@ -316,31 +261,19 @@ type ListPendingInvitationsByWorkspaceParams struct {
 	Status      string
 }
 
-type ListPendingInvitationsByWorkspaceRow struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
-}
-
 // 自社の pending 招待のみ返す（CompanyAdmin が自分の所属で見る用）。
 // FRESTYLE-401（段4横展開）: CompanyAdmin 経路だけを company_id 直読みから
 // workspace_id 経由へ切り替え済み。SuperAdmin の ?companyId= 絞り込みは
 // ListPendingInvitationsByCompany のまま変えていない（API 契約を変えないため）。
-func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, arg ListPendingInvitationsByWorkspaceParams) ([]ListPendingInvitationsByWorkspaceRow, error) {
+func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, arg ListPendingInvitationsByWorkspaceParams) ([]Invitation, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingInvitationsByWorkspace, arg.WorkspaceID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPendingInvitationsByWorkspaceRow{}
+	items := []Invitation{}
 	for rows.Next() {
-		var i ListPendingInvitationsByWorkspaceRow
+		var i Invitation
 		if err := rows.Scan(
 			&i.ID,
 			&i.CompanyID,
@@ -351,6 +284,7 @@ func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, arg Lis
 			&i.Token,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}

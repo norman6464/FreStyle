@@ -270,6 +270,12 @@ func (m *mockLearningSummarizer) ListMemberActivities(ctx context.Context, compa
 	return rows, args.Error(1)
 }
 
+func (m *mockLearningSummarizer) ListMemberActivitiesByWorkspace(ctx context.Context, workspaceID string, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
+	args := m.Called(ctx, workspaceID, fromDate)
+	rows, _ := args.Get(0).([]repository.MemberLearningActivity)
+	return rows, args.Error(1)
+}
+
 // --- mock: CompanyMemberCounter ---
 
 type mockMemberCounter struct{ mock.Mock }

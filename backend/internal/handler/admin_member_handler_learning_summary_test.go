@@ -25,13 +25,21 @@ func (f *fakeCompanyLearningActivityRepoH) ListMemberActivities(context.Context,
 	return f.rows, nil
 }
 
+func (f *fakeCompanyLearningActivityRepoH) ListMemberActivitiesByWorkspace(context.Context, string, time.Time) ([]repository.MemberLearningActivity, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.rows, nil
+}
+
 func newLearningSummaryHandler(repo repository.CompanyLearningActivitySummarizer) *AdminMemberHandler {
 	return NewAdminMemberHandler(nil, nil, nil, usecase.NewGetCompanyLearningSummaryUseCase(repo))
 }
 
 func companyAdminUser() *domain.User {
 	cid := uint64(10)
-	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid}
+	wid := "0198a000-0000-7000-8000-0000000000c1"
+	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: &wid}
 }
 
 func Test_学習サマリーハンドラ(t *testing.T) {

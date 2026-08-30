@@ -49,16 +49,22 @@ func NewGetCompanyLearningSummaryUseCase(activities repository.CompanyLearningAc
 	return &GetCompanyLearningSummaryUseCase{activities: activities}
 }
 
-// Execute は自社 trainee の学習状況サマリーを返す。会社未所属(super_admin 等)は空サマリー。
+// Execute は自社 trainee の学習状況サマリーを返す。ワークスペース未所属(super_admin 等)は空サマリー。
+// FRESTYLE-297（段4横展開）: 対象メンバーの絞り込みを company_id 直読みから workspace_id 経由へ
+// 切り替え済み。
 func (u *GetCompanyLearningSummaryUseCase) Execute(ctx context.Context, actor *domain.User) (*CompanyLearningSummaryOutput, error) {
 	out := &CompanyLearningSummaryOutput{RecentMembers: []MemberLearningSummaryItem{}}
-	if actor == nil || actor.CompanyID == nil {
+	if actor == nil {
+		return out, nil
+	}
+	workspaceID, affiliated := actor.WorkspaceRef().WorkspaceID()
+	if !affiliated {
 		return out, nil
 	}
 
 	today := time.Now().UTC()
 	weekStart := today.AddDate(0, 0, -6)
-	rows, err := u.activities.ListMemberActivities(ctx, *actor.CompanyID, weekStart)
+	rows, err := u.activities.ListMemberActivitiesByWorkspace(ctx, workspaceID, weekStart)
 	if err != nil {
 		return nil, err
 	}

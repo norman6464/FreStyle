@@ -74,13 +74,7 @@ func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id uint64, actorWork
 // workspace_id 経由へ切り替え済み（courses.workspace_id / course_chapters.workspace_id の
 // 起動時バックフィル + dual-write の前提は FRESTYLE-402 と同じ）。
 func canRead(m *domain.TeachingMaterial, course *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
-	if actorRole == domain.RoleSuperAdmin {
-		return true
-	}
-	wid, ok := m.WorkspaceRef().WorkspaceID()
-	// 未所属の actor・対象教材の workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は閲覧できない。
-	if !ok || !actorWorkspace.Matches(wid) {
+	if !materialBelongsToWorkspace(m, actorWorkspace, actorRole) {
 		return false
 	}
 	// 所属コースが閲覧可能でなければ教材も見せない。
@@ -91,6 +85,19 @@ func canRead(m *domain.TeachingMaterial, course *domain.Course, actorWorkspace d
 		return false
 	}
 	return true
+}
+
+// materialBelongsToWorkspace は super_admin か、対象教材が actorWorkspace に属するかを返す。
+// FRESTYLE-297: Get（canRead 経由）/ Update / UpdateDoc / Delete で同じ形の所属チェックが
+// 個別に書かれていた重複を、courseBelongsToWorkspace と対になる形でここに集約した
+// （判定結果は変えない）。
+func materialBelongsToWorkspace(m *domain.TeachingMaterial, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
+	if actorRole == domain.RoleSuperAdmin {
+		return true
+	}
+	wid, ok := m.WorkspaceRef().WorkspaceID()
+	// 未所属の actor・対象教材の workspace_id 未設定はどちらも一致し得ない。
+	return ok && actorWorkspace.Matches(wid)
 }
 
 // CreateTeachingMaterialInput は POST 入力。CourseID は必須。
@@ -119,8 +126,7 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 	if err != nil {
 		return nil, err
 	}
-	wid, ok := course.WorkspaceRef().WorkspaceID()
-	if in.ActorRole != domain.RoleSuperAdmin && (!ok || !in.ActorWorkspace.Matches(wid)) {
+	if !courseBelongsToWorkspace(course, in.ActorWorkspace, in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	m := &domain.TeachingMaterial{
@@ -158,10 +164,7 @@ func (uc *TeachingMaterialUseCase) Update(ctx context.Context, in UpdateTeaching
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
-	// 未所属の actor・対象教材の workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は編集できない。
-	wid, ok := existing.WorkspaceRef().WorkspaceID()
-	if in.ActorRole != domain.RoleSuperAdmin && (!ok || !in.ActorWorkspace.Matches(wid)) {
+	if !materialBelongsToWorkspace(existing, in.ActorWorkspace, in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	existing.Title = in.Title
@@ -195,10 +198,7 @@ func (uc *TeachingMaterialUseCase) UpdateDoc(ctx context.Context, in UpdateChapt
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
-	// 未所属の actor・対象教材の workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は編集できない。
-	wid, ok := existing.WorkspaceRef().WorkspaceID()
-	if in.ActorRole != domain.RoleSuperAdmin && (!ok || !in.ActorWorkspace.Matches(wid)) {
+	if !materialBelongsToWorkspace(existing, in.ActorWorkspace, in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	if in.ExpectedRevision < 1 {
@@ -219,10 +219,7 @@ func (uc *TeachingMaterialUseCase) Delete(ctx context.Context, id uint64, actorW
 	if !canManage(actorRole) {
 		return fmt.Errorf("forbidden")
 	}
-	// 未所属の actor・対象教材の workspace_id 未設定はどちらも一致し得ないため、
-	// super_admin 以外は削除できない。
-	wid, ok := existing.WorkspaceRef().WorkspaceID()
-	if actorRole != domain.RoleSuperAdmin && (!ok || !actorWorkspace.Matches(wid)) {
+	if !materialBelongsToWorkspace(existing, actorWorkspace, actorRole) {
 		return fmt.Errorf("forbidden")
 	}
 	return uc.repo.Delete(ctx, id)

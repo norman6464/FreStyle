@@ -1,7 +1,7 @@
 -- name: ListPendingInvitations :many
 -- 全社横断で pending の招待を返す（SuperAdmin 用）。物理削除はせず status のみ更新するため
 -- accepted / canceled は WHERE で除外する。created_at は一意でないため id DESC をタイブレークに置く。
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE status = sqlc.arg(status)
 ORDER BY created_at DESC, id DESC;
@@ -9,7 +9,7 @@ ORDER BY created_at DESC, id DESC;
 -- name: ListPendingInvitationsByCompany :many
 -- 自社の pending 招待のみ返す（SuperAdmin が ?companyId= で任意の会社を指定するときに使う。
 -- CompanyAdmin 自身の一覧は ListPendingInvitationsByWorkspace を使う。FRESTYLE-401）。
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE company_id = sqlc.arg(company_id) AND status = sqlc.arg(status)
 ORDER BY created_at DESC, id DESC;
@@ -19,7 +19,7 @@ ORDER BY created_at DESC, id DESC;
 -- FRESTYLE-401（段4横展開）: CompanyAdmin 経路だけを company_id 直読みから
 -- workspace_id 経由へ切り替え済み。SuperAdmin の ?companyId= 絞り込みは
 -- ListPendingInvitationsByCompany のまま変えていない（API 契約を変えないため）。
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE workspace_id = sqlc.arg(workspace_id) AND status = sqlc.arg(status)
 ORDER BY created_at DESC, id DESC;
@@ -29,7 +29,7 @@ ORDER BY created_at DESC, id DESC;
 -- 正規形どうしで行う。引数は Go 側で畳み、列は users の一意索引と同じ SQL 式
 -- lower(btrim(email, EmailTrimCutset)) で畳む。expires は問わない（pending なら期限切れでも返す）。
 -- 1 件しか返さないため、順序が揺れると「どの招待が受理されるか」が変わる。created_at DESC, id DESC で固定。
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE lower(btrim(email, E'\t\n\x0B\f\r ')) = sqlc.arg(email_normal)
   AND status = sqlc.arg(status)
@@ -37,8 +37,9 @@ ORDER BY created_at DESC, id DESC
 LIMIT 1;
 
 -- name: FindInvitationByID :one
--- ID 一致の招待を返す（会社スコープの認可判定に使う。status は問わない）。
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+-- ID 一致の招待を返す（ワークスペーススコープの認可判定に使う。status は問わない。FRESTYLE-297
+-- で company_id から workspace_id 経由の比較へ切り替えた）。
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE id = sqlc.arg(id)
 LIMIT 1;
@@ -47,7 +48,7 @@ LIMIT 1;
 -- token 一致 かつ pending かつ 未期限切れの招待のみ返す。期限比較は DB 関数でなく
 -- Go の UTC 現在時刻をバインドする（DB エンジン非依存 / ローカル TZ 設定に左右されない）。
 -- token は UNIQUE なので 1 行だが、順序を固定するため id ASC を置く。
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at
+SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE token = sqlc.arg(token)
   AND status = sqlc.arg(status)

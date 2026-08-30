@@ -177,3 +177,30 @@ func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, invalid, "不正な形式の ID も該当なし扱い")
 }
+
+// TestAdminInvitationRepository_FindByID_WorkspaceID_Integration は FindByID が
+// workspace_id も返すこと（FRESTYLE-297: CancelAdminInvitationUseCase の対象側比較が使う値）
+// を実 Postgres で固定する。
+func TestAdminInvitationRepository_FindByID_WorkspaceID_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewAdminInvitationRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1 := companyWorkspaceID(t, sqlDB, 1)
+	require.True(t, ws1.Valid)
+
+	inv := &domain.AdminInvitation{
+		CompanyID: 1, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
+		Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	require.NoError(t, repo.Create(ctx, inv))
+
+	got, err := repo.FindByID(ctx, inv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, got.WorkspaceID)
+	require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
+}

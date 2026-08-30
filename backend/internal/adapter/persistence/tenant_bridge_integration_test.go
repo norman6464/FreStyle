@@ -379,10 +379,17 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 	t.Run("新規作成の直後に workspace_id が入る（dual-write）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		require.True(t, ws1.Valid)
-		ws1Str := ws1.UUID.String()
+		ws2 := companyWorkspaceID(t, sqlDB, 2)
+		require.True(t, ws2.Valid)
+		require.NotEqual(t, ws1.UUID, ws2.UUID)
+		// courses / course_chapters / rich_documents は company_id=1 のまま workspace_id だけ
+		// 会社 B（ws2）を渡す。SQL 側で company_id から引き直していれば ws1 になってしまうので、
+		// 渡した値（ws2）がそのまま書かれることをこれで見分けられる。
+		ws2Str := ws2.UUID.String()
 
 		users := persistence.NewUserRepository(sqlDB)
 		cid := uint64(1)
@@ -393,33 +400,34 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// courses / course_chapters / rich_documents は usecase 側（actor の所属ワークスペース）が
-		// workspace_id を決めて渡す設計のため、ここでも同じ値を明示して渡す。
+		// workspace_id を決めて渡す設計のため、ここでも company_id とは別の値を明示して渡す。
 		courses := persistence.NewCourseRepository(sqlDB)
-		course := &domain.Course{CompanyID: 1, WorkspaceID: &ws1Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
+		course := &domain.Course{CompanyID: 1, WorkspaceID: &ws2Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
 		require.NoError(t, courses.Create(ctx, course))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が company_id ではなく渡された workspace_id を書く")
 
 		materials := persistence.NewTeachingMaterialRepository(sqlDB)
-		chapter := &domain.TeachingMaterial{CompanyID: 1, WorkspaceID: &ws1Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
+		chapter := &domain.TeachingMaterial{CompanyID: 1, WorkspaceID: &ws2Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
 		require.NoError(t, materials.Create(ctx, chapter))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が company_id ではなく渡された workspace_id を書く")
 
-		// invitations はまだ company_id からの dual-write（SQL 側のサブクエリ）に依存している。
+		// invitations はまだ company_id からの dual-write（SQL 側のサブクエリ）に依存しているため、
+		// ここだけは company_id=1 に対応する ws1 になることを見る（他の3つとは逆の期待値）。
 		invitations := persistence.NewAdminInvitationRepository(sqlDB)
 		inv := &domain.AdminInvitation{
 			CompanyID: 1, Email: "invitee@example.com", Role: domain.RoleTrainee,
 			Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(24 * time.Hour),
 		}
 		require.NoError(t, invitations.Create(ctx, inv))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "invitations", inv.ID), "InsertInvitation が workspace_id を dual-write する")
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "invitations", inv.ID), "InsertInvitation は company_id から workspace_id を dual-write する")
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
-			OwnerID: author.ID, CompanyID: &cid, WorkspaceID: &ws1Str, Kind: domain.DocumentKindNote,
+			OwnerID: author.ID, CompanyID: &cid, WorkspaceID: &ws2Str, Kind: domain.DocumentKindNote,
 			Title: "メモ", Doc: `{"type":"doc","content":[]}`,
 		}
 		require.NoError(t, richDocs.Create(ctx, doc))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が company_id ではなく渡された workspace_id を書く")
 	})
 
 	t.Run("会社を持たない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {

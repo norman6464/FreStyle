@@ -61,8 +61,10 @@ LIMIT 1;
 -- （GORM autoCreateTime 相当。ゼロなら now を入れる）。updated_at 列は持たない。
 -- token は未設定を NULL にして UNIQUE を避けるため nullable。
 --
--- workspace_id は company_id（$1）からその場で引く（理由は course.sql の
--- InsertCourse と同じ）。
+-- workspace_id は company_id（$1）からその場で引く。course.sql の InsertCourse 等とは違い
+-- サブクエリのままにしている理由: 招待先の会社は SuperAdmin が任意に指定でき actor 自身の所属と
+-- 一致するとは限らず、招待を受ける本人もまだ存在しない（Go 側に「actor の所属ワークスペース」を
+-- そのまま渡せる相手がいない）。company_id からその場で引く既存の解決を維持する。
 INSERT INTO invitations
   (company_id, workspace_id, email, role, name, status, token, expires_at, created_at)
 VALUES ($1, (SELECT c.workspace_id FROM companies c WHERE c.id = $1), $2, $3, $4, $5, $6, $7, $8)

@@ -1,8 +1,10 @@
--- name: ListCoursesByCompany :many
+-- name: ListCoursesByWorkspace :many
 -- 自社のコースを sort_order 昇順（同値時 id 昇順）で返す。
 -- include_unpublished=false なら公開済み（is_published=true）のみに絞る。
+--
+-- FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
 SELECT * FROM courses
-WHERE company_id = sqlc.arg(company_id)
+WHERE workspace_id = sqlc.arg(workspace_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)
 ORDER BY sort_order ASC, id ASC;
 

@@ -19,9 +19,11 @@ type TeachingMaterialRepository interface {
 	ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error)
 	ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error)
 	GetByID(ctx context.Context, id uint64) (*domain.TeachingMaterial, error)
-	// CountByCourseForCompany は company 内の教材件数を course_id ごとに一括集計して返す
+	// CountByCourseForWorkspace はワークスペース内の教材件数を course_id ごとに一括集計して返す
 	// (コース一覧に章数を出すための集計。コースごとの個別クエリだと N+1 になるため)。
-	CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error)
+	// FRESTYLE-400 段4横展開: company_id 直読み（旧 CountByCourseForCompany）から
+	// workspace_id 経由へ切り替え済み。
+	CountByCourseForWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) (map[uint64]int, error)
 	Create(ctx context.Context, m *domain.TeachingMaterial) error
 	// Update は title / sort_order / is_published を書き換える。対象行が無ければ
 	// domain.ErrNotFound（黙って成功にすると失われた編集を保存済みに見せるため）。

@@ -54,7 +54,7 @@ func (f *fakeMaterialRepoH) ListByCourse(context.Context, uint64, bool) ([]domai
 	return nil, nil
 }
 
-func (f *fakeMaterialRepoH) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
+func (f *fakeMaterialRepoH) CountByCourseForWorkspace(context.Context, string, bool) (map[uint64]int, error) {
 	return nil, nil
 }
 func (f *fakeMaterialRepoH) Create(context.Context, *domain.TeachingMaterial) error { return nil }
@@ -74,7 +74,7 @@ func (f *fakeCourseRepoH) GetByID(context.Context, uint64) (*domain.Course, erro
 	return f.c, nil
 }
 
-func (f *fakeCourseRepoH) ListByCompany(context.Context, uint64, bool) ([]domain.Course, error) {
+func (f *fakeCourseRepoH) ListByWorkspaceID(context.Context, string, bool) ([]domain.Course, error) {
 	return nil, nil
 }
 func (f *fakeCourseRepoH) Create(context.Context, *domain.Course) error { return nil }

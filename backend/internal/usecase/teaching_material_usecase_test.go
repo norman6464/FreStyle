@@ -42,7 +42,7 @@ func materialRepo(cfg materialFakeConfig) (*mockMaterialRepo, *materialStore) {
 			st.listCourseID = args.Get(1).(uint64)
 			st.listIncludeAll = args.Get(2).(bool)
 		}).Return(nil, nil).Maybe()
-	repo.On("CountByCourseForCompany", mock.Anything, mock.Anything, mock.Anything).
+	repo.On("CountByCourseForWorkspace", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			include := args.Get(2).(bool)
 			st.lastCountIncludeUnpublished = &include
@@ -86,7 +86,7 @@ type courseFakeConfig struct {
 func courseRepo(cfg courseFakeConfig) (*mockCourseRepo, *courseStore) {
 	st := &courseStore{}
 	repo := &mockCourseRepo{}
-	repo.On("ListByCompany", mock.Anything, mock.Anything, mock.Anything).Return(cfg.rows, nil).Maybe()
+	repo.On("ListByWorkspaceID", mock.Anything, mock.Anything, mock.Anything).Return(cfg.rows, nil).Maybe()
 	repo.On("GetByID", mock.Anything, mock.Anything).Return(cfg.get, cfg.getErr).Maybe()
 	repo.On("Create", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {

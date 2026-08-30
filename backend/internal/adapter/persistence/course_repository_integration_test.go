@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCourseRepository_Integration は ListByCompany の company 絞り込み / published フィルタ /
-// 並び順を実 Postgres で検証する。
+// TestCourseRepository_Integration は ListByWorkspaceID のワークスペース絞り込み /
+// published フィルタ / 並び順を実 Postgres で検証する。
 func TestCourseRepository_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
@@ -27,21 +27,27 @@ func TestCourseRepository_Integration(t *testing.T) {
 		}
 	}
 
-	t.Run("ListByCompany は company で絞り published フィルタ + sort_order 昇順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "courses")
+	t.Run("ListByWorkspaceID はワークスペースで絞り published フィルタ + sort_order 昇順", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, append([]string{"courses"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		require.True(t, ws1.Valid)
 
+		// InsertCourse が company_id から workspace_id を dual-write する（FRESTYLE-400）。
 		require.NoError(t, repo.Create(ctx, mk(1, "published", true, 20)))
 		require.NoError(t, repo.Create(ctx, mk(1, "draft", false, 10)))
 		require.NoError(t, repo.Create(ctx, mk(2, "other-company", true, 5)))
 
-		// includeUnpublished=false → company 1 の published のみ。
-		pub, err := repo.ListByCompany(ctx, 1, false)
+		// includeUnpublished=false → 会社 A の published のみ。
+		pub, err := repo.ListByWorkspaceID(ctx, ws1.UUID.String(), false)
 		require.NoError(t, err)
 		require.Len(t, pub, 1)
 		require.Equal(t, "published", pub[0].Title)
 
-		// includeUnpublished=true → company 1 の全件を sort_order 昇順（draft=10, published=20）。
-		all, err := repo.ListByCompany(ctx, 1, true)
+		// includeUnpublished=true → 会社 A の全件を sort_order 昇順（draft=10, published=20）。
+		all, err := repo.ListByWorkspaceID(ctx, ws1.UUID.String(), true)
 		require.NoError(t, err)
 		require.Len(t, all, 2)
 		require.Equal(t, "draft", all[0].Title, "sort_order 昇順")

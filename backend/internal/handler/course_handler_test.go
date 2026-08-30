@@ -19,7 +19,7 @@ type fakeCourseRepo struct {
 	writeErr error
 }
 
-func (f *fakeCourseRepo) ListByCompany(context.Context, uint64, bool) ([]domain.Course, error) {
+func (f *fakeCourseRepo) ListByWorkspaceID(context.Context, string, bool) ([]domain.Course, error) {
 	return f.rows, f.listErr
 }
 
@@ -51,7 +51,7 @@ func (fakeMaterialRepo) GetByID(context.Context, uint64) (*domain.TeachingMateri
 	return nil, nil
 }
 
-func (fakeMaterialRepo) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
+func (fakeMaterialRepo) CountByCourseForWorkspace(context.Context, string, bool) (map[uint64]int, error) {
 	return map[uint64]int{}, nil
 }
 func (fakeMaterialRepo) Create(context.Context, *domain.TeachingMaterial) error { return nil }
@@ -89,10 +89,12 @@ func newCourseHandlerWithViews(cr repository.CourseRepository, cv repository.Use
 	)
 }
 
-// superAdminCo は company_id 付きの super_admin（course handler の actorContext 用）。
+// superAdminCo は company_id / workspace_id 付きの super_admin
+// （course handler の actorContext / actorWorkspaceContext 用）。
 func superAdminCo() *domain.User {
 	cid := uint64(1)
-	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: &cid}
+	wid := "0198a000-0000-7000-8000-0000000000c1"
+	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: &cid, WorkspaceID: &wid}
 }
 
 func Test_コースハンドラ_一覧(t *testing.T) {

@@ -143,13 +143,13 @@ func (r *teachingMaterialRepository) GetByID(ctx context.Context, id uint64) (*d
 
 // CountByCourseForCompany は course_id ごとの教材件数を 1 クエリで集計する。
 // trainee 向け(includeUnpublished=false)は published のみ数え、コース詳細の進捗分母と一致させる。
-func (r *teachingMaterialRepository) CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error) {
-	cid, ok := toInt64ID(companyID)
+func (r *teachingMaterialRepository) CountByCourseForWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) (map[uint64]int, error) {
+	wid, ok := toNullUUID(workspaceID)
 	if !ok {
-		return map[uint64]int{}, nil // 存在し得ない company_id = 空
+		return map[uint64]int{}, nil // 不正 / 空の ID は該当なしと同じ扱い
 	}
-	rows, err := sqlcgen.New(r.db).CountChaptersByCourseForCompany(ctx, sqlcgen.CountChaptersByCourseForCompanyParams{
-		CompanyID:          cid,
+	rows, err := sqlcgen.New(r.db).CountChaptersByCourseForWorkspace(ctx, sqlcgen.CountChaptersByCourseForWorkspaceParams{
+		WorkspaceID:        wid,
 		IncludeUnpublished: includeUnpublished,
 	})
 	if err != nil {

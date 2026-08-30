@@ -24,6 +24,18 @@ func actorFromContext(c *gin.Context) (userID uint64, company domain.CompanyRef,
 	return user.ID, user.CompanyRef(), user.Role, true
 }
 
+// actorWorkspaceFromContext は actorFromContext の workspace 版。読み取りが workspace_id
+// 経由へ切り替わった handler（FRESTYLE-355 段4）が使う。company_id 直読みのまま残る他の
+// handler は引き続き actorFromContext を使うため、既存の関数は変更せずこちらを新設した。
+func actorWorkspaceFromContext(c *gin.Context) (userID uint64, workspace domain.WorkspaceRef, role domain.RoleName, ok bool) {
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return 0, domain.NoWorkspace(), "", false
+	}
+	return user.ID, user.WorkspaceRef(), user.Role, true
+}
+
 // respondEntityErr は usecase が返したエラーを HTTP ステータスへ振り分ける共通処理。
 // レコード未検出は 404(notFoundMsg)、認可エラー(forbidden* / 会社未所属)は 403、
 // それ以外は 500(fallback) を返す。エンティティ別の文言は notFoundMsg / fallback で渡す。

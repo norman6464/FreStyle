@@ -37,14 +37,13 @@ func chapterDocPtr(raw *json.RawMessage) *string {
 // toDomainChapter は行全体（本文 doc・workspace_id 含む）を domain へ写す。
 // chapterRow は行全体を返すクエリの共通の行形。GetChapterByID / UpdateChapterDocWithRevision は
 // course_chapters の全列を返すため、sqlc は個別の Row 型を生成せずテーブル型
-// （sqlcgen.CourseChapter）をそのまま再利用する（FRESTYLE-403 で workspace_id を追加した際、
+// （sqlcgen.CourseChapter）をそのまま再利用する（workspace_id を追加した際、
 // 既存の列リストと一致し全列になったことでこの型に切り替わった）。
 type chapterRow = sqlcgen.CourseChapter
 
 func toDomainChapter(row chapterRow) domain.TeachingMaterial {
 	m := domain.TeachingMaterial{
 		ID:              uint64(row.ID),
-		CompanyID:       uint64(row.CompanyID),
 		CourseID:        uint64(row.CourseID),
 		CreatedByUserID: uint64(row.CreatedByUserID),
 		Title:           row.Title,
@@ -65,12 +64,11 @@ func toDomainChapter(row chapterRow) domain.TeachingMaterial {
 
 // toDomainChapterSummary は一覧用の軽量行（本文 doc を含まない）を domain へ写す。Doc は nil のまま。
 //
-// sqlc は SELECT ごとに別の行型を生成するため、company 別の一覧は
-// [toDomainChapterCompanySummary] が同じ列構成であることを型変換で確かめてからここへ渡す。
+// sqlc は SELECT ごとに別の行型を生成するため、workspace 別の一覧は
+// [toDomainChapterWorkspaceSummary] が同じ列構成であることを型変換で確かめてからここへ渡す。
 func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.TeachingMaterial {
 	m := domain.TeachingMaterial{
 		ID:              uint64(row.ID),
-		CompanyID:       uint64(row.CompanyID),
 		CourseID:        uint64(row.CourseID),
 		CreatedByUserID: uint64(row.CreatedByUserID),
 		Title:           row.Title,
@@ -86,38 +84,10 @@ func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.Teaching
 	return m
 }
 
-// toDomainChapterCompanySummary は company 別一覧の軽量行を domain へ写す。
-// 列構成が course 別一覧とずれたらこの型変換がコンパイルエラーになる。
-func toDomainChapterCompanySummary(row sqlcgen.ListChaptersByCompanyRow) domain.TeachingMaterial {
-	return toDomainChapterSummary(sqlcgen.ListChaptersByCourseRow(row))
-}
-
 // toDomainChapterWorkspaceSummary は workspace 別一覧の軽量行を domain へ写す。
 // 列構成が course 別一覧とずれたらこの型変換がコンパイルエラーになる。
 func toDomainChapterWorkspaceSummary(row sqlcgen.ListChaptersByWorkspaceRow) domain.TeachingMaterial {
 	return toDomainChapterSummary(sqlcgen.ListChaptersByCourseRow(row))
-}
-
-// ListByCompany は backward-compat 用（コース対応完了後に削除予定）。
-func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-	cid, ok := toInt64ID(companyID)
-	if !ok {
-		return []domain.TeachingMaterial{}, nil // 存在し得ない company_id = 0 件
-	}
-	// 一覧は本文（doc・jsonb）を返さない（domain の Doc は json:"-" で応答に出ないため、
-	// 全章分を読み出しても転送するだけ無駄になる）。ListByCourse と同じ軽量な列構成。
-	rows, err := sqlcgen.New(r.db).ListChaptersByCompany(ctx, sqlcgen.ListChaptersByCompanyParams{
-		CompanyID:          cid,
-		IncludeUnpublished: includeUnpublished,
-	})
-	if err != nil {
-		return nil, err
-	}
-	materials := make([]domain.TeachingMaterial, 0, len(rows))
-	for _, row := range rows {
-		materials = append(materials, toDomainChapterCompanySummary(row))
-	}
-	return materials, nil
 }
 
 // ListByWorkspace は backward-compat 用（コース対応完了後に削除予定）。ListByCompany の
@@ -127,7 +97,7 @@ func (r *teachingMaterialRepository) ListByWorkspace(ctx context.Context, worksp
 	if !ok {
 		return []domain.TeachingMaterial{}, nil // 不正 / 空の ID は該当なしと同じ扱い
 	}
-	// 一覧は本文（doc・jsonb）を返さない（ListByCompany と同じ軽量な列構成）。
+	// 一覧は本文（doc・jsonb）を返さない（ListByCourse と同じ軽量な列構成）。
 	rows, err := sqlcgen.New(r.db).ListChaptersByWorkspace(ctx, sqlcgen.ListChaptersByWorkspaceParams{
 		WorkspaceID:        wid,
 		IncludeUnpublished: includeUnpublished,
@@ -203,11 +173,6 @@ func (r *teachingMaterialRepository) CountByCourseForWorkspace(ctx context.Conte
 }
 
 func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.TeachingMaterial) error {
-	companyID, ok := toInt64ID(m.CompanyID)
-	if !ok {
-		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
-		return outOfRangeIDError("company_id", m.CompanyID)
-	}
 	workspaceID, ok := nullWorkspaceID(m.WorkspaceID)
 	if !ok {
 		return fmt.Errorf("workspace_id が不正な形式です: %q", *m.WorkspaceID)
@@ -232,7 +197,6 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
 	row, err := sqlcgen.New(r.db).InsertChapter(ctx, sqlcgen.InsertChapterParams{
-		CompanyID:       companyID,
 		WorkspaceID:     workspaceID,
 		CourseID:        courseID,
 		CreatedByUserID: createdBy,
@@ -263,7 +227,7 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	// CreatedBy / CompanyID / CourseID / Doc / Revision は不変（GORM の Updates(map) と同じ 3 列のみ）。
+	// CreatedBy / CourseID / Doc / Revision は不変（GORM の Updates(map) と同じ 3 列のみ）。
 	// updated_at は now() へ進めて RETURNING で書き戻す（autoUpdateTime 相当）。
 	updatedAt, err := sqlcgen.New(r.db).UpdateChapter(ctx, sqlcgen.UpdateChapterParams{
 		ID:          id64,

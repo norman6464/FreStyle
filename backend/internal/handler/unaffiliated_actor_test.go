@@ -13,13 +13,29 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// 未所属 actor（users.company_id = NULL。運営管理者がこれに当たる）が各経路を通ったときの
+// 未所属 actor（users.workspace_id = NULL。運営管理者がこれに当たる）が各経路を通ったときの
 // 挙動をここに固定する。「未所属」の表現を変えても素通り / 許可 / 空一覧 / 403 の別が
 // ずれないことを保証するための回帰テスト（経路ごとに結論が違うのは現状の仕様）。
 
-// unaffiliatedSuperAdmin は会社に属さない super_admin。
+// otherWorkspaceID は未所属 actor から見た「自分のものではないワークスペース」。
+const otherWorkspaceID = "0198a000-0000-7000-8000-0000000000f1"
+
+// unaffiliatedSuperAdmin はどのワークスペースにも属さない super_admin。
 func unaffiliatedSuperAdmin() *domain.User {
-	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
+	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, WorkspaceID: nil}
+}
+
+// courseInOtherWorkspace / materialInOtherWorkspace は otherWorkspaceID に属する対象を組み立てる。
+func courseInOtherWorkspace(c domain.Course) *domain.Course {
+	wid := otherWorkspaceID
+	c.WorkspaceID = &wid
+	return &c
+}
+
+func materialInOtherWorkspace(m domain.TeachingMaterial) *domain.TeachingMaterial {
+	wid := otherWorkspaceID
+	m.WorkspaceID = &wid
+	return &m
 }
 
 // recordingChapterViewRepo は UpsertView が呼ばれたかを記録する fake。
@@ -41,9 +57,9 @@ func (f *recordingChapterViewRepo) GetLastViewedByUserAndCourse(context.Context,
 }
 
 func Test_未所属actor_コース経路(t *testing.T) {
-	t.Run("一覧は空配列（自社が無いので 1 件も返さない）", func(t *testing.T) {
+	t.Run("一覧は空配列（所属ワークスペースが無いので 1 件も返さない）", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, unaffiliatedSuperAdmin())
-		newCourseHandler(&fakeCourseRepo{rows: []domain.Course{{ID: 1, CompanyID: 1, Title: "C"}}}).List(c)
+		newCourseHandler(&fakeCourseRepo{rows: []domain.Course{*courseInOtherWorkspace(domain.Course{ID: 1, Title: "C"})}}).List(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
@@ -52,15 +68,15 @@ func Test_未所属actor_コース経路(t *testing.T) {
 		}
 	})
 
-	t.Run("詳細は super_admin として他社コースも読める", func(t *testing.T) {
+	t.Run("詳細は super_admin として他ワークスペースのコースも読める", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("5"), unaffiliatedSuperAdmin())
-		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1, Title: "C"}}).Get(c)
+		newCourseHandler(&fakeCourseRepo{one: courseInOtherWorkspace(domain.Course{ID: 5, Title: "C"})}).Get(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
 
-	t.Run("作成は 403（自社が無いので作れない）", func(t *testing.T) {
+	t.Run("作成は 403（所属ワークスペースが無いので作れない）", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPost, `{"title":"New"}`, nil, unaffiliatedSuperAdmin())
 		newCourseHandler(&fakeCourseRepo{}).Create(c)
 		if w.Code != http.StatusForbidden {
@@ -70,7 +86,7 @@ func Test_未所属actor_コース経路(t *testing.T) {
 
 	t.Run("更新は super_admin として通る", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"X"}`, idParam("5"), unaffiliatedSuperAdmin())
-		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Update(c)
+		newCourseHandler(&fakeCourseRepo{one: courseInOtherWorkspace(domain.Course{ID: 5})}).Update(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
@@ -78,14 +94,14 @@ func Test_未所属actor_コース経路(t *testing.T) {
 
 	t.Run("削除は super_admin として通る", func(t *testing.T) {
 		_, c := ctxJSON(http.MethodDelete, "", idParam("5"), unaffiliatedSuperAdmin())
-		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Delete(c)
+		newCourseHandler(&fakeCourseRepo{one: courseInOtherWorkspace(domain.Course{ID: 5})}).Delete(c)
 		if c.Writer.Status() != http.StatusNoContent {
 			t.Fatalf("want 204, got %d", c.Writer.Status())
 		}
 	})
 
-	t.Run("最終閲覧章は super_admin として他社コースでも読める", func(t *testing.T) {
-		course := &domain.Course{ID: 5, CompanyID: 1, IsPublished: true}
+	t.Run("最終閲覧章は super_admin として他ワークスペースのコースでも読める", func(t *testing.T) {
+		course := courseInOtherWorkspace(domain.Course{ID: 5, IsPublished: true})
 		view := &domain.UserChapterView{UserID: 1, TeachingMaterialID: 42, CourseID: 5}
 		w, c := ctxJSON(http.MethodGet, "", idParam("5"), unaffiliatedSuperAdmin())
 		newCourseHandlerWithViews(
@@ -99,7 +115,7 @@ func Test_未所属actor_コース経路(t *testing.T) {
 }
 
 func Test_未所属actor_教材経路(t *testing.T) {
-	publishedCourse := &domain.Course{ID: 5, CompanyID: 1, IsPublished: true}
+	publishedCourse := courseInOtherWorkspace(domain.Course{ID: 5, IsPublished: true})
 
 	t.Run("全件一覧は空配列", func(t *testing.T) {
 		h := NewTeachingMaterialHandler(
@@ -115,7 +131,7 @@ func Test_未所属actor_教材経路(t *testing.T) {
 		}
 	})
 
-	t.Run("コース別一覧は super_admin として他社コースでも通る", func(t *testing.T) {
+	t.Run("コース別一覧は super_admin として他ワークスペースのコースでも通る", func(t *testing.T) {
 		h := NewTeachingMaterialHandler(
 			usecase.NewTeachingMaterialUseCase(fakeMaterialRepo{}, &fakeCourseRepo{one: publishedCourse}),
 		)
@@ -126,7 +142,7 @@ func Test_未所属actor_教材経路(t *testing.T) {
 		}
 	})
 
-	t.Run("作成は 403（自社が無いので作れない）", func(t *testing.T) {
+	t.Run("作成は 403（所属ワークスペースが無いので作れない）", func(t *testing.T) {
 		h := NewTeachingMaterialHandler(
 			usecase.NewTeachingMaterialUseCase(fakeMaterialRepo{}, &fakeCourseRepo{one: publishedCourse}),
 		)
@@ -138,7 +154,7 @@ func Test_未所属actor_教材経路(t *testing.T) {
 	})
 
 	t.Run("更新は super_admin として通る", func(t *testing.T) {
-		materials := &fakeMaterialRepoH{m: &domain.TeachingMaterial{ID: 1, CompanyID: 1, CourseID: 5}}
+		materials := &fakeMaterialRepoH{m: materialInOtherWorkspace(domain.TeachingMaterial{ID: 1, CourseID: 5})}
 		h := NewTeachingMaterialHandler(
 			usecase.NewTeachingMaterialUseCase(materials, &fakeCourseRepo{one: publishedCourse}),
 		)
@@ -150,7 +166,7 @@ func Test_未所属actor_教材経路(t *testing.T) {
 	})
 
 	t.Run("削除は super_admin として通る", func(t *testing.T) {
-		materials := &fakeMaterialRepoH{m: &domain.TeachingMaterial{ID: 1, CompanyID: 1, CourseID: 5}}
+		materials := &fakeMaterialRepoH{m: materialInOtherWorkspace(domain.TeachingMaterial{ID: 1, CourseID: 5})}
 		h := NewTeachingMaterialHandler(
 			usecase.NewTeachingMaterialUseCase(materials, &fakeCourseRepo{one: publishedCourse}),
 		)
@@ -165,8 +181,8 @@ func Test_未所属actor_教材経路(t *testing.T) {
 func Test_未所属actor_章閲覧記録は記録される(t *testing.T) {
 	// canRead は super_admin を無条件で許可するため、未所属でも upsert まで到達する。
 	views := &recordingChapterViewRepo{}
-	materials := &fakeMaterialRepoH{m: &domain.TeachingMaterial{ID: 5, CompanyID: 1, CourseID: 9, IsPublished: true}}
-	courses := &fakeCourseRepoH{c: &domain.Course{ID: 9, CompanyID: 1, IsPublished: true}}
+	materials := &fakeMaterialRepoH{m: materialInOtherWorkspace(domain.TeachingMaterial{ID: 5, CourseID: 9, IsPublished: true})}
+	courses := &fakeCourseRepoH{c: courseInOtherWorkspace(domain.Course{ID: 9, IsPublished: true})}
 	h := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(views, materials, courses))
 
 	_, c := ctxJSON(http.MethodPost, "", idParam("5"), unaffiliatedSuperAdmin())
@@ -183,8 +199,8 @@ func Test_未所属actor_章閲覧記録は記録される(t *testing.T) {
 func Test_未所属actor_レッスン完了は許可される(t *testing.T) {
 	// canRead が super_admin を無条件で許可するため、未所属でも完了にできる。
 	progress := &fakeProgressRepoH{}
-	materials := &fakeMaterialRepoH{m: &domain.TeachingMaterial{ID: 5, CompanyID: 1, CourseID: 9, IsPublished: true}}
-	courses := &fakeCourseRepoH{c: &domain.Course{ID: 9, CompanyID: 1, IsPublished: true}}
+	materials := &fakeMaterialRepoH{m: materialInOtherWorkspace(domain.TeachingMaterial{ID: 5, CourseID: 9, IsPublished: true})}
+	courses := &fakeCourseRepoH{c: courseInOtherWorkspace(domain.Course{ID: 9, IsPublished: true})}
 	h := NewLessonProgressHandler(
 		usecase.NewMarkLessonCompletedUseCase(progress, materials, courses, &nopActivityRepo{}),
 		usecase.NewMarkLessonIncompleteUseCase(progress),
@@ -210,7 +226,8 @@ func Test_未所属actor_レッスン完了は許可される(t *testing.T) {
 }
 
 func Test_未所属actor_招待取り消しは運営管理者として通る(t *testing.T) {
-	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, CompanyID: 42}}}
+	invWorkspace := otherWorkspaceID
+	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, WorkspaceID: &invWorkspace}}}
 	h := NewAdminInvitationHandler(nil, nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
 
 	r := gin.New()
@@ -228,14 +245,15 @@ func Test_未所属actor_招待取り消しは運営管理者として通る(t *
 }
 
 func Test_未所属actor_招待取り消しは会社管理者だと404(t *testing.T) {
-	// company_admin は自社の招待しか取り消せない。未所属ならどの招待とも一致しないため、
-	// 存在を漏らさない 404 になる。
-	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, CompanyID: 42}}}
+	// company_admin は自ワークスペースの招待しか取り消せない。未所属ならどの招待とも
+	// 一致しないため、存在を漏らさない 404 になる。
+	invWorkspace := otherWorkspaceID
+	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, WorkspaceID: &invWorkspace}}}
 	h := NewAdminInvitationHandler(nil, nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
 
 	r := gin.New()
 	r.DELETE("/admin/invitations/:id", func(c *gin.Context) {
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 2, Role: domain.RoleCompanyAdmin, CompanyID: nil})
+		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 2, Role: domain.RoleCompanyAdmin, WorkspaceID: nil})
 		h.Cancel(c)
 	})
 

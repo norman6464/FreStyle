@@ -1,8 +1,6 @@
 -- name: ListCoursesByWorkspace :many
 -- 自社のコースを sort_order 昇順（同値時 id 昇順）で返す。
 -- include_unpublished=false なら公開済み（is_published=true）のみに絞る。
---
--- FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
 SELECT * FROM courses
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)
@@ -18,12 +16,10 @@ WHERE id = $1;
 -- ゼロなら呼び出し側で now() を入れる）。sort_order は 0 のとき既定 100 を当てる
 -- （GORM の `default:100` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 --
--- workspace_id は company_id から引き直さず、呼び出し側（actor の所属ワークスペース）が
--- そのまま渡す値をそのまま書く。
+-- workspace_id は呼び出し側（actor の所属ワークスペース）が渡す値をそのまま書く。
 INSERT INTO courses
-  (company_id, workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
+  (workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
 VALUES (
-  sqlc.arg(company_id),
   sqlc.arg(workspace_id),
   sqlc.arg(created_by_user_id),
   sqlc.arg(title),
@@ -39,7 +35,7 @@ RETURNING id, sort_order, created_at, updated_at;
 
 -- name: UpdateCourse :one
 -- コースを部分更新する。書くのは title / description / sort_order / is_published の 4 列だけで、
--- created_by_user_id / company_id / category / language / created_at は不変（GORM の Updates(map) と同じ）。
+-- created_by_user_id / category / language / created_at は不変（GORM の Updates(map) と同じ）。
 -- updated_at は now() へ進めて RETURNING で書き戻す（autoUpdateTime 相当）。
 UPDATE courses SET
   title        = sqlc.arg(title),

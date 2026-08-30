@@ -9,7 +9,6 @@ import "time"
 // コース内の並び順は sort_order 列（同値時 ID 昇順）。
 type TeachingMaterial struct {
 	ID              uint64 `json:"id"`
-	CompanyID       uint64 `json:"companyId"`
 	CourseID        uint64 `json:"courseId"`
 	CreatedByUserID uint64 `json:"createdByUserId"`
 	Title           string `json:"title"`
@@ -22,8 +21,8 @@ type TeachingMaterial struct {
 	SchemaVersion int  `json:"schemaVersion"`
 	OrderInCourse int  `json:"orderInCourse"`
 	IsPublished   bool `json:"isPublished"`
-	// WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-	// 通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+	// WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+	// 通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
 	WorkspaceID *string   `json:"workspaceId,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`

@@ -6,6 +6,7 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -20,9 +21,9 @@ func TestCourseRepository_Integration(t *testing.T) {
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 
-	mk := func(companyID uint64, workspaceID *string, title string, published bool, sortOrder int) *domain.Course {
+	mk := func(workspaceID *string, title string, published bool, sortOrder int) *domain.Course {
 		return &domain.Course{
-			CompanyID: companyID, WorkspaceID: workspaceID, CreatedByUserID: 1, Title: title,
+			WorkspaceID: workspaceID, CreatedByUserID: 1, Title: title,
 			IsPublished: published, SortOrder: sortOrder,
 		}
 	}
@@ -40,17 +41,17 @@ func TestCourseRepository_Integration(t *testing.T) {
 		ws2Str := ws2.UUID.String()
 
 		// Create は呼び出し側（usecase）が解決した workspace_id をそのまま書く。
-		require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, "published", true, 20)))
-		require.NoError(t, repo.Create(ctx, mk(1, &ws1Str, "draft", false, 10)))
-		require.NoError(t, repo.Create(ctx, mk(2, &ws2Str, "other-company", true, 5)))
+		require.NoError(t, repo.Create(ctx, mk(&ws1Str, "published", true, 20)))
+		require.NoError(t, repo.Create(ctx, mk(&ws1Str, "draft", false, 10)))
+		require.NoError(t, repo.Create(ctx, mk(&ws2Str, "other-workspace", true, 5)))
 
-		// includeUnpublished=false → 会社 A の published のみ。
+		// includeUnpublished=false → ワークスペース A の published のみ。
 		pub, err := repo.ListByWorkspaceID(ctx, ws1Str, false)
 		require.NoError(t, err)
 		require.Len(t, pub, 1)
 		require.Equal(t, "published", pub[0].Title)
 
-		// includeUnpublished=true → 会社 A の全件を sort_order 昇順（draft=10, published=20）。
+		// includeUnpublished=true → ワークスペース A の全件を sort_order 昇順（draft=10, published=20）。
 		all, err := repo.ListByWorkspaceID(ctx, ws1Str, true)
 		require.NoError(t, err)
 		require.Len(t, all, 2)
@@ -64,16 +65,14 @@ func TestCourseRepository_Integration(t *testing.T) {
 		require.True(t, ws1.Valid)
 		ws1Str := ws1.UUID.String()
 
-		c := mk(1, &ws1Str, "lifecycle", true, 1)
+		c := mk(&ws1Str, "lifecycle", true, 1)
 		require.NoError(t, repo.Create(ctx, c))
 		require.NotZero(t, c.ID)
 
 		got, err := repo.GetByID(ctx, c.ID)
 		require.NoError(t, err)
 		require.Equal(t, "lifecycle", got.Title)
-		// FRESTYLE-402: GetByID が workspace_id も返すこと（canReadCourse の対象側比較が
-		// 使う値）。SELECT * のため列自体は FRESTYLE-399 から取得できていたが、domain へ
-		// 写す側は本チケットで追加した。
+		// GetByID が workspace_id も返すこと（canReadCourse の対象側比較が使う値）。
 		require.NotNil(t, got.WorkspaceID)
 		require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
 
@@ -91,15 +90,20 @@ func TestCourseRepository_Integration(t *testing.T) {
 
 // TestCourseRepository_PartialUpdate_Integration は Update が部分更新（title/description/
 // sort_order/is_published のみ）であること、すなわち更新対象外の列
-// （created_by_user_id / company_id / category / language / created_at）を壊さないことを固定する。
+// （created_by_user_id / workspace_id / category / language / created_at）を壊さないことを固定する。
 func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, "courses")
+	testsupport.TruncateAll(t, sqlDB, append([]string{"courses"}, tenantBridgeTables...)...)
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	insertCompany(t, sqlDB, 2, "会社 B", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1Str := companyWorkspaceID(t, sqlDB, 1).UUID.String()
+	ws2Str := companyWorkspaceID(t, sqlDB, 2).UUID.String()
 
 	orig := &domain.Course{
-		CompanyID: 1, CreatedByUserID: 42,
+		WorkspaceID: &ws1Str, CreatedByUserID: 42,
 		Title: "orig", Description: "orig-desc",
 		Category: domain.CourseCategoryBackend, Language: "go",
 		SortOrder: 5, IsPublished: false,
@@ -109,6 +113,12 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	require.NoError(t, err)
 	origCreatedAt := created.CreatedAt
 
+	// updated_at を過去へ固定してから Update で進むことを見る。作成時刻（Go の時計で書く）と
+	// 更新時刻（DB の now()）を直に突き合わせると、両者のわずかなずれだけで結果が入れ替わる。
+	pastUpdatedAt := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	_, err = sqlDB.Exec(`UPDATE courses SET updated_at = $2 WHERE id = $1`, orig.ID, pastUpdatedAt)
+	require.NoError(t, err)
+
 	// 全フィールドを変えたオブジェクトで Update する（usecase の Update と同じく category/language も
 	// 変更した状態で渡す）。repo.Update は 4 列だけ書くので、それ以外は DB 上で変わらないはず。
 	created.Title = "updated"
@@ -117,7 +127,7 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	created.Language = "rust"
 	created.SortOrder = 99
 	created.IsPublished = true
-	created.CompanyID = 777       // これは書かれてはいけない
+	created.WorkspaceID = &ws2Str // これは書かれてはいけない
 	created.CreatedByUserID = 888 // これも書かれてはいけない
 	require.NoError(t, repo.Update(ctx, created))
 
@@ -129,12 +139,12 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	require.Equal(t, 99, got.SortOrder)
 	require.True(t, got.IsPublished)
 	// 更新対象外は元のまま（余計な列を書いていない証拠）。
-	require.Equal(t, uint64(1), got.CompanyID, "company_id は不変")
+	require.Equal(t, ws1Str, *got.WorkspaceID, "workspace_id は不変")
 	require.Equal(t, uint64(42), got.CreatedByUserID, "created_by_user_id は不変")
 	require.Equal(t, domain.CourseCategoryBackend, got.Category, "category は Update の対象外で不変")
 	require.Equal(t, "go", got.Language, "language は Update の対象外で不変")
 	require.Equal(t, origCreatedAt.Unix(), got.CreatedAt.Unix(), "created_at は不変")
-	require.False(t, got.UpdatedAt.Before(origCreatedAt), "updated_at は進む")
+	require.True(t, got.UpdatedAt.After(pastUpdatedAt), "updated_at は進む")
 }
 
 // TestCourseRepository_CreateDefaults_Integration は sort_order 未指定(0)で作成したとき
@@ -146,7 +156,7 @@ func TestCourseRepository_CreateDefaults_Integration(t *testing.T) {
 	ctx := context.Background()
 	testsupport.TruncateAll(t, sqlDB, "courses")
 
-	c := &domain.Course{CompanyID: 1, CreatedByUserID: 42, Title: "no-sort-order"} // SortOrder=0
+	c := &domain.Course{CreatedByUserID: 42, Title: "no-sort-order"} // SortOrder=0
 	require.NoError(t, repo.Create(ctx, c))
 	require.Equal(t, 100, c.SortOrder, "sort_order 未指定は既定 100 が書き戻る")
 	require.False(t, c.CreatedAt.IsZero(), "created_at が補完される")
@@ -181,7 +191,7 @@ func TestCourseRepository_SortOrderBigint_Integration(t *testing.T) {
 	testsupport.TruncateAll(t, sqlDB, "courses")
 	const beyondInt32 = math.MaxInt32 + 1
 	c := &domain.Course{
-		CompanyID: 1, CreatedByUserID: 1, Title: "並び順が int32 を超えるコース",
+		CreatedByUserID: 1, Title: "並び順が int32 を超えるコース",
 		IsPublished: true, SortOrder: beyondInt32,
 	}
 	require.NoError(t, repo.Create(ctx, c))

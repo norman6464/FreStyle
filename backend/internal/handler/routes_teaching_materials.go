@@ -8,7 +8,7 @@ import (
 
 // registerTeachingMaterialRoutes は教材個別 API（詳細 / 作成 / 更新 / 削除）を登録する。
 // コース配下の教材一覧は registerCourseRoutes 側で登録する。
-// アクセス制御は usecase 層で actor の company_id / role を検証する。
+// アクセス制御は usecase 層で actor の workspace_id / role を検証する。
 func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	courseRepo := persistence.NewCourseRepository(deps.db)
 	materialRepo := persistence.NewTeachingMaterialRepository(deps.db)

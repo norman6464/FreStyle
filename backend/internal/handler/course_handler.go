@@ -147,11 +147,7 @@ type courseRequest struct {
 // @Router       /courses [post]
 // @Security     CookieAuth
 func (h *CourseHandler) Create(c *gin.Context) {
-	uid, actorCompany, role, ok := actorFromContext(c)
-	if !ok {
-		return
-	}
-	_, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -162,7 +158,6 @@ func (h *CourseHandler) Create(c *gin.Context) {
 	}
 	course, err := h.uc.Create(c.Request.Context(), usecase.CreateCourseInput{
 		ActorUserID:    uid,
-		ActorCompany:   actorCompany,
 		ActorWorkspace: actorWorkspace,
 		ActorRole:      role,
 		Title:          req.Title,

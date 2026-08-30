@@ -2095,7 +2095,7 @@ export interface paths {
         };
         /**
          * リッチ 文書 の 取得
-         * @description id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ ず 404)。
+         * @description id の 文書 を 返す。 所有者 か 同一 ワークスペース の 公開 文書 のみ (他 ワークスペース の 文書 や 非公開 は 存在 を 漏らさ ず 404)。
          */
         get: {
             parameters: {
@@ -6389,7 +6389,7 @@ export interface paths {
         /**
          * 教材 全 件 一覧 (deprecated)
          * @deprecated
-         * @description backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
+         * @description backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
          */
         get: {
             parameters: {
@@ -6929,6 +6929,11 @@ export interface components {
             name?: string;
             role?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
             status?: string;
+            /**
+             * @description WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
+             *     通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
+             */
+            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
             /** @description Action は「METHOD ルートパターン」（例: "PATCH /api/v2/admin/companies/:id/active"）。 */
@@ -6959,7 +6964,6 @@ export interface components {
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             category?: string;
-            companyId?: number;
             createdAt?: string;
             createdByUserId?: number;
             description?: string;
@@ -6973,6 +6977,11 @@ export interface components {
             sortOrder?: number;
             title?: string;
             updatedAt?: string;
+            /**
+             * @description WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+             *     通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
+             */
+            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission": {
             exerciseId?: number;
@@ -7069,7 +7078,6 @@ export interface components {
         /** @enum {string} */
         "github_com_norman6464_FreStyle_backend_internal_domain.RoleName": "super_admin" | "company_admin" | "trainee";
         "github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial": {
-            companyId?: number;
             courseId?: number;
             createdAt?: string;
             createdByUserId?: number;
@@ -7082,6 +7090,11 @@ export interface components {
             schemaVersion?: number;
             title?: string;
             updatedAt?: string;
+            /**
+             * @description WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+             *     通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
+             */
+            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView": {
             courseId?: number;
@@ -7163,7 +7176,6 @@ export interface components {
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             category?: string;
-            companyId?: number;
             /** @description CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。 */
             completedCount?: number;
             createdAt?: string;
@@ -7181,6 +7193,11 @@ export interface components {
             sortOrder?: number;
             title?: string;
             updatedAt?: string;
+            /**
+             * @description WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+             *     通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
+             */
+            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput": {
             currentStreak?: number;
@@ -7225,7 +7242,6 @@ export interface components {
             totalSubmissions?: number;
         };
         "internal_handler.chapterDetailResponse": {
-            companyId?: number;
             courseId?: number;
             createdAt?: string;
             createdByUserId?: number;
@@ -7239,6 +7255,11 @@ export interface components {
             schemaVersion?: number;
             title?: string;
             updatedAt?: string;
+            /**
+             * @description WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+             *     通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
+             */
+            workspaceId?: string;
         };
         "internal_handler.codeExecuteRequest": {
             code: string;
@@ -7293,8 +7314,6 @@ export interface components {
             title: string;
         };
         "internal_handler.documentResponse": {
-            /** @example 1 */
-            companyId?: number;
             createdAt?: string;
             doc?: Record<string, never>;
             /** @example 31400a07-297e-8057-884b-c05dbdf9fa53 */
@@ -7312,10 +7331,9 @@ export interface components {
             /** @example 学習メモ */
             title?: string;
             updatedAt?: string;
+            workspaceId?: string;
         };
         "internal_handler.documentSummaryResponse": {
-            /** @example 1 */
-            companyId?: number;
             createdAt?: string;
             /** @example 31400a07-297e-8057-884b-c05dbdf9fa53 */
             id?: string;
@@ -7332,6 +7350,7 @@ export interface components {
             /** @example 学習メモ */
             title?: string;
             updatedAt?: string;
+            workspaceId?: string;
         };
         "internal_handler.documentUpdateReq": {
             doc: Record<string, never>;
@@ -7364,6 +7383,8 @@ export interface components {
             name?: string;
             /** @example trainee */
             role?: string;
+            /** @example 0198a000-0000-7000-8000-000000000001 */
+            workspaceId?: string;
         };
         "internal_handler.issueProfileImageReq": {
             contentType?: string;
@@ -7675,6 +7696,8 @@ export interface components {
             /** @example trainee */
             role?: string;
             updatedAt?: string;
+            /** @example 0198a000-0000-7000-8000-000000000001 */
+            workspaceId?: string;
         };
         "internal_handler.memberResponse": {
             email?: string;

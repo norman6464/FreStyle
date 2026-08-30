@@ -54,9 +54,15 @@ func userWorkspaceID(t *testing.T, db *sql.DB, userID uint64) uuid.NullUUID {
 
 // runStartupBackfill は起動時に走る会社→ワークスペースのバックフィルを 1 回分流す。
 // スキーマ（列 / FK）は testsupport.OpenTestDB が既に適用済み。
+// runStartupBackfill は起動時に走るテナント移行の 2 段（会社→ワークスペースの紐付けと、
+// company_id から workspace_id への移送）を本番と同じ順で流す。片方だけを呼ぶと、
+// users / invitations の workspace_id が埋まらず本番と食い違う。
+// 撤去（DropCompanyIDColumns）はここでは呼ばない。company_id を前提に組み立てた
+// テストの下ごしらえが、その場で使えなくなるため。
 func runStartupBackfill(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, db))
+	require.NoError(t, database.MigrateWorkspaceIDsFromCompanyID(ctx, db))
 }
 
 // TestTenantBridgeBackfill_Integration は「会社を workspaces へ映す」バックフィルを実 Postgres で固定する。
@@ -276,12 +282,15 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 	})
 }
 
-// businessTablesWithWorkspaceMirror は FRESTYLE-399 で workspace_id を足した業務テーブル全 5 つ。
+// businessTablesWithWorkspaceMirror は company_id がまだ残り、起動時バックフィルが
+// workspace_id を埋め続ける表。courses / course_chapters / company_exercises /
+// rich_documents は company_id を撤去済みで、移行そのものの検証は
+// tenant_contract_integration_test.go が受け持つ。
 // company_exercises は repository / usecase が未実装で dual-write の対象外だが、
 // 起動時バックフィル（mirrorCompanyExercisesWorkspaceFromCompany）自体は用意しているので
 // バックフィルの検証対象には含める。
 var businessTablesWithWorkspaceMirror = []string{
-	"courses", "course_chapters", "company_exercises", "invitations", "rich_documents",
+	"invitations",
 }
 
 // businessTableWorkspaceMirrorTruncateTables はこの節のテストが TRUNCATE する対象。
@@ -395,14 +404,14 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 		// courses / course_chapters / rich_documents は usecase 側（actor の所属ワークスペース）が
 		// workspace_id を決めて渡す設計のため、ここでも company_id とは別の値を明示して渡す。
 		courses := persistence.NewCourseRepository(sqlDB)
-		course := &domain.Course{CompanyID: 1, WorkspaceID: &ws2Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
+		course := &domain.Course{WorkspaceID: &ws2Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
 		require.NoError(t, courses.Create(ctx, course))
-		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が company_id ではなく渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が 渡された workspace_id を書く")
 
 		materials := persistence.NewTeachingMaterialRepository(sqlDB)
-		chapter := &domain.TeachingMaterial{CompanyID: 1, WorkspaceID: &ws2Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
+		chapter := &domain.TeachingMaterial{WorkspaceID: &ws2Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
 		require.NoError(t, materials.Create(ctx, chapter))
-		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が company_id ではなく渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が 渡された workspace_id を書く")
 
 		// invitations はまだ company_id からの dual-write（SQL 側のサブクエリ）に依存しているため、
 		// ここだけは company_id=1 に対応する ws1 になることを見る（他の3つとは逆の期待値）。
@@ -416,11 +425,11 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
-			OwnerID: author.ID, CompanyID: &cid, WorkspaceID: &ws2Str, Kind: domain.DocumentKindNote,
+			OwnerID: author.ID, WorkspaceID: &ws2Str, Kind: domain.DocumentKindNote,
 			Title: "メモ", Doc: `{"type":"doc","content":[]}`,
 		}
 		require.NoError(t, richDocs.Create(ctx, doc))
-		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が company_id ではなく渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が 渡された workspace_id を書く")
 	})
 
 	t.Run("会社を持たない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {
@@ -434,7 +443,7 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
-			OwnerID: root.ID, CompanyID: nil, Kind: domain.DocumentKindNote,
+			OwnerID: root.ID, Kind: domain.DocumentKindNote,
 			Title: "運営メモ", Doc: `{"type":"doc","content":[]}`,
 		}
 		require.NoError(t, richDocs.Create(ctx, doc))

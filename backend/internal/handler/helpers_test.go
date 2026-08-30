@@ -14,32 +14,32 @@ import (
 
 func init() { gin.SetMode(gin.TestMode) }
 
-func TestActorFromContext(t *testing.T) {
-	t.Run("認証済み user から id/所属会社/role を取り出す", func(t *testing.T) {
+func TestActorWorkspaceFromContext(t *testing.T) {
+	t.Run("認証済み user から id/所属ワークスペース/role を取り出す", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		companyID := uint64(7)
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 42, CompanyID: &companyID, Role: domain.RoleCompanyAdmin})
+		workspaceID := "ws-7"
+		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 42, WorkspaceID: &workspaceID, Role: domain.RoleCompanyAdmin})
 
-		uid, company, role, ok := actorFromContext(c)
+		uid, workspace, role, ok := actorWorkspaceFromContext(c)
 
 		assert.True(t, ok)
 		assert.Equal(t, uint64(42), uid)
-		gotID, affiliated := company.CompanyID()
+		gotID, affiliated := workspace.WorkspaceID()
 		assert.True(t, affiliated)
-		assert.Equal(t, uint64(7), gotID)
+		assert.Equal(t, "ws-7", gotID)
 		assert.Equal(t, domain.RoleCompanyAdmin, role)
 	})
 
-	t.Run("会社未所属(nil)なら未所属の CompanyRef", func(t *testing.T) {
+	t.Run("ワークスペース未所属(nil)なら未所属の WorkspaceRef", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, CompanyID: nil, Role: domain.RoleSuperAdmin})
+		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, WorkspaceID: nil, Role: domain.RoleSuperAdmin})
 
-		_, company, _, ok := actorFromContext(c)
+		_, workspace, _, ok := actorWorkspaceFromContext(c)
 
 		assert.True(t, ok)
-		_, affiliated := company.CompanyID()
+		_, affiliated := workspace.WorkspaceID()
 		assert.False(t, affiliated)
 	})
 
@@ -47,7 +47,7 @@ func TestActorFromContext(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		_, _, _, ok := actorFromContext(c)
+		_, _, _, ok := actorWorkspaceFromContext(c)
 
 		assert.False(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -63,7 +63,7 @@ func TestRespondEntityErr(t *testing.T) {
 		{"レコード未検出は 404", domain.ErrNotFound, http.StatusNotFound},
 		{"forbidden は 403", errors.New("forbidden"), http.StatusForbidden},
 		{"forbidden 詳細付きも 403", errors.New("forbidden: only company_admin or super_admin can create materials"), http.StatusForbidden},
-		{"会社未所属は 403", errors.New("actor must belong to a company"), http.StatusForbidden},
+		{"テナント未所属は 403", errors.New("actor must belong to a workspace"), http.StatusForbidden},
 		{"その他は 500", errors.New("db down"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {
@@ -78,8 +78,8 @@ func TestRespondEntityErr(t *testing.T) {
 	}
 }
 
-func TestUserCompanyRef(t *testing.T) {
-	cid := uint64(9)
-	assert.Equal(t, domain.CompanyRefOf(9), domain.User{CompanyID: &cid}.CompanyRef())
-	assert.Equal(t, domain.NoCompany(), domain.User{CompanyID: nil}.CompanyRef())
+func TestUserWorkspaceRef(t *testing.T) {
+	wid := "ws-9"
+	assert.Equal(t, domain.WorkspaceRefOf("ws-9"), domain.User{WorkspaceID: &wid}.WorkspaceRef())
+	assert.Equal(t, domain.NoWorkspace(), domain.User{WorkspaceID: nil}.WorkspaceRef())
 }

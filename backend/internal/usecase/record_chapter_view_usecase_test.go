@@ -12,9 +12,9 @@ import (
 
 func Test_章閲覧記録_自社の公開教材はupsertする(t *testing.T) {
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 5, CompanyID: 10, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: true,
+		ID: 5, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})
-	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	views := &mockChapterViewRepo{}
 	views.On("UpsertView", mock.Anything, uint64(1), uint64(5), uint64(99)).Return(nil)
 	uc := usecase.NewRecordChapterViewUseCase(views, mat, crs)
@@ -28,9 +28,9 @@ func Test_章閲覧記録_自社の公開教材はupsertする(t *testing.T) {
 
 func Test_章閲覧記録_他社の教材はforbidden(t *testing.T) {
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 5, CompanyID: 10, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: true,
+		ID: 5, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})
-	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	views := &mockChapterViewRepo{}
 	uc := usecase.NewRecordChapterViewUseCase(views, mat, crs)
 

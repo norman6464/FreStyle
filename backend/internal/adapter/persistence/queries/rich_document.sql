@@ -2,7 +2,7 @@
 -- ID で 1 件引く（論理削除は除外）。無ければ sql.ErrNoRows。
 -- 誰が読めるか（テナント境界）は domain.RichDocument.CanBeReadBy が決めるので、ここでは
 -- 可視性条件を足さない（SQL 側へ写経すると片方だけ直したときに食い違う）。
-SELECT id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
+SELECT id, owner_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
 FROM rich_documents
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
@@ -12,14 +12,12 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 -- ゼロなら呼び出し側で now() を入れる）。schema_version / revision は 0 のとき既定 1 を当てる
 -- （GORM の `default:1` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 --
--- workspace_id は company_id から引き直さず、呼び出し側が渡す値をそのまま書く
--- （会社を持たない所有者の文書は呼び出し側が NULL を渡す）。
+-- workspace_id は呼び出し側が渡す値をそのまま書く（会社を持たない所有者の文書は NULL）。
 INSERT INTO rich_documents
-  (id, owner_id, company_id, workspace_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
+  (id, owner_id, workspace_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
 VALUES (
   sqlc.arg(id),
   sqlc.arg(owner_id),
-  sqlc.narg(company_id),
   sqlc.narg(workspace_id),
   sqlc.arg(kind),
   sqlc.arg(title),
@@ -44,7 +42,7 @@ UPDATE rich_documents SET
   revision       = revision + 1,
   updated_at     = now()
 WHERE id = sqlc.arg(id) AND revision = sqlc.arg(expected_revision) AND deleted_at IS NULL
-RETURNING id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id;
+RETURNING id, owner_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id;
 
 -- name: SoftDeleteRichDocument :execrows
 -- owner を条件に論理削除する（他人の文書は消せない）。RowsAffected=0 は対象なし（404）。
@@ -55,7 +53,7 @@ WHERE id = sqlc.arg(id) AND owner_id = sqlc.arg(owner_id) AND deleted_at IS NULL
 -- name: ListRichDocumentsByOwner :many
 -- owner の文書を更新日降順（同時刻は id 降順）で返す（論理削除は除外）。
 -- kind が空文字なら絞り込まない。一覧用途のため doc(jsonb) 本体は読み込まない（軽量サマリ）。
-SELECT id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at, workspace_id
+SELECT id, owner_id, kind, title, is_public, schema_version, revision, created_at, updated_at, workspace_id
 FROM rich_documents
 WHERE owner_id = sqlc.arg(owner_id)
   AND deleted_at IS NULL

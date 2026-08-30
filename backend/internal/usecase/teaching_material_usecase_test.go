@@ -154,7 +154,7 @@ func Test_教材_ワークスペース別一覧_repositoryエラーをそのま�
 
 func Test_教材_コース別一覧_traineeは公開のみ(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.ListByCourse(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func Test_教材_コース別一覧_traineeは公開のみ(t *testing.T) {
 
 func Test_教材_コース別一覧_traineeは非公開コースを見られない(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: false}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.ListByCourse(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
 	require.Error(t, err)
@@ -173,7 +173,7 @@ func Test_教材_コース別一覧_traineeは非公開コースを見られな�
 
 func Test_教材_コース別一覧_会社管理者は下書きも含む(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: false}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.ListByCourse(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
 	require.NoError(t, err)
@@ -182,9 +182,9 @@ func Test_教材_コース別一覧_会社管理者は下書きも含む(t *test
 
 func Test_教材_取得_traineeは下書き不可(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: false,
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: false,
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
 	require.Error(t, err)
@@ -193,9 +193,9 @@ func Test_教材_取得_traineeは下書き不可(t *testing.T) {
 
 func Test_教材_取得_traineeは自社の公開を読める(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: true,
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
 	require.NoError(t, err)
@@ -204,9 +204,9 @@ func Test_教材_取得_traineeは自社の公開を読める(t *testing.T) {
 
 func Test_教材_取得_別会社は禁止(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: true,
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: true}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsB), domain.RoleCompanyAdmin)
 	require.Error(t, err)
@@ -215,9 +215,9 @@ func Test_教材_取得_別会社は禁止(t *testing.T) {
 
 func Test_教材_取得_運営は別会社も許可(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: false,
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: false,
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA), IsPublished: false}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsB), domain.RoleSuperAdmin)
 	require.NoError(t, err)
@@ -226,7 +226,7 @@ func Test_教材_取得_運営は別会社も許可(t *testing.T) {
 
 func Test_教材_作成_traineeは禁止(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
 		ActorUserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee,
@@ -238,7 +238,7 @@ func Test_教材_作成_traineeは禁止(t *testing.T) {
 
 func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
 		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
@@ -247,7 +247,6 @@ func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mstore.created)
 	assert.Equal(t, uint64(7), mstore.created.CreatedByUserID)
-	assert.Equal(t, uint64(10), mstore.created.CompanyID)
 	assert.Equal(t, uint64(5), mstore.created.CourseID)
 	assert.Equal(t, "Spring 入門", mstore.created.Title)
 	assert.True(t, mstore.created.IsPublished)
@@ -272,7 +271,7 @@ func Test_教材_作成_コースID欠落は禁止(t *testing.T) {
 
 func Test_教材_作成_別会社コースは禁止(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 99, WorkspaceID: strPtr(wsB)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsB)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
 		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
@@ -296,9 +295,9 @@ func Test_教材_作成_会社未所属は禁止(t *testing.T) {
 
 func Test_教材_更新_別会社は禁止(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA), Title: "old",
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), Title: "old",
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
 		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), ActorRole: domain.RoleCompanyAdmin, Title: "new",
@@ -309,9 +308,9 @@ func Test_教材_更新_別会社は禁止(t *testing.T) {
 
 func Test_教材_更新_自社管理者は成功(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA), Title: "old",
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), Title: "old",
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
 		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
@@ -328,9 +327,9 @@ func Test_教材_更新_自社管理者は成功(t *testing.T) {
 
 func Test_教材_削除_traineeは禁止(t *testing.T) {
 	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA),
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA),
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	err := uc.Delete(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
 	require.Error(t, err)
@@ -339,9 +338,9 @@ func Test_教材_削除_traineeは禁止(t *testing.T) {
 
 func Test_教材_削除_自社管理者は成功(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CompanyID: 10, CourseID: 5, WorkspaceID: strPtr(wsA),
+		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA),
 	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, WorkspaceID: strPtr(wsA)}})
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	err := uc.Delete(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
 	require.NoError(t, err)
@@ -367,11 +366,11 @@ func docUpdateRepo(existing *domain.TeachingMaterial, updated *domain.TeachingMa
 
 func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 	validDoc := `{"type":"doc","content":[{"type":"paragraph"}]}`
-	existing := &domain.TeachingMaterial{ID: 1, CompanyID: 10, WorkspaceID: strPtr(wsA), Revision: 3}
+	existing := &domain.TeachingMaterial{ID: 1, WorkspaceID: strPtr(wsA), Revision: 3}
 
 	t.Run("company_admin は自社の章を保存でき revision 付きで返る", func(t *testing.T) {
 		updatedDoc := validDoc
-		updated := &domain.TeachingMaterial{ID: 1, CompanyID: 10, WorkspaceID: strPtr(wsA), Revision: 4, Doc: &updatedDoc}
+		updated := &domain.TeachingMaterial{ID: 1, WorkspaceID: strPtr(wsA), Revision: 4, Doc: &updatedDoc}
 		repo := docUpdateRepo(existing, updated, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
@@ -396,7 +395,7 @@ func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 
 	t.Run("未所属の super_admin は他社の章も保存できる", func(t *testing.T) {
 		updatedDoc := validDoc
-		updated := &domain.TeachingMaterial{ID: 1, CompanyID: 10, WorkspaceID: strPtr(wsA), Revision: 4, Doc: &updatedDoc}
+		updated := &domain.TeachingMaterial{ID: 1, WorkspaceID: strPtr(wsA), Revision: 4, Doc: &updatedDoc}
 		repo := docUpdateRepo(existing, updated, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{

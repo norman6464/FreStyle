@@ -329,6 +329,69 @@ func (q *Queries) ListChaptersByCourse(ctx context.Context, arg ListChaptersByCo
 	return items, nil
 }
 
+const listChaptersByWorkspace = `-- name: ListChaptersByWorkspace :many
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
+FROM course_chapters
+WHERE workspace_id = $1
+  AND ($2::bool OR is_published = TRUE)
+ORDER BY updated_at DESC, id DESC
+`
+
+type ListChaptersByWorkspaceParams struct {
+	WorkspaceID        uuid.NullUUID
+	IncludeUnpublished bool
+}
+
+type ListChaptersByWorkspaceRow struct {
+	ID              int64
+	CompanyID       int64
+	CourseID        int64
+	CreatedByUserID int64
+	Title           string
+	SortOrder       int64
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	WorkspaceID     uuid.NullUUID
+}
+
+// ワークスペース内の全教材（章）を更新日降順で返す backward-compat 用。
+// include_unpublished=false なら公開済み（is_published=true）のみに絞る。
+// 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
+func (q *Queries) ListChaptersByWorkspace(ctx context.Context, arg ListChaptersByWorkspaceParams) ([]ListChaptersByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChaptersByWorkspace, arg.WorkspaceID, arg.IncludeUnpublished)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChaptersByWorkspaceRow{}
+	for rows.Next() {
+		var i ListChaptersByWorkspaceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.CourseID,
+			&i.CreatedByUserID,
+			&i.Title,
+			&i.SortOrder,
+			&i.IsPublished,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateChapter = `-- name: UpdateChapter :one
 UPDATE course_chapters SET
   title        = $1,

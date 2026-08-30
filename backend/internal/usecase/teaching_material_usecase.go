@@ -28,16 +28,15 @@ func canManage(role domain.RoleName) bool {
 	return role == domain.RoleCompanyAdmin || role == domain.RoleSuperAdmin
 }
 
-// List は company 内の全教材を返す backward-compat 用（コース対応への移行後に削除予定）。
-// FRESTYLE-403: 削除予定の deprecated メソッドのため company_id のまま対象外にしている。
-func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorCompany domain.CompanyRef, actorRole domain.RoleName) ([]domain.TeachingMaterial, error) {
-	// company 単位の一覧なので、未所属の actor には（super_admin であっても）空を返す。
-	companyID, affiliated := actorCompany.CompanyID()
+// List はワークスペース内の全教材を返す backward-compat 用（コース対応への移行後に削除予定）。
+func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) ([]domain.TeachingMaterial, error) {
+	// workspace 単位の一覧なので、未所属の actor には（super_admin であっても）空を返す。
+	workspaceID, affiliated := actorWorkspace.WorkspaceID()
 	if !affiliated {
 		return []domain.TeachingMaterial{}, nil
 	}
 	includeUnpublished := canManage(actorRole)
-	return uc.repo.ListByCompany(ctx, companyID, includeUnpublished)
+	return uc.repo.ListByWorkspace(ctx, workspaceID, includeUnpublished)
 }
 
 // ListByCourse は指定コース配下の教材を返す（role / workspace を検証してから）。

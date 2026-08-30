@@ -131,6 +131,12 @@ func (m *mockMaterialRepo) ListByCompany(ctx context.Context, companyID uint64, 
 	return rows, args.Error(1)
 }
 
+func (m *mockMaterialRepo) ListByWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
+	args := m.Called(ctx, workspaceID, includeUnpublished)
+	rows, _ := args.Get(0).([]domain.TeachingMaterial)
+	return rows, args.Error(1)
+}
+
 func (m *mockMaterialRepo) ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
 	args := m.Called(ctx, courseID, includeUnpublished)
 	rows, _ := args.Get(0).([]domain.TeachingMaterial)

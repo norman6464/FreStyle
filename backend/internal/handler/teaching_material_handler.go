@@ -21,10 +21,10 @@ func NewTeachingMaterialHandler(uc *usecase.TeachingMaterialUseCase) *TeachingMa
 	return &TeachingMaterialHandler{uc: uc}
 }
 
-// List は company 内全教材を返す backward-compat 用（コース対応完了後に削除予定）。
+// List はワークスペース内全教材を返す backward-compat 用（コース対応完了後に削除予定）。
 //
 //	@Summary      教材 全 件 一覧 (deprecated)
-//	@Description  backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
+//	@Description  backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
 //	@Tags         teaching-materials
 //	@Produce      json
 //	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
@@ -34,11 +34,11 @@ func NewTeachingMaterialHandler(uc *usecase.TeachingMaterialUseCase) *TeachingMa
 //	@Security     CookieAuth
 //	@Deprecated
 func (h *TeachingMaterialHandler) List(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
-	rows, err := h.uc.List(c.Request.Context(), actorCompany, role)
+	rows, err := h.uc.List(c.Request.Context(), actorWorkspace, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "教材の取得に失敗しました"})
 		return

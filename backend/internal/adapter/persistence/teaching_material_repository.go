@@ -91,6 +91,12 @@ func toDomainChapterCompanySummary(row sqlcgen.ListChaptersByCompanyRow) domain.
 	return toDomainChapterSummary(sqlcgen.ListChaptersByCourseRow(row))
 }
 
+// toDomainChapterWorkspaceSummary は workspace 別一覧の軽量行を domain へ写す。
+// 列構成が course 別一覧とずれたらこの型変換がコンパイルエラーになる。
+func toDomainChapterWorkspaceSummary(row sqlcgen.ListChaptersByWorkspaceRow) domain.TeachingMaterial {
+	return toDomainChapterSummary(sqlcgen.ListChaptersByCourseRow(row))
+}
+
 // ListByCompany は backward-compat 用（コース対応完了後に削除予定）。
 func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
 	cid, ok := toInt64ID(companyID)
@@ -109,6 +115,28 @@ func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyI
 	materials := make([]domain.TeachingMaterial, 0, len(rows))
 	for _, row := range rows {
 		materials = append(materials, toDomainChapterCompanySummary(row))
+	}
+	return materials, nil
+}
+
+// ListByWorkspace は backward-compat 用（コース対応完了後に削除予定）。ListByCompany の
+// workspace_id 版で、TeachingMaterialUseCase.List が使う現行の経路。
+func (r *teachingMaterialRepository) ListByWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
+	wid, ok := toNullUUID(workspaceID)
+	if !ok {
+		return []domain.TeachingMaterial{}, nil // 不正 / 空の ID は該当なしと同じ扱い
+	}
+	// 一覧は本文（doc・jsonb）を返さない（ListByCompany と同じ軽量な列構成）。
+	rows, err := sqlcgen.New(r.db).ListChaptersByWorkspace(ctx, sqlcgen.ListChaptersByWorkspaceParams{
+		WorkspaceID:        wid,
+		IncludeUnpublished: includeUnpublished,
+	})
+	if err != nil {
+		return nil, err
+	}
+	materials := make([]domain.TeachingMaterial, 0, len(rows))
+	for _, row := range rows {
+		materials = append(materials, toDomainChapterWorkspaceSummary(row))
 	}
 	return materials, nil
 }

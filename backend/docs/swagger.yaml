@@ -4966,7 +4966,7 @@ paths:
   /teaching-materials:
     get:
       deprecated: true
-      description: backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後
+      description: backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後
         に 削除 予定。
       produces:
       - application/json

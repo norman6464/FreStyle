@@ -43,6 +43,10 @@ func (fakeMaterialRepo) ListByCompany(context.Context, uint64, bool) ([]domain.T
 	return nil, nil
 }
 
+func (fakeMaterialRepo) ListByWorkspace(context.Context, string, bool) ([]domain.TeachingMaterial, error) {
+	return nil, nil
+}
+
 func (fakeMaterialRepo) ListByCourse(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
 	return nil, nil
 }

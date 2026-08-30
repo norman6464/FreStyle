@@ -248,6 +248,55 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, "b", all[1].Title)
 	})
 
+	t.Run("ListByWorkspace はワークスペースで絞り・published フィルタ・更新日降順", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		ws2 := companyWorkspaceID(t, sqlDB, 2)
+		require.True(t, ws1.Valid)
+		require.True(t, ws2.Valid)
+		require.NotEqual(t, ws1.UUID, ws2.UUID)
+
+		a := mk(1, 10, "a", 1, true)
+		b := mk(1, 20, "b", 1, false) // draft
+		foreign := mk(2, 10, "foreign", 1, true)
+		for _, m := range []*domain.TeachingMaterial{a, b, foreign} {
+			require.NoError(t, repo.Create(ctx, m))
+		}
+		// updated_at を明示的に置いて降順を固定する（Go 時計と DB 時計の差でフレークしないように）。
+		_, err := sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = $1`, b.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = $1`, a.ID)
+		require.NoError(t, err)
+
+		pub, err := repo.ListByWorkspace(ctx, ws1.UUID.String(), false)
+		require.NoError(t, err)
+		require.Len(t, pub, 1) // published の a のみ（b は draft、foreign は別ワークスペース）
+		require.Equal(t, "a", pub[0].Title)
+		require.Nil(t, pub[0].Doc) // 一覧は本文を読み込まない
+
+		all, err := repo.ListByWorkspace(ctx, ws1.UUID.String(), true)
+		require.NoError(t, err)
+		require.Len(t, all, 2)
+		require.Equal(t, "a", all[0].Title) // updated_at 降順
+		require.Equal(t, "b", all[1].Title)
+
+		otherWs, err := repo.ListByWorkspace(ctx, ws2.UUID.String(), true)
+		require.NoError(t, err)
+		require.Len(t, otherWs, 1)
+		require.Equal(t, "foreign", otherWs[0].Title)
+
+		empty, err := repo.ListByWorkspace(ctx, "", true)
+		require.NoError(t, err)
+		require.Empty(t, empty, "空 ID は該当なし扱い")
+
+		invalid, err := repo.ListByWorkspace(ctx, "not-a-uuid", true)
+		require.NoError(t, err)
+		require.Empty(t, invalid, "不正な形式の ID も該当なし扱い")
+	})
+
 	t.Run("ListByCourse / ListByCompany は workspace_id も含めて返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)

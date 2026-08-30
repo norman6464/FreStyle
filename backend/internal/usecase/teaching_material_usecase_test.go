@@ -16,6 +16,8 @@ import (
 type materialStore struct {
 	listCourseID                uint64
 	listIncludeAll              bool
+	listWorkspaceID             string
+	listWorkspaceIncludeAll     bool
 	created                     *domain.TeachingMaterial
 	updated                     *domain.TeachingMaterial
 	deleted                     uint64
@@ -41,6 +43,11 @@ func materialRepo(cfg materialFakeConfig) (*mockMaterialRepo, *materialStore) {
 		Run(func(args mock.Arguments) {
 			st.listCourseID = args.Get(1).(uint64)
 			st.listIncludeAll = args.Get(2).(bool)
+		}).Return(nil, nil).Maybe()
+	repo.On("ListByWorkspace", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.listWorkspaceID = args.Get(1).(string)
+			st.listWorkspaceIncludeAll = args.Get(2).(bool)
 		}).Return(nil, nil).Maybe()
 	repo.On("CountByCourseForWorkspace", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
@@ -103,6 +110,35 @@ func courseRepo(cfg courseFakeConfig) (*mockCourseRepo, *courseStore) {
 			st.deleted = args.Get(1).(uint64)
 		}).Return(nil).Maybe()
 	return repo, st
+}
+
+func Test_教材_ワークスペース別一覧_所属workspaceで絞り込む(t *testing.T) {
+	mrepo, mstore := materialRepo(materialFakeConfig{})
+	crepo, _ := courseRepo(courseFakeConfig{})
+	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
+	_, err := uc.List(context.Background(), domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
+	require.NoError(t, err)
+	assert.Equal(t, wsA, mstore.listWorkspaceID)
+	assert.False(t, mstore.listWorkspaceIncludeAll, "trainee は draft を含まない")
+}
+
+func Test_教材_ワークスペース別一覧_会社管理者は下書きも含む(t *testing.T) {
+	mrepo, mstore := materialRepo(materialFakeConfig{})
+	crepo, _ := courseRepo(courseFakeConfig{})
+	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
+	_, err := uc.List(context.Background(), domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
+	require.NoError(t, err)
+	assert.True(t, mstore.listWorkspaceIncludeAll)
+}
+
+func Test_教材_ワークスペース別一覧_未所属は空を返しrepoを呼ばない(t *testing.T) {
+	mrepo, _ := materialRepo(materialFakeConfig{})
+	crepo, _ := courseRepo(courseFakeConfig{})
+	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
+	rows, err := uc.List(context.Background(), domain.NoWorkspace(), domain.RoleSuperAdmin)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+	mrepo.AssertNotCalled(t, "ListByWorkspace", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_教材_コース別一覧_traineeは公開のみ(t *testing.T) {

@@ -50,6 +50,10 @@ func (f *fakeMaterialRepoH) ListByCompany(context.Context, uint64, bool) ([]doma
 	return nil, nil
 }
 
+func (f *fakeMaterialRepoH) ListByWorkspace(context.Context, string, bool) ([]domain.TeachingMaterial, error) {
+	return nil, nil
+}
+
 func (f *fakeMaterialRepoH) ListByCourse(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
 	return nil, nil
 }

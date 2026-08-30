@@ -37,3 +37,23 @@ func (r *companyStatsRepository) CountMembersByCompany(ctx context.Context) ([]r
 	}
 	return out, nil
 }
+
+func (r *companyStatsRepository) CountMembersByWorkspace(ctx context.Context) ([]repository.WorkspaceMemberCount, error) {
+	rows, err := sqlcgen.New(r.db).CountMembersByWorkspace(ctx, domain.RoleIDTrainee)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.WorkspaceMemberCount, 0, len(rows))
+	for _, row := range rows {
+		if !row.WorkspaceID.Valid {
+			continue // WHERE workspace_id IS NOT NULL 済みだが、型上は NullUUID なので念のため。
+		}
+		out = append(out, repository.WorkspaceMemberCount{
+			WorkspaceID: row.WorkspaceID.UUID.String(),
+			Total:       int(row.Total),
+			Active:      int(row.Active),
+			Trainees:    int(row.Trainees),
+		})
+	}
+	return out, nil
+}

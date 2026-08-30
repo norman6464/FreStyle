@@ -18,10 +18,11 @@ const kbSlug = "acme"
 func Test_ワークスペース解決_所属していれば返る(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	perm := &mockKBPermissionRepo{}
+	users := &mockUserRepo{}
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
 	perm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(true, nil)
-	uc := usecase.NewResolveWorkspaceUseCase(repo, perm)
+	uc := usecase.NewResolveWorkspaceUseCase(repo, perm, users)
 
 	ws, err := uc.Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
 
@@ -32,21 +33,21 @@ func Test_ワークスペース解決_所属していれば返る(t *testing.T) 
 func Test_ワークスペース解決_未所属は存在しないのと同じ(t *testing.T) {
 	member := &mockKnowledgeBaseRepo{}
 	memberPerm := &mockKBPermissionRepo{}
+	memberUsers := &mockUserRepo{}
 	member.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
 	memberPerm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
 	// 非メンバーでも、会社のワークスペースなら自動で入る。ここでは「会社が違う」ので
 	// 入れる先が無い（ErrWorkspaceNotFound）ことを表し、404 に倒れることを確かめる。
-	memberPerm.On("FindUserCompanyWorkspaceID", mock.Anything, uint64(1)).
-		Return("", repository.ErrWorkspaceNotFound)
+	memberUsers.On("FindByID", mock.Anything, uint64(1)).Return((*domain.User)(nil), nil)
 
 	unknown := &mockKnowledgeBaseRepo{}
 	unknown.On("FindWorkspaceBySlug", mock.Anything, "no-such").
 		Return(nil, repository.ErrWorkspaceNotFound)
 
-	_, foreignErr := usecase.NewResolveWorkspaceUseCase(member, memberPerm).
+	_, foreignErr := usecase.NewResolveWorkspaceUseCase(member, memberPerm, memberUsers).
 		Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
-	_, unknownErr := usecase.NewResolveWorkspaceUseCase(unknown, &mockKBPermissionRepo{}).
+	_, unknownErr := usecase.NewResolveWorkspaceUseCase(unknown, &mockKBPermissionRepo{}, &mockUserRepo{}).
 		Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: "no-such", UserID: 1})
 
 	require.ErrorIs(t, foreignErr, repository.ErrWorkspaceNotFound,
@@ -59,16 +60,18 @@ func Test_ワークスペース解決_未所属は存在しないのと同じ(t 
 func Test_ワークスペース解決_会社のワークスペースなら所属を用意して通す(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	perms := &mockKBPermissionRepo{}
+	users := &mockUserRepo{}
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
 	perms.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
-	perms.On("FindUserCompanyWorkspaceID", mock.Anything, uint64(1)).Return(kbWS, nil)
+	wsID := kbWS
+	users.On("FindByID", mock.Anything, uint64(1)).Return(&domain.User{ID: 1, WorkspaceID: &wsID}, nil)
 	perms.On("EnsureUserPrincipal", mock.Anything, kbWS, uint64(1)).
 		Return(&domain.Principal{ID: "principal-1", WorkspaceID: kbWS}, nil)
 	perms.On("GrantWorkspaceRoleIfAbsent", mock.Anything, kbWS, "principal-1", domain.GrantRoleEditor).
 		Return(nil)
 
-	ws, err := usecase.NewResolveWorkspaceUseCase(repo, perms).
+	ws, err := usecase.NewResolveWorkspaceUseCase(repo, perms, users).
 		Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
 
 	require.NoError(t, err)
@@ -77,7 +80,7 @@ func Test_ワークスペース解決_会社のワークスペースなら所属
 }
 
 func Test_ワークスペース解決_入力の検証(t *testing.T) {
-	uc := usecase.NewResolveWorkspaceUseCase(&mockKnowledgeBaseRepo{}, &mockKBPermissionRepo{})
+	uc := usecase.NewResolveWorkspaceUseCase(&mockKnowledgeBaseRepo{}, &mockKBPermissionRepo{}, &mockUserRepo{})
 	ctx := context.Background()
 
 	_, err := uc.Execute(ctx, usecase.ResolveWorkspaceInput{Slug: kbSlug})
@@ -94,7 +97,7 @@ func Test_ワークスペース解決_所属判定の失敗はそのまま返す
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
 	perm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, boom)
-	uc := usecase.NewResolveWorkspaceUseCase(repo, perm)
+	uc := usecase.NewResolveWorkspaceUseCase(repo, perm, &mockUserRepo{})
 
 	_, err := uc.Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
 

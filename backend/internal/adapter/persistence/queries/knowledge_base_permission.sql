@@ -653,20 +653,6 @@ LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
 LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id;
 
--- name: GetUserCompanyWorkspaceID :one
--- そのユーザーの会社に対応するワークスペース ID。
---
--- 対応は companies.workspace_id が唯一の正本。写し（バックフィル）を持たず、
--- users.company_id → companies.id の JOIN でその場に求める。
--- ノートの所属の正本はあくまで principals（kind='user'）の行で、この結果は
--- 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
--- （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
---
--- 会社に属さないユーザー（company_id が NULL）・対応するワークスペースが無い会社は 0 行。
-SELECT c.workspace_id FROM users u
-JOIN companies c ON c.id = u.company_id
-WHERE u.id = $1 AND c.workspace_id IS NOT NULL AND u.deleted_at IS NULL;
-
 -- name: ListMemberWorkspaces :many
 -- そのユーザーが所属するワークスペース一覧と、自分がそこの admin かどうか。
 --

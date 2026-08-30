@@ -624,7 +624,7 @@ func kbSuperAdminEnvRouter(e *kbPermEnv, userID uint64) *gin.Engine {
 		})
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, (&kbAuditRecorder{}).handler())
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, e.users, (&kbAuditRecorder{}).handler())
 	return r
 }
 

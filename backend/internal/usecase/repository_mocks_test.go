@@ -85,8 +85,8 @@ func (m *mockUserRepo) UpdateRole(ctx context.Context, userID uint64, role domai
 	return m.Called(ctx, userID, role).Error(0)
 }
 
-func (m *mockUserRepo) UpdateCompanyID(ctx context.Context, userID, companyID uint64) error {
-	return m.Called(ctx, userID, companyID).Error(0)
+func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID, companyID uint64, workspaceID *string) error {
+	return m.Called(ctx, userID, companyID, workspaceID).Error(0)
 }
 
 // --- mock: CourseRepository ---
@@ -294,6 +294,12 @@ func (m *mockMemberCounter) CountMembersByCompany(ctx context.Context) ([]reposi
 	return rows, args.Error(1)
 }
 
+func (m *mockMemberCounter) CountMembersByWorkspace(ctx context.Context) ([]repository.WorkspaceMemberCount, error) {
+	args := m.Called(ctx)
+	rows, _ := args.Get(0).([]repository.WorkspaceMemberCount)
+	return rows, args.Error(1)
+}
+
 // --- mock: UserDailyActivityRepository ---
 
 type mockDailyActivityRepo struct{ mock.Mock }
@@ -476,11 +482,6 @@ func (m *mockKnowledgeBaseRepo) GetPageSnapshot(ctx context.Context, workspaceID
 type mockKBPermissionRepo struct{ mock.Mock }
 
 var _ repository.KnowledgeBasePermissionRepository = (*mockKBPermissionRepo)(nil)
-
-func (m *mockKBPermissionRepo) FindUserCompanyWorkspaceID(ctx context.Context, userID uint64) (string, error) {
-	args := m.Called(ctx, userID)
-	return args.String(0), args.Error(1)
-}
 
 func (m *mockKBPermissionRepo) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	args := m.Called(ctx, workspaceID, userID)

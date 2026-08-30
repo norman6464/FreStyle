@@ -154,15 +154,21 @@ UPDATE users SET name = $2, updated_at = now() WHERE id = $1;
 -- 当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれる。
 UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1;
 
--- name: UpdateUserCompanyID :execrows
--- 所属会社を付け替える。workspace_id もこの場で company_id から引き直して同期する
--- （ListUsersByWorkspaceID が users.workspace_id を絞り込みキーに直接使うため。
--- 都度 JOIN で求める GetUserCompanyWorkspaceID とは別の用途）。
+-- name: UpdateUserWorkspaceID :execrows
+-- 所属会社とワークスペースを付け替える（招待の受諾で呼ばれる）。
+--
+-- 段5準備（company_id を DROP する前段）: 旧 UpdateUserCompanyID は workspace_id を
+-- (SELECT c.workspace_id FROM companies c WHERE c.id = ...) というサブクエリでその場に
+-- 求めていた。呼び出し側（招待受諾）は招待行の workspace_id（dual-write 済みで
+-- companies への追加参照なしに手元にある）を既に持っているため、それをそのまま渡す形にした。
+-- company_id は当面まだ所属の正本（CountMembersByCompany 等の集計がこの列を基準にする）
+-- なので、引き続きこの場で一緒に書く。workspace_id はワークスペースが無い会社もあり得るため
+-- nullable。
 -- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 UPDATE users SET
-  company_id = $2,
-  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
-WHERE users.id = $1;
+  company_id = sqlc.arg(company_id),
+  workspace_id = sqlc.narg(workspace_id)
+WHERE id = sqlc.arg(id);
 
 -- name: SoftDeleteUser :execrows
 -- ユーザーを論理削除する。既に削除済み / 存在しない場合は 0 件（呼び出し側が not-found にする）。

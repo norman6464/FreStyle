@@ -38,14 +38,30 @@ import (
 // プライベートは付与された人にだけ見える。
 type JoinCompanyWorkspaceUseCase struct {
 	permissions repository.KnowledgeBasePermissionRepository
+	users       repository.UserRepository
 }
 
-func NewJoinCompanyWorkspaceUseCase(p repository.KnowledgeBasePermissionRepository) *JoinCompanyWorkspaceUseCase {
-	return &JoinCompanyWorkspaceUseCase{permissions: p}
+func NewJoinCompanyWorkspaceUseCase(p repository.KnowledgeBasePermissionRepository, u repository.UserRepository) *JoinCompanyWorkspaceUseCase {
+	return &JoinCompanyWorkspaceUseCase{permissions: p, users: u}
 }
 
 type JoinCompanyWorkspaceInput struct {
 	UserID uint64
+}
+
+// userWorkspaceID はユーザーの所属ワークスペース ID を返す（users.workspace_id の直読み）。
+// 会社に属さない・存在しないユーザーはいずれも ErrWorkspaceNotFound
+// （呼び出し側の分岐を増やさない。どちらも「自動で入れる先が無い」で同じ扱いになる）。
+// JoinCompanyWorkspaceUseCase と ResolveWorkspaceUseCase.joinCompany の両方から使う。
+func userWorkspaceID(ctx context.Context, users repository.UserRepository, userID uint64) (string, error) {
+	u, err := users.FindByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if u == nil || u.WorkspaceID == nil {
+		return "", repository.ErrWorkspaceNotFound
+	}
+	return *u.WorkspaceID, nil
 }
 
 // Execute は会社のワークスペースへの所属を用意し、そのワークスペース ID を返す。
@@ -56,7 +72,7 @@ func (u *JoinCompanyWorkspaceUseCase) Execute(
 	if in.UserID == 0 {
 		return "", errors.New("userID is required")
 	}
-	workspaceID, err := u.permissions.FindUserCompanyWorkspaceID(ctx, in.UserID)
+	workspaceID, err := userWorkspaceID(ctx, u.users, in.UserID)
 	if err != nil {
 		return "", err
 	}

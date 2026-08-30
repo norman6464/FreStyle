@@ -145,29 +145,6 @@ func restrictionFacts(restricted, deniedAnywhere, hasAllowList, allowedAtNearest
 	}
 }
 
-// FindUserCompanyWorkspaceID はそのユーザーの会社に対応するワークスペース ID を返す。
-// 会社に属さない・削除済み・範囲外の ID はいずれも ErrWorkspaceNotFound
-// （呼び出し側の分岐を増やさない。どれも「自動で入れる先が無い」で同じ扱いになる）。
-func (r *knowledgeBasePermissionRepository) FindUserCompanyWorkspaceID(
-	ctx context.Context, userID uint64,
-) (string, error) {
-	uid, ok := toInt64ID(userID)
-	if !ok {
-		return "", repository.ErrWorkspaceNotFound
-	}
-	row, err := r.q.GetUserCompanyWorkspaceID(ctx, uid)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", repository.ErrWorkspaceNotFound
-		}
-		return "", err
-	}
-	if !row.Valid {
-		return "", repository.ErrWorkspaceNotFound
-	}
-	return row.UUID.String(), nil
-}
-
 func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	wsID, ok := kbParseID(workspaceID)
 	if !ok {

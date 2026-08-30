@@ -713,7 +713,7 @@ func kbSuperAdminRouter(f kbFixture, uid uint64) *gin.Engine {
 		})
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, f.pages, f.perms, f.provisioner, (&kbAuditRecorder{}).handler())
+	registerKnowledgeBaseRoutesWith(g, f.pages, f.perms, f.provisioner, f.users, (&kbAuditRecorder{}).handler())
 	return r
 }
 

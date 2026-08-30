@@ -130,13 +130,6 @@ type PageScopeFacts struct {
 // 読み取りは pages / page_paths をまたぐ（実効権限の解決に closure が要る）が、
 // 境界を決めるのは書き込みのトランザクション単位なので問題にしない。
 type KnowledgeBasePermissionRepository interface {
-	// FindUserCompanyWorkspaceID はそのユーザーの会社に対応するワークスペース ID を返す
-	// （users.workspace_id）。会社に属さないユーザーは ErrWorkspaceNotFound。
-	//
-	// 所属の正本は principals の行で、この値は「会社のワークスペースへ自動で入れてよいか」の
-	// 根拠にだけ使う。所属の表現を 2 つ持たないため、入れた事実は必ず principals に書く。
-	FindUserCompanyWorkspaceID(ctx context.Context, userID uint64) (string, error)
-
 	// EnsureUserPrincipal はユーザーの主体を作る（既にあればそれを返す）。
 	// この行があること自体がワークスペース所属を意味する。
 	EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error)

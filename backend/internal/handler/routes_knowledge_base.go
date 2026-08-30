@@ -40,6 +40,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps, audit gin.
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewKnowledgeBasePermissionRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
+		persistence.NewUserRepository(deps.db),
 		audit,
 	)
 }
@@ -73,6 +74,7 @@ func registerKnowledgeBaseRoutesWith(
 	pages repository.KnowledgeBaseRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
 	provisioner repository.WorkspaceProvisioner,
+	users repository.UserRepository,
 	audit gin.HandlerFunc,
 ) {
 	h := NewKnowledgeBasePageHandler(
@@ -96,7 +98,7 @@ func registerKnowledgeBaseRoutesWith(
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
 		usecase.NewListMemberWorkspacesUseCase(permissions),
-		usecase.NewJoinCompanyWorkspaceUseCase(permissions),
+		usecase.NewJoinCompanyWorkspaceUseCase(permissions, users),
 		usecase.NewCreateWorkspaceUseCase(provisioner),
 		usecase.NewDeleteWorkspaceUseCase(pages),
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
@@ -166,7 +168,7 @@ func registerKnowledgeBaseRoutesWith(
 	g.POST("/kb/workspaces", middleware.RateLimitPerMinute(10, 5), wh.Create)
 
 	kb := g.Group("", middleware.KnowledgeBaseWorkspace(
-		usecase.NewResolveWorkspaceUseCase(pages, permissions),
+		usecase.NewResolveWorkspaceUseCase(pages, permissions, users),
 	))
 	// スペースの一覧はワークスペースのメンバーなら誰でも叩ける（返る中身が権限で変わる）。
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。

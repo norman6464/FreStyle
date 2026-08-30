@@ -263,28 +263,6 @@ func (q *Queries) GetSpaceEveryonePrincipal(ctx context.Context, arg GetSpaceEve
 	return i, err
 }
 
-const getUserCompanyWorkspaceID = `-- name: GetUserCompanyWorkspaceID :one
-SELECT c.workspace_id FROM users u
-JOIN companies c ON c.id = u.company_id
-WHERE u.id = $1 AND c.workspace_id IS NOT NULL AND u.deleted_at IS NULL
-`
-
-// そのユーザーの会社に対応するワークスペース ID。
-//
-// 対応は companies.workspace_id が唯一の正本。写し（バックフィル）を持たず、
-// users.company_id → companies.id の JOIN でその場に求める。
-// ノートの所属の正本はあくまで principals（kind='user'）の行で、この結果は
-// 「その人を会社のワークスペースへ自動で入れてよいか」の根拠にだけ使う
-// （所属の表現を 2 つ持たない — 入れる判断に使い、入れた事実は principals に書く）。
-//
-// 会社に属さないユーザー（company_id が NULL）・対応するワークスペースが無い会社は 0 行。
-func (q *Queries) GetUserCompanyWorkspaceID(ctx context.Context, id int64) (uuid.NullUUID, error) {
-	row := q.db.QueryRowContext(ctx, getUserCompanyWorkspaceID, id)
-	var workspace_id uuid.NullUUID
-	err := row.Scan(&workspace_id)
-	return workspace_id, err
-}
-
 const getUserPrincipal = `-- name: GetUserPrincipal :one
 SELECT id, workspace_id, kind, user_id, space_id, page_id, name, created_at, updated_at FROM principals
 WHERE workspace_id = $1 AND kind = 'user' AND user_id = $2

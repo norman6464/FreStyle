@@ -490,9 +490,10 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	return nil
 }
 
-// UpdateCompanyID は所属会社を付け替える。ワークスペースは写しを持たず、読み出し側
-// （GetUserCompanyWorkspaceID）が companies.workspace_id を都度 JOIN で求める。
-func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
+// UpdateWorkspaceID は所属会社とワークスペースを付け替える（招待の受諾で呼ばれる）。
+// workspaceID は呼び出し側が既に解決した値をそのまま渡す（サブクエリで引き直さない）。
+// company_id は当面まだ所属の正本なので、この呼び出しで一緒に書く。
+func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, companyID uint64, workspaceID *string) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
@@ -503,10 +504,15 @@ func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, com
 		// （nil を返すと呼び出し側が所属を付け替えられたと誤認する）。
 		return outOfRangeIDError("company_id", companyID)
 	}
+	wid, ok := nullWorkspaceID(workspaceID)
+	if !ok {
+		return fmt.Errorf("workspace_id が不正な形式です: %q", *workspaceID)
+	}
 	q := r.queries()
-	affected, err := q.UpdateUserCompanyID(ctx, sqlcgen.UpdateUserCompanyIDParams{
-		ID:        id64,
-		CompanyID: sql.NullInt64{Int64: cid, Valid: true},
+	affected, err := q.UpdateUserWorkspaceID(ctx, sqlcgen.UpdateUserWorkspaceIDParams{
+		ID:          id64,
+		CompanyID:   sql.NullInt64{Int64: cid, Valid: true},
+		WorkspaceID: wid,
 	})
 	if err != nil {
 		return err

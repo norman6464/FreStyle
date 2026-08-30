@@ -197,7 +197,7 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 		require.Equal(t, int64(0), n)
 	})
 
-	t.Run("会社に属していれば所属先ワークスペースがJOINで求まる", func(t *testing.T) {
+	t.Run("会社に属していれば所属先ワークスペースが書かれる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
@@ -209,10 +209,7 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, created)
 
-		permissions := persistence.NewKnowledgeBasePermissionRepository(sqlDB)
-		wsID, err := permissions.FindUserCompanyWorkspaceID(ctx, u.ID)
-		require.NoError(t, err)
-		require.Equal(t, ws1.UUID.String(), wsID)
+		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "users", u.ID))
 	})
 }
 

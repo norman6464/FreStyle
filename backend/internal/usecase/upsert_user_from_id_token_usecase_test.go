@@ -31,10 +31,11 @@ type upsertUserRepoSpy struct {
 	companyUpdateCalls    int
 	companyUpdateErr      error
 
-	roleUpdateUserID    uint64
-	roleUpdateValue     domain.RoleName
-	companyUpdateUserID uint64
-	companyUpdateValue  uint64
+	roleUpdateUserID       uint64
+	roleUpdateValue        domain.RoleName
+	companyUpdateUserID    uint64
+	companyUpdateValue     uint64
+	companyUpdateWorkspace *string
 
 	// ブートストラップ判定（既存 super_admin の有無）の制御。
 	createFirstSuperAdminCalls int
@@ -326,10 +327,11 @@ func (s *upsertUserRepoSpy) UpdateRole(
 	return nil
 }
 
-func (s *upsertUserRepoSpy) UpdateCompanyID(
+func (s *upsertUserRepoSpy) UpdateWorkspaceID(
 	_ context.Context,
 	userID uint64,
 	companyID uint64,
+	workspaceID *string,
 ) error {
 	s.companyUpdateCalls++
 	if s.companyUpdateErr != nil {
@@ -338,6 +340,7 @@ func (s *upsertUserRepoSpy) UpdateCompanyID(
 
 	s.companyUpdateUserID = userID
 	s.companyUpdateValue = companyID
+	s.companyUpdateWorkspace = workspaceID
 	return nil
 }
 
@@ -352,12 +355,14 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 			},
 		},
 	}
+	invWorkspaceID := "0198a000-0000-7000-8000-0000000000ab"
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        20,
-			Role:      domain.RoleCompanyAdmin,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:          20,
+			Role:        domain.RoleCompanyAdmin,
+			CompanyID:   42,
+			WorkspaceID: &invWorkspaceID,
+			Status:      domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -393,6 +398,12 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 	}
 	if users.companyUpdateValue != 42 {
 		t.Fatalf("更新companyID = %d, want 42", users.companyUpdateValue)
+	}
+	if users.companyUpdateWorkspace == nil || *users.companyUpdateWorkspace != invWorkspaceID {
+		t.Fatalf(
+			"更新workspaceID = %v, want %q（招待の workspace_id をサブクエリで引き直さずそのまま渡す）",
+			users.companyUpdateWorkspace, invWorkspaceID,
+		)
 	}
 	if invitations.updatedID != 20 {
 		t.Fatalf("更新された招待ID = %d, want 20", invitations.updatedID)
@@ -1068,7 +1079,7 @@ func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
 	}
 	if users.companyUpdateCalls != 1 {
 		t.Fatalf(
-			"UpdateCompanyID calls = %d, want 1",
+			"UpdateWorkspaceID calls = %d, want 1",
 			users.companyUpdateCalls,
 		)
 	}
@@ -1166,7 +1177,7 @@ func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しな�
 	}
 	if users.companyUpdateCalls != 0 {
 		t.Fatalf(
-			"UpdateCompanyID calls = %d, want 0",
+			"UpdateWorkspaceID calls = %d, want 0",
 			users.companyUpdateCalls,
 		)
 	}

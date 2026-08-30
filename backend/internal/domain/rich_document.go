@@ -72,7 +72,7 @@ func (d *RichDocument) WorkspaceRef() WorkspaceRef {
 }
 
 // CanBeReadBy は viewerID / viewerWorkspace の利用者が本文書を読めるかを返す。
-// 所有者は常に読める。公開文書は同一ワークスペースの利用者だけが読める（会社をまたいだ閲覧は不可）。
+// 所有者は常に読める。公開文書は同一ワークスペースの利用者だけが読める（ワークスペースをまたいだ閲覧は不可）。
 // viewerID=0（未認証）は所有者になり得ず、未所属の閲覧者はどのワークスペースとも一致しない。
 func (d *RichDocument) CanBeReadBy(viewerID uint64, viewerWorkspace WorkspaceRef) bool {
 	// 所有者判定は必ずテナント一致より先に置く。WorkspaceID は作成時の所属の写しで移管を追わず、
@@ -86,8 +86,9 @@ func (d *RichDocument) CanBeReadBy(viewerID uint64, viewerWorkspace WorkspaceRef
 	}
 	// 「公開」は同一ワークスペースの中での公開に閉じる。所属が分からない文書（workspace_id が
 	// NULL）はどのワークスペースとも一致しないので、所有者以外からは見えなくなる。所属を
-	// 特定できないものを全社へ開くのではなく見えない側へ倒す（fail-closed）。企業をまたいで
-	// ノートを見せないという要件に対して、NULL を「誰にでも見せる」側へ倒すのは矛盾するため。
+	// 特定できないものを全ワークスペースへ開くのではなく見えない側へ倒す（fail-closed）。
+	// ワークスペースをまたいでノートを見せないという要件に対して、NULL を「誰にでも見せる」側へ
+	// 倒すのは矛盾するため。
 	workspaceID, known := d.WorkspaceRef().WorkspaceID()
 	return known && viewerWorkspace.Matches(workspaceID)
 }

@@ -62,7 +62,7 @@ func (h *CourseHandler) List(c *gin.Context) {
 // @Router       /courses/{id} [get]
 // @Security     CookieAuth
 func (h *CourseHandler) Get(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -71,7 +71,7 @@ func (h *CourseHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	course, err := h.uc.Get(c.Request.Context(), id, actorCompany, role)
+	course, err := h.uc.Get(c.Request.Context(), id, actorWorkspace, role)
 	if err != nil {
 		respondEntityErr(c, err, "コースが見つかりません", "コースの取得に失敗しました")
 		return
@@ -95,7 +95,7 @@ func (h *CourseHandler) Get(c *gin.Context) {
 // @Router       /courses/{id}/last-viewed [get]
 // @Security     CookieAuth
 func (h *CourseHandler) LastViewed(c *gin.Context) {
-	uid, actorCompany, role, ok := actorFromContext(c)
+	uid, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -105,10 +105,10 @@ func (h *CourseHandler) LastViewed(c *gin.Context) {
 		return
 	}
 	view, err := h.lastViewed.Execute(c.Request.Context(), usecase.GetLastViewedChapterInput{
-		UserID:       uid,
-		ActorCompany: actorCompany,
-		ActorRole:    role,
-		CourseID:     id,
+		UserID:         uid,
+		ActorWorkspace: actorWorkspace,
+		ActorRole:      role,
+		CourseID:       id,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "コースが見つかりません", "閲覧履歴の取得に失敗しました")
@@ -189,7 +189,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 // @Router       /courses/{id} [put]
 // @Security     CookieAuth
 func (h *CourseHandler) Update(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -204,15 +204,15 @@ func (h *CourseHandler) Update(c *gin.Context) {
 		return
 	}
 	course, err := h.uc.Update(c.Request.Context(), usecase.UpdateCourseInput{
-		ID:           id,
-		ActorCompany: actorCompany,
-		ActorRole:    role,
-		Title:        req.Title,
-		Description:  req.Description,
-		Category:     req.Category,
-		Language:     req.Language,
-		SortOrder:    req.SortOrder,
-		IsPublished:  req.IsPublished,
+		ID:             id,
+		ActorWorkspace: actorWorkspace,
+		ActorRole:      role,
+		Title:          req.Title,
+		Description:    req.Description,
+		Category:       req.Category,
+		Language:       req.Language,
+		SortOrder:      req.SortOrder,
+		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "コースが見つかりません", "コースの更新に失敗しました")
@@ -234,7 +234,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 // @Router       /courses/{id} [delete]
 // @Security     CookieAuth
 func (h *CourseHandler) Delete(c *gin.Context) {
-	_, actorCompany, role, ok := actorFromContext(c)
+	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -243,7 +243,7 @@ func (h *CourseHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := h.uc.Delete(c.Request.Context(), id, actorCompany, role); err != nil {
+	if err := h.uc.Delete(c.Request.Context(), id, actorWorkspace, role); err != nil {
 		respondEntityErr(c, err, "コースが見つかりません", "コースの削除に失敗しました")
 		return
 	}

@@ -45,7 +45,7 @@ func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID ui
 	if err != nil {
 		return nil, err
 	}
-	if !canReadCourse(course, actorCompany, actorRole) {
+	if !courseVisibleToCompanyActor(course, actorCompany, actorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	includeUnpublished := canManage(actorRole)
@@ -77,10 +77,27 @@ func canRead(m *domain.TeachingMaterial, course *domain.Course, actorCompany dom
 		return false
 	}
 	// 所属コースが閲覧可能でなければ教材も見せない。
-	if !canReadCourse(course, actorCompany, actorRole) {
+	if !courseVisibleToCompanyActor(course, actorCompany, actorRole) {
 		return false
 	}
 	if !m.IsPublished && !canManage(actorRole) {
+		return false
+	}
+	return true
+}
+
+// courseVisibleToCompanyActor は canReadCourse の company_id 版。教材側の読み取り切替は
+// FRESTYLE-402 の後続チケットで扱うため、それまでは元の company_id ベースの挙動を
+// そのまま維持する（canReadCourse は FRESTYLE-402 で actorWorkspace 版に切り替わったため、
+// company_id で比較するこちらの経路とはシグネチャが両立しない）。
+func courseVisibleToCompanyActor(c *domain.Course, actorCompany domain.CompanyRef, actorRole domain.RoleName) bool {
+	if actorRole == domain.RoleSuperAdmin {
+		return true
+	}
+	if !actorCompany.Matches(c.CompanyID) {
+		return false
+	}
+	if !c.IsPublished && !canManage(actorRole) {
 		return false
 	}
 	return true

@@ -22,7 +22,7 @@ func NewCourseRepository(db *sql.DB) repository.CourseRepository {
 }
 
 func toDomainCourse(row sqlcgen.Course) domain.Course {
-	return domain.Course{
+	c := domain.Course{
 		ID:              uint64(row.ID),
 		CompanyID:       uint64(row.CompanyID),
 		CreatedByUserID: uint64(row.CreatedByUserID),
@@ -35,6 +35,11 @@ func toDomainCourse(row sqlcgen.Course) domain.Course {
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}
+	if row.WorkspaceID.Valid {
+		wid := row.WorkspaceID.UUID.String()
+		c.WorkspaceID = &wid
+	}
+	return c
 }
 
 // ListByCompany は自社のコースを sort_order 昇順で返す。includeUnpublished=false なら公開のみ。

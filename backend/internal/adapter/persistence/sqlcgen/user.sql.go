@@ -217,10 +217,14 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, password_hash, name, company_id, role_id,
+  email, password_hash, name, company_id, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8)
+VALUES (
+  $1, $2, $3, $4,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $4),
+  $5, true, $6, $7, $8
+)
 RETURNING id, created_at, updated_at
 `
 
@@ -244,6 +248,12 @@ type InsertUserRow struct {
 // ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
 // 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
 // UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
+//
+// workspace_id は company_id からその場で引く（$4 の会社が指す companies.workspace_id）。
+// 起動時バックフィル（tenant_bridge.go）だけに任せると、次の起動までのあいだに作った
+// ユーザーの workspace_id が NULL のままになり、ListUsersByWorkspaceID の一覧から漏れる
+// （CodeRabbit 指摘、FRESTYLE-397 PR #2362 で発覚）。会社が workspace_id を持たない
+// （バックフィル未到達）場合はサブクエリが 0 行になり、その場合も NULL のままで正しい。
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.Email,
@@ -262,10 +272,14 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, password_hash, name, company_id, role_id,
+  id, email, password_hash, name, company_id, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+VALUES (
+  $1, $2, $3, $4, $5,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $5),
+  $6, true, $7, $8, $9
+)
 RETURNING id, created_at, updated_at
 `
 
@@ -288,7 +302,7 @@ type InsertUserWithIDRow struct {
 }
 
 // id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
-// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
+// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。workspace_id の解決も同じ。
 func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDParams) (InsertUserWithIDRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUserWithID,
 		arg.ID,
@@ -528,7 +542,10 @@ func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActivePara
 }
 
 const updateUserCompanyID = `-- name: UpdateUserCompanyID :execrows
-UPDATE users SET company_id = $2 WHERE users.id = $1
+UPDATE users SET
+  company_id = $2,
+  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
+WHERE users.id = $1
 `
 
 type UpdateUserCompanyIDParams struct {
@@ -536,8 +553,9 @@ type UpdateUserCompanyIDParams struct {
 	CompanyID sql.NullInt64
 }
 
-// 所属会社を付け替える。ワークスペースは users.company_id → companies.workspace_id の
-// JOIN でその場に求める（GetUserCompanyWorkspaceID）ので、写しをここで書く必要はない。
+// 所属会社を付け替える。workspace_id もこの場で company_id から引き直して同期する
+// （ListUsersByWorkspaceID が users.workspace_id を絞り込みキーに直接使うため。
+// 都度 JOIN で求める GetUserCompanyWorkspaceID とは別の用途）。
 // 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)

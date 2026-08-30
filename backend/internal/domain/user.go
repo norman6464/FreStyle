@@ -12,9 +12,7 @@ type User struct {
 	PasswordHash *string `json:"-"`
 	Name         string  `json:"name"`
 	CompanyID    *uint64 `json:"companyId,omitempty"`
-	// WorkspaceID は companies を workspaces へ寄せる移行の橋渡し列（tenant_bridge.go が
-	// company_id から dual-write する写し。正本は当面 company_id のまま）。FRESTYLE-355 段4で
-	// company_id 直読みの読み取り経路を workspace_id 経由へ切り替える際の解決元になる。
+	// WorkspaceID は所属ワークスペースへの参照。CompanyID と同じ理由で NULL を許容する。
 	WorkspaceID *string `json:"workspaceId,omitempty"`
 	// Role はロール名（roles.name）。DB には列を持たない導出値で、読み出し時は repository が
 	// roles を JOIN して role_id から解決し、書き込み時は RoleID へ変換して保存する。

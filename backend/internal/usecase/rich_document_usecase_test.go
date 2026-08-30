@@ -41,6 +41,7 @@ func Test_GetRichDocument_認可(t *testing.T) {
 			got, err := uc.Execute(context.Background(), "a", tc.viewerID, tc.viewerWorkspace)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
+				repo.AssertExpectations(t)
 				return
 			}
 			require.NoError(t, err)

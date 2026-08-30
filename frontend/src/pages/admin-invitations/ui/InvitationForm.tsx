@@ -135,7 +135,7 @@ export default function InvitationForm({
 
       <button
         type="submit"
-        disabled={submitting || form.companyId === 0}
+        disabled={submitting || (isSuperAdmin && form.companyId === 0)}
         className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50"
       >
         {submitting

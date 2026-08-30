@@ -14,15 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// このファイルは「テナントの正本を companies から workspaces へ移す」移行のうち、
-// 両方の表現が同時に生きているあいだ守り続けなければならない不変条件を固定する。
+// このファイルは会社（companies）とワークスペース（workspaces）の 1:1 紐付けについて、
+// 起動時バックフィルが何度走っても守り続けなければならない不変条件を固定する。
 //
-// 移行はローリングデプロイを跨ぐため、旧タスク（companies を読む）と新タスク（workspaces を読む）が
-// 同時に走る瞬間がある。その間どちらを読んでも同じ答えが返らないと、会社をまたいだ取り違えや
-// 「所属しているのに見えない」が起きる。つまり守るべきは個々の書き込み経路ではなく、
-// **どの時点で DB を覗いても両側が同じ事実を語っている**という状態そのもの。
+// 会社は「契約している組織」、ワークスペースは「テナントとしての入れ物」で、片方だけが
+// 増える・相乗りする・余るといった崩れ方をすると、テナント境界そのものが曖昧になる。
+// つまり守るべきは個々の書き込み経路ではなく、**どの時点で DB を覗いても紐付けが
+// 1:1 のまま**という状態そのもの。
 //
-// 経路ごとの振る舞い（招待からの作成・付け替え・設定更新）は tenant_bridge_integration_test.go が
+// 経路ごとの振る舞い（所属の書き込み・付け替え・設定更新）は tenant_bridge_integration_test.go が
 // 見ている。ここは経路を問わず「起動時のバックフィルを流し終えた後の DB の形」だけを見る。
 
 // tenantSnapshot はバックフィル後の DB の状態を丸ごと写し取ったもの。
@@ -102,15 +102,13 @@ func requireTenantInvariants(t *testing.T, db *sql.DB) {
 		tenantCount(t, db, `SELECT count(*) FROM workspaces`),
 		"会社の数とワークスペースの数が一致しない")
 
-	// (2) 所属は両側で同じことを言っている。会社に属するユーザーの workspace_id は
-	//     必ずその会社のワークスペース。未所属なら両側とも空。
+	// (2) 所属参照は宙に浮かない。workspace_id が入っているユーザーは必ず実在する
+	//     ワークスペースを指す（未所属は NULL で表し、既定のテナントへは寄せない）。
 	require.Zero(t, tenantCount(t, db,
-		`SELECT count(*) FROM users u JOIN companies c ON u.company_id = c.id
-		 WHERE u.workspace_id IS DISTINCT FROM c.workspace_id`),
-		"所属会社のワークスペースを指していないユーザーがいる")
-	require.Zero(t, tenantCount(t, db,
-		`SELECT count(*) FROM users WHERE company_id IS NULL AND workspace_id IS NOT NULL`),
-		"未所属なのにワークスペースを指しているユーザーがいる")
+		`SELECT count(*) FROM users u
+		 WHERE u.workspace_id IS NOT NULL
+		   AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = u.workspace_id)`),
+		"実在しないワークスペースを指しているユーザーがいる")
 
 	// (3) テナント設定は移行中 companies が正本。写し先がずれたまま残っていない。
 	require.Zero(t, tenantCount(t, db,
@@ -119,20 +117,20 @@ func requireTenantInvariants(t *testing.T, db *sql.DB) {
 		"会社の設定がワークスペースへ写っていない")
 }
 
-// insertTraineeIn は会社に属する研修生を 1 人作る（作成経路の二重書きもここで通る）。
-func insertTraineeIn(ctx context.Context, t *testing.T, db *sql.DB, companyID uint64, sub string) uint64 {
+// insertTraineeIn はワークスペースに属する研修生を 1 人作る。
+func insertTraineeIn(ctx context.Context, t *testing.T, db *sql.DB, workspaceID string, sub string) uint64 {
 	t.Helper()
 	repo := persistence.NewUserRepository(db)
 	require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-		Email: sub + "@example.com", Name: sub, Role: domain.RoleTrainee, CompanyID: &companyID,
+		Email: sub + "@example.com", Name: sub, Role: domain.RoleTrainee, WorkspaceID: &workspaceID,
 	}, domain.OidcProviderCognito, sub))
 	got, err := repo.FindByCognitoSub(ctx, sub)
 	require.NoError(t, err)
 	return got.ID
 }
 
-// TestTenantBridgeInvariants_Integration は段 1（companies と workspaces の両方が
-// 常に正しい値を持つ）の不変条件を実 PostgreSQL で固定する。
+// TestTenantBridgeInvariants_Integration は会社↔ワークスペースの 1:1 紐付けが
+// 常に保たれることを実 PostgreSQL で固定する。
 func TestTenantBridgeInvariants_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
@@ -141,13 +139,15 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", false)
-		// バックフィル前に作られたユーザー（workspace_id がまだ空の状態）を混ぜる。
-		insertTraineeIn(ctx, t, sqlDB, 1, "sub-a")
-		insertTraineeIn(ctx, t, sqlDB, 2, "sub-b")
-		_, err := sqlDB.Exec(`UPDATE users SET workspace_id = NULL`)
-		require.NoError(t, err)
 
 		runStartupBackfill(ctx, t, sqlDB)
+		// 所属済みのユーザーと未所属のユーザーを混ぜる（再実行で書き換えられないこと）。
+		insertTraineeIn(ctx, t, sqlDB, companyWorkspaceID(t, sqlDB, 1).UUID.String(), "sub-a")
+		insertTraineeIn(ctx, t, sqlDB, companyWorkspaceID(t, sqlDB, 2).UUID.String(), "sub-b")
+		require.NoError(t, persistence.NewUserRepository(sqlDB).CreateWithOidcIdentity(ctx, &domain.User{
+			Email: "sub-root@example.com", Name: "sub-root", Role: domain.RoleSuperAdmin,
+		}, domain.OidcProviderCognito, "sub-root"))
+
 		first := captureTenantSnapshot(t, sqlDB)
 		requireTenantInvariants(t, sqlDB)
 
@@ -196,9 +196,8 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		before := captureTenantSnapshot(t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
-		// 起動後に新しい会社と、その所属ユーザーが増える。
+		// 起動後に新しい会社が増える。
 		insertCompany(t, sqlDB, 2, "後から増えた会社", true)
-		newUser := insertTraineeIn(ctx, t, sqlDB, 2, "sub-late")
 
 		runStartupBackfill(ctx, t, sqlDB)
 
@@ -208,47 +207,47 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		ws2 := companyWorkspaceID(t, sqlDB, 2)
 		require.True(t, ws2.Valid, "後から増えた会社にもワークスペースができる")
 		require.NotEqual(t, ws1.UUID, ws2.UUID)
+
+		// 新しいワークスペースへ所属させたユーザーは、次の起動でも書き換えられない。
+		newUser := insertTraineeIn(ctx, t, sqlDB, ws2.UUID.String(), "sub-late")
+		runStartupBackfill(ctx, t, sqlDB)
 		require.Equal(t, ws2, userWorkspaceID(t, sqlDB, newUser))
 		requireTenantInvariants(t, sqlDB)
 	})
 
-	t.Run("写し先がずれても次の起動で companies に合わせて直る", func(t *testing.T) {
+	t.Run("設定の写し先がずれても次の起動で companies に合わせて直る", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
-		userA := insertTraineeIn(ctx, t, sqlDB, 1, "sub-drift-a")
-		userB := insertTraineeIn(ctx, t, sqlDB, 2, "sub-drift-b")
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
-		ws2 := companyWorkspaceID(t, sqlDB, 2)
 
-		// 旧タスクの書き込みや手作業で写し側だけがずれた状態を作る。
+		// 手作業などで写し側（workspaces）だけがずれた状態を作る。
 		// 正本は companies なので、次の起動で companies の値に戻らなければならない。
 		_, err := sqlDB.Exec(
 			`UPDATE workspaces SET is_active = false WHERE id = $1`,
 			ws1.UUID,
 		)
 		require.NoError(t, err)
-		// 他社のワークスペースを指してしまったユーザーと、写し漏れたユーザー。
-		_, err = sqlDB.Exec(`UPDATE users SET workspace_id = $1 WHERE id = $2`, ws2.UUID, userA)
-		require.NoError(t, err)
-		_, err = sqlDB.Exec(`UPDATE users SET workspace_id = NULL WHERE id = $1`, userB)
-		require.NoError(t, err)
 
 		runStartupBackfill(ctx, t, sqlDB)
 
-		require.Equal(t, ws1, userWorkspaceID(t, sqlDB, userA), "他社を指していたユーザーが正しい所属へ戻る")
-		require.Equal(t, ws2, userWorkspaceID(t, sqlDB, userB), "写し漏れたユーザーが埋まる")
+		var active sql.NullBool
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT is_active FROM workspaces WHERE id = $1`, ws1.UUID,
+		).Scan(&active))
+		require.Equal(t, sql.NullBool{Bool: true, Valid: true}, active, "会社の設定へ戻る")
 		requireTenantInvariants(t, sqlDB)
 	})
 
 	t.Run("未所属ユーザーはワークスペースへ流し込まれない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "唯一の会社", true)
-		root := insertTraineeIn(ctx, t, sqlDB, 1, "sub-root")
-		// 会社から外れた（未所属になった）ユーザー。既定のテナントへ寄せてはいけない。
+		runStartupBackfill(ctx, t, sqlDB)
+		root := insertTraineeIn(ctx, t, sqlDB, companyWorkspaceID(t, sqlDB, 1).UUID.String(), "sub-root")
+		// ワークスペースから外れた（未所属になった）ユーザー。既定のテナントへ寄せてはいけない。
 		_, err := sqlDB.Exec(
-			`UPDATE users SET company_id = NULL, workspace_id = NULL WHERE id = $1`, root,
+			`UPDATE users SET workspace_id = NULL WHERE id = $1`, root,
 		)
 		require.NoError(t, err)
 

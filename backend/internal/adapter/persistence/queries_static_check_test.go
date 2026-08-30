@@ -51,7 +51,6 @@ var ownershipColumns = map[string]string{
 	"owner_id":            "行の持ち主",
 	"created_by":          "行を作った人",
 	"created_by_user_id":  "行を作った人",
-	"company_id":          "所属テナント（会社）",
 	"workspace_id":        "所属テナント（ワークスペース）",
 	"principal_id":        "権限が向けられている主体",
 	"group_principal_id":  "権限が向けられている主体",

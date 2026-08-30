@@ -11,7 +11,7 @@ import (
 
 const (
 	ContextKeyCurrentUserID = "currentUserID"
-	// ContextKeyCurrentUser は handler が role / company_id を見るための *domain.User。
+	// ContextKeyCurrentUser は handler が role / workspace_id を見るための *domain.User。
 	ContextKeyCurrentUser = "currentUser"
 )
 
@@ -46,11 +46,11 @@ func CurrentUser(users repository.UserRepository, companies repository.CompanyRe
 			return
 		}
 
-		// 会社アカウントが無効化されていれば、その会社のユーザーは利用不可。
+		// 会社アカウントが無効化されていれば、そのワークスペースのユーザーは利用不可。
 		// 未所属（運営管理者など）は検査対象の会社が無いのでこの検査を素通りする。
 		// 会社行が無い（データ不整合）場合も素通り、DB エラーは 500。
-		if companyID, affiliated := user.CompanyRef().CompanyID(); affiliated {
-			company, err := companies.FindByID(c.Request.Context(), companyID)
+		if workspaceID, affiliated := user.WorkspaceRef().WorkspaceID(); affiliated {
+			company, err := companies.FindByWorkspaceID(c.Request.Context(), workspaceID)
 			switch {
 			case errors.Is(err, domain.ErrNotFound):
 				// 会社行なし: 何もしない（弾かない）。

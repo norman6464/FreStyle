@@ -1,5 +1,5 @@
--- name: ListCompanyMemberActivities :many
--- 自社 trainee ごとの最終活動日と from_date 以降の活動回数を 1 クエリで集計する。
+-- name: ListCompanyMemberActivitiesByWorkspace :many
+-- 自社 trainee ごとの最終活動日と from_date 以降の活動回数を、ワークスペース単位で集計する。
 -- trainee ごとの個別クエリだと N+1 になるため、活動を user 単位に畳んだ CTE を LEFT JOIN する。
 -- 論理削除済み（deleted_at IS NOT NULL）は除外し、trainee 判定は正規化後の正である role_id で行う。
 -- 集計 CTE は活動のある user だけを持つので、未活動の trainee は LEFT JOIN の右辺が NULL になる
@@ -8,34 +8,6 @@
 -- 並びは最終活動日の新しい順（未活動は末尾）で、同着は user id 昇順で固定する。
 -- from_date は date 列との比較だが、境界日（当日）の活動を漏らさないため呼び出し側が
 -- 時刻成分を落とした UTC 当日 00:00 を渡す（date へ昇格しても境界が当日に揃う）。
--- company_id 列は nullable なので明示 cast で param を非 NULL の bigint に固定する。
-WITH agg AS (
-  SELECT
-    a.user_id AS user_id,
-    MAX(a.activity_date)::date AS last_active_date,
-    SUM(
-      CASE WHEN a.activity_date >= sqlc.arg(from_date)
-           THEN a.exercise_count + a.chapter_count + a.note_count
-           ELSE 0 END
-    )::bigint AS recent_activity_count
-  FROM user_daily_activities a
-  GROUP BY a.user_id
-)
-SELECT
-  u.id AS user_id,
-  u.name AS name,
-  agg.last_active_date,
-  COALESCE(agg.recent_activity_count, 0)::bigint AS recent_activity_count
-FROM users u
-LEFT JOIN agg ON agg.user_id = u.id
-WHERE u.company_id = sqlc.arg(company_id)::bigint
-  AND u.role_id = sqlc.arg(trainee_role_id)
-  AND u.deleted_at IS NULL
-ORDER BY agg.last_active_date DESC NULLS LAST, u.id ASC;
-
--- name: ListCompanyMemberActivitiesByWorkspace :many
--- ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版。
--- users.workspace_id は company_id から dual-write 済み。
 WITH agg AS (
   SELECT
     a.user_id AS user_id,

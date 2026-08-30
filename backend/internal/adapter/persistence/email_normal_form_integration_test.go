@@ -176,8 +176,8 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("FindPendingByEmail は前後空白・大文字混じりの既存行を正規形で引く", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO invitations (company_id, email, role, name, status, token, expires_at, created_at)
-			 VALUES (1, '  Invited@Example.com  ', $1, 'inv', $2, 'tok-pad', $3, NOW())`,
+			`INSERT INTO invitations (email, role, name, status, token, expires_at, created_at)
+			 VALUES ('  Invited@Example.com  ', $1, 'inv', $2, 'tok-pad', $3, NOW())`,
 			domain.RoleCompanyAdmin, domain.InvitationStatusPending,
 			time.Now().UTC().Add(time.Hour),
 		)
@@ -195,7 +195,6 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		truncate(t)
 		token := "tok-normalize"
 		inv := &domain.AdminInvitation{
-			CompanyID: 1,
 			Email:     "  New@Example.com\t",
 			Role:      domain.RoleCompanyAdmin,
 			Name:      "new",
@@ -214,9 +213,9 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("正規化のバックフィルは保留中の招待の email も畳む", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO invitations (company_id, email, role, name, status, token, expires_at, created_at)
-			 VALUES (1, ' Legacy@Example.com ', $1, 'legacy', $2, 'tok-legacy', $3, NOW()),
-			        (1, ' Done@Example.com ', $4, 'done', $5, 'tok-done', $6, NOW())`,
+			`INSERT INTO invitations (email, role, name, status, token, expires_at, created_at)
+			 VALUES (' Legacy@Example.com ', $1, 'legacy', $2, 'tok-legacy', $3, NOW()),
+			        (' Done@Example.com ', $4, 'done', $5, 'tok-done', $6, NOW())`,
 			domain.RoleCompanyAdmin, domain.InvitationStatusPending, time.Now().UTC().Add(time.Hour),
 			domain.RoleCompanyAdmin, domain.InvitationStatusAccepted, time.Now().UTC().Add(time.Hour),
 		)

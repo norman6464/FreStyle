@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('useAdminInvitations の初期ロード', () => {
-  it('company_admin では会社一覧を取らず、会社を自社に・役職を受講者に固定する', async () => {
+  it('company_admin では会社一覧を取らず、会社は送らず役職を受講者に固定する', async () => {
     const { result } = await mountAsCompanyAdmin();
 
     expect(getCurrentUser).toHaveBeenCalledTimes(1);
@@ -56,8 +56,10 @@ describe('useAdminInvitations の初期ロード', () => {
     expect(result.current.isSuperAdmin).toBe(false);
     expect(result.current.invitations).toEqual([pendingInvitation]);
     expect(result.current.companies).toEqual([]);
+    // company_admin の招待先は backend が actor 自身の所属ワークスペースに固定するため、
+    // フォームは会社を持たない（companyId は未選択の 0 のまま送られ、backend が無視する）。
     expect(result.current.form).toEqual({
-      companyId: 7,
+      companyId: 0,
       email: '',
       role: 'trainee',
       displayName: '',
@@ -104,7 +106,7 @@ describe('useAdminInvitations の初期ロード', () => {
 });
 
 describe('useAdminInvitations の招待作成', () => {
-  it('招待リンク方式では create を 1 回呼び、成功文言を出してフォームを会社だけ残して空にする', async () => {
+  it('招待リンク方式では create を 1 回呼び、成功文言を出してフォームを空にする', async () => {
     createInvitation.mockResolvedValue({ ...pendingInvitation, email: 'new@example.com' });
     const { result } = await mountAsCompanyAdmin([]);
 
@@ -114,14 +116,16 @@ describe('useAdminInvitations の招待作成', () => {
     });
 
     expect(createInvitation).toHaveBeenCalledTimes(1);
+    // company_admin は会社を選ばないので companyId は未選択の 0 のまま送る
+    // （backend が actor 自身の所属ワークスペースへ固定する）。
     expect(createInvitation).toHaveBeenCalledWith({
-      companyId: 7,
+      companyId: 0,
       email: 'new@example.com',
       role: 'trainee',
       displayName: '山田',
     });
     expect(result.current.success).toContain('new@example.com 宛に招待メールを送信しました。');
-    expect(result.current.form).toEqual({ companyId: 7, email: '', role: 'trainee', displayName: '' });
+    expect(result.current.form).toEqual({ companyId: 0, email: '', role: 'trainee', displayName: '' });
     // 作成後の再取得は 1 度だけ（初回 + 再取得 = 2）。
     expect(getCurrentUser).toHaveBeenCalledTimes(2);
     expect(listInvitations).toHaveBeenCalledTimes(2);

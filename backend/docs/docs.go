@@ -267,7 +267,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)",
+                        "description": "会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5735,9 +5735,6 @@ const docTemplate = `{
         "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer"
-                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -5760,7 +5757,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。",
+                    "description": "WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -5824,6 +5821,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "description": "WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、\ncompanies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。\n起動時バックフィルが未到達の会社は NULL になり得る。",
                     "type": "string"
                 }
             }
@@ -6865,10 +6866,6 @@ const docTemplate = `{
         "internal_handler.invitationValidateResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "companyName": {
                     "type": "string",
                     "example": "Example Corp"
@@ -7483,10 +7480,6 @@ const docTemplate = `{
         "internal_handler.meResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "createdAt": {
                     "type": "string"
                 },

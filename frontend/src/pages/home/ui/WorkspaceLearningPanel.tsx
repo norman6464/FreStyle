@@ -1,16 +1,16 @@
 import { Link } from 'react-router-dom';
 import { UsersIcon, FireIcon, CalendarDaysIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
-import type { CompanyLearningSummary } from '@/entities/member';
+import type { WorkspaceLearningSummary } from '@/entities/member';
 
 interface Props {
-  summary: CompanyLearningSummary;
+  summary: WorkspaceLearningSummary;
 }
 
 /**
- * CompanyLearningPanel は company_admin のホームに出す「メンバーの学習状況」サイドバー(FRESTYLE-103)。
- * 自分の学習統計の代わりに、自社 trainee の学習アクティビティ集計を表示する。
+ * WorkspaceLearningPanel は company_admin のホームに出す「メンバーの学習状況」サイドバー。
+ * 自分の学習統計の代わりに、自社（自ワークスペース）trainee の学習アクティビティ集計を表示する。
  */
-export default function CompanyLearningPanel({ summary }: Props) {
+export default function WorkspaceLearningPanel({ summary }: Props) {
   return (
     <div className="space-y-4 p-4 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)]">
       <h2 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-widest">

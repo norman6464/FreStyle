@@ -6,16 +6,16 @@ import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
 import authReducer, { setAuthData } from '@/entities/user/model/authSlice';
 import { useUserDashboard } from '../model/useUserDashboard';
-import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
+import { useWorkspaceLearningSummary } from '../model/useWorkspaceLearningSummary';
 import type { UserDashboard } from '@/entities/user';
-import type { CompanyLearningSummary } from '@/entities/member/api/adminMemberRepository';
+import type { WorkspaceLearningSummary } from '@/entities/member/api/adminMemberRepository';
 import { createMockStorage } from '@/test/mockStorage';
 
 vi.mock('../model/useUserDashboard');
-vi.mock('../model/useCompanyLearningSummary');
+vi.mock('../model/useWorkspaceLearningSummary');
 
 const mockUseUserDashboard = vi.mocked(useUserDashboard);
-const mockUseCompanyLearningSummary = vi.mocked(useCompanyLearningSummary);
+const mockUseWorkspaceLearningSummary = vi.mocked(useWorkspaceLearningSummary);
 
 const sampleDashboard: UserDashboard = {
   streak: 2,
@@ -26,7 +26,7 @@ const sampleDashboard: UserDashboard = {
   recentChapterViews: [],
 };
 
-const sampleSummary: CompanyLearningSummary = {
+const sampleSummary: WorkspaceLearningSummary = {
   traineeCount: 4,
   activeToday: 1,
   activeThisWeek: 2,
@@ -57,7 +57,7 @@ describe('MenuPage', () => {
     vi.stubGlobal('localStorage', createMockStorage());
     // 既定はどちらのサイドバー hook も「無効(取得なし)」相当。各テストで上書きする。
     mockUseUserDashboard.mockReturnValue({ dashboard: null, loading: false, error: null });
-    mockUseCompanyLearningSummary.mockReturnValue({ summary: null, loading: false, error: null });
+    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: null, loading: false, error: null });
   });
 
   afterEach(() => {
@@ -106,7 +106,7 @@ describe('MenuPage', () => {
   });
 
   it('company_admin は学習・ツール・管理セクションを表示する', () => {
-    mockUseCompanyLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
+    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
     renderMenu('company_admin');
 
     expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
@@ -115,7 +115,7 @@ describe('MenuPage', () => {
   });
 
   it('company_admin のサイドバーは自分の統計ではなくメンバーの学習状況を表示する (FRESTYLE-103)', () => {
-    mockUseCompanyLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
+    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
     renderMenu('company_admin');
 
     expect(screen.getByText('メンバーの学習状況')).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('MenuPage', () => {
   });
 
   it('company_admin はサマリーロード中スケルトン待ちになる', () => {
-    mockUseCompanyLearningSummary.mockReturnValue({ summary: null, loading: true, error: null });
+    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: null, loading: true, error: null });
     renderMenu('company_admin');
 
     expect(screen.queryByText('コース')).not.toBeInTheDocument();

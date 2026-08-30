@@ -100,9 +100,8 @@ INSERT INTO invitations (id, company_id, email, role, status) VALUES
 // company_id しか持たない既存 DB へ Migrate() を流したとき、所属が workspace_id へ
 // 移ってから company_id が落ちることを固定する。
 //
-// このチケットで落とすのは業務テーブル 4 つ（courses / course_chapters /
-// company_exercises / rich_documents）。users / invitations はまだ読み書きされているので
-// 残り、毎起動の移送で workspace_id を埋め続ける（それも下で確かめる）。
+// 落とすのは 6 表すべて（users / courses / course_chapters / company_exercises /
+// invitations / rich_documents）。companies テーブル自体は残る。
 //
 // なぜこのテストが要るか（実際に踏んだ壊れ方）:
 //
@@ -119,14 +118,14 @@ func TestMigrate_移行前のDBから所属を失わずにcompany_idを撤去す
 
 	require.NoError(t, database.Migrate(ctx, db), "移行前の DB からの Migrate が失敗した")
 
-	// 業務テーブルからは company_id が消えている（このチケットの撤去対象）。
-	for _, table := range []string{"courses", "course_chapters", "company_exercises", "rich_documents"} {
-		require.False(t, hasCompanyID(t, db, table), "%s.company_id が残っている", table)
-	}
-	// users / invitations はまだ読み書きされているので残る（後続のチケットで落とす）。
-	for _, table := range []string{"users", "invitations"} {
-		require.True(t, hasCompanyID(t, db, table), "%s.company_id を落とすのは後続のチケット", table)
-	}
+	// company_id は 6 表すべてから消えている（撤去そのもの）。
+	var remaining int
+	require.NoError(t, db.QueryRowContext(
+		ctx,
+		`SELECT count(*) FROM information_schema.columns
+		  WHERE table_schema = current_schema() AND column_name = 'company_id'`,
+	).Scan(&remaining))
+	require.Zero(t, remaining, "company_id 列が残っている")
 
 	// 所属していた行は workspace_id を引き継いでいる。会社ごとに別のワークスペースであること
 	// まで見る（全行が同じ既定テナントへ流し込まれていないことの担保）。
@@ -164,7 +163,6 @@ func TestMigrate_移行前のDBから所属を失わずにcompany_idを撤去す
 	).Scan(&loneDoc))
 	require.False(t, loneDoc.Valid, "会社を持たない文書に所属が付いている")
 
-	// invitations は company_id が残るので、毎起動の移送で workspace_id が埋まる。
 	require.Equal(t, wsA.String, tableWorkspace(t, db, `SELECT workspace_id FROM invitations WHERE id = 1`))
 
 	// 2 回目の Migrate も通る（company_id はもう無いので移送も DROP も no-op）。

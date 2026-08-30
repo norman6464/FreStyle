@@ -36,18 +36,23 @@ func (u *ListCompanyStatsUseCase) Execute(ctx context.Context) ([]CompanyStat, e
 	if err != nil {
 		return nil, err
 	}
-	counts, err := u.counter.CountMembersByCompany(ctx)
+	counts, err := u.counter.CountMembersByWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[uint64]repository.CompanyMemberCount, len(counts))
+	// 集計はワークスペース単位で返るので、会社に紐づくワークスペース ID で引き当てる
+	// （companies 1 : 1 workspaces）。
+	byWorkspace := make(map[string]repository.WorkspaceMemberCount, len(counts))
 	for _, cnt := range counts {
-		byID[cnt.CompanyID] = cnt
+		byWorkspace[cnt.WorkspaceID] = cnt
 	}
 	stats := make([]CompanyStat, 0, len(companies))
 	for _, co := range companies {
-		// メンバーがいない会社は zero value（0 件）で埋まる。
-		cnt := byID[co.ID]
+		// メンバーがいない会社・ワークスペース未紐付けの会社は zero value（0 件）で埋まる。
+		var cnt repository.WorkspaceMemberCount
+		if co.WorkspaceID != nil {
+			cnt = byWorkspace[*co.WorkspaceID]
+		}
 		stats = append(stats, CompanyStat{
 			ID:            co.ID,
 			Name:          co.Name,

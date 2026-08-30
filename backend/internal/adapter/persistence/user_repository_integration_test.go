@@ -13,20 +13,22 @@ import (
 )
 
 // TestUserRepository_Integration は sqlc 化した読み取り（FindByCognitoSub / FindByID / ListByRole）と
-// GORM の書き込みの round-trip を実 Postgres で検証する。nullable 列（company_id / deleted_at）の
+// 書き込みの round-trip を実 Postgres で検証する。nullable 列（workspace_id / deleted_at）の
 // 詰め替えと、論理削除除外・not-found 時の (nil, nil) も確認する。
 func TestUserRepository_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
-	t.Run("CreateWithOidcIdentity → FindByCognitoSub / FindByID で round-trip（company_id 含む）", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
+	t.Run("CreateWithOidcIdentity → FindByCognitoSub / FindByID で round-trip（workspace_id 含む）", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, append([]string{"user_oidc_identities"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 42, "会社 42", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		wid := companyWorkspaceID(t, sqlDB, 42).UUID.String()
 
-		cid := uint64(42)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "u@example.com", Name: "山田",
-			Role: domain.RoleTrainee, CompanyID: &cid,
+			Role: domain.RoleTrainee, WorkspaceID: &wid,
 		}, domain.OidcProviderCognito, "sub-1"))
 
 		got, err := repo.FindByCognitoSub(ctx, "sub-1")
@@ -35,8 +37,8 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.Equal(t, "u@example.com", got.Email)
 		require.Equal(t, "山田", got.Name)
 		require.Equal(t, domain.RoleTrainee, got.Role)
-		require.NotNil(t, got.CompanyID)
-		require.Equal(t, uint64(42), *got.CompanyID)
+		require.NotNil(t, got.WorkspaceID)
+		require.Equal(t, wid, *got.WorkspaceID)
 		require.False(t, got.CreatedAt.IsZero())
 
 		byID, err := repo.FindByID(ctx, got.ID)
@@ -45,7 +47,7 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.Equal(t, got.ID, byID.ID)
 	})
 
-	t.Run("company 無し（SuperAdmin）は CompanyID が nil", func(t *testing.T) {
+	t.Run("ワークスペース無し（SuperAdmin）は WorkspaceID が nil", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "a@example.com", Name: "管理者", Role: domain.RoleSuperAdmin,
@@ -54,7 +56,7 @@ func TestUserRepository_Integration(t *testing.T) {
 		got, err := repo.FindByCognitoSub(ctx, "admin-1")
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		require.Nil(t, got.CompanyID)
+		require.Nil(t, got.WorkspaceID)
 	})
 
 	t.Run("見つからない場合は (nil, nil)", func(t *testing.T) {

@@ -26,7 +26,6 @@ func NewValidateInvitationTokenUseCase(
 type ValidatedInvitation struct {
 	Role        domain.RoleName
 	Name        string
-	CompanyID   uint64
 	CompanyName string
 	WorkspaceID *string
 }
@@ -45,8 +44,8 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 
 	// company 取得に失敗しても招待自体は有効なので、CompanyName を空にして続行する。
 	companyName := ""
-	if u.companies != nil {
-		if c, err := u.companies.FindByID(ctx, inv.CompanyID); err == nil && c != nil {
+	if u.companies != nil && inv.WorkspaceID != nil {
+		if c, err := u.companies.FindByWorkspaceID(ctx, *inv.WorkspaceID); err == nil && c != nil {
 			companyName = c.Name
 		}
 	}
@@ -54,7 +53,6 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 	return &ValidatedInvitation{
 		Role:        normalizeInvitationRole(inv.Role),
 		Name:        inv.Name,
-		CompanyID:   inv.CompanyID,
 		CompanyName: companyName,
 		WorkspaceID: inv.WorkspaceID,
 	}, nil

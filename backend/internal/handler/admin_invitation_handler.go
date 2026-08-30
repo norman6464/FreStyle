@@ -37,7 +37,7 @@ func NewAdminInvitationHandler(
 //	@Produce      json
 //	@Param        companyId  query     string  false  "SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ"
 //	@Success      200        {array}   github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation
-//	@Failure      400        {object}  errorResponse  "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)"
+//	@Failure      400        {object}  errorResponse  "会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)"
 //	@Failure      401        {object}  errorResponse  "未 認証"
 //	@Failure      403        {object}  errorResponse  "trainee / company 未 設定 等"
 //	@Failure      500        {object}  errorResponse  "DB 失敗 (ListAll 経路)"
@@ -71,8 +71,8 @@ func (h *AdminInvitationHandler) List(c *gin.Context) {
 		c.JSON(http.StatusOK, rows)
 	case domain.RoleCompanyAdmin:
 		// CompanyAdmin は自社のみ。所属ワークスペースが無ければ絞り込み先が決まらないので
-		// 403 (誤用防止)。FRESTYLE-401 段4横展開: company_id 直読みから workspace_id 経由へ
-		// 切り替え済み（SuperAdmin の ?companyId= 絞り込みは company_id のまま変えていない）。
+		// 403 (誤用防止)。SuperAdmin の ?companyId= 絞り込みは usecase が
+		// company → workspace へ読み替えてから引く。
 		workspaceID, affiliated := user.WorkspaceRef().WorkspaceID()
 		if !affiliated {
 			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
@@ -139,6 +139,11 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// CompanyAdmin 経路だけ「招待先 = actor 自身の所属」が確定しているので、会社を
+	// 引き直さずワークスペースをそのまま渡す。SuperAdmin 経路は NoWorkspace のままで、
+	// usecase が req.CompanyID から解決する。
+	targetWorkspace := domain.NoWorkspace()
+
 	switch user.Role {
 	case domain.RoleSuperAdmin:
 		if req.Role != domain.RoleCompanyAdmin {
@@ -156,22 +161,26 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 			})
 			return
 		}
-		// 招待先 company が決まらないので、未所属の CompanyAdmin は招待できない。
-		// company_id = 0 は採番上あり得ない値なので、未所属と同じく弾く。
-		companyID, affiliated := user.CompanyRef().CompanyID()
-		if !affiliated || companyID == 0 {
+		// 招待先が決まらないので、未所属の CompanyAdmin は招待できない。
+		if _, affiliated := user.WorkspaceRef().WorkspaceID(); !affiliated {
 			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
 			return
 		}
-		// CompanyAdmin の招待先 company は常に自社に固定する（リクエスト値を上書き）。
-		req.CompanyID = companyID
+		// CompanyAdmin の招待先は常に自社（actor の所属ワークスペース）に固定する。
+		// リクエストの companyId は無視する（他社宛の指定を握り潰す）。
+		targetWorkspace = user.WorkspaceRef()
+		req.CompanyID = 0
 	default:
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
 
 	in := usecase.CreateAdminInvitationInput{
-		CompanyID: req.CompanyID, Email: req.Email, Role: req.Role, Name: req.Name,
+		CompanyID:       req.CompanyID,
+		TargetWorkspace: targetWorkspace,
+		Email:           req.Email,
+		Role:            req.Role,
+		Name:            req.Name,
 	}
 
 	if req.Method == invMethodTempPass {

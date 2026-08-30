@@ -30,7 +30,6 @@ export interface User {
   id: number;
   email: string;
   displayName: string;
-  companyId?: number | null;
   role: string;
   createdAt: string;
   updatedAt: string;

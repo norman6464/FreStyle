@@ -39,21 +39,29 @@ func (s *stubUsers) CreateFirstSuperAdminWithOidcIdentity(
 func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
 func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error)  { return nil, nil }
 
-func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error)   { return "", nil }
-func (s *stubUsers) UpdateName(context.Context, uint64, string) error                 { return nil }
-func (s *stubUsers) UpdateRole(context.Context, uint64, domain.RoleName) error        { return nil }
-func (s *stubUsers) UpdateWorkspaceID(context.Context, uint64, uint64, *string) error { return nil }
-func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error                 { return nil }
-func (s *stubUsers) SoftDelete(context.Context, uint64) error                         { return nil }
+func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
+func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }
+func (s *stubUsers) UpdateRole(context.Context, uint64, domain.RoleName) error      { return nil }
+func (s *stubUsers) UpdateWorkspaceID(context.Context, uint64, *string) error       { return nil }
+func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error               { return nil }
+func (s *stubUsers) SoftDelete(context.Context, uint64) error                       { return nil }
 
-// stubCompanies は CompanyRepository の最小 stub。FindByID で company / err を返す。
+// stubCompanies は CompanyRepository の最小 stub。FindByWorkspaceID で company / err を返し、
+// 問い合わせに使われた workspace_id を記録する。
 type stubCompanies struct {
 	company *domain.Company
 	err     error
+
+	gotWorkspaceID string
 }
 
 func (s *stubCompanies) ListAll(context.Context) ([]domain.Company, error) { return nil, nil }
 func (s *stubCompanies) FindByID(context.Context, uint64) (*domain.Company, error) {
+	return s.company, s.err
+}
+
+func (s *stubCompanies) FindByWorkspaceID(_ context.Context, workspaceID string) (*domain.Company, error) {
+	s.gotWorkspaceID = workspaceID
 	return s.company, s.err
 }
 func (s *stubCompanies) UpdateActive(context.Context, uint64, bool) error { return nil }
@@ -68,14 +76,17 @@ func runCurrentUser(t *testing.T, users *stubUsers, companies *stubCompanies) (*
 	return w, c
 }
 
-func uintPtr(v uint64) *uint64 { return &v }
+func strPtr(v string) *string { return &v }
 
 func Test_カレントユーザー_無効な会社を遮断(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(7)}}
-	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: false}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-7")}}
+	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: false, WorkspaceID: strPtr("ws-7")}}
 
 	w, c := runCurrentUser(t, users, companies)
 
+	if companies.gotWorkspaceID != "ws-7" {
+		t.Fatalf("会社はユーザーの workspace_id で引くべき: got %q", companies.gotWorkspaceID)
+	}
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d", w.Code)
 	}
@@ -85,8 +96,8 @@ func Test_カレントユーザー_無効な会社を遮断(t *testing.T) {
 }
 
 func Test_カレントユーザー_有効な会社は許可(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(7)}}
-	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-7")}}
+	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true, WorkspaceID: strPtr("ws-7")}}
 
 	_, c := runCurrentUser(t, users, companies)
 
@@ -98,21 +109,24 @@ func Test_カレントユーザー_有効な会社は許可(t *testing.T) {
 	}
 }
 
-func Test_カレントユーザー_運営管理者は会社なしでも許可(t *testing.T) {
-	// super_admin は company_id なし → 会社チェックをスキップして通す。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, CompanyID: nil}}
+func Test_カレントユーザー_運営管理者はワークスペースなしでも許可(t *testing.T) {
+	// super_admin は workspace_id なし → 会社チェックをスキップして通す。
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, WorkspaceID: nil}}
 	companies := &stubCompanies{err: domain.ErrNotFound}
 
 	_, c := runCurrentUser(t, users, companies)
 
+	if companies.gotWorkspaceID != "" {
+		t.Fatalf("未所属ユーザーで会社を引くべきではない: got %q", companies.gotWorkspaceID)
+	}
 	if c.IsAborted() {
-		t.Fatal("company なしの super_admin は通すべき")
+		t.Fatal("ワークスペースなしの super_admin は通すべき")
 	}
 }
 
 func Test_カレントユーザー_会社が見つからなくても許可(t *testing.T) {
-	// company_id はあるが会社行が無い（データ不整合）→ 弾かない。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(99)}}
+	// workspace_id はあるが対応する会社行が無い（データ不整合）→ 弾かない。
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-99")}}
 	companies := &stubCompanies{err: domain.ErrNotFound}
 
 	_, c := runCurrentUser(t, users, companies)
@@ -124,8 +138,8 @@ func Test_カレントユーザー_会社が見つからなくても許可(t *te
 
 func Test_カレントユーザー_無効なユーザーを遮断(t *testing.T) {
 	// IsActive=false のユーザーは会社が有効でも弾く（即時に利用不可）。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: false, CompanyID: uintPtr(7)}}
-	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: false, WorkspaceID: strPtr("ws-7")}}
+	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true, WorkspaceID: strPtr("ws-7")}}
 
 	w, c := runCurrentUser(t, users, companies)
 

@@ -13,8 +13,7 @@ import (
 //
 //	Expand   … schema.sql（節Ⅳ・Ⅴ）が workspace_id 列と FK を足す
 //	Migrate  … MigrateWorkspaceIDsFromCompanyID が company_id から値を写す
-//	Contract … DropCompanyIDColumns が company_id 列を落とす（今回は業務テーブル 4 つ。
-//	           users / invitations は後続のチケットで落とす）
+//	Contract … DropCompanyIDColumns が company_id 列を落とす（全 6 表）
 //
 // **順序を崩さないこと。** Contract を先に走らせると company_id → workspace_id の対応が
 // 失われ、既存のユーザー・教材・招待がすべて所属不明になる（復元できない）。
@@ -314,10 +313,8 @@ func mirrorRichDocumentsWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) er
 // **MigrateWorkspaceIDsFromCompanyID の後に必ず呼ぶこと。** 先に落とすと company_id →
 // workspace_id の対応が失われ、既存の行がすべて所属不明になる。
 //
-// 今回落とすのは業務テーブル 4 つ（courses / course_chapters / company_exercises /
-// rich_documents）だけ。users / invitations の company_id はまだ読み書きされているので
-// 後続のチケットで落とす。companies テーブル自体は残る（会社という実体は SuperAdmin の
-// 管理対象として引き続き必要）。
+// companies テーブル自体は残る。落とすのは「テナント参照としての company_id」だけで、
+// 会社という実体は SuperAdmin の管理対象として引き続き必要。
 //
 // 列が既に無ければ何もしない（冪等）。カタログを見てから ALTER するのは、素の ALTER TABLE が
 // 列が無くてスキップする場合でも先に ACCESS EXCLUSIVE ロックを取り、起動のたびにその表を
@@ -382,6 +379,8 @@ type companyIDDropCheck struct {
 }
 
 var companyIDDropChecks = []companyIDDropCheck{
+	{"users", `SELECT count(*) FROM users WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
+	{"invitations", `SELECT count(*) FROM invitations WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
 	{"courses", `SELECT count(*) FROM courses WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
 	{"course_chapters", `SELECT count(*) FROM course_chapters WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
 	{"company_exercises", `SELECT count(*) FROM company_exercises WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
@@ -390,10 +389,20 @@ var companyIDDropChecks = []companyIDDropCheck{
 
 // companyIDDrops は表ごとの DROP COLUMN。ミラーと同じ理由でテーブル名を SQL へ埋め込まない。
 var companyIDDrops = []func(context.Context, *sql.Tx) error{
+	dropUsersCompanyID,
 	dropCoursesCompanyID,
+	dropInvitationsCompanyID,
 	dropCourseChaptersCompanyID,
 	dropCompanyExercisesCompanyID,
 	dropRichDocumentsCompanyID,
+}
+
+func dropUsersCompanyID(ctx context.Context, tx *sql.Tx) error {
+	return dropCompanyIDIfPresent(ctx, tx, "users", `ALTER TABLE users DROP COLUMN company_id`)
+}
+
+func dropInvitationsCompanyID(ctx context.Context, tx *sql.Tx) error {
+	return dropCompanyIDIfPresent(ctx, tx, "invitations", `ALTER TABLE invitations DROP COLUMN company_id`)
 }
 
 func dropCoursesCompanyID(ctx context.Context, tx *sql.Tx) error {

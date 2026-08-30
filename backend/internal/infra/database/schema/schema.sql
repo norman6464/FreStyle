@@ -113,7 +113,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_user_provider
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_provider_subject
     ON user_oidc_identities (provider, subject);
 
--- 利用者。company_id / deleted_at は実際に NULL になり得る（運営管理者は会社無し等）。
+-- 利用者。deleted_at は実際に NULL になり得る。workspace_id は運営管理者等の未所属で NULL。
 -- role_id は roles マスタへの参照（正規化後の正）。DEFAULT 3 = trainee は、ローリングデプロイ中の
 -- 旧コード（role_id を書かない INSERT）を NOT NULL 違反で壊さないための安全弁。
 -- アクティブ行の email 部分 UNIQUE（uq_users_email_active）は
@@ -123,14 +123,13 @@ CREATE TABLE IF NOT EXISTS users (
     email         text NOT NULL DEFAULT '',
     password_hash text,
     name          text NOT NULL DEFAULT '',
-    company_id    bigint,
     role_id       integer NOT NULL DEFAULT 3,
     is_active     boolean NOT NULL DEFAULT true,
     created_at    timestamptz NOT NULL,
     updated_at    timestamptz NOT NULL,
     deleted_at    timestamptz,
     -- workspace_id は tenant_bridge.go が末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id  uuid
 );
 
@@ -215,7 +214,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events (created_
 -- updated_at は持たない。
 CREATE TABLE IF NOT EXISTS invitations (
     id           bigserial PRIMARY KEY,
-    company_id   bigint NOT NULL,
     email        text NOT NULL DEFAULT '',
     role         text NOT NULL DEFAULT '',
     name         text NOT NULL DEFAULT '',
@@ -474,7 +472,6 @@ BEGIN
             ('course_chapters', 'updated_at', $$now()$$),
             ('courses', 'created_at', $$now()$$),
             ('courses', 'updated_at', $$now()$$),
-            ('invitations', 'company_id', $$0$$),
             ('invitations', 'created_at', $$now()$$),
             ('invitations', 'email', $$''::text$$),
             ('invitations', 'expires_at', $$now()$$),
@@ -1390,10 +1387,8 @@ END $$;
 --     invitations / rich_documents への workspace_id 列追加）
 -- =====================================================================
 --
--- courses / course_chapters / company_exercises / rich_documents は workspace_id が唯一の
--- 所属参照（company_id は撤去済み）。invitations は company_id をまだ正本として持ち、
--- workspace_id はその写し（撤去は後続のチケット）。
--- 列を足して FK を張る。FK は workspace_id 側にだけ張る（companies / users と同じ方針）。
+-- workspace_id が唯一の所属参照（company_id は全表から撤去済み）。列を足して FK を張る。
+-- FK は workspace_id 側にだけ張る（companies で既に採った方針と同じ）。
 -- 新規に作る DB では上の CREATE TABLE で最初から workspace_id を持つため、この節は
 -- 既存 DB（起動時点でまだ列が無い環境）へ届かせるための ALTER TABLE ADD COLUMN
 -- IF NOT EXISTS 経路。
@@ -1496,3 +1491,4 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);

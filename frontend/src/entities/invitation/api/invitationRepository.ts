@@ -13,7 +13,7 @@ import { INVITATIONS } from '@/shared/config/apiRoutes';
 export interface ValidatedInvitation {
   role: string;
   displayName: string;
-  companyId: number;
+  workspaceId?: string;
   companyName: string;
 }
 

@@ -1107,7 +1107,7 @@ func (f *kbFakeUsers) UpdateName(context.Context, uint64, string) error { return
 
 func (f *kbFakeUsers) UpdateRole(context.Context, uint64, domain.RoleName) error { return nil }
 
-func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, uint64, *string) error { return nil }
+func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, *string) error { return nil }
 
 func (f *kbFakePerms) EnsureUserPrincipal(_ context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	if p := f.userPrincipal(workspaceID, userID); p != nil {

@@ -22,7 +22,7 @@ func newPublicInvitationRouter(inv *fakeInvitationRepo, companies *fakeCompanyRe
 
 // Test_招待検証API_workspaceIdの有無 は HTTP レスポンスの JSON シリアライズを固定する。
 // usecase 単体テストは ValidatedInvitation.WorkspaceID の値までしか見ないため、
-// companyId と同じ omitempty 契約が実際の JSON でも守られることをここで検証する。
+// omitempty 契約が実際の JSON でも守られることをここで検証する。
 func Test_招待検証API_workspaceIdの有無(t *testing.T) {
 	wsID := "0198a000-0000-7000-8000-000000000001"
 	cases := []struct {
@@ -33,7 +33,7 @@ func Test_招待検証API_workspaceIdの有無(t *testing.T) {
 		{
 			name: "workspace_id 設定時はレスポンスに含む",
 			inv: &domain.AdminInvitation{
-				ID: 1, CompanyID: 1, Role: domain.RoleTrainee, Name: "山田",
+				ID: 1, Role: domain.RoleTrainee, Name: "山田",
 				Status: domain.InvitationStatusPending, WorkspaceID: &wsID,
 			},
 			wantHasWSID: true,
@@ -41,7 +41,7 @@ func Test_招待検証API_workspaceIdの有無(t *testing.T) {
 		{
 			name: "workspace_id 未設定時は省略する",
 			inv: &domain.AdminInvitation{
-				ID: 2, CompanyID: 1, Role: domain.RoleTrainee, Name: "鈴木",
+				ID: 2, Role: domain.RoleTrainee, Name: "鈴木",
 				Status: domain.InvitationStatusPending,
 			},
 			wantHasWSID: false,

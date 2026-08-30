@@ -8,7 +8,7 @@ import (
 )
 
 // newTMHandler は no-op fake repo で組んだ TeachingMaterialHandler を返す。
-// 成功パスは List（materials.ListByCompany が空を返す）のみ、他は actorContext /
+// 成功パスは List（materials.ListByWorkspace が空を返す）のみ、他は actorWorkspaceFromContext /
 // param / bind のガード分岐を検証する（usecase の深い分岐は結合テスト側）。
 func newTMHandler() *TeachingMaterialHandler {
 	return NewTeachingMaterialHandler(usecase.NewTeachingMaterialUseCase(fakeMaterialRepo{}, &fakeCourseRepo{}))

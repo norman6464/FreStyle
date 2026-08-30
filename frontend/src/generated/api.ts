@@ -326,7 +326,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"][];
                     };
                 };
-                /** @description ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり) */
+                /** @description 会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -6921,7 +6921,6 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
-            companyId?: number;
             createdAt?: string;
             email?: string;
             expiresAt?: string;
@@ -6929,10 +6928,7 @@ export interface components {
             name?: string;
             role?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
             status?: string;
-            /**
-             * @description WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-             *     通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
-             */
+            /** @description WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。 */
             workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
@@ -6961,6 +6957,12 @@ export interface components {
             isActive?: boolean;
             name?: string;
             updatedAt?: string;
+            /**
+             * @description WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、
+             *     companies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。
+             *     起動時バックフィルが未到達の会社は NULL になり得る。
+             */
+            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             category?: string;
@@ -7375,8 +7377,6 @@ export interface components {
             offset?: number;
         };
         "internal_handler.invitationValidateResponse": {
-            /** @example 1 */
-            companyId?: number;
             /** @example Example Corp */
             companyName?: string;
             /** @example 山田 太郎 */
@@ -7676,8 +7676,6 @@ export interface components {
             title?: string;
         };
         "internal_handler.meResponse": {
-            /** @example 1 */
-            companyId?: number;
             createdAt?: string;
             /** @example user@example.com */
             email?: string;

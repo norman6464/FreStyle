@@ -62,10 +62,6 @@ func toDomainUser(row userRow) *domain.User {
 		UpdatedAt: row.UpdatedAt,
 	}
 	u.RoleID = row.RoleID
-	if row.CompanyID.Valid {
-		cid := uint64(row.CompanyID.Int64)
-		u.CompanyID = &cid
-	}
 	if row.WorkspaceID.Valid {
 		wid := row.WorkspaceID.UUID.String()
 		u.WorkspaceID = &wid
@@ -107,7 +103,7 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	row := rows[0]
 	u := toDomainUser(userRow{
 		ID: row.ID, Email: row.Email, Name: row.Name,
-		CompanyID: row.CompanyID, WorkspaceID: row.WorkspaceID, RoleID: row.RoleID,
+		WorkspaceID: row.WorkspaceID, RoleID: row.RoleID,
 		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 		RoleName: row.RoleName,
@@ -217,13 +213,11 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	if user.PasswordHash != nil {
 		params.PasswordHash = sql.NullString{String: *user.PasswordHash, Valid: true}
 	}
-	if user.CompanyID != nil {
-		cid, ok := toInt64ID(*user.CompanyID)
-		if !ok {
-			return fmt.Errorf("company id %d が int64 の範囲外です", *user.CompanyID)
-		}
-		params.CompanyID = sql.NullInt64{Int64: cid, Valid: true}
+	wid, ok := nullWorkspaceID(user.WorkspaceID)
+	if !ok {
+		return fmt.Errorf("workspace_id が不正な形式です: %q", *user.WorkspaceID)
 	}
+	params.WorkspaceID = wid
 	if user.DeletedAt != nil {
 		params.DeletedAt = sql.NullTime{Time: *user.DeletedAt, Valid: true}
 	}
@@ -252,7 +246,7 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			Email:        params.Email,
 			PasswordHash: params.PasswordHash,
 			Name:         params.Name,
-			CompanyID:    params.CompanyID,
+			WorkspaceID:  params.WorkspaceID,
 			RoleID:       params.RoleID,
 			CreatedAt:    params.CreatedAt,
 			UpdatedAt:    params.UpdatedAt,
@@ -490,19 +484,12 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	return nil
 }
 
-// UpdateWorkspaceID は所属会社とワークスペースを付け替える（招待の受諾で呼ばれる）。
+// UpdateWorkspaceID は所属ワークスペースを付け替える（招待の受諾で呼ばれる）。
 // workspaceID は呼び出し側が既に解決した値をそのまま渡す（サブクエリで引き直さない）。
-// company_id は当面まだ所属の正本なので、この呼び出しで一緒に書く。
-func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, companyID uint64, workspaceID *string) error {
+func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
-	}
-	cid, ok := toInt64ID(companyID)
-	if !ok {
-		// 付け替え先が存在し得ない。1 行も書けないので成功を返さない
-		// （nil を返すと呼び出し側が所属を付け替えられたと誤認する）。
-		return outOfRangeIDError("company_id", companyID)
 	}
 	wid, ok := nullWorkspaceID(workspaceID)
 	if !ok {
@@ -511,7 +498,6 @@ func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, c
 	q := r.queries()
 	affected, err := q.UpdateUserWorkspaceID(ctx, sqlcgen.UpdateUserWorkspaceIDParams{
 		ID:          id64,
-		CompanyID:   sql.NullInt64{Int64: cid, Valid: true},
 		WorkspaceID: wid,
 	})
 	if err != nil {

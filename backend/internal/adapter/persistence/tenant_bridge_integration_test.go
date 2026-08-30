@@ -54,40 +54,22 @@ func userWorkspaceID(t *testing.T, db *sql.DB, userID uint64) uuid.NullUUID {
 
 // runStartupBackfill は起動時に走る会社→ワークスペースのバックフィルを 1 回分流す。
 // スキーマ（列 / FK）は testsupport.OpenTestDB が既に適用済み。
-// runStartupBackfill は起動時に走るテナント移行の 2 段（会社→ワークスペースの紐付けと、
-// company_id から workspace_id への移送）を本番と同じ順で流す。片方だけを呼ぶと、
-// users / invitations の workspace_id が埋まらず本番と食い違う。
-// 撤去（DropCompanyIDColumns）はここでは呼ばない。company_id を前提に組み立てた
-// テストの下ごしらえが、その場で使えなくなるため。
 func runStartupBackfill(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, db))
-	require.NoError(t, database.MigrateWorkspaceIDsFromCompanyID(ctx, db))
 }
 
 // TestTenantBridgeBackfill_Integration は「会社を workspaces へ映す」バックフィルを実 Postgres で固定する。
-// 読み取りは何も変えていない段なので、ここで確かめるのは新しい列の中身だけ。
+// バックフィルが受け持つのは companies↔workspaces の 1:1 紐付けと設定の反映だけで、
+// 利用者や業務テーブルの所属参照（workspace_id）は書き込み経路が直接決めて渡す。
 func TestTenantBridgeBackfill_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	t.Run("会社ごとにワークスペースが 1 つでき、所属ユーザーへ写る", func(t *testing.T) {
+	t.Run("会社ごとにワークスペースが 1 つできる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "株式会社ふれすたいる", true)
 		insertCompany(t, sqlDB, 2, "Second Corp", false)
-
-		repo := persistence.NewUserRepository(sqlDB)
-		c1, c2 := uint64(1), uint64(2)
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "a@example.com", Name: "A", Role: domain.RoleTrainee, CompanyID: &c1,
-		}, domain.OidcProviderCognito, "sub-a"))
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "b@example.com", Name: "B", Role: domain.RoleTrainee, CompanyID: &c2,
-		}, domain.OidcProviderCognito, "sub-b"))
-		// 未所属（company_id IS NULL）。運営管理者のようにどの会社にも属さない利用者。
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "root@example.com", Name: "Root", Role: domain.RoleSuperAdmin,
-		}, domain.OidcProviderCognito, "sub-root"))
 
 		runStartupBackfill(ctx, t, sqlDB)
 
@@ -113,21 +95,6 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 			`SELECT is_active FROM workspaces WHERE id = $1`, ws2.UUID,
 		).Scan(&active))
 		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active)
-
-		userA, err := repo.FindByCognitoSub(ctx, "sub-a")
-		require.NoError(t, err)
-		userB, err := repo.FindByCognitoSub(ctx, "sub-b")
-		require.NoError(t, err)
-		userRoot, err := repo.FindByCognitoSub(ctx, "sub-root")
-		require.NoError(t, err)
-
-		require.Equal(t, ws1, userWorkspaceID(t, sqlDB, userA.ID))
-		require.Equal(t, ws2, userWorkspaceID(t, sqlDB, userB.ID))
-		require.False(t, userWorkspaceID(t, sqlDB, userRoot.ID).Valid, "未所属ユーザーは NULL のまま")
-
-		// 読み取りは company_id のまま。バックフィルで見え方が変わっていないこと。
-		require.Equal(t, uint64(1), *userA.CompanyID)
-		require.Nil(t, userRoot.CompanyID)
 	})
 
 	t.Run("何度流してもワークスペースが増えず ID もぶれない", func(t *testing.T) {
@@ -177,34 +144,44 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 		insertCompany(t, sqlDB, 1, "会社", true)
 
 		_, err := sqlDB.Exec(`UPDATE companies SET workspace_id = $1 WHERE id = 1`, uuid.New())
-		require.Error(t, err, "FK が無いまま company_id の轍を踏まない")
+		require.Error(t, err, "実在しないワークスペースは FK が弾く")
 	})
 }
 
-// TestTenantBridgeDualWrite_Integration は users.workspace_id が company_id と連動して
-// 正しく書かれることを固定する。InsertUser / InsertUserWithID は company_id から
-// その場でサブクエリ導出するが、UpdateUserWorkspaceID（旧 UpdateUserCompanyID）は
-// 呼び出し側が解決した workspace_id をそのまま書く（段5準備）。
-func TestTenantBridgeDualWrite_Integration(t *testing.T) {
+// TestUserWorkspaceWrite_Integration は users.workspace_id が「渡された値そのまま」で
+// 書かれることを固定する。所属参照の解決は呼び出し側（usecase）の責務で、
+// リポジトリ側が会社から引き直したりはしない。
+func TestUserWorkspaceWrite_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	t.Run("招待からのユーザー作成で所属先ワークスペースが求まる", func(t *testing.T) {
+	t.Run("渡した所属ワークスペースがそのまま書かれる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
+		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		ws2 := companyWorkspaceID(t, sqlDB, 2)
+		ws1Str, ws2Str := ws1.UUID.String(), ws2.UUID.String()
 
 		repo := persistence.NewUserRepository(sqlDB)
-		cid := uint64(1)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "new@example.com", Name: "新入社員", Role: domain.RoleTrainee, CompanyID: &cid,
-		}, domain.OidcProviderCognito, "sub-new"))
+			Email: "a@example.com", Name: "A", Role: domain.RoleTrainee, WorkspaceID: &ws1Str,
+		}, domain.OidcProviderCognito, "sub-a"))
+		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
+			Email: "b@example.com", Name: "B", Role: domain.RoleTrainee, WorkspaceID: &ws2Str,
+		}, domain.OidcProviderCognito, "sub-b"))
 
-		got, err := repo.FindByCognitoSub(ctx, "sub-new")
+		userA, err := repo.FindByCognitoSub(ctx, "sub-a")
 		require.NoError(t, err)
-		require.Equal(t, uint64(1), *got.CompanyID)
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "users", got.ID))
+		userB, err := repo.FindByCognitoSub(ctx, "sub-b")
+		require.NoError(t, err)
+
+		require.Equal(t, ws1, userWorkspaceID(t, sqlDB, userA.ID))
+		require.Equal(t, ws2, userWorkspaceID(t, sqlDB, userB.ID))
+		// 読み出しも同じ所属を返す。
+		require.Equal(t, ws1Str, *userA.WorkspaceID)
+		require.Equal(t, ws2Str, *userB.WorkspaceID)
 	})
 
 	t.Run("未所属のまま作られたユーザーは所属先ワークスペースが無い", func(t *testing.T) {
@@ -216,34 +193,54 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 		got, err := repo.FindByCognitoSub(ctx, "sub-root")
 		require.NoError(t, err)
-		require.Nil(t, got.CompanyID)
+		require.Nil(t, got.WorkspaceID)
 		require.False(t, tableWorkspaceID(t, sqlDB, "users", got.ID).Valid)
 	})
 
-	t.Run("会社の付け替えで所属先ワークスペースも追随する", func(t *testing.T) {
+	t.Run("所属の付け替えでワークスペースが入れ替わる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 		ws2 := companyWorkspaceID(t, sqlDB, 2)
+		ws1Str, ws2Str := ws1.UUID.String(), ws2.UUID.String()
 
 		repo := persistence.NewUserRepository(sqlDB)
-		cid := uint64(1)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "move@example.com", Name: "異動", Role: domain.RoleTrainee, CompanyID: &cid,
+			Email: "move@example.com", Name: "異動", Role: domain.RoleTrainee, WorkspaceID: &ws1Str,
 		}, domain.OidcProviderCognito, "sub-move"))
 		got, err := repo.FindByCognitoSub(ctx, "sub-move")
 		require.NoError(t, err)
 		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "users", got.ID))
 
-		ws2Str := ws2.UUID.String()
-		require.NoError(t, repo.UpdateWorkspaceID(ctx, got.ID, 2, &ws2Str))
+		require.NoError(t, repo.UpdateWorkspaceID(ctx, got.ID, &ws2Str))
 
 		moved, err := repo.FindByID(ctx, got.ID)
 		require.NoError(t, err)
-		require.Equal(t, uint64(2), *moved.CompanyID)
+		require.Equal(t, ws2Str, *moved.WorkspaceID)
 		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "users", got.ID))
+	})
+
+	t.Run("nil を渡すと未所属へ戻る", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1Str := companyWorkspaceID(t, sqlDB, 1).UUID.String()
+
+		repo := persistence.NewUserRepository(sqlDB)
+		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
+			Email: "leave@example.com", Name: "退所", Role: domain.RoleTrainee, WorkspaceID: &ws1Str,
+		}, domain.OidcProviderCognito, "sub-leave"))
+		got, err := repo.FindByCognitoSub(ctx, "sub-leave")
+		require.NoError(t, err)
+
+		require.NoError(t, repo.UpdateWorkspaceID(ctx, got.ID, nil))
+
+		left, err := repo.FindByID(ctx, got.ID)
+		require.NoError(t, err)
+		require.Nil(t, left.WorkspaceID)
+		require.False(t, userWorkspaceID(t, sqlDB, got.ID).Valid)
 	})
 
 	t.Run("会社設定の更新がワークスペースへ写る", func(t *testing.T) {
@@ -282,21 +279,15 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 	})
 }
 
-// businessTablesWithWorkspaceMirror は company_id がまだ残り、起動時バックフィルが
-// workspace_id を埋め続ける表。courses / course_chapters / company_exercises /
-// rich_documents は company_id を撤去済みで、移行そのものの検証は
-// tenant_contract_integration_test.go が受け持つ。
-// company_exercises は repository / usecase が未実装で dual-write の対象外だが、
-// 起動時バックフィル（mirrorCompanyExercisesWorkspaceFromCompany）自体は用意しているので
-// バックフィルの検証対象には含める。
-var businessTablesWithWorkspaceMirror = []string{
-	"invitations",
+// businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。
+var businessTablesWithWorkspace = []string{
+	"courses", "course_chapters", "company_exercises", "invitations", "rich_documents",
 }
 
-// businessTableWorkspaceMirrorTruncateTables はこの節のテストが TRUNCATE する対象。
-var businessTableWorkspaceMirrorTruncateTables = append(
+// businessTableTruncateTables はこの節のテストが TRUNCATE する対象。
+var businessTableTruncateTables = append(
 	append([]string{}, tenantBridgeTables...),
-	businessTablesWithWorkspaceMirror...,
+	businessTablesWithWorkspace...,
 )
 
 // tableWorkspaceID は業務テーブル 1 行の workspace_id を返す。table は本ファイル内の
@@ -308,78 +299,16 @@ func tableWorkspaceID(t *testing.T, db *sql.DB, table string, id any) uuid.NullU
 	return got
 }
 
-// insertLegacyRow は table に「company_id はあるが workspace_id が未設定」の行を dual-write を
-// 経由せず直接 INSERT する（バックフィル前に作られた行を再現する）。authorUserID は
-// rich_documents.owner_id の FK（fk_rich_documents_owner）を満たすために渡す実在ユーザー ID。
-// 戻り値は作った行の id（テーブルにより int64 か string）。
-func insertLegacyRow(t *testing.T, db *sql.DB, table string, companyID int64, authorUserID uint64) any {
-	t.Helper()
-	switch table {
-	case "courses":
-		var id int64
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
-			 VALUES ($1, $2, 'legacy', NOW(), NOW()) RETURNING id`,
-			companyID, authorUserID,
-		).Scan(&id))
-		return id
-	case "course_chapters":
-		var courseID int64
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
-			 VALUES ($1, $2, 'legacy course', NOW(), NOW()) RETURNING id`,
-			companyID, authorUserID,
-		).Scan(&courseID))
-		var id int64
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO course_chapters (company_id, course_id, created_by_user_id, title, created_at, updated_at)
-			 VALUES ($1, $2, $3, 'legacy chapter', NOW(), NOW()) RETURNING id`,
-			companyID, courseID, authorUserID,
-		).Scan(&id))
-		return id
-	case "company_exercises":
-		var id int64
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO company_exercises
-			   (company_id, language, title, description, starter_code, created_by, created_at, updated_at)
-			 VALUES ($1, 'go', 'legacy', 'legacy desc', 'legacy code', $2, NOW(), NOW()) RETURNING id`,
-			companyID, authorUserID,
-		).Scan(&id))
-		return id
-	case "invitations":
-		var id int64
-		require.NoError(t, db.QueryRow(
-			`INSERT INTO invitations (company_id, email, role, name, status, expires_at, created_at)
-			 VALUES ($1, 'legacy@example.com', 'trainee', 'legacy', 'pending', NOW() + interval '1 day', NOW())
-			 RETURNING id`,
-			companyID,
-		).Scan(&id))
-		return id
-	case "rich_documents":
-		id := uuid.Must(uuid.NewV7()).String()
-		_, err := db.Exec(
-			`INSERT INTO rich_documents (id, owner_id, company_id, kind, title, doc, created_at, updated_at)
-			 VALUES ($1, $2, $3, 'note', 'legacy', '{"type":"doc","content":[]}', NOW(), NOW())`,
-			id, authorUserID, companyID,
-		)
-		require.NoError(t, err)
-		return id
-	default:
-		t.Fatalf("insertLegacyRow: 未対応のテーブル %q", table)
-		return nil
-	}
-}
-
-// TestTenantBridgeBusinessTableBackfill_Integration は FRESTYLE-399（courses / course_chapters /
-// invitations / rich_documents への workspace_id 列追加）のバックフィルと dual-write を
-// 実 PostgreSQL で固定する。読み取りは何も変えていない段なので、ここで確かめるのは
-// 新しい列の中身だけ（company_id 側の挙動は既存テストがそのまま守る）。
-func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
+// TestBusinessTableWorkspaceWrite_Integration は業務テーブルの所属参照（workspace_id）が
+// 呼び出し側から渡された値そのままで書かれることを実 PostgreSQL で固定する。
+// リポジトリ側が会社から引き直していないことを、会社と対応しないワークスペースを
+// 渡して見分ける。
+func TestBusinessTableWorkspaceWrite_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	t.Run("新規作成の直後に workspace_id が入る（dual-write）", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+	t.Run("新規作成の直後に渡した workspace_id が入る", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, businessTableTruncateTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
@@ -388,40 +317,34 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 		ws2 := companyWorkspaceID(t, sqlDB, 2)
 		require.True(t, ws2.Valid)
 		require.NotEqual(t, ws1.UUID, ws2.UUID)
-		// courses / course_chapters / rich_documents は company_id=1 のまま workspace_id だけ
-		// 会社 B（ws2）を渡す。SQL 側で company_id から引き直していれば ws1 になってしまうので、
-		// 渡した値（ws2）がそのまま書かれることをこれで見分けられる。
-		ws2Str := ws2.UUID.String()
+		// 作成者は会社 A（ws1）に所属させたうえで、行の所属先には会社 B（ws2）を渡す。
+		// 作成者の所属から引き直していれば ws1 になってしまうので、これで見分けられる。
+		ws1Str, ws2Str := ws1.UUID.String(), ws2.UUID.String()
 
 		users := persistence.NewUserRepository(sqlDB)
-		cid := uint64(1)
 		require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "author@example.com", Name: "作成者", Role: domain.RoleCompanyAdmin, CompanyID: &cid,
+			Email: "author@example.com", Name: "作成者", Role: domain.RoleCompanyAdmin, WorkspaceID: &ws1Str,
 		}, domain.OidcProviderCognito, "sub-author"))
 		author, err := users.FindByCognitoSub(ctx, "sub-author")
 		require.NoError(t, err)
 
-		// courses / course_chapters / rich_documents は usecase 側（actor の所属ワークスペース）が
-		// workspace_id を決めて渡す設計のため、ここでも company_id とは別の値を明示して渡す。
 		courses := persistence.NewCourseRepository(sqlDB)
 		course := &domain.Course{WorkspaceID: &ws2Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
 		require.NoError(t, courses.Create(ctx, course))
-		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse が 渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse は渡された workspace_id を書く")
 
 		materials := persistence.NewTeachingMaterialRepository(sqlDB)
 		chapter := &domain.TeachingMaterial{WorkspaceID: &ws2Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
 		require.NoError(t, materials.Create(ctx, chapter))
-		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter が 渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter は渡された workspace_id を書く")
 
-		// invitations はまだ company_id からの dual-write（SQL 側のサブクエリ）に依存しているため、
-		// ここだけは company_id=1 に対応する ws1 になることを見る（他の3つとは逆の期待値）。
 		invitations := persistence.NewAdminInvitationRepository(sqlDB)
 		inv := &domain.AdminInvitation{
-			CompanyID: 1, Email: "invitee@example.com", Role: domain.RoleTrainee,
+			WorkspaceID: &ws2Str, Email: "invitee@example.com", Role: domain.RoleTrainee,
 			Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(24 * time.Hour),
 		}
 		require.NoError(t, invitations.Create(ctx, inv))
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "invitations", inv.ID), "InsertInvitation は company_id から workspace_id を dual-write する")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "invitations", inv.ID), "InsertInvitation は渡された workspace_id を書く")
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
@@ -429,11 +352,11 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 			Title: "メモ", Doc: `{"type":"doc","content":[]}`,
 		}
 		require.NoError(t, richDocs.Create(ctx, doc))
-		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument が 渡された workspace_id を書く")
+		require.Equal(t, ws2, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument は渡された workspace_id を書く")
 	})
 
-	t.Run("会社を持たない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+	t.Run("所属を渡さない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, businessTableTruncateTables...)
 		users := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "root@example.com", Name: "運営", Role: domain.RoleSuperAdmin,
@@ -443,63 +366,10 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
-			OwnerID: root.ID, Kind: domain.DocumentKindNote,
+			OwnerID: root.ID, WorkspaceID: nil, Kind: domain.DocumentKindNote,
 			Title: "運営メモ", Doc: `{"type":"doc","content":[]}`,
 		}
 		require.NoError(t, richDocs.Create(ctx, doc))
 		require.False(t, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID).Valid)
-	})
-
-	t.Run("バックフィル前に作られた行は起動時バックフィルで写る", func(t *testing.T) {
-		for _, table := range businessTablesWithWorkspaceMirror {
-			t.Run(table, func(t *testing.T) {
-				testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
-				insertCompany(t, sqlDB, 1, "会社 A", true)
-				runStartupBackfill(ctx, t, sqlDB) // 会社→ワークスペースの対応だけ先に作る
-				ws1 := companyWorkspaceID(t, sqlDB, 1)
-				require.True(t, ws1.Valid)
-
-				users := persistence.NewUserRepository(sqlDB)
-				require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
-					Email: "legacy-author@example.com", Name: "レガシー作成者", Role: domain.RoleTrainee,
-				}, domain.OidcProviderCognito, "sub-legacy-author"))
-				author, err := users.FindByCognitoSub(ctx, "sub-legacy-author")
-				require.NoError(t, err)
-
-				// dual-write を経由しない、直接 INSERT でバックフィル前の状態（workspace_id 未設定）を再現する。
-				id := insertLegacyRow(t, sqlDB, table, 1, author.ID)
-				require.False(t, tableWorkspaceID(t, sqlDB, table, id).Valid, "作成直後はまだ写っていない")
-
-				runStartupBackfill(ctx, t, sqlDB)
-				require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, table, id))
-			})
-		}
-	})
-
-	t.Run("何度流しても workspace_id がぶれない", func(t *testing.T) {
-		for _, table := range businessTablesWithWorkspaceMirror {
-			t.Run(table, func(t *testing.T) {
-				testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
-				insertCompany(t, sqlDB, 1, "会社 A", true)
-
-				users := persistence.NewUserRepository(sqlDB)
-				require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
-					Email: "legacy-author@example.com", Name: "レガシー作成者", Role: domain.RoleTrainee,
-				}, domain.OidcProviderCognito, "sub-legacy-author"))
-				author, err := users.FindByCognitoSub(ctx, "sub-legacy-author")
-				require.NoError(t, err)
-
-				id := insertLegacyRow(t, sqlDB, table, 1, author.ID)
-
-				runStartupBackfill(ctx, t, sqlDB)
-				first := tableWorkspaceID(t, sqlDB, table, id)
-				require.True(t, first.Valid)
-
-				for i := 0; i < 2; i++ { // 起動 2 回目・3 回目
-					runStartupBackfill(ctx, t, sqlDB)
-					require.Equal(t, first, tableWorkspaceID(t, sqlDB, table, id))
-				}
-			})
-		}
 	})
 }

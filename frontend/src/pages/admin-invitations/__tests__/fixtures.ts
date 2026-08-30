@@ -6,7 +6,7 @@ import type { AdminInvitation } from '@/entities/invitation';
  */
 export const pendingInvitation: AdminInvitation = {
   id: 10,
-  companyId: 1,
+  workspaceId: '0198a000-0000-7000-8000-000000000001',
   email: 'member@example.com',
   role: 'trainee',
   invitedBy: 2,

@@ -14,15 +14,19 @@ import (
 
 // ListAdminInvitationsUseCase は招待一覧を取得する。
 //
-// ListByWorkspaceID の 3 系統を公開する集約 read usecase
+// 全社横断（ListAll）とワークスペース単位（ListByWorkspaceID）の 2 系統を公開する集約 read usecase
 //
-//naminglint:allow 全社横断 ListAll・SuperAdmin 用 ListByCompanyID・CompanyAdmin 用
+//naminglint:allow 全社横断 ListAll・ワークスペース単位 ListByWorkspaceID・会社指定 ListByCompanyID
 type ListAdminInvitationsUseCase struct {
-	repo repository.AdminInvitationRepository
+	repo      repository.AdminInvitationRepository
+	companies repository.CompanyRepository
 }
 
-func NewListAdminInvitationsUseCase(r repository.AdminInvitationRepository) *ListAdminInvitationsUseCase {
-	return &ListAdminInvitationsUseCase{repo: r}
+func NewListAdminInvitationsUseCase(
+	r repository.AdminInvitationRepository,
+	companies repository.CompanyRepository,
+) *ListAdminInvitationsUseCase {
+	return &ListAdminInvitationsUseCase{repo: r, companies: companies}
 }
 
 // ListAll は全社横断で招待一覧を返す（SuperAdmin 専用、認可は handler 層）。
@@ -30,22 +34,35 @@ func (u *ListAdminInvitationsUseCase) ListAll(ctx context.Context) ([]domain.Adm
 	return u.repo.ListAll(ctx)
 }
 
-// ListByCompanyID は指定 company の招待一覧を返す。SuperAdmin が ?companyId= で
-// 任意の会社を指定するときに使う。
-func (u *ListAdminInvitationsUseCase) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
-	if companyID == 0 {
-		return nil, errors.New("companyID is required")
-	}
-	return u.repo.ListByCompanyID(ctx, companyID)
-}
-
-// ListByWorkspaceID は指定ワークスペースの招待一覧を返す。CompanyAdmin が自社のみを
-// 見る用（FRESTYLE-401 段4横展開: company_id 直読みから workspace_id 経由へ切り替え済み）。
+// ListByWorkspaceID は指定ワークスペースの招待一覧を返す（CompanyAdmin の自社一覧と、
+// SuperAdmin が任意の会社を指定するときの両方で使う。認可は handler 層）。
 func (u *ListAdminInvitationsUseCase) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
 	if workspaceID == "" {
 		return nil, errors.New("workspaceID is required")
 	}
 	return u.repo.ListByWorkspaceID(ctx, workspaceID)
+}
+
+// ListByCompanyID は指定 company の招待一覧を返す（SuperAdmin の ?companyId= 絞り込み）。
+//
+// invitations は company_id を持たず workspace_id だけを持つため、会社に対応する
+// ワークスペースへ読み替えてから引く（companies 1 : 1 workspaces）。会社が見つからない・
+// ワークスペース未紐付けの会社は 0 件（その会社宛の招待は存在し得ない）。
+func (u *ListAdminInvitationsUseCase) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
+	if companyID == 0 {
+		return nil, errors.New("companyID is required")
+	}
+	if u.companies == nil {
+		return nil, errors.New("company repository not configured")
+	}
+	company, err := u.companies.FindByID(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("find company: %w", err)
+	}
+	if company == nil || company.WorkspaceID == nil {
+		return []domain.AdminInvitation{}, nil
+	}
+	return u.repo.ListByWorkspaceID(ctx, *company.WorkspaceID)
 }
 
 // MagicLinkSender は invitation メール送信の抽象（infra/ses.Client が満たす）。
@@ -63,6 +80,7 @@ type LinkBuilder func(token string) string
 // CreateAdminInvitationUseCase は新規招待を発行し、マジックリンクメールを送る。
 type CreateAdminInvitationUseCase struct {
 	repo        repository.AdminInvitationRepository
+	companies   repository.CompanyRepository
 	sender      MagicLinkSender
 	buildLink   LinkBuilder
 	buildMail   MailBuilder
@@ -74,12 +92,14 @@ type CreateAdminInvitationUseCase struct {
 // sender が nil のときはメール送信をスキップする（ローカル開発時のフォールバック）。
 func NewCreateAdminInvitationUseCase(
 	r repository.AdminInvitationRepository,
+	companies repository.CompanyRepository,
 	sender MagicLinkSender,
 	buildLink LinkBuilder,
 	buildMail MailBuilder,
 ) *CreateAdminInvitationUseCase {
 	return &CreateAdminInvitationUseCase{
 		repo:      r,
+		companies: companies,
 		sender:    sender,
 		buildLink: buildLink,
 		buildMail: buildMail,
@@ -88,10 +108,49 @@ func NewCreateAdminInvitationUseCase(
 }
 
 type CreateAdminInvitationInput struct {
+	// CompanyID は SuperAdmin が「どの会社へ招くか」を company の id で指定する入口。
+	// TargetWorkspace が設定されているときは使わない。
 	CompanyID uint64
-	Email     string
-	Role      domain.RoleName
-	Name      string
+	// TargetWorkspace は CompanyAdmin が自社へ招くときの所属ワークスペース。
+	// 設定されていればこちらを優先し、会社からの引き直しを省く
+	// （actor 自身の所属なので、company を経由するまでもなく確定している）。
+	TargetWorkspace domain.WorkspaceRef
+	Email           string
+	Role            domain.RoleName
+	Name            string
+}
+
+// resolveInvitationWorkspace は招待先 company に対応する workspace_id を引く。
+//
+// invitations の所属参照は workspace_id ただ 1 つで、company_id は撤去済み。一方 API は
+// 「どの会社へ招くか」を company の id で受ける（クライアントにテナント ID を送らせない）。
+// その 2 つを繋ぐのがこの解決で、招待作成の入口 2 経路（マジックリンク / 一時パスワード）が
+// 共有する。会社が見つからない・まだワークスペースに紐付いていない場合はエラーにする
+// （NULL のまま招待を作ると、受諾しても所属が決まらない招待になる）。
+func resolveInvitationWorkspace(
+	ctx context.Context,
+	companies repository.CompanyRepository,
+	in CreateAdminInvitationInput,
+) (*string, error) {
+	// CompanyAdmin 経路は actor 自身の所属がそのまま招待先なので、会社を引き直さない。
+	if wid, ok := in.TargetWorkspace.WorkspaceID(); ok {
+		return &wid, nil
+	}
+	companyID := in.CompanyID
+	if companies == nil {
+		return nil, errors.New("company repository not configured")
+	}
+	company, err := companies.FindByID(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("find company: %w", err)
+	}
+	if company == nil {
+		return nil, fmt.Errorf("company %d not found", companyID)
+	}
+	if company.WorkspaceID == nil {
+		return nil, fmt.Errorf("company %d has no workspace", companyID)
+	}
+	return company.WorkspaceID, nil
 }
 
 // Execute は token 発行 → invitations を pending で保存 → 受諾リンクメール送信、の順で招待を作る。
@@ -101,19 +160,27 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	// 生のまま保存すると、ログイン時の招待ゲート（正規形の OIDC メールで引く）と
 	// 突き合わせられず「招待したのに招待が見つからない」状態になる。
 	in.Email = domain.NormalizeEmail(in.Email)
-	if in.CompanyID == 0 || in.Email == "" || in.Role == "" {
-		return nil, errors.New("companyID, email, role are required")
+	if _, hasWorkspace := in.TargetWorkspace.WorkspaceID(); !hasWorkspace && in.CompanyID == 0 {
+		return nil, errors.New("companyID or targetWorkspace is required")
+	}
+	if in.Email == "" || in.Role == "" {
+		return nil, errors.New("email, role are required")
+	}
+
+	workspaceID, err := resolveInvitationWorkspace(ctx, u.companies, in)
+	if err != nil {
+		return nil, err
 	}
 
 	token := uuid.NewString()
 	inv := &domain.AdminInvitation{
-		CompanyID: in.CompanyID,
-		Email:     in.Email,
-		Role:      in.Role,
-		Name:      in.Name,
-		Status:    domain.InvitationStatusPending,
-		Token:     &token,
-		ExpiresAt: time.Now().UTC().Add(u.expiresIn),
+		WorkspaceID: workspaceID,
+		Email:       in.Email,
+		Role:        in.Role,
+		Name:        in.Name,
+		Status:      domain.InvitationStatusPending,
+		Token:       &token,
+		ExpiresAt:   time.Now().UTC().Add(u.expiresIn),
 	}
 	if err := u.repo.Create(ctx, inv); err != nil {
 		log.Printf("CreateAdminInvitation: repo.Create failed email=%s role=%s companyID=%d: %v",

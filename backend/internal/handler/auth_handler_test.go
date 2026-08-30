@@ -104,7 +104,7 @@ func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role domain.Role
 	return nil
 }
 
-func (r *fakeUserRepo) UpdateWorkspaceID(_ context.Context, id uint64, _ uint64, workspaceID *string) error {
+func (r *fakeUserRepo) UpdateWorkspaceID(_ context.Context, id uint64, workspaceID *string) error {
 	r.updateWorkspaceID, r.updateWorkspaceVal = id, workspaceID
 	return nil
 }
@@ -140,10 +140,6 @@ func (r *fakeUserInvitationTransactionRunner) WithinTransaction(
 }
 
 func (r *fakeInvitationRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
-	return nil, nil
-}
-
-func (r *fakeInvitationRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.AdminInvitation, error) {
 	return nil, nil
 }
 
@@ -277,15 +273,15 @@ func Test_IDトークンからユーザー登録_不正な形式のトークン�
 // invitationToken が指定されているとき、email ベースより token ベースが優先されることを確認する。
 // email ベースで見つかる古い invitation よりも、token ベースの新しい invitation を採用する。
 func Test_IDトークンからユーザー登録_招待tokenはメールより優先(t *testing.T) {
-	cidByToken := uint64(99)
-	cidByEmail := uint64(1)
+	widByToken := "0198a000-0000-7000-8000-000000000099"
+	widByEmail := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
-			"u@example.com": {ID: 1, CompanyID: cidByEmail, Email: "u@example.com", Role: domain.RoleTrainee},
+			"u@example.com": {ID: 1, WorkspaceID: &widByEmail, Email: "u@example.com", Role: domain.RoleTrainee},
 		},
 		pendingByToken: map[string]*domain.AdminInvitation{
-			"magic-token-xyz": {ID: 7, CompanyID: cidByToken, Email: "u@example.com", Role: domain.RoleCompanyAdmin, Name: "佐藤"},
+			"magic-token-xyz": {ID: 7, WorkspaceID: &widByToken, Email: "u@example.com", Role: domain.RoleCompanyAdmin, Name: "佐藤"},
 		},
 	}
 	h := newTestAuthHandler(users, invs)
@@ -303,8 +299,8 @@ func Test_IDトークンからユーザー登録_招待tokenはメールより�
 	if users.created.Role != domain.RoleCompanyAdmin {
 		t.Errorf("token-based invitation role should win, got %q", users.created.Role)
 	}
-	if users.created.CompanyID == nil || *users.created.CompanyID != cidByToken {
-		t.Errorf("token-based companyID should win, got %+v", users.created.CompanyID)
+	if users.created.WorkspaceID == nil || *users.created.WorkspaceID != widByToken {
+		t.Errorf("token-based workspaceID should win, got %+v", users.created.WorkspaceID)
 	}
 	if invs.updatedID != 7 || invs.updatedStatus != domain.InvitationStatusAccepted {
 		t.Errorf("token-based invitation must be marked accepted, got id=%d status=%q", invs.updatedID, invs.updatedStatus)
@@ -313,10 +309,11 @@ func Test_IDトークンからユーザー登録_招待tokenはメールより�
 
 // invitationToken が無効でも、email ベースで見つかれば許可する（旧フロー互換）。
 func Test_IDトークンからユーザー登録_無効なtokenはメールにフォールバック(t *testing.T) {
+	wid := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
-			"u@example.com": {ID: 1, CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee},
+			"u@example.com": {ID: 1, WorkspaceID: &wid, Email: "u@example.com", Role: domain.RoleTrainee},
 		},
 	}
 	h := newTestAuthHandler(users, invs)
@@ -337,9 +334,10 @@ func Test_IDトークンからユーザー登録_無効なtokenはメールに�
 func Test_IDトークンからユーザー登録_既存運営管理者は招待で降格しない(t *testing.T) {
 	existing := &domain.User{ID: 1, Email: "ops@example.com", Role: domain.RoleSuperAdmin}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"ops": existing}}
+	wid := "0198a000-0000-7000-8000-000000000001"
 	invs := &fakeInvitationRepo{
 		pendingByToken: map[string]*domain.AdminInvitation{
-			"t": {ID: 1, CompanyID: 1, Email: "ops@example.com", Role: domain.RoleTrainee},
+			"t": {ID: 1, WorkspaceID: &wid, Email: "ops@example.com", Role: domain.RoleTrainee},
 		},
 	}
 	h := newTestAuthHandler(users, invs)
@@ -355,11 +353,12 @@ func Test_IDトークンからユーザー登録_既存運営管理者は招待�
 
 // 新規ユーザ作成時に id_token の `name` claim が Name に使われる（email にフォールバックしない）。
 func Test_IDトークンからユーザー登録_新規はOIDC名をメールより優先(t *testing.T) {
+	wid := "0198a000-0000-7000-8000-000000000010"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
 			"taro@example.com": {
-				ID: 1, CompanyID: 10, Email: "taro@example.com",
+				ID: 1, WorkspaceID: &wid, Email: "taro@example.com",
 				Role: domain.RoleTrainee, Status: domain.InvitationStatusPending,
 				// 招待 displayName が空だと OIDC name が採用される。
 			},
@@ -385,11 +384,12 @@ func Test_IDトークンからユーザー登録_新規はOIDC名をメールよ
 
 // 招待 displayName が指定されているときは招待値が優先で OIDC name は無視。
 func Test_IDトークンからユーザー登録_新規は招待名がOIDC名に優先(t *testing.T) {
+	wid := "0198a000-0000-7000-8000-000000000010"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
 			"u@example.com": {
-				ID: 1, CompanyID: 10, Email: "u@example.com",
+				ID: 1, WorkspaceID: &wid, Email: "u@example.com",
 				Role: domain.RoleTrainee, Name: "招待された名前", Status: domain.InvitationStatusPending,
 			},
 		},
@@ -409,11 +409,12 @@ func Test_IDトークンからユーザー登録_新規は招待名がOIDC名に
 
 // name claim が無いケースは email にフォールバックする（後方互換）。
 func Test_IDトークンからユーザー登録_新規でOIDC名なしはメールにフォールバック(t *testing.T) {
+	wid := "0198a000-0000-7000-8000-000000000010"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
 			"a@example.com": {
-				ID: 1, CompanyID: 10, Email: "a@example.com",
+				ID: 1, WorkspaceID: &wid, Email: "a@example.com",
 				Role: domain.RoleTrainee, Status: domain.InvitationStatusPending,
 			},
 		},

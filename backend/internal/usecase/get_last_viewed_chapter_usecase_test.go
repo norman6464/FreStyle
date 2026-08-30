@@ -45,7 +45,7 @@ func Test_最終閲覧章_履歴なしはnilを返す(t *testing.T) {
 	assert.Nil(t, got, "初めて開くコースは履歴なし = 正常系")
 }
 
-func Test_最終閲覧章_別ワークスペースのコースは禁止(t *testing.T) {
+func Test_最終閲覧章_他社コースは禁止(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 

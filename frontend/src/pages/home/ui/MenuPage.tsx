@@ -11,9 +11,9 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useUserDashboard } from '../model/useUserDashboard';
-import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
+import { useWorkspaceLearningSummary } from '../model/useWorkspaceLearningSummary';
 import DashboardStats from './DashboardStats';
-import CompanyLearningPanel from './CompanyLearningPanel';
+import WorkspaceLearningPanel from './WorkspaceLearningPanel';
 import FeatureSection from './FeatureSection';
 import FeatureCard from './FeatureCard';
 import MenuSkeleton from './MenuSkeleton';
@@ -43,11 +43,11 @@ export default function MenuPage() {
   const isCompanyAdmin = role === 'company_admin';
   const roleUnresolved = role === null;
 
-  // サイドバーの中身はロールで出し分ける(FRESTYLE-103):
+  // サイドバーの中身はロールで出し分ける:
   //   trainee = 自分の学習統計 / company_admin = 自社メンバーの学習状況 / super_admin = なし。
   // company_admin は学習者ではないため自分用の /me/dashboard は取得しない。
   const { dashboard, loading: dashboardLoading } = useUserDashboard({ enabled: isTrainee });
-  const { summary, loading: summaryLoading } = useCompanyLearningSummary({ enabled: isCompanyAdmin });
+  const { summary, loading: summaryLoading } = useWorkspaceLearningSummary({ enabled: isCompanyAdmin });
 
   // 学習者/管理者向けはサイドバーのロード完了まで本体を出さず、両カラムを同時に出す。
   const waitingForStats = (isTrainee && dashboardLoading) || (isCompanyAdmin && summaryLoading);
@@ -168,7 +168,7 @@ export default function MenuPage() {
             ) : isTrainee ? (
               dashboard && <DashboardStats dashboard={dashboard} />
             ) : (
-              summary && <CompanyLearningPanel summary={summary} />
+              summary && <WorkspaceLearningPanel summary={summary} />
             )}
           </div>
         )}

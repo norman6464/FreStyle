@@ -26,7 +26,6 @@ type UserRepository interface {
 	// ListByRole は指定 role のユーザー一覧を返す（super_admin への一斉通知などに使う）。
 	ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error)
 	// ListByWorkspaceID はワークスペース単位の従業員一覧を返す（company_admin の従業員管理画面用）。
-	// FRESTYLE-355 段4: company_id 直読み（旧 ListByCompanyID）から workspace_id 経由へ切り替え済み。
 	ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error)
 	// CreateWithOidcIdentity は users 行と OIDC identity（provider + subject）を
 	// 単一トランザクションで作成する。正規化後は「識別子を持たないユーザー」は存在し得ない
@@ -49,7 +48,7 @@ type UserRepository interface {
 	UpdateName(ctx context.Context, userID uint64, name string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
 	UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error
-	// UpdateWorkspaceID は既存ユーザーが招待を受けて company / workspace に紐付くときに呼ばれる。
-	// workspaceID は呼び出し側が既に解決した値（招待行の workspace_id 等）をそのまま渡す。
-	UpdateWorkspaceID(ctx context.Context, userID uint64, companyID uint64, workspaceID *string) error
+	// UpdateWorkspaceID は既存ユーザーが招待を受けて workspace に紐付くときに呼ばれる。
+	// workspaceID は呼び出し側が既に解決した値（招待行の workspace_id）をそのまま渡す。
+	UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error
 }

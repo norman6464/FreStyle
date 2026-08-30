@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
@@ -27,7 +28,6 @@ type invitationRow = sqlcgen.Invitation
 func toDomainAdminInvitation(row invitationRow) domain.AdminInvitation {
 	inv := domain.AdminInvitation{
 		ID:        uint64(row.ID),
-		CompanyID: uint64(row.CompanyID),
 		Email:     row.Email,
 		Role:      domain.RoleName(row.Role),
 		Name:      row.Name,
@@ -52,21 +52,6 @@ func toDomainAdminInvitation(row invitationRow) domain.AdminInvitation {
 // （特に FindPendingByEmail は 1 件しか返さず、順序が揺れると「どの招待が受理されるか」が変わる）。
 func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
 	rows, err := sqlcgen.New(r.db).ListPendingInvitations(ctx, domain.InvitationStatusPending)
-	if err != nil {
-		return nil, err
-	}
-	return toDomainAdminInvitations(rows), nil
-}
-
-func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
-	cid, ok := toInt64ID(companyID)
-	if !ok {
-		return []domain.AdminInvitation{}, nil // 存在し得ない company_id = 0 件
-	}
-	rows, err := sqlcgen.New(r.db).ListPendingInvitationsByCompany(ctx, sqlcgen.ListPendingInvitationsByCompanyParams{
-		CompanyID: cid,
-		Status:    domain.InvitationStatusPending,
-	})
 	if err != nil {
 		return nil, err
 	}
@@ -164,10 +149,10 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 // 「どちらの表現で入っているか」がばらつき、同じアドレスの解釈が 2 つある状態が続く。
 // 呼び元（usecase）も畳んだ値を渡すが、この経路を通る限り必ず正規形になることをここで保証する。
 func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.AdminInvitation) error {
-	cid, ok := toInt64ID(inv.CompanyID)
+	wid, ok := nullWorkspaceID(inv.WorkspaceID)
 	if !ok {
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
-		return outOfRangeIDError("company_id", inv.CompanyID)
+		return fmt.Errorf("workspace_id が不正な形式です: %q", *inv.WorkspaceID)
 	}
 	inv.Email = domain.NormalizeEmail(inv.Email)
 	createdAt := inv.CreatedAt
@@ -179,14 +164,14 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 		token = sql.NullString{String: *inv.Token, Valid: true}
 	}
 	row, err := sqlcgen.New(r.db).InsertInvitation(ctx, sqlcgen.InsertInvitationParams{
-		CompanyID: cid,
-		Email:     inv.Email,
-		Role:      string(inv.Role),
-		Name:      inv.Name,
-		Status:    inv.Status,
-		Token:     token,
-		ExpiresAt: inv.ExpiresAt,
-		CreatedAt: createdAt,
+		WorkspaceID: wid,
+		Email:       inv.Email,
+		Role:        string(inv.Role),
+		Name:        inv.Name,
+		Status:      inv.Status,
+		Token:       token,
+		ExpiresAt:   inv.ExpiresAt,
+		CreatedAt:   createdAt,
 	})
 	if err != nil {
 		return err

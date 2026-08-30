@@ -4,7 +4,7 @@ import { ADMIN } from '@/shared/config/apiRoutes';
 
 export interface AdminInvitation {
   id: number;
-  companyId: number;
+  workspaceId?: string;
   email: string;
   role: 'trainee' | 'company_admin';
   invitedBy: number | null;

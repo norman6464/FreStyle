@@ -17,6 +17,17 @@ export interface ValidatedInvitation {
   companyName: string;
 }
 
+/**
+ * backend の生レスポンス。表示名のキーが `name` で、画面が使う `displayName` と揃っていない。
+ * ここで一度だけ読み替え、画面側は `displayName` だけを見る。
+ */
+interface InvitationValidateResponse {
+  role: string;
+  name: string;
+  workspaceId?: string;
+  companyName: string;
+}
+
 class InvitationRepository {
   /**
    * 招待 token を検証する。
@@ -25,8 +36,11 @@ class InvitationRepository {
    * axios が AxiosError を throw するので呼び出し側で catch して「無効なリンク」と表示する。
    */
   async validateToken(token: string): Promise<ValidatedInvitation> {
-    const response = await apiClient.get<ValidatedInvitation>(INVITATIONS.validateToken(token));
-    return response.data;
+    const response = await apiClient.get<InvitationValidateResponse>(
+      INVITATIONS.validateToken(token)
+    );
+    const { name, ...rest } = response.data;
+    return { ...rest, displayName: name };
   }
 }
 

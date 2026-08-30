@@ -311,7 +311,7 @@ const docTemplate = `{
                 "summary": "招待 作成",
                 "parameters": [
                     {
-                        "description": "招待 内容 (CompanyAdmin は companyId が 上書き さ れる)",
+                        "description": "招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -328,7 +328,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "バリデーション / 未知の method / 一時パスワード方式が未構成",
+                        "description": "バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -6656,12 +6656,12 @@ const docTemplate = `{
         "internal_handler.createAdminInvReq": {
             "type": "object",
             "required": [
-                "companyId",
                 "email",
                 "role"
             ],
             "properties": {
                 "companyId": {
+                    "description": "CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の\n招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。\nbinding:\"required\" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の\n招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。",
                     "type": "integer"
                 },
                 "email": {

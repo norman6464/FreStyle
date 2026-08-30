@@ -376,7 +376,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 招待 内容 (CompanyAdmin は companyId が 上書き さ れる) */
+            /** @description 招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる) */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.createAdminInvReq"];
@@ -392,7 +392,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"];
                     };
                 };
-                /** @description バリデーション / 未知の method / 一時パスワード方式が未構成 */
+                /** @description バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -7296,7 +7296,13 @@ export interface components {
             title?: string;
         };
         "internal_handler.createAdminInvReq": {
-            companyId: number;
+            /**
+             * @description CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の
+             *     招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。
+             *     binding:"required" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の
+             *     招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。
+             */
+            companyId?: number;
             email: string;
             /**
              * @description Method は招待方式。"magic_link"（既定・受諾リンクをメール）か

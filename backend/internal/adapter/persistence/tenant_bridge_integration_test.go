@@ -280,6 +280,11 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 }
 
 // businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。
+//
+// company_exercises だけは下の書き込みテストで検証していない。アプリから書く経路が
+// 無いため（repository も sqlc のクエリも無く、schema と移行の SQL にしか出てこない）。
+// TRUNCATE の対象には要るのでリストには残す。書き込む repository を足したら、他の表と
+// 同じく「渡した workspace_id がそのまま入る」ことをここで固定すること。
 var businessTablesWithWorkspace = []string{
 	"courses", "course_chapters", "company_exercises", "invitations", "rich_documents",
 }

@@ -55,6 +55,8 @@ export interface UserInfo {
   role?: string;
   /** /auth/me が返す表示名（招待時に displayName として登録された値） */
   displayName?: string;
+  /** 所属ワークスペースの UUID。未所属の運営ユーザーでは返らない。 */
+  workspaceId?: string;
 }
 
 class AuthRepository {

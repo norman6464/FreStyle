@@ -8,7 +8,7 @@ import authReducer, { setAuthData } from '@/entities/user/model/authSlice';
 import { useUserDashboard } from '../model/useUserDashboard';
 import { useWorkspaceLearningSummary } from '../model/useWorkspaceLearningSummary';
 import type { UserDashboard } from '@/entities/user';
-import type { WorkspaceLearningSummary } from '@/entities/member/api/adminMemberRepository';
+import type { WorkspaceLearningSummary } from '@/entities/member';
 import { createMockStorage } from '@/test/mockStorage';
 
 vi.mock('../model/useUserDashboard');

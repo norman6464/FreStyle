@@ -102,6 +102,16 @@ INSERT INTO companies (id, name)
 SELECT 1, '株式会社FreStyle'
 WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id = 1);
 
+-- ここで会社 1 にワークスペースが無いなら、上の INSERT で今まさに作った行か、バックフィル前の
+-- DB のどちらか。そのまま進めると以降の users / courses / course_chapters が所属 NULL で入り、
+-- company_id はもう無いので次回起動でも復元できない。黙って壊れた seed を作らず、ここで止める。
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM companies WHERE id = 1 AND workspace_id IS NOT NULL) THEN
+    RAISE EXCEPTION '会社 1 にワークスペースが紐付いていません。サーバーを 1 度起動してバックフィルを走らせてから seed を流してください。';
+  END IF;
+END $$;
+
 -- ---- users ----------------------------------------------------------------
 -- 1% を company_admin にして権限分岐のあるクエリも実データで踏めるようにする。
 -- ロールは role_id が正（FRESTYLE-311）。OIDC subject は user_oidc_identities に持つ。

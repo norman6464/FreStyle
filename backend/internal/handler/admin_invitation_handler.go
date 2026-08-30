@@ -90,7 +90,11 @@ func (h *AdminInvitationHandler) List(c *gin.Context) {
 }
 
 type createAdminInvReq struct {
-	CompanyID uint64          `json:"companyId" binding:"required"`
+	// CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の
+	// 招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。
+	// binding:"required" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の
+	// 招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。
+	CompanyID uint64          `json:"companyId"`
 	Email     string          `json:"email" binding:"required"`
 	Role      domain.RoleName `json:"role" binding:"required"`
 	Name      string          `json:"name"`
@@ -118,9 +122,9 @@ const invMethodTempPass = "temporary_password"
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
-//	@Param        body  body      createAdminInvReq  true  "招待 内容 (CompanyAdmin は companyId が 上書き さ れる)"
+//	@Param        body  body      createAdminInvReq  true  "招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる)"
 //	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation  "magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される"
-//	@Failure      400   {object}  errorResponse  "バリデーション / 未知の method / 一時パスワード方式が未構成"
+//	@Failure      400   {object}  errorResponse  "バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成"
 //	@Failure      401   {object}  errorResponse  "未 認証"
 //	@Failure      403   {object}  errorResponse  "ロール 違反"
 //	@Failure      409   {object}  errorResponse  "一時パスワード方式で対象 email が既に存在"
@@ -150,6 +154,14 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error":   "super_admin_can_only_invite_company_admin",
 				"message": "運営は会社管理者のみ招待できます。受講者の招待は会社管理者から行ってください。",
+			})
+			return
+		}
+		// SuperAdmin は自分の所属で代替できないので、会社の指定が無いと招待先が決まらない。
+		if req.CompanyID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "company_id_required",
+				"message": "招待先の会社を指定してください。",
 			})
 			return
 		}

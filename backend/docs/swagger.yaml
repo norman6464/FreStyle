@@ -654,6 +654,11 @@ definitions:
   internal_handler.createAdminInvReq:
     properties:
       companyId:
+        description: |-
+          CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の
+          招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。
+          binding:"required" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の
+          招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。
         type: integer
       email:
         type: string
@@ -671,7 +676,6 @@ definitions:
       role:
         $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName'
     required:
-    - companyId
     - email
     - role
     type: object
@@ -1618,7 +1622,8 @@ paths:
         は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待
         可、 CompanyAdmin は trainee のみ 自社 に 招待 可。'
       parameters:
-      - description: 招待 内容 (CompanyAdmin は companyId が 上書き さ れる)
+      - description: 招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor
+          の ワークスペース に 固定 さ れる)
         in: body
         name: body
         required: true
@@ -1633,7 +1638,7 @@ paths:
           schema:
             $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
         "400":
-          description: バリデーション / 未知の method / 一時パスワード方式が未構成
+          description: バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "401":

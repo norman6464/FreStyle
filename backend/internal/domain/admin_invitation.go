@@ -2,6 +2,7 @@ package domain
 
 import "time"
 
+// AdminInvitation は管理者が発行した招待。受諾されるまで users 行は作られない。
 type AdminInvitation struct {
 	ID     uint64   `json:"id"`
 	Email  string   `json:"email"`

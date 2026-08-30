@@ -326,6 +326,42 @@ func Test_招待ハンドラ_作成_会社管理者_trainee_正常系かつ自�
 	}
 }
 
+func Test_招待ハンドラ_作成_会社管理者_companyIdを送らなくても作成できる(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	wid := invWorkspaceOf(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid})
+
+	// 実際のフォームは会社を選ばせないので companyId は送られてこない。ここを
+	// binding:"required" で必須にすると role 判定の手前で 400 になり、会社管理者は
+	// 誰も招待できなくなる（画面のテストは repository を差し替えるので気付けない）。
+	w := postJSON(t, r, `{"email":"t@b","role":"trainee"}`)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if repo.lastCreate == nil || repo.lastCreate.WorkspaceID == nil || *repo.lastCreate.WorkspaceID != wid {
+		t.Errorf("expected workspaceID forced to %q, got %+v", wid, repo.lastCreate)
+	}
+}
+
+func Test_招待ハンドラ_作成_運営管理者_companyId未指定は400(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
+
+	// 運営は自分の所属で代替できないので、会社の指定が無いと招待先が決まらない。
+	w := postJSON(t, r, `{"email":"a@b","role":"company_admin"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "company_id_required") {
+		t.Errorf("expected error code, got %s", w.Body.String())
+	}
+	if repo.createCalls != 0 {
+		t.Errorf("create must not be called, got %d", repo.createCalls)
+	}
+}
+
 func Test_招待ハンドラ_作成_会社管理者_会社管理者_禁止(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	wid := invWorkspaceOf(42)

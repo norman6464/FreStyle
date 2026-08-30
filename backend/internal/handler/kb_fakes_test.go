@@ -563,8 +563,6 @@ type kbFakePerms struct {
 	// ページ単位の perPage とは別に持つ（スペースの判定はページの例外を見ないため、
 	// 同じ入れ物にまとめると fake が本番より賢くなってしまう）。
 	scopeRoles map[kbScopeKey]domain.GrantRole
-	// companyWorkspaces は users.workspace_id の写し（会社のワークスペース）。
-	companyWorkspaces map[uint64]string
 	// grants は workspace_grants / space_grants の行。入れ物 ID が
 	// ワークスペースかスペースかの違いしかないので 1 つの map で持つ。
 	grants map[kbGrantKey]domain.GrantRole
@@ -596,17 +594,16 @@ var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
 
 func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakePerms {
 	return &kbFakePerms{
-		pages:             pages,
-		principals:        map[string]*domain.Principal{},
-		groupMembers:      map[string]map[string]bool{},
-		restrictions:      map[kbRestrictionKey]domain.RestrictionMode{},
-		allowLists:        map[kbAllowListKey]bool{},
-		perPage:           map[kbPermKey]domain.PagePermission{},
-		scopeRoles:        map[kbScopeKey]domain.GrantRole{},
-		companyWorkspaces: map[uint64]string{},
-		grants:            map[kbGrantKey]domain.GrantRole{},
-		shareLinks:        map[string]*domain.ShareLink{},
-		fallback:          fallback,
+		pages:        pages,
+		principals:   map[string]*domain.Principal{},
+		groupMembers: map[string]map[string]bool{},
+		restrictions: map[kbRestrictionKey]domain.RestrictionMode{},
+		allowLists:   map[kbAllowListKey]bool{},
+		perPage:      map[kbPermKey]domain.PagePermission{},
+		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
+		grants:       map[kbGrantKey]domain.GrantRole{},
+		shareLinks:   map[string]*domain.ShareLink{},
+		fallback:     fallback,
 	}
 }
 
@@ -1044,19 +1041,73 @@ func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]
 	return out, nil
 }
 
-// FindUserCompanyWorkspaceID は「そのユーザーの会社のワークスペース」を返す。
-// fake では companyWorkspaces（テストが明示的に設定する）だけを見る。
-func (f *kbFakePerms) FindUserCompanyWorkspaceID(_ context.Context, userID uint64) (string, error) {
-	if ws, ok := f.companyWorkspaces[userID]; ok {
-		return ws, nil
-	}
-	return "", repository.ErrWorkspaceNotFound
+// kbFakeUsers は [repository.UserRepository] の最小 fake。
+// JoinCompanyWorkspaceUseCase / ResolveWorkspaceUseCase.joinCompany が読む
+// FindByID の WorkspaceID だけをテストが制御できればよく、それ以外のメソッドは
+// kb 系のテストでは呼ばれないため未実装のスタブでよい。
+type kbFakeUsers struct {
+	// companyWorkspaces は users.workspace_id の写し（会社のワークスペース）。
+	companyWorkspaces map[uint64]string
+}
+
+var _ repository.UserRepository = (*kbFakeUsers)(nil)
+
+func newKbFakeUsers() *kbFakeUsers {
+	return &kbFakeUsers{companyWorkspaces: map[uint64]string{}}
 }
 
 // setCompanyWorkspace はそのユーザーの会社のワークスペースを決める（本番の users.workspace_id）。
-func (f *kbFakePerms) setCompanyWorkspace(userID uint64, workspaceID string) {
+func (f *kbFakeUsers) setCompanyWorkspace(userID uint64, workspaceID string) {
 	f.companyWorkspaces[userID] = workspaceID
 }
+
+func (f *kbFakeUsers) FindByID(_ context.Context, userID uint64) (*domain.User, error) {
+	ws, ok := f.companyWorkspaces[userID]
+	if !ok {
+		return nil, nil
+	}
+	return &domain.User{ID: userID, WorkspaceID: &ws}, nil
+}
+
+func (f *kbFakeUsers) FindByCognitoSub(context.Context, string) (*domain.User, error) {
+	return nil, nil
+}
+
+func (f *kbFakeUsers) FindActiveByEmail(context.Context, string) (*domain.User, error) {
+	return nil, nil
+}
+
+func (f *kbFakeUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
+
+func (f *kbFakeUsers) ListByRole(context.Context, domain.RoleName) ([]domain.User, error) {
+	return nil, nil
+}
+
+func (f *kbFakeUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
+	return nil, nil
+}
+
+func (f *kbFakeUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
+	return nil
+}
+
+func (f *kbFakeUsers) CreateFirstSuperAdminWithOidcIdentity(
+	context.Context, *domain.User, string, string,
+) (bool, error) {
+	return false, nil
+}
+
+func (f *kbFakeUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
+
+func (f *kbFakeUsers) UpdateActive(context.Context, uint64, bool) error { return nil }
+
+func (f *kbFakeUsers) SoftDelete(context.Context, uint64) error { return nil }
+
+func (f *kbFakeUsers) UpdateName(context.Context, uint64, string) error { return nil }
+
+func (f *kbFakeUsers) UpdateRole(context.Context, uint64, domain.RoleName) error { return nil }
+
+func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, uint64, *string) error { return nil }
 
 func (f *kbFakePerms) EnsureUserPrincipal(_ context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	if p := f.userPrincipal(workspaceID, userID); p != nil {

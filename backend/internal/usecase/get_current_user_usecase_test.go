@@ -50,7 +50,7 @@ func (s *stubUserRepo) UpdateRole(_ context.Context, _ uint64, _ domain.RoleName
 	return s.err
 }
 
-func (s *stubUserRepo) UpdateCompanyID(_ context.Context, _ uint64, _ uint64) error {
+func (s *stubUserRepo) UpdateWorkspaceID(_ context.Context, _ uint64, _ uint64, _ *string) error {
 	return s.err
 }
 

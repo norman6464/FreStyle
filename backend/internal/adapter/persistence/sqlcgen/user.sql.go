@@ -541,30 +541,6 @@ func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActivePara
 	return result.RowsAffected()
 }
 
-const updateUserCompanyID = `-- name: UpdateUserCompanyID :execrows
-UPDATE users SET
-  company_id = $2,
-  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
-WHERE users.id = $1
-`
-
-type UpdateUserCompanyIDParams struct {
-	ID        int64
-	CompanyID sql.NullInt64
-}
-
-// 所属会社を付け替える。workspace_id もこの場で company_id から引き直して同期する
-// （ListUsersByWorkspaceID が users.workspace_id を絞り込みキーに直接使うため。
-// 都度 JOIN で求める GetUserCompanyWorkspaceID とは別の用途）。
-// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
-func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const updateUserName = `-- name: UpdateUserName :execrows
 UPDATE users SET name = $2, updated_at = now() WHERE id = $1
 `
@@ -597,6 +573,37 @@ type UpdateUserRoleIDParams struct {
 // 当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれる。
 func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateUserRoleID, arg.ID, arg.RoleID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateUserWorkspaceID = `-- name: UpdateUserWorkspaceID :execrows
+UPDATE users SET
+  company_id = $1,
+  workspace_id = $2
+WHERE id = $3
+`
+
+type UpdateUserWorkspaceIDParams struct {
+	CompanyID   sql.NullInt64
+	WorkspaceID uuid.NullUUID
+	ID          int64
+}
+
+// 所属会社とワークスペースを付け替える（招待の受諾で呼ばれる）。
+//
+// 段5準備（company_id を DROP する前段）: 旧 UpdateUserCompanyID は workspace_id を
+// (SELECT c.workspace_id FROM companies c WHERE c.id = ...) というサブクエリでその場に
+// 求めていた。呼び出し側（招待受諾）は招待行の workspace_id（dual-write 済みで
+// companies への追加参照なしに手元にある）を既に持っているため、それをそのまま渡す形にした。
+// company_id は当面まだ所属の正本（CountMembersByCompany 等の集計がこの列を基準にする）
+// なので、引き続きこの場で一緒に書く。workspace_id はワークスペースが無い会社もあり得るため
+// nullable。
+// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
+func (q *Queries) UpdateUserWorkspaceID(ctx context.Context, arg UpdateUserWorkspaceIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserWorkspaceID, arg.CompanyID, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

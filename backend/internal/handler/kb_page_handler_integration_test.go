@@ -34,6 +34,7 @@ type kbEnv struct {
 	pages       repository.KnowledgeBaseRepository
 	permissions repository.KnowledgeBasePermissionRepository
 	provisioner repository.WorkspaceProvisioner
+	users       repository.UserRepository
 	workspaceID string
 	slug        string
 	spaceID     string
@@ -48,6 +49,7 @@ func newKbEnv(t *testing.T, sqlDB *sql.DB, slug string) *kbEnv {
 		pages:       persistence.NewKnowledgeBaseRepository(sqlDB),
 		permissions: persistence.NewKnowledgeBasePermissionRepository(sqlDB),
 		provisioner: persistence.NewWorkspaceProvisioner(sqlDB),
+		users:       persistence.NewUserRepository(sqlDB),
 		slug:        slug,
 	}
 	env.workspaceID = kbInsertWorkspace(t, sqlDB, slug)
@@ -64,7 +66,7 @@ func (e *kbEnv) as(userID uint64) *kbEnv {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, (&kbAuditRecorder{}).handler())
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, e.users, (&kbAuditRecorder{}).handler())
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じ位置関係にしないと「未認証でも通ること」を確かめられない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), e.pages, e.permissions)

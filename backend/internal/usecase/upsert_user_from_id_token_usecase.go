@@ -162,10 +162,11 @@ func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 	if inv.CompanyID != 0 &&
 		(existing.CompanyID == nil ||
 			*existing.CompanyID != inv.CompanyID) {
-		if err := u.users.UpdateCompanyID(
+		if err := u.users.UpdateWorkspaceID(
 			ctx,
 			existing.ID,
 			inv.CompanyID,
+			inv.WorkspaceID,
 		); err != nil {
 			return fmt.Errorf("update existing user company: %w", err)
 		}

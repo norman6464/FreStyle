@@ -470,16 +470,25 @@ func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
 	carol := kbInsertUser(t, sqlDB, "carol") // 別の会社の人
 	env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 
-	// 会社の紐づけ。所属先ワークスペースは users.company_id → companies.workspace_id の
-	// JOIN で求まる（本番の tenant_bridge が companies.workspace_id を埋める）。
+	// 会社の紐づけ。所属先ワークスペースは users.workspace_id の直読み（本番の
+	// tenant_bridge / InsertUser がここを company_id と一緒に埋める）。ここは実 DB を
+	// 直接書き換えるテスト下ごしらえのため、company_id と workspace_id を両方明示する。
 	otherWorkspaceID := kbInsertWorkspace(t, sqlDB, "rival")
 	acmeCompanyID := kbInsertCompanyWithWorkspace(t, sqlDB, "acme co", env.workspaceID)
 	rivalCompanyID := kbInsertCompanyWithWorkspace(t, sqlDB, "rival co", otherWorkspaceID)
 	for _, c := range []struct {
-		user    uint64
-		company uint64
-	}{{alice, acmeCompanyID}, {bob, acmeCompanyID}, {carol, rivalCompanyID}} {
-		_, err := sqlDB.Exec(`UPDATE users SET company_id = $1 WHERE id = $2`, c.company, c.user)
+		user      uint64
+		company   uint64
+		workspace string
+	}{
+		{alice, acmeCompanyID, env.workspaceID},
+		{bob, acmeCompanyID, env.workspaceID},
+		{carol, rivalCompanyID, otherWorkspaceID},
+	} {
+		_, err := sqlDB.Exec(
+			`UPDATE users SET company_id = $1, workspace_id = $2 WHERE id = $3`,
+			c.company, c.workspace, c.user,
+		)
 		require.NoError(t, err)
 	}
 

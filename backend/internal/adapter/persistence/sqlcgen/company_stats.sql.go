@@ -7,6 +7,8 @@ package sqlcgen
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const countMembersByCompany = `-- name: CountMembersByCompany :many
@@ -43,6 +45,58 @@ func (q *Queries) CountMembersByCompany(ctx context.Context, traineeRoleID int32
 		var i CountMembersByCompanyRow
 		if err := rows.Scan(
 			&i.CompanyID,
+			&i.Total,
+			&i.Active,
+			&i.Trainees,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countMembersByWorkspace = `-- name: CountMembersByWorkspace :many
+SELECT
+  workspace_id,
+  COUNT(*) AS total,
+  COUNT(*) FILTER (WHERE is_active) AS active,
+  COUNT(*) FILTER (WHERE role_id = $1) AS trainees
+FROM users
+WHERE workspace_id IS NOT NULL AND deleted_at IS NULL
+GROUP BY workspace_id
+`
+
+type CountMembersByWorkspaceRow struct {
+	WorkspaceID uuid.NullUUID
+	Total       int64
+	Active      int64
+	Trainees    int64
+}
+
+// ワークスペースごとの在籍メンバー数（総数 / 有効 / trainee）を 1 クエリで集計する。
+// CountMembersByCompany のワークスペース版（company_id を DROP する段5準備）。論理削除済み
+// （deleted_at IS NOT NULL）とワークスペース未所属（workspace_id IS NULL）は除外する。
+// trainee 判定は正規化後の正である role_id で行う（パラメータで渡す）。
+// workspace_id は非 NULL に絞っているため COALESCE は不要（company_id 版と違い uuid に
+// ダミー値の代替が無いため、company_id=0 相当の詰め替えはしない）。
+func (q *Queries) CountMembersByWorkspace(ctx context.Context, traineeRoleID int32) ([]CountMembersByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, countMembersByWorkspace, traineeRoleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountMembersByWorkspaceRow{}
+	for rows.Next() {
+		var i CountMembersByWorkspaceRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
 			&i.Total,
 			&i.Active,
 			&i.Trainees,

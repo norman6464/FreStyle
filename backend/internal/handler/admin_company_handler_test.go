@@ -23,6 +23,10 @@ func (f *fakeCompanyCounter) CountMembersByCompany(context.Context) ([]repositor
 	return f.rows, nil
 }
 
+func (f *fakeCompanyCounter) CountMembersByWorkspace(context.Context) ([]repository.WorkspaceMemberCount, error) {
+	return nil, nil
+}
+
 // fakeCompanyRepo は repository.CompanyRepository の最小 fake。
 type fakeCompanyRepo struct {
 	rows         []domain.Company

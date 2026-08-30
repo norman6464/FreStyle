@@ -18,13 +18,15 @@ import (
 type ResolveWorkspaceUseCase struct {
 	workspaces  repository.KnowledgeBaseRepository
 	permissions repository.KnowledgeBasePermissionRepository
+	users       repository.UserRepository
 }
 
 func NewResolveWorkspaceUseCase(
 	w repository.KnowledgeBaseRepository,
 	p repository.KnowledgeBasePermissionRepository,
+	u repository.UserRepository,
 ) *ResolveWorkspaceUseCase {
-	return &ResolveWorkspaceUseCase{workspaces: w, permissions: p}
+	return &ResolveWorkspaceUseCase{workspaces: w, permissions: p, users: u}
 }
 
 type ResolveWorkspaceInput struct {
@@ -70,7 +72,7 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 func (u *ResolveWorkspaceUseCase) joinCompany(
 	ctx context.Context, workspaceID string, userID uint64,
 ) (bool, error) {
-	companyWorkspaceID, err := u.permissions.FindUserCompanyWorkspaceID(ctx, userID)
+	companyWorkspaceID, err := userWorkspaceID(ctx, u.users, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrWorkspaceNotFound) {
 			return false, nil

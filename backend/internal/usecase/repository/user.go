@@ -49,6 +49,7 @@ type UserRepository interface {
 	UpdateName(ctx context.Context, userID uint64, name string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
 	UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error
-	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。
-	UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error
+	// UpdateWorkspaceID は既存ユーザーが招待を受けて company / workspace に紐付くときに呼ばれる。
+	// workspaceID は呼び出し側が既に解決した値（招待行の workspace_id 等）をそのまま渡す。
+	UpdateWorkspaceID(ctx context.Context, userID uint64, companyID uint64, workspaceID *string) error
 }

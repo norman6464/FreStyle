@@ -460,7 +460,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		f := newKbFixture(kbCanEdit, newcomer)
 		// この人はまだ principals の行を持たない（＝ 非メンバー）が、会社は同じ。
 		require.Nil(t, f.perms.userPrincipal(kbWorkspaceID, newcomer), "前提: まだ非メンバー")
-		f.perms.setCompanyWorkspace(newcomer, kbWorkspaceID)
+		f.users.setCompanyWorkspace(newcomer, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
@@ -475,7 +475,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 	t.Run("URL を直に開いても入れる（一覧を経由しない経路）", func(t *testing.T) {
 		const newcomer = uint64(778)
 		f := newKbFixture(kbCanEdit, newcomer)
-		f.perms.setCompanyWorkspace(newcomer, kbWorkspaceID)
+		f.users.setCompanyWorkspace(newcomer, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, kbWorkspaceSlug, ""), "")
 
@@ -487,7 +487,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		const outsider = uint64(779)
 		f := newKbFixture(kbCanEdit, outsider)
 		// 会社のワークスペースは別のもの。URL を知っていても入れない。
-		f.perms.setCompanyWorkspace(outsider, kbOtherWorkspaceID)
+		f.users.setCompanyWorkspace(outsider, kbOtherWorkspaceID)
 
 		w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, kbWorkspaceSlug, ""), "")
 
@@ -520,7 +520,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		require.NoError(t, f.perms.DeleteWorkspaceGrant(
 			context.Background(), kbWorkspaceID, principal.ID,
 		))
-		f.perms.setCompanyWorkspace(kbUserID, kbWorkspaceID)
+		f.users.setCompanyWorkspace(kbUserID, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
@@ -540,7 +540,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		require.NoError(t, f.perms.GrantWorkspaceRoleIfAbsent(
 			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleAdmin,
 		))
-		f.perms.setCompanyWorkspace(kbUserID, kbWorkspaceID)
+		f.users.setCompanyWorkspace(kbUserID, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 		require.Equal(t, http.StatusOK, w.Code)

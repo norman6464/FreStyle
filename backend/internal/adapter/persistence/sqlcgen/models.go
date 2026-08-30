@@ -60,6 +60,7 @@ type CompanyExercise struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      sql.NullTime
+	WorkspaceID    uuid.NullUUID
 }
 
 type Course struct {
@@ -74,6 +75,7 @@ type Course struct {
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	WorkspaceID     uuid.NullUUID
 }
 
 type CourseChapter struct {
@@ -89,6 +91,7 @@ type CourseChapter struct {
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	WorkspaceID     uuid.NullUUID
 }
 
 type ExerciseSubmission struct {
@@ -105,15 +108,16 @@ type ExerciseSubmission struct {
 }
 
 type Invitation struct {
-	ID        int64
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	ID          int64
+	CompanyID   int64
+	Email       string
+	Role        string
+	Name        string
+	Status      string
+	Token       sql.NullString
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	WorkspaceID uuid.NullUUID
 }
 
 type MasterExercise struct {
@@ -252,6 +256,7 @@ type RichDocument struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
+	WorkspaceID   uuid.NullUUID
 }
 
 type Role struct {

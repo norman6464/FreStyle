@@ -11,12 +11,17 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 -- created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当。
 -- ゼロなら呼び出し側で now() を入れる）。schema_version / revision は 0 のとき既定 1 を当てる
 -- （GORM の `default:1` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+--
+-- workspace_id は company_id からその場で引く（FRESTYLE-399。理由は course.sql の
+-- InsertCourse と同じ）。company_id が NULL（会社を持たない文書）ならサブクエリは
+-- 0 行になり workspace_id も自然に NULL になる。
 INSERT INTO rich_documents
-  (id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
+  (id, owner_id, company_id, workspace_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at)
 VALUES (
   sqlc.arg(id),
   sqlc.arg(owner_id),
   sqlc.narg(company_id),
+  (SELECT c.workspace_id FROM companies c WHERE c.id = sqlc.narg(company_id)),
   sqlc.arg(kind),
   sqlc.arg(title),
   sqlc.arg(is_public),

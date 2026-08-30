@@ -32,7 +32,7 @@ func (q *Queries) DeleteCourse(ctx context.Context, id int64) (int64, error) {
 }
 
 const getCourseByID = `-- name: GetCourseByID :one
-SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at FROM courses
+SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
 WHERE id = $1
 `
 
@@ -52,15 +52,17 @@ func (q *Queries) GetCourseByID(ctx context.Context, id int64) (Course, error) {
 		&i.IsPublished,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const insertCourse = `-- name: InsertCourse :one
 INSERT INTO courses
-  (company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
+  (company_id, workspace_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
 VALUES (
   $1,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $1),
   $2,
   $3,
   $4,
@@ -98,6 +100,10 @@ type InsertCourseRow struct {
 // 書き戻す。created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当。
 // ゼロなら呼び出し側で now() を入れる）。sort_order は 0 のとき既定 100 を当てる
 // （GORM の `default:100` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+//
+// workspace_id は company_id からその場で引く（FRESTYLE-399。dual-write を起動時
+// バックフィルだけに任せると、次の起動までのあいだに作ったコースが workspace_id 経由の
+// 一覧から漏れる。FRESTYLE-397 の InsertUser と同じ理由・同じ形）。
 func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (InsertCourseRow, error) {
 	row := q.db.QueryRowContext(ctx, insertCourse,
 		arg.CompanyID,
@@ -122,7 +128,7 @@ func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (Ins
 }
 
 const listCoursesByCompany = `-- name: ListCoursesByCompany :many
-SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at FROM courses
+SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
 WHERE company_id = $1
   AND ($2::bool OR is_published = TRUE)
 ORDER BY sort_order ASC, id ASC
@@ -156,6 +162,7 @@ func (q *Queries) ListCoursesByCompany(ctx context.Context, arg ListCoursesByCom
 			&i.IsPublished,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}

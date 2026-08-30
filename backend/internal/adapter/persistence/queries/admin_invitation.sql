@@ -49,9 +49,12 @@ LIMIT 1;
 -- RETURNING で id / created_at を書き戻す。created_at は DB 既定値が無いため呼び出し側が渡す
 -- （GORM autoCreateTime 相当。ゼロなら now を入れる）。updated_at 列は持たない。
 -- token は未設定を NULL にして UNIQUE を避けるため nullable。
+--
+-- workspace_id は company_id（$1）からその場で引く（FRESTYLE-399。理由は
+-- course.sql の InsertCourse と同じ）。
 INSERT INTO invitations
-  (company_id, email, role, name, status, token, expires_at, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  (company_id, workspace_id, email, role, name, status, token, expires_at, created_at)
+VALUES ($1, (SELECT c.workspace_id FROM companies c WHERE c.id = $1), $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, created_at;
 
 -- name: UpdateInvitationStatus :execrows

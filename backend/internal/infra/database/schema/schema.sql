@@ -192,7 +192,10 @@ CREATE TABLE IF NOT EXISTS courses (
     sort_order         bigint NOT NULL DEFAULT 100,
     is_published       boolean NOT NULL DEFAULT false,
     created_at         timestamptz NOT NULL,
-    updated_at         timestamptz NOT NULL
+    updated_at         timestamptz NOT NULL,
+    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
+    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    workspace_id       uuid
 );
 CREATE INDEX IF NOT EXISTS idx_courses_company_id ON courses (company_id);
 
@@ -213,15 +216,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events (created_
 -- 招待（マジックリンク）。token は未設定を NULL にして一意制約を避けるため nullable。
 -- updated_at は持たない。
 CREATE TABLE IF NOT EXISTS invitations (
-    id         bigserial PRIMARY KEY,
-    company_id bigint NOT NULL,
-    email      text NOT NULL DEFAULT '',
-    role       text NOT NULL DEFAULT '',
-    name       text NOT NULL DEFAULT '',
-    status     text NOT NULL DEFAULT '',
-    token      varchar(64),
-    expires_at timestamptz NOT NULL,
-    created_at timestamptz NOT NULL
+    id           bigserial PRIMARY KEY,
+    company_id   bigint NOT NULL,
+    email        text NOT NULL DEFAULT '',
+    role         text NOT NULL DEFAULT '',
+    name         text NOT NULL DEFAULT '',
+    status       text NOT NULL DEFAULT '',
+    token        varchar(64),
+    expires_at   timestamptz NOT NULL,
+    created_at   timestamptz NOT NULL,
+    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
+    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    workspace_id uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
 CREATE INDEX IF NOT EXISTS idx_invitations_company_id ON invitations (company_id);
@@ -267,7 +273,10 @@ CREATE TABLE IF NOT EXISTS company_exercises (
     created_by      bigint NOT NULL,
     created_at      timestamptz NOT NULL,
     updated_at      timestamptz NOT NULL,
-    deleted_at      timestamptz
+    deleted_at      timestamptz,
+    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
+    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    workspace_id    uuid
 );
 CREATE INDEX IF NOT EXISTS idx_company_exercises_company_id ON company_exercises (company_id);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_language ON company_exercises (language);
@@ -329,6 +338,9 @@ CREATE TABLE IF NOT EXISTS rich_documents (
     created_at     timestamptz NOT NULL,
     updated_at     timestamptz NOT NULL,
     deleted_at     timestamptz,
+    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
+    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    workspace_id   uuid,
     CONSTRAINT fk_rich_documents_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT ck_rich_documents_doc CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc'),
     CONSTRAINT ck_rich_documents_title_len CHECK (char_length(title) <= 200)
@@ -379,7 +391,10 @@ CREATE TABLE IF NOT EXISTS course_chapters (
     sort_order         bigint NOT NULL DEFAULT 100,
     is_published       boolean NOT NULL DEFAULT false,
     created_at         timestamptz NOT NULL,
-    updated_at         timestamptz NOT NULL
+    updated_at         timestamptz NOT NULL,
+    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
+    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    workspace_id       uuid
 );
 CREATE INDEX IF NOT EXISTS idx_course_chapters_company_id ON course_chapters (company_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
@@ -1374,5 +1389,107 @@ DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_workspaces_personal_owner') THEN
         CREATE UNIQUE INDEX uq_workspaces_personal_owner
             ON workspaces (personal_owner_user_id) WHERE personal_owner_user_id IS NOT NULL;
+    END IF;
+END $$;
+
+-- =====================================================================
+-- Ⅴ. テナント統合 段5 の準備（courses / course_chapters / company_exercises /
+--     invitations / rich_documents への workspace_id 列追加）
+-- =====================================================================
+--
+-- FRESTYLE-399。company_id はまだ正本のまま（読み取りは変えない）。ここでは
+-- 列を足して FK を張るところまでで、バックフィルは起動時に Go 側（tenant_bridge.go）が
+-- 冪等に行う。company_id には FK が無く、同じ轍を踏まないため workspace_id 側にだけ張る
+-- （companies / users で既に採った方針と同じ）。
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'courses' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE courses ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_courses_workspace' AND conrelid = 'courses'::regclass) THEN
+        ALTER TABLE courses
+            ADD CONSTRAINT fk_courses_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'course_chapters' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE course_chapters ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_course_chapters_workspace' AND conrelid = 'course_chapters'::regclass) THEN
+        ALTER TABLE course_chapters
+            ADD CONSTRAINT fk_course_chapters_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'company_exercises' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE company_exercises ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_company_exercises_workspace' AND conrelid = 'company_exercises'::regclass) THEN
+        ALTER TABLE company_exercises
+            ADD CONSTRAINT fk_company_exercises_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'invitations' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE invitations ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_invitations_workspace' AND conrelid = 'invitations'::regclass) THEN
+        ALTER TABLE invitations
+            ADD CONSTRAINT fk_invitations_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+-- rich_documents.company_id は nullable（他の 4 テーブルと違い未所属のドキュメントがある）
+-- ので workspace_id も同じく NULL を許容する。列追加・FK の作法自体は他と同じ。
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'rich_documents' AND column_name = 'workspace_id'
+    ) THEN
+        ALTER TABLE rich_documents ADD COLUMN workspace_id uuid;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_workspace' AND conrelid = 'rich_documents'::regclass) THEN
+        ALTER TABLE rich_documents
+            ADD CONSTRAINT fk_rich_documents_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
     END IF;
 END $$;

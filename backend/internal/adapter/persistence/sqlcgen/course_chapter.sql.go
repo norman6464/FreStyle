@@ -9,37 +9,41 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-const countChaptersByCourseForCompany = `-- name: CountChaptersByCourseForCompany :many
+const countChaptersByCourseForWorkspace = `-- name: CountChaptersByCourseForWorkspace :many
 SELECT course_id, COUNT(*) AS cnt
 FROM course_chapters
-WHERE company_id = $1
+WHERE workspace_id = $1
   AND ($2::bool OR is_published = TRUE)
 GROUP BY course_id
 `
 
-type CountChaptersByCourseForCompanyParams struct {
-	CompanyID          int64
+type CountChaptersByCourseForWorkspaceParams struct {
+	WorkspaceID        uuid.NullUUID
 	IncludeUnpublished bool
 }
 
-type CountChaptersByCourseForCompanyRow struct {
+type CountChaptersByCourseForWorkspaceRow struct {
 	CourseID int64
 	Cnt      int64
 }
 
 // course_id ごとの教材件数を 1 クエリで集計する。
 // include_unpublished=false（trainee 相当）は published のみ数える。
-func (q *Queries) CountChaptersByCourseForCompany(ctx context.Context, arg CountChaptersByCourseForCompanyParams) ([]CountChaptersByCourseForCompanyRow, error) {
-	rows, err := q.db.QueryContext(ctx, countChaptersByCourseForCompany, arg.CompanyID, arg.IncludeUnpublished)
+//
+// FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
+func (q *Queries) CountChaptersByCourseForWorkspace(ctx context.Context, arg CountChaptersByCourseForWorkspaceParams) ([]CountChaptersByCourseForWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, countChaptersByCourseForWorkspace, arg.WorkspaceID, arg.IncludeUnpublished)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CountChaptersByCourseForCompanyRow{}
+	items := []CountChaptersByCourseForWorkspaceRow{}
 	for rows.Next() {
-		var i CountChaptersByCourseForCompanyRow
+		var i CountChaptersByCourseForWorkspaceRow
 		if err := rows.Scan(&i.CourseID, &i.Cnt); err != nil {
 			return nil, err
 		}

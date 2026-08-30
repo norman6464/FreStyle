@@ -23,12 +23,14 @@ SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, sche
 FROM course_chapters
 WHERE id = sqlc.arg(id);
 
--- name: CountChaptersByCourseForCompany :many
+-- name: CountChaptersByCourseForWorkspace :many
 -- course_id ごとの教材件数を 1 クエリで集計する。
 -- include_unpublished=false（trainee 相当）は published のみ数える。
+--
+-- FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
 SELECT course_id, COUNT(*) AS cnt
 FROM course_chapters
-WHERE company_id = sqlc.arg(company_id)
+WHERE workspace_id = sqlc.arg(workspace_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)
 GROUP BY course_id;
 

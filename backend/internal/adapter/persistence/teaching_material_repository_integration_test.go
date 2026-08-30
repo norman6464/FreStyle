@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTeachingMaterialRepository_CountByCourseForCompany_Integration は
-// course_id ごとの件数集計 (company 絞り込み / published フィルタ) を実 Postgres で検証する。
-func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testing.T) {
+// TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration は
+// course_id ごとの件数集計 (ワークスペース絞り込み / published フィルタ) を実 Postgres で検証する。
+func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
@@ -29,30 +29,36 @@ func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testi
 		}
 	}
 
-	testsupport.TruncateAll(t, sqlDB, "course_chapters")
+	testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	insertCompany(t, sqlDB, 2, "会社 B", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1 := companyWorkspaceID(t, sqlDB, 1)
+	require.True(t, ws1.Valid)
 
-	// company 1: course 10 に published 2 + draft 1、course 20 に published 1
+	// InsertChapter が company_id から workspace_id を dual-write する（FRESTYLE-400）。
+	// 会社 A: course 10 に published 2 + draft 1、course 20 に published 1
 	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-pub-1", true)))
 	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-pub-2", true)))
 	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-draft", false)))
 	require.NoError(t, repo.Create(ctx, mk(1, 20, "c20-pub", true)))
-	// company 2: 他社分は集計に含まれない
+	// 会社 B: 他社分は集計に含まれない
 	require.NoError(t, repo.Create(ctx, mk(2, 10, "other-company", true)))
 
 	t.Run("published のみ (trainee 相当)", func(t *testing.T) {
-		counts, err := repo.CountByCourseForCompany(ctx, 1, false)
+		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), false)
 		require.NoError(t, err)
 		require.Equal(t, map[uint64]int{10: 2, 20: 1}, counts)
 	})
 
 	t.Run("下書き込み (admin 相当)", func(t *testing.T) {
-		counts, err := repo.CountByCourseForCompany(ctx, 1, true)
+		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), true)
 		require.NoError(t, err)
 		require.Equal(t, map[uint64]int{10: 3, 20: 1}, counts)
 	})
 
-	t.Run("教材が無い company は空 map", func(t *testing.T) {
-		counts, err := repo.CountByCourseForCompany(ctx, 999, true)
+	t.Run("教材が無いワークスペースは空 map", func(t *testing.T) {
+		counts, err := repo.CountByCourseForWorkspace(ctx, "0198a000-0000-7000-8000-0000000000ff", true)
 		require.NoError(t, err)
 		require.Empty(t, counts)
 	})

@@ -38,13 +38,13 @@ func toDomainCourse(row sqlcgen.Course) domain.Course {
 }
 
 // ListByCompany は自社のコースを sort_order 昇順で返す。includeUnpublished=false なら公開のみ。
-func (r *courseRepository) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.Course, error) {
-	cid, ok := toInt64ID(companyID)
+func (r *courseRepository) ListByWorkspaceID(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.Course, error) {
+	wid, ok := toNullUUID(workspaceID)
 	if !ok {
-		return []domain.Course{}, nil // 存在し得ない company_id = 0 件
+		return []domain.Course{}, nil // 不正 / 空の ID は該当なしと同じ扱い
 	}
-	rows, err := sqlcgen.New(r.db).ListCoursesByCompany(ctx, sqlcgen.ListCoursesByCompanyParams{
-		CompanyID:          cid,
+	rows, err := sqlcgen.New(r.db).ListCoursesByWorkspace(ctx, sqlcgen.ListCoursesByWorkspaceParams{
+		WorkspaceID:        wid,
 		IncludeUnpublished: includeUnpublished,
 	})
 	if err != nil {

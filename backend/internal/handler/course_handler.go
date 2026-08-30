@@ -33,14 +33,14 @@ func NewCourseHandler(
 // @Router       /courses [get]
 // @Security     CookieAuth
 func (h *CourseHandler) List(c *gin.Context) {
-	uid, actorCompany, role, ok := actorFromContext(c)
+	uid, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
 	rows, err := h.listWithProgress.Execute(c.Request.Context(), usecase.ListCoursesWithProgressInput{
-		ActorUserID:  uid,
-		ActorCompany: actorCompany,
-		ActorRole:    role,
+		ActorUserID:    uid,
+		ActorWorkspace: actorWorkspace,
+		ActorRole:      role,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "コースの取得に失敗しました"})

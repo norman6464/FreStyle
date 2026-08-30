@@ -37,25 +37,29 @@ func NewListCoursesWithProgressUseCase(
 }
 
 // ListCoursesWithProgressInput は一覧取得の actor 情報(認証 context 由来)。
+//
+// ActorWorkspace は FRESTYLE-400 段4横展開で ActorCompany（domain.CompanyRef）から
+// 切り替え済み。CourseWithProgress を組む courses / materials の絞り込みが
+// workspace_id 経由になったため。
 type ListCoursesWithProgressInput struct {
-	ActorUserID  uint64
-	ActorCompany domain.CompanyRef
-	ActorRole    domain.RoleName
+	ActorUserID    uint64
+	ActorWorkspace domain.WorkspaceRef
+	ActorRole      domain.RoleName
 }
 
-// Execute はコース一覧を返す。会社未所属の actor は(super_admin でも)空スライス。
+// Execute はコース一覧を返す。ワークスペース未所属の actor は(super_admin でも)空スライス。
 func (u *ListCoursesWithProgressUseCase) Execute(ctx context.Context, in ListCoursesWithProgressInput) ([]CourseWithProgress, error) {
-	// 自社のコースを並べる画面なので、所属会社が無ければ数える対象そのものが無い。
-	companyID, affiliated := in.ActorCompany.CompanyID()
+	// 自社のコースを並べる画面なので、所属ワークスペースが無ければ数える対象そのものが無い。
+	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
 	if !affiliated {
 		return []CourseWithProgress{}, nil
 	}
 	includeUnpublished := canManage(in.ActorRole)
-	rows, err := u.courses.ListByCompany(ctx, companyID, includeUnpublished)
+	rows, err := u.courses.ListByWorkspaceID(ctx, workspaceID, includeUnpublished)
 	if err != nil {
 		return nil, err
 	}
-	materialCounts, err := u.materials.CountByCourseForCompany(ctx, companyID, includeUnpublished)
+	materialCounts, err := u.materials.CountByCourseForWorkspace(ctx, workspaceID, includeUnpublished)
 	if err != nil {
 		return nil, err
 	}

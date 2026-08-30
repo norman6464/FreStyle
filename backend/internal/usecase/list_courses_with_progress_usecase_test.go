@@ -17,7 +17,7 @@ func Test_コース一覧進捗付き_各コースに章数と完了章数が合
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 
 	out, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleTrainee,
 	})
 	require.NoError(t, err)
 	require.Len(t, out, 2)
@@ -35,7 +35,7 @@ func Test_コース一覧進捗付き_集計に無いコースは0章(t *testing
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 
 	out, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleTrainee,
 	})
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -49,7 +49,7 @@ func Test_コース一覧進捗付き_会社未所属は空スライス(t *testi
 	prepo, _ := progressRepo(progressFakeConfig{})
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 	out, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.NoCompany(), ActorRole: domain.RoleSuperAdmin,
+		ActorUserID: 5, ActorWorkspace: domain.NoWorkspace(), ActorRole: domain.RoleSuperAdmin,
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, out)
@@ -63,7 +63,7 @@ func Test_コース一覧進捗付き_0件でもnilではなく空スライス(t
 	prepo, _ := progressRepo(progressFakeConfig{})
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 	out, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleTrainee,
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, out)
@@ -77,7 +77,7 @@ func Test_コース一覧進捗付き_traineeは公開のみで集計(t *testing
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 
 	_, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleTrainee,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, mstore.lastCountIncludeUnpublished)
@@ -92,7 +92,7 @@ func Test_コース一覧進捗付き_管理ロールは完了集計をスキッ
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 
 	out, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleCompanyAdmin,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, mstore.lastCountIncludeUnpublished)
@@ -108,7 +108,7 @@ func Test_コース一覧進捗付き_章数集計エラーはそのまま返す
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 
 	_, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleTrainee,
 	})
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -120,7 +120,7 @@ func Test_コース一覧進捗付き_完了集計エラーはそのまま返す
 	uc := usecase.NewListCoursesWithProgressUseCase(crepo, mrepo, prepo)
 
 	_, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
-		ActorUserID: 5, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
+		ActorUserID: 5, ActorWorkspace: domain.WorkspaceRefOf("0198a000-0000-7000-8000-0000000000c1"), ActorRole: domain.RoleTrainee,
 	})
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

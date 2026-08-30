@@ -95,8 +95,8 @@ type mockCourseRepo struct{ mock.Mock }
 
 var _ repository.CourseRepository = (*mockCourseRepo)(nil)
 
-func (m *mockCourseRepo) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.Course, error) {
-	args := m.Called(ctx, companyID, includeUnpublished)
+func (m *mockCourseRepo) ListByWorkspaceID(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.Course, error) {
+	args := m.Called(ctx, workspaceID, includeUnpublished)
 	rows, _ := args.Get(0).([]domain.Course)
 	return rows, args.Error(1)
 }
@@ -143,8 +143,8 @@ func (m *mockMaterialRepo) GetByID(ctx context.Context, id uint64) (*domain.Teac
 	return tm, args.Error(1)
 }
 
-func (m *mockMaterialRepo) CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error) {
-	args := m.Called(ctx, companyID, includeUnpublished)
+func (m *mockMaterialRepo) CountByCourseForWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) (map[uint64]int, error) {
+	args := m.Called(ctx, workspaceID, includeUnpublished)
 	counts, _ := args.Get(0).(map[uint64]int)
 	return counts, args.Error(1)
 }

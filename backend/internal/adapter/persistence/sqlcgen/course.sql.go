@@ -8,6 +8,8 @@ package sqlcgen
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const deleteCourse = `-- name: DeleteCourse :execrows
@@ -127,22 +129,24 @@ func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (Ins
 	return i, err
 }
 
-const listCoursesByCompany = `-- name: ListCoursesByCompany :many
+const listCoursesByWorkspace = `-- name: ListCoursesByWorkspace :many
 SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at, workspace_id FROM courses
-WHERE company_id = $1
+WHERE workspace_id = $1
   AND ($2::bool OR is_published = TRUE)
 ORDER BY sort_order ASC, id ASC
 `
 
-type ListCoursesByCompanyParams struct {
-	CompanyID          int64
+type ListCoursesByWorkspaceParams struct {
+	WorkspaceID        uuid.NullUUID
 	IncludeUnpublished bool
 }
 
 // 自社のコースを sort_order 昇順（同値時 id 昇順）で返す。
 // include_unpublished=false なら公開済み（is_published=true）のみに絞る。
-func (q *Queries) ListCoursesByCompany(ctx context.Context, arg ListCoursesByCompanyParams) ([]Course, error) {
-	rows, err := q.db.QueryContext(ctx, listCoursesByCompany, arg.CompanyID, arg.IncludeUnpublished)
+//
+// FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
+func (q *Queries) ListCoursesByWorkspace(ctx context.Context, arg ListCoursesByWorkspaceParams) ([]Course, error) {
+	rows, err := q.db.QueryContext(ctx, listCoursesByWorkspace, arg.WorkspaceID, arg.IncludeUnpublished)
 	if err != nil {
 		return nil, err
 	}

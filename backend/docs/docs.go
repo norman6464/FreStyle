@@ -6900,6 +6900,10 @@ const docTemplate = `{
                 "role": {
                     "type": "string",
                     "example": "trainee"
+                },
+                "workspaceId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000001"
                 }
             }
         },
@@ -7537,6 +7541,10 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "workspaceId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000001"
                 }
             }
         },

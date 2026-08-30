@@ -63,11 +63,12 @@ func Test_招待token検証_見つからなければnil(t *testing.T) {
 }
 
 func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
+	wsID := "0198a000-0000-7000-8000-000000000001"
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
 			"abc-123": {
 				ID: 9, CompanyID: 42, Email: "u@example.com",
-				Role: domain.RoleCompanyAdmin, Name: "山田",
+				Role: domain.RoleCompanyAdmin, Name: "山田", WorkspaceID: &wsID,
 			},
 		},
 	}
@@ -96,6 +97,28 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 	}
 	if got.CompanyID != 42 || got.CompanyName != "株式会社FreStyle" {
 		t.Errorf("Company = %d/%q, want 42/株式会社FreStyle", got.CompanyID, got.CompanyName)
+	}
+	// 招待行の workspace_id（dual-write 済み）をそのまま返す。サブクエリで引き直さない。
+	if got.WorkspaceID == nil || *got.WorkspaceID != wsID {
+		t.Errorf("WorkspaceID = %v, want %q", got.WorkspaceID, wsID)
+	}
+}
+
+// 招待の workspace_id が未設定（会社にワークスペースが無い等）でもエラーにはせず nil のまま返す。
+func Test_招待token検証_workspace未設定はnilのまま(t *testing.T) {
+	repo := &stubAdminInvRepoWithToken{
+		pendingByToken: map[string]*domain.AdminInvitation{
+			"t": {ID: 9, CompanyID: 1, Role: domain.RoleTrainee},
+		},
+	}
+	uc := NewValidateInvitationTokenUseCase(repo, &stubCompanies{byID: map[uint64]*domain.Company{1: {ID: 1, Name: "x"}}})
+
+	got, err := uc.Execute(context.Background(), "t")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got == nil || got.WorkspaceID != nil {
+		t.Errorf("WorkspaceID = %v, want nil", got)
 	}
 }
 

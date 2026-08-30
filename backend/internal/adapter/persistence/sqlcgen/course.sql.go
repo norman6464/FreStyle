@@ -139,8 +139,6 @@ type ListCoursesByWorkspaceParams struct {
 
 // 自社のコースを sort_order 昇順（同値時 id 昇順）で返す。
 // include_unpublished=false なら公開済み（is_published=true）のみに絞る。
-//
-// FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
 func (q *Queries) ListCoursesByWorkspace(ctx context.Context, arg ListCoursesByWorkspaceParams) ([]Course, error) {
 	rows, err := q.db.QueryContext(ctx, listCoursesByWorkspace, arg.WorkspaceID, arg.IncludeUnpublished)
 	if err != nil {

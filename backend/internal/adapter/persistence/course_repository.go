@@ -25,7 +25,6 @@ func NewCourseRepository(db *sql.DB) repository.CourseRepository {
 func toDomainCourse(row sqlcgen.Course) domain.Course {
 	c := domain.Course{
 		ID:              uint64(row.ID),
-		CompanyID:       uint64(row.CompanyID),
 		CreatedByUserID: uint64(row.CreatedByUserID),
 		Title:           row.Title,
 		Description:     row.Description,
@@ -81,11 +80,6 @@ func (r *courseRepository) GetByID(ctx context.Context, id uint64) (*domain.Cour
 }
 
 func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
-	cid, ok := toInt64ID(c.CompanyID)
-	if !ok {
-		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
-		return outOfRangeIDError("company_id", c.CompanyID)
-	}
 	wid, ok := nullWorkspaceID(c.WorkspaceID)
 	if !ok {
 		return fmt.Errorf("workspace_id が不正な形式です: %q", *c.WorkspaceID)
@@ -105,7 +99,6 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
 	row, err := sqlcgen.New(r.db).InsertCourse(ctx, sqlcgen.InsertCourseParams{
-		CompanyID:       cid,
 		WorkspaceID:     wid,
 		CreatedByUserID: createdBy,
 		Title:           c.Title,
@@ -144,7 +137,7 @@ func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	// CreatedBy / CompanyID / Category / Language は更新対象外（GORM の Updates(map) と同じ 4 列のみ）。
+	// CreatedBy / Category / Language は更新対象外（GORM の Updates(map) と同じ 4 列のみ）。
 	updatedAt, err := sqlcgen.New(r.db).UpdateCourse(ctx, sqlcgen.UpdateCourseParams{
 		ID:          id64,
 		Title:       c.Title,

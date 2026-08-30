@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -14,24 +15,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCompanyLearningActivityRepository_Integration は自社 trainee の学習アクティビティ集計
-// (会社/ロール絞り込み・論理削除除外・最終活動日・期間内活動回数・並び順)を実 Postgres で検証する。
+// TestCompanyLearningActivityRepository_Integration は自ワークスペース trainee の学習アクティビティ集計
+// (ワークスペース/ロール絞り込み・論理削除除外・最終活動日・期間内活動回数・並び順)を実 Postgres で検証する。
 func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCompanyLearningActivityRepository(sqlDB)
 	activities := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, sqlDB, "user_daily_activities")
-	testsupport.TruncateAll(t, sqlDB, "users")
+	testsupport.TruncateAll(t, sqlDB,
+		append([]string{"user_daily_activities", "users"}, tenantBridgeTables...)...)
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	insertCompany(t, sqlDB, 2, "会社 B", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	workspaceID := companyWorkspaceID(t, sqlDB, 1).UUID.String()
+	otherWorkspace := companyWorkspaceID(t, sqlDB, 2).UUID.String()
 
-	companyID := uint64(1)
-	otherCompany := uint64(2)
 	userRepo := persistence.NewUserRepository(sqlDB)
-	mkUser := func(id uint64, name string, role domain.RoleName, company uint64, deleted bool) {
+	mkUser := func(id uint64, name string, role domain.RoleName, workspace string, deleted bool) {
 		u := &domain.User{
 			ID: id, Email: name + "@example.com", Name: name,
-			CompanyID: &company, Role: role, IsActive: true,
+			WorkspaceID: &workspace, Role: role, IsActive: true,
 		}
 		if deleted {
 			now := time.Now().UTC()
@@ -41,12 +45,12 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, name))
 	}
 
-	mkUser(11, "active-today", domain.RoleTrainee, companyID, false)
-	mkUser(12, "active-old", domain.RoleTrainee, companyID, false)
-	mkUser(13, "never-active", domain.RoleTrainee, companyID, false)
-	mkUser(14, "deleted-trainee", domain.RoleTrainee, companyID, true)
-	mkUser(15, "admin-not-counted", domain.RoleCompanyAdmin, companyID, false)
-	mkUser(16, "other-company", domain.RoleTrainee, otherCompany, false)
+	mkUser(11, "active-today", domain.RoleTrainee, workspaceID, false)
+	mkUser(12, "active-old", domain.RoleTrainee, workspaceID, false)
+	mkUser(13, "never-active", domain.RoleTrainee, workspaceID, false)
+	mkUser(14, "deleted-trainee", domain.RoleTrainee, workspaceID, true)
+	mkUser(15, "admin-not-counted", domain.RoleCompanyAdmin, workspaceID, false)
+	mkUser(16, "other-workspace", domain.RoleTrainee, otherWorkspace, false)
 
 	today := time.Now().UTC()
 	boundaryDay := today.AddDate(0, 0, -6) // 集計ウィンドウの境界日(7 日間の初日)
@@ -55,13 +59,13 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	require.NoError(t, activities.Increment(ctx, 11, today, inc))
 	require.NoError(t, activities.Increment(ctx, 11, boundaryDay, inc)) // 境界日の活動も数える
 	require.NoError(t, activities.Increment(ctx, 12, tenDaysAgo, inc))
-	require.NoError(t, activities.Increment(ctx, 16, today, inc)) // 他社
+	require.NoError(t, activities.Increment(ctx, 16, today, inc)) // 他ワークスペース
 
 	// fromDate に時刻成分が残っていても境界日(当日)の活動が漏れないこと(日付へ丸めて比較)。
 	fromDate := boundaryDay
-	rows, err := repo.ListMemberActivities(ctx, companyID, fromDate)
+	rows, err := repo.ListMemberActivitiesByWorkspace(ctx, workspaceID, fromDate)
 	require.NoError(t, err)
-	require.Len(t, rows, 3, "自社 trainee のみ(論理削除・admin・他社は除外)")
+	require.Len(t, rows, 3, "自ワークスペースの trainee のみ(論理削除・admin・他ワークスペースは除外)")
 
 	// 並び順: 最終活動日の新しい順 → 未活動は末尾。
 	require.Equal(t, uint64(11), rows[0].UserID)
@@ -77,8 +81,8 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	require.Nil(t, rows[2].LastActiveDate)
 	require.Equal(t, 0, rows[2].RecentActivityCount)
 
-	// 誰も居ない会社は空スライス。
-	empty, err := repo.ListMemberActivities(ctx, 999, fromDate)
+	// 誰も居ないワークスペースは空スライス。
+	empty, err := repo.ListMemberActivitiesByWorkspace(ctx, uuid.NewString(), fromDate)
 	require.NoError(t, err)
 	require.Empty(t, empty)
 }
@@ -103,16 +107,15 @@ func TestCompanyLearningActivityRepository_ByWorkspace_Integration(t *testing.T)
 	require.True(t, ws2.Valid)
 	require.NotEqual(t, ws1.UUID, ws2.UUID)
 
-	mkUser := func(id uint64, name string, role domain.RoleName, company uint64) {
+	mkUser := func(id uint64, name string, role domain.RoleName, workspace string) {
 		u := &domain.User{
 			ID: id, Email: name + "@example.com", Name: name,
-			CompanyID: &company, Role: role, IsActive: true,
+			WorkspaceID: &workspace, Role: role, IsActive: true,
 		}
-		// CreateWithOidcIdentity(InsertUser) が company_id から workspace_id を dual-write する。
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, name))
 	}
-	mkUser(21, "ws1-trainee", domain.RoleTrainee, 1)
-	mkUser(22, "ws2-trainee", domain.RoleTrainee, 2)
+	mkUser(21, "ws1-trainee", domain.RoleTrainee, ws1.UUID.String())
+	mkUser(22, "ws2-trainee", domain.RoleTrainee, ws2.UUID.String())
 
 	today := time.Now().UTC()
 	inc := repository.UserDailyActivityIncrement{LessonCount: 1}

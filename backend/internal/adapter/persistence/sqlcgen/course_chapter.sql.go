@@ -33,8 +33,6 @@ type CountChaptersByCourseForWorkspaceRow struct {
 
 // course_id ごとの教材件数を 1 クエリで集計する。
 // include_unpublished=false（trainee 相当）は published のみ数える。
-//
-// FRESTYLE-400（段4横展開）: company_id 直読みから workspace_id 経由へ切り替え済み。
 func (q *Queries) CountChaptersByCourseForWorkspace(ctx context.Context, arg CountChaptersByCourseForWorkspaceParams) ([]CountChaptersByCourseForWorkspaceRow, error) {
 	rows, err := q.db.QueryContext(ctx, countChaptersByCourseForWorkspace, arg.WorkspaceID, arg.IncludeUnpublished)
 	if err != nil {
@@ -95,14 +93,13 @@ func (q *Queries) DeleteChaptersByCourse(ctx context.Context, courseID int64) er
 }
 
 const getChapterByID = `-- name: GetChapterByID :one
-SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
+SELECT id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE id = $1
 `
 
 // 単一教材を返す（本文 doc を含む）。存在しなければ sql.ErrNoRows。
 //
-// FRESTYLE-403（段4横展開）: canRead の対象側比較に使うため workspace_id を追加した。
 // UpdateChapterDocWithRevision の RETURNING と列リストを揃えている
 // （teaching_material_repository.go の chapterRow 型エイリアスが同一構成を前提にするため）。
 func (q *Queries) GetChapterByID(ctx context.Context, id int64) (CourseChapter, error) {
@@ -110,7 +107,6 @@ func (q *Queries) GetChapterByID(ctx context.Context, id int64) (CourseChapter, 
 	var i CourseChapter
 	err := row.Scan(
 		&i.ID,
-		&i.CompanyID,
 		&i.CourseID,
 		&i.CreatedByUserID,
 		&i.Title,
@@ -128,25 +124,23 @@ func (q *Queries) GetChapterByID(ctx context.Context, id int64) (CourseChapter, 
 
 const insertChapter = `-- name: InsertChapter :one
 INSERT INTO course_chapters
-  (company_id, workspace_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
+  (workspace_id, course_id, created_by_user_id, title, revision, schema_version, sort_order, is_published, created_at, updated_at)
 VALUES (
   $1,
   $2,
   $3,
   $4,
-  $5,
+  COALESCE(NULLIF($5::bigint, 0), 1),
   COALESCE(NULLIF($6::bigint, 0), 1),
-  COALESCE(NULLIF($7::bigint, 0), 1),
-  COALESCE(NULLIF($8::bigint, 0), 100),
+  COALESCE(NULLIF($7::bigint, 0), 100),
+  $8,
   $9,
-  $10,
-  $11
+  $10
 )
 RETURNING id, revision, schema_version, sort_order, created_at, updated_at
 `
 
 type InsertChapterParams struct {
-	CompanyID       int64
 	WorkspaceID     uuid.NullUUID
 	CourseID        int64
 	CreatedByUserID int64
@@ -173,11 +167,9 @@ type InsertChapterRow struct {
 // revision / schema_version は 0 のとき既定 1、sort_order は 0 のとき既定 100 を当てる
 // （GORM の `default:` タグと同じ挙動。RETURNING で確定値を書き戻す）。
 //
-// workspace_id は company_id から引き直さず、呼び出し側（所属コースの workspace_id）が
-// そのまま渡す値をそのまま書く。
+// workspace_id は呼び出し側（所属コースの workspace_id）が渡す値をそのまま書く。
 func (q *Queries) InsertChapter(ctx context.Context, arg InsertChapterParams) (InsertChapterRow, error) {
 	row := q.db.QueryRowContext(ctx, insertChapter,
-		arg.CompanyID,
 		arg.WorkspaceID,
 		arg.CourseID,
 		arg.CreatedByUserID,
@@ -201,74 +193,8 @@ func (q *Queries) InsertChapter(ctx context.Context, arg InsertChapterParams) (I
 	return i, err
 }
 
-const listChaptersByCompany = `-- name: ListChaptersByCompany :many
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
-FROM course_chapters
-WHERE company_id = $1
-  AND ($2::bool OR is_published = TRUE)
-ORDER BY updated_at DESC, id DESC
-`
-
-type ListChaptersByCompanyParams struct {
-	CompanyID          int64
-	IncludeUnpublished bool
-}
-
-type ListChaptersByCompanyRow struct {
-	ID              int64
-	CompanyID       int64
-	CourseID        int64
-	CreatedByUserID int64
-	Title           string
-	SortOrder       int64
-	IsPublished     bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	WorkspaceID     uuid.NullUUID
-}
-
-// 会社内の全教材（章）を更新日降順で返す backward-compat 用。
-// include_unpublished=false なら公開済み（is_published=true）のみに絞る。
-// 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
-//
-// FRESTYLE-403: 一覧結果の TeachingMaterial.WorkspaceID を欠けたままにしないよう workspace_id
-// を追加した（未使用でも domain 上の値が常に埋まっている方が呼び出し側の取り違えを防ぐ）。
-func (q *Queries) ListChaptersByCompany(ctx context.Context, arg ListChaptersByCompanyParams) ([]ListChaptersByCompanyRow, error) {
-	rows, err := q.db.QueryContext(ctx, listChaptersByCompany, arg.CompanyID, arg.IncludeUnpublished)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListChaptersByCompanyRow{}
-	for rows.Next() {
-		var i ListChaptersByCompanyRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CompanyID,
-			&i.CourseID,
-			&i.CreatedByUserID,
-			&i.Title,
-			&i.SortOrder,
-			&i.IsPublished,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.WorkspaceID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listChaptersByCourse = `-- name: ListChaptersByCourse :many
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
+SELECT id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE course_id = $1
   AND ($2::bool OR is_published = TRUE)
@@ -282,7 +208,6 @@ type ListChaptersByCourseParams struct {
 
 type ListChaptersByCourseRow struct {
 	ID              int64
-	CompanyID       int64
 	CourseID        int64
 	CreatedByUserID int64
 	Title           string
@@ -295,8 +220,6 @@ type ListChaptersByCourseRow struct {
 
 // コース内の章を sort_order 昇順（同値時 id 昇順）で返す。
 // 一覧は本文（doc・jsonb）を返さない（章ごとに重く、全章を先読みすると非効率）。
-//
-// FRESTYLE-403: ListChaptersByCompany と同じ理由で workspace_id を追加した。
 func (q *Queries) ListChaptersByCourse(ctx context.Context, arg ListChaptersByCourseParams) ([]ListChaptersByCourseRow, error) {
 	rows, err := q.db.QueryContext(ctx, listChaptersByCourse, arg.CourseID, arg.IncludeUnpublished)
 	if err != nil {
@@ -308,7 +231,6 @@ func (q *Queries) ListChaptersByCourse(ctx context.Context, arg ListChaptersByCo
 		var i ListChaptersByCourseRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CompanyID,
 			&i.CourseID,
 			&i.CreatedByUserID,
 			&i.Title,
@@ -332,7 +254,7 @@ func (q *Queries) ListChaptersByCourse(ctx context.Context, arg ListChaptersByCo
 }
 
 const listChaptersByWorkspace = `-- name: ListChaptersByWorkspace :many
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
+SELECT id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE workspace_id = $1
   AND ($2::bool OR is_published = TRUE)
@@ -346,7 +268,6 @@ type ListChaptersByWorkspaceParams struct {
 
 type ListChaptersByWorkspaceRow struct {
 	ID              int64
-	CompanyID       int64
 	CourseID        int64
 	CreatedByUserID int64
 	Title           string
@@ -371,7 +292,6 @@ func (q *Queries) ListChaptersByWorkspace(ctx context.Context, arg ListChaptersB
 		var i ListChaptersByWorkspaceRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CompanyID,
 			&i.CourseID,
 			&i.CreatedByUserID,
 			&i.Title,
@@ -412,7 +332,7 @@ type UpdateChapterParams struct {
 }
 
 // 教材のメタ情報を部分更新する。書くのは title / sort_order / is_published の 3 列だけで、
-// created_by_user_id / company_id / course_id / doc / revision は不変（GORM の Updates(map) と同じ）。
+// created_by_user_id / course_id / doc / revision は不変（GORM の Updates(map) と同じ）。
 // updated_at は now() へ進めて RETURNING で書き戻す（autoUpdateTime 相当）。
 func (q *Queries) UpdateChapter(ctx context.Context, arg UpdateChapterParams) (time.Time, error) {
 	row := q.db.QueryRowContext(ctx, updateChapter,
@@ -432,7 +352,7 @@ UPDATE course_chapters SET
   revision   = revision + 1,
   updated_at = now()
 WHERE id = $2 AND revision = $3
-RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
+RETURNING id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at, workspace_id
 `
 
 type UpdateChapterDocWithRevisionParams struct {
@@ -449,7 +369,6 @@ func (q *Queries) UpdateChapterDocWithRevision(ctx context.Context, arg UpdateCh
 	var i CourseChapter
 	err := row.Scan(
 		&i.ID,
-		&i.CompanyID,
 		&i.CourseID,
 		&i.CreatedByUserID,
 		&i.Title,

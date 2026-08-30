@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import CompanyLearningPanel from '../CompanyLearningPanel';
-import type { CompanyLearningSummary } from '@/entities/member/api/adminMemberRepository';
+import WorkspaceLearningPanel from '../WorkspaceLearningPanel';
+import type { WorkspaceLearningSummary } from '@/entities/member/api/adminMemberRepository';
 
-function renderPanel(summary: CompanyLearningSummary) {
+function renderPanel(summary: WorkspaceLearningSummary) {
   return render(
     <MemoryRouter>
-      <CompanyLearningPanel summary={summary} />
+      <WorkspaceLearningPanel summary={summary} />
     </MemoryRouter>,
   );
 }
 
-describe('CompanyLearningPanel', () => {
+describe('WorkspaceLearningPanel', () => {
   it('KPI と直近アクティブメンバーを表示する', () => {
     renderPanel({
       traineeCount: 4,

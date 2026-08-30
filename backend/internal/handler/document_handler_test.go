@@ -74,23 +74,17 @@ func newDocHandler(repo repository.RichDocumentRepository) *DocumentHandler {
 // handler を直接呼ぶと c.Status(204) が body 無しでフラッシュされない gin の挙動を避け、
 // 本番同様 ServeHTTP 経由で HTTP メソッド・パス・:id 抽出・レスポンス確定まで検証する。
 // uid==0 のときは current user middleware を挟まず未認証を再現する。
-func newDocRouter(repo repository.RichDocumentRepository, uid, companyID uint64) *gin.Engine {
-	return newDocRouterWithWorkspace(repo, uid, companyID, "")
+func newDocRouter(repo repository.RichDocumentRepository, uid uint64) *gin.Engine {
+	return newDocRouterWithWorkspace(repo, uid, "")
 }
 
 // newDocRouterWithWorkspace は newDocRouter に加えて workspaceID（閲覧側の境界判定に使う）も設定する。
 // workspaceID=="" は「ワークスペース未所属」を表す。
-func newDocRouterWithWorkspace(repo repository.RichDocumentRepository, uid, companyID uint64, workspaceID string) *gin.Engine {
+func newDocRouterWithWorkspace(repo repository.RichDocumentRepository, uid uint64, workspaceID string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	h := newDocHandler(repo)
 	r := gin.New()
 	if uid != 0 {
-		// companyID==0 は「会社未所属」を表す（0 という会社があるわけではない）。
-		var cid *uint64
-		if companyID != 0 {
-			v := companyID
-			cid = &v
-		}
 		var wid *string
 		if workspaceID != "" {
 			v := workspaceID
@@ -98,7 +92,7 @@ func newDocRouterWithWorkspace(repo repository.RichDocumentRepository, uid, comp
 		}
 		r.Use(func(c *gin.Context) {
 			c.Set(middleware.ContextKeyCurrentUserID, uid)
-			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, CompanyID: cid, WorkspaceID: wid, Role: domain.RoleTrainee})
+			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, WorkspaceID: wid, Role: domain.RoleTrainee})
 			c.Next()
 		})
 	}
@@ -125,14 +119,14 @@ func doDocReq(r *gin.Engine, method, path, body string) *httptest.ResponseRecord
 
 func Test_文書ハンドラ_作成(t *testing.T) {
 	t.Run("未認証は401", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 0, 0)
+		r := newDocRouter(&fakeDocRepo{}, 0)
 		w := doDocReq(r, http.MethodPost, "/documents", `{}`)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
 	t.Run("正常系は201", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{}, 7)
 		body := `{"kind":"note","title":"メモ","doc":` + testDocBody + `}`
 		w := doDocReq(r, http.MethodPost, "/documents", body)
 		if w.Code != http.StatusCreated {
@@ -140,7 +134,7 @@ func Test_文書ハンドラ_作成(t *testing.T) {
 		}
 	})
 	t.Run("不正なdocは400", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{}, 7)
 		body := `{"kind":"note","title":"メモ","doc":{"type":"paragraph"}}`
 		w := doDocReq(r, http.MethodPost, "/documents", body)
 		if w.Code != http.StatusBadRequest {
@@ -148,7 +142,7 @@ func Test_文書ハンドラ_作成(t *testing.T) {
 		}
 	})
 	t.Run("kind欠落は400(binding)", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{}, 7)
 		body := `{"title":"メモ","doc":` + testDocBody + `}`
 		w := doDocReq(r, http.MethodPost, "/documents", body)
 		if w.Code != http.StatusBadRequest {
@@ -160,7 +154,7 @@ func Test_文書ハンドラ_作成(t *testing.T) {
 func Test_文書ハンドラ_取得(t *testing.T) {
 	t.Run("所有者は200", func(t *testing.T) {
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Doc: testDocBody, Kind: domain.DocumentKindNote}}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
@@ -171,7 +165,7 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 	})
 	t.Run("他人の非公開は404", func(t *testing.T) {
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, IsPublic: false, Doc: testDocBody}}
-		r := newDocRouter(repo, 99, 0)
+		r := newDocRouter(repo, 99)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d", w.Code)
@@ -180,7 +174,7 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 	t.Run("同一ワークスペースの他人は公開を読める(200)", func(t *testing.T) {
 		wsA := "0198a000-0000-7000-8000-0000000000e1"
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, WorkspaceID: &wsA, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouterWithWorkspace(repo, 99, 0, wsA)
+		r := newDocRouterWithWorkspace(repo, 99, wsA)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
@@ -190,7 +184,7 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 		wsA := "0198a000-0000-7000-8000-0000000000e1"
 		wsB := "0198a000-0000-7000-8000-0000000000e2"
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, WorkspaceID: &wsA, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouterWithWorkspace(repo, 99, 0, wsB)
+		r := newDocRouterWithWorkspace(repo, 99, wsB)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
@@ -199,7 +193,7 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 	t.Run("ワークスペース不明(NULL)の公開は他人から404", func(t *testing.T) {
 		wsA := "0198a000-0000-7000-8000-0000000000e1"
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouterWithWorkspace(repo, 99, 0, wsA)
+		r := newDocRouterWithWorkspace(repo, 99, wsA)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
@@ -209,21 +203,21 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 		wsA := "0198a000-0000-7000-8000-0000000000e1"
 		wsB := "0198a000-0000-7000-8000-0000000000e2"
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, WorkspaceID: &wsB, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouterWithWorkspace(repo, 7, 0, wsA)
+		r := newDocRouterWithWorkspace(repo, 7, wsA)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 	t.Run("未認証は401", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 0, 0)
+		r := newDocRouter(&fakeDocRepo{}, 0)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
 	t.Run("不正なIDは400", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{}, 7)
 		w := doDocReq(r, http.MethodGet, "/documents/not-a-uuid", "")
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
@@ -231,7 +225,7 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 	})
 	t.Run("ダッシュ無しUUIDも受理", func(t *testing.T) {
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Doc: testDocBody}}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodGet, "/documents/31400a07297e8057884bc05dbdf9fa53", "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("dashless UUID should be accepted, got %d", w.Code)
@@ -246,7 +240,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 			getDoc:    &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Revision: 3},
 			updateDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Title: "new", Doc: testDocBody, Revision: 4},
 		}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodPut, "/documents/"+testDocUUID, body)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
@@ -254,7 +248,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 	})
 	t.Run("他人は存在を漏らさず404", func(t *testing.T) {
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Revision: 3}}
-		r := newDocRouter(repo, 99, 0)
+		r := newDocRouter(repo, 99)
 		w := doDocReq(r, http.MethodPut, "/documents/"+testDocUUID, body)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d", w.Code)
@@ -262,7 +256,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 	})
 	t.Run("負のrevisionは400", func(t *testing.T) {
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Revision: 3}}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodPut, "/documents/"+testDocUUID, `{"title":"x","doc":`+testDocBody+`,"revision":-1}`)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
@@ -273,7 +267,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 			getDoc:    &domain.RichDocument{ID: testDocUUID, OwnerID: 7, Revision: 5},
 			updateErr: repository.ErrRichDocumentConflict,
 		}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodPut, "/documents/"+testDocUUID, body)
 		if w.Code != http.StatusConflict {
 			t.Fatalf("want 409, got %d", w.Code)
@@ -281,7 +275,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 	})
 	t.Run("存在しないは404", func(t *testing.T) {
 		repo := &fakeDocRepo{getErr: repository.ErrRichDocumentNotFound}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodPut, "/documents/"+testDocUUID, body)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d", w.Code)
@@ -289,7 +283,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 	})
 	t.Run("revision欠落は400", func(t *testing.T) {
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7}}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodPut, "/documents/"+testDocUUID, `{"title":"x","doc":`+testDocBody+`}`)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
@@ -299,7 +293,7 @@ func Test_文書ハンドラ_更新(t *testing.T) {
 
 func Test_文書ハンドラ_削除(t *testing.T) {
 	t.Run("成功は204", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{}, 7)
 		w := doDocReq(r, http.MethodDelete, "/documents/"+testDocUUID, "")
 		// ServeHTTP 経由なので c.Status(204) は自動でフラッシュされる（手動 WriteHeaderNow は不要）。
 		if w.Code != http.StatusNoContent {
@@ -308,14 +302,14 @@ func Test_文書ハンドラ_削除(t *testing.T) {
 	})
 	t.Run("存在しない(他人)は404", func(t *testing.T) {
 		repo := &fakeDocRepo{deleteErr: repository.ErrRichDocumentNotFound}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodDelete, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d", w.Code)
 		}
 	})
 	t.Run("未認証は401", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 0, 0)
+		r := newDocRouter(&fakeDocRepo{}, 0)
 		w := doDocReq(r, http.MethodDelete, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
@@ -329,7 +323,7 @@ func Test_文書ハンドラ_一覧(t *testing.T) {
 			{ID: testDocUUID, OwnerID: 7, Kind: domain.DocumentKindNote, Title: "メモA", Revision: 2, Doc: testDocBody},
 			{ID: "aaaaaaaa-297e-8057-884b-c05dbdf9fa53", OwnerID: 7, Kind: domain.DocumentKindNote, Title: "メモB", Revision: 1, Doc: testDocBody},
 		}}
-		r := newDocRouter(repo, 7, 0)
+		r := newDocRouter(repo, 7)
 		w := doDocReq(r, http.MethodGet, "/documents", "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
@@ -344,7 +338,7 @@ func Test_文書ハンドラ_一覧(t *testing.T) {
 		}
 	})
 	t.Run("空でも200で空配列", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{listDocs: nil}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{listDocs: nil}, 7)
 		w := doDocReq(r, http.MethodGet, "/documents", "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
@@ -354,14 +348,14 @@ func Test_文書ハンドラ_一覧(t *testing.T) {
 		}
 	})
 	t.Run("未認証は401", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 0, 0)
+		r := newDocRouter(&fakeDocRepo{}, 0)
 		w := doDocReq(r, http.MethodGet, "/documents", "")
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
 	t.Run("不正なkindは400", func(t *testing.T) {
-		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		r := newDocRouter(&fakeDocRepo{}, 7)
 		w := doDocReq(r, http.MethodGet, "/documents?kind=weird", "")
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)

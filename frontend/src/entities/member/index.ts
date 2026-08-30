@@ -7,5 +7,5 @@
 
 export { default as AdminMemberRepository } from './api/adminMemberRepository';
 export type { MemberLearningSummaryItem } from './api/adminMemberRepository';
-export type { CompanyLearningSummary } from './api/adminMemberRepository';
+export type { WorkspaceLearningSummary } from './api/adminMemberRepository';
 export type { Member } from './api/adminMemberRepository';

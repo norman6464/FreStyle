@@ -34,9 +34,9 @@ func learningActivityRepo(rows []repository.MemberLearningActivity, err error) (
 
 const summaryWorkspaceID = "0198a000-0000-7000-8000-0000000000c1"
 
-func companyAdminActor(companyID uint64) *domain.User {
+func companyAdminActor() *domain.User {
 	wid := summaryWorkspaceID
-	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &companyID, WorkspaceID: &wid}
+	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}
 }
 
 func datePtr(t time.Time) *time.Time { return &t }
@@ -53,7 +53,7 @@ func Test_メンバー学習サマリー_集計される(t *testing.T) {
 	}, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
-	out, err := uc.Execute(context.Background(), companyAdminActor(10))
+	out, err := uc.Execute(context.Background(), companyAdminActor())
 	require.NoError(t, err)
 	assert.Equal(t, summaryWorkspaceID, got.workspaceID)
 	assert.Equal(t, 4, out.TraineeCount)
@@ -77,13 +77,13 @@ func Test_メンバー学習サマリー_直近リストは5名まで(t *testing
 	repo, _ := learningActivityRepo(rows, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
-	out, err := uc.Execute(context.Background(), companyAdminActor(10))
+	out, err := uc.Execute(context.Background(), companyAdminActor())
 	require.NoError(t, err)
 	assert.Equal(t, 7, out.TraineeCount)
 	assert.Len(t, out.RecentMembers, 5)
 }
 
-func Test_メンバー学習サマリー_会社未所属は空サマリー(t *testing.T) {
+func Test_メンバー学習サマリー_ワークスペース未所属は空サマリー(t *testing.T) {
 	repo, _ := learningActivityRepo(nil, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
@@ -95,14 +95,13 @@ func Test_メンバー学習サマリー_会社未所属は空サマリー(t *te
 	repo.AssertNotCalled(t, "ListMemberActivitiesByWorkspace", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// company_id はあってもワークスペースへのバックフィルが未到達（workspace_id が nil）の actor は、
-// company_id 経由でフォールバックせず空サマリーを返す（company_id への依存が残っていないことの確認）。
-func Test_メンバー学習サマリー_workspace未所属は会社IDがあっても空サマリー(t *testing.T) {
+// 管理者ロールであっても、ワークスペースへのバックフィルが未到達（workspace_id が nil）の actor は
+// 集計を引かず空サマリーを返す。ロールで代替せず、所属は workspace_id 一本で決まる。
+func Test_メンバー学習サマリー_会社管理者でもワークスペース未所属なら空サマリー(t *testing.T) {
 	repo, _ := learningActivityRepo(nil, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
-	companyID := uint64(10)
-	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &companyID, WorkspaceID: nil}
+	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: nil}
 	out, err := uc.Execute(context.Background(), actor)
 	require.NoError(t, err)
 	assert.Equal(t, 0, out.TraineeCount)
@@ -114,7 +113,7 @@ func Test_メンバー学習サマリー_集計ウィンドウは今日を含む
 	repo, got := learningActivityRepo(nil, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
-	_, err := uc.Execute(context.Background(), companyAdminActor(10))
+	_, err := uc.Execute(context.Background(), companyAdminActor())
 	require.NoError(t, err)
 	wantFrom := time.Now().UTC().AddDate(0, 0, -6).Format("2006-01-02")
 	assert.Equal(t, wantFrom, got.fromDate.Format("2006-01-02"))
@@ -123,6 +122,6 @@ func Test_メンバー学習サマリー_集計ウィンドウは今日を含む
 func Test_メンバー学習サマリー_集計エラーはそのまま返す(t *testing.T) {
 	repo, _ := learningActivityRepo(nil, context.DeadlineExceeded)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
-	_, err := uc.Execute(context.Background(), companyAdminActor(10))
+	_, err := uc.Execute(context.Background(), companyAdminActor())
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

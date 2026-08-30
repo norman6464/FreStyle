@@ -2,8 +2,6 @@ basePath: /api/v2
 definitions:
   github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation:
     properties:
-      companyId:
-        type: integer
       createdAt:
         type: string
       email:
@@ -19,9 +17,7 @@ definitions:
       status:
         type: string
       workspaceId:
-        description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
+        description: WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent:
@@ -67,13 +63,17 @@ definitions:
         type: string
       updatedAt:
         type: string
+      workspaceId:
+        description: |-
+          WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、
+          companies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。
+          起動時バックフィルが未到達の会社は NULL になり得る。
+        type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Course:
     properties:
       category:
         type: string
-      companyId:
-        type: integer
       createdAt:
         type: string
       createdByUserId:
@@ -97,8 +97,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission:
@@ -281,8 +281,6 @@ definitions:
     - RoleTrainee
   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial:
     properties:
-      companyId:
-        type: integer
       courseId:
         type: integer
       createdAt:
@@ -307,8 +305,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView:
@@ -441,8 +439,6 @@ definitions:
     properties:
       category:
         type: string
-      companyId:
-        type: integer
       completedCount:
         description: CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount
           以下)。
@@ -473,8 +469,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput:
@@ -562,8 +558,6 @@ definitions:
     type: object
   internal_handler.chapterDetailResponse:
     properties:
-      companyId:
-        type: integer
       courseId:
         type: integer
       createdAt:
@@ -592,8 +586,8 @@ definitions:
         type: string
       workspaceId:
         description: |-
-          WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。
+          WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+          通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
         type: string
     type: object
   internal_handler.codeExecuteRequest:
@@ -700,9 +694,6 @@ definitions:
     type: object
   internal_handler.documentResponse:
     properties:
-      companyId:
-        example: 1
-        type: integer
       createdAt:
         type: string
       doc:
@@ -735,9 +726,6 @@ definitions:
     type: object
   internal_handler.documentSummaryResponse:
     properties:
-      companyId:
-        example: 1
-        type: integer
       createdAt:
         type: string
       id:
@@ -813,9 +801,6 @@ definitions:
     type: object
   internal_handler.invitationValidateResponse:
     properties:
-      companyId:
-        example: 1
-        type: integer
       companyName:
         example: Example Corp
         type: string
@@ -1265,9 +1250,6 @@ definitions:
     type: object
   internal_handler.meResponse:
     properties:
-      companyId:
-        example: 1
-        type: integer
       createdAt:
         type: string
       email:
@@ -1609,7 +1591,7 @@ paths:
               $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
             type: array
         "400":
-          description: ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)
+          description: 会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "401":

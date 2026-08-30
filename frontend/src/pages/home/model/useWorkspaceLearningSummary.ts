@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
-import { AdminMemberRepository, type CompanyLearningSummary } from '@/entities/member';
+import { AdminMemberRepository, type WorkspaceLearningSummary } from '@/entities/member';
 
 interface Options {
   enabled?: boolean;
 }
 
 /**
- * useCompanyLearningSummary — 自社メンバーの学習状況サマリーを取得する(FRESTYLE-103)。
+ * useWorkspaceLearningSummary — 自社（自ワークスペース）メンバーの学習状況サマリーを取得する。
  * company_admin のホームのサイドバー用。enabled=false のときはリクエストを発行しない。
  */
-export function useCompanyLearningSummary(options?: Options) {
+export function useWorkspaceLearningSummary(options?: Options) {
   const enabled = options?.enabled ?? true;
-  const [summary, setSummary] = useState<CompanyLearningSummary | null>(null);
+  const [summary, setSummary] = useState<WorkspaceLearningSummary | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 

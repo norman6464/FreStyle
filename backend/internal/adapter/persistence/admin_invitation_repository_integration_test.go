@@ -22,27 +22,34 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, "invitations")
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+
+	// 所属参照（workspace_id）は workspaces への FK なので、実在するワークスペースを用意する。
+	insertCompany(t, sqlDB, 1, "会社 A", true)
+	insertCompany(t, sqlDB, 2, "会社 B", true)
+	runStartupBackfill(ctx, t, sqlDB)
+	ws1 := companyWorkspaceID(t, sqlDB, 1).UUID.String()
+	ws2 := companyWorkspaceID(t, sqlDB, 2).UUID.String()
 
 	future := time.Now().UTC().Add(time.Hour)
 	past := time.Now().UTC().Add(-time.Hour)
 
 	// 直接 INSERT で status / expires_at / token を作り込む。
-	insert := func(id uint64, company uint64, email, status, token string, expires time.Time) {
+	insert := func(id uint64, workspaceID string, email, status, token string, expires time.Time) {
 		_, err := sqlDB.Exec(
-			`INSERT INTO invitations (id, company_id, email, role, name, status, token, expires_at, created_at)
+			`INSERT INTO invitations (id, workspace_id, email, role, name, status, token, expires_at, created_at)
 			 VALUES ($1, $2, $3, $4, 'n', $5, $6, $7, NOW())`,
-			id, company, email, domain.RoleCompanyAdmin, status, token, expires,
+			id, workspaceID, email, domain.RoleCompanyAdmin, status, token, expires,
 		)
 		require.NoError(t, err)
 	}
 
 	t.Run("FindPendingByToken は pending かつ未期限切れのみ返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "invitations")
-		insert(1, 1, "ok@example.com", domain.InvitationStatusPending, "tok-ok", future)
-		insert(2, 1, "exp@example.com", domain.InvitationStatusPending, "tok-expired", past)
-		insert(3, 1, "acc@example.com", domain.InvitationStatusAccepted, "tok-accepted", future)
-		insert(4, 1, "can@example.com", domain.InvitationStatusCanceled, "tok-canceled", future)
+		insert(1, ws1, "ok@example.com", domain.InvitationStatusPending, "tok-ok", future)
+		insert(2, ws1, "exp@example.com", domain.InvitationStatusPending, "tok-expired", past)
+		insert(3, ws1, "acc@example.com", domain.InvitationStatusAccepted, "tok-accepted", future)
+		insert(4, ws1, "can@example.com", domain.InvitationStatusCanceled, "tok-canceled", future)
 
 		got, err := repo.FindPendingByToken(ctx, "tok-ok")
 		require.NoError(t, err)
@@ -63,12 +70,13 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 
 	t.Run("FindByID は該当なし・id=0 で nil,nil", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "invitations")
-		insert(10, 2, "byid@example.com", domain.InvitationStatusAccepted, "tok-byid", future)
+		insert(10, ws2, "byid@example.com", domain.InvitationStatusAccepted, "tok-byid", future)
 
 		got, err := repo.FindByID(ctx, 10)
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		require.Equal(t, uint64(2), got.CompanyID, "会社スコープ認可に使う company_id を返す")
+		require.NotNil(t, got.WorkspaceID)
+		require.Equal(t, ws2, *got.WorkspaceID, "テナントスコープ認可に使う workspace_id を返す")
 		require.Equal(t, domain.InvitationStatusAccepted, got.Status, "status に関わらず ID で引ける")
 
 		none, err := repo.FindByID(ctx, 99999)
@@ -82,8 +90,8 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 
 	t.Run("UpdateStatus は対象 1 行だけ status を変える", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "invitations")
-		insert(20, 1, "a@example.com", domain.InvitationStatusPending, "tok-a", future)
-		insert(21, 1, "b@example.com", domain.InvitationStatusPending, "tok-b", future)
+		insert(20, ws1, "a@example.com", domain.InvitationStatusPending, "tok-a", future)
+		insert(21, ws1, "b@example.com", domain.InvitationStatusPending, "tok-b", future)
 
 		require.NoError(t, repo.UpdateStatus(ctx, 20, domain.InvitationStatusCanceled))
 
@@ -103,8 +111,8 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	t.Run("FindPendingByEmail は pending のみ返し expires は問わない（token とは非対称）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "invitations")
 		// pending だが期限切れでも email 検索では返る（GORM 版に expires フィルタは無い）。
-		insert(30, 1, "pend@example.com", domain.InvitationStatusPending, "tok-30", past)
-		insert(31, 1, "done@example.com", domain.InvitationStatusAccepted, "tok-31", future)
+		insert(30, ws1, "pend@example.com", domain.InvitationStatusPending, "tok-30", past)
+		insert(31, ws1, "done@example.com", domain.InvitationStatusAccepted, "tok-31", future)
 
 		got, err := repo.FindPendingByEmail(ctx, "pend@example.com")
 		require.NoError(t, err)
@@ -118,7 +126,7 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 
 	t.Run("token は JSON へ露出しない（秘匿）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "invitations")
-		insert(40, 1, "secret@example.com", domain.InvitationStatusPending, "super-secret-token", future)
+		insert(40, ws1, "secret@example.com", domain.InvitationStatusPending, "super-secret-token", future)
 		got, err := repo.FindPendingByToken(ctx, "super-secret-token")
 		require.NoError(t, err)
 		require.NotNil(t, got)
@@ -132,10 +140,8 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	})
 }
 
-// TestAdminInvitationRepository_ListByWorkspaceID_Integration は CompanyAdmin 経路
-// （FRESTYLE-401）が別ワークスペースの招待を返さないこと、pending のみ返すことを
-// 実 Postgres で固定する。InsertInvitation の company_id→workspace_id dual-write
-// （FRESTYLE-399）に依存するため repo.Create 経由でデータを作る。
+// TestAdminInvitationRepository_ListByWorkspaceID_Integration は会社管理者の一覧経路が
+// 別ワークスペースの招待を返さないこと、pending のみ返すことを実 Postgres で固定する。
 func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAdminInvitationRepository(sqlDB)
@@ -151,16 +157,16 @@ func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 	require.True(t, ws2.Valid)
 	require.NotEqual(t, ws1.UUID, ws2.UUID)
 
-	mk := func(companyID uint64, email string) *domain.AdminInvitation {
+	mk := func(workspaceID string, email string) *domain.AdminInvitation {
 		return &domain.AdminInvitation{
-			CompanyID: companyID, Email: email, Role: domain.RoleCompanyAdmin,
+			WorkspaceID: &workspaceID, Email: email, Role: domain.RoleCompanyAdmin,
 			Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
 		}
 	}
-	require.NoError(t, repo.Create(ctx, mk(1, "pending-a@example.com")))
-	require.NoError(t, repo.Create(ctx, mk(2, "other-workspace@example.com")))
+	require.NoError(t, repo.Create(ctx, mk(ws1.UUID.String(), "pending-a@example.com")))
+	require.NoError(t, repo.Create(ctx, mk(ws2.UUID.String(), "other-workspace@example.com")))
 
-	accepted := mk(1, "accepted-a@example.com")
+	accepted := mk(ws1.UUID.String(), "accepted-a@example.com")
 	require.NoError(t, repo.Create(ctx, accepted))
 	require.NoError(t, repo.UpdateStatus(ctx, accepted.ID, domain.InvitationStatusAccepted))
 
@@ -191,8 +197,9 @@ func TestAdminInvitationRepository_FindByID_WorkspaceID_Integration(t *testing.T
 	ws1 := companyWorkspaceID(t, sqlDB, 1)
 	require.True(t, ws1.Valid)
 
+	ws1Str := ws1.UUID.String()
 	inv := &domain.AdminInvitation{
-		CompanyID: 1, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
+		WorkspaceID: &ws1Str, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
 		Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, inv))
@@ -203,16 +210,16 @@ func TestAdminInvitationRepository_FindByID_WorkspaceID_Integration(t *testing.T
 	require.NotNil(t, got.WorkspaceID)
 	require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
 
-	// バックフィル前に作られた行を模して workspace_id を直接 NULL のまま挿入する
-	// （repo.Create は dual-write するため経由できない）。domain 側は nil のまま返すこと。
+	// 所属が入っていない行（運営が作った未割り当ての招待など）を直接挿入する。
+	// domain 側は nil のまま返すこと。
 	_, err = sqlDB.Exec(
-		`INSERT INTO invitations (id, company_id, workspace_id, email, role, name, status, expires_at, created_at)
-		 VALUES (999999, 1, NULL, 'legacy@example.com', 'company_admin', 'n', 'pending', $1, now())`,
+		`INSERT INTO invitations (id, workspace_id, email, role, name, status, expires_at, created_at)
+		 VALUES (999999, NULL, 'legacy@example.com', 'company_admin', 'n', 'pending', $1, now())`,
 		time.Now().UTC().Add(time.Hour),
 	)
 	require.NoError(t, err)
 	legacy, err := repo.FindByID(ctx, 999999)
 	require.NoError(t, err)
 	require.NotNil(t, legacy)
-	require.Nil(t, legacy.WorkspaceID, "バックフィル未到達の行は workspace_id が nil のまま")
+	require.Nil(t, legacy.WorkspaceID, "所属未設定の行は workspace_id が nil のまま")
 }

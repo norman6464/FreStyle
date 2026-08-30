@@ -9,7 +9,7 @@
 -- name: GetUserByCognitoSub :one
 -- OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
 -- 正は user_oidc_identities（provider='cognito' の subject）。
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -20,14 +20,14 @@ WHERE u.deleted_at IS NULL
 
 -- name: GetUserByID :one
 -- 内部 ID で 1 ユーザーを引く（論理削除は除外）。
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL;
 
 -- name: ListUsersByRole :many
 -- role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE r.name = $1 AND u.deleted_at IS NULL
@@ -35,11 +35,7 @@ ORDER BY u.id ASC;
 
 -- name: ListUsersByWorkspaceID :many
 -- ワークスペース単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
--- FRESTYLE-355 段4: company_id 直読み（ListUsersByCompanyID）から切り替え済み。
--- users.workspace_id は company_id からの dual-write（tenant_bridge.go）で埋まる写しだが、
--- 対象データが users 自身であるこの一覧では、他の子テーブル（courses 等）を待たずに
--- workspace_id を絞り込みキーとして使える。
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
@@ -56,7 +52,7 @@ ORDER BY u.id ASC;
 -- 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
 -- ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
 -- 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::text, E'\t\n\x0B\f\r '))
@@ -94,33 +90,25 @@ WHERE r.name = $1 AND u.deleted_at IS NULL;
 -- 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
 -- UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
 --
--- workspace_id は company_id からその場で引く（$4 の会社が指す companies.workspace_id）。
--- 起動時バックフィル（tenant_bridge.go）だけに任せると、次の起動までのあいだに作った
--- ユーザーの workspace_id が NULL のままになり、ListUsersByWorkspaceID の一覧から漏れる。
--- 会社が workspace_id を持たない（バックフィル未到達）場合はサブクエリが 0 行になり、
--- その場合も NULL のままで正しい。
+-- workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 INSERT INTO users (
-  email, password_hash, name, company_id, workspace_id, role_id,
+  email, password_hash, name, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $4),
-  $5, true, $6, $7, $8
+  $1, $2, $3, $4, $5, true, $6, $7, $8
 )
 RETURNING id, created_at, updated_at;
 
 -- name: InsertUserWithID :one
 -- id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
--- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。workspace_id の解決も同じ。
+-- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 INSERT INTO users (
-  id, email, password_hash, name, company_id, workspace_id, role_id,
+  id, email, password_hash, name, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, $5,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $5),
-  $6, true, $7, $8, $9
+  $1, $2, $3, $4, $5, $6, true, $7, $8, $9
 )
 RETURNING id, created_at, updated_at;
 
@@ -155,18 +143,11 @@ UPDATE users SET name = $2, updated_at = now() WHERE id = $1;
 UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpdateUserWorkspaceID :execrows
--- 所属会社とワークスペースを付け替える（招待の受諾で呼ばれる）。
---
--- 段5準備（company_id を DROP する前段）: 旧 UpdateUserCompanyID は workspace_id を
--- (SELECT c.workspace_id FROM companies c WHERE c.id = ...) というサブクエリでその場に
--- 求めていた。呼び出し側（招待受諾）は招待行の workspace_id（dual-write 済みで
--- companies への追加参照なしに手元にある）を既に持っているため、それをそのまま渡す形にした。
--- company_id は当面まだ所属の正本（CountMembersByCompany 等の集計がこの列を基準にする）
--- なので、引き続きこの場で一緒に書く。workspace_id はワークスペースが無い会社もあり得るため
--- nullable。
+-- 所属ワークスペースを付け替える（招待の受諾で呼ばれる）。呼び出し側（招待受諾）が
+-- 招待行の workspace_id を既に持っているため、それをそのまま書く。ワークスペースが
+-- 無い会社もあり得るため nullable。
 -- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 UPDATE users SET
-  company_id = sqlc.arg(company_id),
   workspace_id = sqlc.narg(workspace_id)
 WHERE id = sqlc.arg(id);
 

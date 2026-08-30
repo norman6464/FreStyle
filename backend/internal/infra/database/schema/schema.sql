@@ -70,7 +70,7 @@
 -- 型と NULL 可否の方針:
 --   created_at / updated_at はアプリが必ず値を入れるため NOT NULL とする（sqlc が sql.NullTime では
 --   なく time.Time を生成し、domain への詰め替えが素直になる）。同じ理由で、アプリが必ず値を入れる
---   文字列・数値も NOT NULL + DEFAULT を付ける。実際に NULL を取り得るもの（未所属の company_id、
+--   文字列・数値も NOT NULL + DEFAULT を付ける。実際に NULL を取り得るもの（未所属の workspace_id、
 --   論理削除の deleted_at、任意項目の hint_text など）だけ nullable にする。
 
 -- 演習の入力例 / 期待出力例。(exercise_id, order_index) は同一問題内で一意。
@@ -113,7 +113,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_user_provider
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_provider_subject
     ON user_oidc_identities (provider, subject);
 
--- 利用者。company_id / deleted_at は実際に NULL になり得る（運営管理者は会社無し等）。
+-- 利用者。deleted_at は実際に NULL になり得る。workspace_id は運営管理者等の
+-- 未所属で NULL になり得る。
 -- role_id は roles マスタへの参照（正規化後の正）。DEFAULT 3 = trainee は、ローリングデプロイ中の
 -- 旧コード（role_id を書かない INSERT）を NOT NULL 違反で壊さないための安全弁。
 -- アクティブ行の email 部分 UNIQUE（uq_users_email_active）は
@@ -123,14 +124,13 @@ CREATE TABLE IF NOT EXISTS users (
     email         text NOT NULL DEFAULT '',
     password_hash text,
     name          text NOT NULL DEFAULT '',
-    company_id    bigint,
     role_id       integer NOT NULL DEFAULT 3,
     is_active     boolean NOT NULL DEFAULT true,
     created_at    timestamptz NOT NULL,
     updated_at    timestamptz NOT NULL,
     deleted_at    timestamptz,
     -- workspace_id は tenant_bridge.go が末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id  uuid
 );
 
@@ -183,7 +183,6 @@ CREATE TABLE IF NOT EXISTS companies (
 -- 教材コース。
 CREATE TABLE IF NOT EXISTS courses (
     id                 bigserial PRIMARY KEY,
-    company_id         bigint NOT NULL,
     created_by_user_id bigint NOT NULL,
     title              text NOT NULL DEFAULT '',
     description        text NOT NULL DEFAULT '',
@@ -194,10 +193,10 @@ CREATE TABLE IF NOT EXISTS courses (
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id       uuid
 );
-CREATE INDEX IF NOT EXISTS idx_courses_company_id ON courses (company_id);
+CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
 
 -- 運営 / 管理者の重要操作の監査記録。
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -217,7 +216,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events (created_
 -- updated_at は持たない。
 CREATE TABLE IF NOT EXISTS invitations (
     id           bigserial PRIMARY KEY,
-    company_id   bigint NOT NULL,
     email        text NOT NULL DEFAULT '',
     role         text NOT NULL DEFAULT '',
     name         text NOT NULL DEFAULT '',
@@ -226,11 +224,11 @@ CREATE TABLE IF NOT EXISTS invitations (
     expires_at   timestamptz NOT NULL,
     created_at   timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
-CREATE INDEX IF NOT EXISTS idx_invitations_company_id ON invitations (company_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);
 
 -- 運営が用意した練習問題マスタ。
 -- sort_order は migration 0011 が ALTER ADD COLUMN で integer として作った列（本番の実列も integer）。
@@ -260,7 +258,6 @@ CREATE INDEX IF NOT EXISTS idx_master_exercises_language ON master_exercises (la
 -- 会社独自の演習（論理削除あり）。
 CREATE TABLE IF NOT EXISTS company_exercises (
     id              bigserial PRIMARY KEY,
-    company_id      bigint NOT NULL,
     language        varchar(32) NOT NULL,
     title           varchar(200) NOT NULL,
     description     text NOT NULL,
@@ -275,10 +272,10 @@ CREATE TABLE IF NOT EXISTS company_exercises (
     updated_at      timestamptz NOT NULL,
     deleted_at      timestamptz,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id    uuid
 );
-CREATE INDEX IF NOT EXISTS idx_company_exercises_company_id ON company_exercises (company_id);
+CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_language ON company_exercises (language);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_deleted_at ON company_exercises (deleted_at);
 
@@ -328,7 +325,6 @@ CREATE TABLE IF NOT EXISTS user_chapter_views (
 CREATE TABLE IF NOT EXISTS rich_documents (
     id             uuid PRIMARY KEY,
     owner_id       bigint NOT NULL,
-    company_id     bigint,
     kind           text NOT NULL,
     title          text NOT NULL,
     is_public      boolean NOT NULL DEFAULT false,
@@ -339,7 +335,7 @@ CREATE TABLE IF NOT EXISTS rich_documents (
     updated_at     timestamptz NOT NULL,
     deleted_at     timestamptz,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。未所属の文書もあるため nullable。
     workspace_id   uuid,
     CONSTRAINT fk_rich_documents_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT ck_rich_documents_doc CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc'),
@@ -381,7 +377,6 @@ CREATE TABLE IF NOT EXISTS score_cards (
 -- コースを構成する章。本文は doc(jsonb) が正本で、未移行の章は NULL。
 CREATE TABLE IF NOT EXISTS course_chapters (
     id                 bigserial PRIMARY KEY,
-    company_id         bigint NOT NULL,
     course_id          bigint NOT NULL,
     created_by_user_id bigint NOT NULL,
     title              text NOT NULL DEFAULT '',
@@ -393,10 +388,10 @@ CREATE TABLE IF NOT EXISTS course_chapters (
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本は当面 company_id のままで、この列は写し（FRESTYLE-399）。
+    -- 所属の正本（company_id は撤去済み）。
     workspace_id       uuid
 );
-CREATE INDEX IF NOT EXISTS idx_course_chapters_company_id ON course_chapters (company_id);
+CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
 
 -- 本番に欠けている NOT NULL と既定値を、定義（このファイルの上のほう）に合わせて埋める。
@@ -481,7 +476,6 @@ BEGIN
             ('course_chapters', 'updated_at', $$now()$$),
             ('courses', 'created_at', $$now()$$),
             ('courses', 'updated_at', $$now()$$),
-            ('invitations', 'company_id', $$0$$),
             ('invitations', 'created_at', $$now()$$),
             ('invitations', 'email', $$''::text$$),
             ('invitations', 'expires_at', $$now()$$),
@@ -1393,14 +1387,15 @@ DO $$ BEGIN
 END $$;
 
 -- =====================================================================
--- Ⅴ. テナント統合 段5 の準備（courses / course_chapters / company_exercises /
+-- Ⅴ. テナント統合（courses / course_chapters / company_exercises /
 --     invitations / rich_documents への workspace_id 列追加）
 -- =====================================================================
 --
--- FRESTYLE-399。company_id はまだ正本のまま（読み取りは変えない）。ここでは
--- 列を足して FK を張るところまでで、バックフィルは起動時に Go 側（tenant_bridge.go）が
--- 冪等に行う。company_id には FK が無く、同じ轍を踏まないため workspace_id 側にだけ張る
--- （companies / users で既に採った方針と同じ）。
+-- workspace_id が唯一の所属参照（company_id は撤去済み）。列を足して FK を張る。
+-- FK は workspace_id 側にだけ張る（companies / users で既に採った方針と同じ）。
+-- 新規に作る DB では上の CREATE TABLE で最初から workspace_id を持つため、この節は
+-- 既存 DB（起動時点でまだ列が無い環境）へ届かせるための ALTER TABLE ADD COLUMN
+-- IF NOT EXISTS 経路。
 
 DO $$ BEGIN
     IF NOT EXISTS (
@@ -1474,8 +1469,8 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- rich_documents.company_id は nullable（他の 4 テーブルと違い未所属のドキュメントがある）
--- ので workspace_id も同じく NULL を許容する。列追加・FK の作法自体は他と同じ。
+-- rich_documents は他の 4 テーブルと違い未所属のドキュメントがあるため、
+-- workspace_id は NULL を許容する。列追加・FK の作法自体は他と同じ。
 DO $$ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -1491,5 +1486,81 @@ DO $$ BEGIN
         ALTER TABLE rich_documents
             ADD CONSTRAINT fk_rich_documents_workspace
             FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
+
+-- =====================================================================
+-- Ⅵ. company_id 撤去（users / courses / course_chapters / company_exercises /
+--     invitations / rich_documents）
+-- =====================================================================
+--
+-- 上の Ⅳ・Ⅴ で workspace_id への橋渡しが済み、書き込み経路もすべて workspace_id
+-- 直接指定へ切り替わったため、所属参照としての company_id は不要になった
+-- （company 実体そのもの＝ companies テーブルは残る。SuperAdmin の会社管理機能が使う）。
+-- 新規に作る DB では上の CREATE TABLE で最初から company_id を持たないため、この節は
+-- 既存 DB（起動時点でまだ列が残っている環境）から列を落とすための DROP COLUMN 経路。
+--
+-- 素の ALTER TABLE を毎回流すと、列が既に無く何もしない場合でも ACCESS EXCLUSIVE
+-- ロックを取り起動のたびに表を止めるため、カタログを見て「まだ列があるときだけ」実行する
+-- （このファイル冒頭の約束、Ⅳ・Ⅴ と同じ形）。依存するインデックス
+-- （idx_courses_company_id 等）は DROP COLUMN が自動的に一緒に落とす。
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'users' AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE users DROP COLUMN company_id;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'courses' AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE courses DROP COLUMN company_id;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'course_chapters' AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE course_chapters DROP COLUMN company_id;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'company_exercises' AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE company_exercises DROP COLUMN company_id;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'invitations' AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE invitations DROP COLUMN company_id;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'rich_documents' AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE rich_documents DROP COLUMN company_id;
     END IF;
 END $$;

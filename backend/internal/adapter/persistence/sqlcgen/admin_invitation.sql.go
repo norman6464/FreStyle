@@ -14,7 +14,7 @@ import (
 )
 
 const findInvitationByID = `-- name: FindInvitationByID :one
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
+SELECT id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE id = $1
 LIMIT 1
@@ -26,7 +26,6 @@ func (q *Queries) FindInvitationByID(ctx context.Context, id int64) (Invitation,
 	var i Invitation
 	err := row.Scan(
 		&i.ID,
-		&i.CompanyID,
 		&i.Email,
 		&i.Role,
 		&i.Name,
@@ -40,7 +39,7 @@ func (q *Queries) FindInvitationByID(ctx context.Context, id int64) (Invitation,
 }
 
 const findPendingInvitationByEmail = `-- name: FindPendingInvitationByEmail :one
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
+SELECT id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE lower(btrim(email, E'\t\n\x0B\f\r ')) = $1
   AND status = $2
@@ -62,7 +61,6 @@ func (q *Queries) FindPendingInvitationByEmail(ctx context.Context, arg FindPend
 	var i Invitation
 	err := row.Scan(
 		&i.ID,
-		&i.CompanyID,
 		&i.Email,
 		&i.Role,
 		&i.Name,
@@ -76,7 +74,7 @@ func (q *Queries) FindPendingInvitationByEmail(ctx context.Context, arg FindPend
 }
 
 const findPendingInvitationByToken = `-- name: FindPendingInvitationByToken :one
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
+SELECT id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE token = $1
   AND status = $2
@@ -99,7 +97,6 @@ func (q *Queries) FindPendingInvitationByToken(ctx context.Context, arg FindPend
 	var i Invitation
 	err := row.Scan(
 		&i.ID,
-		&i.CompanyID,
 		&i.Email,
 		&i.Role,
 		&i.Name,
@@ -114,20 +111,20 @@ func (q *Queries) FindPendingInvitationByToken(ctx context.Context, arg FindPend
 
 const insertInvitation = `-- name: InsertInvitation :one
 INSERT INTO invitations
-  (company_id, workspace_id, email, role, name, status, token, expires_at, created_at)
-VALUES ($1, (SELECT c.workspace_id FROM companies c WHERE c.id = $1), $2, $3, $4, $5, $6, $7, $8)
+  (workspace_id, email, role, name, status, token, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, created_at
 `
 
 type InsertInvitationParams struct {
-	CompanyID int64
-	Email     string
-	Role      string
-	Name      string
-	Status    string
-	Token     sql.NullString
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	WorkspaceID uuid.NullUUID
+	Email       string
+	Role        string
+	Name        string
+	Status      string
+	Token       sql.NullString
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
 }
 
 type InsertInvitationRow struct {
@@ -140,13 +137,12 @@ type InsertInvitationRow struct {
 // （GORM autoCreateTime 相当。ゼロなら now を入れる）。updated_at 列は持たない。
 // token は未設定を NULL にして UNIQUE を避けるため nullable。
 //
-// workspace_id は company_id（$1）からその場で引く。course.sql の InsertCourse 等とは違い
-// サブクエリのままにしている理由: 招待先の会社は SuperAdmin が任意に指定でき actor 自身の所属と
-// 一致するとは限らず、招待を受ける本人もまだ存在しない（Go 側に「actor の所属ワークスペース」を
-// そのまま渡せる相手がいない）。company_id からその場で引く既存の解決を維持する。
+// workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
+// 招待先の会社は SuperAdmin が任意の company id で指定できるため、usecase が
+// CompanyRepository.FindByID で対応する workspace_id を解決してから渡す。
 func (q *Queries) InsertInvitation(ctx context.Context, arg InsertInvitationParams) (InsertInvitationRow, error) {
 	row := q.db.QueryRowContext(ctx, insertInvitation,
-		arg.CompanyID,
+		arg.WorkspaceID,
 		arg.Email,
 		arg.Role,
 		arg.Name,
@@ -161,7 +157,7 @@ func (q *Queries) InsertInvitation(ctx context.Context, arg InsertInvitationPara
 }
 
 const listPendingInvitations = `-- name: ListPendingInvitations :many
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
+SELECT id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE status = $1
 ORDER BY created_at DESC, id DESC
@@ -180,55 +176,6 @@ func (q *Queries) ListPendingInvitations(ctx context.Context, status string) ([]
 		var i Invitation
 		if err := rows.Scan(
 			&i.ID,
-			&i.CompanyID,
-			&i.Email,
-			&i.Role,
-			&i.Name,
-			&i.Status,
-			&i.Token,
-			&i.ExpiresAt,
-			&i.CreatedAt,
-			&i.WorkspaceID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPendingInvitationsByCompany = `-- name: ListPendingInvitationsByCompany :many
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
-FROM invitations
-WHERE company_id = $1 AND status = $2
-ORDER BY created_at DESC, id DESC
-`
-
-type ListPendingInvitationsByCompanyParams struct {
-	CompanyID int64
-	Status    string
-}
-
-// 自社の pending 招待のみ返す（SuperAdmin が ?companyId= で任意の会社を指定するときに使う。
-// CompanyAdmin 自身の一覧は ListPendingInvitationsByWorkspace を使う。FRESTYLE-401）。
-func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListPendingInvitationsByCompanyParams) ([]Invitation, error) {
-	rows, err := q.db.QueryContext(ctx, listPendingInvitationsByCompany, arg.CompanyID, arg.Status)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Invitation{}
-	for rows.Next() {
-		var i Invitation
-		if err := rows.Scan(
-			&i.ID,
-			&i.CompanyID,
 			&i.Email,
 			&i.Role,
 			&i.Name,
@@ -252,7 +199,7 @@ func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListP
 }
 
 const listPendingInvitationsByWorkspace = `-- name: ListPendingInvitationsByWorkspace :many
-SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
+SELECT id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE workspace_id = $1 AND status = $2
 ORDER BY created_at DESC, id DESC
@@ -263,10 +210,8 @@ type ListPendingInvitationsByWorkspaceParams struct {
 	Status      string
 }
 
-// 自社の pending 招待のみ返す（CompanyAdmin が自分の所属で見る用）。
-// FRESTYLE-401（段4横展開）: CompanyAdmin 経路だけを company_id 直読みから
-// workspace_id 経由へ切り替え済み。SuperAdmin の ?companyId= 絞り込みは
-// ListPendingInvitationsByCompany のまま変えていない（API 契約を変えないため）。
+// 指定ワークスペースの pending 招待のみ返す（CompanyAdmin 自身の一覧、および SuperAdmin の
+// ?companyId= 絞り込み — company の id から呼び出し側が workspace_id を解決して渡す）。
 func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, arg ListPendingInvitationsByWorkspaceParams) ([]Invitation, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingInvitationsByWorkspace, arg.WorkspaceID, arg.Status)
 	if err != nil {
@@ -278,7 +223,6 @@ func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, arg Lis
 		var i Invitation
 		if err := rows.Scan(
 			&i.ID,
-			&i.CompanyID,
 			&i.Email,
 			&i.Role,
 			&i.Name,

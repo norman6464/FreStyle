@@ -7,7 +7,7 @@ import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } fr
  * コース API ラッパ。
  *
  * actor の role / company は backend 側で context から取り出して自動フィルタするため、
- * フロントは companyId を渡さない（IDOR 対策）。
+ * フロントは workspaceId を渡さない（IDOR 対策）。
  */
 export interface CoursePayload {
   title: string;

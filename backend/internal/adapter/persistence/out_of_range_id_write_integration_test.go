@@ -29,27 +29,10 @@ type writeCase struct {
 func outOfRangeWriteCases() []writeCase {
 	return []writeCase{
 		{
-			name: "招待の作成（company_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewAdminInvitationRepository(db).Create(ctx, &domain.AdminInvitation{
-					CompanyID: outOfRangeID, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
-					Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(time.Hour),
-				})
-			},
-		},
-		{
-			name: "コースの作成（company_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCourseRepository(db).Create(ctx, &domain.Course{
-					CompanyID: outOfRangeID, CreatedByUserID: 1, Title: "t",
-				})
-			},
-		},
-		{
 			name: "コースの作成（created_by_user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewCourseRepository(db).Create(ctx, &domain.Course{
-					CompanyID: 1, CreatedByUserID: outOfRangeID, Title: "t",
+					CreatedByUserID: outOfRangeID, Title: "t",
 				})
 			},
 		},
@@ -105,28 +88,10 @@ func outOfRangeWriteCases() []writeCase {
 			},
 		},
 		{
-			name: "リッチ文書の作成（company_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				companyID := outOfRangeID
-				return persistence.NewRichDocumentRepository(db).Create(ctx, &domain.RichDocument{
-					OwnerID: 1, CompanyID: &companyID, Kind: domain.DocumentKindNote, Title: "t",
-					Doc: `{"type":"doc","content":[]}`,
-				})
-			},
-		},
-		{
-			name: "章の作成（company_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
-					CompanyID: outOfRangeID, CourseID: 1, CreatedByUserID: 1, Title: "t",
-				})
-			},
-		},
-		{
 			name: "章の作成（course_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
-					CompanyID: 1, CourseID: outOfRangeID, CreatedByUserID: 1, Title: "t",
+					CourseID: outOfRangeID, CreatedByUserID: 1, Title: "t",
 				})
 			},
 		},
@@ -134,7 +99,7 @@ func outOfRangeWriteCases() []writeCase {
 			name: "章の作成（created_by_user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
-					CompanyID: 1, CourseID: 1, CreatedByUserID: outOfRangeID, Title: "t",
+					CourseID: 1, CreatedByUserID: outOfRangeID, Title: "t",
 				})
 			},
 		},
@@ -166,6 +131,75 @@ func TestPersistence_書き込みは範囲外idを成功として返さないこ
 	ctx := context.Background()
 
 	for _, tc := range outOfRangeWriteCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call(ctx, sqlDB)
+
+			assert.Error(t, err, "書き込めていないのに成功を返さないこと")
+		})
+	}
+}
+
+// malformedWorkspaceID は UUID として解釈できない workspace_id。所属参照は bigint から
+// uuid へ移ったため「範囲外の id」は存在しないが、値が壊れていて 1 行も書けない状況は残る。
+const malformedWorkspaceID = "not-a-uuid"
+
+// malformedWorkspaceWriteCases は所属参照（workspace_id）が壊れた値で渡される書き込み。
+func malformedWorkspaceWriteCases() []writeCase {
+	bad := malformedWorkspaceID
+	return []writeCase{
+		{
+			name: "招待の作成（workspace_id）",
+			call: func(ctx context.Context, db *sql.DB) error {
+				return persistence.NewAdminInvitationRepository(db).Create(ctx, &domain.AdminInvitation{
+					WorkspaceID: &bad, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
+					Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(time.Hour),
+				})
+			},
+		},
+		{
+			name: "コースの作成（workspace_id）",
+			call: func(ctx context.Context, db *sql.DB) error {
+				return persistence.NewCourseRepository(db).Create(ctx, &domain.Course{
+					WorkspaceID: &bad, CreatedByUserID: 1, Title: "t",
+				})
+			},
+		},
+		{
+			name: "章の作成（workspace_id）",
+			call: func(ctx context.Context, db *sql.DB) error {
+				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
+					WorkspaceID: &bad, CourseID: 1, CreatedByUserID: 1, Title: "t",
+				})
+			},
+		},
+		{
+			name: "リッチ文書の作成（workspace_id）",
+			call: func(ctx context.Context, db *sql.DB) error {
+				return persistence.NewRichDocumentRepository(db).Create(ctx, &domain.RichDocument{
+					OwnerID: 1, WorkspaceID: &bad, Kind: domain.DocumentKindNote, Title: "t",
+					Doc: `{"type":"doc","content":[]}`,
+				})
+			},
+		},
+		{
+			name: "ユーザーの所属付け替え（workspace_id）",
+			call: func(ctx context.Context, db *sql.DB) error {
+				return persistence.NewUserRepository(db).UpdateWorkspaceID(ctx, 1, &bad)
+			},
+		},
+	}
+}
+
+// TestPersistence_書き込みは不正な形式のworkspace_idを成功として返さないこと_Integration は、
+// UUID として読めない workspace_id を渡された書き込み系が nil（成功）を返さないことを固定する。
+//
+// ここを黙って NULL 扱いにすると、所属の付いていない行（誰からも見えない、あるいは
+// 誰からも見える行）が「作成できた」という応答とともに残る。
+func TestPersistence_書き込みは不正な形式のworkspace_idを成功として返さないこと_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	for _, tc := range malformedWorkspaceWriteCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.call(ctx, sqlDB)
 

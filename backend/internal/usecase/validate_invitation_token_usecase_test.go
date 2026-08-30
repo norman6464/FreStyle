@@ -8,19 +8,39 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
+// validateWsA は受諾画面の検証で使うワークスペース ID。
+const validateWsA = "0198a000-0000-7000-8000-0000000000d1"
+
+// stubCompanies は「ワークスペース ↔ 会社」の 1:1 対応だけを持つ CompanyRepository スタブ。
+// 受諾画面の会社名は、招待の workspace_id から会社を引いて付ける。
 type stubCompanies struct {
-	byID map[uint64]*domain.Company
-	err  error
+	companies []domain.Company
+	err       error
 }
 
 func (s *stubCompanies) ListAll(_ context.Context) ([]domain.Company, error) { return nil, s.err }
 func (s *stubCompanies) UpdateActive(context.Context, uint64, bool) error    { return nil }
+
 func (s *stubCompanies) FindByID(_ context.Context, id uint64) (*domain.Company, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	if c, ok := s.byID[id]; ok {
-		return c, nil
+	for i := range s.companies {
+		if s.companies[i].ID == id {
+			return &s.companies[i], nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (s *stubCompanies) FindByWorkspaceID(_ context.Context, workspaceID string) (*domain.Company, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	for i := range s.companies {
+		if s.companies[i].WorkspaceID != nil && *s.companies[i].WorkspaceID == workspaceID {
+			return &s.companies[i], nil
+		}
 	}
 	return nil, errors.New("not found")
 }
@@ -67,14 +87,14 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
 			"abc-123": {
-				ID: 9, CompanyID: 42, Email: "u@example.com",
+				ID: 9, Email: "u@example.com",
 				Role: domain.RoleCompanyAdmin, Name: "山田", WorkspaceID: &wsID,
 			},
 		},
 	}
 	companies := &stubCompanies{
-		byID: map[uint64]*domain.Company{
-			42: {ID: 42, Name: "株式会社FreStyle"},
+		companies: []domain.Company{
+			{ID: 42, Name: "株式会社FreStyle", WorkspaceID: &wsID},
 		},
 	}
 	uc := NewValidateInvitationTokenUseCase(repo, companies)
@@ -95,10 +115,10 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 	if got.Name != "山田" {
 		t.Errorf("Name = %q, want 山田", got.Name)
 	}
-	if got.CompanyID != 42 || got.CompanyName != "株式会社FreStyle" {
-		t.Errorf("Company = %d/%q, want 42/株式会社FreStyle", got.CompanyID, got.CompanyName)
+	if got.CompanyName != "株式会社FreStyle" {
+		t.Errorf("CompanyName = %q, want 株式会社FreStyle", got.CompanyName)
 	}
-	// 招待行の workspace_id（dual-write 済み）をそのまま返す。サブクエリで引き直さない。
+	// 招待行の workspace_id をそのまま返す。サブクエリで引き直さない。
 	if got.WorkspaceID == nil || *got.WorkspaceID != wsID {
 		t.Errorf("WorkspaceID = %v, want %q", got.WorkspaceID, wsID)
 	}
@@ -108,10 +128,12 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 func Test_招待token検証_workspace未設定はnilのまま(t *testing.T) {
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
-			"t": {ID: 9, CompanyID: 1, Role: domain.RoleTrainee},
+			"t": {ID: 9, Role: domain.RoleTrainee},
 		},
 	}
-	uc := NewValidateInvitationTokenUseCase(repo, &stubCompanies{byID: map[uint64]*domain.Company{1: {ID: 1, Name: "x"}}})
+	uc := NewValidateInvitationTokenUseCase(repo, &stubCompanies{
+		companies: []domain.Company{{ID: 1, Name: "x", WorkspaceID: strPtr(validateWsA)}},
+	})
 
 	got, err := uc.Execute(context.Background(), "t")
 	if err != nil {
@@ -127,18 +149,18 @@ func Test_招待token検証_会社参照失敗でも招待を返す(t *testing.T
 	// CompanyName 空でも受諾画面を表示できる方が UX として良い。
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
-			"t": {ID: 9, CompanyID: 999, Email: "u@example.com", Role: domain.RoleTrainee},
+			"t": {ID: 9, Email: "u@example.com", Role: domain.RoleTrainee, WorkspaceID: strPtr(validateWsA)},
 		},
 	}
-	companies := &stubCompanies{} // 空 → FindByID で「not found」
+	companies := &stubCompanies{} // 空 → FindByWorkspaceID で「not found」
 	uc := NewValidateInvitationTokenUseCase(repo, companies)
 
 	got, err := uc.Execute(context.Background(), "t")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if got == nil || got.CompanyID != 999 {
-		t.Fatalf("invitation must be returned with CompanyID even when company lookup fails, got %+v", got)
+	if got == nil || got.WorkspaceID == nil || *got.WorkspaceID != validateWsA {
+		t.Fatalf("invitation must be returned with workspace_id even when company lookup fails, got %+v", got)
 	}
 	if got.CompanyName != "" {
 		t.Errorf("CompanyName should be empty on lookup failure, got %q", got.CompanyName)
@@ -148,10 +170,12 @@ func Test_招待token検証_会社参照失敗でも招待を返す(t *testing.T
 func Test_招待token検証_未知のroleを正規化(t *testing.T) {
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
-			"t": {ID: 9, CompanyID: 1, Role: "garbage_role"},
+			"t": {ID: 9, Role: "garbage_role", WorkspaceID: strPtr(validateWsA)},
 		},
 	}
-	uc := NewValidateInvitationTokenUseCase(repo, &stubCompanies{byID: map[uint64]*domain.Company{1: {ID: 1, Name: "x"}}})
+	uc := NewValidateInvitationTokenUseCase(repo, &stubCompanies{
+		companies: []domain.Company{{ID: 1, Name: "x", WorkspaceID: strPtr(validateWsA)}},
+	})
 	got, _ := uc.Execute(context.Background(), "t")
 	if got == nil || got.Role != domain.RoleTrainee {
 		t.Errorf("unknown role must fallback to trainee, got %+v", got)

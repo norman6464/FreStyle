@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func u64ptr(v uint64) *uint64 { return &v }
-
 func strptr(v string) *string { return &v }
 
 const memberWorkspaceID = "0198a000-0000-7000-8000-000000000001"
@@ -22,7 +20,10 @@ func Test_会社メンバー一覧ユースケース(t *testing.T) {
 	t.Run("自社の従業員一覧を返す", func(t *testing.T) {
 		repo := &mockUserRepo{}
 		repo.On("ListByWorkspaceID", mock.Anything, memberWorkspaceID).
-			Return([]domain.User{{ID: 1, CompanyID: u64ptr(10)}, {ID: 2, CompanyID: u64ptr(10)}}, nil)
+			Return([]domain.User{
+				{ID: 1, WorkspaceID: strptr(memberWorkspaceID)},
+				{ID: 2, WorkspaceID: strptr(memberWorkspaceID)},
+			}, nil)
 		uc := usecase.NewListCompanyMembersUseCase(repo)
 
 		members, err := uc.Execute(context.Background(), &domain.User{ID: 9, WorkspaceID: strptr(memberWorkspaceID), Role: domain.RoleCompanyAdmin})
@@ -32,7 +33,7 @@ func Test_会社メンバー一覧ユースケース(t *testing.T) {
 		assert.Equal(t, uint64(2), members[1].ID)
 	})
 
-	t.Run("会社未所属は空（repository を呼ばない）", func(t *testing.T) {
+	t.Run("ワークスペース未所属は空（repository を呼ばない）", func(t *testing.T) {
 		repo := &mockUserRepo{}
 		uc := usecase.NewListCompanyMembersUseCase(repo)
 

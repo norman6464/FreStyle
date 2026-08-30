@@ -9,19 +9,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// companies を workspaces へ畳む移行のうち、事実を両側に持たせる段（Expand）を担う。
-// ローリングデプロイ中は companies を読む旧タスクと workspaces を読む新タスクが同時に
-// 走るため、両側が常に同じ事実を語っている必要がある（不変条件は
-// tenant_bridge_invariant_integration_test.go が固定する）。正本は companies。
+// companies から workspaces への 1:1 紐付けを用意する（会社が作られたら、対応する
+// ワークスペースを冪等に用意する）。company_id は撤去済みで、業務テーブルの所属参照は
+// すべて workspace_id を直接指定する書き込み経路に一本化されている（このファイル名の
+// 「橋渡し」は現在は companies↔workspaces の紐付けだけを指す）。
 //
-// companies.workspace_id / users.workspace_id は移行期間だけの橋渡しで、
-// companies を畳むときに列ごと消える。
+// companies.is_active → workspaces.is_active の反映も併せて行う（正本は companies）。
 
 // workspaceSlugPrefix は自動採番した workspaces.slug の接頭辞。
 const workspaceSlugPrefix = "ws-"
 
 // BackfillWorkspacesFromCompanies は既存の会社に対応する workspaces 行を作り、
-// companies.workspace_id / users.workspace_id / 業務テーブルの workspace_id を埋める（冪等）。
+// companies.workspace_id を埋め、is_active をワークスペースへ反映する（冪等）。
 //
 // 起動のたびに走るが、埋まっている行は対象から外れるので実質 no-op になる。
 func BackfillWorkspacesFromCompanies(ctx context.Context, db *sql.DB) error {
@@ -31,14 +30,6 @@ func BackfillWorkspacesFromCompanies(ctx context.Context, db *sql.DB) error {
 		}
 		if err := mirrorCompanySettingsToWorkspaces(ctx, tx); err != nil {
 			return err
-		}
-		if err := mirrorUserWorkspaceFromCompany(ctx, tx); err != nil {
-			return err
-		}
-		for _, mirror := range businessTableWorkspaceMirrors {
-			if err := mirror(ctx, tx); err != nil {
-				return err
-			}
 		}
 		return nil
 	})
@@ -117,116 +108,6 @@ func mirrorCompanySettingsToWorkspaces(ctx context.Context, tx *sql.Tx) error {
 		   AND w.is_active IS DISTINCT FROM c.is_active`,
 	); err != nil {
 		return fmt.Errorf("ワークスペースへの設定反映に失敗: %w", err)
-	}
-	return nil
-}
-
-// mirrorUserWorkspaceFromCompany は所属会社のワークスペースをユーザーへ写す。
-// 会社に属さないユーザー（company_id IS NULL）は NULL のまま残す — 未所属は
-// 「どの会社でもない」であって、既定のテナントへ流し込んでよいものではない。
-//
-// updated_at は触らない。この列は所属という同じ事実の写しを別の場所へ置くだけの
-// 移行処理で、利用者から見た更新ではないため（API に出る更新日時を動かさない）。
-func mirrorUserWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE users u SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE u.company_id = c.id
-		   AND c.workspace_id IS NOT NULL
-		   AND u.workspace_id IS DISTINCT FROM c.workspace_id`,
-	); err != nil {
-		return fmt.Errorf("ユーザーへのワークスペース反映に失敗: %w", err)
-	}
-	return nil
-}
-
-// businessTableWorkspaceMirrors は FRESTYLE-399 で workspace_id 列を足した、company_id を
-// 持つ業務テーブルぶんのミラー関数。users は列の意味（NULL=未所属）が少し異なるため
-// mirrorUserWorkspaceFromCompany に別枠で残している。company_exercises は
-// repository / usecase が未実装（書き込み経路が無い）だが、将来行が増えたときに
-// 備えてミラーだけは用意しておく。
-//
-// テーブル名を文字列結合で SQL に埋め込まず、テーブルごとに固定文字列のクエリを持つ
-// （動的な SQL 生成は避ける。CLAUDE.md の生 SQL 規約と gosec の両方に沿う）。
-var businessTableWorkspaceMirrors = []func(context.Context, *sql.Tx) error{
-	mirrorCoursesWorkspaceFromCompany,
-	mirrorCourseChaptersWorkspaceFromCompany,
-	mirrorCompanyExercisesWorkspaceFromCompany,
-	mirrorInvitationsWorkspaceFromCompany,
-	mirrorRichDocumentsWorkspaceFromCompany,
-}
-
-// company_id が NULL の行（rich_documents は所有者だけで会社を持たないドキュメントがある）
-// は JOIN 条件 t.company_id = c.id にそもそも一致しないため、自然に対象から外れて
-// workspace_id も NULL のまま残る（5 関数共通の挙動）。
-
-func mirrorCoursesWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE courses t SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE t.company_id = c.id
-		   AND c.workspace_id IS NOT NULL
-		   AND t.workspace_id IS DISTINCT FROM c.workspace_id`,
-	); err != nil {
-		return fmt.Errorf("courses へのワークスペース反映に失敗: %w", err)
-	}
-	return nil
-}
-
-func mirrorCourseChaptersWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE course_chapters t SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE t.company_id = c.id
-		   AND c.workspace_id IS NOT NULL
-		   AND t.workspace_id IS DISTINCT FROM c.workspace_id`,
-	); err != nil {
-		return fmt.Errorf("course_chapters へのワークスペース反映に失敗: %w", err)
-	}
-	return nil
-}
-
-func mirrorCompanyExercisesWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE company_exercises t SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE t.company_id = c.id
-		   AND c.workspace_id IS NOT NULL
-		   AND t.workspace_id IS DISTINCT FROM c.workspace_id`,
-	); err != nil {
-		return fmt.Errorf("company_exercises へのワークスペース反映に失敗: %w", err)
-	}
-	return nil
-}
-
-func mirrorInvitationsWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE invitations t SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE t.company_id = c.id
-		   AND c.workspace_id IS NOT NULL
-		   AND t.workspace_id IS DISTINCT FROM c.workspace_id`,
-	); err != nil {
-		return fmt.Errorf("invitations へのワークスペース反映に失敗: %w", err)
-	}
-	return nil
-}
-
-func mirrorRichDocumentsWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE rich_documents t SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE t.company_id = c.id
-		   AND c.workspace_id IS NOT NULL
-		   AND t.workspace_id IS DISTINCT FROM c.workspace_id`,
-	); err != nil {
-		return fmt.Errorf("rich_documents へのワークスペース反映に失敗: %w", err)
 	}
 	return nil
 }

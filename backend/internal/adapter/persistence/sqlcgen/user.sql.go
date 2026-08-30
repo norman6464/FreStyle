@@ -100,7 +100,7 @@ func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int32, erro
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
 
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -114,7 +114,6 @@ type GetUserByCognitoSubRow struct {
 	ID          int64
 	Email       string
 	Name        string
-	CompanyID   sql.NullInt64
 	WorkspaceID uuid.NullUUID
 	RoleID      int32
 	IsActive    bool
@@ -140,7 +139,6 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.CompanyID,
 		&i.WorkspaceID,
 		&i.RoleID,
 		&i.IsActive,
@@ -153,7 +151,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
@@ -163,7 +161,6 @@ type GetUserByIDRow struct {
 	ID          int64
 	Email       string
 	Name        string
-	CompanyID   sql.NullInt64
 	WorkspaceID uuid.NullUUID
 	RoleID      int32
 	IsActive    bool
@@ -181,7 +178,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.CompanyID,
 		&i.WorkspaceID,
 		&i.RoleID,
 		&i.IsActive,
@@ -217,13 +213,11 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, password_hash, name, company_id, workspace_id, role_id,
+  email, password_hash, name, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $4),
-  $5, true, $6, $7, $8
+  $1, $2, $3, $4, $5, true, $6, $7, $8
 )
 RETURNING id, created_at, updated_at
 `
@@ -232,7 +226,7 @@ type InsertUserParams struct {
 	Email        string
 	PasswordHash sql.NullString
 	Name         string
-	CompanyID    sql.NullInt64
+	WorkspaceID  uuid.NullUUID
 	RoleID       int32
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -249,17 +243,13 @@ type InsertUserRow struct {
 // 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
 // UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
 //
-// workspace_id は company_id からその場で引く（$4 の会社が指す companies.workspace_id）。
-// 起動時バックフィル（tenant_bridge.go）だけに任せると、次の起動までのあいだに作った
-// ユーザーの workspace_id が NULL のままになり、ListUsersByWorkspaceID の一覧から漏れる。
-// 会社が workspace_id を持たない（バックフィル未到達）場合はサブクエリが 0 行になり、
-// その場合も NULL のままで正しい。
+// workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.Email,
 		arg.PasswordHash,
 		arg.Name,
-		arg.CompanyID,
+		arg.WorkspaceID,
 		arg.RoleID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -272,13 +262,11 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, password_hash, name, company_id, workspace_id, role_id,
+  id, email, password_hash, name, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, $5,
-  (SELECT c.workspace_id FROM companies c WHERE c.id = $5),
-  $6, true, $7, $8, $9
+  $1, $2, $3, $4, $5, $6, true, $7, $8, $9
 )
 RETURNING id, created_at, updated_at
 `
@@ -288,7 +276,7 @@ type InsertUserWithIDParams struct {
 	Email        string
 	PasswordHash sql.NullString
 	Name         string
-	CompanyID    sql.NullInt64
+	WorkspaceID  uuid.NullUUID
 	RoleID       int32
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -302,14 +290,14 @@ type InsertUserWithIDRow struct {
 }
 
 // id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
-// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。workspace_id の解決も同じ。
+// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDParams) (InsertUserWithIDRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUserWithID,
 		arg.ID,
 		arg.Email,
 		arg.PasswordHash,
 		arg.Name,
-		arg.CompanyID,
+		arg.WorkspaceID,
 		arg.RoleID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -321,7 +309,7 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 }
 
 const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B\f\r '))
@@ -332,7 +320,6 @@ type ListActiveUsersByEmailRow struct {
 	ID           int64
 	Email        string
 	Name         string
-	CompanyID    sql.NullInt64
 	WorkspaceID  uuid.NullUUID
 	RoleID       int32
 	IsActive     bool
@@ -366,7 +353,6 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 			&i.ID,
 			&i.Email,
 			&i.Name,
-			&i.CompanyID,
 			&i.WorkspaceID,
 			&i.RoleID,
 			&i.IsActive,
@@ -390,7 +376,7 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE r.name = $1 AND u.deleted_at IS NULL
@@ -401,7 +387,6 @@ type ListUsersByRoleRow struct {
 	ID          int64
 	Email       string
 	Name        string
-	CompanyID   sql.NullInt64
 	WorkspaceID uuid.NullUUID
 	RoleID      int32
 	IsActive    bool
@@ -425,7 +410,6 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 			&i.ID,
 			&i.Email,
 			&i.Name,
-			&i.CompanyID,
 			&i.WorkspaceID,
 			&i.RoleID,
 			&i.IsActive,
@@ -448,7 +432,7 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 }
 
 const listUsersByWorkspaceID = `-- name: ListUsersByWorkspaceID :many
-SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
@@ -459,7 +443,6 @@ type ListUsersByWorkspaceIDRow struct {
 	ID          int64
 	Email       string
 	Name        string
-	CompanyID   sql.NullInt64
 	WorkspaceID uuid.NullUUID
 	RoleID      int32
 	IsActive    bool
@@ -470,10 +453,6 @@ type ListUsersByWorkspaceIDRow struct {
 }
 
 // ワークスペース単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
-// FRESTYLE-355 段4: company_id 直読み（ListUsersByCompanyID）から切り替え済み。
-// users.workspace_id は company_id からの dual-write（tenant_bridge.go）で埋まる写しだが、
-// 対象データが users 自身であるこの一覧では、他の子テーブル（courses 等）を待たずに
-// workspace_id を絞り込みキーとして使える。
 func (q *Queries) ListUsersByWorkspaceID(ctx context.Context, workspaceID uuid.NullUUID) ([]ListUsersByWorkspaceIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUsersByWorkspaceID, workspaceID)
 	if err != nil {
@@ -487,7 +466,6 @@ func (q *Queries) ListUsersByWorkspaceID(ctx context.Context, workspaceID uuid.N
 			&i.ID,
 			&i.Email,
 			&i.Name,
-			&i.CompanyID,
 			&i.WorkspaceID,
 			&i.RoleID,
 			&i.IsActive,
@@ -581,29 +559,21 @@ func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDPara
 
 const updateUserWorkspaceID = `-- name: UpdateUserWorkspaceID :execrows
 UPDATE users SET
-  company_id = $1,
-  workspace_id = $2
-WHERE id = $3
+  workspace_id = $1
+WHERE id = $2
 `
 
 type UpdateUserWorkspaceIDParams struct {
-	CompanyID   sql.NullInt64
 	WorkspaceID uuid.NullUUID
 	ID          int64
 }
 
-// 所属会社とワークスペースを付け替える（招待の受諾で呼ばれる）。
-//
-// 段5準備（company_id を DROP する前段）: 旧 UpdateUserCompanyID は workspace_id を
-// (SELECT c.workspace_id FROM companies c WHERE c.id = ...) というサブクエリでその場に
-// 求めていた。呼び出し側（招待受諾）は招待行の workspace_id（dual-write 済みで
-// companies への追加参照なしに手元にある）を既に持っているため、それをそのまま渡す形にした。
-// company_id は当面まだ所属の正本（CountMembersByCompany 等の集計がこの列を基準にする）
-// なので、引き続きこの場で一緒に書く。workspace_id はワークスペースが無い会社もあり得るため
-// nullable。
+// 所属ワークスペースを付け替える（招待の受諾で呼ばれる）。呼び出し側（招待受諾）が
+// 招待行の workspace_id を既に持っているため、それをそのまま書く。ワークスペースが
+// 無い会社もあり得るため nullable。
 // 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 func (q *Queries) UpdateUserWorkspaceID(ctx context.Context, arg UpdateUserWorkspaceIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserWorkspaceID, arg.CompanyID, arg.WorkspaceID, arg.ID)
+	result, err := q.db.ExecContext(ctx, updateUserWorkspaceID, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

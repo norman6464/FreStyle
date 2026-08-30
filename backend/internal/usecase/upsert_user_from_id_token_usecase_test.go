@@ -28,14 +28,13 @@ type upsertUserRepoSpy struct {
 	ensuredSubject        string
 	roleUpdateCalls       int
 	roleUpdateErr         error
-	companyUpdateCalls    int
-	companyUpdateErr      error
+	workspaceUpdateCalls  int
+	workspaceUpdateErr    error
 
-	roleUpdateUserID       uint64
-	roleUpdateValue        domain.RoleName
-	companyUpdateUserID    uint64
-	companyUpdateValue     uint64
-	companyUpdateWorkspace *string
+	roleUpdateUserID      uint64
+	roleUpdateValue       domain.RoleName
+	workspaceUpdateUserID uint64
+	workspaceUpdateValue  *string
 
 	// ブートストラップ判定（既存 super_admin の有無）の制御。
 	createFirstSuperAdminCalls int
@@ -99,15 +98,14 @@ func (r *fakeUserInvitationTransactionRunner) WithinTransaction(
 	return err
 }
 
+// upsertWsA / upsertWsB は招待の workspace_id 比較を固定するための 2 つのワークスペース ID。
+const (
+	upsertWsA = "0198a000-0000-7000-8000-0000000000a1"
+	upsertWsB = "0198a000-0000-7000-8000-0000000000a2"
+)
+
 func (s *upsertInvitationRepoSpy) ListAll(
 	_ context.Context,
-) ([]domain.AdminInvitation, error) {
-	return nil, nil
-}
-
-func (s *upsertInvitationRepoSpy) ListByCompanyID(
-	_ context.Context,
-	_ uint64,
 ) ([]domain.AdminInvitation, error) {
 	return nil, nil
 }
@@ -206,15 +204,15 @@ func newUpsertUserFromIDTokenUseCaseWithBootstrap(
 	)
 }
 
-func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAcceptedにする(t *testing.T) {
+func Test_UpsertUserFromIDToken_招待のRoleとワークスペースを適用してAcceptedにする(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        10,
-			Role:      domain.RoleCompanyAdmin,
-			CompanyID: 42,
-			Name:      "Invited User",
-			Status:    domain.InvitationStatusPending,
+			ID:          10,
+			Role:        domain.RoleCompanyAdmin,
+			WorkspaceID: strPtr(upsertWsA),
+			Name:        "Invited User",
+			Status:      domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -243,8 +241,8 @@ func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAccepted�
 			domain.RoleCompanyAdmin,
 		)
 	}
-	if users.created.CompanyID == nil || *users.created.CompanyID != 42 {
-		t.Fatalf("companyID = %v, want 42", users.created.CompanyID)
+	if users.created.WorkspaceID == nil || *users.created.WorkspaceID != upsertWsA {
+		t.Fatalf("workspaceID = %v, want %q", users.created.WorkspaceID, upsertWsA)
 	}
 	if users.created.Name != "Invited User" {
 		t.Fatalf("name = %q, want %q", users.created.Name, "Invited User")
@@ -330,17 +328,15 @@ func (s *upsertUserRepoSpy) UpdateRole(
 func (s *upsertUserRepoSpy) UpdateWorkspaceID(
 	_ context.Context,
 	userID uint64,
-	companyID uint64,
 	workspaceID *string,
 ) error {
-	s.companyUpdateCalls++
-	if s.companyUpdateErr != nil {
-		return s.companyUpdateErr
+	s.workspaceUpdateCalls++
+	if s.workspaceUpdateErr != nil {
+		return s.workspaceUpdateErr
 	}
 
-	s.companyUpdateUserID = userID
-	s.companyUpdateValue = companyID
-	s.companyUpdateWorkspace = workspaceID
+	s.workspaceUpdateUserID = userID
+	s.workspaceUpdateValue = workspaceID
 	return nil
 }
 
@@ -360,7 +356,6 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 		pending: &domain.AdminInvitation{
 			ID:          20,
 			Role:        domain.RoleCompanyAdmin,
-			CompanyID:   42,
 			WorkspaceID: &invWorkspaceID,
 			Status:      domain.InvitationStatusPending,
 		},
@@ -393,16 +388,13 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 			domain.RoleCompanyAdmin,
 		)
 	}
-	if users.companyUpdateUserID != 7 {
-		t.Fatalf("company更新対象ID = %d, want 7", users.companyUpdateUserID)
+	if users.workspaceUpdateUserID != 7 {
+		t.Fatalf("ワークスペース更新対象ID = %d, want 7", users.workspaceUpdateUserID)
 	}
-	if users.companyUpdateValue != 42 {
-		t.Fatalf("更新companyID = %d, want 42", users.companyUpdateValue)
-	}
-	if users.companyUpdateWorkspace == nil || *users.companyUpdateWorkspace != invWorkspaceID {
+	if users.workspaceUpdateValue == nil || *users.workspaceUpdateValue != invWorkspaceID {
 		t.Fatalf(
 			"更新workspaceID = %v, want %q（招待の workspace_id をサブクエリで引き直さずそのまま渡す）",
-			users.companyUpdateWorkspace, invWorkspaceID,
+			users.workspaceUpdateValue, invWorkspaceID,
 		)
 	}
 	if invitations.updatedID != 20 {
@@ -418,7 +410,7 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 }
 
 // 招待ゲートは撤去済み（個人サインアップ）。招待も管理者権限も無い新規ユーザーは
-// 拒否されず、所属会社無しで作られる。
+// 拒否されず、所属ワークスペース無しで作られる。
 func Test_UpsertUserFromIDToken_招待も管理者権限もない新規ユーザーは自己サインアップできる(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, nil)
@@ -442,8 +434,8 @@ func Test_UpsertUserFromIDToken_招待も管理者権限もない新規ユーザ
 	if users.created.Role != domain.RoleTrainee {
 		t.Fatalf("role = %q, want %q", users.created.Role, domain.RoleTrainee)
 	}
-	if users.created.CompanyID != nil {
-		t.Fatalf("companyID = %v, want nil", users.created.CompanyID)
+	if users.created.WorkspaceID != nil {
+		t.Fatalf("workspaceID = %v, want nil", users.created.WorkspaceID)
 	}
 }
 
@@ -695,18 +687,18 @@ func Test_UpsertUserFromIDToken_招待トークンをメールより優先する
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{
 		pendingByToken: &domain.AdminInvitation{
-			ID:        10,
-			Role:      domain.RoleTrainee,
-			CompanyID: 100,
-			Name:      "Token User",
-			Status:    domain.InvitationStatusPending,
+			ID:          10,
+			Role:        domain.RoleTrainee,
+			WorkspaceID: strPtr(upsertWsA),
+			Name:        "Token User",
+			Status:      domain.InvitationStatusPending,
 		},
 		pending: &domain.AdminInvitation{
-			ID:        20,
-			Role:      domain.RoleCompanyAdmin,
-			CompanyID: 200,
-			Name:      "Email User",
-			Status:    domain.InvitationStatusPending,
+			ID:          20,
+			Role:        domain.RoleCompanyAdmin,
+			WorkspaceID: strPtr(upsertWsB),
+			Name:        "Email User",
+			Status:      domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -748,8 +740,8 @@ func Test_UpsertUserFromIDToken_招待トークンをメールより優先する
 			domain.RoleTrainee,
 		)
 	}
-	if users.created.CompanyID == nil || *users.created.CompanyID != 100 {
-		t.Fatalf("companyID = %v, want 100", users.created.CompanyID)
+	if users.created.WorkspaceID == nil || *users.created.WorkspaceID != upsertWsA {
+		t.Fatalf("workspaceID = %v, want %q", users.created.WorkspaceID, upsertWsA)
 	}
 	if users.created.Name != "Token User" {
 		t.Fatalf("name = %q, want %q", users.created.Name, "Token User")
@@ -812,10 +804,9 @@ func Test_UpsertUserFromIDToken_Cognito管理者は招待Roleで降格しない(
 			users := &upsertUserRepoSpy{}
 			invitations := &upsertInvitationRepoSpy{
 				pending: &domain.AdminInvitation{
-					ID:        30,
-					Role:      invitationRole,
-					CompanyID: 42,
-					Status:    domain.InvitationStatusPending,
+					ID:     30,
+					Role:   invitationRole,
+					Status: domain.InvitationStatusPending,
 				},
 			}
 			uc := newUpsertUserFromIDTokenUseCaseForTest(
@@ -871,10 +862,9 @@ func Test_UpsertUserFromIDToken_未対応の招待Roleは適用しない(
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        40,
-			Role:      domain.RoleSuperAdmin,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:     40,
+			Role:   domain.RoleSuperAdmin,
+			Status: domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -911,16 +901,16 @@ func Test_UpsertUserFromIDToken_未対応の招待Roleは適用しない(
 	}
 }
 
-func Test_UpsertUserFromIDToken_招待のCompanyIDが0なら未所属にする(
+func Test_UpsertUserFromIDToken_招待のワークスペースが未設定なら未所属にする(
 	t *testing.T,
 ) {
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        50,
-			Role:      domain.RoleTrainee,
-			CompanyID: 0,
-			Status:    domain.InvitationStatusPending,
+			ID:          50,
+			Role:        domain.RoleTrainee,
+			WorkspaceID: nil,
+			Status:      domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -941,10 +931,10 @@ func Test_UpsertUserFromIDToken_招待のCompanyIDが0なら未所属にする(
 	if users.created == nil {
 		t.Fatal("ユーザーが作成されていない")
 	}
-	if users.created.CompanyID != nil {
+	if users.created.WorkspaceID != nil {
 		t.Fatalf(
-			"companyID = %v, want nil",
-			users.created.CompanyID,
+			"workspaceID = %v, want nil",
+			users.created.WorkspaceID,
 		)
 	}
 }
@@ -964,10 +954,9 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 	}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        60,
-			Role:      domain.RoleTrainee,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:     60,
+			Role:   domain.RoleTrainee,
+			Status: domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -1010,10 +999,9 @@ func Test_UpsertUserFromIDToken_ロール更新に失敗する(t *testing.T) {
 	}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        60,
-			Role:      domain.RoleCompanyAdmin,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:     60,
+			Role:   domain.RoleCompanyAdmin,
+			Status: domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -1040,7 +1028,7 @@ func Test_UpsertUserFromIDToken_ロール更新に失敗する(t *testing.T) {
 	}
 }
 
-func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
+func Test_UpsertUserFromIDToken_ワークスペース更新に失敗する(t *testing.T) {
 	mutationErr := errors.New("mutation failed")
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
@@ -1051,14 +1039,14 @@ func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
 				Role:  domain.RoleTrainee,
 			},
 		},
-		companyUpdateErr: mutationErr,
+		workspaceUpdateErr: mutationErr,
 	}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        60,
-			Role:      domain.RoleTrainee,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:          60,
+			Role:        domain.RoleTrainee,
+			WorkspaceID: strPtr(upsertWsA),
+			Status:      domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -1072,15 +1060,15 @@ func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
 	)
 
 	if user != nil {
-		t.Fatal("会社更新失敗時にユーザーを許可してはいけない")
+		t.Fatal("ワークスペース更新失敗時にユーザーを許可してはいけない")
 	}
 	if !errors.Is(err, mutationErr) {
 		t.Fatalf("error = %v, want wrapped %v", err, mutationErr)
 	}
-	if users.companyUpdateCalls != 1 {
+	if users.workspaceUpdateCalls != 1 {
 		t.Fatalf(
 			"UpdateWorkspaceID calls = %d, want 1",
-			users.companyUpdateCalls,
+			users.workspaceUpdateCalls,
 		)
 	}
 	if invitations.updateCalls != 0 {
@@ -1102,10 +1090,9 @@ func Test_UpsertUserFromIDToken_招待ステータス更新に失敗する(t *te
 	}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        60,
-			Role:      domain.RoleTrainee,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:     60,
+			Role:   domain.RoleTrainee,
+			Status: domain.InvitationStatusPending,
 		},
 		updateErr: mutationErr,
 	}
@@ -1145,10 +1132,10 @@ func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しな�
 	}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        70,
-			Role:      domain.RoleCompanyAdmin,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:          70,
+			Role:        domain.RoleCompanyAdmin,
+			WorkspaceID: strPtr(upsertWsA),
+			Status:      domain.InvitationStatusPending,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
@@ -1175,10 +1162,10 @@ func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しな�
 			users.roleUpdateValue,
 		)
 	}
-	if users.companyUpdateCalls != 0 {
+	if users.workspaceUpdateCalls != 0 {
 		t.Fatalf(
 			"UpdateWorkspaceID calls = %d, want 0",
-			users.companyUpdateCalls,
+			users.workspaceUpdateCalls,
 		)
 	}
 	if invitations.updateCalls != 0 {
@@ -1229,10 +1216,9 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 			users := &upsertUserRepoSpy{}
 			invitations := &upsertInvitationRepoSpy{
 				pending: &domain.AdminInvitation{
-					ID:        70,
-					Role:      domain.RoleTrainee,
-					CompanyID: 42,
-					Status:    domain.InvitationStatusPending,
+					ID:     70,
+					Role:   domain.RoleTrainee,
+					Status: domain.InvitationStatusPending,
 				},
 			}
 			tc.configure(users, invitations)
@@ -1298,10 +1284,9 @@ func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrE
 	users := &upsertUserRepoSpy{createErr: repository.ErrEmailTaken}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        70,
-			Role:      domain.RoleTrainee,
-			CompanyID: 42,
-			Status:    domain.InvitationStatusPending,
+			ID:     70,
+			Role:   domain.RoleTrainee,
+			Status: domain.InvitationStatusPending,
 		},
 	}
 	runner := &fakeUserInvitationTransactionRunner{users: users, invitations: invitations}
@@ -1531,10 +1516,9 @@ func Test_UpsertUserFromIDToken_招待の照会と保存に正規形のメール
 	users := &upsertUserRepoSpy{}
 	invitations := &upsertInvitationRepoSpy{
 		pending: &domain.AdminInvitation{
-			ID:        10,
-			Email:     "Member@Example.com",
-			Role:      domain.RoleCompanyAdmin,
-			CompanyID: 3,
+			ID:    10,
+			Email: "Member@Example.com",
+			Role:  domain.RoleCompanyAdmin,
 		},
 	}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)

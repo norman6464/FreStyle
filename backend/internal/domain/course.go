@@ -45,7 +45,6 @@ func IsValidCourseCategory(c string) bool {
 // trainee は自社の is_published=true のみ閲覧可。並び順は SortOrder（同値時 ID 昇順）。
 type Course struct {
 	ID              uint64 `json:"id"`
-	CompanyID       uint64 `json:"companyId"`
 	CreatedByUserID uint64 `json:"createdByUserId"`
 	Title           string `json:"title"`
 	Description     string `json:"description"`
@@ -54,8 +53,8 @@ type Course struct {
 	// 演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
 	Language  string `json:"language"`
 	SortOrder int    `json:"sortOrder"`
-	// WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-	// 通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。
+	// WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+	// 通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
 	WorkspaceID *string   `json:"workspaceId,omitempty"`
 	IsPublished bool      `json:"isPublished"`
 	CreatedAt   time.Time `json:"createdAt"`

@@ -32,17 +32,8 @@ func limitBody(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDocumentBodyBytes)
 }
 
-// currentCompanyID は current user の会社 ID を返す（未所属/未設定なら nil）。作成時に文書へ写す用。
-// 閲覧側の境界判定は workspace_id で行うため actorWorkspaceFromContext を使う（下記 List/Get）。
-func currentCompanyID(c *gin.Context) *uint64 {
-	if u := middleware.CurrentUserFromContext(c); u != nil {
-		return u.CompanyID
-	}
-	return nil
-}
-
 // currentWorkspaceID は current user の所属ワークスペース ID を返す（未所属/未設定なら nil）。
-// currentCompanyID と対で、作成時に文書へ写す用。
+// 作成時に文書へ写す用。閲覧側の境界判定にも同じ値を使う（下記 List/Get）。
 func currentWorkspaceID(c *gin.Context) *string {
 	if u := middleware.CurrentUserFromContext(c); u != nil {
 		return u.WorkspaceID
@@ -65,7 +56,6 @@ func NewDocumentHandler(
 type documentSummaryResponse struct {
 	ID            string    `json:"id"            example:"31400a07-297e-8057-884b-c05dbdf9fa53"`
 	OwnerID       uint64    `json:"ownerId"       example:"42"`
-	CompanyID     *uint64   `json:"companyId,omitempty" example:"1"`
 	WorkspaceID   *string   `json:"workspaceId,omitempty"`
 	Kind          string    `json:"kind"          example:"note"`
 	Title         string    `json:"title"         example:"学習メモ"`
@@ -80,7 +70,6 @@ func toDocumentSummary(d *domain.RichDocument) documentSummaryResponse {
 	return documentSummaryResponse{
 		ID:            d.ID,
 		OwnerID:       d.OwnerID,
-		CompanyID:     d.CompanyID,
 		WorkspaceID:   d.WorkspaceID,
 		Kind:          string(d.Kind),
 		Title:         d.Title,
@@ -96,7 +85,6 @@ func toDocumentSummary(d *domain.RichDocument) documentSummaryResponse {
 type documentResponse struct {
 	ID            string          `json:"id"            example:"31400a07-297e-8057-884b-c05dbdf9fa53"`
 	OwnerID       uint64          `json:"ownerId"       example:"42"`
-	CompanyID     *uint64         `json:"companyId,omitempty" example:"1"`
 	WorkspaceID   *string         `json:"workspaceId,omitempty"`
 	Kind          string          `json:"kind"          example:"note"`
 	Title         string          `json:"title"         example:"学習メモ"`
@@ -112,7 +100,6 @@ func toDocumentResponse(d *domain.RichDocument) documentResponse {
 	return documentResponse{
 		ID:            d.ID,
 		OwnerID:       d.OwnerID,
-		CompanyID:     d.CompanyID,
 		WorkspaceID:   d.WorkspaceID,
 		Kind:          string(d.Kind),
 		Title:         d.Title,
@@ -220,7 +207,6 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 	}
 	doc, err := h.create.Execute(c.Request.Context(), usecase.CreateRichDocumentInput{
 		OwnerID:       uid,
-		CompanyID:     currentCompanyID(c),
 		WorkspaceID:   currentWorkspaceID(c),
 		Kind:          domain.DocumentKind(req.Kind),
 		Title:         req.Title,

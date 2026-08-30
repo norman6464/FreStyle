@@ -235,9 +235,10 @@ func Test_ログイン_email衝突は409(t *testing.T) {
 // 認証は成功したが upsert が DB 失敗で落ちたケースは 403 ではなく 500（招待拒否と切り分け）。
 func Test_ログイン_upsert内部エラー_500(t *testing.T) {
 	idTok := makeIDToken(t, map[string]any{"sub": "s1", "email": "u@example.com"})
+	upsertErrWorkspaceID := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{createErr: errors.New("db down")}
 	inv := &fakeInvitationRepo{pendingByEmail: map[string]*domain.AdminInvitation{
-		"u@example.com": {ID: 1, Role: domain.RoleTrainee, CompanyID: 1},
+		"u@example.com": {ID: 1, Role: domain.RoleTrainee, WorkspaceID: &upsertErrWorkspaceID},
 	}}
 	h := newTestAuthHandler(users, inv)
 	h.passwordAuth = &fakePasswordAuth{

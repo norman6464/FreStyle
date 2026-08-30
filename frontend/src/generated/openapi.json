@@ -2040,7 +2040,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ ず 404)。",
+                "description": "id の 文書 を 返す。 所有者 か 同一 ワークスペース の 公開 文書 のみ (他 ワークスペース の 文書 や 非公開 は 存在 を 漏らさ ず 404)。",
                 "tags": [
                     "documents"
                 ],
@@ -6704,7 +6704,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。",
+                "description": "backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。",
                 "tags": [
                     "teaching-materials"
                 ],
@@ -7313,6 +7313,10 @@
                     },
                     "status": {
                         "type": "string"
+                    },
+                    "workspaceId": {
+                        "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。",
+                        "type": "string"
                     }
                 }
             },
@@ -7414,6 +7418,10 @@
                         "type": "string"
                     },
                     "updatedAt": {
+                        "type": "string"
+                    },
+                    "workspaceId": {
+                        "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。",
                         "type": "string"
                     }
                 }
@@ -7716,6 +7724,10 @@
                     },
                     "updatedAt": {
                         "type": "string"
+                    },
+                    "workspaceId": {
+                        "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。",
+                        "type": "string"
                     }
                 }
             },
@@ -7940,6 +7952,10 @@
                     },
                     "updatedAt": {
                         "type": "string"
+                    },
+                    "workspaceId": {
+                        "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする（FRESTYLE-402）。",
+                        "type": "string"
                     }
                 }
             },
@@ -8112,6 +8128,10 @@
                         "type": "string"
                     },
                     "updatedAt": {
+                        "type": "string"
+                    },
+                    "workspaceId": {
+                        "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-403）。",
                         "type": "string"
                     }
                 }
@@ -8297,6 +8317,9 @@
                     },
                     "updatedAt": {
                         "type": "string"
+                    },
+                    "workspaceId": {
+                        "type": "string"
                     }
                 }
             },
@@ -8339,6 +8362,9 @@
                         "example": "学習メモ"
                     },
                     "updatedAt": {
+                        "type": "string"
+                    },
+                    "workspaceId": {
                         "type": "string"
                     }
                 }
@@ -8429,6 +8455,10 @@
                     "role": {
                         "type": "string",
                         "example": "trainee"
+                    },
+                    "workspaceId": {
+                        "type": "string",
+                        "example": "0198a000-0000-7000-8000-000000000001"
                     }
                 }
             },
@@ -9066,6 +9096,10 @@
                     },
                     "updatedAt": {
                         "type": "string"
+                    },
+                    "workspaceId": {
+                        "type": "string",
+                        "example": "0198a000-0000-7000-8000-000000000001"
                     }
                 }
             },

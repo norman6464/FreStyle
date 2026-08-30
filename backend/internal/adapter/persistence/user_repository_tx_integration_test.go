@@ -34,14 +34,6 @@ func userUpdatedAt(t *testing.T, db *sql.DB, id uint64) time.Time {
 	return ts
 }
 
-// setUserWorkspaceID はテスト用に users.workspace_id を直接書く。本番では tenant_bridge.go の
-// 起動時バックフィルが company_id から埋める列で、repository に書き込み口を持たせていない。
-func setUserWorkspaceID(t *testing.T, db *sql.DB, userID uint64, workspaceID string) {
-	t.Helper()
-	_, err := db.Exec(`UPDATE users SET workspace_id = $2 WHERE id = $1`, userID, workspaceID)
-	require.NoError(t, err)
-}
-
 // countActiveSuperAdmins は論理削除されていない super_admin の人数を返す。
 func countActiveSuperAdmins(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
@@ -197,14 +189,14 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 		require.Equal(t, int64(0), n)
 	})
 
-	t.Run("会社に属していれば所属先ワークスペースが書かれる", func(t *testing.T) {
+	t.Run("所属ワークスペースを渡せばそのまま書かれる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
-		cid := uint64(1)
-		u := &domain.User{Email: "boot-ws@example.com", Name: "運営", Role: domain.RoleSuperAdmin, CompanyID: &cid}
+		ws1Str := ws1.UUID.String()
+		u := &domain.User{Email: "boot-ws@example.com", Name: "運営", Role: domain.RoleSuperAdmin, WorkspaceID: &ws1Str}
 		created, err := repo.CreateFirstSuperAdminWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "boot-ws")
 		require.NoError(t, err)
 		require.True(t, created)
@@ -310,22 +302,14 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 
 	t.Run("ListByWorkspaceID はワークスペースで絞り id 昇順・論理削除を除く", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		insertCompany(t, sqlDB, 2, "会社 B", true)
 		ws1 := createWorkspace(t, sqlDB, "list-by-workspace-a")
 		ws2 := createWorkspace(t, sqlDB, "list-by-workspace-b")
-		c1, c2 := uint64(1), uint64(2)
-		a := &domain.User{Email: "m1@example.com", Name: "m1", Role: domain.RoleTrainee, CompanyID: &c1}
-		b := &domain.User{Email: "m2@example.com", Name: "m2", Role: domain.RoleTrainee, CompanyID: &c1}
-		other := &domain.User{Email: "m3@example.com", Name: "m3", Role: domain.RoleTrainee, CompanyID: &c2}
+		a := &domain.User{Email: "m1@example.com", Name: "m1", Role: domain.RoleTrainee, WorkspaceID: &ws1}
+		b := &domain.User{Email: "m2@example.com", Name: "m2", Role: domain.RoleTrainee, WorkspaceID: &ws1}
+		other := &domain.User{Email: "m3@example.com", Name: "m3", Role: domain.RoleTrainee, WorkspaceID: &ws2}
 		for _, u := range []*domain.User{a, b, other} {
 			require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, u.Name))
 		}
-		// workspace_id は company_id からの起動時バックフィル（tenant_bridge.go）で埋まる写しだが、
-		// このテストは ListByWorkspaceID 自体の絞り込みだけを見るため、バックフィル後の状態を直接作る。
-		setUserWorkspaceID(t, sqlDB, a.ID, ws1)
-		setUserWorkspaceID(t, sqlDB, b.ID, ws1)
-		setUserWorkspaceID(t, sqlDB, other.ID, ws2)
 
 		rows, err := repo.ListByWorkspaceID(ctx, ws1)
 		require.NoError(t, err)

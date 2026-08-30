@@ -142,8 +142,8 @@ func kbInsertUser(t *testing.T, db *sql.DB, name string) uint64 {
 }
 
 // kbInsertCompanyWithWorkspace は companies に 1 行入れ、workspace_id を明示して返す。
-// 所属先ワークスペースの解決（users.company_id → companies.workspace_id）を
-// 結合テストで再現するための最小構成（本番は tenant_bridge の起動時バックフィルが埋める）。
+// 会社とワークスペースの 1 : 1 の紐付け（companies.workspace_id）を結合テストで
+// 再現するための最小構成（本番は起動時のバックフィルが埋める）。
 func kbInsertCompanyWithWorkspace(t *testing.T, db *sql.DB, name, workspaceID string) uint64 {
 	t.Helper()
 	var id uint64

@@ -7,6 +7,8 @@ package sqlcgen
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const getCompanyByID = `-- name: GetCompanyByID :one
@@ -17,6 +19,28 @@ WHERE id = $1
 // ID で企業を 1 件取得。
 func (q *Queries) GetCompanyByID(ctx context.Context, id int64) (Company, error) {
 	row := q.db.QueryRowContext(ctx, getCompanyByID, id)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+	)
+	return i, err
+}
+
+const getCompanyByWorkspaceID = `-- name: GetCompanyByWorkspaceID :one
+SELECT id, name, is_active, created_at, updated_at, workspace_id FROM companies
+WHERE workspace_id = $1
+`
+
+// workspace_id で企業を 1 件取得。uq_companies_workspace_id（部分 UNIQUE）で 1:1 なので最大 1 行。
+// 招待受諾画面が「どの会社への招待か」を表示するために使う（invitations は company_id を
+// 持たず workspace_id だけを持つため、会社名はこの経路で引く）。
+func (q *Queries) GetCompanyByWorkspaceID(ctx context.Context, workspaceID uuid.NullUUID) (Company, error) {
+	row := q.db.QueryRowContext(ctx, getCompanyByWorkspaceID, workspaceID)
 	var i Company
 	err := row.Scan(
 		&i.ID,

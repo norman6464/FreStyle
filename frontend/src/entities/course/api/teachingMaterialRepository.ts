@@ -8,7 +8,7 @@ import type { TeachingMaterial } from '../model/types';
  *
  * 一覧取得はコース配下なので CourseRepository.listMaterials を使う。
  * actor の role / company は backend 側で context から取り出して自動フィルタするため、
- * フロントは companyId を渡さない（IDOR 対策）。
+ * フロントは workspaceId を渡さない（IDOR 対策）。
  */
 export interface TeachingMaterialCreatePayload {
   /** 所属コース ID（必須）。 */

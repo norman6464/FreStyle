@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,7 +20,7 @@ import (
 // list 系のテストで「どのメソッドが呼ばれたか」を確認するため calledWith を記録する。
 type fakeAdminInvRepo struct {
 	all         []domain.AdminInvitation
-	company     []domain.AdminInvitation
+	workspace   []domain.AdminInvitation
 	called      string
 	workspaceID string
 }
@@ -29,15 +30,10 @@ func (r *fakeAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation,
 	return r.all, nil
 }
 
-func (r *fakeAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
-	r.called = "company"
-	return r.company, nil
-}
-
 func (r *fakeAdminInvRepo) ListByWorkspaceID(_ context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
 	r.called = "workspace"
 	r.workspaceID = workspaceID
-	return r.company, nil
+	return r.workspace, nil
 }
 func (r *fakeAdminInvRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
 func (r *fakeAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error  { return nil }
@@ -62,11 +58,35 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
+// invWorkspaceOf はテスト内での「会社 ID → 対応ワークスペース ID」の決まり
+// （companies 1 : 1 workspaces）。invitations は workspace_id しか持たないため、
+// 会社 ID で受けた入力は必ずこの対応でワークスペースへ読み替えられる。
+func invWorkspaceOf(companyID uint64) string {
+	return fmt.Sprintf("0198a000-0000-7000-8000-%012d", companyID)
+}
+
+// fakeInvCompanyRepo は「会社 → 対応ワークスペース」の読み替えだけを担う最小 fake。
+// どの会社もワークスペースに紐付いている前提（invWorkspaceOf）で答える。
+type fakeInvCompanyRepo struct{}
+
+func (r *fakeInvCompanyRepo) ListAll(context.Context) ([]domain.Company, error) { return nil, nil }
+
+func (r *fakeInvCompanyRepo) FindByID(_ context.Context, id uint64) (*domain.Company, error) {
+	wid := invWorkspaceOf(id)
+	return &domain.Company{ID: id, WorkspaceID: &wid}, nil
+}
+
+func (r *fakeInvCompanyRepo) FindByWorkspaceID(_ context.Context, workspaceID string) (*domain.Company, error) {
+	return &domain.Company{ID: 1, WorkspaceID: &workspaceID}, nil
+}
+
+func (r *fakeInvCompanyRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
+
 // newTestHandler は List handler をテストするための薄い harness。
 // CurrentUser middleware の代わりに context に *domain.User を直接 set する。
 func newTestHandler(repo *fakeAdminInvRepo, currentUser *domain.User) (*AdminInvitationHandler, *gin.Engine) {
 	h := NewAdminInvitationHandler(
-		usecase.NewListAdminInvitationsUseCase(repo),
+		usecase.NewListAdminInvitationsUseCase(repo, &fakeInvCompanyRepo{}),
 		nil,
 		nil,
 		nil,
@@ -83,8 +103,8 @@ func newTestHandler(repo *fakeAdminInvRepo, currentUser *domain.User) (*AdminInv
 
 func Test_招待ハンドラ_一覧_運営管理者_全件(t *testing.T) {
 	repo := &fakeAdminInvRepo{
-		all:     []domain.AdminInvitation{{ID: 1}, {ID: 2}},
-		company: []domain.AdminInvitation{{ID: 99}},
+		all:       []domain.AdminInvitation{{ID: 1}, {ID: 2}},
+		workspace: []domain.AdminInvitation{{ID: 99}},
 	}
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
 
@@ -105,8 +125,10 @@ func Test_招待ハンドラ_一覧_運営管理者_全件(t *testing.T) {
 	}
 }
 
+// ?companyId= は API の入口の語彙。invitations は workspace_id しか持たないので、
+// 会社に対応するワークスペースへ読み替えて引かれることを確かめる。
 func Test_招待ハンドラ_一覧_運営管理者_会社IDクエリ付き(t *testing.T) {
-	repo := &fakeAdminInvRepo{company: []domain.AdminInvitation{{ID: 99}}}
+	repo := &fakeAdminInvRepo{workspace: []domain.AdminInvitation{{ID: 99}}}
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/invitations?companyId=42", nil)
@@ -116,16 +138,18 @@ func Test_招待ハンドラ_一覧_運営管理者_会社IDクエリ付き(t *t
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
-	if repo.called != "company" {
-		t.Fatalf("expected ListByCompanyID, got %q", repo.called)
+	if repo.called != "workspace" {
+		t.Fatalf("expected ListByWorkspaceID, got %q", repo.called)
+	}
+	if want := invWorkspaceOf(42); repo.workspaceID != want {
+		t.Fatalf("expected workspaceID %q to be delegated, got %q", want, repo.workspaceID)
 	}
 }
 
 func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(t *testing.T) {
-	repo := &fakeAdminInvRepo{company: []domain.AdminInvitation{{ID: 7}}}
-	cid := uint64(123)
-	wid := "0198a000-0000-7000-8000-0000000000c1"
-	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: &wid})
+	repo := &fakeAdminInvRepo{workspace: []domain.AdminInvitation{{ID: 7}}}
+	wid := invWorkspaceOf(123)
+	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/invitations", nil)
 	w := httptest.NewRecorder()
@@ -142,7 +166,7 @@ func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(
 	}
 }
 
-func Test_招待ハンドラ_一覧_会社管理者_会社IDなしは禁止(t *testing.T) {
+func Test_招待ハンドラ_一覧_会社管理者_ワークスペース未所属は禁止(t *testing.T) {
 	repo := &fakeAdminInvRepo{}
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: nil})
 
@@ -225,13 +249,14 @@ func (f *fakeTempPasswordCreator) CreateWithTemporaryPassword(_ context.Context,
 }
 
 func newTestCreateHandlerWithTemp(repo *fakeAdminInvRepoWithCreate, currentUser *domain.User, creator usecase.TemporaryPasswordCreator) *gin.Engine {
+	companies := &fakeInvCompanyRepo{}
 	var tempUC *usecase.CreateTemporaryPasswordInvitationUseCase
 	if creator != nil {
-		tempUC = usecase.NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+		tempUC = usecase.NewCreateTemporaryPasswordInvitationUseCase(repo, companies, creator)
 	}
 	h := NewAdminInvitationHandler(
-		usecase.NewListAdminInvitationsUseCase(repo),
-		usecase.NewCreateAdminInvitationUseCase(repo, nil, nil, nil),
+		usecase.NewListAdminInvitationsUseCase(repo, companies),
+		usecase.NewCreateAdminInvitationUseCase(repo, companies, nil, nil, nil),
 		tempUC,
 		usecase.NewCancelAdminInvitationUseCase(repo),
 	)
@@ -287,24 +312,24 @@ func Test_招待ハンドラ_作成_運営管理者_trainee_禁止(t *testing.T)
 
 func Test_招待ハンドラ_作成_会社管理者_trainee_正常系かつ自社に強制(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
-	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+	wid := invWorkspaceOf(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid})
 
-	// 別の company_id を指定しても、handler 側で自社に上書きされること
+	// 別の会社を指定しても、handler 側で actor 自身の所属ワークスペースに上書きされること
 	w := postJSON(t, r, `{"companyId":999,"email":"t@b","role":"trainee"}`)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
 	}
-	if repo.lastCreate == nil || repo.lastCreate.CompanyID != cid {
-		t.Errorf("expected companyID forced to %d, got %+v", cid, repo.lastCreate)
+	if repo.lastCreate == nil || repo.lastCreate.WorkspaceID == nil || *repo.lastCreate.WorkspaceID != wid {
+		t.Errorf("expected workspaceID forced to %q, got %+v", wid, repo.lastCreate)
 	}
 }
 
 func Test_招待ハンドラ_作成_会社管理者_会社管理者_禁止(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
-	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+	wid := invWorkspaceOf(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid})
 
 	w := postJSON(t, r, `{"companyId":42,"email":"a@b","role":"company_admin"}`)
 
@@ -340,9 +365,9 @@ func Test_招待ハンドラ_作成_未認証(t *testing.T) {
 
 func Test_招待ハンドラ_初期パスワード方式_成功で一時パスワードを返す(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
+	wid := invWorkspaceOf(42)
 	creator := &fakeTempPasswordCreator{pw: "Temp-Pass-9!"}
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid}, creator)
+	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, creator)
 
 	w := postJSON(t, r, `{"companyId":42,"email":"np@b","role":"trainee","method":"temporary_password"}`)
 
@@ -366,16 +391,17 @@ func Test_招待ハンドラ_初期パスワード方式_成功で一時パス�
 		t.Errorf("creator got email %q", creator.gotEmail)
 	}
 	// 招待行も pending で作られる（ログイン時の招待ゲート用）。
-	if repo.lastCreate == nil || repo.lastCreate.Role != domain.RoleTrainee || repo.lastCreate.CompanyID != cid {
+	if repo.lastCreate == nil || repo.lastCreate.Role != domain.RoleTrainee ||
+		repo.lastCreate.WorkspaceID == nil || *repo.lastCreate.WorkspaceID != wid {
 		t.Errorf("invitation row not created correctly: %+v", repo.lastCreate)
 	}
 }
 
 func Test_招待ハンドラ_初期パスワード方式_未構成なら400(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
+	wid := invWorkspaceOf(42)
 	// creator=nil → tempCreate usecase が nil → 未構成。usecase の ErrUnavailable と同じ 400。
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid}, nil)
+	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, nil)
 
 	w := postJSON(t, r, `{"companyId":42,"email":"np@b","role":"trainee","method":"temporary_password"}`)
 
@@ -389,9 +415,9 @@ func Test_招待ハンドラ_初期パスワード方式_未構成なら400(t *t
 
 func Test_招待ハンドラ_初期パスワード方式_既存ユーザーは409(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
+	wid := invWorkspaceOf(42)
 	creator := &fakeTempPasswordCreator{err: cognito.ErrUserAlreadyExists}
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid}, creator)
+	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, creator)
 
 	w := postJSON(t, r, `{"companyId":42,"email":"dup@b","role":"trainee","method":"temporary_password"}`)
 
@@ -405,9 +431,9 @@ func Test_招待ハンドラ_初期パスワード方式_既存ユーザーは40
 
 func Test_招待ハンドラ_初期パスワード方式もSoDを守る(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
+	wid := invWorkspaceOf(42)
 	creator := &fakeTempPasswordCreator{pw: "x"}
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid}, creator)
+	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, creator)
 
 	// company_admin が company_admin を初期パスワードで招待 → 方式に関わらず 403。
 	w := postJSON(t, r, `{"companyId":42,"email":"a@b","role":"company_admin","method":"temporary_password"}`)
@@ -422,8 +448,8 @@ func Test_招待ハンドラ_初期パスワード方式もSoDを守る(t *testi
 
 func Test_招待ハンドラ_未知のmethodは400(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
-	cid := uint64(42)
-	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+	wid := invWorkspaceOf(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid})
 
 	w := postJSON(t, r, `{"companyId":42,"email":"t@b","role":"trainee","method":"bogus"}`)
 

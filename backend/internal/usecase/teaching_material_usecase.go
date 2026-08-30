@@ -69,9 +69,8 @@ func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id uint64, actorWork
 }
 
 // canRead は対象教材を actorWorkspace が閲覧できるかを判定する。
-// FRESTYLE-403（段4横展開）: 対象教材・所属コースとの比較を company_id 直読みから
-// workspace_id 経由へ切り替え済み（courses.workspace_id / course_chapters.workspace_id の
-// 起動時バックフィル + dual-write の前提は FRESTYLE-402 と同じ）。
+// courses.workspace_id / course_chapters.workspace_id は起動時バックフィルと
+// 作成時の書き込みにより、リクエストを捌く時点で必ず埋まっている。
 func canRead(m *domain.TeachingMaterial, course *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
 	if !materialBelongsToWorkspace(m, actorWorkspace, actorRole) {
 		return false
@@ -115,7 +114,7 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 	}
 	// 教材はコース（= ワークスペース）配下に作るため、未所属の actor は super_admin でも作成できない。
 	if _, affiliated := in.ActorWorkspace.WorkspaceID(); !affiliated {
-		return nil, fmt.Errorf("actor must belong to a company")
+		return nil, fmt.Errorf("actor must belong to a workspace")
 	}
 	if in.CourseID == 0 {
 		return nil, fmt.Errorf("course_id is required")
@@ -128,7 +127,6 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 		return nil, fmt.Errorf("forbidden")
 	}
 	m := &domain.TeachingMaterial{
-		CompanyID:       course.CompanyID,
 		CourseID:        in.CourseID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,

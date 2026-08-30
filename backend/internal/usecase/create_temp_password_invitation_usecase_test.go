@@ -26,7 +26,7 @@ func (s *stubTempCreator) CreateWithTemporaryPassword(_ context.Context, email, 
 func Test_初期パスワード招待_成功で行と一時パスワードを返す(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	creator := &stubTempCreator{pw: "Temp-1!"}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
 
 	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 42, Email: "np@example.com", Role: domain.RoleTrainee, Name: "山田",
@@ -40,7 +40,8 @@ func Test_初期パスワード招待_成功で行と一時パスワードを返
 	if out.Invitation == nil || out.Invitation.Status != domain.InvitationStatusPending {
 		t.Errorf("invitation not pending: %+v", out.Invitation)
 	}
-	if repo.created == nil || repo.created.Role != domain.RoleTrainee || repo.created.CompanyID != 42 {
+	if repo.created == nil || repo.created.Role != domain.RoleTrainee ||
+		repo.created.WorkspaceID == nil || *repo.created.WorkspaceID != invWsB {
 		t.Errorf("invitation row wrong: %+v", repo.created)
 	}
 	if creator.gotEmail != "np@example.com" || creator.gotName != "山田" {
@@ -54,7 +55,7 @@ func Test_初期パスワード招待_成功で行と一時パスワードを返
 func Test_初期パスワード招待_emailを正規形に畳んで保存する(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	creator := &stubTempCreator{pw: "Temp-1!"}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
 
 	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 42, Email: "  NP@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
@@ -71,7 +72,7 @@ func Test_初期パスワード招待_emailを正規形に畳んで保存する(
 }
 
 func Test_初期パスワード招待_cognito未構成はErrUnavailable(t *testing.T) {
-	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, nil)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, newStubCompanyRepo(), nil)
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 1, Email: "a@b", Role: domain.RoleTrainee,
 	})
@@ -83,7 +84,7 @@ func Test_初期パスワード招待_cognito未構成はErrUnavailable(t *testi
 func Test_初期パスワード招待_既存ユーザーエラーは伝播(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	creator := &stubTempCreator{err: cognito.ErrUserAlreadyExists}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
 
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 1, Email: "dup@b", Role: domain.RoleTrainee,
@@ -101,7 +102,7 @@ func Test_初期パスワード招待_既存ユーザーエラーは伝播(t *te
 }
 
 func Test_初期パスワード招待_必須項目チェック(t *testing.T) {
-	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, &stubTempCreator{})
+	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, newStubCompanyRepo(), &stubTempCreator{})
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{Email: "a@b", Role: domain.RoleTrainee})
 	if err == nil {
 		t.Fatal("companyID=0 はエラーであるべき")
@@ -111,7 +112,7 @@ func Test_初期パスワード招待_必須項目チェック(t *testing.T) {
 func Test_初期パスワード招待_Cognito成功後のDB失敗はエラーで招待行を返さない(t *testing.T) {
 	repo := &stubAdminInvRepo{createErr: errors.New("db down")}
 	creator := &stubTempCreator{pw: "Temp-1!"}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
 
 	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 1, Email: "np@example.com", Role: domain.RoleTrainee,

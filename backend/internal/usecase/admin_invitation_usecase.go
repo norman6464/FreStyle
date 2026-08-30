@@ -14,7 +14,9 @@ import (
 
 // ListAdminInvitationsUseCase は招待一覧を取得する。
 //
-//naminglint:allow 全社横断 ListAll と自社 ListByCompanyID の 2 系統を公開する集約 read usecase
+// ListByWorkspaceID の 3 系統を公開する集約 read usecase
+//
+//naminglint:allow 全社横断 ListAll・SuperAdmin 用 ListByCompanyID・CompanyAdmin 用
 type ListAdminInvitationsUseCase struct {
 	repo repository.AdminInvitationRepository
 }
@@ -28,12 +30,22 @@ func (u *ListAdminInvitationsUseCase) ListAll(ctx context.Context) ([]domain.Adm
 	return u.repo.ListAll(ctx)
 }
 
-// ListByCompanyID は指定 company の招待一覧を返す。CompanyAdmin が自社のみを見る用。
+// ListByCompanyID は指定 company の招待一覧を返す。SuperAdmin が ?companyId= で
+// 任意の会社を指定するときに使う。
 func (u *ListAdminInvitationsUseCase) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
 	if companyID == 0 {
 		return nil, errors.New("companyID is required")
 	}
 	return u.repo.ListByCompanyID(ctx, companyID)
+}
+
+// ListByWorkspaceID は指定ワークスペースの招待一覧を返す。CompanyAdmin が自社のみを
+// 見る用（FRESTYLE-401 段4横展開: company_id 直読みから workspace_id 経由へ切り替え済み）。
+func (u *ListAdminInvitationsUseCase) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	return u.repo.ListByWorkspaceID(ctx, workspaceID)
 }
 
 // MagicLinkSender は invitation メール送信の抽象（infra/ses.Client が満たす）。

@@ -18,9 +18,10 @@ import (
 // fakeAdminInvRepo は AdminInvitationRepository の最小スタブ。
 // list 系のテストで「どのメソッドが呼ばれたか」を確認するため calledWith を記録する。
 type fakeAdminInvRepo struct {
-	all     []domain.AdminInvitation
-	company []domain.AdminInvitation
-	called  string
+	all         []domain.AdminInvitation
+	company     []domain.AdminInvitation
+	called      string
+	workspaceID string
 }
 
 func (r *fakeAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
@@ -30,6 +31,12 @@ func (r *fakeAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation,
 
 func (r *fakeAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
 	r.called = "company"
+	return r.company, nil
+}
+
+func (r *fakeAdminInvRepo) ListByWorkspaceID(_ context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
+	r.called = "workspace"
+	r.workspaceID = workspaceID
 	return r.company, nil
 }
 func (r *fakeAdminInvRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
@@ -117,7 +124,8 @@ func Test_招待ハンドラ_一覧_運営管理者_会社IDクエリ付き(t *t
 func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(t *testing.T) {
 	repo := &fakeAdminInvRepo{company: []domain.AdminInvitation{{ID: 7}}}
 	cid := uint64(123)
-	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+	wid := "0198a000-0000-7000-8000-0000000000c1"
+	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: &wid})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/invitations", nil)
 	w := httptest.NewRecorder()
@@ -126,14 +134,17 @@ func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
-	if repo.called != "company" {
-		t.Fatalf("expected ListByCompanyID, got %q", repo.called)
+	if repo.called != "workspace" {
+		t.Fatalf("expected ListByWorkspaceID, got %q", repo.called)
+	}
+	if repo.workspaceID != wid {
+		t.Fatalf("expected workspaceID %q to be delegated, got %q", wid, repo.workspaceID)
 	}
 }
 
 func Test_招待ハンドラ_一覧_会社管理者_会社IDなしは禁止(t *testing.T) {
 	repo := &fakeAdminInvRepo{}
-	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: nil})
+	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: nil})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/invitations", nil)
 	w := httptest.NewRecorder()

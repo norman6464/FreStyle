@@ -73,6 +73,25 @@ func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, company
 	return toDomainAdminInvitations(out), nil
 }
 
+func (r *adminInvitationRepository) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
+	wid, ok := toNullUUID(workspaceID)
+	if !ok {
+		return []domain.AdminInvitation{}, nil // 不正 / 空の ID は該当なしと同じ扱い
+	}
+	rows, err := sqlcgen.New(r.db).ListPendingInvitationsByWorkspace(ctx, sqlcgen.ListPendingInvitationsByWorkspaceParams{
+		WorkspaceID: wid,
+		Status:      domain.InvitationStatusPending,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]invitationRow, len(rows))
+	for i, row := range rows {
+		out[i] = invitationRow(row)
+	}
+	return toDomainAdminInvitations(out), nil
+}
+
 func toDomainAdminInvitations(rows []invitationRow) []domain.AdminInvitation {
 	out := make([]domain.AdminInvitation, 0, len(rows))
 	for _, row := range rows {

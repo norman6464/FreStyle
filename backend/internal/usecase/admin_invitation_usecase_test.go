@@ -32,6 +32,11 @@ func (s *stubAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) 
 	return s.rows, s.err
 }
 
+func (s *stubAdminInvRepo) ListByWorkspaceID(_ context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
+	s.calledWith = "workspace:" + workspaceID
+	return s.rows, s.err
+}
+
 func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation) error {
 	if s.createErr != nil {
 		return s.createErr
@@ -118,6 +123,41 @@ func Test_招待一覧_会社ID指定_リポジトリへ委譲(t *testing.T) {
 	}
 	if repo.calledWith != "company:42" {
 		t.Fatalf("expected company:42 query, got %q", repo.calledWith)
+	}
+}
+
+func Test_招待一覧_ワークスペース指定_ワークスペースIDが必須(t *testing.T) {
+	uc := NewListAdminInvitationsUseCase(&stubAdminInvRepo{})
+	if _, err := uc.ListByWorkspaceID(context.Background(), ""); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func Test_招待一覧_ワークスペース指定_リポジトリへ委譲(t *testing.T) {
+	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 1}}}
+	uc := NewListAdminInvitationsUseCase(repo)
+	got, err := uc.ListByWorkspaceID(context.Background(), "0198a000-0000-7000-8000-0000000000c1")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != 1 {
+		t.Fatalf("unexpected rows: %+v", got)
+	}
+	if repo.calledWith != "workspace:0198a000-0000-7000-8000-0000000000c1" {
+		t.Fatalf("expected workspace query, got %q", repo.calledWith)
+	}
+}
+
+func Test_招待一覧_ワークスペース指定_リポジトリエラーを伝播する(t *testing.T) {
+	wantErr := errors.New("db down")
+	repo := &stubAdminInvRepo{err: wantErr}
+	uc := NewListAdminInvitationsUseCase(repo)
+	got, err := uc.ListByWorkspaceID(context.Background(), "0198a000-0000-7000-8000-0000000000c1")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected repo error to propagate, got %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil rows on error, got %+v", got)
 	}
 }
 

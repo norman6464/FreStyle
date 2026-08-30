@@ -15,32 +15,17 @@ import (
 )
 
 const getRichDocumentByID = `-- name: GetRichDocumentByID :one
-SELECT id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at
+SELECT id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
 FROM rich_documents
 WHERE id = $1 AND deleted_at IS NULL
 `
 
-type GetRichDocumentByIDRow struct {
-	ID            uuid.UUID
-	OwnerID       int64
-	CompanyID     sql.NullInt64
-	Kind          string
-	Title         string
-	IsPublic      bool
-	SchemaVersion int64
-	Doc           json.RawMessage
-	Revision      int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-}
-
 // ID で 1 件引く（論理削除は除外）。無ければ sql.ErrNoRows。
 // 誰が読めるか（テナント境界）は domain.RichDocument.CanBeReadBy が決めるので、ここでは
 // 可視性条件を足さない（SQL 側へ写経すると片方だけ直したときに食い違う）。
-func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (GetRichDocumentByIDRow, error) {
+func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (RichDocument, error) {
 	row := q.db.QueryRowContext(ctx, getRichDocumentByID, id)
-	var i GetRichDocumentByIDRow
+	var i RichDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -54,6 +39,7 @@ func (q *Queries) GetRichDocumentByID(ctx context.Context, id uuid.UUID) (GetRic
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -132,7 +118,7 @@ func (q *Queries) InsertRichDocument(ctx context.Context, arg InsertRichDocument
 }
 
 const listRichDocumentsByOwner = `-- name: ListRichDocumentsByOwner :many
-SELECT id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at
+SELECT id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at, workspace_id
 FROM rich_documents
 WHERE owner_id = $1
   AND deleted_at IS NULL
@@ -156,6 +142,7 @@ type ListRichDocumentsByOwnerRow struct {
 	Revision      int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	WorkspaceID   uuid.NullUUID
 }
 
 // owner の文書を更新日降順（同時刻は id 降順）で返す（論理削除は除外）。
@@ -180,6 +167,7 @@ func (q *Queries) ListRichDocumentsByOwner(ctx context.Context, arg ListRichDocu
 			&i.Revision,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -223,7 +211,7 @@ UPDATE rich_documents SET
   revision       = revision + 1,
   updated_at     = now()
 WHERE id = $5 AND revision = $6 AND deleted_at IS NULL
-RETURNING id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at
+RETURNING id, owner_id, company_id, kind, title, is_public, schema_version, doc, revision, created_at, updated_at, deleted_at, workspace_id
 `
 
 type UpdateRichDocumentWithRevisionParams struct {
@@ -235,25 +223,10 @@ type UpdateRichDocumentWithRevisionParams struct {
 	ExpectedRevision int64
 }
 
-type UpdateRichDocumentWithRevisionRow struct {
-	ID            uuid.UUID
-	OwnerID       int64
-	CompanyID     sql.NullInt64
-	Kind          string
-	Title         string
-	IsPublic      bool
-	SchemaVersion int64
-	Doc           json.RawMessage
-	Revision      int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-}
-
 // 楽観ロック付き更新。expected_revision が現在値と一致し論理削除されていない行だけを更新し、
 // revision を +1・updated_at を now() へ進める。0 行なら sql.ErrNoRows（呼び出し側が存在確認で
 // 404 / 409 を切り分ける）。RETURNING で更新後の行全体を返し struct に反映する。
-func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg UpdateRichDocumentWithRevisionParams) (UpdateRichDocumentWithRevisionRow, error) {
+func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg UpdateRichDocumentWithRevisionParams) (RichDocument, error) {
 	row := q.db.QueryRowContext(ctx, updateRichDocumentWithRevision,
 		arg.Title,
 		arg.IsPublic,
@@ -262,7 +235,7 @@ func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg Update
 		arg.ID,
 		arg.ExpectedRevision,
 	)
-	var i UpdateRichDocumentWithRevisionRow
+	var i RichDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -276,6 +249,7 @@ func (q *Queries) UpdateRichDocumentWithRevision(ctx context.Context, arg Update
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }

@@ -1618,7 +1618,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ ず 404)。",
+                "description": "id の 文書 を 返す。 所有者 か 同一 ワークスペース の 公開 文書 のみ (他 ワークスペース の 文書 や 非公開 は 存在 を 漏らさ ず 404)。",
                 "produces": [
                     "application/json"
                 ],
@@ -6762,6 +6762,9 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "workspaceId": {
+                    "type": "string"
                 }
             }
         },
@@ -6804,6 +6807,9 @@ const docTemplate = `{
                     "example": "学習メモ"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
                     "type": "string"
                 }
             }

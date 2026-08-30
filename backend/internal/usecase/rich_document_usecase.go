@@ -116,13 +116,13 @@ func NewGetRichDocumentUseCase(r repository.RichDocumentRepository) *GetRichDocu
 
 // Execute は id の文書を返す。閲覧可否の規則は domain.RichDocument.CanBeReadBy が唯一持ち、
 // ここでは条件を写経しない（SQL 側にも書かない）。閲覧できない場合は存在を漏らさないため
-// ErrRichDocumentNotFound を返す。viewerID=0 は未認証、viewerCompany は閲覧者の所属会社。
-func (u *GetRichDocumentUseCase) Execute(ctx context.Context, id string, viewerID uint64, viewerCompany domain.CompanyRef) (*domain.RichDocument, error) {
+// ErrRichDocumentNotFound を返す。viewerID=0 は未認証、viewerWorkspace は閲覧者の所属ワークスペース。
+func (u *GetRichDocumentUseCase) Execute(ctx context.Context, id string, viewerID uint64, viewerWorkspace domain.WorkspaceRef) (*domain.RichDocument, error) {
 	doc, err := u.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, translateRepoErr(err)
 	}
-	if !doc.CanBeReadBy(viewerID, viewerCompany) {
+	if !doc.CanBeReadBy(viewerID, viewerWorkspace) {
 		return nil, ErrRichDocumentNotFound
 	}
 	return doc, nil
@@ -264,8 +264,8 @@ func NewListRichDocumentsUseCase(r repository.RichDocumentRepository) *ListRichD
 type ListRichDocumentsInput struct {
 	// OwnerID は一覧の対象であり閲覧者本人でもある（この経路は owner スコープ固定）。
 	OwnerID uint64
-	// ViewerCompany は閲覧者の所属会社。可視性の判定を domain へ渡すために持つ。
-	ViewerCompany domain.CompanyRef
+	// ViewerWorkspace は閲覧者の所属ワークスペース。可視性の判定を domain へ渡すために持つ。
+	ViewerWorkspace domain.WorkspaceRef
 	// Kind が空なら全 kind。指定するなら既知の kind であること。
 	Kind domain.DocumentKind
 }
@@ -286,7 +286,7 @@ func (u *ListRichDocumentsUseCase) Execute(ctx context.Context, in ListRichDocum
 	// 広がったときに、可視性の判断がここへ写経されるのではなく CanBeReadBy に残るようにするため。
 	visible := rows[:0]
 	for _, row := range rows {
-		if row.CanBeReadBy(in.OwnerID, in.ViewerCompany) {
+		if row.CanBeReadBy(in.OwnerID, in.ViewerWorkspace) {
 			visible = append(visible, row)
 		}
 	}

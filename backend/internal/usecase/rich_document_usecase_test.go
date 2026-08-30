@@ -17,28 +17,28 @@ import (
 const validDoc = `{"type":"doc","content":[{"type":"paragraph"}]}`
 
 func Test_GetRichDocument_認可(t *testing.T) {
-	companyA := uint64(1)
-	companyB := uint64(2)
+	wsA := "0198a000-0000-7000-8000-0000000000d1"
+	wsB := "0198a000-0000-7000-8000-0000000000d2"
 	cases := []struct {
-		name          string
-		doc           *domain.RichDocument
-		viewerID      uint64
-		viewerCompany domain.CompanyRef
-		wantErr       error
+		name            string
+		doc             *domain.RichDocument
+		viewerID        uint64
+		viewerWorkspace domain.WorkspaceRef
+		wantErr         error
 	}{
-		{"所有者は自分の非公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 7, domain.CompanyRefOf(companyA), nil},
-		{"同一会社の他人は公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, CompanyID: &companyA}, 99, domain.CompanyRefOf(companyA), nil},
-		{"別会社の他人は公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, CompanyID: &companyA}, 99, domain.CompanyRefOf(companyB), usecase.ErrRichDocumentNotFound},
-		{"会社不明(NULL)の公開は他人から読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true}, 99, domain.CompanyRefOf(companyA), usecase.ErrRichDocumentNotFound},
-		{"所有者は会社が別でも自分の文書を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, CompanyID: &companyB}, 7, domain.CompanyRefOf(companyA), nil},
-		{"他人は非公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false, CompanyID: &companyA}, 99, domain.CompanyRefOf(companyA), usecase.ErrRichDocumentNotFound},
+		{"所有者は自分の非公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 7, domain.WorkspaceRefOf(wsA), nil},
+		{"同一ワークスペースの他人は公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, WorkspaceID: &wsA}, 99, domain.WorkspaceRefOf(wsA), nil},
+		{"別ワークスペースの他人は公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, WorkspaceID: &wsA}, 99, domain.WorkspaceRefOf(wsB), usecase.ErrRichDocumentNotFound},
+		{"ワークスペース不明(NULL)の公開は他人から読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true}, 99, domain.WorkspaceRefOf(wsA), usecase.ErrRichDocumentNotFound},
+		{"所有者はワークスペースが別でも自分の文書を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, WorkspaceID: &wsB}, 7, domain.WorkspaceRefOf(wsA), nil},
+		{"他人は非公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false, WorkspaceID: &wsA}, 99, domain.WorkspaceRefOf(wsA), usecase.ErrRichDocumentNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &mockRichDocRepo{}
 			repo.On("FindByID", mock.Anything, "a").Return(tc.doc, nil).Once()
 			uc := usecase.NewGetRichDocumentUseCase(repo)
-			got, err := uc.Execute(context.Background(), "a", tc.viewerID, tc.viewerCompany)
+			got, err := uc.Execute(context.Background(), "a", tc.viewerID, tc.viewerWorkspace)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
@@ -54,7 +54,7 @@ func Test_GetRichDocument_存在しない(t *testing.T) {
 	repo := &mockRichDocRepo{}
 	repo.On("FindByID", mock.Anything, "x").Return((*domain.RichDocument)(nil), repository.ErrRichDocumentNotFound).Once()
 	uc := usecase.NewGetRichDocumentUseCase(repo)
-	_, err := uc.Execute(context.Background(), "x", 7, domain.NoCompany())
+	_, err := uc.Execute(context.Background(), "x", 7, domain.NoWorkspace())
 	assert.ErrorIs(t, err, usecase.ErrRichDocumentNotFound)
 	repo.AssertExpectations(t)
 }

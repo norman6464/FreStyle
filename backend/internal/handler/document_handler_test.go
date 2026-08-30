@@ -75,6 +75,12 @@ func newDocHandler(repo repository.RichDocumentRepository) *DocumentHandler {
 // 本番同様 ServeHTTP 経由で HTTP メソッド・パス・:id 抽出・レスポンス確定まで検証する。
 // uid==0 のときは current user middleware を挟まず未認証を再現する。
 func newDocRouter(repo repository.RichDocumentRepository, uid, companyID uint64) *gin.Engine {
+	return newDocRouterWithWorkspace(repo, uid, companyID, "")
+}
+
+// newDocRouterWithWorkspace は newDocRouter に加えて workspaceID（閲覧側の境界判定に使う）も設定する。
+// workspaceID=="" は「ワークスペース未所属」を表す。
+func newDocRouterWithWorkspace(repo repository.RichDocumentRepository, uid, companyID uint64, workspaceID string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	h := newDocHandler(repo)
 	r := gin.New()
@@ -85,9 +91,14 @@ func newDocRouter(repo repository.RichDocumentRepository, uid, companyID uint64)
 			v := companyID
 			cid = &v
 		}
+		var wid *string
+		if workspaceID != "" {
+			v := workspaceID
+			wid = &v
+		}
 		r.Use(func(c *gin.Context) {
 			c.Set(middleware.ContextKeyCurrentUserID, uid)
-			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, CompanyID: cid, Role: domain.RoleTrainee})
+			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, CompanyID: cid, WorkspaceID: wid, Role: domain.RoleTrainee})
 			c.Next()
 		})
 	}
@@ -166,36 +177,39 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 			t.Fatalf("want 404, got %d", w.Code)
 		}
 	})
-	t.Run("同一会社の他人は公開を読める(200)", func(t *testing.T) {
-		companyA := uint64(1)
-		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, CompanyID: &companyA, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouter(repo, 99, companyA)
+	t.Run("同一ワークスペースの他人は公開を読める(200)", func(t *testing.T) {
+		wsA := "0198a000-0000-7000-8000-0000000000e1"
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, WorkspaceID: &wsA, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouterWithWorkspace(repo, 99, 0, wsA)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 		}
 	})
-	t.Run("別会社の他人は公開でも404", func(t *testing.T) {
-		companyA := uint64(1)
-		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, CompanyID: &companyA, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouter(repo, 99, 2)
+	t.Run("別ワークスペースの他人は公開でも404", func(t *testing.T) {
+		wsA := "0198a000-0000-7000-8000-0000000000e1"
+		wsB := "0198a000-0000-7000-8000-0000000000e2"
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, WorkspaceID: &wsA, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouterWithWorkspace(repo, 99, 0, wsB)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
 		}
 	})
-	t.Run("会社不明(NULL)の公開は他人から404", func(t *testing.T) {
+	t.Run("ワークスペース不明(NULL)の公開は他人から404", func(t *testing.T) {
+		wsA := "0198a000-0000-7000-8000-0000000000e1"
 		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouter(repo, 99, 1)
+		r := newDocRouterWithWorkspace(repo, 99, 0, wsA)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
 		}
 	})
-	t.Run("所有者は会社が食い違っても200", func(t *testing.T) {
-		companyB := uint64(2)
-		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, CompanyID: &companyB, IsPublic: true, Doc: testDocBody}}
-		r := newDocRouter(repo, 7, 1)
+	t.Run("所有者はワークスペースが食い違っても200", func(t *testing.T) {
+		wsA := "0198a000-0000-7000-8000-0000000000e1"
+		wsB := "0198a000-0000-7000-8000-0000000000e2"
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, WorkspaceID: &wsB, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouterWithWorkspace(repo, 7, 0, wsA)
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())

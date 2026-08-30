@@ -196,7 +196,6 @@ CREATE TABLE IF NOT EXISTS courses (
     -- 所属の正本（company_id は撤去済み）。
     workspace_id       uuid
 );
-CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
 
 -- 運営 / 管理者の重要操作の監査記録。
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -228,7 +227,6 @@ CREATE TABLE IF NOT EXISTS invitations (
     workspace_id uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
-CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);
 
 -- 運営が用意した練習問題マスタ。
 -- sort_order は migration 0011 が ALTER ADD COLUMN で integer として作った列（本番の実列も integer）。
@@ -275,7 +273,6 @@ CREATE TABLE IF NOT EXISTS company_exercises (
     -- 所属の正本（company_id は撤去済み）。
     workspace_id    uuid
 );
-CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_language ON company_exercises (language);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_deleted_at ON company_exercises (deleted_at);
 
@@ -391,7 +388,6 @@ CREATE TABLE IF NOT EXISTS course_chapters (
     -- 所属の正本（company_id は撤去済み）。
     workspace_id       uuid
 );
-CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
 
 -- 本番に欠けている NOT NULL と既定値を、定義（このファイルの上のほう）に合わせて埋める。
@@ -1489,78 +1485,10 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- =====================================================================
--- Ⅵ. company_id 撤去（users / courses / course_chapters / company_exercises /
---     invitations / rich_documents）
--- =====================================================================
---
--- 上の Ⅳ・Ⅴ で workspace_id への橋渡しが済み、書き込み経路もすべて workspace_id
--- 直接指定へ切り替わったため、所属参照としての company_id は不要になった
--- （company 実体そのもの＝ companies テーブルは残る。SuperAdmin の会社管理機能が使う）。
--- 新規に作る DB では上の CREATE TABLE で最初から company_id を持たないため、この節は
--- 既存 DB（起動時点でまだ列が残っている環境）から列を落とすための DROP COLUMN 経路。
---
--- 素の ALTER TABLE を毎回流すと、列が既に無く何もしない場合でも ACCESS EXCLUSIVE
--- ロックを取り起動のたびに表を止めるため、カタログを見て「まだ列があるときだけ」実行する
--- （このファイル冒頭の約束、Ⅳ・Ⅴ と同じ形）。依存するインデックス
--- （idx_courses_company_id 等）は DROP COLUMN が自動的に一緒に落とす。
-
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'users' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE users DROP COLUMN company_id;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'courses' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE courses DROP COLUMN company_id;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'course_chapters' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE course_chapters DROP COLUMN company_id;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'company_exercises' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE company_exercises DROP COLUMN company_id;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'invitations' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE invitations DROP COLUMN company_id;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'rich_documents' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE rich_documents DROP COLUMN company_id;
-    END IF;
-END $$;
+-- workspace_id の索引は列を足したあとに作る。節Ⅰ（CREATE TABLE 群）へ置くと、既存 DB では
+-- まだ列が無い時点で CREATE INDEX が走って落ちる（IF NOT EXISTS は索引の有無しか見ず、
+-- 列の不在は防げない）。
+CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);

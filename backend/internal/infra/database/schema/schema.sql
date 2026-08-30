@@ -224,7 +224,8 @@ CREATE TABLE IF NOT EXISTS invitations (
     expires_at   timestamptz NOT NULL,
     created_at   timestamptz NOT NULL,
     -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本（company_id は撤去済み）。
+    -- invitations は company_id をまだ所属の正本として読み書きしており、この列は写し
+    -- （撤去は後続のチケット）。毎起動の移送がレガシー行の workspace_id を埋め続ける。
     workspace_id uuid
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
@@ -1389,8 +1390,10 @@ END $$;
 --     invitations / rich_documents への workspace_id 列追加）
 -- =====================================================================
 --
--- workspace_id が唯一の所属参照（company_id は撤去済み）。列を足して FK を張る。
--- FK は workspace_id 側にだけ張る（companies / users で既に採った方針と同じ）。
+-- courses / course_chapters / company_exercises / rich_documents は workspace_id が唯一の
+-- 所属参照（company_id は撤去済み）。invitations は company_id をまだ正本として持ち、
+-- workspace_id はその写し（撤去は後続のチケット）。
+-- 列を足して FK を張る。FK は workspace_id 側にだけ張る（companies / users と同じ方針）。
 -- 新規に作る DB では上の CREATE TABLE で最初から workspace_id を持つため、この節は
 -- 既存 DB（起動時点でまだ列が無い環境）へ届かせるための ALTER TABLE ADD COLUMN
 -- IF NOT EXISTS 経路。

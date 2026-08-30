@@ -324,6 +324,9 @@ func mirrorRichDocumentsWorkspaceFromCompany(ctx context.Context, tx *sql.Tx) er
 // 止めてしまうため。依存するインデックスは DROP COLUMN が一緒に落とす。
 func DropCompanyIDColumns(ctx context.Context, db *sql.DB) error {
 	return withMigrateTx(ctx, db, "company_id 列の撤去", func(tx *sql.Tx) error {
+		if err := ensureWorkspaceIDsMigrated(ctx, tx); err != nil {
+			return err
+		}
 		for _, drop := range companyIDDrops {
 			if err := drop(ctx, tx); err != nil {
 				return err
@@ -331,6 +334,58 @@ func DropCompanyIDColumns(ctx context.Context, db *sql.DB) error {
 		}
 		return nil
 	})
+}
+
+// ensureWorkspaceIDsMigrated は「移送しきれていない行が 1 行も無い」ことを確かめる。
+// 満たさなければ撤去せずエラーで止める（起動が失敗する）。
+//
+// なぜ順序を守るだけでは足りないか:
+//
+//	移送の SQL は `c.workspace_id IS NOT NULL` を条件にしている。companies.workspace_id が
+//	埋まっていない会社が 1 社でも残ると、その会社の行は workspace_id が NULL のまま
+//	company_id を落とされ、対応関係が失われる（復元できない）。createWorkspacesForCompanies が
+//	全社を埋める前提だが、部分失敗・手動投入・後から追加された行など前提が崩れる経路は残る。
+//	不可逆な DDL の直前に前提そのものを検査して、崩れていたら進まない。
+//
+// 落ちたときは、workspaces を用意し直して（会社の workspace_id を埋めて）再起動すれば
+// 移送からやり直せる。company_id はまだ残っているので手戻りできる。
+func ensureWorkspaceIDsMigrated(ctx context.Context, tx *sql.Tx) error {
+	for _, c := range companyIDDropChecks {
+		exists, err := companyIDColumnExists(ctx, tx, c.table)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue // 撤去済み
+		}
+		var orphans int64
+		if err := tx.QueryRowContext(ctx, c.countOrphans).Scan(&orphans); err != nil {
+			return fmt.Errorf("%s の移送漏れ確認に失敗: %w", c.table, err)
+		}
+		if orphans > 0 {
+			return fmt.Errorf(
+				"%s に company_id を持つが workspace_id が未設定の行が %d 件あります。"+
+					"対応する会社の workspace_id を埋めてから再実行してください"+
+					"（この状態で company_id を落とすと所属が復元できなくなるため中断しました）",
+				c.table, orphans,
+			)
+		}
+	}
+	return nil
+}
+
+// companyIDDropCheck は撤去前の検査 1 表ぶん。countOrphans は「company_id は在るのに
+// workspace_id が埋まっていない行」を数える固定文字列のクエリ。
+type companyIDDropCheck struct {
+	table        string
+	countOrphans string
+}
+
+var companyIDDropChecks = []companyIDDropCheck{
+	{"courses", `SELECT count(*) FROM courses WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
+	{"course_chapters", `SELECT count(*) FROM course_chapters WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
+	{"company_exercises", `SELECT count(*) FROM company_exercises WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
+	{"rich_documents", `SELECT count(*) FROM rich_documents WHERE company_id IS NOT NULL AND workspace_id IS NULL`},
 }
 
 // companyIDDrops は表ごとの DROP COLUMN。ミラーと同じ理由でテーブル名を SQL へ埋め込まない。

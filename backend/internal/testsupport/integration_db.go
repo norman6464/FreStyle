@@ -104,6 +104,17 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
 	}
+	// company_id の撤去（起動時マイグレーションの Contract 段）も流す。DDL が Go 側にあるため
+	// ApplyCoreSchema では落ちず、これを呼ばないと「本番には存在しない、company_id が残った
+	// スキーマ」でテストが走る。CREATE TABLE IF NOT EXISTS は既存の表から列を消さないので、
+	// 移行前に作られたローカルの検証用 DB では実際に食い違う。
+	// まっさらな DB では列がそもそも無いので no-op（冪等）。
+	if err := database.DropCompanyIDColumns(t.Context(), sqlDB); err != nil {
+		// 移送漏れの検査に引っかかるのは、移行前の形のまま残っているローカルの検証用 DB。
+		// テストデータに復元の価値は無いので、作り直すのが最短。
+		t.Fatalf("DropCompanyIDColumns 失敗（結合テスト用 DB が移行前の形のままです。"+
+			"`docker compose -f docker-compose.integration.yml down -v` で作り直してください）: %v", err)
+	}
 	return sqlDB
 }
 

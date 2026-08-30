@@ -177,6 +177,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - PR 作成後、CodeRabbit の初回レビューが投稿されるまで待機。「Actionable comments」には原則すべて応答（対応 or 意図を説明して reject）
 - CodeRabbit が指摘していないセキュリティ・アーキテクチャ違反はセルフレビューで修正。summary コメントは PR 本文に貼らない
 - **待つときは必ず `sleep` で実時間を経過させる**（`sleep 270` 等）。「あとで確認します」への逃げは禁止。長い sleep がブロックされる場合は `timeout` を長めにした待機ループで同期的に待つ。例外はユーザーが「待たずに進めて」と明示したときのみ
+- **CI / レビューの結果は出たらすぐ中身を見る。** 「pass / fail」の一覧を眺めて待ち続けるのではなく、**1 つでも fail が出たらその時点で `gh run view <run-id> --log-failed` を叩いて原因まで降りる**。CodeRabbit も「レビュー投稿済み」を待つだけでなく、投稿されたら即座に指摘の中身（`gh api repos/<owner>/<repo>/pulls/<PR#>/comments`）を読む。状態遷移の報告だけを繰り返して実際の確認を後回しにしない（ユーザー指摘 2026-08-31）
 - **レートリミット特例**: CodeRabbit が `Rate limit exceeded` のとき、(1) ユーザー承認あり (2) セルフレビュー済で Critical / Major なし (3) CI 成功 (4) 破壊的変更でない、をすべて満たせば `gh pr merge <PR#> --squash --admin --delete-branch` で先に進めて良い。マージ後コメントに「レートリミット中のためセルフレビュー済で admin merge」と記録する
 - **デザイン専用変更の特例**: ロジックに影響しない見た目だけの変更（CSS / className / 文言 / svg 等）で、`tsc --noEmit` / `vitest run` / `eslint --max-warnings 0` / `npm run build` がすべて成功していれば、CodeRabbit を待たず admin merge して良い。ロジックを伴う変更は分割して通常フローに乗せる
 

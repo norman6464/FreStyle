@@ -130,6 +130,10 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 		Title:           in.Title,
 		OrderInCourse:   in.OrderInCourse,
 		IsPublished:     in.IsPublished,
+		// WorkspaceID はコースから継承する（InsertChapter が company_id からも同じ値を
+		// dual-write するため、DB に書かれる値と一致する）。POST 応答に workspaceId が
+		// 欠けないようにするため、DB 往復を待たずここで埋める。
+		WorkspaceID: course.WorkspaceID,
 	}
 	if err := uc.repo.Create(ctx, m); err != nil {
 		return nil, err

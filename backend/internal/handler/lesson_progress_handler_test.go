@@ -184,6 +184,19 @@ func Test_進捗ハンドラ_完了_他社教材は403(t *testing.T) {
 	}
 }
 
+// company_id は教材と同じまま workspace_id だけを変えて 403 を確認する。company_id ベースの
+// 認可が残っていても本テストは company_id 一致で通ってしまうため、workspace_id 単体の切替が
+// 効いていることを company_id 一致のケースで区別して固定する（他社教材テストは company_id も
+// 変えてしまうため、この観点を見分けられない）。
+func Test_進捗ハンドラ_完了_同一company別workspaceは403(t *testing.T) {
+	mat, crs := publishedMaterial(10, 9) // workspace lessonProgressWsA の教材
+	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, companyID: 10, workspaceID: lessonProgressWsB})
+	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", w.Code)
+	}
+}
+
 func Test_進捗ハンドラ_完了_存在しない教材は404(t *testing.T) {
 	mat := &fakeMaterialRepoH{getErr: domain.ErrNotFound}
 	r := newLessonProgressEngine(engineOpts{material: mat, withUser: true, companyID: 10, workspaceID: lessonProgressWsA})

@@ -200,7 +200,7 @@ func (q *Queries) InsertChapter(ctx context.Context, arg InsertChapterParams) (I
 }
 
 const listChaptersByCompany = `-- name: ListChaptersByCompany :many
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE company_id = $1
   AND ($2::bool OR is_published = TRUE)
@@ -222,11 +222,15 @@ type ListChaptersByCompanyRow struct {
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	WorkspaceID     uuid.NullUUID
 }
 
 // 会社内の全教材（章）を更新日降順で返す backward-compat 用。
 // include_unpublished=false なら公開済み（is_published=true）のみに絞る。
 // 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
+//
+// FRESTYLE-403: 一覧結果の TeachingMaterial.WorkspaceID を欠けたままにしないよう workspace_id
+// を追加した（未使用でも domain 上の値が常に埋まっている方が呼び出し側の取り違えを防ぐ）。
 func (q *Queries) ListChaptersByCompany(ctx context.Context, arg ListChaptersByCompanyParams) ([]ListChaptersByCompanyRow, error) {
 	rows, err := q.db.QueryContext(ctx, listChaptersByCompany, arg.CompanyID, arg.IncludeUnpublished)
 	if err != nil {
@@ -246,6 +250,7 @@ func (q *Queries) ListChaptersByCompany(ctx context.Context, arg ListChaptersByC
 			&i.IsPublished,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -261,7 +266,7 @@ func (q *Queries) ListChaptersByCompany(ctx context.Context, arg ListChaptersByC
 }
 
 const listChaptersByCourse = `-- name: ListChaptersByCourse :many
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE course_id = $1
   AND ($2::bool OR is_published = TRUE)
@@ -283,10 +288,13 @@ type ListChaptersByCourseRow struct {
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	WorkspaceID     uuid.NullUUID
 }
 
 // コース内の章を sort_order 昇順（同値時 id 昇順）で返す。
 // 一覧は本文（doc・jsonb）を返さない（章ごとに重く、全章を先読みすると非効率）。
+//
+// FRESTYLE-403: ListChaptersByCompany と同じ理由で workspace_id を追加した。
 func (q *Queries) ListChaptersByCourse(ctx context.Context, arg ListChaptersByCourseParams) ([]ListChaptersByCourseRow, error) {
 	rows, err := q.db.QueryContext(ctx, listChaptersByCourse, arg.CourseID, arg.IncludeUnpublished)
 	if err != nil {
@@ -306,6 +314,7 @@ func (q *Queries) ListChaptersByCourse(ctx context.Context, arg ListChaptersByCo
 			&i.IsPublished,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}

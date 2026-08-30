@@ -67,7 +67,7 @@ func toDomainChapter(row chapterRow) domain.TeachingMaterial {
 // sqlc は SELECT ごとに別の行型を生成するため、company 別の一覧は
 // [toDomainChapterCompanySummary] が同じ列構成であることを型変換で確かめてからここへ渡す。
 func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.TeachingMaterial {
-	return domain.TeachingMaterial{
+	m := domain.TeachingMaterial{
 		ID:              uint64(row.ID),
 		CompanyID:       uint64(row.CompanyID),
 		CourseID:        uint64(row.CourseID),
@@ -78,6 +78,11 @@ func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.Teaching
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}
+	if row.WorkspaceID.Valid {
+		wid := row.WorkspaceID.UUID.String()
+		m.WorkspaceID = &wid
+	}
+	return m
 }
 
 // toDomainChapterCompanySummary は company 別一覧の軽量行を domain へ写す。

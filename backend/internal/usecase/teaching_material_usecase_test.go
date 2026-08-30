@@ -204,7 +204,11 @@ func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	assert.Equal(t, uint64(5), mstore.created.CourseID)
 	assert.Equal(t, "Spring 入門", mstore.created.Title)
 	assert.True(t, mstore.created.IsPublished)
+	require.NotNil(t, mstore.created.WorkspaceID)
+	assert.Equal(t, wsA, *mstore.created.WorkspaceID, "コースの workspace_id を継承する")
 	assert.Equal(t, "Spring 入門", got.Title)
+	require.NotNil(t, got.WorkspaceID)
+	assert.Equal(t, wsA, *got.WorkspaceID)
 }
 
 func Test_教材_作成_コースID欠落は禁止(t *testing.T) {

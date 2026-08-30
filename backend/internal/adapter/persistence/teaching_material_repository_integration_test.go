@@ -248,6 +248,29 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, "b", all[1].Title)
 	})
 
+	t.Run("ListByCourse / ListByCompany は workspace_id も含めて返す", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		require.True(t, ws1.Valid)
+
+		m := mk(1, 10, "章", 1, true)
+		require.NoError(t, repo.Create(ctx, m))
+
+		byCourse, err := repo.ListByCourse(ctx, 10, true)
+		require.NoError(t, err)
+		require.Len(t, byCourse, 1)
+		require.NotNil(t, byCourse[0].WorkspaceID)
+		require.Equal(t, ws1.UUID.String(), *byCourse[0].WorkspaceID)
+
+		byCompany, err := repo.ListByCompany(ctx, 1, true)
+		require.NoError(t, err)
+		require.Len(t, byCompany, 1)
+		require.NotNil(t, byCompany[0].WorkspaceID)
+		require.Equal(t, ws1.UUID.String(), *byCompany[0].WorkspaceID)
+	})
+
 	t.Run("Update は title/sort_order/is_published を書き・不変列を保ち・updated_at を進める", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		m := mk(1, 10, "旧", 1, false)

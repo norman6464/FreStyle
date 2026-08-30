@@ -2,7 +2,10 @@
 -- 会社内の全教材（章）を更新日降順で返す backward-compat 用。
 -- include_unpublished=false なら公開済み（is_published=true）のみに絞る。
 -- 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
+--
+-- FRESTYLE-403: 一覧結果の TeachingMaterial.WorkspaceID を欠けたままにしないよう workspace_id
+-- を追加した（未使用でも domain 上の値が常に埋まっている方が呼び出し側の取り違えを防ぐ）。
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE company_id = sqlc.arg(company_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)
@@ -11,7 +14,9 @@ ORDER BY updated_at DESC, id DESC;
 -- name: ListChaptersByCourse :many
 -- コース内の章を sort_order 昇順（同値時 id 昇順）で返す。
 -- 一覧は本文（doc・jsonb）を返さない（章ごとに重く、全章を先読みすると非効率）。
-SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
+--
+-- FRESTYLE-403: ListChaptersByCompany と同じ理由で workspace_id を追加した。
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at, workspace_id
 FROM course_chapters
 WHERE course_id = sqlc.arg(course_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)

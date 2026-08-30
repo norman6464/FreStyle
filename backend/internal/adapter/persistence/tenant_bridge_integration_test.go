@@ -283,9 +283,13 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 	})
 }
 
-// businessTablesWithWorkspaceMirror は FRESTYLE-399 で workspace_id を足した業務テーブルのうち、
-// 書き込み経路を持つもの（company_exercises は repository / usecase が未実装のため対象外）。
-var businessTablesWithWorkspaceMirror = []string{"courses", "course_chapters", "invitations", "rich_documents"}
+// businessTablesWithWorkspaceMirror は FRESTYLE-399 で workspace_id を足した業務テーブル全 5 つ。
+// company_exercises は repository / usecase が未実装で dual-write の対象外だが、
+// 起動時バックフィル（mirrorCompanyExercisesWorkspaceFromCompany）自体は用意しているので
+// バックフィルの検証対象には含める。
+var businessTablesWithWorkspaceMirror = []string{
+	"courses", "course_chapters", "company_exercises", "invitations", "rich_documents",
+}
 
 // businessTableWorkspaceMirrorTruncateTables はこの節のテストが TRUNCATE する対象。
 var businessTableWorkspaceMirrorTruncateTables = append(
@@ -300,6 +304,68 @@ func tableWorkspaceID(t *testing.T, db *sql.DB, table string, id any) uuid.NullU
 	var got uuid.NullUUID
 	require.NoError(t, db.QueryRow(fmt.Sprintf(`SELECT workspace_id FROM %s WHERE id = $1`, table), id).Scan(&got))
 	return got
+}
+
+// insertLegacyRow は table に「company_id はあるが workspace_id が未設定」の行を dual-write を
+// 経由せず直接 INSERT する（バックフィル前に作られた行を再現する）。authorUserID は
+// rich_documents.owner_id の FK（fk_rich_documents_owner）を満たすために渡す実在ユーザー ID。
+// 戻り値は作った行の id（テーブルにより int64 か string）。
+func insertLegacyRow(t *testing.T, db *sql.DB, table string, companyID int64, authorUserID uint64) any {
+	t.Helper()
+	switch table {
+	case "courses":
+		var id int64
+		require.NoError(t, db.QueryRow(
+			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
+			 VALUES ($1, $2, 'legacy', NOW(), NOW()) RETURNING id`,
+			companyID, authorUserID,
+		).Scan(&id))
+		return id
+	case "course_chapters":
+		var courseID int64
+		require.NoError(t, db.QueryRow(
+			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
+			 VALUES ($1, $2, 'legacy course', NOW(), NOW()) RETURNING id`,
+			companyID, authorUserID,
+		).Scan(&courseID))
+		var id int64
+		require.NoError(t, db.QueryRow(
+			`INSERT INTO course_chapters (company_id, course_id, created_by_user_id, title, created_at, updated_at)
+			 VALUES ($1, $2, $3, 'legacy chapter', NOW(), NOW()) RETURNING id`,
+			companyID, courseID, authorUserID,
+		).Scan(&id))
+		return id
+	case "company_exercises":
+		var id int64
+		require.NoError(t, db.QueryRow(
+			`INSERT INTO company_exercises
+			   (company_id, language, title, description, starter_code, created_by, created_at, updated_at)
+			 VALUES ($1, 'go', 'legacy', 'legacy desc', 'legacy code', $2, NOW(), NOW()) RETURNING id`,
+			companyID, authorUserID,
+		).Scan(&id))
+		return id
+	case "invitations":
+		var id int64
+		require.NoError(t, db.QueryRow(
+			`INSERT INTO invitations (company_id, email, role, name, status, expires_at, created_at)
+			 VALUES ($1, 'legacy@example.com', 'trainee', 'legacy', 'pending', NOW() + interval '1 day', NOW())
+			 RETURNING id`,
+			companyID,
+		).Scan(&id))
+		return id
+	case "rich_documents":
+		id := uuid.Must(uuid.NewV7()).String()
+		_, err := db.Exec(
+			`INSERT INTO rich_documents (id, owner_id, company_id, kind, title, doc, created_at, updated_at)
+			 VALUES ($1, $2, $3, 'note', 'legacy', '{"type":"doc","content":[]}', NOW(), NOW())`,
+			id, authorUserID, companyID,
+		)
+		require.NoError(t, err)
+		return id
+	default:
+		t.Fatalf("insertLegacyRow: 未対応のテーブル %q", table)
+		return nil
+	}
 }
 
 // TestTenantBridgeBusinessTableBackfill_Integration は FRESTYLE-399（courses / course_chapters /
@@ -371,39 +437,55 @@ func TestTenantBridgeBusinessTableBackfill_Integration(t *testing.T) {
 	})
 
 	t.Run("バックフィル前に作られた行は起動時バックフィルで写る", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		runStartupBackfill(ctx, t, sqlDB) // 会社→ワークスペースの対応だけ先に作る
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		for _, table := range businessTablesWithWorkspaceMirror {
+			t.Run(table, func(t *testing.T) {
+				testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+				insertCompany(t, sqlDB, 1, "会社 A", true)
+				runStartupBackfill(ctx, t, sqlDB) // 会社→ワークスペースの対応だけ先に作る
+				ws1 := companyWorkspaceID(t, sqlDB, 1)
+				require.True(t, ws1.Valid)
 
-		// dual-write を経由しない、直接 INSERT でバックフィル前の状態（workspace_id 未設定）を再現する。
-		var courseID int64
-		require.NoError(t, sqlDB.QueryRow(
-			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
-			 VALUES (1, 1, 'legacy', NOW(), NOW()) RETURNING id`,
-		).Scan(&courseID))
-		require.False(t, tableWorkspaceID(t, sqlDB, "courses", courseID).Valid, "作成直後はまだ写っていない")
+				users := persistence.NewUserRepository(sqlDB)
+				require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
+					Email: "legacy-author@example.com", Name: "レガシー作成者", Role: domain.RoleTrainee,
+				}, domain.OidcProviderCognito, "sub-legacy-author"))
+				author, err := users.FindByCognitoSub(ctx, "sub-legacy-author")
+				require.NoError(t, err)
 
-		runStartupBackfill(ctx, t, sqlDB)
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "courses", courseID))
+				// dual-write を経由しない、直接 INSERT でバックフィル前の状態（workspace_id 未設定）を再現する。
+				id := insertLegacyRow(t, sqlDB, table, 1, author.ID)
+				require.False(t, tableWorkspaceID(t, sqlDB, table, id).Valid, "作成直後はまだ写っていない")
+
+				runStartupBackfill(ctx, t, sqlDB)
+				require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, table, id))
+			})
+		}
 	})
 
 	t.Run("何度流しても workspace_id がぶれない", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		var courseID int64
-		require.NoError(t, sqlDB.QueryRow(
-			`INSERT INTO courses (company_id, created_by_user_id, title, created_at, updated_at)
-			 VALUES (1, 1, 'legacy', NOW(), NOW()) RETURNING id`,
-		).Scan(&courseID))
+		for _, table := range businessTablesWithWorkspaceMirror {
+			t.Run(table, func(t *testing.T) {
+				testsupport.TruncateAll(t, sqlDB, businessTableWorkspaceMirrorTruncateTables...)
+				insertCompany(t, sqlDB, 1, "会社 A", true)
 
-		runStartupBackfill(ctx, t, sqlDB)
-		first := tableWorkspaceID(t, sqlDB, "courses", courseID)
-		require.True(t, first.Valid)
+				users := persistence.NewUserRepository(sqlDB)
+				require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
+					Email: "legacy-author@example.com", Name: "レガシー作成者", Role: domain.RoleTrainee,
+				}, domain.OidcProviderCognito, "sub-legacy-author"))
+				author, err := users.FindByCognitoSub(ctx, "sub-legacy-author")
+				require.NoError(t, err)
 
-		for i := 0; i < 2; i++ { // 起動 2 回目・3 回目
-			runStartupBackfill(ctx, t, sqlDB)
-			require.Equal(t, first, tableWorkspaceID(t, sqlDB, "courses", courseID))
+				id := insertLegacyRow(t, sqlDB, table, 1, author.ID)
+
+				runStartupBackfill(ctx, t, sqlDB)
+				first := tableWorkspaceID(t, sqlDB, table, id)
+				require.True(t, first.Valid)
+
+				for i := 0; i < 2; i++ { // 起動 2 回目・3 回目
+					runStartupBackfill(ctx, t, sqlDB)
+					require.Equal(t, first, tableWorkspaceID(t, sqlDB, table, id))
+				}
+			})
 		}
 	})
 }

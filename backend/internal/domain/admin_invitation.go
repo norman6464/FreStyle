@@ -2,20 +2,19 @@ package domain
 
 import "time"
 
+// AdminInvitation は管理者が発行した招待。受諾されるまで users 行は作られない。
 type AdminInvitation struct {
-	ID        uint64   `json:"id"`
-	CompanyID uint64   `json:"companyId"`
-	Email     string   `json:"email"`
-	Role      RoleName `json:"role"`
-	Name      string   `json:"name"`
-	Status    string   `json:"status"`
+	ID     uint64   `json:"id"`
+	Email  string   `json:"email"`
+	Role   RoleName `json:"role"`
+	Name   string   `json:"name"`
+	Status string   `json:"status"`
 	// Token はマジックリンク用の不透明 UUID（秘匿値なので json では返さない）。
 	// 未設定値を NULL にして UNIQUE 制約に引っかけないため *string にしている。
 	Token     *string   `json:"-"`
 	ExpiresAt time.Time `json:"expiresAt"`
 	CreatedAt time.Time `json:"createdAt"`
-	// WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-	// 通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
+	// WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。
 	WorkspaceID *string `json:"workspaceId,omitempty"`
 }
 

@@ -103,9 +103,9 @@ func missingRowWriteCases() []missingRowCase {
 			},
 		},
 		{
-			name: "user の所属会社付け替え",
+			name: "user の所属ワークスペース付け替え",
 			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewUserRepository(db).UpdateWorkspaceID(ctx, missingID, 1, nil)
+				return persistence.NewUserRepository(db).UpdateWorkspaceID(ctx, missingID, nil)
 			},
 		},
 		{

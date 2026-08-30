@@ -182,10 +182,10 @@ describe('AdminInvitationsPage の API 呼び出し回数', () => {
       );
     });
 
-    // 送信フォームの中身はそのまま backend へ渡る（会社は自社固定 / 役職は SoD 固定）。
+    // 送信フォームの中身はそのまま backend へ渡る（会社は backend 側で自社固定 / 役職は SoD 固定）。
     expect(createInvitation).toHaveBeenCalledTimes(1);
     expect(createInvitation).toHaveBeenCalledWith({
-      companyId: 1,
+      companyId: 0,
       email: 'new@example.com',
       role: 'trainee',
       displayName: '山田太郎',

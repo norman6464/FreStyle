@@ -12,10 +12,10 @@ describe('InvitationRepository', () => {
   });
 
   it('validateToken: token を URL に埋め込んで GET する', async () => {
+    // backend が返すのは表示名のキーが name の形（companyId は返さない）。
     const mockInv = {
       role: 'company_admin',
-      displayName: '山田',
-      companyId: 42,
+      name: '山田',
       companyName: '株式会社FreStyle',
     };
     mockedApiClient.get.mockResolvedValue({ data: mockInv });
@@ -23,7 +23,12 @@ describe('InvitationRepository', () => {
     const result = await invitationRepository.validateToken('abc-123');
 
     expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/invitations/accept/abc-123');
-    expect(result).toEqual(mockInv);
+    // name を displayName へ読み替える。素通しのままだと受諾画面の表示名が空になる。
+    expect(result).toEqual({
+      role: 'company_admin',
+      displayName: '山田',
+      companyName: '株式会社FreStyle',
+    });
   });
 
   it('validateToken: メタ文字を含む token は URL エンコードされる', async () => {

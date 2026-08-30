@@ -326,7 +326,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"][];
                     };
                 };
-                /** @description ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり) */
+                /** @description 会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -376,7 +376,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 招待 内容 (CompanyAdmin は companyId が 上書き さ れる) */
+            /** @description 招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる) */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.createAdminInvReq"];
@@ -392,7 +392,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"];
                     };
                 };
-                /** @description バリデーション / 未知の method / 一時パスワード方式が未構成 */
+                /** @description バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -6921,7 +6921,6 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
-            companyId?: number;
             createdAt?: string;
             email?: string;
             expiresAt?: string;
@@ -6929,10 +6928,7 @@ export interface components {
             name?: string;
             role?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
             status?: string;
-            /**
-             * @description WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-             *     通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
-             */
+            /** @description WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。 */
             workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
@@ -6961,6 +6957,12 @@ export interface components {
             isActive?: boolean;
             name?: string;
             updatedAt?: string;
+            /**
+             * @description WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、
+             *     companies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。
+             *     起動時バックフィルが未到達の会社は NULL になり得る。
+             */
+            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             category?: string;
@@ -7294,7 +7296,13 @@ export interface components {
             title?: string;
         };
         "internal_handler.createAdminInvReq": {
-            companyId: number;
+            /**
+             * @description CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の
+             *     招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。
+             *     binding:"required" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の
+             *     招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。
+             */
+            companyId?: number;
             email: string;
             /**
              * @description Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
@@ -7375,8 +7383,6 @@ export interface components {
             offset?: number;
         };
         "internal_handler.invitationValidateResponse": {
-            /** @example 1 */
-            companyId?: number;
             /** @example Example Corp */
             companyName?: string;
             /** @example 山田 太郎 */
@@ -7676,8 +7682,6 @@ export interface components {
             title?: string;
         };
         "internal_handler.meResponse": {
-            /** @example 1 */
-            companyId?: number;
             createdAt?: string;
             /** @example user@example.com */
             email?: string;

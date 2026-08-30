@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_章閲覧記録_同一ワークスペースの公開教材はupsertする(t *testing.T) {
+func Test_章閲覧記録_同じワークスペースの公開教材はupsertする(t *testing.T) {
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
 		ID: 5, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: true,
 	}})

@@ -85,8 +85,8 @@ func (m *mockUserRepo) UpdateRole(ctx context.Context, userID uint64, role domai
 	return m.Called(ctx, userID, role).Error(0)
 }
 
-func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID, companyID uint64, workspaceID *string) error {
-	return m.Called(ctx, userID, companyID, workspaceID).Error(0)
+func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {
+	return m.Called(ctx, userID, workspaceID).Error(0)
 }
 
 // --- mock: CourseRepository ---
@@ -124,12 +124,6 @@ func (m *mockCourseRepo) Delete(ctx context.Context, id uint64) error {
 type mockMaterialRepo struct{ mock.Mock }
 
 var _ repository.TeachingMaterialRepository = (*mockMaterialRepo)(nil)
-
-func (m *mockMaterialRepo) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-	args := m.Called(ctx, companyID, includeUnpublished)
-	rows, _ := args.Get(0).([]domain.TeachingMaterial)
-	return rows, args.Error(1)
-}
 
 func (m *mockMaterialRepo) ListByWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
 	args := m.Called(ctx, workspaceID, includeUnpublished)
@@ -260,6 +254,12 @@ func (m *mockCompanyRepo) FindByID(ctx context.Context, id uint64) (*domain.Comp
 	return c, args.Error(1)
 }
 
+func (m *mockCompanyRepo) FindByWorkspaceID(ctx context.Context, workspaceID string) (*domain.Company, error) {
+	args := m.Called(ctx, workspaceID)
+	c, _ := args.Get(0).(*domain.Company)
+	return c, args.Error(1)
+}
+
 func (m *mockCompanyRepo) UpdateActive(ctx context.Context, companyID uint64, active bool) error {
 	return m.Called(ctx, companyID, active).Error(0)
 }
@@ -269,12 +269,6 @@ func (m *mockCompanyRepo) UpdateActive(ctx context.Context, companyID uint64, ac
 type mockLearningSummarizer struct{ mock.Mock }
 
 var _ repository.CompanyLearningActivitySummarizer = (*mockLearningSummarizer)(nil)
-
-func (m *mockLearningSummarizer) ListMemberActivities(ctx context.Context, companyID uint64, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
-	args := m.Called(ctx, companyID, fromDate)
-	rows, _ := args.Get(0).([]repository.MemberLearningActivity)
-	return rows, args.Error(1)
-}
 
 func (m *mockLearningSummarizer) ListMemberActivitiesByWorkspace(ctx context.Context, workspaceID string, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
 	args := m.Called(ctx, workspaceID, fromDate)
@@ -287,12 +281,6 @@ func (m *mockLearningSummarizer) ListMemberActivitiesByWorkspace(ctx context.Con
 type mockMemberCounter struct{ mock.Mock }
 
 var _ repository.CompanyMemberCounter = (*mockMemberCounter)(nil)
-
-func (m *mockMemberCounter) CountMembersByCompany(ctx context.Context) ([]repository.CompanyMemberCount, error) {
-	args := m.Called(ctx)
-	rows, _ := args.Get(0).([]repository.CompanyMemberCount)
-	return rows, args.Error(1)
-}
 
 func (m *mockMemberCounter) CountMembersByWorkspace(ctx context.Context) ([]repository.WorkspaceMemberCount, error) {
 	args := m.Called(ctx)

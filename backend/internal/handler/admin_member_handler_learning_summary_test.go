@@ -21,13 +21,6 @@ type fakeCompanyLearningActivityRepoH struct {
 	gotWorkspaceID string
 }
 
-func (f *fakeCompanyLearningActivityRepoH) ListMemberActivities(context.Context, uint64, time.Time) ([]repository.MemberLearningActivity, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.rows, nil
-}
-
 func (f *fakeCompanyLearningActivityRepoH) ListMemberActivitiesByWorkspace(_ context.Context, workspaceID string, _ time.Time) ([]repository.MemberLearningActivity, error) {
 	f.called = true
 	f.gotWorkspaceID = workspaceID
@@ -42,9 +35,8 @@ func newLearningSummaryHandler(repo repository.CompanyLearningActivitySummarizer
 }
 
 func companyAdminUser() *domain.User {
-	cid := uint64(10)
 	wid := "0198a000-0000-7000-8000-0000000000c1"
-	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: &wid}
+	return &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}
 }
 
 func Test_学習サマリーハンドラ(t *testing.T) {
@@ -56,8 +48,8 @@ func Test_学習サマリーハンドラ(t *testing.T) {
 		}
 	})
 	t.Run("trainee → 403", func(t *testing.T) {
-		cid := uint64(10)
-		trainee := &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: &cid}
+		wid := "0198a000-0000-7000-8000-0000000000c1"
+		trainee := &domain.User{ID: 2, Role: domain.RoleTrainee, WorkspaceID: &wid}
 		w, c := ctxJSON(http.MethodGet, "", nil, trainee)
 		newLearningSummaryHandler(&fakeCompanyLearningActivityRepoH{}).LearningSummary(c)
 		if w.Code != http.StatusForbidden {
@@ -89,9 +81,8 @@ func Test_学習サマリーハンドラ(t *testing.T) {
 		}
 	})
 	t.Run("別workspaceのcompany_adminは自分のworkspace_idだけを渡す", func(t *testing.T) {
-		cid := uint64(20)
 		wid := "0198a000-0000-7000-8000-0000000000c2"
-		other := &domain.User{ID: 3, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: &wid}
+		other := &domain.User{ID: 3, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}
 		repo := &fakeCompanyLearningActivityRepoH{}
 		w, c := ctxJSON(http.MethodGet, "", nil, other)
 		newLearningSummaryHandler(repo).LearningSummary(c)
@@ -103,8 +94,7 @@ func Test_学習サマリーハンドラ(t *testing.T) {
 		}
 	})
 	t.Run("workspace未所属のcompany_adminは空サマリーで集計を呼ばない", func(t *testing.T) {
-		cid := uint64(10)
-		unaffiliated := &domain.User{ID: 4, Role: domain.RoleCompanyAdmin, CompanyID: &cid, WorkspaceID: nil}
+		unaffiliated := &domain.User{ID: 4, Role: domain.RoleCompanyAdmin, WorkspaceID: nil}
 		repo := &fakeCompanyLearningActivityRepoH{}
 		w, c := ctxJSON(http.MethodGet, "", nil, unaffiliated)
 		newLearningSummaryHandler(repo).LearningSummary(c)

@@ -20,7 +20,7 @@ var (
 // authorizeMemberManagement は actor が target を管理（停止/削除）できるかを判定する。
 // super_admin は全社の user を、company_admin は自社の user のみ操作できる。自分自身は不可。
 //
-// company_admin の判定は FRESTYLE-355 段4で company_id 直接比較から workspace_id 経由
+// company_admin の判定は workspace_id 経由
 // （domain.WorkspaceRef.Matches）へ切り替え済み。
 func authorizeMemberManagement(actor, target *domain.User) error {
 	if actor == nil || target == nil {

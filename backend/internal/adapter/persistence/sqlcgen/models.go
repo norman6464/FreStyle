@@ -106,7 +106,6 @@ type ExerciseSubmission struct {
 
 type Invitation struct {
 	ID          int64
-	CompanyID   int64
 	Email       string
 	Role        string
 	Name        string
@@ -317,7 +316,6 @@ type User struct {
 	Email        string
 	PasswordHash sql.NullString
 	Name         string
-	CompanyID    sql.NullInt64
 	RoleID       int32
 	IsActive     bool
 	CreatedAt    time.Time

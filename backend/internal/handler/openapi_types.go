@@ -27,7 +27,6 @@ type meResponse struct {
 	ID          uint64    `json:"id"          example:"42"`
 	Email       string    `json:"email"       example:"user@example.com"`
 	Name        string    `json:"name"        example:"山田 太郎"`
-	CompanyID   *uint64   `json:"companyId,omitempty" example:"1"`
 	WorkspaceID *string   `json:"workspaceId,omitempty" example:"0198a000-0000-7000-8000-000000000001"`
 	Role        string    `json:"role"        example:"trainee"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -40,7 +39,6 @@ type meResponse struct {
 type invitationValidateResponse struct {
 	Role        string  `json:"role"        example:"trainee"`
 	Name        string  `json:"name"        example:"山田 太郎"`
-	CompanyID   uint64  `json:"companyId"   example:"1"`
 	CompanyName string  `json:"companyName" example:"Example Corp"`
 	WorkspaceID *string `json:"workspaceId,omitempty" example:"0198a000-0000-7000-8000-000000000001"`
 }

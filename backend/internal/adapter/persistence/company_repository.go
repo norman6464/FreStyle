@@ -38,13 +38,18 @@ func (r *companyRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Que
 }
 
 func toDomainCompany(row sqlcgen.Company) domain.Company {
-	return domain.Company{
+	c := domain.Company{
 		ID:        uint64(row.ID),
 		Name:      row.Name,
 		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
+	if row.WorkspaceID.Valid {
+		wid := row.WorkspaceID.UUID.String()
+		c.WorkspaceID = &wid
+	}
+	return c
 }
 
 func (r *companyRepository) ListAll(ctx context.Context) ([]domain.Company, error) {
@@ -101,4 +106,22 @@ func (r *companyRepository) UpdateActive(ctx context.Context, companyID uint64, 
 		}
 		return qtx.MirrorCompanySettingsToWorkspace(ctx, id64)
 	})
+}
+
+// FindByWorkspaceID は対応ワークスペースから会社を引く（uq_companies_workspace_id で 1:1）。
+// 不正な形式の ID・該当なしはどちらも (nil, nil)。
+func (r *companyRepository) FindByWorkspaceID(ctx context.Context, workspaceID string) (*domain.Company, error) {
+	wid, ok := toNullUUID(workspaceID)
+	if !ok {
+		return nil, nil
+	}
+	row, err := r.queries().GetCompanyByWorkspaceID(ctx, wid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c := toDomainCompany(row)
+	return &c, nil
 }

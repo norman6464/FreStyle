@@ -16,15 +16,11 @@ import (
 
 // fakeCompanyCounter は CompanyMemberCounter の最小 fake。
 type fakeCompanyCounter struct {
-	rows []repository.CompanyMemberCount
-}
-
-func (f *fakeCompanyCounter) CountMembersByCompany(context.Context) ([]repository.CompanyMemberCount, error) {
-	return f.rows, nil
+	rows []repository.WorkspaceMemberCount
 }
 
 func (f *fakeCompanyCounter) CountMembersByWorkspace(context.Context) ([]repository.WorkspaceMemberCount, error) {
-	return nil, nil
+	return f.rows, nil
 }
 
 // fakeCompanyRepo は repository.CompanyRepository の最小 fake。
@@ -44,6 +40,10 @@ func (f *fakeCompanyRepo) ListAll(context.Context) ([]domain.Company, error) {
 }
 
 func (f *fakeCompanyRepo) FindByID(context.Context, uint64) (*domain.Company, error) {
+	return nil, f.err
+}
+
+func (f *fakeCompanyRepo) FindByWorkspaceID(context.Context, string) (*domain.Company, error) {
 	return nil, f.err
 }
 

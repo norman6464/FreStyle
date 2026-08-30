@@ -95,20 +95,33 @@ DELETE FROM users
 WHERE id >= 1000000;
 
 -- 会社は起動時マイグレーションの seedCompanies が id=1 を入れている前提。無ければ作る。
+-- 所属の正本は workspace_id なので、起動時バックフィルが会社 1 に用意したワークスペースを
+-- 以降の INSERT で使う（バックフィル前に流すとワークスペース未紐付けになるため、
+-- seed は必ずサーバーを 1 度起動したあとに流す）。
 INSERT INTO companies (id, name)
 SELECT 1, '株式会社FreStyle'
 WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id = 1);
+
+-- ここで会社 1 にワークスペースが無いなら、上の INSERT で今まさに作った行か、バックフィル前の
+-- DB のどちらか。そのまま進めると以降の users / courses / course_chapters が所属 NULL で入り、
+-- company_id はもう無いので次回起動でも復元できない。黙って壊れた seed を作らず、ここで止める。
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM companies WHERE id = 1 AND workspace_id IS NOT NULL) THEN
+    RAISE EXCEPTION '会社 1 にワークスペースが紐付いていません。サーバーを 1 度起動してバックフィルを走らせてから seed を流してください。';
+  END IF;
+END $$;
 
 -- ---- users ----------------------------------------------------------------
 -- 1% を company_admin にして権限分岐のあるクエリも実データで踏めるようにする。
 -- ロールは role_id が正（FRESTYLE-311）。OIDC subject は user_oidc_identities に持つ。
 -- password_hash は全員 'password' の bcrypt（ローカルのパスワードログイン用・FRESTYLE-311 PR2）。
-INSERT INTO users (id, email, name, company_id, role_id, password_hash, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, workspace_id, role_id, password_hash, is_active, created_at, updated_at)
 SELECT
   1000000 + i,
   'seed' || i || '@example.test',
   'シード利用者' || i,
-  1,
+  (SELECT workspace_id FROM companies WHERE id = 1),
   (SELECT id
    FROM roles
    WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
@@ -120,7 +133,7 @@ FROM generate_series(1, :n_users) AS i;
 
 -- オフラインで管理画面まで触れるよう、運営管理者を 1 人入れる（admin@example.test / password）。
 -- id 1000000 は連番（1000000 + i, i >= 1）と衝突しない。
-INSERT INTO users (id, email, name, company_id, role_id, password_hash, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, workspace_id, role_id, password_hash, is_active, created_at, updated_at)
 VALUES (
   1000000, 'admin@example.test', 'シード運営管理者', NULL,
   (SELECT id
@@ -147,11 +160,11 @@ INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
 VALUES (1000000, 'シード運営管理者です。', '', '運用中', now());
 
 -- ---- courses / chapters ---------------------------------------------------
-INSERT INTO courses (id, company_id, created_by_user_id, title, description, category, language,
+INSERT INTO courses (id, workspace_id, created_by_user_id, title, description, category, language,
                      sort_order, is_published, created_at, updated_at)
 SELECT
   1000000 + c,
-  1,
+  (SELECT workspace_id FROM companies WHERE id = 1),
   1000000 + 1,
   'シード講座 ' || c,
   'ダミーの説明文。実教材は非公開リポが正本のためここでは扱わない。',
@@ -162,11 +175,11 @@ SELECT
   now(), now()
 FROM generate_series(1, :n_courses) AS c;
 
-INSERT INTO course_chapters (id, company_id, course_id, created_by_user_id, title,
+INSERT INTO course_chapters (id, workspace_id, course_id, created_by_user_id, title,
                              sort_order, is_published, created_at, updated_at)
 SELECT
   1000000 + ((c - 1) * :chapters_per_course + ch),
-  1,
+  (SELECT workspace_id FROM companies WHERE id = 1),
   1000000 + c,
   1000000 + 1,
   '第' || ch || '章',

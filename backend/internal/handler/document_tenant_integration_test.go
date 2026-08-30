@@ -64,34 +64,26 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		).Scan(&id))
 		return id
 	}
-	mkUser := func(sub, email string, companyID *uint64) *domain.User {
-		u := &domain.User{Email: email, Role: domain.RoleTrainee, CompanyID: companyID, IsActive: true}
+	mkUser := func(sub, email string, workspaceID *string) *domain.User {
+		u := &domain.User{Email: email, Role: domain.RoleTrainee, WorkspaceID: workspaceID, IsActive: true}
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
-		// CreateWithOidcIdentity は ID 等だけを書き戻し、dual-write された workspace_id は
-		// 呼び出し元の構造体に反映されない。本番の current user 解決（毎回 DB から引く）と
-		// 同じ状態にするため、作成後に読み直す。
+		// 本番の current user 解決（毎回 DB から引く）と同じ状態にするため、作成後に読み直す。
 		got, err := userRepo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
 		return got
 	}
-	// companyWorkspaceID は company の workspace_id を返す（companies.workspace_id を直接引く）。
-	companyWorkspaceID := func(companyID *uint64) *string {
-		if companyID == nil {
-			return nil
-		}
+	// companyWorkspaceID は company に対応する workspace_id を返す（companies.workspace_id を直接引く）。
+	companyWorkspaceID := func(companyID uint64) *string {
 		var wid uuid.NullUUID
-		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT workspace_id FROM companies WHERE id = $1`, *companyID).Scan(&wid))
-		if !wid.Valid {
-			return nil
-		}
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT workspace_id FROM companies WHERE id = $1`, companyID).Scan(&wid))
+		require.True(t, wid.Valid, "company %d にワークスペースが紐付いていない", companyID)
 		s := wid.UUID.String()
 		return &s
 	}
-	mkDoc := func(owner uint64, companyID *uint64, title string, isPublic bool) *domain.RichDocument {
-		// rich_documents の所属参照は workspace_id だけになった。呼び出し側（usecase）が
-		// 解決して渡す設計なので、ここでも会社から明示的に引いて渡す。
+	mkDoc := func(owner uint64, workspaceID *string, title string, isPublic bool) *domain.RichDocument {
+		// workspace_id は呼び出し側（usecase）が解決して渡す設計のため、ここでも明示的に渡す。
 		d := &domain.RichDocument{
-			OwnerID: owner, WorkspaceID: companyWorkspaceID(companyID), Kind: domain.DocumentKindNote,
+			OwnerID: owner, WorkspaceID: workspaceID, Kind: domain.DocumentKindNote,
 			Title: title, IsPublic: isPublic, Doc: tenantDocBody, Revision: 1, SchemaVersion: 1,
 		}
 		require.NoError(t, docRepo.Create(ctx, d))
@@ -100,22 +92,25 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 
 	companyA := mkCompany("A 社")
 	companyB := mkCompany("B 社")
-	// CanBeReadBy は workspace_id で境界判定する。company_id→workspace_id の dual-write（Insert 系クエリの
-	// サブクエリ）は companies.workspace_id が埋まっていることが前提なので、users/rich_documents を作る前に
-	// 起動時と同じバックフィルを走らせて会社ごとのワークスペースを用意しておく。
+	// CanBeReadBy は workspace_id で境界判定する。users / rich_documents に渡す workspace_id は
+	// companies.workspace_id から引くので、行を作る前に起動時と同じバックフィルを走らせて
+	// 会社ごとのワークスペースを用意しておく。
 	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, sqlDB))
 
-	ownerA := mkUser("tenant-owner-a", "tenant-owner-a@example.com", &companyA)
-	peerA := mkUser("tenant-peer-a", "tenant-peer-a@example.com", &companyA)
-	userB := mkUser("tenant-user-b", "tenant-user-b@example.com", &companyB)
-	// 会社未所属（運営管理者相当）。company_id が NULL の文書の所有者になる。
+	workspaceA := companyWorkspaceID(companyA)
+	workspaceB := companyWorkspaceID(companyB)
+
+	ownerA := mkUser("tenant-owner-a", "tenant-owner-a@example.com", workspaceA)
+	peerA := mkUser("tenant-peer-a", "tenant-peer-a@example.com", workspaceA)
+	userB := mkUser("tenant-user-b", "tenant-user-b@example.com", workspaceB)
+	// ワークスペース未所属（運営管理者相当）。workspace_id が NULL の文書の所有者になる。
 	loneOwner := mkUser("tenant-lone", "tenant-lone@example.com", nil)
 
-	publicA := mkDoc(ownerA.ID, &companyA, "A 社の公開メモ", true)
-	privateA := mkDoc(ownerA.ID, &companyA, "A 社の非公開メモ", false)
-	publicNullCompany := mkDoc(loneOwner.ID, nil, "会社不明の公開メモ", true)
-	// 作成後に異動した所有者を模す（company_id は作成時の写しのままで更新されない）。
-	staleCompanyDoc := mkDoc(userB.ID, &companyA, "B 社ユーザーが A 社在籍時に作った公開メモ", true)
+	publicA := mkDoc(ownerA.ID, workspaceA, "A 社の公開メモ", true)
+	privateA := mkDoc(ownerA.ID, workspaceA, "A 社の非公開メモ", false)
+	publicNullWorkspace := mkDoc(loneOwner.ID, nil, "ワークスペース不明の公開メモ", true)
+	// 作成後に異動した所有者を模す（workspace_id は作成時の写しのままで更新されない）。
+	staleWorkspaceDoc := mkDoc(userB.ID, workspaceA, "B 社ユーザーが A 社在籍時に作った公開メモ", true)
 
 	t.Run("取得: 別ワークスペースのユーザーは他ワークスペースの公開文書を読めない(404)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+publicA.ID)
@@ -134,18 +129,18 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 
 	t.Run("取得: ワークスペース不明(NULL)の公開文書は所有者以外から読めない(404)", func(t *testing.T) {
 		for _, viewer := range []*domain.User{peerA, userB} {
-			w := docTenantGet(t, docTenantRouter(sqlDB, viewer), "/documents/"+publicNullCompany.ID)
+			w := docTenantGet(t, docTenantRouter(sqlDB, viewer), "/documents/"+publicNullWorkspace.ID)
 			require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("取得: 所有者はワークスペース不明(NULL)の自分の文書を読める(200)", func(t *testing.T) {
-		w := docTenantGet(t, docTenantRouter(sqlDB, loneOwner), "/documents/"+publicNullCompany.ID)
+		w := docTenantGet(t, docTenantRouter(sqlDB, loneOwner), "/documents/"+publicNullWorkspace.ID)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
 
 	t.Run("取得: 所有者は文書のワークスペースが自分のワークスペースと食い違っても読める(200)", func(t *testing.T) {
-		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+staleCompanyDoc.ID)
+		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+staleWorkspaceDoc.ID)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
 
@@ -167,8 +162,8 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		}
 		require.False(t, ids[publicA.ID], "他ワークスペースの公開文書が一覧に出ている")
 		require.False(t, ids[privateA.ID], "他ワークスペースの非公開文書が一覧に出ている")
-		require.False(t, ids[publicNullCompany.ID], "他人の文書が一覧に出ている")
-		require.True(t, ids[staleCompanyDoc.ID], "自分が所有する文書は一覧に出るべき")
+		require.False(t, ids[publicNullWorkspace.ID], "他人の文書が一覧に出ている")
+		require.True(t, ids[staleWorkspaceDoc.ID], "自分が所有する文書は一覧に出るべき")
 	})
 
 	t.Run("一覧: 同一ワークスペースの別ユーザーの公開文書も一覧には出ない(owner スコープ)", func(t *testing.T) {
@@ -185,6 +180,6 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &rows))
 		require.Len(t, rows, 1)
-		require.Equal(t, publicNullCompany.ID, rows[0].ID)
+		require.Equal(t, publicNullWorkspace.ID, rows[0].ID)
 	})
 }

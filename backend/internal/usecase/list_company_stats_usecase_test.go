@@ -20,23 +20,31 @@ func statsCompanyRepo(rows []domain.Company, err error) *mockCompanyRepo {
 	return repo
 }
 
+// statsWsA / statsWsB は会社に 1:1 で紐づくワークスペース ID。
+const (
+	statsWsA = "0198a000-0000-7000-8000-0000000000e1"
+	statsWsB = "0198a000-0000-7000-8000-0000000000e2"
+)
+
+func statsStrPtr(v string) *string { return &v }
+
 // memberCounter は CompanyMemberCounter の mock を返す。
-func memberCounter(rows []repository.CompanyMemberCount, err error) *mockMemberCounter {
+func memberCounter(rows []repository.WorkspaceMemberCount, err error) *mockMemberCounter {
 	repo := &mockMemberCounter{}
-	repo.On("CountMembersByCompany", mock.Anything).Return(rows, err).Maybe()
+	repo.On("CountMembersByWorkspace", mock.Anything).Return(rows, err).Maybe()
 	return repo
 }
 
 func Test_会社横断ビュー_会社にメンバー集計をマージして返す(t *testing.T) {
 	companies := statsCompanyRepo([]domain.Company{
-		{ID: 1, Name: "アクメ社", IsActive: true},
-		{ID: 2, Name: "ベータ社", IsActive: false},
+		{ID: 1, Name: "アクメ社", IsActive: true, WorkspaceID: statsStrPtr(statsWsA)},
+		{ID: 2, Name: "ベータ社", IsActive: false, WorkspaceID: statsStrPtr(statsWsB)},
 		{ID: 3, Name: "メンバー無し社", IsActive: true},
 	}, nil)
-	counter := memberCounter([]repository.CompanyMemberCount{
-		{CompanyID: 1, Total: 5, Active: 4, Trainees: 3},
-		{CompanyID: 2, Total: 2, Active: 0, Trainees: 1},
-		// 会社 3 は集計に出てこない（メンバー 0）→ zero value で埋まることを検証
+	counter := memberCounter([]repository.WorkspaceMemberCount{
+		{WorkspaceID: statsWsA, Total: 5, Active: 4, Trainees: 3},
+		{WorkspaceID: statsWsB, Total: 2, Active: 0, Trainees: 1},
+		// 会社 3 は集計に出てこない（メンバー 0・ワークスペース未紐付け）→ zero value で埋まることを検証
 	}, nil)
 	uc := usecase.NewListCompanyStatsUseCase(companies, counter)
 

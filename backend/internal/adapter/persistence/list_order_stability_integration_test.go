@@ -289,23 +289,26 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("invitations: created_at 同着は id 降順（一覧・単一取得とも）", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "invitations")
+		testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+		insertCompany(t, sqlDB, 1, "会社 A", true)
+		runStartupBackfill(ctx, t, sqlDB)
+		ws1 := companyWorkspaceID(t, sqlDB, 1).UUID
 		repo := persistence.NewAdminInvitationRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ {
 			_, err := sqlDB.ExecContext(ctx,
 				`INSERT INTO invitations
-				   (id, company_id, email, role, name, status, token, expires_at, created_at)
-				 VALUES ($1, 1, 'inv@example.com', $2, '', $3, NULL, $4, $5)`,
-				i, domain.RoleTrainee, domain.InvitationStatusPending, tie.Add(24*time.Hour), tie)
+				   (id, workspace_id, email, role, name, status, token, expires_at, created_at)
+				 VALUES ($1, $6, 'inv@example.com', $2, '', $3, NULL, $4, $5)`,
+				i, domain.RoleTrainee, domain.InvitationStatusPending, tie.Add(24*time.Hour), tie, ws1)
 			require.NoError(t, err)
 		}
 		all, err := repo.ListAll(ctx)
 		require.NoError(t, err)
 		require.Equal(t, []uint64{4, 3, 2, 1}, invitationIDs(all))
 
-		byCompany, err := repo.ListByCompanyID(ctx, 1)
+		byWorkspace, err := repo.ListByWorkspaceID(ctx, ws1.String())
 		require.NoError(t, err)
-		require.Equal(t, []uint64{4, 3, 2, 1}, invitationIDs(byCompany))
+		require.Equal(t, []uint64{4, 3, 2, 1}, invitationIDs(byWorkspace))
 
 		// 同一 email に pending が複数あっても「どれが受理されるか」がぶれない。
 		one, err := repo.FindPendingByEmail(ctx, "inv@example.com")

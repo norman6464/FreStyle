@@ -136,10 +136,11 @@ func Test_IDトークンからユーザー登録_ブートストラップは運�
 
 // 招待があれば従来どおり作成できる（ブートストラップ未設定でも影響しない）。
 func Test_IDトークンからユーザー登録_招待があるCognito_adminは従来どおり作成(t *testing.T) {
+	invitedWorkspaceID := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
-			"ops@example.com": {ID: 3, Role: domain.RoleCompanyAdmin, CompanyID: 1},
+			"ops@example.com": {ID: 3, Role: domain.RoleCompanyAdmin, WorkspaceID: &invitedWorkspaceID},
 		},
 	}
 	h := newTestAuthHandler(users, invs)
@@ -302,45 +303,17 @@ func Test_現在ユーザー取得_非管理者はロールを触らない(t *te
 	}
 }
 
-// companyId と同じく、workspaceId も所属していればレスポンスに含む。
-func Test_現在ユーザー取得_所属していればcompanyIdとworkspaceIdを含む(t *testing.T) {
+// 所属していれば workspaceId をレスポンスに含む（テナント参照は workspaceId ただ 1 つ）。
+func Test_現在ユーザー取得_所属していればworkspaceIdを含む(t *testing.T) {
 	wsID := "0198a000-0000-7000-8000-000000000001"
-	cid := uint64(7)
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
-		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee, CompanyID: &cid, WorkspaceID: &wsID},
+		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee, WorkspaceID: &wsID},
 	}}
 	h := newMeHandler(users)
 	c, rec := newMeCtx("u1", nil)
 
 	h.Me(c)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d (body=%s)", rec.Code, rec.Body.String())
-	}
-	var body map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if body["companyId"] != float64(cid) {
-		t.Fatalf("companyId = %v, want %d", body["companyId"], cid)
-	}
-	if body["workspaceId"] != wsID {
-		t.Fatalf("workspaceId = %v, want %q", body["workspaceId"], wsID)
-	}
-}
-
-// 未所属（company_id/workspace_id が NULL）のユーザーは、どちらのフィールドも省略する。
-func Test_現在ユーザー取得_未所属はcompanyIdとworkspaceIdを省略する(t *testing.T) {
-	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
-		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleSuperAdmin},
-	}}
-	h := newMeHandler(users)
-	c, rec := newMeCtx("u1", nil)
-
-	h.Me(c)
-
-	// エラー応答（500/404 等）でも companyId/workspaceId は含まれない。ステータスを
-	// 確認せずキー不在だけで判定すると、失敗レスポンスでもこのテストが偽陽性で通ってしまう。
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d (body=%s)", rec.Code, rec.Body.String())
 	}
@@ -349,7 +322,31 @@ func Test_現在ユーザー取得_未所属はcompanyIdとworkspaceIdを省略�
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if _, ok := body["companyId"]; ok {
-		t.Fatalf("未所属なのに companyId が含まれている: %v", body["companyId"])
+		t.Fatalf("companyId は返さない（テナント参照は workspaceId のみ）: %v", body["companyId"])
+	}
+	if body["workspaceId"] != wsID {
+		t.Fatalf("workspaceId = %v, want %q", body["workspaceId"], wsID)
+	}
+}
+
+// 未所属（workspace_id が NULL）のユーザーは workspaceId を省略する。
+func Test_現在ユーザー取得_未所属はworkspaceIdを省略する(t *testing.T) {
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
+		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleSuperAdmin},
+	}}
+	h := newMeHandler(users)
+	c, rec := newMeCtx("u1", nil)
+
+	h.Me(c)
+
+	// エラー応答（500/404 等）でも workspaceId は含まれない。ステータスを
+	// 確認せずキー不在だけで判定すると、失敗レスポンスでもこのテストが偽陽性で通ってしまう。
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (body=%s)", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
 	if _, ok := body["workspaceId"]; ok {
 		t.Fatalf("未所属なのに workspaceId が含まれている: %v", body["workspaceId"])

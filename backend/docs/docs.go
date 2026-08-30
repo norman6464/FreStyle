@@ -267,7 +267,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)",
+                        "description": "会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -311,7 +311,7 @@ const docTemplate = `{
                 "summary": "招待 作成",
                 "parameters": [
                     {
-                        "description": "招待 内容 (CompanyAdmin は companyId が 上書き さ れる)",
+                        "description": "招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -328,7 +328,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "バリデーション / 未知の method / 一時パスワード方式が未構成",
+                        "description": "バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5735,9 +5735,6 @@ const docTemplate = `{
         "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer"
-                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -5760,7 +5757,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため\n通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。",
+                    "description": "WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -5824,6 +5821,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "description": "WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、\ncompanies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。\n起動時バックフィルが未到達の会社は NULL になり得る。",
                     "type": "string"
                 }
             }
@@ -6655,12 +6656,12 @@ const docTemplate = `{
         "internal_handler.createAdminInvReq": {
             "type": "object",
             "required": [
-                "companyId",
                 "email",
                 "role"
             ],
             "properties": {
                 "companyId": {
+                    "description": "CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の\n招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。\nbinding:\"required\" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の\n招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。",
                     "type": "integer"
                 },
                 "email": {
@@ -6865,10 +6866,6 @@ const docTemplate = `{
         "internal_handler.invitationValidateResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "companyName": {
                     "type": "string",
                     "example": "Example Corp"
@@ -7483,10 +7480,6 @@ const docTemplate = `{
         "internal_handler.meResponse": {
             "type": "object",
             "properties": {
-                "companyId": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "createdAt": {
                     "type": "string"
                 },

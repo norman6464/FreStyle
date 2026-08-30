@@ -78,7 +78,6 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 		runner := persistence.NewUserInvitationTransactionRunner(db)
 
 		invitation := &domain.AdminInvitation{
-			CompanyID: 42,
 			Email:     "commit@example.com",
 			Name:      "Commit User",
 			Role:      domain.RoleTrainee,
@@ -131,7 +130,6 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 		}
 
 		invitation := &domain.AdminInvitation{
-			CompanyID: 42,
 			Email:     "rollback@example.com",
 			Name:      "Rollback User",
 			Role:      domain.RoleTrainee,

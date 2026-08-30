@@ -65,12 +65,11 @@ export function useAdminInvitations() {
       setCompanies(companyList);
 
       // 役割に応じてフォームの初期値を上書きする。
+      // company_admin は自社固定（InvitationForm が company_admin 用の選択 UI 自体を出さない）ため
+      // ここでは super_admin 向けの既定値（会社一覧の先頭）だけを算出する。
       const defaultRole: CreateInvitationForm['role'] =
         user.role === 'super_admin' ? 'company_admin' : 'trainee';
-      const defaultCompanyId =
-        user.role === 'company_admin' && user.companyId
-          ? user.companyId
-          : companyList[0]?.id ?? 0;
+      const defaultCompanyId = companyList[0]?.id ?? 0;
       setForm((f) => ({
         ...f,
         role: defaultRole,
@@ -90,7 +89,9 @@ export function useAdminInvitations() {
   }, [fetchAll]);
 
   const submit = async () => {
-    if (!form.companyId) {
+    // 会社の選択が要るのは super_admin だけ。company_admin の招待先は
+    // backend が actor 自身の所属ワークスペースに固定するため、フォームでは選ばせない。
+    if (isSuperAdmin && !form.companyId) {
       setError('会社を選択してください');
       return;
     }

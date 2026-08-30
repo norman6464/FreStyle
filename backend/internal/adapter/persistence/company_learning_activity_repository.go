@@ -21,31 +21,6 @@ func NewCompanyLearningActivityRepository(db *sql.DB) repository.CompanyLearning
 	return &companyLearningActivityRepository{db: db}
 }
 
-// ListMemberActivities は自社 trainee ごとの最終活動日と fromDate 以降の活動回数を 1 クエリで集計する
-// (trainee ごとの個別クエリだと N+1 になるため集計 CTE + LEFT JOIN で一括取得する)。
-func (r *companyLearningActivityRepository) ListMemberActivities(
-	ctx context.Context,
-	companyID uint64,
-	fromDate time.Time,
-) ([]repository.MemberLearningActivity, error) {
-	cid, ok := toInt64ID(companyID)
-	if !ok {
-		return []repository.MemberLearningActivity{}, nil // 存在し得ない company_id = 0 件
-	}
-	rows, err := sqlcgen.New(r.db).ListCompanyMemberActivities(ctx, sqlcgen.ListCompanyMemberActivitiesParams{
-		FromDate:  truncateToUTCDate(fromDate),
-		CompanyID: cid,
-		// trainee 判定は正規化後の正である role_id で行う（FRESTYLE-311）。
-		TraineeRoleID: domain.RoleIDTrainee,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return toMemberLearningActivities(rows), nil
-}
-
-// ListMemberActivitiesByWorkspace は ListMemberActivities と同じ集計を workspace_id で
-// 絞り込む版。
 func (r *companyLearningActivityRepository) ListMemberActivitiesByWorkspace(
 	ctx context.Context,
 	workspaceID string,
@@ -71,14 +46,6 @@ func (r *companyLearningActivityRepository) ListMemberActivitiesByWorkspace(
 // （ListByUser と同じ流儀）。
 func truncateToUTCDate(t time.Time) time.Time {
 	return t.UTC().Truncate(24 * time.Hour)
-}
-
-func toMemberLearningActivities(rows []sqlcgen.ListCompanyMemberActivitiesRow) []repository.MemberLearningActivity {
-	out := make([]repository.MemberLearningActivity, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toMemberLearningActivity(row.UserID, row.Name, row.LastActiveDate, row.RecentActivityCount))
-	}
-	return out
 }
 
 func toMemberLearningActivitiesFromWorkspaceRows(rows []sqlcgen.ListCompanyMemberActivitiesByWorkspaceRow) []repository.MemberLearningActivity {

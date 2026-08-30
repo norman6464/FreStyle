@@ -159,16 +159,16 @@ func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 		}
 	}
 
-	if inv.CompanyID != 0 &&
-		(existing.CompanyID == nil ||
-			*existing.CompanyID != inv.CompanyID) {
+	// 招待が所属ワークスペースを持ち、既存ユーザーの所属と違うときだけ付け替える。
+	if inv.WorkspaceID != nil &&
+		(existing.WorkspaceID == nil ||
+			*existing.WorkspaceID != *inv.WorkspaceID) {
 		if err := u.users.UpdateWorkspaceID(
 			ctx,
 			existing.ID,
-			inv.CompanyID,
 			inv.WorkspaceID,
 		); err != nil {
-			return fmt.Errorf("update existing user company: %w", err)
+			return fmt.Errorf("update existing user workspace: %w", err)
 		}
 	}
 
@@ -285,7 +285,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	}
 
 	role := domain.RoleTrainee
-	var companyID *uint64
+	var workspaceID *string
 
 	name := email
 	if oidcName != "" {
@@ -304,9 +304,9 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			role = inv.Role
 		}
 
-		if inv.CompanyID != 0 {
-			cid := inv.CompanyID
-			companyID = &cid
+		if inv.WorkspaceID != nil {
+			wid := *inv.WorkspaceID
+			workspaceID = &wid
 		}
 		if inv.Name != "" {
 			name = inv.Name
@@ -314,10 +314,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	}
 
 	user = &domain.User{
-		Email:     email,
-		Name:      name,
-		Role:      role,
-		CompanyID: companyID,
+		Email:       email,
+		Name:        name,
+		Role:        role,
+		WorkspaceID: workspaceID,
 	}
 
 	// users 行と OIDC identity（正規化後のログイン突き合わせの正）を単一トランザクションで作る。

@@ -50,7 +50,7 @@ func progressRepo(cfg progressFakeConfig) (*mockProgressRepo, *progressStore) {
 	return repo, st
 }
 
-// publishedSetup は「同一ワークスペース（wsA）・公開教材・公開コース」の正常に完了できる組み合わせを作る。
+// publishedSetup は「actor と同じワークスペース（wsA）・公開教材・公開コース」の正常に完了できる組み合わせを作る。
 func publishedSetup(materialID, courseID uint64) (*mockMaterialRepo, *mockCourseRepo) {
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
 		ID: materialID, CourseID: courseID, WorkspaceID: strPtr(wsA), IsPublished: true,
@@ -72,7 +72,7 @@ func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time
 	return nil, nil
 }
 
-func Test_レッスン完了_同一ワークスペースの公開教材はcourse_idを解決して記録する(t *testing.T) {
+func Test_レッスン完了_同じワークスペースの公開教材はcourse_idを解決して記録する(t *testing.T) {
 	progress, pstore := progressRepo(progressFakeConfig{})
 	mat, crs := publishedSetup(5, 99)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})

@@ -186,22 +186,27 @@ describe('NotePage の配線', () => {
     renderPage();
     await screen.findByRole('navigation', { name: 'ページの場所' });
 
-    // 無関係なページの削除では動かない。
+    // 祖先（anc-1）が消えたら CASCADE で自分も消えている — 一覧へ戻る。
+    // 祖先はサーバー応答から取るので、サイドバーの現役の木に載っていない
+    // （アーカイブ済みの）ページを開いていても判定できる。
+    //
+    // 購読が張られるより先に emit すると、イベントは誰にも届かないまま捨てられる
+    // （replay を持たない pub-sub のため）。届くまで emit を繰り返して、購読が
+    // 生きていることをここで確定させる。これを先にやらないと、下の「無関係なら
+    // 動かない」が「イベントが届いていないだけ」で通る空検証になる。
+    await waitFor(() => {
+      emitNoteTreeEvent({ type: 'page-deleted', pageId: 'anc-1' });
+      expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+    });
+
+    // 購読が生きていると分かったうえで、無関係なページの削除では動かないことを見る。
+    hoisted.navigate.mockClear();
     act(() => {
       emitNoteTreeEvent({ type: 'page-deleted', pageId: 'unrelated' });
     });
     expect(hoisted.navigate).not.toHaveBeenCalled();
 
-    // 祖先（anc-1）が消えたら CASCADE で自分も消えている — 一覧へ戻る。
-    // 祖先はサーバー応答から取るので、サイドバーの現役の木に載っていない
-    // （アーカイブ済みの）ページを開いていても判定できる。
-    act(() => {
-      emitNoteTreeEvent({ type: 'page-deleted', pageId: 'anc-1' });
-    });
-    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
-
     // 自分自身の削除でも戻る。
-    hoisted.navigate.mockClear();
     act(() => {
       emitNoteTreeEvent({ type: 'page-deleted', pageId: 'p1' });
     });
@@ -212,17 +217,19 @@ describe('NotePage の配線', () => {
     renderPage();
     await screen.findByRole('navigation', { name: 'ページの場所' });
 
-    // 無関係なワークスペースの削除では動かない。
+    // resolved() の workspaceSlug と一致する削除では戻る。
+    // 上のテストと同じ理由で、届くまで emit を繰り返して購読を確定させてから
+    // 「無関係なら動かない」を見る（順序を逆にすると空検証になる）。
+    await waitFor(() => {
+      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'w-3f2a9c' });
+      expect(hoisted.navigate).toHaveBeenCalledWith('/notes');
+    });
+
+    hoisted.navigate.mockClear();
     act(() => {
       emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'unrelated' });
     });
     expect(hoisted.navigate).not.toHaveBeenCalled();
-
-    // resolved() の workspaceSlug と一致する削除では戻る。
-    act(() => {
-      emitNoteTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'w-3f2a9c' });
-    });
-    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/notes'));
   });
 
   it('編集できないページでは /page を渡さない（読むだけの人にメニューを見せない）', async () => {

@@ -25,6 +25,7 @@ type TemporaryPasswordCreator interface {
 // （CreateAdminInvitationUseCase）とは別 usecase（§2.3 単一責任）。
 type CreateTemporaryPasswordInvitationUseCase struct {
 	repo      repository.AdminInvitationRepository
+	companies repository.CompanyRepository
 	cognito   TemporaryPasswordCreator
 	expiresIn time.Duration
 }
@@ -34,10 +35,12 @@ type CreateTemporaryPasswordInvitationUseCase struct {
 // （COGNITO_USER_POOL_ID 未設定 = 本機能無効。マジックリンクには影響しない）。
 func NewCreateTemporaryPasswordInvitationUseCase(
 	r repository.AdminInvitationRepository,
+	companies repository.CompanyRepository,
 	cognito TemporaryPasswordCreator,
 ) *CreateTemporaryPasswordInvitationUseCase {
 	return &CreateTemporaryPasswordInvitationUseCase{
 		repo:      r,
+		companies: companies,
 		cognito:   cognito,
 		expiresIn: 7 * 24 * time.Hour,
 	}
@@ -72,8 +75,18 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 	// FindPendingByEmail する）と突き合わせられず、招待したはずの相手が拒否される。
 	// Cognito 側も同じ値で作り、2 つの表現が並存しないようにする。
 	in.Email = domain.NormalizeEmail(in.Email)
-	if in.CompanyID == 0 || in.Email == "" || in.Role == "" {
-		return nil, errors.New("companyID, email, role are required")
+	if _, hasWorkspace := in.TargetWorkspace.WorkspaceID(); !hasWorkspace && in.CompanyID == 0 {
+		return nil, errors.New("companyID or targetWorkspace is required")
+	}
+	if in.Email == "" || in.Role == "" {
+		return nil, errors.New("email, role are required")
+	}
+
+	// 招待先の workspace_id を先に確かめる。Cognito ユーザーを作ってから解決に失敗すると、
+	// 招待行の無い Cognito ユーザーだけが残る（下の順序のコメント参照）。
+	workspaceID, err := resolveInvitationWorkspace(ctx, u.companies, in)
+	if err != nil {
+		return nil, err
 	}
 
 	// 順序が重要: 先に Cognito ユーザーを作り、成功したときだけ pending 招待行を作る。
@@ -92,13 +105,13 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 
 	token := uuid.NewString()
 	inv := &domain.AdminInvitation{
-		CompanyID: in.CompanyID,
-		Email:     in.Email,
-		Role:      in.Role,
-		Name:      in.Name,
-		Status:    domain.InvitationStatusPending,
-		Token:     &token,
-		ExpiresAt: time.Now().UTC().Add(u.expiresIn),
+		WorkspaceID: workspaceID,
+		Email:       in.Email,
+		Role:        in.Role,
+		Name:        in.Name,
+		Status:      domain.InvitationStatusPending,
+		Token:       &token,
+		ExpiresAt:   time.Now().UTC().Add(u.expiresIn),
 	}
 	if err := u.repo.Create(ctx, inv); err != nil {
 		// ここに来るのは Cognito 成功後の DB 失敗という稀ケース。Cognito ユーザーは残るが、

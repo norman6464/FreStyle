@@ -25,3 +25,10 @@ SET is_active = c.is_active,
     updated_at = now()
 FROM companies c
 WHERE c.id = $1 AND c.workspace_id = w.id;
+
+-- name: GetCompanyByWorkspaceID :one
+-- workspace_id で企業を 1 件取得。uq_companies_workspace_id（部分 UNIQUE）で 1:1 なので最大 1 行。
+-- 招待受諾画面が「どの会社への招待か」を表示するために使う（invitations は company_id を
+-- 持たず workspace_id だけを持つため、会社名はこの経路で引く）。
+SELECT * FROM companies
+WHERE workspace_id = $1;

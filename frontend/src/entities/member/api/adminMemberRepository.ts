@@ -12,8 +12,8 @@ export interface MemberLearningSummaryItem {
   recentActivityCount: number;
 }
 
-/** 自社メンバーの学習状況サマリー（backend usecase.CompanyLearningSummaryOutput と 1:1）。 */
-export interface CompanyLearningSummary {
+/** 自社（自ワークスペース）メンバーの学習状況サマリー（backend usecase.CompanyLearningSummaryOutput 相当）。 */
+export interface WorkspaceLearningSummary {
   traineeCount: number;
   activeToday: number;
   activeThisWeek: number;
@@ -51,8 +51,8 @@ const AdminMemberRepository = {
   },
 
   /** 自社メンバーの学習状況サマリーを取得する（company_admin のホーム用）。 */
-  async learningSummary(): Promise<CompanyLearningSummary> {
-    const res = await api.get<CompanyLearningSummary>(ADMIN.membersLearningSummary);
+  async learningSummary(): Promise<WorkspaceLearningSummary> {
+    const res = await api.get<WorkspaceLearningSummary>(ADMIN.membersLearningSummary);
     return res.data;
   },
 };

@@ -109,13 +109,13 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.Han
 		if creator, err := cognito.NewAdminUserCreator(context.Background(), deps.cfg.Cognito.Region, deps.cfg.Cognito.UserPoolID); err != nil {
 			log.Printf("WARN: admin user creator init failed (temporary password invitations disabled): %v", err)
 		} else {
-			tempCreate = usecase.NewCreateTemporaryPasswordInvitationUseCase(adminInvRepo, creator)
+			tempCreate = usecase.NewCreateTemporaryPasswordInvitationUseCase(adminInvRepo, companyRepo, creator)
 		}
 	}
 
 	adminInvHandler := NewAdminInvitationHandler(
-		usecase.NewListAdminInvitationsUseCase(adminInvRepo),
-		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, sender, linkBuilder, mailBuilder),
+		usecase.NewListAdminInvitationsUseCase(adminInvRepo, companyRepo),
+		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, companyRepo, sender, linkBuilder, mailBuilder),
 		tempCreate,
 		usecase.NewCancelAdminInvitationUseCase(adminInvRepo),
 	)

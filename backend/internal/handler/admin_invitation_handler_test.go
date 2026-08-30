@@ -18,9 +18,10 @@ import (
 // fakeAdminInvRepo は AdminInvitationRepository の最小スタブ。
 // list 系のテストで「どのメソッドが呼ばれたか」を確認するため calledWith を記録する。
 type fakeAdminInvRepo struct {
-	all     []domain.AdminInvitation
-	company []domain.AdminInvitation
-	called  string
+	all         []domain.AdminInvitation
+	company     []domain.AdminInvitation
+	called      string
+	workspaceID string
 }
 
 func (r *fakeAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
@@ -35,6 +36,7 @@ func (r *fakeAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) 
 
 func (r *fakeAdminInvRepo) ListByWorkspaceID(_ context.Context, workspaceID string) ([]domain.AdminInvitation, error) {
 	r.called = "workspace"
+	r.workspaceID = workspaceID
 	return r.company, nil
 }
 func (r *fakeAdminInvRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
@@ -134,6 +136,9 @@ func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(
 	}
 	if repo.called != "workspace" {
 		t.Fatalf("expected ListByWorkspaceID, got %q", repo.called)
+	}
+	if repo.workspaceID != wid {
+		t.Fatalf("expected workspaceID %q to be delegated, got %q", wid, repo.workspaceID)
 	}
 }
 

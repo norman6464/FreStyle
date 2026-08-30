@@ -148,6 +148,19 @@ func Test_招待一覧_ワークスペース指定_リポジトリへ委譲(t *t
 	}
 }
 
+func Test_招待一覧_ワークスペース指定_リポジトリエラーを伝播する(t *testing.T) {
+	wantErr := errors.New("db down")
+	repo := &stubAdminInvRepo{err: wantErr}
+	uc := NewListAdminInvitationsUseCase(repo)
+	got, err := uc.ListByWorkspaceID(context.Background(), "0198a000-0000-7000-8000-0000000000c1")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected repo error to propagate, got %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil rows on error, got %+v", got)
+	}
+}
+
 func Test_招待一覧_全件_リポジトリへ委譲(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7}, {ID: 8}}}
 	uc := NewListAdminInvitationsUseCase(repo)

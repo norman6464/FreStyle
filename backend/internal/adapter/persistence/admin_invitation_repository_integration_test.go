@@ -172,4 +172,8 @@ func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 	empty, err := repo.ListByWorkspaceID(ctx, "")
 	require.NoError(t, err)
 	require.Empty(t, empty, "空 ID は該当なし扱い")
+
+	invalid, err := repo.ListByWorkspaceID(ctx, "not-a-uuid")
+	require.NoError(t, err)
+	require.Empty(t, invalid, "不正な形式の ID も該当なし扱い")
 }

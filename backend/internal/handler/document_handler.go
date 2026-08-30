@@ -33,7 +33,7 @@ func limitBody(c *gin.Context) {
 }
 
 // currentCompanyID は current user の会社 ID を返す（未所属/未設定なら nil）。作成時に文書へ写す用。
-// 閲覧側は 0 と未所属を潰さない domain.CompanyRef が要るので actorFromContext を使う。
+// 閲覧側の境界判定は workspace_id で行うため actorWorkspaceFromContext を使う（下記 List/Get）。
 func currentCompanyID(c *gin.Context) *uint64 {
 	if u := middleware.CurrentUserFromContext(c); u != nil {
 		return u.CompanyID
@@ -57,6 +57,7 @@ type documentSummaryResponse struct {
 	ID            string    `json:"id"            example:"31400a07-297e-8057-884b-c05dbdf9fa53"`
 	OwnerID       uint64    `json:"ownerId"       example:"42"`
 	CompanyID     *uint64   `json:"companyId,omitempty" example:"1"`
+	WorkspaceID   *string   `json:"workspaceId,omitempty"`
 	Kind          string    `json:"kind"          example:"note"`
 	Title         string    `json:"title"         example:"学習メモ"`
 	IsPublic      bool      `json:"isPublic"      example:"false"`
@@ -71,6 +72,7 @@ func toDocumentSummary(d *domain.RichDocument) documentSummaryResponse {
 		ID:            d.ID,
 		OwnerID:       d.OwnerID,
 		CompanyID:     d.CompanyID,
+		WorkspaceID:   d.WorkspaceID,
 		Kind:          string(d.Kind),
 		Title:         d.Title,
 		IsPublic:      d.IsPublic,
@@ -86,6 +88,7 @@ type documentResponse struct {
 	ID            string          `json:"id"            example:"31400a07-297e-8057-884b-c05dbdf9fa53"`
 	OwnerID       uint64          `json:"ownerId"       example:"42"`
 	CompanyID     *uint64         `json:"companyId,omitempty" example:"1"`
+	WorkspaceID   *string         `json:"workspaceId,omitempty"`
 	Kind          string          `json:"kind"          example:"note"`
 	Title         string          `json:"title"         example:"学習メモ"`
 	IsPublic      bool            `json:"isPublic"      example:"false"`
@@ -101,6 +104,7 @@ func toDocumentResponse(d *domain.RichDocument) documentResponse {
 		ID:            d.ID,
 		OwnerID:       d.OwnerID,
 		CompanyID:     d.CompanyID,
+		WorkspaceID:   d.WorkspaceID,
 		Kind:          string(d.Kind),
 		Title:         d.Title,
 		IsPublic:      d.IsPublic,
@@ -151,14 +155,14 @@ func respondRichDocErr(c *gin.Context, err error) {
 //	@Router       /documents [get]
 //	@Security     CookieAuth
 func (h *DocumentHandler) List(c *gin.Context) {
-	uid, company, _, ok := actorFromContext(c)
+	uid, workspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
 	docs, err := h.list.Execute(c.Request.Context(), usecase.ListRichDocumentsInput{
-		OwnerID:       uid,
-		ViewerCompany: company,
-		Kind:          domain.DocumentKind(c.Query("kind")),
+		OwnerID:         uid,
+		ViewerWorkspace: workspace,
+		Kind:            domain.DocumentKind(c.Query("kind")),
 	})
 	if err != nil {
 		respondRichDocErr(c, err)
@@ -221,10 +225,10 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, toDocumentResponse(doc))
 }
 
-// Get は文書を 1 件返す。所有者、または同一会社の公開文書のみ（他社・非公開は存在を漏らさず 404）。
+// Get は文書を 1 件返す。所有者、または同一ワークスペースの公開文書のみ（他ワークスペース・非公開は存在を漏らさず 404）。
 //
 //	@Summary      リッチ 文書 の 取得
-//	@Description  id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ ず 404)。
+//	@Description  id の 文書 を 返す。 所有者 か 同一 ワークスペース の 公開 文書 のみ (他 ワークスペース の 文書 や 非公開 は 存在 を 漏らさ ず 404)。
 //	@Tags         documents
 //	@Produce      json
 //	@Param        id   path      string  true  "文書 ID (UUID)"
@@ -235,7 +239,7 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 //	@Router       /documents/{id} [get]
 //	@Security     CookieAuth
 func (h *DocumentHandler) Get(c *gin.Context) {
-	uid, company, _, ok := actorFromContext(c)
+	uid, workspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -244,7 +248,7 @@ func (h *DocumentHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_id"})
 		return
 	}
-	doc, err := h.get.Execute(c.Request.Context(), id, uid, company)
+	doc, err := h.get.Execute(c.Request.Context(), id, uid, workspace)
 	if err != nil {
 		respondRichDocErr(c, err)
 		return

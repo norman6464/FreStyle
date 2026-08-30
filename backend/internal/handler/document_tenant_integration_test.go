@@ -14,6 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
@@ -43,12 +44,12 @@ func docTenantGet(t *testing.T, r *gin.Engine, path string) *httptest.ResponseRe
 	return w
 }
 
-// TestDocumentTenantIsolation_Integration は「公開文書は同一会社の中でだけ読める」を実 PostgreSQL で固定する。
-// 会社をまたいだ閲覧は、読み取りエンドポイントのどれからも成立しないこと（取得・一覧の両方）を見る。
+// TestDocumentTenantIsolation_Integration は「公開文書は同一ワークスペースの中でだけ読める」を実 PostgreSQL で固定する。
+// ワークスペースをまたいだ閲覧は、読み取りエンドポイントのどれからも成立しないこと（取得・一覧の両方）を見る。
 func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, "rich_documents", "user_oidc_identities", "users", "companies")
+	testsupport.TruncateAll(t, sqlDB, "rich_documents", "user_oidc_identities", "users", "companies", "workspaces")
 
 	userRepo := persistence.NewUserRepository(sqlDB)
 	docRepo := persistence.NewRichDocumentRepository(sqlDB)
@@ -65,7 +66,12 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	mkUser := func(sub, email string, companyID *uint64) *domain.User {
 		u := &domain.User{Email: email, Role: domain.RoleTrainee, CompanyID: companyID, IsActive: true}
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
-		return u
+		// CreateWithOidcIdentity は ID 等だけを書き戻し、dual-write された workspace_id は
+		// 呼び出し元の構造体に反映されない。本番の current user 解決（毎回 DB から引く）と
+		// 同じ状態にするため、作成後に読み直す。
+		got, err := userRepo.FindByID(ctx, u.ID)
+		require.NoError(t, err)
+		return got
 	}
 	mkDoc := func(owner uint64, companyID *uint64, title string, isPublic bool) *domain.RichDocument {
 		d := &domain.RichDocument{
@@ -78,6 +84,10 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 
 	companyA := mkCompany("A 社")
 	companyB := mkCompany("B 社")
+	// CanBeReadBy は workspace_id で境界判定する。company_id→workspace_id の dual-write（Insert 系クエリの
+	// サブクエリ）は companies.workspace_id が埋まっていることが前提なので、users/rich_documents を作る前に
+	// 起動時と同じバックフィルを走らせて会社ごとのワークスペースを用意しておく。
+	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, sqlDB))
 
 	ownerA := mkUser("tenant-owner-a", "tenant-owner-a@example.com", &companyA)
 	peerA := mkUser("tenant-peer-a", "tenant-peer-a@example.com", &companyA)
@@ -91,44 +101,44 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	// 作成後に異動した所有者を模す（company_id は作成時の写しのままで更新されない）。
 	staleCompanyDoc := mkDoc(userB.ID, &companyA, "B 社ユーザーが A 社在籍時に作った公開メモ", true)
 
-	t.Run("取得: 別会社のユーザーは他社の公開文書を読めない(404)", func(t *testing.T) {
+	t.Run("取得: 別ワークスペースのユーザーは他ワークスペースの公開文書を読めない(404)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+publicA.ID)
 		require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 	})
 
-	t.Run("取得: 同一会社の別ユーザーは公開文書を読める(200)", func(t *testing.T) {
+	t.Run("取得: 同一ワークスペースの別ユーザーは公開文書を読める(200)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, peerA), "/documents/"+publicA.ID)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
 
-	t.Run("取得: 同一会社の別ユーザーでも非公開は読めない(404)", func(t *testing.T) {
+	t.Run("取得: 同一ワークスペースの別ユーザーでも非公開は読めない(404)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, peerA), "/documents/"+privateA.ID)
 		require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 	})
 
-	t.Run("取得: 会社不明(NULL)の公開文書は所有者以外から読めない(404)", func(t *testing.T) {
+	t.Run("取得: ワークスペース不明(NULL)の公開文書は所有者以外から読めない(404)", func(t *testing.T) {
 		for _, viewer := range []*domain.User{peerA, userB} {
 			w := docTenantGet(t, docTenantRouter(sqlDB, viewer), "/documents/"+publicNullCompany.ID)
 			require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 		}
 	})
 
-	t.Run("取得: 所有者は会社不明(NULL)の自分の文書を読める(200)", func(t *testing.T) {
+	t.Run("取得: 所有者はワークスペース不明(NULL)の自分の文書を読める(200)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, loneOwner), "/documents/"+publicNullCompany.ID)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
 
-	t.Run("取得: 所有者は文書の会社が自分の会社と食い違っても読める(200)", func(t *testing.T) {
+	t.Run("取得: 所有者は文書のワークスペースが自分のワークスペースと食い違っても読める(200)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+staleCompanyDoc.ID)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
 
-	t.Run("取得: 別会社のユーザーは他社の非公開文書も読めない(404)", func(t *testing.T) {
+	t.Run("取得: 別ワークスペースのユーザーは他ワークスペースの非公開文書も読めない(404)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+privateA.ID)
 		require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 	})
 
-	t.Run("一覧: 他社ユーザーの一覧に他社の文書は出ない", func(t *testing.T) {
+	t.Run("一覧: 他ワークスペースユーザーの一覧に他ワークスペースの文書は出ない", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		var rows []struct {
@@ -139,19 +149,19 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		for _, row := range rows {
 			ids[row.ID] = true
 		}
-		require.False(t, ids[publicA.ID], "他社の公開文書が一覧に出ている")
-		require.False(t, ids[privateA.ID], "他社の非公開文書が一覧に出ている")
+		require.False(t, ids[publicA.ID], "他ワークスペースの公開文書が一覧に出ている")
+		require.False(t, ids[privateA.ID], "他ワークスペースの非公開文書が一覧に出ている")
 		require.False(t, ids[publicNullCompany.ID], "他人の文書が一覧に出ている")
 		require.True(t, ids[staleCompanyDoc.ID], "自分が所有する文書は一覧に出るべき")
 	})
 
-	t.Run("一覧: 同一会社の別ユーザーの公開文書も一覧には出ない(owner スコープ)", func(t *testing.T) {
+	t.Run("一覧: 同一ワークスペースの別ユーザーの公開文書も一覧には出ない(owner スコープ)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, peerA), "/documents")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.Equal(t, "[]", w.Body.String())
 	})
 
-	t.Run("一覧: 所有者は自分の文書を会社の値によらず取れる", func(t *testing.T) {
+	t.Run("一覧: 所有者は自分の文書をワークスペースの値によらず取れる", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, loneOwner), "/documents")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		var rows []struct {

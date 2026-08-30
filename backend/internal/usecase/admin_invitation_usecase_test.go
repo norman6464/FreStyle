@@ -320,6 +320,50 @@ func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
 	})
 }
 
+// company_id は招待と同じまま workspace_id だけを変えて not found を確認する。company_id
+// ベースの認可が残っていても本テストは company_id 一致で通ってしまうため、workspace_id
+// 単体の切替が効いていることを company_id 一致のケースで区別して固定する（「他社は not found」
+// テストは company_id も変えてしまうため、この観点を見分けられない）。
+func Test_招待取消_同一company別workspaceはnot_found(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: strPtr(invWsA)}}
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsB),
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("workspace_id 不一致は not found であるべき: got %v", err)
+	}
+}
+
+// ワークスペース未所属の company_admin は、どの招待の workspace_id とも一致し得ないため
+// 常に not found になる（company_admin が super_admin のように昇格しないことの確認）。
+func Test_招待取消_ワークスペース未所属actorはnot_found(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: strPtr(invWsA)}}
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.NoWorkspace(),
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("未所属 actor は not found であるべき: got %v", err)
+	}
+}
+
+// バックフィル未到達（workspace_id が nil）の招待は、actor が有効なワークスペースを持っていても
+// 一致し得ないため not found になる（fail-closed。誤って通す方向に倒れない）。
+func Test_招待取消_招待のworkspace_id未設定はnot_found(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1, WorkspaceID: nil}}
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("招待の workspace_id 未設定は not found であるべき: got %v", err)
+	}
+}
+
 // 認可判定は FindByID の結果に依存するため、取得に失敗したら status を更新せずエラーを返す。
 func Test_招待取消_リポジトリエラーは伝播する(t *testing.T) {
 	wantErr := errors.New("db error")

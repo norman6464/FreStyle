@@ -34,8 +34,8 @@ WHERE u.company_id = sqlc.arg(company_id)::bigint
 ORDER BY agg.last_active_date DESC NULLS LAST, u.id ASC;
 
 -- name: ListCompanyMemberActivitiesByWorkspace :many
--- ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版（FRESTYLE-297・段4横展開）。
--- users.workspace_id は company_id から dual-write 済み（FRESTYLE-397）。
+-- ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版。
+-- users.workspace_id は company_id から dual-write 済み。
 WITH agg AS (
   SELECT
     a.user_id AS user_id,

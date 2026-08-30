@@ -37,8 +37,7 @@ ORDER BY created_at DESC, id DESC
 LIMIT 1;
 
 -- name: FindInvitationByID :one
--- ID 一致の招待を返す（ワークスペーススコープの認可判定に使う。status は問わない。FRESTYLE-297
--- で company_id から workspace_id 経由の比較へ切り替えた）。
+-- ID 一致の招待を返す（ワークスペーススコープの認可判定に使う。status は問わない）。
 SELECT id, company_id, email, role, name, status, token, expires_at, created_at, workspace_id
 FROM invitations
 WHERE id = sqlc.arg(id)

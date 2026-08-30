@@ -88,9 +88,8 @@ func canRead(m *domain.TeachingMaterial, course *domain.Course, actorWorkspace d
 }
 
 // materialBelongsToWorkspace は super_admin か、対象教材が actorWorkspace に属するかを返す。
-// FRESTYLE-297: Get（canRead 経由）/ Update / UpdateDoc / Delete で同じ形の所属チェックが
-// 個別に書かれていた重複を、courseBelongsToWorkspace と対になる形でここに集約した
-// （判定結果は変えない）。
+// Get（canRead 経由）/ Update / UpdateDoc / Delete で同じ形の所属チェックが個別に書かれていた
+// 重複を、courseBelongsToWorkspace と対になる形でここに集約した（判定結果は変えない）。
 func materialBelongsToWorkspace(m *domain.TeachingMaterial, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
 	if actorRole == domain.RoleSuperAdmin {
 		return true

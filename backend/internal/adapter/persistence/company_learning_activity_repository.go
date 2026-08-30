@@ -45,7 +45,7 @@ func (r *companyLearningActivityRepository) ListMemberActivities(
 }
 
 // ListMemberActivitiesByWorkspace は ListMemberActivities と同じ集計を workspace_id で
-// 絞り込む版（FRESTYLE-297・段4横展開）。
+// 絞り込む版。
 func (r *companyLearningActivityRepository) ListMemberActivitiesByWorkspace(
 	ctx context.Context,
 	workspaceID string,

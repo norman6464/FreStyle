@@ -20,8 +20,7 @@ WHERE id = $1
 LIMIT 1
 `
 
-// ID 一致の招待を返す（ワークスペーススコープの認可判定に使う。status は問わない。FRESTYLE-297
-// で company_id から workspace_id 経由の比較へ切り替えた）。
+// ID 一致の招待を返す（ワークスペーススコープの認可判定に使う。status は問わない）。
 func (q *Queries) FindInvitationByID(ctx context.Context, id int64) (Invitation, error) {
 	row := q.db.QueryRowContext(ctx, findInvitationByID, id)
 	var i Invitation

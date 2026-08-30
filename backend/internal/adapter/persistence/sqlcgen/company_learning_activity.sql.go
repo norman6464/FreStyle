@@ -129,8 +129,8 @@ type ListCompanyMemberActivitiesByWorkspaceRow struct {
 	RecentActivityCount int64
 }
 
-// ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版（FRESTYLE-297・段4横展開）。
-// users.workspace_id は company_id から dual-write 済み（FRESTYLE-397）。
+// ListCompanyMemberActivities と同じ集計を workspace_id で絞り込む版。
+// users.workspace_id は company_id から dual-write 済み。
 func (q *Queries) ListCompanyMemberActivitiesByWorkspace(ctx context.Context, arg ListCompanyMemberActivitiesByWorkspaceParams) ([]ListCompanyMemberActivitiesByWorkspaceRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCompanyMemberActivitiesByWorkspace, arg.WorkspaceID, arg.TraineeRoleID, arg.FromDate)
 	if err != nil {

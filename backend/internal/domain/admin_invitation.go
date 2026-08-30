@@ -15,7 +15,7 @@ type AdminInvitation struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 	CreatedAt time.Time `json:"createdAt"`
 	// WorkspaceID は所属ワークスペースへの参照。CompanyID から dual-write されるため
-	// 通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする（FRESTYLE-297）。
+	// 通常は必ず埋まっているが、Course と同じ理由で NULL を許容する型にする。
 	WorkspaceID *string `json:"workspaceId,omitempty"`
 }
 

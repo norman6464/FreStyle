@@ -50,8 +50,6 @@ func NewGetCompanyLearningSummaryUseCase(activities repository.CompanyLearningAc
 }
 
 // Execute は自社 trainee の学習状況サマリーを返す。ワークスペース未所属(super_admin 等)は空サマリー。
-// FRESTYLE-297（段4横展開）: 対象メンバーの絞り込みを company_id 直読みから workspace_id 経由へ
-// 切り替え済み。
 func (u *GetCompanyLearningSummaryUseCase) Execute(ctx context.Context, actor *domain.User) (*CompanyLearningSummaryOutput, error) {
 	out := &CompanyLearningSummaryOutput{RecentMembers: []MemberLearningSummaryItem{}}
 	if actor == nil {

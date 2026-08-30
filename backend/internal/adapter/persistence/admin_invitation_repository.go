@@ -19,9 +19,9 @@ func NewAdminInvitationRepository(db *sql.DB) repository.AdminInvitationReposito
 	return &adminInvitationRepository{db: db}
 }
 
-// invitationRow は招待系の読み取りクエリが返す共通の行形。FRESTYLE-297 で全クエリの
-// SELECT に workspace_id を加えた結果、列リストが invitations の全列と一致し、sqlc は
-// 個別の Row 型ではなくテーブル型（sqlcgen.Invitation）をそのまま返すようになった。
+// invitationRow は招待系の読み取りクエリが返す共通の行形。全クエリの SELECT に workspace_id
+// を加えた結果、列リストが invitations の全列と一致し、sqlc は個別の Row 型ではなくテーブル型
+// （sqlcgen.Invitation）をそのまま返すようになった。
 type invitationRow = sqlcgen.Invitation
 
 func toDomainAdminInvitation(row invitationRow) domain.AdminInvitation {

@@ -50,8 +50,8 @@ func canReadCourse(c *domain.Course, actorWorkspace domain.WorkspaceRef, actorRo
 }
 
 // courseBelongsToWorkspace は super_admin か、対象コースが actorWorkspace に属するかを返す。
-// FRESTYLE-297: Get（canReadCourse 経由）/ Update / Delete で同じ形の所属チェックが個別に
-// 書かれていた重複を、この 1 つに集約した（判定結果は変えない）。
+// Get（canReadCourse 経由）/ Update / Delete で同じ形の所属チェックが個別に書かれていた
+// 重複を、この 1 つに集約した（判定結果は変えない）。
 func courseBelongsToWorkspace(c *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
 	if actorRole == domain.RoleSuperAdmin {
 		return true

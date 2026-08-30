@@ -84,8 +84,8 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 }
 
 // TestCompanyLearningActivityRepository_ByWorkspace_Integration は
-// ListMemberActivitiesByWorkspace（FRESTYLE-297・段4横展開）が workspace_id で正しく絞り、
-// 他ワークスペースのメンバー集計が混ざらないことを実 Postgres で検証する。
+// ListMemberActivitiesByWorkspace が workspace_id で正しく絞り、他ワークスペースの
+// メンバー集計が混ざらないことを実 Postgres で検証する。
 func TestCompanyLearningActivityRepository_ByWorkspace_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCompanyLearningActivityRepository(sqlDB)
@@ -108,8 +108,7 @@ func TestCompanyLearningActivityRepository_ByWorkspace_Integration(t *testing.T)
 			ID: id, Email: name + "@example.com", Name: name,
 			CompanyID: &company, Role: role, IsActive: true,
 		}
-		// CreateWithOidcIdentity(InsertUser) が company_id から workspace_id を dual-write する
-		// （FRESTYLE-397）。
+		// CreateWithOidcIdentity(InsertUser) が company_id から workspace_id を dual-write する。
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, name))
 	}
 	mkUser(21, "ws1-trainee", domain.RoleTrainee, 1)
@@ -127,8 +126,10 @@ func TestCompanyLearningActivityRepository_ByWorkspace_Integration(t *testing.T)
 	require.Equal(t, uint64(21), rows[0].UserID)
 	require.Equal(t, 1, rows[0].RecentActivityCount)
 
-	// 不正 / 空の workspace_id は該当なし扱い。
-	empty, err := repo.ListMemberActivitiesByWorkspace(ctx, "", fromDate)
-	require.NoError(t, err)
-	require.Empty(t, empty)
+	// 不正 / 空の workspace_id は該当なし扱い（toNullUUID の失敗経路を両方とも確認する）。
+	for _, invalid := range []string{"", "not-a-uuid"} {
+		empty, err := repo.ListMemberActivitiesByWorkspace(ctx, invalid, fromDate)
+		require.NoError(t, err)
+		require.Empty(t, empty, "workspaceID=%q", invalid)
+	}
 }

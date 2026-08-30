@@ -23,6 +23,6 @@ type CompanyLearningActivitySummarizer interface {
 	// 最終活動日の新しい順(未活動は末尾)で返す。活動が一度も無い trainee も件数 0 で含む。
 	ListMemberActivities(ctx context.Context, companyID uint64, fromDate time.Time) ([]MemberLearningActivity, error)
 	// ListMemberActivitiesByWorkspace は ListMemberActivities と同じ集計を workspace_id で
-	// 絞り込む版（FRESTYLE-297・段4横展開）。
+	// 絞り込む版。
 	ListMemberActivitiesByWorkspace(ctx context.Context, workspaceID string, fromDate time.Time) ([]MemberLearningActivity, error)
 }

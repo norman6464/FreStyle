@@ -66,6 +66,10 @@ func toDomainUser(row userRow) *domain.User {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
 	}
+	if row.WorkspaceID.Valid {
+		wid := row.WorkspaceID.UUID.String()
+		u.WorkspaceID = &wid
+	}
 	if row.DeletedAt.Valid {
 		t := row.DeletedAt.Time
 		u.DeletedAt = &t
@@ -103,7 +107,7 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	row := rows[0]
 	u := toDomainUser(userRow{
 		ID: row.ID, Email: row.Email, Name: row.Name,
-		CompanyID: row.CompanyID, RoleID: row.RoleID,
+		CompanyID: row.CompanyID, WorkspaceID: row.WorkspaceID, RoleID: row.RoleID,
 		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 		RoleName: row.RoleName,
@@ -160,15 +164,15 @@ func (r *userRepository) ListByRole(ctx context.Context, role domain.RoleName) (
 	return users, nil
 }
 
-func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error) {
-	cid, ok := toInt64ID(companyID)
+func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error) {
+	wid, ok := toNullUUID(workspaceID)
 	if !ok {
-		// 範囲外の ID は該当なしと同じ扱い。nil を返すと JSON が null になり
+		// 不正 / 空の ID は該当なしと同じ扱い。nil を返すと JSON が null になり
 		// フロントの map が落ちるため空スライスにする（FRESTYLE-77）。
 		return make([]domain.User, 0), nil
 	}
 	q := r.queries()
-	rows, err := q.ListUsersByCompanyID(ctx, sql.NullInt64{Int64: cid, Valid: true})
+	rows, err := q.ListUsersByWorkspaceID(ctx, wid)
 	if err != nil {
 		return nil, err
 	}

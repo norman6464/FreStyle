@@ -25,7 +25,7 @@ func (s *stubUserRepo) ListByRole(_ context.Context, _ domain.RoleName) ([]domai
 	return nil, s.err
 }
 
-func (s *stubUserRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.User, error) {
+func (s *stubUserRepo) ListByWorkspaceID(_ context.Context, _ string) ([]domain.User, error) {
 	return nil, s.err
 }
 

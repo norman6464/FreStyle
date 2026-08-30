@@ -17,14 +17,17 @@ func NewListCompanyMembersUseCase(u repository.UserRepository) *ListCompanyMembe
 }
 
 // Execute は actor の所属会社の従業員一覧を返す。会社未所属なら空。
+//
+// 絞り込みは FRESTYLE-355 段4で company_id 直読みから workspace_id 経由へ切り替え済み
+// （対象データが users 自身なので、他のテーブルの Contract を待たずに切り替えられた）。
 func (uc *ListCompanyMembersUseCase) Execute(ctx context.Context, actor *domain.User) ([]domain.User, error) {
 	if actor == nil {
 		return []domain.User{}, nil
 	}
 	// 未所属（運営管理者など）は「自社」が無いので空を返す。
-	companyID, affiliated := actor.CompanyRef().CompanyID()
+	workspaceID, affiliated := actor.WorkspaceRef().WorkspaceID()
 	if !affiliated {
 		return []domain.User{}, nil
 	}
-	return uc.users.ListByCompanyID(ctx, companyID)
+	return uc.users.ListByWorkspaceID(ctx, workspaceID)
 }

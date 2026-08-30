@@ -37,8 +37,8 @@ func (m *mockUserRepo) ListByRole(ctx context.Context, role domain.RoleName) ([]
 	return rows, args.Error(1)
 }
 
-func (m *mockUserRepo) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error) {
-	args := m.Called(ctx, companyID)
+func (m *mockUserRepo) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error) {
+	args := m.Called(ctx, workspaceID)
 	rows, _ := args.Get(0).([]domain.User)
 	return rows, args.Error(1)
 }

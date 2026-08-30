@@ -19,6 +19,9 @@ import (
 // noSuchID はどのテーブルにも該当行が無い状態を作るための存在しない ID。
 const noSuchID uint64 = 999_999_999
 
+// noSuchWorkspaceID は noSuchID の uuid 版（存在しないワークスペース）。
+const noSuchWorkspaceID = "0198a000-0000-7000-8000-0000000000ff"
+
 // listCase は「一覧を返す repository メソッド」1 件分の検証定義。
 //
 // call は any のスライスを返す形に揃える（要素型が異なるため）。
@@ -114,7 +117,7 @@ func listCases() []listCase {
 		{
 			name: "会社の在籍ユーザー一覧",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewUserRepository(db).ListByCompanyID(ctx, noSuchID)
+				return persistence.NewUserRepository(db).ListByWorkspaceID(ctx, noSuchWorkspaceID)
 			},
 		},
 	}

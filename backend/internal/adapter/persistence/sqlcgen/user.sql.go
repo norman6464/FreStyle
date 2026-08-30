@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const acquireBootstrapSuperAdminLock = `-- name: AcquireBootstrapSuperAdminLock :exec
@@ -98,7 +100,7 @@ func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int32, erro
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
 
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -109,16 +111,17 @@ WHERE u.deleted_at IS NULL
 `
 
 type GetUserByCognitoSubRow struct {
-	ID        int64
-	Email     string
-	Name      string
-	CompanyID sql.NullInt64
-	RoleID    int32
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt sql.NullTime
-	RoleName  string
+	ID          int64
+	Email       string
+	Name        string
+	CompanyID   sql.NullInt64
+	WorkspaceID uuid.NullUUID
+	RoleID      int32
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
+	RoleName    string
 }
 
 // users の読み出し（FRESTYLE-311 正規化完了）。旧カラム users.role / users.cognito_sub は
@@ -138,6 +141,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 		&i.Email,
 		&i.Name,
 		&i.CompanyID,
+		&i.WorkspaceID,
 		&i.RoleID,
 		&i.IsActive,
 		&i.CreatedAt,
@@ -149,23 +153,24 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
 `
 
 type GetUserByIDRow struct {
-	ID        int64
-	Email     string
-	Name      string
-	CompanyID sql.NullInt64
-	RoleID    int32
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt sql.NullTime
-	RoleName  string
+	ID          int64
+	Email       string
+	Name        string
+	CompanyID   sql.NullInt64
+	WorkspaceID uuid.NullUUID
+	RoleID      int32
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
+	RoleName    string
 }
 
 // 内部 ID で 1 ユーザーを引く（論理削除は除外）。
@@ -177,6 +182,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.Email,
 		&i.Name,
 		&i.CompanyID,
+		&i.WorkspaceID,
 		&i.RoleID,
 		&i.IsActive,
 		&i.CreatedAt,
@@ -211,10 +217,14 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, password_hash, name, company_id, role_id,
+  email, password_hash, name, company_id, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8)
+VALUES (
+  $1, $2, $3, $4,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $4),
+  $5, true, $6, $7, $8
+)
 RETURNING id, created_at, updated_at
 `
 
@@ -238,6 +248,12 @@ type InsertUserRow struct {
 // ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
 // 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
 // UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
+//
+// workspace_id は company_id からその場で引く（$4 の会社が指す companies.workspace_id）。
+// 起動時バックフィル（tenant_bridge.go）だけに任せると、次の起動までのあいだに作った
+// ユーザーの workspace_id が NULL のままになり、ListUsersByWorkspaceID の一覧から漏れる
+// （CodeRabbit 指摘、FRESTYLE-397 PR #2362 で発覚）。会社が workspace_id を持たない
+// （バックフィル未到達）場合はサブクエリが 0 行になり、その場合も NULL のままで正しい。
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.Email,
@@ -256,10 +272,14 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, password_hash, name, company_id, role_id,
+  id, email, password_hash, name, company_id, workspace_id, role_id,
   is_active, created_at, updated_at, deleted_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+VALUES (
+  $1, $2, $3, $4, $5,
+  (SELECT c.workspace_id FROM companies c WHERE c.id = $5),
+  $6, true, $7, $8, $9
+)
 RETURNING id, created_at, updated_at
 `
 
@@ -282,7 +302,7 @@ type InsertUserWithIDRow struct {
 }
 
 // id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
-// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
+// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。workspace_id の解決も同じ。
 func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDParams) (InsertUserWithIDRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUserWithID,
 		arg.ID,
@@ -301,7 +321,7 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 }
 
 const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B\f\r '))
@@ -313,6 +333,7 @@ type ListActiveUsersByEmailRow struct {
 	Email        string
 	Name         string
 	CompanyID    sql.NullInt64
+	WorkspaceID  uuid.NullUUID
 	RoleID       int32
 	IsActive     bool
 	CreatedAt    time.Time
@@ -346,6 +367,7 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 			&i.Email,
 			&i.Name,
 			&i.CompanyID,
+			&i.WorkspaceID,
 			&i.RoleID,
 			&i.IsActive,
 			&i.CreatedAt,
@@ -367,42 +389,44 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 	return items, nil
 }
 
-const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+const listUsersByRole = `-- name: ListUsersByRole :many
+SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
-WHERE u.company_id = $1 AND u.deleted_at IS NULL
+WHERE r.name = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC
 `
 
-type ListUsersByCompanyIDRow struct {
-	ID        int64
-	Email     string
-	Name      string
-	CompanyID sql.NullInt64
-	RoleID    int32
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt sql.NullTime
-	RoleName  string
+type ListUsersByRoleRow struct {
+	ID          int64
+	Email       string
+	Name        string
+	CompanyID   sql.NullInt64
+	WorkspaceID uuid.NullUUID
+	RoleID      int32
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
+	RoleName    string
 }
 
-// 会社単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
-func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullInt64) ([]ListUsersByCompanyIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersByCompanyID, companyID)
+// role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
+func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsersByRoleRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersByRole, name)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListUsersByCompanyIDRow{}
+	items := []ListUsersByRoleRow{}
 	for rows.Next() {
-		var i ListUsersByCompanyIDRow
+		var i ListUsersByRoleRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
 			&i.Name,
 			&i.CompanyID,
+			&i.WorkspaceID,
 			&i.RoleID,
 			&i.IsActive,
 			&i.CreatedAt,
@@ -423,42 +447,48 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 	return items, nil
 }
 
-const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+const listUsersByWorkspaceID = `-- name: ListUsersByWorkspaceID :many
+SELECT u.id, u.email, u.name, u.company_id, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
-WHERE r.name = $1 AND u.deleted_at IS NULL
+WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC
 `
 
-type ListUsersByRoleRow struct {
-	ID        int64
-	Email     string
-	Name      string
-	CompanyID sql.NullInt64
-	RoleID    int32
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt sql.NullTime
-	RoleName  string
+type ListUsersByWorkspaceIDRow struct {
+	ID          int64
+	Email       string
+	Name        string
+	CompanyID   sql.NullInt64
+	WorkspaceID uuid.NullUUID
+	RoleID      int32
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
+	RoleName    string
 }
 
-// role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsersByRoleRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersByRole, name)
+// ワークスペース単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
+// FRESTYLE-355 段4: company_id 直読み（ListUsersByCompanyID）から切り替え済み。
+// users.workspace_id は company_id からの dual-write（tenant_bridge.go）で埋まる写しだが、
+// 対象データが users 自身であるこの一覧では、他の子テーブル（courses 等）を待たずに
+// workspace_id を絞り込みキーとして使える。
+func (q *Queries) ListUsersByWorkspaceID(ctx context.Context, workspaceID uuid.NullUUID) ([]ListUsersByWorkspaceIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersByWorkspaceID, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListUsersByRoleRow{}
+	items := []ListUsersByWorkspaceIDRow{}
 	for rows.Next() {
-		var i ListUsersByRoleRow
+		var i ListUsersByWorkspaceIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
 			&i.Name,
 			&i.CompanyID,
+			&i.WorkspaceID,
 			&i.RoleID,
 			&i.IsActive,
 			&i.CreatedAt,
@@ -512,7 +542,10 @@ func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActivePara
 }
 
 const updateUserCompanyID = `-- name: UpdateUserCompanyID :execrows
-UPDATE users SET company_id = $2 WHERE users.id = $1
+UPDATE users SET
+  company_id = $2,
+  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
+WHERE users.id = $1
 `
 
 type UpdateUserCompanyIDParams struct {
@@ -520,8 +553,9 @@ type UpdateUserCompanyIDParams struct {
 	CompanyID sql.NullInt64
 }
 
-// 所属会社を付け替える。ワークスペースは users.company_id → companies.workspace_id の
-// JOIN でその場に求める（GetUserCompanyWorkspaceID）ので、写しをここで書く必要はない。
+// 所属会社を付け替える。workspace_id もこの場で company_id から引き直して同期する
+// （ListUsersByWorkspaceID が users.workspace_id を絞り込みキーに直接使うため。
+// 都度 JOIN で求める GetUserCompanyWorkspaceID とは別の用途）。
 // 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/google/uuid"
 )
 
 // toInt64ID は domain の uint64 id を DB の bigint(int64) へ変換する。
@@ -28,4 +30,17 @@ var errOutOfRangeID = errors.New("id が bigint の範囲を超えている")
 // outOfRangeIDError は書き込みを諦めた列を添えて errOutOfRangeID を返す。
 func outOfRangeIDError(column string, id uint64) error {
 	return fmt.Errorf("%w: %s=%d", errOutOfRangeID, column, id)
+}
+
+// toNullUUID は domain の string id（workspaceID 等）を DB の uuid へ変換する。
+// 空文字列・不正な形式は ok=false（読み取りは「存在し得ない id」= 該当レコードなしで良い）。
+func toNullUUID(id string) (uuid.NullUUID, bool) {
+	if id == "" {
+		return uuid.NullUUID{}, false
+	}
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.NullUUID{}, false
+	}
+	return uuid.NullUUID{UUID: parsed, Valid: true}, true
 }

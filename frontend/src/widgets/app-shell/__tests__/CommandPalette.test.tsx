@@ -114,7 +114,7 @@ describe('CommandPalette', () => {
     const input = screen.getByPlaceholderText('コマンドを検索...');
     // 最初のアイテム（ホーム）が選択されている状態でEnter
     fireEvent.keyDown(input, { key: 'Enter' });
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+    expect(mockNavigate).toHaveBeenCalledWith('/');
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 

@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { ReactElement } from 'react';
 
 /**
- * admin 各ルートの「誰が入れて、誰がダッシュボードへ戻されるか」を固定する特性テスト。
+ * admin 各ルートの「誰が入れて、誰がホームへ戻されるか」を固定する特性テスト。
  *
  * 認可ゲートがページ内にあってもルート側にあっても、この表を同じように通ることが
  * 「移設で認可が緩んでいない / 締まっていない」ことの根拠になる。
@@ -89,7 +89,7 @@ const ADMIN_ROUTES: { path: string; title: string; element: ReactElement }[] = [
   },
 ];
 
-const REDIRECT_NAME = 'ダッシュボード（リダイレクト先）';
+const REDIRECT_NAME = 'ホーム（リダイレクト先）';
 
 /**
  * 通過・拒否は「どの画面が出たか」で判定する。各 admin ページは PageIntro の h1 を
@@ -106,16 +106,13 @@ function renderRoute(path: string) {
         {ADMIN_ROUTES.map((r) => (
           <Route key={r.path} path={r.path} element={r.element} />
         ))}
-        <Route
-          path="/dashboard"
-          element={<main aria-label={REDIRECT_NAME}>ダッシュボードの内容</main>}
-        />
+        <Route path="/" element={<main aria-label={REDIRECT_NAME}>ホームの内容</main>} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
-/** 各認証状態で通過できる admin パス。ここに無いパスはダッシュボードへ戻される。 */
+/** 各認証状態で通過できる admin パス。ここに無いパスはホームへ戻される。 */
 const CASES: { label: string; auth: { isAdmin: boolean; role: string | null }; pass: string[] }[] = [
   {
     label: 'role=super_admin / isAdmin=true',
@@ -168,7 +165,7 @@ describe('admin ルートの認可', () => {
       for (const route of ADMIN_ROUTES) {
         const shouldPass = c.pass.includes(route.path);
 
-        it(`${route.path} は ${shouldPass ? '表示される' : 'ダッシュボードへリダイレクトされる'}`, async () => {
+        it(`${route.path} は ${shouldPass ? '表示される' : 'ホームへリダイレクトされる'}`, async () => {
           mockState.auth = { ...c.auth, loading: false };
           renderRoute(route.path);
 

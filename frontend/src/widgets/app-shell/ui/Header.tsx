@@ -91,7 +91,7 @@ export default function Header() {
       */}
       <header className="app-header-surface flex-shrink-0 h-16 flex items-center gap-2 px-3">
         {/* ロゴは favicon と同じ画像（favicon.svg = 三角の飛翔マーク）に揃える。 */}
-        <Link to="/dashboard" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
+        <Link to="/" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
           <img src="/favicon.svg" alt="" aria-hidden="true" className="w-7 h-7 flex-shrink-0" />
           <span className="hidden sm:block text-sm font-semibold text-[var(--color-text-primary)]">FreStyle</span>
         </Link>

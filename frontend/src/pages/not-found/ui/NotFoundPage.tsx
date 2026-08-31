@@ -47,7 +47,7 @@ export default function NotFoundPage() {
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             {signedIn ? (
               <Link
-                to="/dashboard"
+                to="/"
                 className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
               >
                 ホームへ戻る

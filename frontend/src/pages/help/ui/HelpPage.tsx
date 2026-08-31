@@ -292,7 +292,7 @@ export default function HelpPage() {
       {/* CTA: ホームへ戻る */}
       <section aria-label="次のアクション">
         <ActionCard
-          to="/dashboard"
+          to="/"
           title="ホームに戻って練習を始める"
           description="読み終わったら、まずは 1 セッション体験してみましょう。"
           icon={<RocketLaunchIcon className="h-5 w-5" />}

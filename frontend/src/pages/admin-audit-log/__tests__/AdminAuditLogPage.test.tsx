@@ -64,6 +64,6 @@ describe('AdminAuditLogPage（監査ログ）', () => {
     expect(screen.getByText(/対象 ID: 42/)).toBeInTheDocument();
   });
 
-  // 通過条件（誰が入れて誰が /dashboard へ戻されるか）はルート側の RequireRole が持つ。
+  // 通過条件（誰が入れて誰がホームへ戻されるか）はルート側の RequireRole が持つ。
   // その表は src/app/__tests__/adminRouteAuthorization.test.tsx で固定している。
 });

@@ -52,7 +52,7 @@ jobs:
     timeout-minutes: 12
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
-    # pnpm install --frozen-lockfile / build / prerender は第三者のコードを実行するため、この job には AWS を触れる
+    # pnpm install --frozen-lockfile / build は第三者のコードを実行するため、この job には AWS を触れる
     # 権限を与えない。id-token: write を持たせると、侵害された依存パッケージが
     # ACTIONS_ID_TOKEN_REQUEST_* 経由でトークンを発行し本番ロールを assume できてしまう。
     # contents: read は actions/checkout がソースを取得するためだけに必要(FRESTYLE-89)。
@@ -95,17 +95,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # build は dist/app.html も作る（scripts/make-app-shell.mjs）。CloudFront は存在しない
+      # パスへのリクエストにこのファイルを返すので、欠けると SPA の全ルートが壊れる。
       - name: Build
         run: pnpm run build
 
-      # 公開ページを Playwright(headless Chromium)でプリレンダーし、dist/index.html に
-      # 中身入り HTML を焼き込む。検索ボットの初回取得で本文がクロールできるようにする
-      # (CSR の空シェル対策 / FRESTYLE-222)。prerender スクリプトは空シェル/本文欠落を
-      # 検知すると fail するため、壊れた場合は deploy されない(回帰ガード)。
-      - name: Prerender public pages
-        run: |
-          pnpm exec playwright install --with-deps chromium
-          pnpm run prerender
+      # 公開ページのプリレンダーは廃止した（公開ランディングごと無くなり、焼き込む対象が
+      # 無くなったため）。app.html の生成だけが必要で、それは build に移してある。
+      - name: Verify SPA fallback shell
+        run: test -f dist/app.html
 
       # deploy job へはビルド成果物だけを渡す。deploy 側は checkout しないため、
       # 本番ロールを持つ job にリポジトリのソースやスクリプトが存在しない。
@@ -156,7 +154,8 @@ jobs:
 
       # 2) index.html は no-cache。これがないと古い index.html がブラウザにキャッシュされ、
       #    次デプロイの --delete で消えた旧チャンクを参照して 404(MIME text/html)になる。
-      # index.html はトップ用(プリレンダー済み)、app.html は SPA フォールバック用(空シェル)。
+      # index.html は既定のルートオブジェクト、app.html は SPA フォールバック用。公開
+      # ランディングの焼き込みを廃止したので、どちらも同じ空シェル。
       # どちらも no-cache。古い HTML がキャッシュされると、--delete で消えた旧チャンクを
       # 参照して 404(MIME text/html)になる。
       - name: Upload HTML entrypoints (no-cache)

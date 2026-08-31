@@ -58,7 +58,7 @@ describe('useLoginPage', () => {
     });
 
     expect(loginMock).toHaveBeenCalledWith({ email: '', password: '' });
-    expect(assignMock).toHaveBeenCalledWith('/dashboard');
+    expect(assignMock).toHaveBeenCalledWith('/');
   });
 
   it('資格情報誤り（非 403）はエラーメッセージを表示し遷移しない', async () => {
@@ -120,7 +120,7 @@ describe('useLoginPage', () => {
       session: 'sess-1',
       newPassword: 'New-Pass-1',
     });
-    expect(assignMock).toHaveBeenCalledWith('/dashboard');
+    expect(assignMock).toHaveBeenCalledWith('/');
   });
 
   it('新パスワードの確認不一致はエラーで送信しない', async () => {

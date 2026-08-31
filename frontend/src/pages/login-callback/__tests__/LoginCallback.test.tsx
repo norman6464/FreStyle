@@ -79,7 +79,7 @@ describe('LoginCallback', () => {
     await waitFor(() => {
       // 第 2 引数 invitationToken は sessionStorage に何も無いとき null。
       expect(authRepository.callback).toHaveBeenCalledWith('valid-code', null);
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+      expect(mockNavigate).toHaveBeenCalledWith('/');
     });
   });
 
@@ -102,7 +102,7 @@ describe('LoginCallback', () => {
       const { store } = renderWithRoute('?code=valid-code');
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+        expect(mockNavigate).toHaveBeenCalledWith('/');
       });
       expect(authRepository.probeCurrentUser).toHaveBeenCalled();
       expect(store.getState().auth.role).toBe('super_admin');
@@ -118,7 +118,7 @@ describe('LoginCallback', () => {
       });
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+        expect(mockNavigate).toHaveBeenCalledWith('/');
       });
       expect(roleAtNavigate).toBe('super_admin');
     });
@@ -134,7 +134,7 @@ describe('LoginCallback', () => {
       const { store } = renderWithRoute('?code=valid-code');
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+        expect(mockNavigate).toHaveBeenCalledWith('/');
       });
       expect(store.getState().auth.role).toBe('trainee');
     });
@@ -151,7 +151,7 @@ describe('LoginCallback', () => {
       renderWithRoute('?code=valid-code');
 
       await waitFor(() => {
-        expect(replace).toHaveBeenCalledWith('/dashboard');
+        expect(replace).toHaveBeenCalledWith('/');
       });
       expect(mockNavigate).not.toHaveBeenCalledWith('/login', expect.anything());
     });

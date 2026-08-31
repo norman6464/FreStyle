@@ -60,10 +60,11 @@ test.describe('認証ガード', () => {
   test('認証済みなら保護ルートはログインに飛ばされない', async ({ page }) => {
     await mockAuthenticated(page);
 
-    // "/" は公開 LP に変わったため、保護ルート(ダッシュボード)で検証する。
-    await page.goto('/dashboard');
+    // "/" 自体がログイン必須のホーム。公開ランディングは廃止した。
+    await page.goto('/');
 
     await expect(page).not.toHaveURL(/\/login/);
+    await expect(page).toHaveURL('/');
   });
 });
 
@@ -129,10 +130,10 @@ test.describe('認証済み導線（super_admin）', () => {
   test('super_admin が trainee 向けパス（/code-editor）を開くとホームへリダイレクトされる', async ({
     page,
   }) => {
-    // Protected: role === 'super_admin' かつ trainee 向けパス → /dashboard。
+    // Protected: role === 'super_admin' かつ trainee 向けパス → ホーム（/）。
     await mockAuthenticated(page, {}, 'super_admin');
     await page.goto('/code-editor');
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL('/');
   });
 
   test('super_admin でも /notes は開ける（旧ナレッジを統合した共有の面）', async ({ page }) => {

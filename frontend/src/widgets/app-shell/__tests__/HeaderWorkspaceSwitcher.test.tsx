@@ -30,12 +30,9 @@ function LocationProbe() {
 
 function renderSwitcher() {
   return render(
-    <MemoryRouter initialEntries={['/dashboard']}>
+    <MemoryRouter initialEntries={['/']}>
       <Routes>
-        <Route
-          path="/dashboard"
-          element={<HeaderWorkspaceSwitcher />}
-        />
+        <Route path="/" element={<HeaderWorkspaceSwitcher />} />
         <Route path="/notes" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,

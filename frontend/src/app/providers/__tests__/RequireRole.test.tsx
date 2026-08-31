@@ -17,13 +17,13 @@ type Auth = { loading?: boolean; isAdmin?: boolean; role?: string | null };
  * 名前付きランドマーク（main）として置き、role + アクセシブルな名前で引く。
  */
 const GATED_NAME = '管理画面の中身';
-const REDIRECT_NAME = 'ダッシュボード';
+const REDIRECT_NAME = 'ホーム';
 
 const content = <main aria-label={GATED_NAME}>管理者向けの内容</main>;
 
 /** ゲートを通れたか。通れていなければ null。 */
 const gatedScreen = () => screen.queryByRole('main', { name: GATED_NAME });
-/** /dashboard へ戻されたか。戻されていなければ null。 */
+/** ホーム（/）へ戻されたか。戻されていなければ null。 */
 const redirectScreen = () => screen.queryByRole('main', { name: REDIRECT_NAME });
 
 function renderGate(gate: ReactNode, auth: Auth) {
@@ -44,10 +44,7 @@ function renderGate(gate: ReactNode, auth: Auth) {
       <MemoryRouter initialEntries={['/admin/x']}>
         <Routes>
           <Route path="/admin/x" element={gate} />
-          <Route
-            path="/dashboard"
-            element={<main aria-label={REDIRECT_NAME}>ダッシュボードの内容</main>}
-          />
+          <Route path="/" element={<main aria-label={REDIRECT_NAME}>ホームの内容</main>} />
         </Routes>
       </MemoryRouter>
     </Provider>,
@@ -72,7 +69,7 @@ describe('RequireRole', () => {
     expect(redirectScreen()).not.toBeInTheDocument();
   });
 
-  it('allow に含まれない role は /dashboard へリダイレクトする', () => {
+  it('allow に含まれない role はホーム（/）へリダイレクトする', () => {
     renderGate(<RequireRole allow={['super_admin']}>{content}</RequireRole>, {
       role: 'company_admin',
       isAdmin: true,
@@ -81,7 +78,7 @@ describe('RequireRole', () => {
     expect(gatedScreen()).not.toBeInTheDocument();
   });
 
-  it('role 未確定（null）も allow に含まれないので /dashboard へリダイレクトする', () => {
+  it('role 未確定（null）も allow に含まれないのでホーム（/）へリダイレクトする', () => {
     renderGate(<RequireRole allow={['super_admin']}>{content}</RequireRole>, { role: null });
     expect(redirectScreen()).toBeInTheDocument();
     expect(gatedScreen()).not.toBeInTheDocument();

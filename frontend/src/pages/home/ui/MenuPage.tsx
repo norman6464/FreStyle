@@ -91,13 +91,6 @@ export default function MenuPage() {
           ) : isSuperAdmin ? (
             <FeatureSection title="管理機能">
               <FeatureCard
-                to="/admin/companies"
-                icon={BuildingOffice2Icon}
-                title="会社一覧"
-                description="登録済み企業の管理・閲覧を行います。"
-                color="blue"
-              />
-              <FeatureCard
                 to="/admin/invitations"
                 icon={EnvelopeIcon}
                 title="招待管理"

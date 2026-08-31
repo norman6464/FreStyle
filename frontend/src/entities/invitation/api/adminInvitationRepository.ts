@@ -17,7 +17,6 @@ export interface AdminInvitation {
 export type InvitationMethod = 'magic_link' | 'temporary_password';
 
 export interface CreateInvitationForm {
-  companyId: number;
   email: string;
   role: 'trainee' | 'company_admin';
   displayName?: string;

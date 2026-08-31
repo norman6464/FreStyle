@@ -7,7 +7,6 @@ vi.mock('@/shared/api/axios', () => ({
 import apiClient from '@/shared/api/axios';
 // 各 Slice の Public API（index.ts）経由で参照する（FSD の境界ルール / CLAUDE.md §2.5）。
 import { AuditRepository } from '@/entities/audit';
-import { CompanyRepository } from '@/entities/company';
 import { CourseRepository, LessonProgressRepository } from '@/entities/course';
 import { ExerciseRepository } from '@/entities/exercise';
 import { AdminInvitationRepository } from '@/entities/invitation';
@@ -24,7 +23,7 @@ const mockGet = vi.mocked(apiClient.get);
  * backend 側でも空配列を保証しているが、片側だけの対策では
  * 「もう一方が壊れた瞬間にユーザーへ影響が出る」ため両側で守る。
  *
- * 正規化している 11 経路をすべて網羅する（1 つでも漏れるとそこだけ無防備になる）。
+ * 正規化している 9 経路をすべて網羅する（1 つでも漏れるとそこだけ無防備になる）。
  */
 describe('一覧 repository は null 応答でも配列を返す', () => {
   beforeEach(() => {
@@ -33,8 +32,6 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
 
   const cases: ReadonlyArray<readonly [string, () => Promise<unknown[]>]> = [
     ['監査ログ一覧', () => AuditRepository.list()],
-    ['会社一覧', () => CompanyRepository.list()],
-    ['会社の統計一覧', () => CompanyRepository.listStats()],
     ['コース一覧', () => CourseRepository.list()],
     ['教材一覧', () => CourseRepository.listMaterials(1)],
     ['章の進捗一覧', () => LessonProgressRepository.list()],
@@ -46,7 +43,7 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
   ];
 
   it('正規化対象の全経路を網羅している', () => {
-    expect(cases).toHaveLength(11);
+    expect(cases).toHaveLength(9);
   });
 
   it.each(cases)('%s は null でも空配列になる', async (_name, call) => {

@@ -54,9 +54,9 @@ describe('Protected', () => {
     expect(screen.queryByText('保護されたコンテンツ')).not.toBeInTheDocument();
   });
 
-  // super_admin が trainee 向けルート (/code-editor 等) にアクセスしたら /admin/companies に飛ばす。
+  // super_admin が trainee 向けルート (/code-editor 等) にアクセスしたらホームへ飛ばす。
   // ノート（/notes）は旧ナレッジを統合した共有の面なので super_admin にも開く（対象外）。
-  it('role=super_admin が /code-editor にアクセスすると /admin/companies にリダイレクト', () => {
+  it('role=super_admin が /code-editor にアクセスするとホームにリダイレクト', () => {
     const store = configureStore({
       reducer: { auth: authReducer },
       preloadedState: {
@@ -80,12 +80,12 @@ describe('Protected', () => {
                 </Protected>
               }
             />
-            <Route path="/admin/companies" element={<div>会社一覧</div>} />
+            <Route path="/dashboard" element={<div>ホーム</div>} />
           </Routes>
         </MemoryRouter>
       </Provider>,
     );
-    expect(screen.getByText('会社一覧')).toBeInTheDocument();
+    expect(screen.getByText('ホーム')).toBeInTheDocument();
     expect(screen.queryByText('演習画面')).not.toBeInTheDocument();
   });
 
@@ -113,17 +113,17 @@ describe('Protected', () => {
                 </Protected>
               }
             />
-            <Route path="/admin/companies" element={<div>会社一覧</div>} />
+            <Route path="/" element={<div>ホーム</div>} />
           </Routes>
         </MemoryRouter>
       </Provider>,
     );
     expect(screen.getByText('ノート画面')).toBeInTheDocument();
-    expect(screen.queryByText('会社一覧')).not.toBeInTheDocument();
+    expect(screen.queryByText('ホーム')).not.toBeInTheDocument();
   });
 
   // super_admin でも /admin 配下は通る。
-  it('role=super_admin が /admin/companies にアクセスすると children を表示', () => {
+  it('role=super_admin が /admin/members にアクセスすると children を表示', () => {
     const store = configureStore({
       reducer: { auth: authReducer },
       preloadedState: {
@@ -137,13 +137,13 @@ describe('Protected', () => {
     });
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={['/admin/companies']}>
+        <MemoryRouter initialEntries={['/admin/members']}>
           <Routes>
             <Route
-              path="/admin/companies"
+              path="/admin/members"
               element={
                 <Protected>
-                  <div>会社一覧</div>
+                  <div>従業員一覧</div>
                 </Protected>
               }
             />
@@ -151,7 +151,7 @@ describe('Protected', () => {
         </MemoryRouter>
       </Provider>,
     );
-    expect(screen.getByText('会社一覧')).toBeInTheDocument();
+    expect(screen.getByText('従業員一覧')).toBeInTheDocument();
   });
 
   // trainee は trainee ルートにアクセス可能。

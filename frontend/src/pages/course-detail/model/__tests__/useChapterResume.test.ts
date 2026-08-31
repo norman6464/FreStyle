@@ -15,7 +15,6 @@ const mockLastViewed = vi.mocked(CourseRepository.lastViewed);
 function material(id: number, courseId = 5): TeachingMaterial {
   return {
     id,
-    companyId: 10,
     courseId,
     createdByUserId: 1,
     title: `章 ${id}`,

@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * 監査ログ一覧（super_admin）
-         * @description 管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。
+         * @description 管理者の重要操作（従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。
          */
         get: {
             parameters: {
@@ -70,230 +70,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/companies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 会社 一覧 (SuperAdmin)
-         * @description 全 company を 返す。 super_admin 専用。 顧客 企業 の 一覧 な ので 他 role に は 出さ ない。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Company"][];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description super_admin 以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/companies/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 会社横断ビュー（メンバー集計・super_admin）
-         * @description 全 company に、各社の在籍メンバー数（総数 / 有効 / trainee）を付けて返す。super_admin 専用画面用。認可は middleware で別途担保。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat"][];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description super_admin 以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/companies/{id}/active": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * 会社アカウントの有効/無効を切り替え（super_admin 専用）
-         * @description 会社を無効化すると、その会社の全ユーザーがログイン/利用不可になる（middleware で弾く）。super_admin のみ。
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 会社 ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            /** @description active=false で無効化 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.setCompanyActiveRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.messageResponse"];
-                    };
-                };
-                /** @description 不正な ID / body */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description super_admin 以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 会社が存在しない */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 更新失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/admin/invitations": {
         parameters: {
             query?: never;
@@ -303,14 +79,11 @@ export interface paths {
         };
         /**
          * 招待 一覧 (admin)
-         * @description pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin は 自社 のみ。 trainee 等 は 403。
+         * @description pending な 招待 を 返す。 SuperAdmin は 全 ワークスペース 横断、 CompanyAdmin は 自分 の 所属 のみ。 trainee 等 は 403。
          */
         get: {
             parameters: {
-                query?: {
-                    /** @description SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ */
-                    companyId?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -326,7 +99,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"][];
                     };
                 };
-                /** @description 会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり) */
+                /** @description ワークスペース指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -367,7 +140,7 @@ export interface paths {
         put?: never;
         /**
          * 招待 作成
-         * @description 招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
+         * @description 招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。
          */
         post: {
             parameters: {
@@ -376,7 +149,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる) */
+            /** @description 招待 内容 (招待先 は actor の 所属 ワークスペース に 固定 さ れる) */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.createAdminInvReq"];
@@ -392,7 +165,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"];
                     };
                 };
-                /** @description バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成 */
+                /** @description バリデーション / 未知の method / 一時パスワード方式が未構成 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -6947,23 +6720,6 @@ export interface components {
             stderr?: string;
             stdout?: string;
         };
-        "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
-            createdAt?: string;
-            id?: number;
-            /**
-             * @description IsActive は会社アカウントの有効/無効。false（無効）にすると、その会社の全ユーザーが
-             *     ログイン/利用不可になる（middleware で弾く）。super_admin が会社一覧から切り替える。
-             */
-            isActive?: boolean;
-            name?: string;
-            updatedAt?: string;
-            /**
-             * @description WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、
-             *     companies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。
-             *     起動時バックフィルが未到達の会社は NULL になり得る。
-             */
-            workspaceId?: string;
-        };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             category?: string;
             createdAt?: string;
@@ -7167,15 +6923,6 @@ export interface components {
             /** @description TraineeCount は在籍 trainee 数(論理削除済みを除く)。 */
             traineeCount?: number;
         };
-        "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat": {
-            activeMembers?: number;
-            createdAt?: string;
-            id?: number;
-            isActive?: boolean;
-            memberTotal?: number;
-            name?: string;
-            traineeCount?: number;
-        };
         "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             category?: string;
             /** @description CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。 */
@@ -7296,13 +7043,6 @@ export interface components {
             title?: string;
         };
         "internal_handler.createAdminInvReq": {
-            /**
-             * @description CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の
-             *     招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。
-             *     binding:"required" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の
-             *     招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。
-             */
-            companyId?: number;
             email: string;
             /**
              * @description Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
@@ -7383,14 +7123,14 @@ export interface components {
             offset?: number;
         };
         "internal_handler.invitationValidateResponse": {
-            /** @example Example Corp */
-            companyName?: string;
             /** @example 山田 太郎 */
             name?: string;
             /** @example trainee */
             role?: string;
             /** @example 0198a000-0000-7000-8000-000000000001 */
             workspaceId?: string;
+            /** @example 開発チーム */
+            workspaceName?: string;
         };
         "internal_handler.issueProfileImageReq": {
             contentType?: string;
@@ -7737,9 +7477,6 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
-        };
-        "internal_handler.setCompanyActiveRequest": {
-            active: boolean;
         };
         "internal_handler.setMemberActiveRequest": {
             active: boolean;

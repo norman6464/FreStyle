@@ -15,7 +15,6 @@ const mockList = vi.mocked(CourseRepository.list);
 function course(id: number, title: string): CourseWithProgress {
   return {
     id,
-    companyId: 10,
     createdByUserId: 1,
     title,
     description: '',

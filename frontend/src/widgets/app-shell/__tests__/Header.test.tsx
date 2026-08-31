@@ -76,7 +76,7 @@ describe('Header', () => {
     const adminBtn = screen.getByRole('button', { name: /管理/ });
     expect(adminBtn).toBeInTheDocument();
     fireEvent.click(adminBtn);
-    expect(screen.getByText('会社一覧')).toBeInTheDocument();
+    expect(screen.getByText('従業員一覧')).toBeInTheDocument();
     expect(screen.getByText('監査ログ')).toBeInTheDocument();
   });
 

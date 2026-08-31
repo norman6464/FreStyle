@@ -9,14 +9,13 @@ vi.mock('react-redux', () => ({
   useDispatch: () => vi.fn(),
 }));
 
-const { getCurrentUser, listInvitations, createInvitation, createTempPassword, cancelInvitation, listCompanies } =
+const { getCurrentUser, listInvitations, createInvitation, createTempPassword, cancelInvitation } =
   vi.hoisted(() => ({
     getCurrentUser: vi.fn(),
     listInvitations: vi.fn(),
     createInvitation: vi.fn(),
     createTempPassword: vi.fn(),
     cancelInvitation: vi.fn(),
-    listCompanies: vi.fn(),
   }));
 
 vi.mock('@/entities/user', () => ({
@@ -30,10 +29,6 @@ vi.mock('@/entities/invitation', () => ({
     createWithTemporaryPassword: (form: unknown) => createTempPassword(form),
     cancel: (id: number) => cancelInvitation(id),
   },
-}));
-
-vi.mock('@/entities/company', () => ({
-  CompanyRepository: { list: () => listCompanies() },
 }));
 
 // 失敗系のテストで実 logger が console.error を吐き、出力が読めなくなるのを防ぐ。
@@ -52,13 +47,12 @@ function renderPage() {
   );
 }
 
-/** company_admin としてページを開き、初期ロードが終わるまで待つ。 */
-async function renderAsCompanyAdmin(invitations = [pendingInvitation]) {
-  getCurrentUser.mockResolvedValue({ id: 2, role: 'company_admin', companyId: 1 });
+/** ページを開き、初期ロードが終わるまで待つ。 */
+async function renderPageAndWait(invitations = [pendingInvitation]) {
   listInvitations.mockResolvedValue(invitations);
   const view = renderPage();
   await waitFor(() => {
-    expect(screen.getByLabelText('会社 *')).toHaveValue('所属会社（自社に固定）');
+    expect(screen.getByLabelText('招待先')).toHaveValue('自分のワークスペース');
   });
   return view;
 }
@@ -67,40 +61,19 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('AdminInvitationsPage のロール別データ取得', () => {
-  it('company_admin では会社一覧 API を呼ばず、画面がエラーにならない', async () => {
-    await renderAsCompanyAdmin();
+describe('AdminInvitationsPage の初期表示', () => {
+  it('招待先と役職を固定表示にし、招待一覧を出す', async () => {
+    await renderPageAndWait();
 
-    // 会社欄は自社固定の表示になり、招待一覧も表示される。
     expect(screen.getByText('member@example.com')).toBeInTheDocument();
-
-    // super_admin 専用の会社一覧 API は呼ばない（403 で画面全体が落ちる原因だった）。
-    expect(listCompanies).not.toHaveBeenCalled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
-    // 役職は受講者に固定される。
-    expect(screen.getByDisplayValue('受講者（自社のメンバー）')).toBeInTheDocument();
-  });
-
-  it('super_admin では会社一覧を取得して選択肢に表示する', async () => {
-    getCurrentUser.mockResolvedValue({ id: 1, role: 'super_admin', companyId: null });
-    listInvitations.mockResolvedValue([]);
-    listCompanies.mockResolvedValue([{ id: 1, name: '株式会社FreStyle' }]);
-
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByRole('option', { name: '株式会社FreStyle' })).toBeInTheDocument();
-    });
-    expect(listCompanies).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-
-    // 役職は会社管理者に固定される。
-    expect(screen.getByDisplayValue('会社管理者（招待先の会社の管理者）')).toBeInTheDocument();
+    // 招待先も役職も選ばせない。選択肢を出すと backend の 403 と食い違う。
+    expect(screen.getByDisplayValue('受講者（自分のワークスペースのメンバー）')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
   it('招待一覧の取得に失敗したときはエラーを表示する', async () => {
-    getCurrentUser.mockResolvedValue({ id: 2, role: 'company_admin', companyId: 1 });
     listInvitations.mockRejectedValue(new Error('network error'));
 
     renderPage();
@@ -115,7 +88,7 @@ describe('AdminInvitationsPage のロール別データ取得', () => {
       invitation: { ...pendingInvitation, email: 'new@example.com' },
       temporaryPassword: 'Temp-Pass-9!',
     });
-    await renderAsCompanyAdmin([]);
+    await renderPageAndWait([]);
 
     // 方式を初期パスワードに切り替え、email を入れて送信。
     fireEvent.change(screen.getByPlaceholderText('newmember@example.com'), {
@@ -143,32 +116,17 @@ describe('AdminInvitationsPage のロール別データ取得', () => {
  * 初期ロードが 2 回走る事故が起きやすいため。
  */
 describe('AdminInvitationsPage の API 呼び出し回数', () => {
-  it('company_admin の初回表示では getCurrentUser と招待一覧を 1 回ずつ呼ぶ', async () => {
-    await renderAsCompanyAdmin();
+  it('初回表示では招待一覧だけを 1 回呼ぶ', async () => {
+    await renderPageAndWait();
 
-    expect(getCurrentUser).toHaveBeenCalledTimes(1);
     expect(listInvitations).toHaveBeenCalledTimes(1);
-    expect(listCompanies).toHaveBeenCalledTimes(0);
-  });
-
-  it('super_admin の初回表示では会社一覧も含めて 1 回ずつ呼ぶ', async () => {
-    getCurrentUser.mockResolvedValue({ id: 1, role: 'super_admin', companyId: null });
-    listInvitations.mockResolvedValue([]);
-    listCompanies.mockResolvedValue([{ id: 1, name: '株式会社FreStyle' }]);
-
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByRole('option', { name: '株式会社FreStyle' })).toBeInTheDocument();
-    });
-
-    expect(getCurrentUser).toHaveBeenCalledTimes(1);
-    expect(listInvitations).toHaveBeenCalledTimes(1);
-    expect(listCompanies).toHaveBeenCalledTimes(1);
+    // 招待先も役職も固定なので、この画面は自分が誰かを見なくてよい。
+    expect(getCurrentUser).not.toHaveBeenCalled();
   });
 
   it('招待メールを送信すると create を 1 回呼び、その後に一覧を 1 回だけ再取得する', async () => {
     createInvitation.mockResolvedValue({ ...pendingInvitation, email: 'new@example.com' });
-    await renderAsCompanyAdmin([]);
+    await renderPageAndWait([]);
 
     fireEvent.change(screen.getByPlaceholderText('newmember@example.com'), {
       target: { value: 'new@example.com' },
@@ -182,27 +140,24 @@ describe('AdminInvitationsPage の API 呼び出し回数', () => {
       );
     });
 
-    // 送信フォームの中身はそのまま backend へ渡る（会社は backend 側で自社固定 / 役職は SoD 固定）。
+    // 送信フォームの中身はそのまま backend へ渡る（招待先も役職も backend 側で固定）。
     expect(createInvitation).toHaveBeenCalledTimes(1);
     expect(createInvitation).toHaveBeenCalledWith({
-      companyId: 0,
       email: 'new@example.com',
       role: 'trainee',
       displayName: '山田太郎',
     });
     // 作成後の再取得は 1 度だけ（初回 + 再取得 = 2）。
-    expect(getCurrentUser).toHaveBeenCalledTimes(2);
     expect(listInvitations).toHaveBeenCalledTimes(2);
-    expect(listCompanies).toHaveBeenCalledTimes(0);
 
-    // メールアドレスと表示名は送信後に空へ戻る（会社は保持）。
+    // メールアドレスと表示名は送信後に空へ戻る。
     expect(screen.getByPlaceholderText('newmember@example.com')).toHaveValue('');
     expect(screen.getByPlaceholderText('例: 山田太郎')).toHaveValue('');
   });
 
   it('招待の取り消しは確認モーダルの確定で cancel を 1 回呼び、一覧を再取得する', async () => {
     cancelInvitation.mockResolvedValue(undefined);
-    await renderAsCompanyAdmin();
+    await renderPageAndWait();
 
     fireEvent.click(screen.getByRole('button', { name: '取り消し' }));
 
@@ -216,13 +171,12 @@ describe('AdminInvitationsPage の API 呼び出し回数', () => {
       expect(cancelInvitation).toHaveBeenCalledTimes(1);
     });
     expect(cancelInvitation).toHaveBeenCalledWith(10);
-    expect(getCurrentUser).toHaveBeenCalledTimes(2);
     expect(listInvitations).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('確認モーダルを「戻る」で閉じると cancel を呼ばない', async () => {
-    await renderAsCompanyAdmin();
+    await renderPageAndWait();
 
     fireEvent.click(screen.getByRole('button', { name: '取り消し' }));
     await screen.findByRole('dialog');
@@ -235,7 +189,7 @@ describe('AdminInvitationsPage の API 呼び出し回数', () => {
 
   it('招待の取り消しに失敗したときはエラーを表示し、モーダルを開いたままにする', async () => {
     cancelInvitation.mockRejectedValue(new Error('boom'));
-    await renderAsCompanyAdmin();
+    await renderPageAndWait();
 
     fireEvent.click(screen.getByRole('button', { name: '取り消し' }));
     await screen.findByRole('dialog');
@@ -253,7 +207,7 @@ describe('AdminInvitationsPage の API 呼び出し回数', () => {
     createInvitation.mockRejectedValue({
       response: { data: { error: 'company_admin_can_only_invite_trainee' } },
     });
-    await renderAsCompanyAdmin([]);
+    await renderPageAndWait([]);
 
     fireEvent.change(screen.getByPlaceholderText('newmember@example.com'), {
       target: { value: 'new@example.com' },

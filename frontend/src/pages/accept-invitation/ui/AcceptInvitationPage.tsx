@@ -71,10 +71,10 @@ export default function AcceptInvitationPage() {
         </p>
 
         <dl className="bg-surface-2 rounded-lg p-4 space-y-2 text-sm">
-          {invitation.companyName && (
+          {invitation.workspaceName && (
             <div className="flex justify-between gap-4">
-              <dt className="text-[var(--color-text-muted)]">招待元の会社</dt>
-              <dd className="font-medium text-right">{invitation.companyName}</dd>
+              <dt className="text-[var(--color-text-muted)]">招待元</dt>
+              <dd className="font-medium text-right">{invitation.workspaceName}</dd>
             </div>
           )}
           {invitation.displayName && (

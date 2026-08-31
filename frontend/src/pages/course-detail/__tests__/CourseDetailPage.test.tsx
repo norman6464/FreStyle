@@ -58,7 +58,6 @@ const mockRecordView = vi.mocked(DashboardRepository.recordChapterView);
 function course(): Course {
   return {
     id: 5,
-    companyId: 10,
     createdByUserId: 1,
     title: 'Git 入門',
     description: '',
@@ -85,7 +84,6 @@ function listedCourse(id: number, title: string): CourseWithProgress {
 function material(id: number, doc?: RichDocContent | null): TeachingMaterial {
   return {
     id,
-    companyId: 10,
     courseId: 5,
     createdByUserId: 1,
     title: `章 ${id}`,

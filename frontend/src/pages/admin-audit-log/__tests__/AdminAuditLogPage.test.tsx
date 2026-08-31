@@ -59,7 +59,8 @@ describe('AdminAuditLogPage（監査ログ）', () => {
   it('操作を日本語化し、実行者・対象IDを表示する', () => {
     renderPage();
     expect(screen.getByText('従業員を削除')).toBeInTheDocument();
-    expect(screen.getByText('会社の有効/無効を変更')).toBeInTheDocument();
+    // 撤去済みの操作でも、過去ログが読めるように訳は残す。
+    expect(screen.getByText('会社の有効/無効を変更（撤去済み機能）')).toBeInTheDocument();
     expect(screen.getByText(/対象 ID: 42/)).toBeInTheDocument();
   });
 

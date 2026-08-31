@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +15,8 @@ const (
 )
 
 // CurrentUser は cognito sub から users 行を引いて currentUserID / currentUser を context にセットする。
-// 併せて、所属会社が無効化されている場合はその会社の全ユーザーを弾く（即時にログイン/利用不可）。
-func CurrentUser(users repository.UserRepository, companies repository.CompanyRepository) gin.HandlerFunc {
+// 併せて、所属ワークスペースが停止されている場合はその全員を弾く（即時に利用不可）。
+func CurrentUser(users repository.UserRepository, workspaces repository.WorkspaceActivationReader) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, ok := c.Get(ContextKeyCognitoSub)
 		if !ok {
@@ -46,19 +45,21 @@ func CurrentUser(users repository.UserRepository, companies repository.CompanyRe
 			return
 		}
 
-		// 会社アカウントが無効化されていれば、そのワークスペースのユーザーは利用不可。
-		// 未所属（運営管理者など）は検査対象の会社が無いのでこの検査を素通りする。
-		// 会社行が無い（データ不整合）場合も素通り、DB エラーは 500。
+		// 所属ワークスペースが停止されていれば、そこに属する全員が利用不可。
+		// 未所属のユーザーは検査対象が無いので素通りする。
+		//
+		// 行が見つからない場合は素通りさせない。users.workspace_id には FK
+		// （fk_users_workspace）が張ってあるので、所属先の行は必ず存在するはず。
+		// 無いのはデータ不整合であって「停止されていない」ことの証拠ではないため、
+		// 弾く側に倒す（素通りにすると、FK が外れた瞬間に遮断が黙って効かなくなる）。
 		if workspaceID, affiliated := user.WorkspaceRef().WorkspaceID(); affiliated {
-			company, err := companies.FindByWorkspaceID(c.Request.Context(), workspaceID)
+			workspace, err := workspaces.FindWorkspaceByID(c.Request.Context(), workspaceID)
 			switch {
-			case errors.Is(err, domain.ErrNotFound):
-				// 会社行なし: 何もしない（弾かない）。
 			case err != nil:
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "company_lookup_failed"})
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "workspace_lookup_failed"})
 				return
-			case company != nil && !company.IsActive:
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "company_disabled"})
+			case workspace == nil || !workspace.IsActive:
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "workspace_disabled"})
 				return
 			}
 		}

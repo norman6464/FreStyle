@@ -108,13 +108,6 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name:     "ワークスペースごとの在籍数",
-			truncate: []string{"users"},
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewCompanyStatsRepository(db).CountMembersByWorkspace(ctx)
-			},
-		},
-		{
 			name: "ワークスペースの在籍ユーザー一覧",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				return persistence.NewUserRepository(db).ListByWorkspaceID(ctx, noSuchWorkspaceID)

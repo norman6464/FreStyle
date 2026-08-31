@@ -109,12 +109,6 @@ func requireTenantInvariants(t *testing.T, db *sql.DB) {
 		 WHERE u.workspace_id IS NOT NULL
 		   AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = u.workspace_id)`),
 		"実在しないワークスペースを指しているユーザーがいる")
-
-	// (3) テナント設定は移行中 companies が正本。写し先がずれたまま残っていない。
-	require.Zero(t, tenantCount(t, db,
-		`SELECT count(*) FROM workspaces w JOIN companies c ON c.workspace_id = w.id
-		 WHERE w.is_active IS DISTINCT FROM c.is_active`),
-		"会社の設定がワークスペースへ写っていない")
 }
 
 // insertTraineeIn はワークスペースに属する研修生を 1 人作る。
@@ -215,15 +209,16 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		requireTenantInvariants(t, sqlDB)
 	})
 
-	t.Run("設定の写し先がずれても次の起動で companies に合わせて直る", func(t *testing.T) {
+	t.Run("停止したワークスペースは次の起動でも停止したまま", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
 
-		// 手作業などで写し側（workspaces）だけがずれた状態を作る。
-		// 正本は companies なので、次の起動で companies の値に戻らなければならない。
+		// 停止の正本は workspaces.is_active へ移った。会社は有効のまま片方だけ止める。
+		// バックフィルが会社から写し直すと、止めたはずのワークスペースが起動のたびに
+		// 有効へ戻り、停止そのものが効かなくなる。
 		_, err := sqlDB.Exec(
 			`UPDATE workspaces SET is_active = false WHERE id = $1`,
 			ws1.UUID,
@@ -236,7 +231,7 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT is_active FROM workspaces WHERE id = $1`, ws1.UUID,
 		).Scan(&active))
-		require.Equal(t, sql.NullBool{Bool: true, Valid: true}, active, "会社の設定へ戻る")
+		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active, "会社の値で上書きされない")
 		requireTenantInvariants(t, sqlDB)
 	})
 

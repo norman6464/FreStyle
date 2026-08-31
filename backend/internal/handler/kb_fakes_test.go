@@ -46,7 +46,7 @@ func newKbFakePages() *kbFakePages {
 }
 
 func (f *kbFakePages) addWorkspace(id, slug string) {
-	f.workspaces[slug] = &domain.Workspace{ID: id, Slug: slug, Name: slug}
+	f.workspaces[slug] = &domain.Workspace{ID: id, Slug: slug, Name: slug, IsActive: true}
 }
 
 func (f *kbFakePages) addSpace(workspaceID, spaceID string) {
@@ -114,10 +114,10 @@ func (f *kbFakePages) FindPageByIDAcrossWorkspaces(_ context.Context, pageID str
 	return &c, nil
 }
 
-// DeletePageSubtree はページと子孫を map から消す（本番の CASCADE の代わりに素直に辿る）。
-// companyWorkspaceIDs は「会社に紐づくワークスペース」の集合（本番の companies.workspace_id）。
-// 本番は SQL の WHERE が守るので、fake でも同じ規則をここで写す。
-var companyWorkspaceIDs = map[string]bool{}
+// workspacesWithMembers は「所属している人がいるワークスペース」の集合
+// （本番の users.workspace_id が指しているもの）。本番は DeleteWorkspace の SQL の
+// WHERE NOT EXISTS が守るので、fake でも同じ規則をここで写す。
+var workspacesWithMembers = map[string]bool{}
 
 func (f *kbFakePages) DeleteWorkspace(_ context.Context, workspaceID string) error {
 	if f.failWith != nil {
@@ -134,9 +134,9 @@ func (f *kbFakePages) DeleteWorkspace(_ context.Context, workspaceID string) err
 	if found == nil {
 		return repository.ErrWorkspaceNotFound
 	}
-	// 会社のものは誰であっても消せない（本番と同じ順序: 実在 → 会社かどうか）。
-	if companyWorkspaceIDs[workspaceID] {
-		return repository.ErrCompanyWorkspaceUndeletable
+	// 人が居るものは誰であっても消せない（本番と同じ順序: 実在 → 人が居るか）。
+	if workspacesWithMembers[workspaceID] {
+		return repository.ErrWorkspaceHasMembers
 	}
 	delete(f.workspaces, found.Slug)
 	// 配下は本番では FK の CASCADE で消える。fake でも同じ結果にする。
@@ -1046,23 +1046,23 @@ func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]
 // FindByID の WorkspaceID だけをテストが制御できればよく、それ以外のメソッドは
 // kb 系のテストでは呼ばれないため未実装のスタブでよい。
 type kbFakeUsers struct {
-	// companyWorkspaces は users.workspace_id の写し（会社のワークスペース）。
-	companyWorkspaces map[uint64]string
+	// userWorkspaces は users.workspace_id の写し（その人の所属ワークスペース）。
+	userWorkspaces map[uint64]string
 }
 
 var _ repository.UserRepository = (*kbFakeUsers)(nil)
 
 func newKbFakeUsers() *kbFakeUsers {
-	return &kbFakeUsers{companyWorkspaces: map[uint64]string{}}
+	return &kbFakeUsers{userWorkspaces: map[uint64]string{}}
 }
 
-// setCompanyWorkspace はそのユーザーの会社のワークスペースを決める（本番の users.workspace_id）。
-func (f *kbFakeUsers) setCompanyWorkspace(userID uint64, workspaceID string) {
-	f.companyWorkspaces[userID] = workspaceID
+// setUserWorkspace はそのユーザーの所属ワークスペースを決める（本番の users.workspace_id）。
+func (f *kbFakeUsers) setUserWorkspace(userID uint64, workspaceID string) {
+	f.userWorkspaces[userID] = workspaceID
 }
 
 func (f *kbFakeUsers) FindByID(_ context.Context, userID uint64) (*domain.User, error) {
-	ws, ok := f.companyWorkspaces[userID]
+	ws, ok := f.userWorkspaces[userID]
 	if !ok {
 		return nil, nil
 	}
@@ -1479,7 +1479,7 @@ func (f *kbFakeProvisioner) ProvisionWorkspace(
 	}
 	f.pages.nextID++
 	id := "workspace-" + strconv.Itoa(f.pages.nextID)
-	ws := &domain.Workspace{ID: id, Slug: in.Slug, Name: in.Name, CreatedAt: time.Now()}
+	ws := &domain.Workspace{ID: id, Slug: in.Slug, Name: in.Name, IsActive: true, CreatedAt: time.Now()}
 	ws.UpdatedAt = ws.CreatedAt
 	f.pages.workspaces[in.Slug] = ws
 	// 所属（principal）と admin の grant を一緒に入れる。片方だけにすると

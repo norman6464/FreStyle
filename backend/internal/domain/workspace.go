@@ -14,7 +14,10 @@ type Workspace struct {
 	// Slug は URL に出る短い識別子（テナント内ではなくグローバルに一意）。
 	Slug string `json:"slug"`
 	// Name は表示名。
-	Name      string    `json:"name"`
+	Name string `json:"name"`
+	// IsActive はテナントが利用可能か。false にすると、このワークスペースに所属する
+	// 全員が API を使えなくなる（middleware が入口で弾く）。停止の唯一の表現。
+	IsActive  bool      `json:"isActive"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

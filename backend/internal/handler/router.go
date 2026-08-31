@@ -59,7 +59,7 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 
 	authed := v2.Group("")
 	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
-	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewCompanyRepository(deps.db)))
+	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewKnowledgeBaseRepository(deps.db)))
 
 	// 監査ログ記録 middleware（admin の変更操作で共有する）。
 	audit := newAuditMiddleware(deps.db)

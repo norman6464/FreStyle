@@ -29,7 +29,7 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 
 		// 1. ワークスペースを作る。作成者は同じトランザクションで admin のメンバーになる。
 		created := e.do(t, http.MethodPost, "/api/v2/kb/workspaces",
-			`{"slug":"startup","name":"新会社"}`)
+			`{"slug":"startup","name":"新しいワークスペース"}`)
 		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
 
 		// 2. slug を一覧で発見できる（URL に slug を使う以上、知る手段が要る）。
@@ -456,26 +456,23 @@ func TestKnowledgeBasePrivateSpaceAPI_Integration(t *testing.T) {
 	})
 }
 
-// TestKnowledgeBaseCompanyMembership_Integration は「同じ会社の人はチームスペースを見られる」
-// を実 PostgreSQL で確かめる。
+// TestKnowledgeBaseWorkspaceMembership_Integration は「同じワークスペースに属する人は
+// チームスペースを見られる」を実 PostgreSQL で確かめる。
 //
-// 会社ごとのワークスペースは起動時のバックフィルが用意し users.workspace_id へ写すが、
-// ノートの所属（principals の行）は作成者にしか無かったため、同じ会社の他の
-// メンバーには一覧にも出ず URL も 404 だった。ここでその経路を固定する。
-func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
+// 所属は users.workspace_id が表すが、ノートの所属（principals の行）は作成者にしか
+// 無かったため、同じワークスペースの他のメンバーには一覧にも出ず URL も 404 だった。
+// ここでその経路を固定する。
+func TestKnowledgeBaseWorkspaceMembership_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	env := newKbEnv(t, sqlDB, "acme")
 	alice := kbInsertUser(t, sqlDB, "alice") // ワークスペースを作った人
-	bob := kbInsertUser(t, sqlDB, "bob")     // 同じ会社の別の人（principals の行は無い）
-	carol := kbInsertUser(t, sqlDB, "carol") // 別の会社の人
+	bob := kbInsertUser(t, sqlDB, "bob")     // 同じワークスペースの別の人（principals の行は無い）
+	carol := kbInsertUser(t, sqlDB, "carol") // 別のワークスペースの人
 	env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 
-	// 会社の紐づけ。テナント参照は users.workspace_id ただ 1 つなので、会社は
-	// companies.workspace_id 経由で対応するワークスペースに紐付けておき、ユーザーには
-	// そのワークスペースを直接持たせる（実 DB を直接書き換えるテスト下ごしらえ）。
+	// テナント参照は users.workspace_id ただ 1 つなので、所属は workspaces の行を用意して
+	// そこへ直接向ける（実 DB を直接書き換えるテスト下ごしらえ）。
 	rivalWorkspaceID := kbInsertWorkspace(t, sqlDB, "rival")
-	kbInsertCompanyWithWorkspace(t, sqlDB, "acme co", env.workspaceID)
-	kbInsertCompanyWithWorkspace(t, sqlDB, "rival co", rivalWorkspaceID)
 	for _, c := range []struct {
 		user      uint64
 		workspace string
@@ -497,12 +494,12 @@ func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
 	var page kbPageResponse
 	require.NoError(t, json.Unmarshal(pageRes.Body.Bytes(), &page))
 
-	t.Run("同じ会社の人は一覧・木・本文まで届く（所属は自動で用意される）", func(t *testing.T) {
+	t.Run("同じワークスペースの人は一覧・木・本文まで届く（所属は自動で用意される）", func(t *testing.T) {
 		e := env.as(bob)
 
 		listed := e.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 		require.Equal(t, http.StatusOK, listed.Code)
-		assert.Contains(t, listed.Body.String(), "acme", "会社のワークスペースが一覧に出る")
+		assert.Contains(t, listed.Body.String(), "acme", "所属するワークスペースが一覧に出る")
 
 		spaces := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/spaces", "")
 		require.Equal(t, http.StatusOK, spaces.Code)
@@ -521,19 +518,19 @@ func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
 
-	t.Run("別の会社の人には見えないまま", func(t *testing.T) {
+	t.Run("別のワークスペースの人には見えないまま", func(t *testing.T) {
 		e := env.as(carol)
 
 		listed := e.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 		require.Equal(t, http.StatusOK, listed.Code)
-		assert.NotContains(t, listed.Body.String(), `"slug":"acme"`, "他社のワークスペースは出ない")
+		assert.NotContains(t, listed.Body.String(), `"slug":"acme"`, "所属していないワークスペースは出ない")
 
 		spaces := e.do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/spaces", "")
 		assert.Equal(t, http.StatusNotFound, spaces.Code, "URL を知っていても 404")
 	})
 
-	t.Run("プライベートスペースは会社の全員には見えない", func(t *testing.T) {
-		// 会社の全員が入っても、プライベートは付与された人だけ（ワークスペース全体の
+	t.Run("プライベートスペースはワークスペースの全員には見えない", func(t *testing.T) {
+		// ワークスペースの全員が入っても、プライベートは付与された人だけ（ワークスペース全体の
 		// grant は private へ届かない）。この 2 つが両立して初めて節分けが意味を持つ。
 		created := env.as(bob).do(t, http.MethodPost, "/api/v2/kb/workspaces/acme/spaces",
 			`{"name":"bob の下書き","visibility":"private"}`)
@@ -544,6 +541,6 @@ func TestKnowledgeBaseCompanyMembership_Integration(t *testing.T) {
 		listed := env.as(alice).do(t, http.MethodGet, "/api/v2/kb/workspaces/acme/spaces", "")
 		require.Equal(t, http.StatusOK, listed.Code)
 		assert.NotContains(t, listed.Body.String(), private.ID,
-			"会社の admin にも、他人のプライベートスペースは見えない")
+			"ワークスペースの admin にも、他人のプライベートスペースは見えない")
 	})
 }

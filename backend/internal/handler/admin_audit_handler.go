@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -29,6 +30,12 @@ func NewAdminAuditHandler(l *usecase.ListAuditEventsUseCase) *AdminAuditHandler 
 //	@Failure      500  {object}  errorResponse  "DB 失敗"
 //	@Router       /admin/audit-events [get]
 //	@Security     CookieAuth
+//
+// isSuperAdmin は actor が super_admin（運営管理者）かを判定する。
+func isSuperAdmin(actor *domain.User) bool {
+	return actor != nil && actor.Role == domain.RoleSuperAdmin
+}
+
 func (h *AdminAuditHandler) List(c *gin.Context) {
 	if !isSuperAdmin(middleware.CurrentUserFromContext(c)) {
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})

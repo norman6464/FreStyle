@@ -48,28 +48,6 @@ definitions:
       stdout:
         type: string
     type: object
-  github_com_norman6464_FreStyle_backend_internal_domain.Company:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: integer
-      isActive:
-        description: |-
-          IsActive は会社アカウントの有効/無効。false（無効）にすると、その会社の全ユーザーが
-          ログイン/利用不可になる（middleware で弾く）。super_admin が会社一覧から切り替える。
-        type: boolean
-      name:
-        type: string
-      updatedAt:
-        type: string
-      workspaceId:
-        description: |-
-          WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、
-          companies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。
-          起動時バックフィルが未到達の会社は NULL になり得る。
-        type: string
-    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Course:
     properties:
       category:
@@ -418,23 +396,6 @@ definitions:
         description: TraineeCount は在籍 trainee 数(論理削除済みを除く)。
         type: integer
     type: object
-  github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat:
-    properties:
-      activeMembers:
-        type: integer
-      createdAt:
-        type: string
-      id:
-        type: integer
-      isActive:
-        type: boolean
-      memberTotal:
-        type: integer
-      name:
-        type: string
-      traineeCount:
-        type: integer
-    type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress:
     properties:
       category:
@@ -653,13 +614,6 @@ definitions:
     type: object
   internal_handler.createAdminInvReq:
     properties:
-      companyId:
-        description: |-
-          CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の
-          招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。
-          binding:"required" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の
-          招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。
-        type: integer
       email:
         type: string
       method:
@@ -805,9 +759,6 @@ definitions:
     type: object
   internal_handler.invitationValidateResponse:
     properties:
-      companyName:
-        example: Example Corp
-        type: string
       name:
         example: 山田 太郎
         type: string
@@ -816,6 +767,9 @@ definitions:
         type: string
       workspaceId:
         example: 0198a000-0000-7000-8000-000000000001
+        type: string
+      workspaceName:
+        example: 開発チーム
         type: string
     type: object
   internal_handler.issueProfileImageReq:
@@ -1354,13 +1308,6 @@ definitions:
     - email
     - password
     type: object
-  internal_handler.setCompanyActiveRequest:
-    properties:
-      active:
-        type: boolean
-    required:
-    - active
-    type: object
   internal_handler.setMemberActiveRequest:
     properties:
       active:
@@ -1468,123 +1415,10 @@ paths:
       summary: 監査ログ一覧（super_admin）
       tags:
       - admin
-  /admin/companies:
-    get:
-      description: 全 company を 返す。 super_admin 専用。 顧客 企業 の 一覧 な ので 他 role に は 出さ ない。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Company'
-            type: array
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: super_admin 以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 会社 一覧 (SuperAdmin)
-      tags:
-      - admin
-  /admin/companies/{id}/active:
-    patch:
-      consumes:
-      - application/json
-      description: 会社を無効化すると、その会社の全ユーザーがログイン/利用不可になる（middleware で弾く）。super_admin のみ。
-      parameters:
-      - description: 会社 ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: active=false で無効化
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.setCompanyActiveRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_handler.messageResponse'
-        "400":
-          description: 不正な ID / body
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: super_admin 以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 会社が存在しない
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: 更新失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 会社アカウントの有効/無効を切り替え（super_admin 専用）
-      tags:
-      - admin
-  /admin/companies/stats:
-    get:
-      description: 全 company に、各社の在籍メンバー数（総数 / 有効 / trainee）を付けて返す。super_admin 専用画面用。認可は
-        middleware で別途担保。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat'
-            type: array
-        "401":
-          description: 未認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: super_admin 以外
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: 会社横断ビュー（メンバー集計・super_admin）
-      tags:
-      - admin
   /admin/invitations:
     get:
-      description: pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin
-        は 自社 のみ。 trainee 等 は 403。
-      parameters:
-      - description: 'SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ'
-        in: query
-        name: companyId
-        type: string
+      description: pending な 招待 を 返す。 SuperAdmin は 全 ワークスペース 横断、 CompanyAdmin は 自分
+        の 所属 のみ。 trainee 等 は 403。
       produces:
       - application/json
       responses:
@@ -1595,7 +1429,7 @@ paths:
               $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
             type: array
         "400":
-          description: 会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)
+          description: ワークスペース指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "401":
@@ -1618,12 +1452,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: '招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password
-        は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待
-        可、 CompanyAdmin は trainee のみ 自社 に 招待 可。'
+      description: 招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password
+        は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ
+        れ、 招待 できる の は trainee のみ。
       parameters:
-      - description: 招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor
-          の ワークスペース に 固定 さ れる)
+      - description: 招待 内容 (招待先 は actor の 所属 ワークスペース に 固定 さ れる)
         in: body
         name: body
         required: true
@@ -1638,7 +1471,7 @@ paths:
           schema:
             $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
         "400":
-          description: バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成
+          description: バリデーション / 未知の method / 一時パスワード方式が未構成
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "401":

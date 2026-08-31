@@ -20,7 +20,7 @@ func Test_ワークスペース解決_所属していれば返る(t *testing.T) 
 	perm := &mockKBPermissionRepo{}
 	users := &mockUserRepo{}
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
-		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
 	perm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(true, nil)
 	uc := usecase.NewResolveWorkspaceUseCase(repo, perm, users)
 
@@ -30,12 +30,28 @@ func Test_ワークスペース解決_所属していれば返る(t *testing.T) 
 	assert.Equal(t, kbWS, ws.ID)
 }
 
+func Test_ワークスペース解決_停止中なら存在しないのと同じ(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	perm := &mockKBPermissionRepo{}
+	users := &mockUserRepo{}
+	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: false}, nil)
+	uc := usecase.NewResolveWorkspaceUseCase(repo, perm, users)
+
+	_, err := uc.Execute(context.Background(), usecase.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
+
+	// 停止中は所属の有無を調べるより先に断つ。調べてしまうと、停止したはずの
+	// ワークスペースへ principals の行が足されうる。
+	assert.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
+	perm.AssertNotCalled(t, "IsWorkspaceMember", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func Test_ワークスペース解決_未所属は存在しないのと同じ(t *testing.T) {
 	member := &mockKnowledgeBaseRepo{}
 	memberPerm := &mockKBPermissionRepo{}
 	memberUsers := &mockUserRepo{}
 	member.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
-		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
 	memberPerm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
 	// 非メンバーでも、会社のワークスペースなら自動で入る。ここでは「会社が違う」ので
 	// 入れる先が無い（ErrWorkspaceNotFound）ことを表し、404 に倒れることを確かめる。
@@ -62,7 +78,7 @@ func Test_ワークスペース解決_会社のワークスペースなら所属
 	perms := &mockKBPermissionRepo{}
 	users := &mockUserRepo{}
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
-		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
 	perms.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
 	wsID := kbWS
 	users.On("FindByID", mock.Anything, uint64(1)).Return(&domain.User{ID: 1, WorkspaceID: &wsID}, nil)
@@ -95,7 +111,7 @@ func Test_ワークスペース解決_所属判定の失敗はそのまま返す
 	perm := &mockKBPermissionRepo{}
 	boom := errors.New("db down")
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
-		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug}, nil)
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
 	perm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, boom)
 	uc := usecase.NewResolveWorkspaceUseCase(repo, perm, &mockUserRepo{})
 

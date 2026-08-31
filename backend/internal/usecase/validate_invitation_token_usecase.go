@@ -12,22 +12,23 @@ import (
 // 成功時の ValidatedInvitation に email は含めない（token 漏洩時の被害局所化）。
 type ValidateInvitationTokenUseCase struct {
 	invitations repository.AdminInvitationRepository
-	companies   repository.CompanyRepository
+	workspaces  repository.WorkspaceActivationReader
 }
 
 func NewValidateInvitationTokenUseCase(
 	invitations repository.AdminInvitationRepository,
-	companies repository.CompanyRepository,
+	workspaces repository.WorkspaceActivationReader,
 ) *ValidateInvitationTokenUseCase {
-	return &ValidateInvitationTokenUseCase{invitations: invitations, companies: companies}
+	return &ValidateInvitationTokenUseCase{invitations: invitations, workspaces: workspaces}
 }
 
 // ValidatedInvitation は受諾画面に表示する最低限の情報。
 type ValidatedInvitation struct {
-	Role        domain.RoleName
-	Name        string
-	CompanyName string
-	WorkspaceID *string
+	Role domain.RoleName
+	Name string
+	// WorkspaceName は招待元の表示名。招待された人が「どこに招かれたのか」を判断する唯一の手掛かり。
+	WorkspaceName string
+	WorkspaceID   *string
 }
 
 func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token string) (*ValidatedInvitation, error) {
@@ -42,19 +43,19 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 		return nil, nil
 	}
 
-	// company 取得に失敗しても招待自体は有効なので、CompanyName を空にして続行する。
-	companyName := ""
-	if u.companies != nil && inv.WorkspaceID != nil {
-		if c, err := u.companies.FindByWorkspaceID(ctx, *inv.WorkspaceID); err == nil && c != nil {
-			companyName = c.Name
+	// ワークスペース取得に失敗しても招待自体は有効なので、名前を空にして続行する。
+	workspaceName := ""
+	if u.workspaces != nil && inv.WorkspaceID != nil {
+		if w, err := u.workspaces.FindWorkspaceByID(ctx, *inv.WorkspaceID); err == nil && w != nil {
+			workspaceName = w.Name
 		}
 	}
 
 	return &ValidatedInvitation{
-		Role:        normalizeInvitationRole(inv.Role),
-		Name:        inv.Name,
-		CompanyName: companyName,
-		WorkspaceID: inv.WorkspaceID,
+		Role:          normalizeInvitationRole(inv.Role),
+		Name:          inv.Name,
+		WorkspaceName: workspaceName,
+		WorkspaceID:   inv.WorkspaceID,
 	}, nil
 }
 

@@ -37,8 +37,8 @@ type meResponse struct {
 
 // invitationValidateResponse は /invitations/accept/{token} の戻り値形（email は含めない）。
 type invitationValidateResponse struct {
-	Role        string  `json:"role"        example:"trainee"`
-	Name        string  `json:"name"        example:"山田 太郎"`
-	CompanyName string  `json:"companyName" example:"Example Corp"`
-	WorkspaceID *string `json:"workspaceId,omitempty" example:"0198a000-0000-7000-8000-000000000001"`
+	Role          string  `json:"role"          example:"trainee"`
+	Name          string  `json:"name"          example:"山田 太郎"`
+	WorkspaceName string  `json:"workspaceName" example:"開発チーム"`
+	WorkspaceID   *string `json:"workspaceId,omitempty" example:"0198a000-0000-7000-8000-000000000001"`
 }

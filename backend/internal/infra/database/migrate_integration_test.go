@@ -110,6 +110,40 @@ func TestMigrate_Integration(t *testing.T) {
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM workspaces`).Scan(&workspaces))
 		require.EqualValues(t, 1, workspaces, "2 回流してもワークスペースは増えない")
 	})
+
+	t.Run("ワークスペースの停止は起動で巻き戻らない", func(t *testing.T) {
+		// 停止の正本は workspaces.is_active に移った。会社側から毎起動写していると、
+		// 停止したワークスペースが次の起動で会社の値（有効）に戻り、停止そのものが
+		// 効かなくなる。会社を有効のまま残してワークスペースだけ止め、Migrate を
+		// 流し直しても止まったままであることを見る。
+		var companyID int64
+		require.NoError(t, db.QueryRowContext(
+			ctx,
+			`INSERT INTO companies (name, is_active, created_at, updated_at)
+			 VALUES ('停止の検証用', true, NOW(), NOW()) RETURNING id`,
+		).Scan(&companyID))
+		require.NoError(t, database.Migrate(ctx, db), "ワークスペースを作らせる")
+
+		res, err := db.ExecContext(
+			ctx,
+			`UPDATE workspaces w SET is_active = false
+			 FROM companies c WHERE c.workspace_id = w.id AND c.id = $1`, companyID,
+		)
+		require.NoError(t, err)
+		affected, err := res.RowsAffected()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, affected, "停止対象のワークスペースが 1 つ見つかること")
+
+		require.NoError(t, database.Migrate(ctx, db), "停止後の再起動")
+
+		var active bool
+		require.NoError(t, db.QueryRowContext(
+			ctx,
+			`SELECT w.is_active FROM workspaces w JOIN companies c ON c.workspace_id = w.id WHERE c.id = $1`,
+			companyID,
+		).Scan(&active))
+		require.False(t, active, "起動のたびに会社の値で上書きされてはならない")
+	})
 }
 
 // TestMigrate_索引が揃っていれば書き込みを止めない_Integration は、本番の通常起動に相当する

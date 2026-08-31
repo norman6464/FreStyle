@@ -243,40 +243,6 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		require.False(t, userWorkspaceID(t, sqlDB, got.ID).Valid)
 	})
 
-	t.Run("会社設定の更新がワークスペースへ写る", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
-
-		companies := persistence.NewCompanyRepository(sqlDB)
-		require.NoError(t, companies.UpdateActive(ctx, 1, false))
-
-		var active sql.NullBool
-		require.NoError(t, sqlDB.QueryRow(
-			`SELECT is_active FROM workspaces WHERE id = $1`, ws1.UUID,
-		).Scan(&active))
-		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active)
-
-		// 読み取り（companies）は従来どおり。
-		company, err := companies.FindByID(ctx, 1)
-		require.NoError(t, err)
-		require.False(t, company.IsActive)
-	})
-
-	t.Run("存在しない会社の有効/無効更新は not found のまま", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		companies := persistence.NewCompanyRepository(sqlDB)
-		require.ErrorIs(t, companies.UpdateActive(ctx, 999, false), domain.ErrNotFound)
-	})
-
-	t.Run("ワークスペース未紐付けの会社でも設定更新は成功する", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		insertCompany(t, sqlDB, 1, "未紐付けの会社", true) // バックフィル前
-		companies := persistence.NewCompanyRepository(sqlDB)
-		require.NoError(t, companies.UpdateActive(ctx, 1, false))
-		require.False(t, companyWorkspaceID(t, sqlDB, 1).Valid)
-	})
 }
 
 // businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。

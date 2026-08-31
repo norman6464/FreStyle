@@ -65,174 +65,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/companies": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "全 company を 返す。 super_admin 専用。 顧客 企業 の 一覧 な ので 他 role に は 出さ ない。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "会社 一覧 (SuperAdmin)",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Company"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/companies/stats": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "全 company に、各社の在籍メンバー数（総数 / 有効 / trainee）を付けて返す。super_admin 専用画面用。認可は middleware で別途担保。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "会社横断ビュー（メンバー集計・super_admin）",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/companies/{id}/active": {
-            "patch": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "会社を無効化すると、その会社の全ユーザーがログイン/利用不可になる（middleware で弾く）。super_admin のみ。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "会社アカウントの有効/無効を切り替え（super_admin 専用）",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "会社 ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "active=false で無効化",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.setCompanyActiveRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.messageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "不正な ID / body",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "super_admin 以外",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "会社が存在しない",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "更新失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/admin/invitations": {
             "get": {
                 "security": [
@@ -240,7 +72,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin は 自社 のみ。 trainee 等 は 403。",
+                "description": "pending な 招待 を 返す。 SuperAdmin は 全 ワークスペース 横断、 CompanyAdmin は 自分 の 所属 のみ。 trainee 等 は 403。",
                 "produces": [
                     "application/json"
                 ],
@@ -248,14 +80,6 @@ const docTemplate = `{
                     "admin"
                 ],
                 "summary": "招待 一覧 (admin)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ",
-                        "name": "companyId",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -267,7 +91,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "会社指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)",
+                        "description": "ワークスペース指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -298,7 +122,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。",
+                "description": "招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。",
                 "consumes": [
                     "application/json"
                 ],
@@ -311,7 +135,7 @@ const docTemplate = `{
                 "summary": "招待 作成",
                 "parameters": [
                     {
-                        "description": "招待 内容 (companyId は SuperAdmin のみ 必須。 CompanyAdmin では 無視 さ れ actor の ワークスペース に 固定 さ れる)",
+                        "description": "招待 内容 (招待先 は actor の 所属 ワークスペース に 固定 さ れる)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -328,7 +152,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "バリデーション / SuperAdmin の companyId 未指定 / 未知の method / 一時パスワード方式が未構成",
+                        "description": "バリデーション / 未知の method / 一時パスワード方式が未構成",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5804,31 +5628,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "isActive": {
-                    "description": "IsActive は会社アカウントの有効/無効。false（無効）にすると、その会社の全ユーザーが\nログイン/利用不可になる（middleware で弾く）。super_admin が会社一覧から切り替える。",
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "workspaceId": {
-                    "description": "WorkspaceID は会社に対応するワークスペース（1:1）。テナントの正本は workspace_id 側で、\ncompanies は「会社という実体」を表す表として残る。両者を繋ぐ唯一の列がこれ。\n起動時バックフィルが未到達の会社は NULL になり得る。",
-                    "type": "string"
-                }
-            }
-        },
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             "type": "object",
             "properties": {
@@ -6322,32 +6121,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat": {
-            "type": "object",
-            "properties": {
-                "activeMembers": {
-                    "type": "integer"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "isActive": {
-                    "type": "boolean"
-                },
-                "memberTotal": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "traineeCount": {
-                    "type": "integer"
-                }
-            }
-        },
         "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             "type": "object",
             "properties": {
@@ -6660,10 +6433,6 @@ const docTemplate = `{
                 "role"
             ],
             "properties": {
-                "companyId": {
-                    "description": "CompanyID は SuperAdmin が招待先の会社を選ぶときだけ意味を持つ。CompanyAdmin の\n招待先は actor 自身の所属に固定されるため送られてこない（0 のまま届く）。\nbinding:\"required\" を付けると 0 を未指定として弾き、会社を送らない CompanyAdmin の\n招待まで role 判定の手前で 400 になるので、必須判定は SuperAdmin 分岐でだけ行う。",
-                    "type": "integer"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -6866,10 +6635,6 @@ const docTemplate = `{
         "internal_handler.invitationValidateResponse": {
             "type": "object",
             "properties": {
-                "companyName": {
-                    "type": "string",
-                    "example": "Example Corp"
-                },
                 "name": {
                     "type": "string",
                     "example": "山田 太郎"
@@ -6881,6 +6646,10 @@ const docTemplate = `{
                 "workspaceId": {
                     "type": "string",
                     "example": "0198a000-0000-7000-8000-000000000001"
+                },
+                "workspaceName": {
+                    "type": "string",
+                    "example": "開発チーム"
                 }
             }
         },
@@ -7624,17 +7393,6 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
-                }
-            }
-        },
-        "internal_handler.setCompanyActiveRequest": {
-            "type": "object",
-            "required": [
-                "active"
-            ],
-            "properties": {
-                "active": {
-                    "type": "boolean"
                 }
             }
         },

@@ -97,6 +97,7 @@ func toDomainWorkspace(row sqlcgen.Workspace) domain.Workspace {
 		ID:        row.ID.String(),
 		Slug:      row.Slug,
 		Name:      row.Name,
+		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
@@ -168,9 +169,9 @@ func toDomainPageSnapshot(row sqlcgen.PageSnapshot) domain.PageSnapshot {
 
 // DeleteWorkspace はワークスペースを配下ごと消す。
 //
-// 0 行だったときに「無かった」と「会社のものだから消さなかった」を撃ち分ける必要がある。
-// SQL 側は会社のものを WHERE で弾くだけなのでどちらも 0 行になる。ここで実在を引き直し、
-// 在るのに消えなかった＝会社のものと判定する（守りは SQL 側にあり、ここは理由付けだけ）。
+// 0 行だったときに「無かった」と「人が居るから消さなかった」を撃ち分ける必要がある。
+// SQL 側は人が居るものを WHERE で弾くだけなのでどちらも 0 行になる。ここで実在を引き直し、
+// 在るのに消えなかった＝人が居ると判定する（守りは SQL 側にあり、ここは理由付けだけ）。
 func (r *knowledgeBaseRepository) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	id, ok := kbParseID(workspaceID)
 	if !ok {
@@ -188,7 +189,7 @@ func (r *knowledgeBaseRepository) DeleteWorkspace(ctx context.Context, workspace
 	} else if err != nil {
 		return err
 	}
-	return repository.ErrCompanyWorkspaceUndeletable
+	return repository.ErrWorkspaceHasMembers
 }
 
 func (r *knowledgeBaseRepository) FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error) {

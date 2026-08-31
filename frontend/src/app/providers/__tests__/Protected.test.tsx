@@ -80,7 +80,7 @@ describe('Protected', () => {
                 </Protected>
               }
             />
-            <Route path="/" element={<div>ホーム</div>} />
+            <Route path="/dashboard" element={<div>ホーム</div>} />
           </Routes>
         </MemoryRouter>
       </Provider>,

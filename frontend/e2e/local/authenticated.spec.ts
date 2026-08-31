@@ -119,20 +119,20 @@ test.describe('認証済み導線（trainee）', () => {
 });
 
 test.describe('認証済み導線（super_admin）', () => {
-  test('super_admin が企業一覧を開ける', async ({ page }) => {
+  test('super_admin が招待管理を開ける', async ({ page }) => {
     await mockAuthenticated(page, {}, 'super_admin');
-    await page.goto('/admin/companies');
+    await page.goto('/admin/invitations');
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page).toHaveURL(/\/admin\/companies/);
+    await expect(page).toHaveURL(/\/admin\/invitations/);
   });
 
-  test('super_admin が trainee 向けパス（/code-editor）を開くと企業一覧へリダイレクトされる', async ({
+  test('super_admin が trainee 向けパス（/code-editor）を開くとホームへリダイレクトされる', async ({
     page,
   }) => {
-    // Protected: role === 'super_admin' かつ trainee 向けパス → /admin/companies。
+    // Protected: role === 'super_admin' かつ trainee 向けパス → /dashboard。
     await mockAuthenticated(page, {}, 'super_admin');
     await page.goto('/code-editor');
-    await expect(page).toHaveURL(/\/admin\/companies/);
+    await expect(page).toHaveURL(/\/dashboard/);
   });
 
   test('super_admin でも /notes は開ける（旧ナレッジを統合した共有の面）', async ({ page }) => {

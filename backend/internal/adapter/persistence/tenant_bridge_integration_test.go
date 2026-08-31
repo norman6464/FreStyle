@@ -242,7 +242,6 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		require.Nil(t, left.WorkspaceID)
 		require.False(t, userWorkspaceID(t, sqlDB, got.ID).Valid)
 	})
-
 }
 
 // businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。

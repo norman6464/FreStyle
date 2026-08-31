@@ -35,13 +35,6 @@ type listCase struct {
 func listCases() []listCase {
 	return []listCase{
 		{
-			name:     "監査ログ一覧",
-			truncate: []string{"audit_events"},
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewAuditRepository(db).ListRecent(ctx, 10)
-			},
-		},
-		{
 			name: "招待一覧（全体）",
 			// domain.AdminInvitation の TableName() は "invitations"（型名と一致しない）。
 			truncate: []string{"invitations"},

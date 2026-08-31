@@ -34,9 +34,6 @@ vi.mock('@/entities/invitation', () => ({
   },
 }));
 vi.mock('@/shared/lib/hooks/useToast', () => ({ useToast: () => ({ showToast: vi.fn() }) }));
-vi.mock('@/pages/admin-audit-log/model/useAuditLog', () => ({
-  useAuditLog: () => ({ events: [], loading: false, error: null }),
-}));
 vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
   useAdminMembers: () => ({
     members: [],
@@ -51,7 +48,6 @@ vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
 
 // ページは App.tsx の配線と同じく Slice の Public API から取る。
 import { AdminMembersPage } from '@/pages/admin-members';
-import { AdminAuditLogPage } from '@/pages/admin-audit-log';
 import { AdminInvitationsPage } from '@/pages/admin-invitations';
 import RequireRole from '../providers/RequireRole';
 
@@ -69,16 +65,7 @@ const ADMIN_ROUTES: { path: string; title: string; element: ReactElement }[] = [
       </RequireRole>
     ),
   },
-  {
-    path: '/admin/audit',
-    title: '監査ログ',
-    element: (
-      <RequireRole allow={['super_admin']}>
-        <AdminAuditLogPage />
-      </RequireRole>
-    ),
-  },
-  {
+    {
     path: '/admin/invitations',
     title: '管理: メンバー招待',
     element: (
@@ -117,13 +104,13 @@ const CASES: { label: string; auth: { isAdmin: boolean; role: string | null }; p
   {
     label: 'role=super_admin / isAdmin=true',
     auth: { isAdmin: true, role: 'super_admin' },
-    pass: ['/admin/members', '/admin/audit', '/admin/invitations'],
+    pass: ['/admin/members', '/admin/invitations'],
   },
   {
     // role だけを見るページ（監査ログ）は isAdmin フラグを要求しない。
     label: 'role=super_admin / isAdmin=false',
     auth: { isAdmin: false, role: 'super_admin' },
-    pass: ['/admin/audit'],
+    pass: [],
   },
   {
     label: 'role=company_admin / isAdmin=true',

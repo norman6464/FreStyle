@@ -61,15 +61,12 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
 	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewKnowledgeBaseRepository(deps.db)))
 
-	// 監査ログ記録 middleware（admin の変更操作で共有する）。
-	audit := newAuditMiddleware(deps.db)
-
 	registerAuthAuthedRoutes(authed, authHandler)
 	registerProfileRoutes(authed, deps)
 	registerNoteRoutes(authed, deps)
 	registerDocumentRoutes(authed, deps)
 	registerSocialRoutes(authed, deps)
-	registerAdminRoutes(authed, deps, audit)
+	registerAdminRoutes(authed, deps)
 	registerEmbedRoutes(authed)
 	registerExerciseRoutes(authed, deps)
 	registerCourseRoutes(authed, deps)
@@ -77,7 +74,7 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	registerLessonProgressRoutes(authed, deps)
 	registerDashboardRoutes(authed, deps)
 	registerDailyGoalsRoutes(authed, deps)
-	registerKnowledgeBaseRoutes(authed, deps, audit)
+	registerKnowledgeBaseRoutes(authed, deps)
 	return r
 }
 

@@ -77,7 +77,7 @@ describe('Header', () => {
     expect(adminBtn).toBeInTheDocument();
     fireEvent.click(adminBtn);
     expect(screen.getByText('従業員一覧')).toBeInTheDocument();
-    expect(screen.getByText('監査ログ')).toBeInTheDocument();
+    expect(screen.getByText('招待管理')).toBeInTheDocument();
   });
 
   it('super_admin には学習系ナビ(コース)を出さない', () => {

@@ -64,7 +64,6 @@ func adminAuthzRequests() []authzRequest {
 		{http.MethodGet, "/admin/invitations", ""},
 		{http.MethodPost, "/admin/invitations", `{"email":"probe@example.test","role":"trainee"}`},
 		{http.MethodDelete, "/admin/invitations/99999", ""},
-		{http.MethodGet, "/admin/audit-events", ""},
 	}
 }
 
@@ -83,7 +82,7 @@ func newAdminAuthzRouter(t *testing.T, db *sql.DB, actor *domain.User) *gin.Engi
 	})
 
 	deps := &routeDeps{db: db, cfg: &config.Config{}, userRepo: nil}
-	registerAdminRoutes(g, deps, newAuditMiddleware(db))
+	registerAdminRoutes(g, deps)
 	return r
 }
 
@@ -141,6 +140,34 @@ func TestAdminEndpointAuthzMatrix_Integration(t *testing.T) {
 		if c.status != http.StatusForbidden && c.status != http.StatusUnauthorized {
 			t.Errorf("%s が %s %s で弾かれていない: status=%d（403/401 のはず）",
 				c.actor, c.req.method, c.req.path, c.status)
+		}
+	}
+
+	// 通る側も固定する。ここを空けておくと、認可の条件を広げる変更（たとえば
+	// 「super_admin 専用」を「管理者なら誰でも」に緩める書き換え）を通してしまう。
+	// 到達を許すのは所属のある管理者だけで、未所属の管理者は招待先も操作対象も
+	// 決まらないため業務処理へ届いてはならない。
+	type key struct{ actor, method, path string }
+	want := map[key]int{
+		// 所属のある管理者: 自分のワークスペースの一覧は読める。
+		{"company_admin(所属あり)", http.MethodGet, "/admin/members"}:                  http.StatusOK,
+		{"company_admin(所属あり)", http.MethodGet, "/admin/members/learning-summary"}: http.StatusOK,
+		{"company_admin(所属あり)", http.MethodGet, "/admin/invitations"}:              http.StatusOK,
+		// 未所属の管理者: 招待は宛先が決まらないので断る。
+		{"company_admin(未所属)", http.MethodGet, "/admin/invitations"}:  http.StatusForbidden,
+		{"company_admin(未所属)", http.MethodPost, "/admin/invitations"}: http.StatusForbidden,
+		// 運営（未所属）は自分の所属が無いので招待を作れない。
+		{"super_admin(未所属)", http.MethodPost, "/admin/invitations"}: http.StatusForbidden,
+	}
+	got := make(map[key]int, len(cells))
+	for _, c := range cells {
+		got[key{c.actor, c.req.method, c.req.path}] = c.status
+	}
+	for k, wantStatus := range want {
+		if actual, ok := got[k]; !ok {
+			t.Errorf("期待値を書いた組み合わせが実測に無い: %+v", k)
+		} else if actual != wantStatus {
+			t.Errorf("%s %s %s: status=%d, want %d", k.actor, k.method, k.path, actual, wantStatus)
 		}
 	}
 }

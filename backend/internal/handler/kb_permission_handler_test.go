@@ -626,10 +626,11 @@ func Test_ノート権限API_メンバー追加はユーザー単位で頭打ち
 		"IP を変えても同じユーザーなら頭打ちになる")
 }
 
-// Test_ノート権限API_共有リンクの発行応答以外に平文トークンが出ない は、平文トークンが
-// 応答の中だけに現れることを固定する。監査ログは全廃したが、トークンが他所へ漏れない
-// ことの確認は残す（発行は応答に平文が載る唯一の経路なので、扱いを間違えやすい）。
-func Test_ノート権限API_共有リンクの発行応答以外に平文トークンが出ない(t *testing.T) {
+// Test_ノート権限API_共有リンクの発行応答にパスワードを載せない は、受け取った
+// パスワードが応答へ echo されないことを固定する。保存はハッシュで、平文は持ち回らない。
+// 発行はトークンの平文が応答に載る唯一の経路なので、そのついでにパスワードまで
+// 出してしまう間違いが起きやすい。
+func Test_ノート権限API_共有リンクの発行応答にパスワードを載せない(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	const password = "sup3r-secret-passphrase"
 	w := f.do(t, http.MethodPost,
@@ -639,7 +640,6 @@ func Test_ノート権限API_共有リンクの発行応答以外に平文トー
 	var issued kbIssuedShareLinkResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &issued))
 	require.NotEmpty(t, issued.Token)
-	// 受け取ったパスワードは応答に出さない（保存はハッシュで、平文は持ち回らない）。
 	assert.NotContains(t, w.Body.String(), password)
 }
 

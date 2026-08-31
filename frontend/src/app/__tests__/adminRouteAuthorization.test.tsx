@@ -107,7 +107,8 @@ const CASES: { label: string; auth: { isAdmin: boolean; role: string | null }; p
     pass: ['/admin/members', '/admin/invitations'],
   },
   {
-    // role だけを見るページ（監査ログ）は isAdmin フラグを要求しない。
+    // 残る管理ページはどれも isAdmin を要求するので、role だけ持っていても通れない
+    // （role だけで通れた監査ログは撤去した）。
     label: 'role=super_admin / isAdmin=false',
     auth: { isAdmin: false, role: 'super_admin' },
     pass: [],

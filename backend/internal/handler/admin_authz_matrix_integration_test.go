@@ -143,32 +143,73 @@ func TestAdminEndpointAuthzMatrix_Integration(t *testing.T) {
 		}
 	}
 
-	// 通る側も固定する。ここを空けておくと、認可の条件を広げる変更（たとえば
-	// 「super_admin 専用」を「管理者なら誰でも」に緩める書き換え）を通してしまう。
-	// 到達を許すのは所属のある管理者だけで、未所属の管理者は招待先も操作対象も
-	// 決まらないため業務処理へ届いてはならない。
+	// 全セルの期待値を書く。一部だけ固定すると、書いていない組み合わせが誤って
+	// 成功しても気付けない（認可の条件を広げる変更は、たいてい書いていない側に出る）。
+	//
+	// 対象 ID を 99999 にしてあるので、認可を通った先は「存在しない」で 404 になる。
+	// 404 と 403 の差がそのまま「認可まで届いたか」を表す。
 	type key struct{ actor, method, path string }
-	want := map[key]int{
-		// 所属のある管理者: 自分のワークスペースの一覧は読める。
-		{"company_admin(所属あり)", http.MethodGet, "/admin/members"}:                  http.StatusOK,
-		{"company_admin(所属あり)", http.MethodGet, "/admin/members/learning-summary"}: http.StatusOK,
-		{"company_admin(所属あり)", http.MethodGet, "/admin/invitations"}:              http.StatusOK,
-		// 未所属の管理者: 招待は宛先が決まらないので断る。
-		{"company_admin(未所属)", http.MethodGet, "/admin/invitations"}:  http.StatusForbidden,
-		{"company_admin(未所属)", http.MethodPost, "/admin/invitations"}: http.StatusForbidden,
-		// 運営（未所属）は自分の所属が無いので招待を作れない。
-		{"super_admin(未所属)", http.MethodPost, "/admin/invitations"}: http.StatusForbidden,
+	const (
+		ok        = http.StatusOK
+		forbidden = http.StatusForbidden
+		notFound  = http.StatusNotFound
+		badReq    = http.StatusBadRequest
+	)
+	want := map[key]int{}
+	for _, a := range authzActors() {
+		blocked := strings.HasPrefix(a.name, "trainee") || a.name == "未知のrole"
+		affiliated := a.user.WorkspaceID != nil
+		for _, req := range adminAuthzRequests() {
+			k := key{a.name, req.method, req.path}
+			switch {
+			case blocked:
+				// 入口の RequireAdmin が落とすので、どの経路にも届かない。
+				want[k] = forbidden
+			case req.path == "/admin/members" || req.path == "/admin/members/learning-summary":
+				// 一覧は所属で絞るだけなので、未所属でも 200 + 空で返る。
+				want[k] = ok
+			case req.path == "/admin/invitations" && req.method == http.MethodGet:
+				// 一覧は super_admin だけが全ワークスペース横断で読める（ListAll）。
+				// company_admin は自分の所属だけで、未所属だと絞り込み先が無く 403。
+				switch {
+				case a.user.Role == domain.RoleSuperAdmin:
+					want[k] = ok
+				case affiliated:
+					want[k] = ok
+				default:
+					want[k] = forbidden
+				}
+			case req.path == "/admin/invitations" && req.method == http.MethodPost:
+				// 作成は宛先が actor 自身の所属に固定されるので、未所属では作れない
+				// （super_admin も未所属なら同じく作れない）。
+				if affiliated {
+					want[k] = badReq
+				} else {
+					want[k] = forbidden
+				}
+			default:
+				// 対象を指定する経路（停止 / 削除 / 招待取消）。認可を通ると
+				// 存在しない ID として 404 になる。
+				want[k] = notFound
+			}
+		}
 	}
 	got := make(map[key]int, len(cells))
 	for _, c := range cells {
 		got[key{c.actor, c.req.method, c.req.path}] = c.status
 	}
 	for k, wantStatus := range want {
-		if actual, ok := got[k]; !ok {
+		actual, exists := got[k]
+		if !exists {
 			t.Errorf("期待値を書いた組み合わせが実測に無い: %+v", k)
-		} else if actual != wantStatus {
+			continue
+		}
+		if actual != wantStatus {
 			t.Errorf("%s %s %s: status=%d, want %d", k.actor, k.method, k.path, actual, wantStatus)
 		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("実測 %d セルに対し期待値が %d 件しかない（全組み合わせを書くこと）", len(got), len(want))
 	}
 }
 
@@ -241,10 +282,11 @@ func TestAdminMemberManagementCrossTenant_Integration(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			if w.Code == http.StatusOK || w.Code == http.StatusNoContent {
-				t.Fatalf("越境できてしまった: status=%d body=%s", w.Code, w.Body.String())
+			// 拒否のステータスまで固定する。「成功でなければよい」にすると、
+			// 500 で落ちているだけの状態も「弾けている」と読めてしまう。
+			if w.Code != http.StatusForbidden {
+				t.Fatalf("越境は 403 で断るべき: status=%d body=%s", w.Code, w.Body.String())
 			}
-			t.Logf("%s -> %d %s", c.name, w.Code, strings.TrimSpace(w.Body.String()))
 
 			// 実際に DB が書き換わっていないことまで見る（応答だけ見ると、
 			// エラーを返しつつ更新している実装を見逃す）。

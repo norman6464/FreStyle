@@ -182,7 +182,6 @@ func registerKnowledgeBaseRoutesWith(
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。
-	// 一覧（GET）には掛けない — 記録するのは成功した変更操作だけ。
 	//
 	// 既定の権限（grant）— ワークスペース全体とスペース単位の 2 段。
 	kb.PUT("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.GrantWorkspaceRole)
@@ -214,10 +213,8 @@ func registerKnowledgeBaseRoutesWith(
 	kb.DELETE("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.RemoveGroupMember)
 	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/principals/everyone", mh.EnsureSpaceEveryone)
 
-	// 共有リンク（発行・一覧・失効）。発行と失効は「誰が見られるか」を変える操作なので
-	// 監査に残す。応答に載る平文トークンは記録されない（残るのはルートのパターンだけ）。
-	// 検証だけは未認証なので
-	// registerKnowledgeBasePublicRoutesWith 側に置く。
+	// 共有リンク（発行・一覧・失効）。発行と失効は「誰が見られるか」を変える操作。
+	// 検証だけは未認証なので registerKnowledgeBasePublicRoutesWith 側に置く。
 	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.ListShareLinks)
 	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.IssueShareLink)
 	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links/:shareLinkId", sh.RevokeShareLink)

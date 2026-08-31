@@ -21,8 +21,6 @@ const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then
 const ForgotPasswordPage = lazyWithReload(() => import('@/pages/forgot-password').then((m) => ({ default: m.ForgotPasswordPage })), 'ForgotPasswordPage');
 const ConfirmForgotPasswordPage = lazyWithReload(() => import('@/pages/confirm-forgot-password').then((m) => ({ default: m.ConfirmForgotPasswordPage })), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('@/pages/accept-invitation').then((m) => ({ default: m.AcceptInvitationPage })), 'AcceptInvitationPage');
-// 公開ランディング（SEO 対象・認証不要）。ログイン済みは /dashboard へ送る。
-const LandingPage = lazyWithReload(() => import('@/pages/landing').then((m) => ({ default: m.LandingPage })), 'LandingPage');
 
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
@@ -76,8 +74,6 @@ export default function App() {
     <Suspense fallback={<Loading fullscreen message="読み込み中..." />}>
     <Routes>
       {/* 誰でもアクセス可能 */}
-      {/* 公開トップ（SEO 対象）。ログイン済みは LandingPage 内で /dashboard へ送る。 */}
-      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
@@ -101,8 +97,8 @@ export default function App() {
           </AuthInitializer>
         }
       >
-        {/* ログイン後のダッシュボード。旧 "/" から移設（"/" は公開 LP に）。 */}
-        <Route path="/dashboard" element={<MenuPage />} />
+        {/* ホーム。公開ランディングを廃止したので "/" がそのままログイン後の入口になる。 */}
+        <Route path="/" element={<MenuPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
         <Route path="/profile/me" element={<SettingsPage />} />
@@ -130,7 +126,7 @@ export default function App() {
         <Route path="/courses/:id" element={<CourseDetailPage />} />
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
         <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
-        {/* Admin 専用。通過条件はここ（RequireRole）に集約する → 満たさなければ /dashboard へ。
+        {/* Admin 専用。通過条件はここ（RequireRole）に集約する → 満たさなければホームへ。
             画面ごとに条件が違うのは現行のまま: 監査ログは role のみ、
             従業員一覧 / 招待は isAdmin のみ。 */}
         <Route

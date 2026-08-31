@@ -26,7 +26,7 @@ type RequireRoleProps = { children: ReactNode } & (
  * ロール単位のルートガード。
  *
  * 1. 認証情報の確認中 → ローディング（判定を保留する）
- * 2. 許可リストに無い role、または isAdmin フラグ不足 → /dashboard
+ * 2. 許可リストに無い role、または isAdmin フラグ不足 → /
  * 3. それ以外は子コンポーネントを描画
  *
  * isAdmin は role から導けない独立した事実（backend は Cognito の admin グループにも
@@ -48,7 +48,7 @@ export default function RequireRole({
 
   const roleAllowed = allow === 'any' || allow.some((allowed) => allowed === role);
   if (!roleAllowed || (requireAdminFlag && !isAdmin)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;

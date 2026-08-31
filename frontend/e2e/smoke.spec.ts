@@ -20,8 +20,9 @@ test.describe('FreStyle smoke', () => {
     // domcontentloaded で遷移し、描画要素の出現を明示的に待つ。
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveTitle(/FreStyle/);
-    // 公開ヘッダー(PublicHeader)の FreStyle ブランドは、公開トップ(LP)でもログインページでも
-    // 常に描画される。本番のコールドロードを見込んで余裕を持った timeout で待つ。
+    // "/" は未ログインだとログイン画面へ送られる（公開ランディングは廃止した）。
+    // その公開ヘッダー(PublicHeader)に FreStyle ブランドが出ることを、
+    // 本番のコールドロードを見込んだ余裕のある timeout で待つ。
     await expect(
       page.getByRole('link', { name: 'FreStyle ホーム' })
     ).toBeVisible({ timeout: 20_000 });

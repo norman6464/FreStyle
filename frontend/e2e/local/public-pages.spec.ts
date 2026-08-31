@@ -1,16 +1,15 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * 公開ページ（未ログインの訪問者・検索エンジンのクローラ向け）の E2E。
+ * トップ（/）に来た人がどこへ着くかの E2E。
  *
- * FRESTYLE-225 の本番回帰の再発防止:
- * 公開トップは「ログイン済みならダッシュボードへ送る」ために /auth/me を呼ぶが、
- * 未ログインの 401 でトークンリフレッシュが走り、その失敗で axios interceptor が
- * /login へ強制遷移していた。結果、公開 LP が誰にも（Googlebot にも）見えなくなっていた。
+ * 公開ランディングを廃止して "/" をログイン必須のホームにしたので、行き先は
+ * 「ログインしているか」だけで決まる。ここが崩れると、ログイン済みの人が毎回
+ * ログイン画面を踏まされるか、未ログインの人が中身の無いホームを見ることになる。
  */
 
-test.describe('公開トップ（未ログイン）', () => {
-  test('未ログインでもログイン画面へ飛ばされず LP を表示し続ける', async ({ page }) => {
+test.describe('トップ（/）', () => {
+  test('未ログインで開くとログイン画面へ送られる', async ({ page }) => {
     // 認証系を含むすべての API を 401 にする（未ログイン状態の再現）。
     await page.route('**/api/v2/**', (route) =>
       route.fulfill({
@@ -19,22 +18,15 @@ test.describe('公開トップ（未ログイン）', () => {
         body: '{"error":"unauthorized"}',
       })
     );
+
     await page.goto('/');
 
-    // ヒーロー見出しが出ていること（LP が描画されている）。
-    await expect(
-      page.getByRole('heading', { level: 1, name: /新卒ITエンジニア向け研修プラットフォーム/ })
-    ).toBeVisible();
-
-    // リダイレクトは非同期に起きるため、猶予を置いてから URL を確認する。
-    await page.waitForTimeout(2000);
-    await expect(page).not.toHaveURL(/\/login/);
-    await expect(
-      page.getByRole('heading', { level: 1, name: /新卒ITエンジニア向け研修プラットフォーム/ })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+    // ログイン画面が実際に描画されている（URL だけ変わって白紙、を除く）。
+    await expect(page.getByRole('form', { name: 'ログインフォーム' })).toBeVisible();
   });
 
-  test('ログイン済みならダッシュボードへ送られる', async ({ page }) => {
+  test('ログイン済みならどこへも送られずホームがそのまま出る', async ({ page }) => {
     await page.route('**/api/v2/**', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
     );
@@ -45,9 +37,28 @@ test.describe('公開トップ（未ログイン）', () => {
         body: JSON.stringify({ isAdmin: false, role: 'trainee' }),
       })
     );
+    // 学習サマリーは配列ではなくオブジェクト。[] のままだとホームが落ちる。
+    await page.route('**/api/v2/me/dashboard', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          streak: 0,
+          totalExercises: 0,
+          totalCorrect: 0,
+          totalLessons: 0,
+          recentActivity: [],
+          recentChapterViews: [],
+        }),
+      })
+    );
 
     await page.goto('/');
 
-    await expect(page).toHaveURL(/\/dashboard/);
+    // ホームが実際に描画されるまで待つ。URL だけを見ると、MenuPage の遅延ロードが
+    // 失敗して ErrorBoundary が出ていても "/" のままなので通ってしまう。
+    await expect(page.getByRole('heading', { name: 'FreStyle へようこそ' })).toBeVisible();
+    await expect(page).toHaveURL('/');
+    await expect(page).not.toHaveURL(/\/login/);
   });
 });

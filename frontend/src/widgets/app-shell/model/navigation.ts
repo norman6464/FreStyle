@@ -23,7 +23,7 @@ export interface AdminSubItem {
  * 項目を増やすときはここへ 1 つ足せば、ヘッダー・サイドバー・モバイルメニューすべてに反映される。
  */
 export const MAIN_NAV_ITEMS: NavItem[] = [
-  { id: 'home', label: 'ホーム', to: '/dashboard', matchExact: true },
+  { id: 'home', label: 'ホーム', to: '/', matchExact: true },
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
   // ノートは共有される木（旧ナレッジを統合）。ページの URL は /p/{pageId}。

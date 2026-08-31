@@ -44,7 +44,7 @@ export function useLoginPage() {
   const finishLogin = () => {
     // 配信側でトップを振り分けるための目印（FRESTYLE-231）
     setAuthHint();
-    window.location.assign('/dashboard');
+    window.location.assign('/');
   };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {

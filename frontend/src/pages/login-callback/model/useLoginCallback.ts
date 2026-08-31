@@ -46,7 +46,7 @@ export function useLoginCallback() {
             }),
           );
           setAuthHint();
-          navigate('/dashboard');
+          navigate('/');
         })
         .catch((err) => {
           if (exchanged) {
@@ -54,7 +54,7 @@ export function useLoginCallback() {
             // （SPA 内 navigate では再取得されず、ロール未確定のまま留まるため）。
             // replace で遷移し、使用済みの認可コードを含む URL を履歴に残さない。
             setAuthHint();
-            window.location.replace('/dashboard');
+            window.location.replace('/');
             return;
           }
           // backend が PR-OIDC-Gate で返す 403 invitation_required を識別して

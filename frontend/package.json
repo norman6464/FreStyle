@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/make-app-shell.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
@@ -19,7 +19,6 @@
     "knip": "knip",
     "md2doc": "tsx scripts/md2doc.mjs",
     "size": "pnpm run build && size-limit",
-    "prerender": "node scripts/prerender.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:stories": "WITH_STORYBOOK_TESTS=1 vitest run --project=storybook"

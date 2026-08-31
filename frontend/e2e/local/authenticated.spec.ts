@@ -30,6 +30,22 @@ async function mockAuthenticated(
       body: JSON.stringify({ isAdmin: role !== 'trainee', role }),
     })
   );
+  // 学習サマリーは配列ではなくオブジェクト。既定の [] のままだと trainee のホームが
+  // 中の配列を undefined として触って落ち、ErrorBoundary に差し替わる。
+  await page.route('**/api/v2/me/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        streak: 0,
+        totalExercises: 0,
+        totalCorrect: 0,
+        totalLessons: 0,
+        recentActivity: [],
+        recentChapterViews: [],
+      }),
+    })
+  );
   for (const [pattern, body] of Object.entries(overrides)) {
     await page.route(pattern, (route) =>
       route.fulfill({
@@ -60,10 +76,13 @@ test.describe('認証ガード', () => {
   test('認証済みなら保護ルートはログインに飛ばされない', async ({ page }) => {
     await mockAuthenticated(page);
 
-    // "/" は公開 LP に変わったため、保護ルート(ダッシュボード)で検証する。
-    await page.goto('/dashboard');
+    // "/" 自体がログイン必須のホーム。公開ランディングは廃止した。
+    await page.goto('/');
 
+    // URL だけ見ると、ホームが描画に失敗して ErrorBoundary が出ていても通ってしまう。
+    await expect(page.getByRole('heading', { name: 'FreStyle へようこそ' })).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
+    await expect(page).toHaveURL('/');
   });
 });
 
@@ -129,10 +148,10 @@ test.describe('認証済み導線（super_admin）', () => {
   test('super_admin が trainee 向けパス（/code-editor）を開くとホームへリダイレクトされる', async ({
     page,
   }) => {
-    // Protected: role === 'super_admin' かつ trainee 向けパス → /dashboard。
+    // Protected: role === 'super_admin' かつ trainee 向けパス → ホーム（/）。
     await mockAuthenticated(page, {}, 'super_admin');
     await page.goto('/code-editor');
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL('/');
   });
 
   test('super_admin でも /notes は開ける（旧ナレッジを統合した共有の面）', async ({ page }) => {

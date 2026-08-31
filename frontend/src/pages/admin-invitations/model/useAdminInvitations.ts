@@ -2,15 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { AdminInvitationRepository, AdminInvitation, CreateInvitationForm } from '@/entities/invitation';
 import type { InvitationMethod } from '@/entities/invitation';
-import { CompanyRepository, Company } from '@/entities/company';
-import { AuthRepository, UserInfo } from '@/entities/user';
 import { logger } from '@/shared/lib/logger';
 
 import { extractApiErrorMessage } from '../lib/extractApiErrorMessage';
 import { translateInviteError } from '../lib/translateInviteError';
 
 const EMPTY_FORM: CreateInvitationForm = {
-  companyId: 0,
   email: '',
   role: 'trainee',
   displayName: '',
@@ -24,13 +21,11 @@ export interface IssuedPassword {
 
 /**
  * useAdminInvitations — メンバー招待ページの状態管理フック。
- * 招待一覧・会社一覧の取得、招待の作成（招待リンク / 初期パスワード）、招待の取り消しを扱う。
- * 通過条件（管理者かどうか）はルート側の RequireRole が持つのでここでは判定しない。
+ * 招待一覧の取得、招待の作成（招待リンク / 初期パスワード）、招待の取り消しを扱う。
+ * 通過条件（管理者かどうか）はルート側が持ち、越権はどのみち backend が弾くので判定しない。
  */
 export function useAdminInvitations() {
-  const [me, setMe] = useState<UserInfo | null>(null);
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<CreateInvitationForm>(EMPTY_FORM);
@@ -42,39 +37,11 @@ export function useAdminInvitations() {
   const [issuedPassword, setIssuedPassword] = useState<IssuedPassword | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // 認可境界（SoD）に応じて招待 UI を切り替えるため、自分の role / companyId を取得する。
-  // backend 側でも同じ境界を強制しているので、フロントは UX 改善目的（不可能な選択肢を見せない）。
-  //   - super_admin → role=company_admin で固定 / company は任意選択
-  //   - company_admin → role=trainee で固定 / company は自社固定
-  const isSuperAdmin = me?.role === 'super_admin';
-  const isCompanyAdmin = me?.role === 'company_admin';
-
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      // 会社一覧 API は super_admin 専用。company_admin で呼ぶと 403 になり、
-      // Promise.all ごと reject して招待一覧まで巻き込むため、先に自分の role を
-      // 確認してから super_admin のときだけ取得する（company_admin は自社固定で不要）。
-      const user = await AuthRepository.getCurrentUser();
-      const [invitationList, companyList] = await Promise.all([
-        AdminInvitationRepository.list(),
-        user.role === 'super_admin' ? CompanyRepository.list() : Promise.resolve<Company[]>([]),
-      ]);
-      setMe(user);
-      setInvitations(invitationList);
-      setCompanies(companyList);
-
-      // 役割に応じてフォームの初期値を上書きする。
-      // company_admin は自社固定（InvitationForm が company_admin 用の選択 UI 自体を出さない）ため
-      // ここでは super_admin 向けの既定値（会社一覧の先頭）だけを算出する。
-      const defaultRole: CreateInvitationForm['role'] =
-        user.role === 'super_admin' ? 'company_admin' : 'trainee';
-      const defaultCompanyId = companyList[0]?.id ?? 0;
-      setForm((f) => ({
-        ...f,
-        role: defaultRole,
-        companyId: f.companyId === 0 ? defaultCompanyId : f.companyId,
-      }));
+      // 招待先も役職も固定なので、この画面は自分が誰かを見なくてよい。
+      setInvitations(await AdminInvitationRepository.list());
       setError(null);
     } catch (e) {
       setError('データの取得に失敗しました');
@@ -89,12 +56,6 @@ export function useAdminInvitations() {
   }, [fetchAll]);
 
   const submit = async () => {
-    // 会社の選択が要るのは super_admin だけ。company_admin の招待先は
-    // backend が actor 自身の所属ワークスペースに固定するため、フォームでは選ばせない。
-    if (isSuperAdmin && !form.companyId) {
-      setError('会社を選択してください');
-      return;
-    }
     setSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -112,7 +73,7 @@ export function useAdminInvitations() {
           `${created.email} 宛に招待メールを送信しました。受信者にメール内のリンクを開いてもらい、画面の案内に従ってログインしてもらってください。`
         );
       }
-      setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
+      setForm(EMPTY_FORM);
       await fetchAll();
     } catch (err: unknown) {
       const raw = extractApiErrorMessage(err, '招待の作成に失敗しました');
@@ -163,7 +124,6 @@ export function useAdminInvitations() {
 
   return {
     invitations,
-    companies,
     loading,
     error,
     success,
@@ -173,8 +133,6 @@ export function useAdminInvitations() {
     submit,
     method,
     setMethod,
-    isSuperAdmin,
-    isCompanyAdmin,
     cancelTarget,
     canceling,
     requestCancel,

@@ -1,25 +1,18 @@
 import type { CreateInvitationForm, InvitationMethod } from '@/entities/invitation';
-import type { Company } from '@/entities/company';
 
 interface InvitationFormProps {
   form: CreateInvitationForm;
   onChange: (form: CreateInvitationForm) => void;
-  companies: Company[];
-  isSuperAdmin: boolean;
-  isCompanyAdmin: boolean;
   method: InvitationMethod;
   onMethodChange: (method: InvitationMethod) => void;
   submitting: boolean;
   onSubmit: () => void;
 }
 
-/** 新規招待フォーム。会社・役職は認可境界（SoD）に応じて固定表示に切り替わる。 */
+/** 新規招待フォーム。招待先と役職はどちらも固定なので、選ばせずに表示だけする。 */
 export default function InvitationForm({
   form,
   onChange,
-  companies,
-  isSuperAdmin,
-  isCompanyAdmin,
   method,
   onMethodChange,
   submitting,
@@ -36,29 +29,14 @@ export default function InvitationForm({
       <h2 className="text-base font-bold">新規招待</h2>
 
       <label className="block text-sm">
-        <span className="block mb-1">会社 *</span>
-        {isCompanyAdmin ? (
-          // CompanyAdmin は自社にしか招待を出せない仕様。会社一覧 API は呼ばない
-          // （super_admin 専用）ため、固定文言で自社宛であることを示す。
-          <input
-            type="text"
-            readOnly
-            value="所属会社（自社に固定）"
-            className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
-          />
-        ) : (
-          <select
-            required
-            value={form.companyId}
-            onChange={(e) => onChange({ ...form, companyId: Number(e.target.value) })}
-            className="w-full border rounded px-2 py-1"
-          >
-            <option value={0} disabled>会社を選択してください</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        )}
+        <span className="block mb-1">招待先</span>
+        {/* 招待先は常に自分の所属ワークスペース。選ばせる余地が無いので入力にしない。 */}
+        <input
+          type="text"
+          readOnly
+          value="自分のワークスペース"
+          className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
+        />
       </label>
 
       <label className="block text-sm">
@@ -75,22 +53,15 @@ export default function InvitationForm({
       </label>
 
       {/*
-       * 役職は SoD ルールで自動決定する:
-       *   - SuperAdmin が招待 → 会社管理者 (company_admin) のみ
-       *   - CompanyAdmin が招待 → 受講者 (trainee) のみ
-       * select で誤った選択肢を露出させると backend の 403 で弾かれて UX が悪いので、
-       * 一律「役職は固定（変更不可）」と表示する。
+       * 招待できるのは受講者だけ。select で選ばせても backend の 403 で弾かれるので、
+       * 固定であることをそのまま見せる。
        */}
       <label className="block text-sm">
         <span className="block mb-1">役職</span>
         <input
           type="text"
           readOnly
-          value={
-            isSuperAdmin
-              ? '会社管理者（招待先の会社の管理者）'
-              : '受講者（自社のメンバー）'
-          }
+          value="受講者（自分のワークスペースのメンバー）"
           className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
         />
       </label>
@@ -135,7 +106,7 @@ export default function InvitationForm({
 
       <button
         type="submit"
-        disabled={submitting || (isSuperAdmin && form.companyId === 0)}
+        disabled={submitting}
         className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50"
       >
         {submitting

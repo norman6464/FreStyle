@@ -26,7 +26,6 @@ afterAll(() => {
 
 const course: Course = {
   id: 5,
-  companyId: 10,
   createdByUserId: 1,
   title: 'Git 入門',
   description: '',
@@ -52,7 +51,6 @@ const richDoc: RichDocContent = {
 function material(overrides: Partial<TeachingMaterial> = {}): TeachingMaterial {
   return {
     id: 1,
-    companyId: 10,
     courseId: 5,
     createdByUserId: 1,
     title: '章タイトル',

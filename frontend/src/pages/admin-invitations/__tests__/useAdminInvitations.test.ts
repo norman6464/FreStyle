@@ -2,14 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 // Repository は Public API ごと差し替える（DOM も axios も経由しない）。
-const { getCurrentUser, listInvitations, createInvitation, createTempPassword, cancelInvitation, listCompanies } =
+const { getCurrentUser, listInvitations, createInvitation, createTempPassword, cancelInvitation } =
   vi.hoisted(() => ({
     getCurrentUser: vi.fn(),
     listInvitations: vi.fn(),
     createInvitation: vi.fn(),
     createTempPassword: vi.fn(),
     cancelInvitation: vi.fn(),
-    listCompanies: vi.fn(),
   }));
 
 vi.mock('@/entities/user', () => ({
@@ -23,17 +22,13 @@ vi.mock('@/entities/invitation', () => ({
     cancel: (id: number) => cancelInvitation(id),
   },
 }));
-vi.mock('@/entities/company', () => ({
-  CompanyRepository: { list: () => listCompanies() },
-}));
 vi.mock('@/shared/lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 import { useAdminInvitations } from '../model/useAdminInvitations';
 import { pendingInvitation } from './fixtures';
 
-/** company_admin として hook をマウントし、初期ロードの完了まで待つ。 */
-async function mountAsCompanyAdmin(invitations = [pendingInvitation]) {
-  getCurrentUser.mockResolvedValue({ id: 2, role: 'company_admin', companyId: 7 });
+/** hook をマウントし、初期ロードの完了まで待つ。 */
+async function mountHook(invitations = [pendingInvitation]) {
   listInvitations.mockResolvedValue(invitations);
   const view = renderHook(() => useAdminInvitations());
   await waitFor(() => expect(view.result.current.loading).toBe(false));
@@ -45,21 +40,17 @@ beforeEach(() => {
 });
 
 describe('useAdminInvitations の初期ロード', () => {
-  it('company_admin では会社一覧を取らず、会社は送らず役職を受講者に固定する', async () => {
-    const { result } = await mountAsCompanyAdmin();
+  it('招待一覧だけを取り、フォームは役職を受講者に固定する', async () => {
+    const { result } = await mountHook();
 
-    expect(getCurrentUser).toHaveBeenCalledTimes(1);
     expect(listInvitations).toHaveBeenCalledTimes(1);
-    expect(listCompanies).not.toHaveBeenCalled();
+    // 招待先も役職も固定なので、この画面は自分が誰かを見なくてよい。
+    expect(getCurrentUser).not.toHaveBeenCalled();
 
-    expect(result.current.isCompanyAdmin).toBe(true);
-    expect(result.current.isSuperAdmin).toBe(false);
     expect(result.current.invitations).toEqual([pendingInvitation]);
-    expect(result.current.companies).toEqual([]);
-    // company_admin の招待先は backend が actor 自身の所属ワークスペースに固定するため、
-    // フォームは会社を持たない（companyId は未選択の 0 のまま送られ、backend が無視する）。
+    // 招待先は backend が actor 自身の所属ワークスペースに固定するので、フォームは
+    // 宛先も役職も持たない（画面は固定であることを表示するだけ）。
     expect(result.current.form).toEqual({
-      companyId: 0,
       email: '',
       role: 'trainee',
       displayName: '',
@@ -67,48 +58,21 @@ describe('useAdminInvitations の初期ロード', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('super_admin では会社一覧を 1 回取得し、役職を会社管理者・会社を先頭社に既定する', async () => {
-    getCurrentUser.mockResolvedValue({ id: 1, role: 'super_admin', companyId: null });
-    listInvitations.mockResolvedValue([]);
-    listCompanies.mockResolvedValue([{ id: 3, name: 'アクメ社' }, { id: 4, name: 'ベータ社' }]);
-
-    const { result } = renderHook(() => useAdminInvitations());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(getCurrentUser).toHaveBeenCalledTimes(1);
-    expect(listInvitations).toHaveBeenCalledTimes(1);
-    expect(listCompanies).toHaveBeenCalledTimes(1);
-    expect(result.current.isSuperAdmin).toBe(true);
-    expect(result.current.form.role).toBe('company_admin');
-    expect(result.current.form.companyId).toBe(3);
-  });
-
-  it('super_admin で会社が 1 社も無いときは会社未選択のままにする', async () => {
-    getCurrentUser.mockResolvedValue({ id: 1, role: 'super_admin', companyId: null });
-    listInvitations.mockResolvedValue([]);
-    listCompanies.mockResolvedValue([]);
-
-    const { result } = renderHook(() => useAdminInvitations());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.form.companyId).toBe(0);
-  });
-
   it('取得に失敗したときはエラーを立てて loading を落とす', async () => {
-    getCurrentUser.mockRejectedValue(new Error('network error'));
+    listInvitations.mockRejectedValue(new Error('network error'));
 
     const { result } = renderHook(() => useAdminInvitations());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe('データの取得に失敗しました');
-    expect(listInvitations).not.toHaveBeenCalled();
+    expect(result.current.invitations).toEqual([]);
   });
 });
 
 describe('useAdminInvitations の招待作成', () => {
   it('招待リンク方式では create を 1 回呼び、成功文言を出してフォームを空にする', async () => {
     createInvitation.mockResolvedValue({ ...pendingInvitation, email: 'new@example.com' });
-    const { result } = await mountAsCompanyAdmin([]);
+    const { result } = await mountHook([]);
 
     act(() => result.current.setForm({ ...result.current.form, email: 'new@example.com', displayName: '山田' }));
     await act(async () => {
@@ -116,18 +80,15 @@ describe('useAdminInvitations の招待作成', () => {
     });
 
     expect(createInvitation).toHaveBeenCalledTimes(1);
-    // company_admin は会社を選ばないので companyId は未選択の 0 のまま送る
-    // （backend が actor 自身の所属ワークスペースへ固定する）。
+    // 宛先ワークスペースは送らない（backend が actor 自身の所属ワークスペースへ固定する）。
     expect(createInvitation).toHaveBeenCalledWith({
-      companyId: 0,
       email: 'new@example.com',
       role: 'trainee',
       displayName: '山田',
     });
     expect(result.current.success).toContain('new@example.com 宛に招待メールを送信しました。');
-    expect(result.current.form).toEqual({ companyId: 0, email: '', role: 'trainee', displayName: '' });
+    expect(result.current.form).toEqual({ email: '', role: 'trainee', displayName: '' });
     // 作成後の再取得は 1 度だけ（初回 + 再取得 = 2）。
-    expect(getCurrentUser).toHaveBeenCalledTimes(2);
     expect(listInvitations).toHaveBeenCalledTimes(2);
   });
 
@@ -136,7 +97,7 @@ describe('useAdminInvitations の招待作成', () => {
       invitation: { ...pendingInvitation, email: 'new@example.com' },
       temporaryPassword: 'Temp-Pass-9!',
     });
-    const { result } = await mountAsCompanyAdmin([]);
+    const { result } = await mountHook([]);
 
     act(() => result.current.setMethod('temporary_password'));
     act(() => result.current.setForm({ ...result.current.form, email: 'new@example.com' }));
@@ -154,27 +115,11 @@ describe('useAdminInvitations の招待作成', () => {
     expect(result.current.issuedPassword).toBeNull();
   });
 
-  it('会社が未選択のときは通信せずエラーだけを出す', async () => {
-    getCurrentUser.mockResolvedValue({ id: 1, role: 'super_admin', companyId: null });
-    listInvitations.mockResolvedValue([]);
-    listCompanies.mockResolvedValue([]);
-    const { result } = renderHook(() => useAdminInvitations());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    await act(async () => {
-      await result.current.submit();
-    });
-
-    expect(result.current.error).toBe('会社を選択してください');
-    expect(createInvitation).not.toHaveBeenCalled();
-    expect(createTempPassword).not.toHaveBeenCalled();
-  });
-
   it('backend の message / error を日本語化して error に入れ、再取得しない', async () => {
     createInvitation.mockRejectedValue({
       response: { data: { error: 'UsernameExistsException' } },
     });
-    const { result } = await mountAsCompanyAdmin([]);
+    const { result } = await mountHook([]);
 
     act(() => result.current.setForm({ ...result.current.form, email: 'dup@example.com' }));
     await act(async () => {
@@ -188,7 +133,7 @@ describe('useAdminInvitations の招待作成', () => {
 
   it('レスポンス本文が無いときは既定の失敗文言を出す', async () => {
     createInvitation.mockRejectedValue(new Error('boom'));
-    const { result } = await mountAsCompanyAdmin([]);
+    const { result } = await mountHook([]);
 
     await act(async () => {
       await result.current.submit();
@@ -201,7 +146,7 @@ describe('useAdminInvitations の招待作成', () => {
 describe('useAdminInvitations の招待取り消し', () => {
   it('確定で cancel を 1 回呼び、対象を閉じて一覧を再取得する', async () => {
     cancelInvitation.mockResolvedValue(undefined);
-    const { result } = await mountAsCompanyAdmin();
+    const { result } = await mountHook();
 
     act(() => result.current.requestCancel(pendingInvitation));
     expect(result.current.cancelTarget).toEqual(pendingInvitation);
@@ -217,7 +162,7 @@ describe('useAdminInvitations の招待取り消し', () => {
   });
 
   it('対象が無いときは何も呼ばない', async () => {
-    const { result } = await mountAsCompanyAdmin();
+    const { result } = await mountHook();
 
     await act(async () => {
       await result.current.confirmCancel();
@@ -228,7 +173,7 @@ describe('useAdminInvitations の招待取り消し', () => {
 
   it('失敗したときはエラーを出し、対象を開いたままにする', async () => {
     cancelInvitation.mockRejectedValue(new Error('boom'));
-    const { result } = await mountAsCompanyAdmin();
+    const { result } = await mountHook();
 
     act(() => result.current.requestCancel(pendingInvitation));
     await act(async () => {
@@ -241,7 +186,7 @@ describe('useAdminInvitations の招待取り消し', () => {
   });
 
   it('モーダルを閉じると対象が消える', async () => {
-    const { result } = await mountAsCompanyAdmin();
+    const { result } = await mountHook();
 
     act(() => result.current.requestCancel(pendingInvitation));
     act(() => result.current.closeCancelModal());
@@ -252,7 +197,7 @@ describe('useAdminInvitations の招待取り消し', () => {
   it('取り消し処理中はモーダルを閉じられない', async () => {
     let release: () => void = () => {};
     cancelInvitation.mockReturnValue(new Promise<void>((resolve) => { release = resolve; }));
-    const { result } = await mountAsCompanyAdmin();
+    const { result } = await mountHook();
 
     act(() => result.current.requestCancel(pendingInvitation));
     act(() => { result.current.confirmCancel(); });
@@ -277,7 +222,7 @@ describe('useAdminInvitations の初期パスワードのコピー', () => {
       invitation: { ...pendingInvitation, email: 'new@example.com' },
       temporaryPassword: 'Temp-Pass-9!',
     });
-    const view = await mountAsCompanyAdmin([]);
+    const view = await mountHook([]);
     act(() => view.result.current.setMethod('temporary_password'));
     await act(async () => {
       await view.result.current.submit();
@@ -312,7 +257,7 @@ describe('useAdminInvitations の初期パスワードのコピー', () => {
   it('発行前は何も起きない', async () => {
     const writeText = vi.fn();
     vi.stubGlobal('navigator', { clipboard: { writeText } });
-    const { result } = await mountAsCompanyAdmin([]);
+    const { result } = await mountHook([]);
 
     await act(async () => {
       await result.current.copyIssuedPassword();

@@ -22,7 +22,7 @@ function roleLabel(role: string): string {
 // 「METHOD ルートパターン」を日本語の操作名に。prefix（/api/v2）に依存しないよう部分一致で判定。
 function actionLabel(action: string): string {
   const a = action.toUpperCase();
-  if (a.includes('/COMPANIES/') && a.includes('ACTIVE')) return '会社の有効/無効を変更';
+  if (a.includes('/COMPANIES/') && a.includes('ACTIVE')) return '会社の有効/無効を変更（撤去済み機能）';
   if (a.includes('/MEMBERS/') && a.includes('ACTIVE')) return '従業員の有効/無効を変更';
   if (a.startsWith('DELETE') && a.includes('/MEMBERS/')) return '従業員を削除';
   if (a.startsWith('POST') && a.includes('/INVITATIONS')) return '招待を作成';

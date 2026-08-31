@@ -10,7 +10,6 @@ vi.mock('@/entities/course/api/teachingMaterialRepository', () => ({
 
 const sample = (id: number, title = `教材${id}`): TeachingMaterial => ({
   id,
-  companyId: 1,
   courseId: 5,
   createdByUserId: 1,
   title,

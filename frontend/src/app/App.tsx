@@ -31,9 +31,7 @@ const NotePage = lazyWithReload(() => import('@/pages/note').then((m) => ({ defa
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 const AdminInvitationsPage = lazyWithReload(() => import('@/pages/admin-invitations').then((m) => ({ default: m.AdminInvitationsPage })), 'AdminInvitationsPage');
-const AdminCompaniesPage = lazyWithReload(() => import('@/pages/admin-companies').then((m) => ({ default: m.AdminCompaniesPage })), 'AdminCompaniesPage');
 const AdminMembersPage = lazyWithReload(() => import('@/pages/admin-members').then((m) => ({ default: m.AdminMembersPage })), 'AdminMembersPage');
-const AdminDashboardPage = lazyWithReload(() => import('@/pages/admin-dashboard').then((m) => ({ default: m.AdminDashboardPage })), 'AdminDashboardPage');
 const AdminAuditLogPage = lazyWithReload(() => import('@/pages/admin-audit-log').then((m) => ({ default: m.AdminAuditLogPage })), 'AdminAuditLogPage');
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
 const ExerciseListPage = lazyWithReload(() => import('@/pages/exercises').then((m) => ({ default: m.ExerciseListPage })), 'ExerciseListPage');
@@ -133,24 +131,8 @@ export default function App() {
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
         <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
         {/* Admin 専用。通過条件はここ（RequireRole）に集約する → 満たさなければ /dashboard へ。
-            画面ごとに条件が違うのは現行のまま: 会社一覧 / 監査ログは role のみ、
-            運営ダッシュボード / 利用申請は role + isAdmin、従業員一覧 / 招待は isAdmin のみ。 */}
-        <Route
-          path="/admin/dashboard"
-          element={
-            <RequireRole allow={['super_admin']} requireAdminFlag>
-              <AdminDashboardPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/companies"
-          element={
-            <RequireRole allow={['super_admin']}>
-              <AdminCompaniesPage />
-            </RequireRole>
-          }
-        />
+            画面ごとに条件が違うのは現行のまま: 監査ログは role のみ、
+            従業員一覧 / 招待は isAdmin のみ。 */}
         <Route
           path="/admin/members"
           element={

@@ -8,7 +8,7 @@ interface ProtectedProps {
 }
 
 // super_admin は trainee 向け学習機能を利用しないため、これらのパスにアクセスしたら
-// /admin/companies へリダイレクトする。Header のナビ filter とセットで運用する。
+// ホームへリダイレクトする。Header のナビ filter とセットで運用する。
 // ノート（/notes・/p）は旧ナレッジを統合した共有の面なので super_admin にも開く。
 const TRAINEE_ONLY_PATH_PREFIXES = ['/code-editor', '/reports'];
 
@@ -16,7 +16,7 @@ const TRAINEE_ONLY_PATH_PREFIXES = ['/code-editor', '/reports'];
  * 認証必須ルートのガード。
  *
  * 1. 未認証 → /login
- * 2. role === 'super_admin' + trainee 向けパス → /admin/companies
+ * 2. role === 'super_admin' + trainee 向けパス → /
  * 3. それ以外は子コンポーネントを描画
  */
 export default function Protected({ children }: ProtectedProps) {
@@ -31,7 +31,7 @@ export default function Protected({ children }: ProtectedProps) {
     role === 'super_admin' &&
     TRAINEE_ONLY_PATH_PREFIXES.some((p) => location.pathname.startsWith(p))
   ) {
-    return <Navigate to="/admin/companies" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;

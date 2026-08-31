@@ -20,16 +20,9 @@ vi.mock('react-redux', () => ({
 }));
 
 // 以下は「認可の判定だけ」を見るためのデータ取得スタブ。API/axios は呼ばない。
-vi.mock('@/entities/company', () => ({
-  CompanyRepository: {
-    listStats: () => Promise.resolve([]),
-    list: () => Promise.resolve([]),
-    updateActive: () => Promise.resolve(),
-  },
-}));
 vi.mock('@/entities/user', () => ({
   AuthRepository: {
-    getCurrentUser: () => Promise.resolve({ id: 1, role: 'super_admin', companyId: null }),
+    getCurrentUser: () => Promise.resolve({ id: 1, role: 'super_admin' }),
   },
 }));
 vi.mock('@/entities/invitation', () => ({
@@ -44,9 +37,6 @@ vi.mock('@/shared/lib/hooks/useToast', () => ({ useToast: () => ({ showToast: vi
 vi.mock('@/pages/admin-audit-log/model/useAuditLog', () => ({
   useAuditLog: () => ({ events: [], loading: false, error: null }),
 }));
-vi.mock('@/pages/admin-dashboard/model/useAdminDashboard', () => ({
-  useAdminDashboard: () => ({ summary: null, loading: false, error: null }),
-}));
 vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
   useAdminMembers: () => ({
     members: [],
@@ -60,8 +50,6 @@ vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
 }));
 
 // ページは App.tsx の配線と同じく Slice の Public API から取る。
-import { AdminDashboardPage } from '@/pages/admin-dashboard';
-import { AdminCompaniesPage } from '@/pages/admin-companies';
 import { AdminMembersPage } from '@/pages/admin-members';
 import { AdminAuditLogPage } from '@/pages/admin-audit-log';
 import { AdminInvitationsPage } from '@/pages/admin-invitations';
@@ -72,24 +60,6 @@ import RequireRole from '../providers/RequireRole';
  * 認可ゲートの置き場所を変えたら、変えるのはこの配線だけで、下の表は動かさない。
  */
 const ADMIN_ROUTES: { path: string; title: string; element: ReactElement }[] = [
-  {
-    path: '/admin/dashboard',
-    title: '運営ダッシュボード',
-    element: (
-      <RequireRole allow={['super_admin']} requireAdminFlag>
-        <AdminDashboardPage />
-      </RequireRole>
-    ),
-  },
-  {
-    path: '/admin/companies',
-    title: '管理: 会社一覧',
-    element: (
-      <RequireRole allow={['super_admin']}>
-        <AdminCompaniesPage />
-      </RequireRole>
-    ),
-  },
   {
     path: '/admin/members',
     title: '管理: 従業員一覧',
@@ -150,19 +120,13 @@ const CASES: { label: string; auth: { isAdmin: boolean; role: string | null }; p
   {
     label: 'role=super_admin / isAdmin=true',
     auth: { isAdmin: true, role: 'super_admin' },
-    pass: [
-      '/admin/dashboard',
-      '/admin/companies',
-      '/admin/members',
-      '/admin/audit',
-      '/admin/invitations',
-    ],
+    pass: ['/admin/members', '/admin/audit', '/admin/invitations'],
   },
   {
-    // role だけを見るページ（会社一覧 / 監査ログ）は isAdmin フラグを要求しない。
+    // role だけを見るページ（監査ログ）は isAdmin フラグを要求しない。
     label: 'role=super_admin / isAdmin=false',
     auth: { isAdmin: false, role: 'super_admin' },
-    pass: ['/admin/companies', '/admin/audit'],
+    pass: ['/admin/audit'],
   },
   {
     label: 'role=company_admin / isAdmin=true',

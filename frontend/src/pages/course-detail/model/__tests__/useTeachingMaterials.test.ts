@@ -38,7 +38,6 @@ const sample = (
   overrides: Partial<{ title: string; isPublished: boolean; orderInCourse: number }> = {},
 ) => ({
   id,
-  companyId: 1,
   courseId: 5,
   createdByUserId: 1,
   title: overrides.title ?? `教材${id}`,

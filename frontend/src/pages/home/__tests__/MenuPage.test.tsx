@@ -100,7 +100,7 @@ describe('MenuPage', () => {
     renderMenu('super_admin');
 
     expect(screen.getByRole('heading', { name: '管理メニュー', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText('会社一覧')).toBeInTheDocument();
+    expect(screen.getByText('招待管理')).toBeInTheDocument();
     // 学習統計は出さない
     expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
   });
@@ -161,7 +161,6 @@ describe('MenuPage', () => {
     it('管理者向けのカードも見出しも描画しない', () => {
       renderMenu(null);
 
-      expect(screen.queryByText('会社一覧')).not.toBeInTheDocument();
       expect(screen.queryByText('招待管理')).not.toBeInTheDocument();
       expect(screen.queryByText('管理メニュー')).not.toBeInTheDocument();
       expect(screen.queryByText('FreStyle へようこそ')).not.toBeInTheDocument();

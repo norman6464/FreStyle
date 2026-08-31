@@ -25,7 +25,6 @@ const mockList = vi.mocked(CourseRepository.list);
 function makeCourse(overrides: Partial<CourseWithProgress> = {}): CourseWithProgress {
   return {
     id: 1,
-    companyId: 10,
     createdByUserId: 1,
     title: 'PostgreSQL 徹底入門',
     description: 'DB の基礎',

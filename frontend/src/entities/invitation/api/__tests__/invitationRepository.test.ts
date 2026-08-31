@@ -12,11 +12,11 @@ describe('InvitationRepository', () => {
   });
 
   it('validateToken: token を URL に埋め込んで GET する', async () => {
-    // backend が返すのは表示名のキーが name の形（companyId は返さない）。
+    // backend が返すのは表示名のキーが name の形。
     const mockInv = {
       role: 'company_admin',
       name: '山田',
-      companyName: '株式会社FreStyle',
+      workspaceName: '株式会社FreStyle',
     };
     mockedApiClient.get.mockResolvedValue({ data: mockInv });
 
@@ -27,7 +27,7 @@ describe('InvitationRepository', () => {
     expect(result).toEqual({
       role: 'company_admin',
       displayName: '山田',
-      companyName: '株式会社FreStyle',
+      workspaceName: '株式会社FreStyle',
     });
   });
 

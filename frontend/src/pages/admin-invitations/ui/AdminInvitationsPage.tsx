@@ -11,7 +11,6 @@ import InvitationList from './InvitationList';
 export default function AdminInvitationsPage() {
   const {
     invitations,
-    companies,
     loading,
     error,
     success,
@@ -21,8 +20,6 @@ export default function AdminInvitationsPage() {
     submit,
     method,
     setMethod,
-    isSuperAdmin,
-    isCompanyAdmin,
     cancelTarget,
     canceling,
     requestCancel,
@@ -57,9 +54,6 @@ export default function AdminInvitationsPage() {
       <InvitationForm
         form={form}
         onChange={setForm}
-        companies={companies}
-        isSuperAdmin={isSuperAdmin}
-        isCompanyAdmin={isCompanyAdmin}
         method={method}
         onMethodChange={setMethod}
         submitting={submitting}

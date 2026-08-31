@@ -5,7 +5,7 @@ import { INVITATIONS } from '@/shared/config/apiRoutes';
  * 招待マジックリンク受諾フロー用のリポジトリ。
  *
  * 認証不要の公開エンドポイント (`GET /api/v2/invitations/accept/:token`) を呼び出し、
- * 受諾画面が「招待先の company / role / displayName」を表示するためのデータを取得する。
+ * 受諾画面が「招待元のワークスペース / role / displayName」を表示するためのデータを取得する。
  *
  * email は意図的に含まれない（token 漏洩時の被害局所化）。
  */
@@ -14,7 +14,8 @@ export interface ValidatedInvitation {
   role: string;
   displayName: string;
   workspaceId?: string;
-  companyName: string;
+  /** 招待元ワークスペースの表示名。招待された人が「どこに招かれたのか」を判断する唯一の手掛かり。 */
+  workspaceName: string;
 }
 
 /**
@@ -25,7 +26,7 @@ interface InvitationValidateResponse {
   role: string;
   name: string;
   workspaceId?: string;
-  companyName: string;
+  workspaceName: string;
 }
 
 class InvitationRepository {

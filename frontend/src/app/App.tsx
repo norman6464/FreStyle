@@ -30,7 +30,6 @@ const NotificationPage = lazyWithReload(() => import('@/pages/notifications').th
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 const AdminInvitationsPage = lazyWithReload(() => import('@/pages/admin-invitations').then((m) => ({ default: m.AdminInvitationsPage })), 'AdminInvitationsPage');
 const AdminMembersPage = lazyWithReload(() => import('@/pages/admin-members').then((m) => ({ default: m.AdminMembersPage })), 'AdminMembersPage');
-const AdminAuditLogPage = lazyWithReload(() => import('@/pages/admin-audit-log').then((m) => ({ default: m.AdminAuditLogPage })), 'AdminAuditLogPage');
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
 const ExerciseListPage = lazyWithReload(() => import('@/pages/exercises').then((m) => ({ default: m.ExerciseListPage })), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('@/pages/exercise-detail').then((m) => ({ default: m.ExerciseDetailPage })), 'ExerciseDetailPage');
@@ -127,21 +126,12 @@ export default function App() {
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
         <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
         {/* Admin 専用。通過条件はここ（RequireRole）に集約する → 満たさなければホームへ。
-            画面ごとに条件が違うのは現行のまま: 監査ログは role のみ、
-            従業員一覧 / 招待は isAdmin のみ。 */}
+            通過条件は従業員一覧 / 招待とも isAdmin のみ。 */}
         <Route
           path="/admin/members"
           element={
             <RequireRole allow="any" requireAdminFlag>
               <AdminMembersPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/audit"
-          element={
-            <RequireRole allow={['super_admin']}>
-              <AdminAuditLogPage />
             </RequireRole>
           }
         />

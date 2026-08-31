@@ -38,7 +38,6 @@ const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'notes']);
 export const ADMIN_SUB_ITEMS: AdminSubItem[] = [
   { label: '従業員一覧', to: '/admin/members', matchPrefix: '/admin/members' },
   { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
-  { label: '監査ログ', to: '/admin/audit', matchPrefix: '/admin/audit', allowedRoles: ['super_admin'] },
 ];
 
 /**

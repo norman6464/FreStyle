@@ -4,72 +4,6 @@
  */
 
 export interface paths {
-    "/admin/audit-events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 監査ログ一覧（super_admin）
-         * @description 管理者の重要操作（従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent"][];
-                    };
-                };
-                /** @description 未認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description super_admin 以外 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/invitations": {
         parameters: {
             query?: never;
@@ -6703,17 +6637,6 @@ export interface components {
             status?: string;
             /** @description WorkspaceID は招待先ワークスペースへの参照。Course と同じ理由で NULL を許容する型にする。 */
             workspaceId?: string;
-        };
-        "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
-            /** @description Action は「METHOD ルートパターン」（例: "PATCH /api/v2/admin/companies/:id/active"）。 */
-            action?: string;
-            actorEmail?: string;
-            actorId?: number;
-            actorRole?: string;
-            createdAt?: string;
-            id?: number;
-            /** @description TargetID は操作対象の ID（会社 ID / ユーザー ID など。取得できないときは 0）。 */
-            targetId?: number;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult": {
             exitCode?: number;

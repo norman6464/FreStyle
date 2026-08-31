@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -627,43 +626,11 @@ func Test_ノート権限API_メンバー追加はユーザー単位で頭打ち
 		"IP を変えても同じユーザーなら頭打ちになる")
 }
 
-func Test_ノート権限API_権限を変える経路は全て監査ログに残る(t *testing.T) {
-	// 「誰がいつ誰に admin を与えたか」が残らなければ、権限操作 API を用意した意味が薄い。
-	// 掛け忘れは配線の穴なので、handler 単体ではなく実際にルートを叩いて確かめる。
-	for _, e := range kbPermissionEndpoints {
-		if e.method == http.MethodGet {
-			continue // 読み取りは記録しない（成功した変更操作だけを残す）
-		}
-		t.Run(e.name, func(t *testing.T) {
-			f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
-			code, body := f.call(t, e, e.path)
-			require.Equal(t, e.okStatus, code, "body=%s", string(body))
-
-			require.Len(t, f.audit.entries, 1, "変更が通った経路は 1 件記録される")
-			got := f.audit.entries[0]
-			assert.Equal(t, kbUserID, got.ActorID)
-			assert.Equal(t, e.method+" "+e.pattern, got.Action,
-				"記録に残るのはルートのパターン（実 URL ではない）")
-		})
-	}
-}
-
-func Test_ノート権限API_断られた要求は監査ログに残らない(t *testing.T) {
-	// 記録するのは成功した変更操作だけ。断られた要求まで残すと、権限の無い相手が
-	// 叩いた分で監査ログが埋まり、本当に権限が動いた記録が読めなくなる。
-	for _, e := range kbPermissionEndpoints {
-		t.Run(e.name, func(t *testing.T) {
-			f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleViewer))
-			code, _ := f.call(t, e, e.path)
-			require.Equal(t, http.StatusNotFound, code)
-			assert.Empty(t, f.audit.entries)
-		})
-	}
-}
-
-func Test_ノート権限API_監査ログにトークンもパスワードも入らない(t *testing.T) {
-	// 共有リンクの発行は監査に残す経路だが、応答に平文トークンが載る唯一の経路でもある。
-	// 記録されるのは actor とルートのパターンだけで、ボディも応答も見ていないことを固定する。
+// Test_ノート権限API_共有リンクの発行応答にパスワードを載せない は、受け取った
+// パスワードが応答へ echo されないことを固定する。保存はハッシュで、平文は持ち回らない。
+// 発行はトークンの平文が応答に載る唯一の経路なので、そのついでにパスワードまで
+// 出してしまう間違いが起きやすい。
+func Test_ノート権限API_共有リンクの発行応答にパスワードを載せない(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	const password = "sup3r-secret-passphrase"
 	w := f.do(t, http.MethodPost,
@@ -673,22 +640,7 @@ func Test_ノート権限API_監査ログにトークンもパスワードも入
 	var issued kbIssuedShareLinkResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &issued))
 	require.NotEmpty(t, issued.Token)
-
-	require.Len(t, f.audit.entries, 1)
-	recorded := fmt.Sprintf("%+v", f.audit.entries[0])
-	assert.NotContains(t, recorded, issued.Token, "平文トークンは監査ログに入らない")
-	assert.NotContains(t, recorded, password, "パスワードも入らない")
-	assert.Equal(t, http.MethodPost+" /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/share-links",
-		f.audit.entries[0].Action)
-}
-
-func Test_ノート権限API_未認証の共有リンク検証は監査ログに残らない(t *testing.T) {
-	// 検証はトークンをボディで受ける未認証の経路。actor が居ないので記録しようがないが、
-	// 「監査を掛けたついでにここにも掛ける」を将来やらないよう、残らないことを固定する。
-	f := newKbPermFixture(t, 0, nil)
-	w := f.do(t, http.MethodPost, kbShareLinkVerifyPath, `{"token":"`+f.shareToken+`"}`)
-	require.Equal(t, http.StatusOK, w.Code)
-	assert.Empty(t, f.audit.entries)
+	assert.NotContains(t, w.Body.String(), password)
 }
 
 func Test_ノート権限API_未知の役割は400(t *testing.T) {
@@ -713,7 +665,7 @@ func kbSuperAdminRouter(f kbFixture, uid uint64) *gin.Engine {
 		})
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, f.pages, f.perms, f.provisioner, f.users, (&kbAuditRecorder{}).handler())
+	registerKnowledgeBaseRoutesWith(g, f.pages, f.perms, f.provisioner, f.users)
 	return r
 }
 

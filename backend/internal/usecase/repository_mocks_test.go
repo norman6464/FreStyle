@@ -220,22 +220,6 @@ func (m *mockChapterViewRepo) GetLastViewedByUserAndCourse(ctx context.Context, 
 	return v, args.Error(1)
 }
 
-// --- mock: AuditRepository ---
-
-type mockAuditRepo struct{ mock.Mock }
-
-var _ repository.AuditRepository = (*mockAuditRepo)(nil)
-
-func (m *mockAuditRepo) Record(ctx context.Context, e *domain.AuditEvent) error {
-	return m.Called(ctx, e).Error(0)
-}
-
-func (m *mockAuditRepo) ListRecent(ctx context.Context, limit int) ([]domain.AuditEvent, error) {
-	args := m.Called(ctx, limit)
-	rows, _ := args.Get(0).([]domain.AuditEvent)
-	return rows, args.Error(1)
-}
-
 // --- mock: CompanyLearningActivitySummarizer ---
 
 type mockLearningSummarizer struct{ mock.Mock }

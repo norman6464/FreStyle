@@ -81,12 +81,12 @@ describe('Protected', () => {
               }
             />
             {/* リダイレクト先。これが出ることで「飛ばされた」と判定する。 */}
-            <Route path="/" element={<div>ホーム</div>} />
+            <Route path="/" element={<h1>ホーム</h1>} />
           </Routes>
         </MemoryRouter>
       </Provider>,
     );
-    expect(screen.getByText('ホーム')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ホーム' })).toBeInTheDocument();
     expect(screen.queryByText('演習画面')).not.toBeInTheDocument();
   });
 

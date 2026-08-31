@@ -30,6 +30,22 @@ async function mockAuthenticated(
       body: JSON.stringify({ isAdmin: role !== 'trainee', role }),
     })
   );
+  // 学習サマリーは配列ではなくオブジェクト。既定の [] のままだと trainee のホームが
+  // 中の配列を undefined として触って落ち、ErrorBoundary に差し替わる。
+  await page.route('**/api/v2/me/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        streak: 0,
+        totalExercises: 0,
+        totalCorrect: 0,
+        totalLessons: 0,
+        recentActivity: [],
+        recentChapterViews: [],
+      }),
+    })
+  );
   for (const [pattern, body] of Object.entries(overrides)) {
     await page.route(pattern, (route) =>
       route.fulfill({
@@ -63,6 +79,8 @@ test.describe('認証ガード', () => {
     // "/" 自体がログイン必須のホーム。公開ランディングは廃止した。
     await page.goto('/');
 
+    // URL だけ見ると、ホームが描画に失敗して ErrorBoundary が出ていても通ってしまう。
+    await expect(page.getByRole('heading', { name: 'FreStyle へようこそ' })).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page).toHaveURL('/');
   });

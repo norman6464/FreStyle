@@ -37,11 +37,27 @@ test.describe('トップ（/）', () => {
         body: JSON.stringify({ isAdmin: false, role: 'trainee' }),
       })
     );
+    // 学習サマリーは配列ではなくオブジェクト。[] のままだとホームが落ちる。
+    await page.route('**/api/v2/me/dashboard', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          streak: 0,
+          totalExercises: 0,
+          totalCorrect: 0,
+          totalLessons: 0,
+          recentActivity: [],
+          recentChapterViews: [],
+        }),
+      })
+    );
 
     await page.goto('/');
 
-    // リダイレクトは認証確認のあと非同期に起きるので、猶予を置いてから確かめる。
-    await page.waitForTimeout(2000);
+    // ホームが実際に描画されるまで待つ。URL だけを見ると、MenuPage の遅延ロードが
+    // 失敗して ErrorBoundary が出ていても "/" のままなので通ってしまう。
+    await expect(page.getByRole('heading', { name: 'FreStyle へようこそ' })).toBeVisible();
     await expect(page).toHaveURL('/');
     await expect(page).not.toHaveURL(/\/login/);
   });

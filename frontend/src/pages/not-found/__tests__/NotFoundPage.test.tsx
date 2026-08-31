@@ -79,9 +79,11 @@ describe('NotFoundPage', () => {
       expect(screen.getByRole('link', { name: 'ログイン' })).toHaveAttribute('href', '/login');
     });
 
-    it('ホームへは案内しない', () => {
+    it('ログイン済み向けのホーム導線は出さない', () => {
       renderPage();
 
+      // 未ログインでも「トップへ戻る」は出る（行き先は同じ / ）。ここで見ているのは、
+      // ログイン済みのときだけ出るラベルが混ざっていないこと。
       expect(screen.queryByRole('link', { name: 'ホームへ戻る' })).not.toBeInTheDocument();
     });
 

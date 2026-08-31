@@ -66,7 +66,11 @@ func Test_招待検証API_workspaceIdの有無(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			invRepo := &fakeInvitationRepo{pendingByToken: map[string]*domain.AdminInvitation{"tok": tc.inv}}
-			r := newPublicInvitationRouter(invRepo, &fakeInvWorkspaceRepo{})
+			// 招待先が決まっている場合、その行は FK があるので必ず引ける。引けないと
+			// 不整合として 500 になるため、ここでは実在する状態にしておく。
+			r := newPublicInvitationRouter(invRepo, &fakeInvWorkspaceRepo{byID: map[string]*domain.Workspace{
+				wsID: {ID: wsID, Slug: "acme", Name: "アクメ ワークスペース", IsActive: true},
+			}})
 
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/invitations/accept/tok", nil))
@@ -83,6 +87,26 @@ func Test_招待検証API_workspaceIdの有無(t *testing.T) {
 				t.Fatalf("workspaceId present = %v, want %v (body=%v)", has, tc.wantHasWSID, body)
 			}
 		})
+	}
+}
+
+// 招待が指すワークスペースが引けないのは不整合。名前を空にして 200 で通すと、
+// どこに招かれたのか分からないまま受諾させることになるので、500 で止める。
+func Test_招待検証API_招待先のワークスペースが引けなければ500(t *testing.T) {
+	wsID := "0198a000-0000-7000-8000-000000000001"
+	invRepo := &fakeInvitationRepo{pendingByToken: map[string]*domain.AdminInvitation{
+		"tok": {
+			ID: 1, Role: domain.RoleTrainee, Name: "山田",
+			Status: domain.InvitationStatusPending, WorkspaceID: &wsID,
+		},
+	}}
+	r := newPublicInvitationRouter(invRepo, &fakeInvWorkspaceRepo{})
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/invitations/accept/tok", nil))
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d (body=%s)", w.Code, w.Body.String())
 	}
 }
 

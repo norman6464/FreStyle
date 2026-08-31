@@ -130,26 +130,34 @@ func Test_招待token検証_workspace未設定はnilのまま(t *testing.T) {
 	}
 }
 
-func Test_招待token検証_ワークスペース参照失敗でも招待を返す(t *testing.T) {
-	// ワークスペース取得失敗は invitation 自体の有効性を否定しない。
-	// WorkspaceName 空でも受諾画面を表示できる方が UX として良い。
-	repo := &stubAdminInvRepoWithToken{
-		pendingByToken: map[string]*domain.AdminInvitation{
-			"t": {ID: 9, Email: "u@example.com", Role: domain.RoleTrainee, WorkspaceID: strPtr(validateWsA)},
-		},
+func Test_招待token検証_ワークスペースが引けなければエラー(t *testing.T) {
+	// invitations.workspace_id には FK があるので、招待先の行は必ず在るはず。
+	// 引けないのは不整合であって「名前が無い招待」ではない。名前を空にして 200 で
+	// 通すと、どこに招かれたのか分からないまま受諾させることになる。
+	cases := []struct {
+		name       string
+		workspaces *stubWorkspaces
+	}{
+		{"参照が失敗する", &stubWorkspaces{err: errors.New("db down")}},
+		{"招待先の行が無い", &stubWorkspaces{err: repository.ErrWorkspaceNotFound}},
 	}
-	workspaces := &stubWorkspaces{err: errors.New("db down")}
-	uc := NewValidateInvitationTokenUseCase(repo, workspaces)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			repo := &stubAdminInvRepoWithToken{
+				pendingByToken: map[string]*domain.AdminInvitation{
+					"t": {ID: 9, Email: "u@example.com", Role: domain.RoleTrainee, WorkspaceID: strPtr(validateWsA)},
+				},
+			}
+			uc := NewValidateInvitationTokenUseCase(repo, c.workspaces)
 
-	got, err := uc.Execute(context.Background(), "t")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if got == nil || got.WorkspaceID == nil || *got.WorkspaceID != validateWsA {
-		t.Fatalf("invitation must be returned with workspace_id even when workspace lookup fails, got %+v", got)
-	}
-	if got.WorkspaceName != "" {
-		t.Errorf("WorkspaceName should be empty on lookup failure, got %q", got.WorkspaceName)
+			got, err := uc.Execute(context.Background(), "t")
+			if err == nil {
+				t.Fatalf("エラーを返すべき: got %+v", got)
+			}
+			if got != nil {
+				t.Errorf("エラー時は結果を返さない: got %+v", got)
+			}
+		})
 	}
 }
 

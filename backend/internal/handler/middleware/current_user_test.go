@@ -61,14 +61,32 @@ func (s *stubWorkspaces) FindWorkspaceByID(_ context.Context, workspaceID string
 	return s.workspace, s.err
 }
 
-func runCurrentUser(t *testing.T, users *stubUsers, workspaces *stubWorkspaces) (*httptest.ResponseRecorder, *gin.Context) {
+// currentUserResult は CurrentUser を通したリクエストの結果。
+type currentUserResult struct {
+	rec *httptest.ResponseRecorder
+	// reached は CurrentUser の後ろの handler まで届いたか。遮断が「abort フラグを
+	// 立てただけ」で後続を止め損ねていないかは、これを見ないと分からない。
+	reached bool
+	// user は後続の handler から見えた currentUser。
+	user *domain.User
+}
+
+// runCurrentUser は本物のルーターに CurrentUser を載せてリクエストを 1 本通す。
+// gin.CreateTestContext で middleware を直に呼ぶと chain が無いため、AbortWithStatusJSON が
+// 後続を止めることを確かめられない（止め損ねても通ってしまう）。
+func runCurrentUser(t *testing.T, users *stubUsers, workspaces *stubWorkspaces) currentUserResult {
 	t.Helper()
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	c.Set(ContextKeyCognitoSub, "sub-123")
-	CurrentUser(users, workspaces)(c)
-	return w, c
+	got := currentUserResult{rec: httptest.NewRecorder()}
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set(ContextKeyCognitoSub, "sub-123") })
+	r.Use(CurrentUser(users, workspaces))
+	r.GET("/", func(c *gin.Context) {
+		got.reached = true
+		got.user = CurrentUserFromContext(c)
+		c.Status(http.StatusOK)
+	})
+	r.ServeHTTP(got.rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	return got
 }
 
 func strPtr(v string) *string { return &v }
@@ -77,16 +95,16 @@ func Test_カレントユーザー_停止中のワークスペースを遮断(t 
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: false}}
 
-	w, c := runCurrentUser(t, users, workspaces)
+	got := runCurrentUser(t, users, workspaces)
 
 	if workspaces.gotWorkspaceID != "ws-7" {
 		t.Fatalf("ワークスペースはユーザーの workspace_id で引くべき: got %q", workspaces.gotWorkspaceID)
 	}
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	if got.rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", got.rec.Code)
 	}
-	if !c.IsAborted() {
-		t.Fatal("停止中ワークスペースのユーザーは abort されるべき")
+	if got.reached {
+		t.Fatal("停止中ワークスペースのリクエストを後続へ通してはならない")
 	}
 }
 
@@ -94,12 +112,12 @@ func Test_カレントユーザー_有効なワークスペースは許可(t *te
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: true}}
 
-	_, c := runCurrentUser(t, users, workspaces)
+	got := runCurrentUser(t, users, workspaces)
 
-	if c.IsAborted() {
-		t.Fatal("有効なワークスペースのユーザーは通すべき")
+	if !got.reached {
+		t.Fatal("有効なワークスペースのリクエストは後続へ通すべき")
 	}
-	if CurrentUserFromContext(c) == nil {
+	if got.user == nil {
 		t.Fatal("currentUser が context にセットされるべき")
 	}
 }
@@ -108,13 +126,13 @@ func Test_カレントユーザー_未所属ユーザーはワークスペース
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, WorkspaceID: nil}}
 	workspaces := &stubWorkspaces{err: repository.ErrWorkspaceNotFound}
 
-	_, c := runCurrentUser(t, users, workspaces)
+	got := runCurrentUser(t, users, workspaces)
 
 	if workspaces.gotWorkspaceID != "" {
 		t.Fatalf("未所属ユーザーでワークスペースを引くべきではない: got %q", workspaces.gotWorkspaceID)
 	}
-	if c.IsAborted() {
-		t.Fatal("未所属ユーザーは通すべき")
+	if !got.reached {
+		t.Fatal("未所属ユーザーは後続へ通すべき")
 	}
 }
 
@@ -125,13 +143,13 @@ func Test_カレントユーザー_所属先の行が無ければ遮断(t *testi
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-99")}}
 	workspaces := &stubWorkspaces{err: repository.ErrWorkspaceNotFound}
 
-	w, c := runCurrentUser(t, users, workspaces)
+	got := runCurrentUser(t, users, workspaces)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d", w.Code)
+	if got.rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", got.rec.Code)
 	}
-	if !c.IsAborted() {
-		t.Fatal("所属先の行が無いユーザーは abort されるべき")
+	if got.reached {
+		t.Fatal("所属先の行が無いリクエストを後続へ通してはならない")
 	}
 }
 
@@ -140,12 +158,12 @@ func Test_カレントユーザー_無効なユーザーを遮断(t *testing.T) 
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: false, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: true}}
 
-	w, c := runCurrentUser(t, users, workspaces)
+	got := runCurrentUser(t, users, workspaces)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	if got.rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", got.rec.Code)
 	}
-	if !c.IsAborted() {
-		t.Fatal("無効ユーザーは abort されるべき")
+	if got.reached {
+		t.Fatal("無効ユーザーのリクエストを後続へ通してはならない")
 	}
 }

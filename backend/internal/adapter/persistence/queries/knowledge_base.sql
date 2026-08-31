@@ -56,7 +56,10 @@ RETURNING *;
 -- 判定は users を見る。呼び出し側の引数に頼ると、そこを間違えたときに守りが消える。
 DELETE FROM workspaces w
 WHERE w.id = $1
-  AND NOT EXISTS (SELECT 1 FROM users u WHERE u.workspace_id = w.id);
+  AND NOT EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.workspace_id = w.id
+  );
 
 -- name: GetSpace :one
 -- スペースの存在確認。workspace_id を含めることで別テナントのスペース ID を弾く。

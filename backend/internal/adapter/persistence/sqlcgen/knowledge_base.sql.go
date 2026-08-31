@@ -105,7 +105,10 @@ func (q *Queries) DeletePageBlocks(ctx context.Context, arg DeletePageBlocksPara
 const deleteWorkspace = `-- name: DeleteWorkspace :execrows
 DELETE FROM workspaces w
 WHERE w.id = $1
-  AND NOT EXISTS (SELECT 1 FROM users u WHERE u.workspace_id = w.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.workspace_id = w.id
+  )
 `
 
 // ワークスペースを消す。**そこに所属している人がいるものは消さない**（WHERE で弾く）。

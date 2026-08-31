@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -43,12 +44,20 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 		return nil, nil
 	}
 
-	// ワークスペース取得に失敗しても招待自体は有効なので、名前を空にして続行する。
+	// 招待先が決まっているなら、その名前は必ず引けるはず。invitations.workspace_id には
+	// FK（fk_invitations_workspace）があるので行は必ず在る。引けないのは不整合であって
+	// 「名前が無い招待」ではないので、握りつぶさず返す（handler が 500 に写す）。
+	// 名前を空にして 200 で通すと、どこに招かれたのか分からないまま受諾させることになる。
 	workspaceName := ""
-	if u.workspaces != nil && inv.WorkspaceID != nil {
-		if w, err := u.workspaces.FindWorkspaceByID(ctx, *inv.WorkspaceID); err == nil && w != nil {
-			workspaceName = w.Name
+	if inv.WorkspaceID != nil {
+		w, err := u.workspaces.FindWorkspaceByID(ctx, *inv.WorkspaceID)
+		if err != nil {
+			return nil, fmt.Errorf("find workspace: %w", err)
 		}
+		if w == nil {
+			return nil, fmt.Errorf("招待 %d が指すワークスペース %s が見つかりません", inv.ID, *inv.WorkspaceID)
+		}
+		workspaceName = w.Name
 	}
 
 	return &ValidatedInvitation{

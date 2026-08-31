@@ -21,7 +21,7 @@ func runWithAudit(t *testing.T, actor *domain.User, status int) []middleware.Aud
 	var got []middleware.AuditEntry
 	r := gin.New()
 	r.PATCH(
-		"/admin/companies/:id/active",
+		"/admin/members/:userId/active",
 		func(c *gin.Context) {
 			if actor != nil {
 				c.Set(middleware.ContextKeyCurrentUser, actor)
@@ -33,7 +33,7 @@ func runWithAudit(t *testing.T, actor *domain.User, status int) []middleware.Aud
 		func(c *gin.Context) { c.Status(status) },
 	)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPatch, "/admin/companies/7/active", nil)
+	req := httptest.NewRequest(http.MethodPatch, "/admin/members/7/active", nil)
 	r.ServeHTTP(w, req)
 	require.Equal(t, status, w.Code)
 	return got
@@ -44,7 +44,7 @@ func Test_監査middleware_成功した変更操作を記録する(t *testing.T)
 	require.Len(t, got, 1)
 	assert.Equal(t, uint64(9), got[0].ActorID)
 	assert.Equal(t, "a@x", got[0].ActorEmail)
-	assert.Equal(t, "PATCH /admin/companies/:id/active", got[0].Action)
+	assert.Equal(t, "PATCH /admin/members/:userId/active", got[0].Action)
 	assert.Equal(t, uint64(7), got[0].TargetID)
 }
 

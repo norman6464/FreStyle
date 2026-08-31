@@ -192,9 +192,9 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, errorResponse{Error: "slug_taken"})
 	case errors.Is(err, repository.ErrSpaceKeyTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "space_key_taken"})
-	case errors.Is(err, repository.ErrCompanyWorkspaceUndeletable):
-		// 会社のワークスペースは誰にも消せない。実在は既に知っている相手なので理由を返す。
-		c.JSON(http.StatusForbidden, errorResponse{Error: "company_workspace_undeletable"})
+	case errors.Is(err, repository.ErrWorkspaceHasMembers):
+		// 人が居るワークスペースは消せない。実在は既に知っている相手なので理由を返す。
+		c.JSON(http.StatusForbidden, errorResponse{Error: "workspace_has_members"})
 	case errors.Is(err, repository.ErrPrincipalNotFound):
 		// 所属が確かめられた後に外された場合にここへ来る。権限の拒否なので、
 		// ほかの拒否と同じ 404 に畳む（500 にすると再試行してよいと誤解される）。

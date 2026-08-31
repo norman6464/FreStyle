@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -12,22 +13,23 @@ import (
 // 成功時の ValidatedInvitation に email は含めない（token 漏洩時の被害局所化）。
 type ValidateInvitationTokenUseCase struct {
 	invitations repository.AdminInvitationRepository
-	companies   repository.CompanyRepository
+	workspaces  repository.WorkspaceActivationReader
 }
 
 func NewValidateInvitationTokenUseCase(
 	invitations repository.AdminInvitationRepository,
-	companies repository.CompanyRepository,
+	workspaces repository.WorkspaceActivationReader,
 ) *ValidateInvitationTokenUseCase {
-	return &ValidateInvitationTokenUseCase{invitations: invitations, companies: companies}
+	return &ValidateInvitationTokenUseCase{invitations: invitations, workspaces: workspaces}
 }
 
 // ValidatedInvitation は受諾画面に表示する最低限の情報。
 type ValidatedInvitation struct {
-	Role        domain.RoleName
-	Name        string
-	CompanyName string
-	WorkspaceID *string
+	Role domain.RoleName
+	Name string
+	// WorkspaceName は招待元の表示名。招待された人が「どこに招かれたのか」を判断する唯一の手掛かり。
+	WorkspaceName string
+	WorkspaceID   *string
 }
 
 func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token string) (*ValidatedInvitation, error) {
@@ -42,19 +44,27 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 		return nil, nil
 	}
 
-	// company 取得に失敗しても招待自体は有効なので、CompanyName を空にして続行する。
-	companyName := ""
-	if u.companies != nil && inv.WorkspaceID != nil {
-		if c, err := u.companies.FindByWorkspaceID(ctx, *inv.WorkspaceID); err == nil && c != nil {
-			companyName = c.Name
+	// 招待先が決まっているなら、その名前は必ず引けるはず。invitations.workspace_id には
+	// FK（fk_invitations_workspace）があるので行は必ず在る。引けないのは不整合であって
+	// 「名前が無い招待」ではないので、握りつぶさず返す（handler が 500 に写す）。
+	// 名前を空にして 200 で通すと、どこに招かれたのか分からないまま受諾させることになる。
+	workspaceName := ""
+	if inv.WorkspaceID != nil {
+		w, err := u.workspaces.FindWorkspaceByID(ctx, *inv.WorkspaceID)
+		if err != nil {
+			return nil, fmt.Errorf("find workspace: %w", err)
 		}
+		if w == nil {
+			return nil, fmt.Errorf("招待 %d が指すワークスペース %s が見つかりません", inv.ID, *inv.WorkspaceID)
+		}
+		workspaceName = w.Name
 	}
 
 	return &ValidatedInvitation{
-		Role:        normalizeInvitationRole(inv.Role),
-		Name:        inv.Name,
-		CompanyName: companyName,
-		WorkspaceID: inv.WorkspaceID,
+		Role:          normalizeInvitationRole(inv.Role),
+		Name:          inv.Name,
+		WorkspaceName: workspaceName,
+		WorkspaceID:   inv.WorkspaceID,
 	}, nil
 }
 

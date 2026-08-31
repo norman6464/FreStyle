@@ -47,6 +47,13 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 	if err != nil {
 		return nil, err
 	}
+	// 停止中のワークスペースは無いものとして扱う。middleware は「叩いた人の所属」しか
+	// 見ないので、そこを通り抜けた別のワークスペース（個人用や、principal として参加して
+	// いる先）が停止されていても届いてしまう。ノートの全 HTTP 経路がこの解決を通るため、
+	// ここで塞ぐ。存在を漏らさないよう、権限が無いときと同じ「見つからない」に畳む。
+	if !ws.IsActive {
+		return nil, repository.ErrWorkspaceNotFound
+	}
 	// 所属の正本は principals（kind='user'）の行の有無。専用のメンバーシップ表は持たない。
 	member, err := u.permissions.IsWorkspaceMember(ctx, ws.ID, in.UserID)
 	if err != nil {

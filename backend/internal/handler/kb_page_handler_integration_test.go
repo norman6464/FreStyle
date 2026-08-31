@@ -141,26 +141,6 @@ func kbInsertUser(t *testing.T, db *sql.DB, name string) uint64 {
 	return id
 }
 
-// kbInsertCompanyWithWorkspace は companies に 1 行入れ、workspace_id を明示して返す。
-// 会社とワークスペースの 1 : 1 の紐付け（companies.workspace_id）を結合テストで
-// 再現するための最小構成（本番は起動時のバックフィルが埋める）。
-func kbInsertCompanyWithWorkspace(t *testing.T, db *sql.DB, name, workspaceID string) uint64 {
-	t.Helper()
-	var id uint64
-	require.NoError(t, db.QueryRow(
-		`INSERT INTO companies (id, name, is_active, workspace_id, created_at, updated_at)
-		 VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM companies), $1, true, $2, now(), now())
-		 RETURNING id`,
-		name, workspaceID,
-	).Scan(&id))
-	t.Cleanup(func() {
-		if _, err := db.Exec(`DELETE FROM companies WHERE id = $1`, id); err != nil {
-			t.Errorf("テスト会社の後始末に失敗: %v", err)
-		}
-	})
-	return id
-}
-
 // kbInsertRootPage はスペース直下のページを直接入れる（HTTP からは親付きしか作れないため）。
 func kbInsertRootPage(t *testing.T, db *sql.DB, workspaceID, spaceID string, createdBy uint64, position, title string) string {
 	t.Helper()

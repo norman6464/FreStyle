@@ -15,7 +15,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +22,7 @@ import (
 const tenantDocBody = `{"type":"doc","content":[{"type":"paragraph"}]}`
 
 // docTenantRouter は本番と同じ registerDocumentRoutes でルートを張り、user を current user として注入する。
-// 認証済みであること以外は本番と同じ経路を通るので、「ログインしていれば他社の公開文書が読めるか」を
+// 認証済みであること以外は本番と同じ経路を通るので、「ログインしていれば他ワークスペースの公開文書が読めるか」を
 // エンドポイント単位で確かめられる。
 func docTenantRouter(db *sql.DB, user *domain.User) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -50,19 +49,20 @@ func docTenantGet(t *testing.T, r *gin.Engine, path string) *httptest.ResponseRe
 func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, "rich_documents", "user_oidc_identities", "users", "companies", "workspaces")
+	testsupport.TruncateAll(t, sqlDB, "rich_documents", "user_oidc_identities", "users", "workspaces")
 
 	userRepo := persistence.NewUserRepository(sqlDB)
 	docRepo := persistence.NewRichDocumentRepository(sqlDB)
 
-	mkCompany := func(name string) uint64 {
-		var id uint64
-		require.NoError(t, sqlDB.QueryRowContext(
+	// テナントの正本は workspaces なので、下ごしらえもそこへ直接 1 行入れる。
+	mkWorkspace := func(slug, name string) *string {
+		id := uuid.NewString()
+		_, err := sqlDB.ExecContext(
 			ctx,
-			`INSERT INTO companies (name, is_active, created_at, updated_at)
-			 VALUES ($1, true, now(), now()) RETURNING id`, name,
-		).Scan(&id))
-		return id
+			`INSERT INTO workspaces (id, slug, name) VALUES ($1, $2, $3)`, id, slug, name,
+		)
+		require.NoError(t, err)
+		return &id
 	}
 	mkUser := func(sub, email string, workspaceID *string) *domain.User {
 		u := &domain.User{Email: email, Role: domain.RoleTrainee, WorkspaceID: workspaceID, IsActive: true}
@@ -71,14 +71,6 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		got, err := userRepo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
 		return got
-	}
-	// companyWorkspaceID は company に対応する workspace_id を返す（companies.workspace_id を直接引く）。
-	companyWorkspaceID := func(companyID uint64) *string {
-		var wid uuid.NullUUID
-		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT workspace_id FROM companies WHERE id = $1`, companyID).Scan(&wid))
-		require.True(t, wid.Valid, "company %d にワークスペースが紐付いていない", companyID)
-		s := wid.UUID.String()
-		return &s
 	}
 	mkDoc := func(owner uint64, workspaceID *string, title string, isPublic bool) *domain.RichDocument {
 		// workspace_id は呼び出し側（usecase）が解決して渡す設計のため、ここでも明示的に渡す。
@@ -90,15 +82,8 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		return d
 	}
 
-	companyA := mkCompany("A 社")
-	companyB := mkCompany("B 社")
-	// CanBeReadBy は workspace_id で境界判定する。users / rich_documents に渡す workspace_id は
-	// companies.workspace_id から引くので、行を作る前に起動時と同じバックフィルを走らせて
-	// 会社ごとのワークスペースを用意しておく。
-	require.NoError(t, database.BackfillWorkspacesFromCompanies(ctx, sqlDB))
-
-	workspaceA := companyWorkspaceID(companyA)
-	workspaceB := companyWorkspaceID(companyB)
+	workspaceA := mkWorkspace("tenant-doc-a", "ワークスペース A")
+	workspaceB := mkWorkspace("tenant-doc-b", "ワークスペース B")
 
 	ownerA := mkUser("tenant-owner-a", "tenant-owner-a@example.com", workspaceA)
 	peerA := mkUser("tenant-peer-a", "tenant-peer-a@example.com", workspaceA)
@@ -106,11 +91,11 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	// ワークスペース未所属（運営管理者相当）。workspace_id が NULL の文書の所有者になる。
 	loneOwner := mkUser("tenant-lone", "tenant-lone@example.com", nil)
 
-	publicA := mkDoc(ownerA.ID, workspaceA, "A 社の公開メモ", true)
-	privateA := mkDoc(ownerA.ID, workspaceA, "A 社の非公開メモ", false)
+	publicA := mkDoc(ownerA.ID, workspaceA, "ワークスペース A の公開メモ", true)
+	privateA := mkDoc(ownerA.ID, workspaceA, "ワークスペース A の非公開メモ", false)
 	publicNullWorkspace := mkDoc(loneOwner.ID, nil, "ワークスペース不明の公開メモ", true)
 	// 作成後に異動した所有者を模す（workspace_id は作成時の写しのままで更新されない）。
-	staleWorkspaceDoc := mkDoc(userB.ID, workspaceA, "B 社ユーザーが A 社在籍時に作った公開メモ", true)
+	staleWorkspaceDoc := mkDoc(userB.ID, workspaceA, "ワークスペース B のユーザーが A 在籍時に作った公開メモ", true)
 
 	t.Run("取得: 別ワークスペースのユーザーは他ワークスペースの公開文書を読めない(404)", func(t *testing.T) {
 		w := docTenantGet(t, docTenantRouter(sqlDB, userB), "/documents/"+publicA.ID)

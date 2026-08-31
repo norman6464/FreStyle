@@ -19,13 +19,12 @@ type TemporaryPasswordCreator interface {
 	CreateWithTemporaryPassword(ctx context.Context, email, name string) (temporaryPassword string, err error)
 }
 
-// CreateTemporaryPasswordInvitationUseCase は「初期パスワード方式」の招待を作る（FRESTYLE-313）。
-// pending 招待行（role/company を持ち、ログイン時の招待ゲートで適用される）を作り、
+// CreateTemporaryPasswordInvitationUseCase は「初期パスワード方式」の招待を作る。
+// pending 招待行（role / 所属ワークスペースを持ち、ログイン時の招待ゲートで適用される）を作り、
 // あわせて Cognito ユーザーを一時パスワード付きで作成する。マジックリンク方式
 // （CreateAdminInvitationUseCase）とは別 usecase（§2.3 単一責任）。
 type CreateTemporaryPasswordInvitationUseCase struct {
 	repo      repository.AdminInvitationRepository
-	companies repository.CompanyRepository
 	cognito   TemporaryPasswordCreator
 	expiresIn time.Duration
 }
@@ -35,12 +34,10 @@ type CreateTemporaryPasswordInvitationUseCase struct {
 // （COGNITO_USER_POOL_ID 未設定 = 本機能無効。マジックリンクには影響しない）。
 func NewCreateTemporaryPasswordInvitationUseCase(
 	r repository.AdminInvitationRepository,
-	companies repository.CompanyRepository,
 	cognito TemporaryPasswordCreator,
 ) *CreateTemporaryPasswordInvitationUseCase {
 	return &CreateTemporaryPasswordInvitationUseCase{
 		repo:      r,
-		companies: companies,
 		cognito:   cognito,
 		expiresIn: 7 * 24 * time.Hour,
 	}
@@ -75,24 +72,21 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 	// FindPendingByEmail する）と突き合わせられず、招待したはずの相手が拒否される。
 	// Cognito 側も同じ値で作り、2 つの表現が並存しないようにする。
 	in.Email = domain.NormalizeEmail(in.Email)
-	if _, hasWorkspace := in.TargetWorkspace.WorkspaceID(); !hasWorkspace && in.CompanyID == 0 {
-		return nil, errors.New("companyID or targetWorkspace is required")
+	// 招待先を先に確かめる。Cognito ユーザーを作ってから所属が無いと分かると、
+	// 招待行の無い Cognito ユーザーだけが残る（下の順序のコメント参照）。
+	wid, hasWorkspace := in.TargetWorkspace.WorkspaceID()
+	if !hasWorkspace {
+		return nil, errors.New("targetWorkspace is required")
 	}
 	if in.Email == "" || in.Role == "" {
 		return nil, errors.New("email, role are required")
 	}
-
-	// 招待先の workspace_id を先に確かめる。Cognito ユーザーを作ってから解決に失敗すると、
-	// 招待行の無い Cognito ユーザーだけが残る（下の順序のコメント参照）。
-	workspaceID, err := resolveInvitationWorkspace(ctx, u.companies, in)
-	if err != nil {
-		return nil, err
-	}
+	workspaceID := &wid
 
 	// 順序が重要: 先に Cognito ユーザーを作り、成功したときだけ pending 招待行を作る。
 	// 逆順（招待行→Cognito）にすると、既存 email への 409（UsernameExists）で招待行だけが
 	// 孤児として残り、その行がログイン時の email ゲート（FindPendingByEmail）で拾われて
-	// 被害ユーザーの会社が黙って付け替わる経路を生む（多角レビューで確定した major）。
+	// 被害ユーザーの所属が黙って付け替わる経路を生む（多角レビューで確定した major）。
 	// Cognito が失敗すれば招待行は作られないため、この経路自体が成立しない。
 	tempPw, err := u.cognito.CreateWithTemporaryPassword(ctx, in.Email, in.Name)
 	if err != nil {

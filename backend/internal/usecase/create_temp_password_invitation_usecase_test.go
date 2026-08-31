@@ -26,10 +26,11 @@ func (s *stubTempCreator) CreateWithTemporaryPassword(_ context.Context, email, 
 func Test_初期パスワード招待_成功で行と一時パスワードを返す(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	creator := &stubTempCreator{pw: "Temp-1!"}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
 
 	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 42, Email: "np@example.com", Role: domain.RoleTrainee, Name: "山田",
+		TargetWorkspace: domain.WorkspaceRefOf(invWsB),
+		Email:           "np@example.com", Role: domain.RoleTrainee, Name: "山田",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -55,10 +56,11 @@ func Test_初期パスワード招待_成功で行と一時パスワードを返
 func Test_初期パスワード招待_emailを正規形に畳んで保存する(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	creator := &stubTempCreator{pw: "Temp-1!"}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
 
 	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 42, Email: "  NP@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
+		TargetWorkspace: domain.WorkspaceRefOf(invWsB),
+		Email:           "  NP@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -72,9 +74,10 @@ func Test_初期パスワード招待_emailを正規形に畳んで保存する(
 }
 
 func Test_初期パスワード招待_cognito未構成はErrUnavailable(t *testing.T) {
-	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, newStubCompanyRepo(), nil)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, nil)
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "a@b", Role: domain.RoleTrainee,
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "a@b", Role: domain.RoleTrainee,
 	})
 	if !errors.Is(err, ErrTemporaryPasswordUnavailable) {
 		t.Fatalf("ErrTemporaryPasswordUnavailable を期待したが: %v", err)
@@ -84,15 +87,16 @@ func Test_初期パスワード招待_cognito未構成はErrUnavailable(t *testi
 func Test_初期パスワード招待_既存ユーザーエラーは伝播(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	creator := &stubTempCreator{err: cognito.ErrUserAlreadyExists}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
 
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "dup@b", Role: domain.RoleTrainee,
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "dup@b", Role: domain.RoleTrainee,
 	})
 	if !errors.Is(err, ErrInvitationUserAlreadyExists) {
 		t.Fatalf("ErrInvitationUserAlreadyExists（usecase 語彙）を期待したが: %v", err)
 	}
-	// 重要: Cognito 失敗時に招待行を作ってはいけない（孤児行→テナント横断の会社付け替えを防ぐ）。
+	// 重要: Cognito 失敗時に招待行を作ってはいけない（孤児行→テナント横断のワークスペース付け替えを防ぐ）。
 	if repo.created != nil {
 		t.Fatalf("Cognito 失敗時に招待行が作られている（孤児行の脆弱性）: %+v", repo.created)
 	}
@@ -101,21 +105,33 @@ func Test_初期パスワード招待_既存ユーザーエラーは伝播(t *te
 	}
 }
 
-func Test_初期パスワード招待_必須項目チェック(t *testing.T) {
-	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, newStubCompanyRepo(), &stubTempCreator{})
+// TargetWorkspace 未設定はエラーで、Cognito にも触れない。逆順（Cognito 先）にすると、
+// 招待行を持たない Cognito ユーザーだけが残り、誰も辿れない孤立ユーザーになる。
+func Test_初期パスワード招待_TargetWorkspace未設定はCognitoを呼ばない(t *testing.T) {
+	repo := &stubAdminInvRepo{}
+	creator := &stubTempCreator{pw: "Temp-1!"}
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{Email: "a@b", Role: domain.RoleTrainee})
 	if err == nil {
-		t.Fatal("companyID=0 はエラーであるべき")
+		t.Fatal("TargetWorkspace 未設定はエラーであるべき")
+	}
+	if creator.calls != 0 {
+		t.Errorf("Cognito 呼び出し回数 = %d, want 0", creator.calls)
+	}
+	if repo.created != nil {
+		t.Errorf("招待行を作ってはいけない: %+v", repo.created)
 	}
 }
 
 func Test_初期パスワード招待_Cognito成功後のDB失敗はエラーで招待行を返さない(t *testing.T) {
 	repo := &stubAdminInvRepo{createErr: errors.New("db down")}
 	creator := &stubTempCreator{pw: "Temp-1!"}
-	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, newStubCompanyRepo(), creator)
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
 
 	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "np@example.com", Role: domain.RoleTrainee,
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "np@example.com", Role: domain.RoleTrainee,
 	})
 	if err == nil {
 		t.Fatal("DB 失敗はエラーであるべき")

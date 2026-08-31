@@ -37,13 +37,13 @@ func TestRequireAdmin(t *testing.T) {
 				}
 				c.Next()
 			})
-			r.GET("/admin/companies", RequireAdmin(), func(c *gin.Context) {
+			r.GET("/admin/members", RequireAdmin(), func(c *gin.Context) {
 				nextCalled = true
 				c.Status(http.StatusOK)
 			})
 
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/companies", nil))
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/members", nil))
 
 			if w.Code != tc.wantStatus {
 				t.Fatalf("status: want %d, got %d", tc.wantStatus, w.Code)

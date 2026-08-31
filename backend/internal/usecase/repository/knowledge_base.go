@@ -11,10 +11,9 @@ import (
 // ErrWorkspaceNotFound は対象ワークスペースが存在しないときに返す。
 var ErrWorkspaceNotFound = errors.New("workspace not found")
 
-// ErrCompanyWorkspaceUndeletable は会社に紐づくワークスペースを消そうとしたときに返す。
-// そこには会社の全員のノートが入るうえ、消しても起動時のバックフィルが作り直すので、
-// 中身だけが消えた空のワークスペースが残る（最悪の結果になる）。
-var ErrCompanyWorkspaceUndeletable = errors.New("company workspace is not deletable")
+// ErrWorkspaceHasMembers は所属している人がいるワークスペースを消そうとしたときに返す。
+// そこには全員のノートが入るので、1 人の操作で消せてよいはずがない。
+var ErrWorkspaceHasMembers = errors.New("workspace still has members")
 
 // ErrSpaceNotFound は対象スペースが存在しない（または別ワークスペースのもの）ときに返す。
 var ErrSpaceNotFound = errors.New("space not found")
@@ -87,7 +86,7 @@ type KnowledgeBaseRepository interface {
 	// ページが無い・根ページなら空（エラーにしない。実在の確認は呼び出し側が済ませている）。
 	ListAncestorPageIDs(ctx context.Context, workspaceID, pageID string) ([]string, error)
 	// DeleteWorkspace はワークスペースを配下ごと消す（FK の CASCADE で連なる）。
-	// **会社に紐づくワークスペースは消さない** — その場合 ErrCompanyWorkspaceUndeletable。
+	// **所属している人がいるワークスペースは消さない** — その場合 ErrWorkspaceHasMembers。
 	// 対象が無ければ ErrWorkspaceNotFound（消えたことにしない — 押した人に結果を返す）。
 	DeleteWorkspace(ctx context.Context, workspaceID string) error
 

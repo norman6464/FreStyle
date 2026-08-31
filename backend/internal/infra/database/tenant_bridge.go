@@ -26,18 +26,16 @@ import (
 const workspaceSlugPrefix = "ws-"
 
 // BackfillWorkspacesFromCompanies は既存の会社に対応する workspaces 行を作り、
-// companies.workspace_id を埋め、is_active をワークスペースへ反映する（冪等）。
+// companies.workspace_id を埋める（冪等）。
 //
 // 起動のたびに走るが、埋まっている行は対象から外れるので実質 no-op になる。
+//
+// is_active はここで写さない。停止の正本は workspaces.is_active に移り、companies 側を
+// 変える手段（会社の有効/無効 API）はもう無い。それでも毎起動 companies から写すと、
+// ワークスペースを停止しても次の起動で会社側の値に巻き戻され、停止そのものが効かなくなる。
 func BackfillWorkspacesFromCompanies(ctx context.Context, db *sql.DB) error {
 	return withMigrateTx(ctx, db, "会社→ワークスペースのバックフィル", func(tx *sql.Tx) error {
-		if err := createWorkspacesForCompanies(ctx, tx); err != nil {
-			return err
-		}
-		if err := mirrorCompanySettingsToWorkspaces(ctx, tx); err != nil {
-			return err
-		}
-		return nil
+		return createWorkspacesForCompanies(ctx, tx)
 	})
 }
 
@@ -95,25 +93,6 @@ func createWorkspacesForCompanies(ctx context.Context, tx *sql.Tx) error {
 		); err != nil {
 			return fmt.Errorf("会社へのワークスペース紐付けに失敗（company=%d）: %w", c.id, err)
 		}
-	}
-	return nil
-}
-
-// mirrorCompanySettingsToWorkspaces は会社のテナント設定をワークスペースへ写す。
-// 書き込み経路（company repository）でも同じ写しを行うが、ここでも毎起動ずれを直す。
-// 移行中の正本は companies 側なので、食い違ったら companies に合わせるのが常に正しい。
-// 一致していれば 0 件更新で、updated_at も動かない。
-func mirrorCompanySettingsToWorkspaces(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE workspaces w
-		 SET is_active = c.is_active,
-		     updated_at = now()
-		 FROM companies c
-		 WHERE c.workspace_id = w.id
-		   AND w.is_active IS DISTINCT FROM c.is_active`,
-	); err != nil {
-		return fmt.Errorf("ワークスペースへの設定反映に失敗: %w", err)
 	}
 	return nil
 }

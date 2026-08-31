@@ -244,7 +244,7 @@ func Test_未所属actor_招待取り消しは運営管理者として通る(t *
 	}
 }
 
-func Test_未所属actor_招待取り消しは会社管理者だと404(t *testing.T) {
+func Test_未所属actor_招待取り消しはワークスペース管理者だと404(t *testing.T) {
 	// company_admin は自ワークスペースの招待しか取り消せない。未所属ならどの招待とも
 	// 一致しないため、存在を漏らさない 404 になる。
 	invWorkspace := otherWorkspaceID

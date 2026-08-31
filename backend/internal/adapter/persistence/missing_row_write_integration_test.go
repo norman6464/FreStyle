@@ -85,12 +85,6 @@ func missingRowWriteCases() []missingRowCase {
 			},
 		},
 		{
-			name: "会社の有効/無効更新",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCompanyRepository(db).UpdateActive(ctx, missingID, false)
-			},
-		},
-		{
 			name: "user の氏名更新",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewUserRepository(db).UpdateName(ctx, missingID, "新しい名前")

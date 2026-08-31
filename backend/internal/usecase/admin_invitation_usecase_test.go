@@ -80,49 +80,6 @@ func (s *stubAdminInvRepo) FindByID(_ context.Context, id uint64) (*domain.Admin
 	return nil, nil
 }
 
-// stubCompanyRepo は「会社 ID → 対応ワークスペース」の解決だけを担う CompanyRepository スタブ。
-// invitations は workspace_id しか持たないため、会社 ID を入口に取る経路はこの引き直しを通る。
-type stubCompanyRepo struct {
-	byID map[uint64]*domain.Company
-	err  error
-	// 直近に FindByID へ渡された会社 ID（会社を引き直したかどうかの検証に使う）。
-	findByIDCalledWith uint64
-}
-
-// newStubCompanyRepo は「会社 1 = invWsA」「会社 42 = invWsB」を知っている既定のスタブを返す。
-func newStubCompanyRepo() *stubCompanyRepo {
-	return &stubCompanyRepo{byID: map[uint64]*domain.Company{
-		1:  {ID: 1, Name: "会社1", WorkspaceID: strPtr(invWsA)},
-		42: {ID: 42, Name: "会社42", WorkspaceID: strPtr(invWsB)},
-	}}
-}
-
-func (s *stubCompanyRepo) ListAll(_ context.Context) ([]domain.Company, error) {
-	return nil, s.err
-}
-
-func (s *stubCompanyRepo) FindByID(_ context.Context, id uint64) (*domain.Company, error) {
-	s.findByIDCalledWith = id
-	if s.err != nil {
-		return nil, s.err
-	}
-	return s.byID[id], nil
-}
-
-func (s *stubCompanyRepo) FindByWorkspaceID(_ context.Context, workspaceID string) (*domain.Company, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	for _, c := range s.byID {
-		if c.WorkspaceID != nil && *c.WorkspaceID == workspaceID {
-			return c, nil
-		}
-	}
-	return nil, nil
-}
-
-func (s *stubCompanyRepo) UpdateActive(_ context.Context, _ uint64, _ bool) error { return s.err }
-
 // stubMailSender は SES SendEmail の代わり。送信内容をフィールドに記録するだけで実際にネットワークアクセスしない。
 type stubMailSender struct {
 	err     error
@@ -149,57 +106,8 @@ func fakeBuildMail(link, displayName, _, role string) (string, string, string) {
 	return "subject", "html-" + link + "-" + displayName + "-" + role, "text-" + link
 }
 
-func Test_招待一覧_会社ID指定_会社IDが必須(t *testing.T) {
-	uc := NewListAdminInvitationsUseCase(&stubAdminInvRepo{}, newStubCompanyRepo())
-	if _, err := uc.ListByCompanyID(context.Background(), 0); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-// 会社 ID 指定の一覧は、会社に対応するワークスペースへ読み替えてから引く
-// （invitations は company_id を持たないため、workspace_id での絞り込みになる）。
-func Test_招待一覧_会社ID指定_ワークスペースへ読み替えて委譲(t *testing.T) {
-	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 1}}}
-	companies := &stubCompanyRepo{byID: map[uint64]*domain.Company{
-		42: {ID: 42, Name: "会社42", WorkspaceID: strPtr(invWsA)},
-	}}
-	uc := NewListAdminInvitationsUseCase(repo, companies)
-	got, err := uc.ListByCompanyID(context.Background(), 42)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if len(got) != 1 || got[0].ID != 1 {
-		t.Fatalf("unexpected rows: %+v", got)
-	}
-	if companies.findByIDCalledWith != 42 {
-		t.Fatalf("会社 42 を引くべき: got %d", companies.findByIDCalledWith)
-	}
-	if repo.calledWith != "workspace:"+invWsA {
-		t.Fatalf("expected workspace:%s query, got %q", invWsA, repo.calledWith)
-	}
-}
-
-// ワークスペース未紐付けの会社宛の招待は存在し得ないため 0 件で返す（エラーにしない）。
-func Test_招待一覧_会社ID指定_ワークスペース未紐付けは0件(t *testing.T) {
-	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 1}}}
-	companies := &stubCompanyRepo{byID: map[uint64]*domain.Company{
-		42: {ID: 42, Name: "会社42", WorkspaceID: nil},
-	}}
-	uc := NewListAdminInvitationsUseCase(repo, companies)
-	got, err := uc.ListByCompanyID(context.Background(), 42)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("expected 0 rows, got %+v", got)
-	}
-	if repo.calledWith != "" {
-		t.Fatalf("招待リポジトリは引かれないはず: got %q", repo.calledWith)
-	}
-}
-
 func Test_招待一覧_ワークスペース指定_ワークスペースIDが必須(t *testing.T) {
-	uc := NewListAdminInvitationsUseCase(&stubAdminInvRepo{}, newStubCompanyRepo())
+	uc := NewListAdminInvitationsUseCase(&stubAdminInvRepo{})
 	if _, err := uc.ListByWorkspaceID(context.Background(), ""); err == nil {
 		t.Fatal("expected error")
 	}
@@ -207,7 +115,7 @@ func Test_招待一覧_ワークスペース指定_ワークスペースIDが必
 
 func Test_招待一覧_ワークスペース指定_リポジトリへ委譲(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 1}}}
-	uc := NewListAdminInvitationsUseCase(repo, newStubCompanyRepo())
+	uc := NewListAdminInvitationsUseCase(repo)
 	got, err := uc.ListByWorkspaceID(context.Background(), "0198a000-0000-7000-8000-0000000000c1")
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -223,7 +131,7 @@ func Test_招待一覧_ワークスペース指定_リポジトリへ委譲(t *t
 func Test_招待一覧_ワークスペース指定_リポジトリエラーを伝播する(t *testing.T) {
 	wantErr := errors.New("db down")
 	repo := &stubAdminInvRepo{err: wantErr}
-	uc := NewListAdminInvitationsUseCase(repo, newStubCompanyRepo())
+	uc := NewListAdminInvitationsUseCase(repo)
 	got, err := uc.ListByWorkspaceID(context.Background(), "0198a000-0000-7000-8000-0000000000c1")
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("expected repo error to propagate, got %v", err)
@@ -235,7 +143,7 @@ func Test_招待一覧_ワークスペース指定_リポジトリエラーを�
 
 func Test_招待一覧_全件_リポジトリへ委譲(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7}, {ID: 8}}}
-	uc := NewListAdminInvitationsUseCase(repo, newStubCompanyRepo())
+	uc := NewListAdminInvitationsUseCase(repo)
 	got, err := uc.ListAll(context.Background())
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -249,8 +157,10 @@ func Test_招待一覧_全件_リポジトリへ委譲(t *testing.T) {
 }
 
 func Test_招待作成_バリデーション(t *testing.T) {
-	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, newStubCompanyRepo(), &stubMailSender{}, fakeBuildLink, fakeBuildMail)
-	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{Email: "a@b"}); err == nil {
+	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
+	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA), Email: "a@b",
+	}); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -258,10 +168,11 @@ func Test_招待作成_バリデーション(t *testing.T) {
 func Test_招待作成_正常系_token生成とメール送信(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	sender := &stubMailSender{}
-	uc := NewCreateAdminInvitationUseCase(repo, newStubCompanyRepo(), sender, fakeBuildLink, fakeBuildMail)
+	uc := NewCreateAdminInvitationUseCase(repo, sender, fakeBuildLink, fakeBuildMail)
 
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee, Name: "山田",
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "u@example.com", Role: domain.RoleTrainee, Name: "山田",
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -275,7 +186,7 @@ func Test_招待作成_正常系_token生成とメール送信(t *testing.T) {
 	if repo.created == nil || repo.created.Token == nil || *repo.created.Token != *got.Token {
 		t.Fatalf("repo.Create must receive token, got %+v", repo.created)
 	}
-	// 会社 ID 入口でも、保存される所属参照は対応ワークスペースの workspace_id になる。
+	// 保存される所属参照は TargetWorkspace の workspace_id。
 	if got.WorkspaceID == nil || *got.WorkspaceID != invWsA {
 		t.Fatalf("workspace_id = %v, want %s", got.WorkspaceID, invWsA)
 	}
@@ -297,10 +208,11 @@ func Test_招待作成_正常系_token生成とメール送信(t *testing.T) {
 func Test_招待作成_emailを正規形に畳んで保存する(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	sender := &stubMailSender{}
-	uc := NewCreateAdminInvitationUseCase(repo, newStubCompanyRepo(), sender, fakeBuildLink, fakeBuildMail)
+	uc := NewCreateAdminInvitationUseCase(repo, sender, fakeBuildLink, fakeBuildMail)
 
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "  U@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "  U@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -314,9 +226,10 @@ func Test_招待作成_emailを正規形に畳んで保存する(t *testing.T) {
 }
 
 func Test_招待作成_SESエラーを伝播(t *testing.T) {
-	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, newStubCompanyRepo(), &stubMailSender{err: errors.New("ses down")}, fakeBuildLink, fakeBuildMail)
+	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{err: errors.New("ses down")}, fakeBuildLink, fakeBuildMail)
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee,
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "u@example.com", Role: domain.RoleTrainee,
 	}); err == nil {
 		t.Fatal("expected ses error to be propagated")
 	}
@@ -325,9 +238,10 @@ func Test_招待作成_SESエラーを伝播(t *testing.T) {
 // sender が nil の場合（ローカル開発でフォールバック）は invitation だけ作成して終わる。
 func Test_招待作成_送信者nilはメールをスキップ(t *testing.T) {
 	repo := &stubAdminInvRepo{}
-	uc := NewCreateAdminInvitationUseCase(repo, newStubCompanyRepo(), nil, nil, nil)
+	uc := NewCreateAdminInvitationUseCase(repo, nil, nil, nil)
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee,
+		TargetWorkspace: domain.WorkspaceRefOf(invWsA),
+		Email:           "u@example.com", Role: domain.RoleTrainee,
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -337,11 +251,10 @@ func Test_招待作成_送信者nilはメールをスキップ(t *testing.T) {
 	}
 }
 
-// CompanyAdmin 経路は actor 自身の所属ワークスペースがそのまま招待先なので、会社を引き直さない。
-func Test_招待作成_TargetWorkspace指定なら会社を引かない(t *testing.T) {
+// 招待先は actor 自身の所属ワークスペースをそのまま使う（テナントを横断して招く経路は無い）。
+func Test_招待作成_TargetWorkspaceの所属を保存する(t *testing.T) {
 	repo := &stubAdminInvRepo{}
-	companies := newStubCompanyRepo()
-	uc := NewCreateAdminInvitationUseCase(repo, companies, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
+	uc := NewCreateAdminInvitationUseCase(repo, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
 
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		TargetWorkspace: domain.WorkspaceRefOf(invWsB),
@@ -353,26 +266,20 @@ func Test_招待作成_TargetWorkspace指定なら会社を引かない(t *testi
 	if got.WorkspaceID == nil || *got.WorkspaceID != invWsB {
 		t.Fatalf("workspace_id = %v, want %s", got.WorkspaceID, invWsB)
 	}
-	if companies.findByIDCalledWith != 0 {
-		t.Fatalf("会社を引き直してはいけない: FindByID(%d)", companies.findByIDCalledWith)
-	}
 }
 
-// ワークスペース未紐付けの会社へは招待できない（受諾しても所属が決まらない招待になるため）。
-func Test_招待作成_会社にワークスペースが無ければエラー(t *testing.T) {
+// 所属の決まらない招待は作らせない（受諾しても行き先が無い招待になるため）。
+func Test_招待作成_TargetWorkspace未設定はエラー(t *testing.T) {
 	repo := &stubAdminInvRepo{}
-	companies := &stubCompanyRepo{byID: map[uint64]*domain.Company{
-		7: {ID: 7, Name: "未紐付け社", WorkspaceID: nil},
-	}}
-	uc := NewCreateAdminInvitationUseCase(repo, companies, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
+	uc := NewCreateAdminInvitationUseCase(repo, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
 
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 7, Email: "u@example.com", Role: domain.RoleTrainee,
+		Email: "u@example.com", Role: domain.RoleTrainee,
 	}); err == nil {
-		t.Fatal("ワークスペース未紐付けの会社宛はエラーであるべき")
+		t.Fatal("TargetWorkspace 未設定はエラーであるべき")
 	}
 	if repo.created != nil {
-		t.Fatalf("解決に失敗したら招待行を作ってはいけない: %+v", repo.created)
+		t.Fatalf("招待先が決まらないなら招待行を作ってはいけない: %+v", repo.created)
 	}
 }
 
@@ -399,14 +306,15 @@ func Test_招待取消_管理者以外は拒否(t *testing.T) {
 	}
 }
 
-// company_admin は自社の招待だけ取り消せる。他社分は存在を漏らさず not found にする。
-func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
+// company_admin は自分の所属ワークスペースの招待だけ取り消せる。
+// 他ワークスペース分は存在を漏らさず not found にする。
+func Test_招待取消_company_adminは自ワークスペースのみ(t *testing.T) {
 	rows := []domain.AdminInvitation{
 		{ID: 7, WorkspaceID: strPtr(invWsA)},
 		{ID: 8, WorkspaceID: strPtr(invWsB)},
 	}
 
-	t.Run("自社は取消できる", func(t *testing.T) {
+	t.Run("自ワークスペースは取消できる", func(t *testing.T) {
 		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
 		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
 			ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
@@ -416,19 +324,19 @@ func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
 		}
 	})
 
-	t.Run("他社は not found", func(t *testing.T) {
+	t.Run("他ワークスペースは not found", func(t *testing.T) {
 		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
 		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
 			ID: 8, ActorRole: domain.RoleCompanyAdmin, ActorWorkspace: domain.WorkspaceRefOf(invWsA),
 		})
 		if !errors.Is(err, ErrInvitationNotFound) {
-			t.Fatalf("他社の招待は not found であるべき: got %v", err)
+			t.Fatalf("他ワークスペースの招待は not found であるべき: got %v", err)
 		}
 	})
 }
 
 // company_admin の取消可否は招待の workspace_id と actor の所属ワークスペースの一致だけで決まる。
-// 他に一致し得る手掛かり（会社の一致など）で通る抜け道が無いことを、workspace_id 不一致 1 点で固定する。
+// 他に一致し得る手掛かりで通る抜け道が無いことを、workspace_id 不一致 1 点で固定する。
 func Test_招待取消_workspace不一致はnot_found(t *testing.T) {
 	rows := []domain.AdminInvitation{{ID: 7, WorkspaceID: strPtr(invWsA)}}
 	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
@@ -482,7 +390,7 @@ func Test_招待取消_リポジトリエラーは伝播する(t *testing.T) {
 	}
 }
 
-func Test_招待取消_super_adminは全社取消できる(t *testing.T) {
+func Test_招待取消_super_adminは全ワークスペース取消できる(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 8, WorkspaceID: strPtr(invWsB)}}}
 	uc := NewCancelAdminInvitationUseCase(repo)
 

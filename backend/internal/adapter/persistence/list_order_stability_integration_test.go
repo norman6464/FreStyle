@@ -270,24 +270,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 		require.Equal(t, []uint64{4, 3, 2, 1}, noteIDs(rows))
 	})
 
-	t.Run("companies: name 同着は id 昇順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "companies")
-		repo := persistence.NewCompanyRepository(sqlDB)
-		for _, id := range []uint64{4, 3, 2, 1} { // id 降順に投入 → 期待は昇順
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO companies (id, name, created_at, updated_at) VALUES ($1, '同名株式会社', $2, $2)`,
-				id, tie)
-			require.NoError(t, err)
-		}
-		rows, err := repo.ListAll(ctx)
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, []uint64{1, 2, 3, 4}, ids)
-	})
-
 	t.Run("invitations: created_at 同着は id 降順（一覧・単一取得とも）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
 		insertCompany(t, sqlDB, 1, "会社 A", true)

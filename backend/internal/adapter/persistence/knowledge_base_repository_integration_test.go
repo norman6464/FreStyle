@@ -631,30 +631,30 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	require.Nil(t, byType[domain.BlockTypeBulletList].Inline, "容器ノードは inline NULL")
 }
 
-// TestKnowledgeBaseDeleteWorkspace_Integration は DeleteWorkspace が会社ワークスペースを
+// TestKnowledgeBaseDeleteWorkspace_Integration は DeleteWorkspace が人の居るワークスペースを
 // 守り、それ以外は配下ごと消すことを実 PostgreSQL で固定する。
 func TestKnowledgeBaseDeleteWorkspace_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
-	truncTables := append([]string{"companies"}, kbTables...)
+	truncTables := append([]string{"users"}, kbTables...)
 
-	t.Run("会社に紐づくワークスペースは消さない", func(t *testing.T) {
+	t.Run("所属している人がいるワークスペースは消さない", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, truncTables...)
-		ws := createWorkspace(t, sqlDB, "ws-company-owned")
-		insertCompany(t, sqlDB, 1, "会社", true)
-		_, err := sqlDB.Exec(`UPDATE companies SET workspace_id = $1 WHERE id = 1`, ws)
+		ws := createWorkspace(t, sqlDB, "ws-with-members")
+		member := createUser(t, sqlDB, "member")
+		_, err := sqlDB.Exec(`UPDATE users SET workspace_id = $1 WHERE id = $2`, ws, member)
 		require.NoError(t, err)
 
 		err = repo.DeleteWorkspace(ctx, ws)
-		assert.ErrorIs(t, err, repository.ErrCompanyWorkspaceUndeletable)
+		assert.ErrorIs(t, err, repository.ErrWorkspaceHasMembers)
 
 		var count int
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM workspaces WHERE id = $1`, ws).Scan(&count))
-		assert.Equal(t, 1, count, "会社のワークスペースは残っていなければならない")
+		assert.Equal(t, 1, count, "人の居るワークスペースは残っていなければならない")
 	})
 
-	t.Run("会社に紐づかないワークスペースは配下ごと消える", func(t *testing.T) {
+	t.Run("誰も所属していないワークスペースは配下ごと消える", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, truncTables...)
 		ws := createWorkspace(t, sqlDB, "ws-personal")
 		createSpace(t, sqlDB, ws, "eng")

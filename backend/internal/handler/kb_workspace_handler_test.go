@@ -43,19 +43,18 @@ func Test_ノートAPI_ワークスペース削除(t *testing.T) {
 		assert.NotNil(t, f.pages.spaces[kbSpaceID], "拒否したのに消えてはいけない")
 	})
 
-	t.Run("会社のワークスペースは admin でも消せない", func(t *testing.T) {
-		// 会社全員のノートが入るうえ、消しても起動時のバックフィルが作り直すので、
-		// 中身だけが消えた空のワークスペースが残る。誰であっても消させない。
+	t.Run("人が所属しているワークスペースは admin でも消せない", func(t *testing.T) {
+		// そこに全員のノートが入るので、1 人の操作でみんなの資産が消えてよいはずがない。
 		f := newKbFixture(kbCanEdit, kbUserID)
 		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
-		companyWorkspaceIDs[kbWorkspaceID] = true
-		t.Cleanup(func() { delete(companyWorkspaceIDs, kbWorkspaceID) })
+		workspacesWithMembers[kbWorkspaceID] = true
+		t.Cleanup(func() { delete(workspacesWithMembers, kbWorkspaceID) })
 
 		w := f.do(t, http.MethodDelete, "/api/v2/kb/workspaces/"+kbWorkspaceSlug, "")
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
-		assert.JSONEq(t, `{"error":"company_workspace_undeletable"}`, w.Body.String())
-		assert.NotNil(t, f.pages.spaces[kbSpaceID], "会社のワークスペースの中身が消えてはいけない")
+		assert.JSONEq(t, `{"error":"workspace_has_members"}`, w.Body.String())
+		assert.NotNil(t, f.pages.spaces[kbSpaceID], "人が所属しているワークスペースの中身が消えてはいけない")
 	})
 
 	t.Run("別のワークスペースの slug では 404（所属していないため）", func(t *testing.T) {
@@ -449,18 +448,18 @@ func Test_ノートAPI_プライベートスペースはメンバーなら作れ
 	})
 }
 
-// 会社のワークスペースには、その会社のメンバーが自動で入る。
+// ワークスペースには、そこに所属している人が自動で入る。
 //
-// 会社ごとのワークスペースは起動時のバックフィルが用意するが、ノートの所属
-// （principals の行）は作成者にしか無かった。そのため同じ会社の他のメンバーは
-// 一覧にも出ず、URL を叩いても 404 になっていた（実際に踏んだ形の回帰）。
-func Test_ノートAPI_会社のワークスペースには同じ会社のメンバーが自動で入る(t *testing.T) {
-	t.Run("一覧を開くと所属が用意され、会社のワークスペースが出る", func(t *testing.T) {
+// 所属は users.workspace_id が表すが、ノートの所属（principals の行）は作成者にしか
+// 無かった。そのため同じワークスペースの他のメンバーは一覧にも出ず、URL を叩いても
+// 404 になっていた（実際に踏んだ形の回帰）。
+func Test_ノートAPI_ワークスペースには所属している人が自動で入る(t *testing.T) {
+	t.Run("一覧を開くと所属が用意され、そのワークスペースが出る", func(t *testing.T) {
 		const newcomer = uint64(777)
 		f := newKbFixture(kbCanEdit, newcomer)
-		// この人はまだ principals の行を持たない（＝ 非メンバー）が、会社は同じ。
+		// この人はまだ principals の行を持たない（＝ 非メンバー）が、所属先は同じ。
 		require.Nil(t, f.perms.userPrincipal(kbWorkspaceID, newcomer), "前提: まだ非メンバー")
-		f.users.setCompanyWorkspace(newcomer, kbWorkspaceID)
+		f.users.setUserWorkspace(newcomer, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
@@ -475,7 +474,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 	t.Run("URL を直に開いても入れる（一覧を経由しない経路）", func(t *testing.T) {
 		const newcomer = uint64(778)
 		f := newKbFixture(kbCanEdit, newcomer)
-		f.users.setCompanyWorkspace(newcomer, kbWorkspaceID)
+		f.users.setUserWorkspace(newcomer, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, kbWorkspaceSlug, ""), "")
 
@@ -483,11 +482,11 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		assert.NotNil(t, f.perms.userPrincipal(kbWorkspaceID, newcomer))
 	})
 
-	t.Run("別の会社のワークスペースには入らない", func(t *testing.T) {
+	t.Run("別のワークスペースに所属している人は入らない", func(t *testing.T) {
 		const outsider = uint64(779)
 		f := newKbFixture(kbCanEdit, outsider)
-		// 会社のワークスペースは別のもの。URL を知っていても入れない。
-		f.users.setCompanyWorkspace(outsider, kbOtherWorkspaceID)
+		// 所属先は別のワークスペース。URL を知っていても入れない。
+		f.users.setUserWorkspace(outsider, kbOtherWorkspaceID)
 
 		w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, kbWorkspaceSlug, ""), "")
 
@@ -495,10 +494,10 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		assert.Nil(t, f.perms.userPrincipal(kbWorkspaceID, outsider), "所属は作られない")
 	})
 
-	t.Run("会社に属さないユーザーの一覧は空で、失敗にしない", func(t *testing.T) {
+	t.Run("どのワークスペースにも属さないユーザーの一覧は空で、失敗にしない", func(t *testing.T) {
 		const staff = uint64(780)
 		f := newKbFixture(kbCanEdit, staff)
-		// 会社の紐づけを設定しない（運営管理者のように会社を持たない人）。
+		// 所属を設定しない（運営管理者のようにワークスペースを持たない人）。
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
@@ -520,7 +519,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		require.NoError(t, f.perms.DeleteWorkspaceGrant(
 			context.Background(), kbWorkspaceID, principal.ID,
 		))
-		f.users.setCompanyWorkspace(kbUserID, kbWorkspaceID)
+		f.users.setUserWorkspace(kbUserID, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
@@ -540,7 +539,7 @@ func Test_ノートAPI_会社のワークスペースには同じ会社のメン
 		require.NoError(t, f.perms.GrantWorkspaceRoleIfAbsent(
 			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleAdmin,
 		))
-		f.users.setCompanyWorkspace(kbUserID, kbWorkspaceID)
+		f.users.setUserWorkspace(kbUserID, kbWorkspaceID)
 
 		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 		require.Equal(t, http.StatusOK, w.Code)

@@ -1450,10 +1450,12 @@ pgrank AS (
                  WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                  WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
     FROM page_paths pp
+    JOIN cand c ON c.id = pp.page_id
     JOIN page_grants pgt
       ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    LEFT JOIN space_allp sap3 ON sap3.space_id = c.space_id
     WHERE pp.workspace_id = $1
-      AND pgt.principal_id IN (SELECT id FROM mine)
+      AND (pgt.principal_id IN (SELECT id FROM mine) OR pgt.principal_id = sap3.id)
     GROUP BY pp.page_id
 )
 SELECT
@@ -1522,6 +1524,13 @@ type ListWorkspacePageViewFactsByIDsRow struct {
 // クエリのコメントを参照）。
 // ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
 // 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
+//
+// この経路の mine は「自分と所属グループ」だけで、スペース全員（space_all）は space_allp が
+// 別に持つ。両方を見ないと、全員宛ての付与が 1 ページの解決では効くのにここでは効かず、
+// 「開けるのに検索に出ない」ずれになる。
+//
+// 候補（cand）に絞ってから集計する。ワークスペース全体の経路を集めると、候補が数件でも
+// 全ページ分の JOIN を回すことになる。
 // pages → spaces は複合 FK があるので必ず 1 行に当たる。
 func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListWorkspacePageViewFactsByIDsParams) ([]ListWorkspacePageViewFactsByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspacePageViewFactsByIDs, arg.WorkspaceID, arg.UserID, arg.PageIds)
@@ -2123,10 +2132,12 @@ pgrank AS (
                  WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                  WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
     FROM page_paths pp
+    JOIN cand c ON c.id = pp.page_id
     JOIN page_grants pgt
       ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    LEFT JOIN space_allp sap3 ON sap3.space_id = c.space_id
     WHERE pp.workspace_id = $1
-      AND pgt.principal_id IN (SELECT id FROM mine)
+      AND (pgt.principal_id IN (SELECT id FROM mine) OR pgt.principal_id = sap3.id)
     GROUP BY pp.page_id
 )
 SELECT
@@ -2204,6 +2215,13 @@ type SearchWorkspacePageViewFactsRow struct {
 // 「column ... does not exist」で生成が落ちる（実測）。
 // ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
 // 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
+//
+// この経路の mine は「自分と所属グループ」だけで、スペース全員（space_all）は space_allp が
+// 別に持つ。両方を見ないと、全員宛ての付与が 1 ページの解決では効くのにここでは効かず、
+// 「開けるのに検索に出ない」ずれになる。
+//
+// 候補（cand）に絞ってから集計する。ワークスペース全体の経路を集めると、候補が数件でも
+// 全ページ分の JOIN を回すことになる。
 // pages → spaces は複合 FK があるので必ず 1 行に当たる。
 func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWorkspacePageViewFactsParams) ([]SearchWorkspacePageViewFactsRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchWorkspacePageViewFacts, arg.WorkspaceID, arg.UserID, arg.Needle)

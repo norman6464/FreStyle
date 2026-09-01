@@ -9,6 +9,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,8 @@ func grantPage(t *testing.T, db *sql.DB, workspaceID, pageID, principalID string
 	_, err := db.Exec(
 		`INSERT INTO page_grants (workspace_id, page_id, principal_id, "role")
 		 VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (workspace_id, page_id, principal_id) DO UPDATE SET "role" = EXCLUDED."role"`,
+		 ON CONFLICT (workspace_id, page_id, principal_id)
+		 DO UPDATE SET "role" = EXCLUDED."role", updated_at = now()`,
 		workspaceID, pageID, principalID, string(role),
 	)
 	require.NoError(t, err)
@@ -172,6 +174,47 @@ func TestPageGrant_一覧と1ページの解決が一致する_Integration(t *te
 		assert.Equal(t, c.canView, single, "%s: 1 ページの解決", c.name)
 		assert.Equal(t, c.canView, contains(listed, c.page), "%s: 一覧の結果が 1 ページの解決と一致する", c.name)
 	}
+}
+
+// スペース全員（space_all）宛ての付与も、どの経路でも同じ答えになることを固定する。
+//
+// 検索と ID 指定の解決だけは「自分と所属グループ」と「スペース全員」を別々の CTE で
+// 持っており、片方だけを見て付与を評価すると、開けるのに検索に出ないページができる。
+func TestPageGrant_スペース全員宛ての付与が全経路で一致する_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "全員に配る").ID
+	// alice はワークスペースに所属しているだけ（個人の付与は持たない）。
+	f.principalFor(ctx, t, f.alice)
+	everyone := f.everyoneOf(ctx, t, f.spaceA)
+
+	grantPage(t, sqlDB, f.ws, page, everyone.ID, domain.GrantRoleEditor)
+
+	// 1 ページの解決では見える。
+	require.True(t, f.permFor(ctx, t, page, f.alice).CanView, "前提: 直接開けば見える")
+
+	// 検索でも出る。
+	found, err := usecase.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
+		usecase.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: f.alice, Query: "全員"})
+	require.NoError(t, err)
+	assert.True(t, containsPageID(found, page), "検索でも出る（開けるのに検索に出ないのは経路のずれ）")
+
+	// ID 指定でも同じ。
+	rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice, []string{page})
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "ID 指定でも 1 行返る")
+	assert.True(t, domain.ResolvePageView(rows[0].Facts), "ID 指定でも見える")
+}
+
+func containsPageID(pages []domain.Page, id string) bool {
+	for _, p := range pages {
+		if p.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(xs []string, v string) bool {

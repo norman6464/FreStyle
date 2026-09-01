@@ -316,10 +316,12 @@ describe('NoteSidebar', () => {
       renderSidebar();
       await screen.findByText(/まだワークスペースがありません/);
 
-      fireEvent.change(screen.getByLabelText('ワークスペースの名前'), {
+      // 見出しと入力欄は同時に出るとは限らない。欄そのものの出現を待ってから触る
+      // （見出しだけ待って get で取ると、描画が一拍遅れた回にその場で落ちる）。
+      fireEvent.change(await screen.findByLabelText('ワークスペースの名前'), {
         target: { value: 'Acme 社' },
       });
-      fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを作る' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'ワークスペースを作る' }));
 
       await waitFor(() =>
         // URL に出る slug はサーバーが自動採番する。フロントから送るのは名前だけ。
@@ -357,8 +359,8 @@ describe('NoteSidebar', () => {
       renderSidebar();
       await screen.findByText(/まだスペースがありません/);
 
-      fireEvent.change(screen.getByLabelText('スペースの名前'), { target: { value: '開発部' } });
-      fireEvent.click(screen.getByRole('button', { name: 'スペースを作る' }));
+      fireEvent.change(await screen.findByLabelText('スペースの名前'), { target: { value: '開発部' } });
+      fireEvent.click(await screen.findByRole('button', { name: 'スペースを作る' }));
 
       await waitFor(() =>
         expect(hoisted.createSpace).toHaveBeenCalledWith('acme', { name: '開発部' }),
@@ -371,6 +373,9 @@ describe('NoteSidebar', () => {
       hoisted.fetchWorkspaces.mockResolvedValue([]);
       renderSidebar();
       await screen.findByText(/まだワークスペースがありません/);
+      // 欄が出そろってから「無いこと」を見る。見出しだけ待って確かめると、
+      // まだ描かれていないだけの状態を「出ていない」と読んでしまう。
+      await screen.findByLabelText('ワークスペースの名前');
 
       expect(screen.queryByLabelText(/短い名前/)).not.toBeInTheDocument();
     });

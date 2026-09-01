@@ -702,6 +702,15 @@ SELECT pg.space_id, sg."role"
   JOIN pg ON pg.space_id = sg.space_id
  WHERE sg.workspace_id = $1
    AND sg.principal_id IN (SELECT id FROM mine)
+UNION
+SELECT pg.space_id, pgr."role"
+  FROM page_grants pgr
+  JOIN page_paths pp
+    ON pp.workspace_id = pgr.workspace_id AND pp.ancestor_id = pgr.page_id
+  JOIN pg ON true
+ WHERE pgr.workspace_id = $1
+   AND pp.page_id = $2
+   AND pgr.principal_id IN (SELECT id FROM mine)
 `
 
 type ListPageSpaceScopeGrantRolesParams struct {
@@ -742,6 +751,9 @@ type ListPageSpaceScopeGrantRolesRow struct {
 // ワークスペースの grant は visibility='workspace' のスペースにだけ届く
 // （private にはスペース単位の grant だけが届く）。スペースの grant と合わせて返す。
 // pg を JOIN しているので、ページが無ければどちらの枝も 0 行になる。
+// 経路上（自分と祖先）のページ付与も既定の役割として返す。ここを落とすと
+// 「そのページは編集できるのに、権限の画面には入れない」というずれになる
+// （このクエリは権限操作の入口が使う）。
 func (q *Queries) ListPageSpaceScopeGrantRoles(ctx context.Context, arg ListPageSpaceScopeGrantRolesParams) ([]ListPageSpaceScopeGrantRolesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPageSpaceScopeGrantRoles, arg.WorkspaceID, arg.PageID, arg.UserID)
 	if err != nil {
@@ -858,6 +870,21 @@ allow_scope AS (
       AND ($3::boolean) = (tp.archived_at IS NOT NULL)
     GROUP BY pp.page_id
 ),
+page_grant_rank AS (
+    SELECT pp.page_id,
+           max(CASE pg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
+    FROM page_paths pp
+    JOIN pages tp ON tp.workspace_id = pp.workspace_id AND tp.id = pp.page_id
+    JOIN page_grants pg
+      ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
+    WHERE pp.workspace_id = $1
+      AND tp.space_id = $2
+      AND ($3::boolean) = (tp.archived_at IS NOT NULL)
+      AND pg.principal_id IN (SELECT id FROM mine)
+    GROUP BY pp.page_id
+),
 exception AS (
     -- 最も近い段の depth を JOIN で持ってくる理由は ResolvePagePermissionFacts と同じ
     -- （相関副問い合わせは経路上の制限の行数に対して二乗になる）。
@@ -874,7 +901,7 @@ SELECT
     -- 既定の役割の強さ。意味と 0 の扱いは ResolvePagePermissionFacts と同じ。
     -- 所属（is_member）は返さない。役割が 1 つも無ければ強さ 0 で「何もできない」に
     -- なるため閲覧の判定には要らず、使われない事実を返すと編集可否にも答えられる顔をする。
-    COALESCE((
+    GREATEST(COALESCE((
         SELECT max(CASE g."role"
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                      WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
@@ -893,7 +920,7 @@ SELECT
              WHERE sg.workspace_id = $1 AND sg.space_id = $2
                AND sg.principal_id IN (SELECT id FROM mine)
         ) g
-    ), 0)::integer AS grant_rank,
+    ), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank,
     (e.page_id IS NOT NULL OR s.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(e.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (s.page_id IS NOT NULL)::boolean AS view_has_allow_list,
@@ -903,6 +930,7 @@ SELECT
 FROM pages p
 LEFT JOIN exception e ON e.page_id = p.id
 LEFT JOIN allow_scope s ON s.page_id = p.id
+LEFT JOIN page_grant_rank pgr ON pgr.page_id = p.id
 LEFT JOIN pages par ON par.workspace_id = p.workspace_id AND par.id = p.parent_id
 WHERE p.workspace_id = $1
   AND p.space_id = $2
@@ -956,6 +984,10 @@ type ListSpacePageViewFactsRow struct {
 // 段かどうかは page_allow_lists の印）。ケイパビリティは 'view' に絞ってあるので、
 // 分けるのはページ単位だけで足りる。
 // 1 ページの解決と一覧で違う畳み方をすると「開くと見えるのに一覧に出ない」ずれになる。
+// 各ページについて、経路上（自分と祖先）のページ付与の最大値。ページごとに値が変わるので
+// スペース単位の既定のように 1 行へ畳めない。1 回のクエリで集めて LEFT JOIN する
+// （ページごとに引き直すと行数ぶんの集約になる）。
+// 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
 // 親がアーカイブ済みかは**事実**として返すだけで、ここでは何の判断にも使わない。
 // 「復帰できるか」の規則は UnarchivePageUseCase が持つ（親がアーカイブ中なら断る）。
 // 相関副問い合わせにしないのは、経路の集計で二乗になるのを避けるのと同じ流儀
@@ -1157,7 +1189,7 @@ exception AS (
     GROUP BY o.page_id, o.capability
 ),
 grants AS (
-    -- 既定の役割の強さ。サブツリー全体で同じ値なので 1 行に畳んでから配る
+    -- ワークスペースとスペースの既定はサブツリー全体で同じ値なので 1 行に畳んでから配る
     -- （ページごとに引き直すと行数ぶんの集約になる）。意味と 0 の扱いは
     -- ResolvePagePermissionFacts と同じ。
     SELECT max(CASE g."role"
@@ -1173,11 +1205,24 @@ grants AS (
          WHERE sg.workspace_id = $1 AND sg.space_id = t.space_id
            AND sg.principal_id IN (SELECT id FROM mine)
     ) g
+),
+page_grant_rank AS (
+    SELECT pp.page_id,
+           max(CASE pg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
+    FROM page_paths pp
+    JOIN subtree st ON st.page_id = pp.page_id
+    JOIN page_grants pg
+      ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
+    WHERE pp.workspace_id = $1
+      AND pg.principal_id IN (SELECT id FROM mine)
+    GROUP BY pp.page_id
 )
 SELECT
     s.page_id,
     EXISTS (SELECT 1 FROM me) AS is_member,
-    COALESCE((SELECT grants.grant_rank FROM grants), 0)::integer AS grant_rank,
+    GREATEST(COALESCE((SELECT grants.grant_rank FROM grants), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank,
     (ev.page_id IS NOT NULL OR av.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(ev.denied_anywhere, false)::boolean AS view_denied_anywhere,
     (av.page_id IS NOT NULL)::boolean AS view_has_allow_list,
@@ -1187,6 +1232,7 @@ SELECT
     (ae.page_id IS NOT NULL)::boolean AS edit_has_allow_list,
     COALESCE(ee.allowed_at_nearest, false)::boolean AS edit_allowed_at_nearest
 FROM subtree s
+LEFT JOIN page_grant_rank pgr ON pgr.page_id = s.page_id
 LEFT JOIN exception ev ON ev.page_id = s.page_id AND ev.capability = 'view'
 LEFT JOIN allow_scope av ON av.page_id = s.page_id AND av.capability = 'view'
 LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
@@ -1241,6 +1287,9 @@ type ListSubtreePagePermissionFactsRow struct {
 //     4 / 12 / 47 / 174 ms で、二乗には膨らまない
 //
 // 呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
+// ページ付与だけは畳めない。サブツリーの中でも「祖先のどこに張られているか」で
+// ページごとに値が変わるため、page_id ごとに集めて下の SELECT へ LEFT JOIN する。
+// 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
 func (q *Queries) ListSubtreePagePermissionFacts(ctx context.Context, arg ListSubtreePagePermissionFactsParams) ([]ListSubtreePagePermissionFactsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listSubtreePagePermissionFacts, arg.WorkspaceID, arg.PageID, arg.UserID)
 	if err != nil {
@@ -1394,6 +1443,18 @@ sgrank AS (
     WHERE sg.workspace_id = $1
       AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
     GROUP BY sg.space_id
+),
+pgrank AS (
+    SELECT pp.page_id,
+           max(CASE pgt."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM page_paths pp
+    JOIN page_grants pgt
+      ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    WHERE pp.workspace_id = $1
+      AND pgt.principal_id IN (SELECT id FROM mine)
+    GROUP BY pp.page_id
 )
 SELECT
     cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
@@ -1401,7 +1462,8 @@ SELECT
     -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
-      COALESCE(sr.v, 0)
+      COALESCE(sr.v, 0),
+      COALESCE(pgr.v, 0)
     )::integer AS grant_rank,
     (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
@@ -1412,6 +1474,7 @@ JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
 LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
 ORDER BY cnd.title, cnd.id
 `
 
@@ -1457,6 +1520,8 @@ type ListWorkspacePageViewFactsByIDsRow struct {
 //
 // 表の別名はクエリ全体で一意（CTE をまたぐ使い回しは sqlc の列解決が混線する — 検索の
 // クエリのコメントを参照）。
+// ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
+// 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
 // pages → spaces は複合 FK があるので必ず 1 行に当たる。
 func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListWorkspacePageViewFactsByIDsParams) ([]ListWorkspacePageViewFactsByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspacePageViewFactsByIDs, arg.WorkspaceID, arg.UserID, arg.PageIds)
@@ -2051,6 +2116,18 @@ sgrank AS (
     WHERE sg.workspace_id = $1
       AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
     GROUP BY sg.space_id
+),
+pgrank AS (
+    SELECT pp.page_id,
+           max(CASE pgt."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM page_paths pp
+    JOIN page_grants pgt
+      ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    WHERE pp.workspace_id = $1
+      AND pgt.principal_id IN (SELECT id FROM mine)
+    GROUP BY pp.page_id
 )
 SELECT
     cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
@@ -2058,7 +2135,8 @@ SELECT
     -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
-      COALESCE(sr.v, 0)
+      COALESCE(sr.v, 0),
+      COALESCE(pgr.v, 0)
     )::integer AS grant_rank,
     (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
     COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
@@ -2069,6 +2147,7 @@ JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
 LEFT JOIN exception exc ON exc.page_id = cnd.id
 LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
 ORDER BY cnd.title, cnd.id
 `
 
@@ -2123,6 +2202,8 @@ type SearchWorkspacePageViewFactsRow struct {
 // 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c1 / c2 …）。CTE ごとに同じ
 // 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
 // 「column ... does not exist」で生成が落ちる（実測）。
+// ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
+// 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
 // pages → spaces は複合 FK があるので必ず 1 行に当たる。
 func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWorkspacePageViewFactsParams) ([]SearchWorkspacePageViewFactsRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchWorkspacePageViewFacts, arg.WorkspaceID, arg.UserID, arg.Needle)

@@ -138,6 +138,26 @@ type WorkspaceGrant struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// PageGrant はページ以下での既定の権限。workspace / space に続く 3 段目で、意味も合成の
+// 仕方も上の 2 つと同じ（経路をさかのぼって効き、最も強いものが実効になる）。
+//
+// これが要るのは「この人にこのページだけ編集を渡す」を書くため。例外の層（PageRestriction）の
+// allow でも同じことができるように見えるが、あちらは 1 行足した時点でその段が許可リスト制へ
+// 切り替わり、載っていない者は既定が admin でも締め出される。付与は足し算だけなので、
+// 1 行足しても他の誰の権限も動かない。
+type PageGrant struct {
+	// WorkspaceID はテナント境界。principal との複合 FK に使う。
+	WorkspaceID string `json:"workspaceId"`
+	// PageID は対象ページ。この付与はこのページとその子孫に効く。
+	PageID string `json:"pageId"`
+	// PrincipalID は権限を与える相手。
+	PrincipalID string `json:"principalId"`
+	// Role は既定の役割。
+	Role      GrantRole `json:"role"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // SpaceGrant はスペースでの既定の権限（誰が何をできるか）。
 // 同じ主体がひとつのスペースで持つ役割は 1 つだけ（DB の PK が (workspace_id, space_id, principal_id)）。
 type SpaceGrant struct {

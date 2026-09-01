@@ -187,6 +187,15 @@ type PageAllowList struct {
 	CreatedAt   time.Time
 }
 
+type PageGrant struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	PrincipalID uuid.UUID
+	Role        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type PagePath struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID

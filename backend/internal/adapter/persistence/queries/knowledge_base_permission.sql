@@ -347,6 +347,20 @@ allow_scope AS (
     WHERE pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = sqlc.arg(page_id)
     GROUP BY a.capability
 ),
+-- 経路上のページ付与（自分自身と祖先）のうち最も強いもの。祖先に editor を張れば
+-- 子孫の既定が editor 以上になる、という降り方は grant の他の 2 段と同じ。
+-- 例外（allow_scope / onpath）と違って「最も近い段」は見ない。付与は足し算だけで、
+-- 近い付与が遠い付与を弱めることはないため（domain/grant.go の Rank のコメント）。
+page_grant_rank AS (
+    SELECT max(CASE pg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
+    FROM page_paths pp
+    JOIN page_grants pg
+      ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
+    WHERE pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = sqlc.arg(page_id)
+      AND pg.principal_id IN (SELECT id FROM mine)
+),
 exception AS (
     -- 最も近い段の depth は allow_scope（ケイパビリティごとに 1 行）から JOIN で持ってくる。
     -- 相関副問い合わせにすると onpath の 1 行ごとに集約をやり直すことになり、
@@ -371,7 +385,7 @@ SELECT
     -- 0 は「grant が無い」を表し、persistence が domain.GrantRoleByRank で nil に直す
     -- （この値がそのまま上の層へ出ることはない）。
     -- CASE の並びは domain.GrantRole.Rank と一対一に対応させること。
-    COALESCE((
+    GREATEST(COALESCE((
         SELECT max(CASE g."role"
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
                      WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
@@ -385,7 +399,7 @@ SELECT
              WHERE sg.workspace_id = sqlc.arg(workspace_id) AND sg.space_id = t.space_id
                AND sg.principal_id IN (SELECT id FROM mine)
         ) g
-    ), 0)::integer AS grant_rank,
+    ), 0), COALESCE((SELECT rank FROM page_grant_rank), 0))::integer AS grant_rank,
     -- restricted は「経路に例外の材料が 1 つでもあるか」。印だけがあって allow 行が
     -- 1 つも無い段（載っていた主体が消えた段）も制限として扱わなければ、
     -- 印を分けた意味が無くなる。

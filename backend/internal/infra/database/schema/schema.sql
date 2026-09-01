@@ -1138,6 +1138,43 @@ CREATE TABLE IF NOT EXISTS space_grants (
     CONSTRAINT ck_space_grants_role CHECK ("role" IN ('admin', 'editor', 'commenter', 'viewer'))
 );
 
+-- page_grants: そのページ以下での既定の役割。workspace_grants / space_grants に続く 3 段目で、
+-- 意味も合成の仕方も上の 2 つと同じ（配下へ降りる・最も強いものを採る）。
+--
+-- これが要るのは「この人にこのページだけ編集を渡す」を書くため。例外の層（page_restrictions）
+-- でも allow 行で同じことができるように見えるが、あちらは allow を 1 行足した瞬間にその段が
+-- 許可リスト制へ切り替わり、載っていない者は既定が admin でも締め出される。つまり
+-- 「1 人に渡す」つもりの操作が「その他全員を締め出す」になる。付与の層は足し算だけなので、
+-- 1 行足しても他の誰の権限も動かない。
+--
+-- 経路の扱いは例外と同じで page_paths を辿る。祖先のページに editor を張れば、その子孫は
+-- 既定が editor 以上になる（親に渡したら配下も編集できる、という素直な形）。
+--
+-- 例外には勝てない。deny と限定公開は既定より強いという優先（domain.resolveCapability）は
+-- そのままなので、ここで足した役割も経路上の deny には負ける。弱める操作は例外の層に集約する、
+-- という grant 層の約束（domain/grant.go）を崩さない。
+CREATE TABLE IF NOT EXISTS page_grants (
+    workspace_id uuid NOT NULL,
+    page_id      uuid NOT NULL,
+    principal_id uuid NOT NULL,
+    -- "role" の値は domain.GrantRole が正（admin / editor / commenter / viewer）。
+    "role"       varchar(16) NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT page_grants_pkey PRIMARY KEY (workspace_id, page_id, principal_id),
+    CONSTRAINT fk_page_grants_page FOREIGN KEY (workspace_id, page_id)
+        REFERENCES pages (workspace_id, id) ON DELETE CASCADE,
+    -- space_grants と同じ理由で workspace_id を含む複合 FK にする（別テナントの principal へ
+    -- 付与できてしまうと、そのままテナント越えの権限昇格になる）。
+    CONSTRAINT fk_page_grants_principal FOREIGN KEY (workspace_id, principal_id)
+        REFERENCES principals (workspace_id, id) ON DELETE CASCADE,
+    CONSTRAINT ck_page_grants_role CHECK ("role" IN ('admin', 'editor', 'commenter', 'viewer'))
+);
+-- 経路をさかのぼって「祖先に張られた付与」を引く向きの索引。主キーは (workspace_id, page_id,
+-- principal_id) なので page_id 先頭では principal から引けない。
+CREATE INDEX IF NOT EXISTS idx_page_grants_principal ON page_grants (workspace_id, principal_id);
+
 -- page_restrictions: そのページ以下だけ既定を上書きする例外。行を持つのは例外だけ。
 --
 -- 実効権限の決め方（domain.ResolvePagePermission が唯一の実装。ここは同じ規則の要約）:

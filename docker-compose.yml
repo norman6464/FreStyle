@@ -10,6 +10,11 @@
 #   メール http://localhost:8025   (受信メールの閲覧)
 #   DB    postgres://frestyle:frestyle@localhost:5432/frestyle
 #
+# 認証基盤(Zitadel)は profile auth で一緒に起動する。Cognito の置き換え先で、
+# 将来のオンプレ Kubernetes + PostgreSQL にそのまま載る:
+#   docker compose --profile auth up -d
+#   コンソール http://localhost:8081/ui/console
+#
 # .env が無くても DB だけで起動できる(接続情報は下の既定値が使われる)。
 # Cognito / AWS まで使うときはリポジトリ直下に .env を置く(cp .env.example .env)。
 # .env には「ホストから見た」接続先(localhost)を書く。backend コンテナにも同じ .env を
@@ -129,6 +134,109 @@ services:
     expose:
       - '9000'
 
+  # PAT の置き場の所有者を zitadel(uid 1000) に合わせるだけの使い捨てコンテナ。
+  #
+  # 名前付き volume は root:root で作られ、zitadel は非 root で動くので、
+  # そのままだと PAT を書き出せない。しかもそのとき **初期化は途中まで進んでから
+  # 落ちる**ので、次の起動が「インスタンスはもう在る」で永久に失敗し続ける
+  # （実際に踏んだ。表に出るエラーは AlreadyExists で、真因の permission denied は
+  # 初回のログにしか出ない）。ここで先に揃えて、その分岐を作らない。
+  zitadel-pat-dir:
+    profiles: ['auth']
+    image: public.ecr.aws/docker/library/alpine:3.20
+    container_name: frestyle-local-zitadel-pat-dir
+    command: ['sh', '-c', 'chown -R 1000:1000 /pat']
+    volumes:
+      - zitadel_pat:/pat
+
+  zitadel:
+    # 認証基盤（OIDC プロバイダ）。Cognito の置き換え先で、将来のオンプレ
+    # Kubernetes + PostgreSQL にそのまま載る（AWS に縛られない）。
+    #
+    # profile を付けているのは、いまのアプリがまだ Cognito / localauth で動いており
+    # 起動に必須ではないため。使うときだけ:
+    #   docker compose --profile auth up -d
+    #
+    #   コンソール  http://localhost:8081/ui/console
+    #   OIDC 検出   http://localhost:8081/.well-known/openid-configuration
+    #   初期ログイン zitadel-admin@zitadel.localhost / Password1!
+    #
+    # start-from-init は「初期化されていなければ初期化してから起動する」。
+    # 2 回目以降は初期化を飛ばすので、そのまま up し直してよい。
+    profiles: ['auth']
+    image: ghcr.io/zitadel/zitadel:v4.17.2
+    container_name: frestyle-local-zitadel
+    restart: unless-stopped
+    command: >
+      start-from-init
+      --masterkey ${ZITADEL_MASTERKEY:-MasterkeyNeedsToHave32Characters}
+    environment:
+      # TLS を張らない設定は **環境変数で渡す**。--tlsMode の CLI フラグだと
+      # サーバは起動するが healthcheck の `zitadel ready` がフラグを読めず、
+      # https で自分を叩いて必ず "not ready" になる（実際に踏んだ）。
+      ZITADEL_TLS_ENABLED: 'false'
+
+      # アプリと同じ PostgreSQL の中に、別データベースとして同居させる。
+      # 別インスタンスを立てないのは、オンプレでも「1 つの PostgreSQL に複数の
+      # データベース」で運用するつもりだから。手元だけ構成を変えない。
+      #
+      # zitadel 用のデータベースとロールは、下の admin 資格で自分で作る
+      # （db の初期化スクリプトは volume が空のときしか走らないため、
+      #   既にデータのある手元でも動くようにこちら側に寄せる）。
+      ZITADEL_DATABASE_POSTGRES_HOST: db
+      ZITADEL_DATABASE_POSTGRES_PORT: '5432'
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${LOCAL_DB_USER:-frestyle}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${LOCAL_DB_PASSWORD:-frestyle}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+
+      # 手元は TLS を張らないので、外向きの URL も http で組ませる。
+      # ここが実際の待ち受けとずれると、発行される issuer と検出文書が食い違い、
+      # トークン検証が「issuer が違う」で必ず落ちる。
+      ZITADEL_EXTERNALSECURE: 'false'
+      ZITADEL_EXTERNALDOMAIN: localhost
+      ZITADEL_EXTERNALPORT: '8081'
+
+      # 初期管理者。手元専用の固定値で、本番では絶対に使わない。
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: zitadel-admin
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: 'Password1!'
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: 'false'
+
+      # 機械ユーザーと個人アクセストークン（PAT）を初期化時に作る。
+      # これが無いと、プロジェクトや OIDC クライアントの作成をコンソールで
+      # 手作業する以外に方法が無くなる。**手順が人の記憶に残ると再現できない**ので、
+      # 管理 API を叩ける資格をここで用意して、設定をスクリプトから流せるようにする。
+      # PAT は下の volume（zitadel_pat）へ書き出され、ホストから読める。
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: frestyle-admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: FreStyle Admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_SCOPES: 'openid profile urn:zitadel:iam:org:project:id:zitadel:aud'
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: '2100-01-01T00:00:00Z'
+      ZITADEL_FIRSTINSTANCE_PATPATH: /pat/frestyle-admin.pat
+    volumes:
+      # 初期化時に発行される PAT の置き場。ホストからは
+      #   docker compose exec zitadel cat /pat/frestyle-admin.pat
+      # で読める。手元専用の資格なので volume に置いたままでよい。
+      - zitadel_pat:/pat
+    ports:
+      # backend が 8080 を使っているので 8081 に寄せる。
+      - '${LOCAL_ZITADEL_PORT:-8081}:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+      zitadel-pat-dir:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', '/app/zitadel', 'ready']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
 volumes:
+  zitadel_pat:
+    name: frestyle-local-zitadel-pat
   db_data:
     name: frestyle-local-db-data

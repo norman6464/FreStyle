@@ -2,8 +2,11 @@ import apiClient from '@/shared/api/axios';
 import { toArray } from '@/shared/lib/toArray';
 import { NOTES_API } from '@/shared/config/apiRoutes';
 import type {
+  NoteGrantablePrincipal,
+  NoteGrantRole,
   NotePage,
   NotePageDoc,
+  NotePageGrant,
   NotePageTree,
   NoteResolvedPage,
   NoteSpace,
@@ -211,6 +214,57 @@ const NoteRepository = {
    * ページ本文（ProseMirror doc）を丸ごと置き換える。編集権限が要る。
    * 保存されるのは行スキーマから組み立て直した正規形で、応答はその正規形を返す。
    */
+  /**
+   * そのページ自身に張られた既定の役割を返す。
+   *
+   * **「このページを見られる人の一覧」ではない。** 上の段（ワークスペース / スペース /
+   * 祖先のページ）から届いている相手は含まれず、空でも「誰も見られない」の意味にならない。
+   * 画面はそれが分かる見せ方をすること。
+   */
+  async listPageGrants(workspaceSlug: string, pageId: string): Promise<NotePageGrant[]> {
+    const res = await apiClient.get<NotePageGrant[]>(NOTES_API.pageGrants(workspaceSlug, pageId));
+    return toArray<NotePageGrant>(res.data);
+  },
+
+  /**
+   * 権限を張れる相手を表示名つきで返す（相手選び用）。
+   *
+   * name は空文字で返り得る（名前を引けなかった相手）。行は落とさないこと。
+   */
+  async listGrantablePrincipals(
+    workspaceSlug: string,
+    pageId: string,
+  ): Promise<NoteGrantablePrincipal[]> {
+    const res = await apiClient.get<NoteGrantablePrincipal[]>(
+      NOTES_API.pagePrincipals(workspaceSlug, pageId),
+    );
+    return toArray<NoteGrantablePrincipal>(res.data);
+  },
+
+  /**
+   * ページでの既定の役割を主体に与える（同じ主体には 1 行だけなので上書きになる）。
+   *
+   * **これで誰かを弱めることはできない。** 既定は 3 段から届いて最も強いものが実効に
+   * なるので、上位で editor を得ている相手に viewer を張っても editor のまま。
+   */
+  async grantPageRole(
+    workspaceSlug: string,
+    pageId: string,
+    principalId: string,
+    role: NoteGrantRole,
+  ): Promise<NotePageGrant> {
+    const res = await apiClient.put<NotePageGrant>(
+      NOTES_API.pageGrant(workspaceSlug, pageId, principalId),
+      { role },
+    );
+    return res.data;
+  },
+
+  /** ページでの既定の役割を剥がす（冪等）。上の段から届いている分は残る。 */
+  async revokePageRole(workspaceSlug: string, pageId: string, principalId: string): Promise<void> {
+    await apiClient.delete(NOTES_API.pageGrant(workspaceSlug, pageId, principalId));
+  },
+
   async replaceContent(
     workspaceSlug: string,
     pageId: string,

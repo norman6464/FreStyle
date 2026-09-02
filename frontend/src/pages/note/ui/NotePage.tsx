@@ -12,6 +12,8 @@ import { useNotePageDoc } from '../model/useNotePageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { subscribeNoteTreeEvents } from '@/entities/note';
 import NotePageTitle from './NotePageTitle';
+import NoteSharePanel from './NoteSharePanel';
+import { useNoteShare } from '../model/useNoteShare';
 
 /**
  * NotePage はノートの画面（左にサイドバー、右に本文）。
@@ -72,6 +74,17 @@ export default function NotePage() {
   subpageContext.current = { data, navigate, showToast };
   // 題名で Enter → 本文の先頭へ（見出しから書き出しへ流れるように移る）。
   const [bodyFocusSignal, setBodyFocusSignal] = useState(0);
+  // 共有パネルの開閉。ページを移ったら必ず閉じる（別のページの設定を開いたまま
+  // 題名だけ変わると、どのページを共有しているのか読めなくなる）。
+  const [shareOpen, setShareOpen] = useState(false);
+  useEffect(() => {
+    setShareOpen(false);
+  }, [pageId]);
+  // 閉じている間は取りに行かない（開いていないパネルのために毎ページ 2 本引かない）。
+  const share = useNoteShare(
+    shareOpen ? data?.workspaceSlug : undefined,
+    shareOpen ? data?.page.id : undefined,
+  );
 
   const extraSlashCommands = useMemo<EditorCommand[]>(
     () => [
@@ -149,7 +162,8 @@ export default function NotePage() {
                 見えない祖先は応答に含まれず、穴があいたまま出す（木と同じ見え方。
                 フロントで埋めると、サーバーが伏せた実在を推測で喋ることになる）。
               */}
-              <nav aria-label="ページの場所" className="mb-2 flex min-w-0 flex-wrap items-center gap-1 text-xs text-[var(--color-text-muted)]">
+              <div className="mb-2 flex items-start justify-between gap-3">
+              <nav aria-label="ページの場所" className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-[var(--color-text-muted)]">
                 <span className="truncate">{data.workspaceName ?? data.workspaceSlug}</span>
                 {/* ?? [] はデプロイ順の防御 — 旧バックエンドの応答（ancestors なし）でも落とさない */}
                 {(data.ancestors ?? []).map((ancestor) => (
@@ -171,6 +185,38 @@ export default function NotePage() {
                   </span>
                 </span>
               </nav>
+              {/*
+                共有は canManage のときだけ出す。権限が無い相手に押せるボタンを出しても、
+                返るのは 404 だけで「権限が無い」ことすら伝わらない。
+              */}
+              {data.canManage && (
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen((open) => !open)}
+                    aria-expanded={shareOpen}
+                    className="rounded border border-surface-3 px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
+                  >
+                    共有
+                  </button>
+                  {shareOpen && (
+                    <div className="absolute right-0 top-full z-20 mt-1">
+                      <NoteSharePanel
+                        pageTitle={data.page.title}
+                        rows={share.rows}
+                        candidates={share.candidates}
+                        loading={share.loading}
+                        error={share.error}
+                        saving={share.saving}
+                        onGrant={share.grant}
+                        onRevoke={share.revoke}
+                        onClose={() => setShareOpen(false)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
               {/* ページごとに作り直す（別ページへ移った瞬間、打ちかけの下書きを持ち越さない） */}
               <NotePageTitle
                 key={data.page.id}

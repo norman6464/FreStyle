@@ -10,6 +10,8 @@ const hoisted = vi.hoisted(() => ({
   replaceContent: vi.fn(),
   renamePage: vi.fn(),
   createPage: vi.fn(),
+  listPageGrants: vi.fn(),
+  listGrantablePrincipals: vi.fn(),
   emit: vi.fn(),
   showToast: vi.fn(),
   navigate: vi.fn(),
@@ -25,6 +27,8 @@ vi.mock('@/entities/note', async (importOriginal) => {
       replaceContent: hoisted.replaceContent,
       renamePage: hoisted.renamePage,
       createPage: hoisted.createPage,
+      listPageGrants: hoisted.listPageGrants,
+      listGrantablePrincipals: hoisted.listGrantablePrincipals,
     },
     // スパイしつつ実物へ転送する（購読側の配線もこのテストの検査対象のため）。
     emitNoteTreeEvent: (event: Parameters<typeof actual.emitNoteTreeEvent>[0]) => {
@@ -61,7 +65,7 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
   };
 });
 
-const resolved = (canEdit: boolean) => ({
+const resolved = (canEdit: boolean, canManage = false) => ({
   workspaceSlug: 'w-3f2a9c',
   workspaceName: '開発チーム',
   ancestors: [{ id: 'anc-1', title: '親ページの親' }],
@@ -75,6 +79,7 @@ const resolved = (canEdit: boolean) => ({
   },
   doc: { type: 'doc', content: [] },
   canEdit,
+  canManage,
 });
 
 /** /page の run に渡す最小のエディタ（createSubpage が使う形だけ）。 */
@@ -96,6 +101,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   hoisted.editorProps.current = null;
   hoisted.resolvePage.mockResolvedValue(resolved(true));
+  hoisted.listPageGrants.mockResolvedValue([]);
+  hoisted.listGrantablePrincipals.mockResolvedValue([]);
 });
 
 describe('NotePage の配線', () => {
@@ -240,5 +247,43 @@ describe('NotePage の配線', () => {
     expect(hoisted.editorProps.current?.extraSlashCommands).toBeUndefined();
     // 題名も入力欄ではなく見出しで出る。
     expect(screen.getByRole('heading', { name: '親ページ' })).toBeInTheDocument();
+  });
+});
+
+describe('NotePage の共有', () => {
+  it('権限を変えられないページには共有ボタンを出さない', async () => {
+    // 押しても 404 が返るだけのボタンは、権限が無いことすら伝えない。
+    hoisted.resolvePage.mockResolvedValue(resolved(true, false));
+    renderPage();
+
+    await screen.findByText('親ページ');
+    expect(screen.queryByRole('button', { name: '共有' })).not.toBeInTheDocument();
+  });
+
+  it('開くまで権限は取りに行かない', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true, true));
+    renderPage();
+
+    const share = await screen.findByRole('button', { name: '共有' });
+    // 開いていないパネルのために、ページを開くたび 2 本引かない。
+    // 片方だけ先読みに戻る退行を拾えるよう、両方を見る。
+    expect(hoisted.listPageGrants).not.toHaveBeenCalled();
+    expect(hoisted.listGrantablePrincipals).not.toHaveBeenCalled();
+
+    fireEvent.click(share);
+    await waitFor(() => expect(hoisted.listPageGrants).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+    expect(hoisted.listGrantablePrincipals).toHaveBeenCalledWith('w-3f2a9c', 'p1');
+    expect(await screen.findByRole('region', { name: '共有' })).toBeInTheDocument();
+  });
+
+  it('閉じるボタンでパネルが消える', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true, true));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '共有' }));
+    const panel = await screen.findByRole('region', { name: '共有' });
+    fireEvent.click(within(panel).getByLabelText('共有を閉じる'));
+
+    await waitFor(() => expect(screen.queryByRole('region', { name: '共有' })).not.toBeInTheDocument());
   });
 });

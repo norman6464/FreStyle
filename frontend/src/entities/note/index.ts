@@ -21,4 +21,7 @@ export type {
   NotePageDoc,
   NoteResolvedPage,
   NoteAncestorRef,
+  NoteGrantRole,
+  NotePageGrant,
+  NoteGrantablePrincipal,
 } from './model/types';

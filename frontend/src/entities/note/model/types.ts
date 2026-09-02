@@ -113,6 +113,13 @@ export interface NoteResolvedPage {
   doc: unknown;
   canEdit: boolean;
   /**
+   * このページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
+   *
+   * canEdit と違い、**経路上の例外を見ない**。自分を deny したページでも true のまま返る。
+   * そうしないと、締め出しを張った本人がその例外を自分で戻せなくなる。
+   */
+  canManage: boolean;
+  /**
    * 閲覧できる祖先だけが根から順に入る（パンくず用）。
    * 見えない祖先は行ごと無い — 木と同じ規則で、穴があき得る。
    */
@@ -123,4 +130,35 @@ export interface NoteResolvedPage {
 export interface NoteAncestorRef {
   id: string;
   title: string;
+}
+
+/** 既定の役割。強い順に admin > editor > commenter > viewer。 */
+export type NoteGrantRole = 'admin' | 'editor' | 'commenter' | 'viewer';
+
+/**
+ * ページ自身に張られた既定の役割 1 件。
+ *
+ * **「このページを見られる人」ではない。** 返るのはこの段で足した行だけで、
+ * ワークスペース / スペース / 祖先のページから届いている相手は含まれない。
+ * 空でも「誰も見られない」ではなく「この段では何も足していない」の意味になる。
+ */
+export interface NotePageGrant {
+  pageId: string;
+  principalId: string;
+  role: NoteGrantRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 権限を張れる相手 1 件。
+ *
+ * name は表示名で、**引けなかった場合は空文字**（backend が行を落とさずそう返す）。
+ * 画面もそれに合わせて行を消さない — 消すと、その相手に張った権限が一覧に出たまま
+ * 選べなくなる。
+ */
+export interface NoteGrantablePrincipal {
+  id: string;
+  kind: 'user' | 'group' | 'space_all';
+  name: string;
 }

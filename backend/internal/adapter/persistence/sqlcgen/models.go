@@ -35,6 +35,15 @@ type Block struct {
 	UpdatedAt   time.Time
 }
 
+type ChapterGrant struct {
+	WorkspaceID uuid.UUID
+	ChapterID   int64
+	PrincipalID uuid.UUID
+	Role        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Company struct {
 	ID          int64
 	Name        string
@@ -89,6 +98,15 @@ type CourseChapter struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	WorkspaceID     uuid.NullUUID
+}
+
+type CourseGrant struct {
+	WorkspaceID uuid.UUID
+	CourseID    int64
+	PrincipalID uuid.UUID
+	Role        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type ExerciseSubmission struct {

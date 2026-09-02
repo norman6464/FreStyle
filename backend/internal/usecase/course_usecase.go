@@ -54,13 +54,37 @@ func (uc *CourseUseCase) requireCourse(
 	return nil
 }
 
-func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actor MaterialActor) (*domain.Course, error) {
-	if err := uc.requireCourse(ctx, actor, id, func(p domain.MaterialPermission) bool {
-		return p.CanView
-	}); err != nil {
+// CourseWithPermission はコース 1 件と、読み手にとっての実効権限。
+//
+// 権限を一緒に返すのは、**画面が自分で判断しないようにする**ため。以前は画面が
+// アプリのロール（company_admin なら編集できる）で編集 UI を出していたが、可否は
+// 対象ごとの付与で決まるので、ロールで出すと「ボタンは出るのに保存が弾かれる」
+// 状態になる。誰が何をしてよいかはサーバーが答え、画面はそれに従う。
+type CourseWithPermission struct {
+	domain.Course
+	// CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。
+	CanEdit bool `json:"canEdit"`
+	// CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。
+	CanManage bool `json:"canManage"`
+}
+
+func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actor MaterialActor) (*CourseWithPermission, error) {
+	workspaceID, affiliated := actor.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return nil, domain.ErrNotFound
+	}
+	perm, err := uc.perm.Course(ctx, workspaceID, id, actor.ActorUserID)
+	if err != nil {
 		return nil, err
 	}
-	return uc.courses.GetByID(ctx, id)
+	if !perm.CanView {
+		return nil, domain.ErrNotFound
+	}
+	course, err := uc.courses.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &CourseWithPermission{Course: *course, CanEdit: perm.CanEdit, CanManage: perm.CanManage}, nil
 }
 
 type CreateCourseInput struct {

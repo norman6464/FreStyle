@@ -25,6 +25,8 @@ import { useLessonProgress } from '../model/useLessonProgress';
 import DocTableOfContents from './DocTableOfContents';
 import MaterialListItem from './MaterialListItem';
 import MaterialSkeleton from './MaterialSkeleton';
+import { SharePanel } from '@/features/permission-sharing';
+import { useCourseShare } from '../model/useCourseShare';
 import ManagedDetail from './ManagedDetail';
 import ReadOnlyDetail from './ReadOnlyDetail';
 import { stripLeadingDocTitle } from '../lib/stripLeadingDocTitle';
@@ -43,8 +45,6 @@ export default function CourseDetailPage() {
   const courseId = id ? Number(id) : null;
   const navigate = useNavigate();
 
-  const role = useAppSelector((state) => state.auth.role);
-  const canManage = role === 'company_admin' || role === 'super_admin';
 
   const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
@@ -59,6 +59,21 @@ export default function CourseDetailPage() {
   // デスクトップの章一覧パネルの開閉。 教材を切り替えても継続するよう localStorage に保持（既定は表示）。
 
   const [course, setCourse] = useState<Course | null>(null);
+
+  // 編集できるかは**サーバーが答える**。以前はアプリのロール（company_admin なら編集
+  // できる）で出していたが、可否は対象ごとの付与で決まるので、ロールで出すと
+  // 「ボタンは出るのに保存が弾かれる」状態になる。
+  //
+  // 応答が届くまでは編集の入口を出さない。先に出して後から消えると、押した操作が
+  // 途中で無かったことになる。
+  const canManage = course?.canEdit ?? false;
+  const canShare = course?.canManage ?? false;
+  const [shareOpen, setShareOpen] = useState(false);
+  useEffect(() => {
+    setShareOpen(false);
+  }, [courseId]);
+  // 閉じている間は取りに行かない（開いていないパネルのために毎回 2 本引かない）。
+  const share = useCourseShare(shareOpen && courseId != null ? courseId : undefined);
   const [courseLoading, setCourseLoading] = useState(true);
   const [courseError, setCourseError] = useState<string | null>(null);
 
@@ -219,6 +234,35 @@ export default function CourseDetailPage() {
               <ArrowLeftIcon className="w-3.5 h-3.5" />
               コース一覧
             </Link>
+            {canShare && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShareOpen((open) => !open)}
+                  aria-expanded={shareOpen}
+                  className="w-full rounded border border-surface-3 px-3 py-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
+                >
+                  共有
+                </button>
+                {shareOpen && (
+                  <div className="absolute left-0 top-full z-20 mt-1 w-80">
+                    <SharePanel
+                      targetTitle={course.title || '無題のコース'}
+                      inheritedNote="ワークスペースの管理者はここには出ません。"
+                      emptyNote="このコースではまだ誰にも権限を足していません。ワークスペースの管理者は、ここが空でもこのコースを扱えます。"
+                      rows={share.rows}
+                      candidates={share.candidates}
+                      loading={share.loading}
+                      error={share.error}
+                      saving={share.saving}
+                      onGrant={share.grant}
+                      onRevoke={share.revoke}
+                      onClose={() => setShareOpen(false)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             {canManage && (
               <button
                 onClick={handleCreate}

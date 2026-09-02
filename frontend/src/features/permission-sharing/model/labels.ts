@@ -1,4 +1,4 @@
-import type { NoteGrantRole } from '@/entities/note';
+import type { ShareRole } from './types';
 
 /**
  * 役割の選択肢（強い順）。値は backend の domain.GrantRole と同じ。
@@ -6,7 +6,7 @@ import type { NoteGrantRole } from '@/entities/note';
  * パネルと行の両方が同じ並びを出す必要があるので、ここに 1 つだけ置く
  * （写すと、片方だけ選択肢が増えたときに「一覧では選べるのに追加では選べない」になる）。
  */
-export const ROLES: ReadonlyArray<{ value: NoteGrantRole; label: string }> = [
+export const ROLES: ReadonlyArray<{ value: ShareRole; label: string }> = [
   { value: 'admin', label: '管理' },
   { value: 'editor', label: '編集' },
   { value: 'commenter', label: 'コメント' },

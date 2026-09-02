@@ -52,7 +52,7 @@ func (h *CourseHandler) List(c *gin.Context) {
 // @Tags         courses
 // @Produce      json
 // @Param        id  path      int  true  "コース ID"
-// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Success      200  {object}  usecase.CourseWithPermission
 // @Failure      400  {object}  errorResponse  "id 不正"
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      403  {object}  errorResponse  "操作 権限 なし"

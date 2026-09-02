@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
-import NoteSharePanel from './NoteSharePanel';
-import type { NoteShareRow } from '../model/useNoteShare';
+import SharePanel from './SharePanel';
+import type { ShareRow } from '../model/types';
 
 /**
- * ページ単位の共有パネル。設計の記録は
+ * 対象ごとの共有パネル（ノートのページ / コース / 教材で共用）。設計の記録は
  * https://claude.ai/code/artifact/7a173249-210b-4042-8bc4-d24ccacd303c
  *
  * いちばん大事なのは **出さないものの扱い**。一覧に並ぶのはこのページ自身に張った行だけで、
@@ -15,11 +15,14 @@ import type { NoteShareRow } from '../model/useNoteShare';
  * （似た文を 2 つ並べると、どちらも読み飛ばされる）。
  */
 const meta = {
-  title: 'note/NoteSharePanel',
-  component: NoteSharePanel,
+  title: 'permission-sharing/SharePanel',
+  component: SharePanel,
   parameters: { layout: 'centered' },
   args: {
-    pageTitle: '設計メモ / 権限モデル',
+    targetTitle: '設計メモ / 権限モデル',
+    inheritedNote: '上の段（ワークスペース・スペース・親ページ）から届いている人はここには出ません。',
+    emptyNote:
+      'ここではまだ誰にも権限を足していません。上の段から届いている人は、ここが空でもこれを見られます。',
     rows: [],
     candidates: [],
     loading: false,
@@ -30,12 +33,12 @@ const meta = {
     onRevoke: fn(async () => true),
     onClose: fn(),
   },
-} satisfies Meta<typeof NoteSharePanel>;
+} satisfies Meta<typeof SharePanel>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const ROWS: NoteShareRow[] = [
+const ROWS: ShareRow[] = [
   { principalId: 'p-tanaka', role: 'editor', name: '田中 太郎', kind: 'user' },
   { principalId: 'p-all', role: 'viewer', name: '開発ノート', kind: 'space_all' },
 ];
@@ -92,9 +95,9 @@ export const まだ誰も足していない: Story = {
   args: { rows: [], candidates: CANDIDATES },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByText(/ここが空でもこのページを見られます/),
-    ).toBeVisible();
+    // 空の一文は呼び出し側が渡す（段の呼び名が対象で違うため）。
+    // ここで見たいのは「空でも黙って空欄にしない」こと。
+    await expect(canvas.getByText(/ここが空でもこれを見られます/)).toBeVisible();
   },
 };
 
@@ -149,5 +152,27 @@ export const 書き込み中: Story = {
     await expect(canvas.getByLabelText('田中 太郎 の役割')).toBeDisabled();
     await expect(canvas.getByLabelText('田中 太郎 を外す')).toBeDisabled();
     await expect(canvas.getByLabelText('足す相手')).toBeDisabled();
+  },
+};
+
+/**
+ * 教材（コース）で使ったところ。段の呼び名が違うだけで、見え方と操作は同じ。
+ *
+ * 部品を 1 つにしている理由がここにある。ノートと教材で別々に作ると、
+ * 「空の意味を書く」という約束が片方だけ守られなくなる。
+ */
+export const コースで使う: Story = {
+  args: {
+    targetTitle: 'Git 入門',
+    inheritedNote: 'ワークスペースの管理者はここには出ません。',
+    emptyNote:
+      'このコースではまだ誰にも権限を足していません。ワークスペースの管理者は、ここが空でもこのコースを扱えます。',
+    rows: [{ principalId: 'p-tanaka', role: 'editor', name: '田中 太郎', kind: 'user' }],
+    candidates: CANDIDATES,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Git 入門')).toBeVisible();
+    await expect(canvas.getByText(/ワークスペースの管理者はここには出ません/)).toBeVisible();
   },
 };

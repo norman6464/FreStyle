@@ -646,6 +646,8 @@ func Test_ページ権限剥奪_必須項目の検証と委譲(t *testing.T) {
 	require.NoError(t, uc.Execute(ctx, usecase.RevokePageRoleInput{
 		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
 	}))
+	// 実際に消しに行ったことまで見る。これが無いと、何もせず nil を返す実装でも通る。
+	repo.AssertExpectations(t)
 }
 
 func Test_ページ権限一覧_必須項目の検証と委譲(t *testing.T) {

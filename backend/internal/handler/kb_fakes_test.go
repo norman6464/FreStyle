@@ -773,6 +773,13 @@ func (f *kbFakePerms) PagePermissionFactsForUser(_ context.Context, workspaceID,
 	if !ok || page.WorkspaceID != workspaceID {
 		return nil, repository.ErrPageNotFound
 	}
+	// 非メンバーには既定の役割を 1 つも届かせない。本番は主体（principals の
+	// kind='user' の行）から役割を集めるので、その行が無ければ集めようがない。
+	// ここを素通しにすると、fake の中でだけ非メンバーが役割を持ち、
+	// 「非メンバーは 1 本も通せない」を確かめているテストが空振りする。
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return &domain.PagePermissionFacts{}, nil
+	}
 	mine := f.mine(workspaceID, page.SpaceID, userID)
 	roles := f.rolesAt(kbScopeKey{scopeID: page.SpaceID, userID: userID}, workspaceID, userID)
 	roles = append(roles, f.pageGrantRoles(workspaceID, pageID, mine)...)
@@ -780,7 +787,7 @@ func (f *kbFakePerms) PagePermissionFactsForUser(_ context.Context, workspaceID,
 		roles = append(roles, *role)
 	}
 	return &domain.PagePermissionFacts{
-		Member: f.userPrincipal(workspaceID, userID) != nil,
+		Member: true,
 		Role:   domain.StrongestGrantRole(roles),
 		View:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityView, mine),
 		Edit:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityEdit, mine),

@@ -740,6 +740,7 @@ func TestKnowledgeBasePageGrantAPI_ページのadminはその枝だけを管理�
 
 		require.Len(t, onChild, 1)
 		assert.Equal(t, env.targetPrincipal, onChild[0]["principalId"])
+		assert.Equal(t, "admin", onChild[0]["role"], "役割まで返る（キー名も含めて固定する）")
 		assert.Empty(t, onGrandchild, "祖先の行は含めない（届いてはいるが、張った段はここではない）")
 	})
 

@@ -284,18 +284,31 @@ func TestPageGrant_書き経路_テナントと参照の整合_Integration(t *te
 	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
 	alice := f.principalFor(ctx, t, f.alice)
 
-	t.Run("別ワークスペースのページには張れない", func(t *testing.T) {
-		// 複合 FK（workspace_id, page_id）が塞ぐ。ここが通ると、自分のワークスペースの
-		// 主体に他テナントのページの権限を配れる。
-		other := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "他社").ID
-		_, err := f.perm.UpsertPageGrant(ctx, f.ws, other, alice.ID, domain.GrantRoleEditor)
-		assert.Error(t, err)
-	})
+	// 張れないページの一覧。どれも複合 FK（workspace_id, page_id）が塞ぐ。
+	// ここが 1 つでも通ると、自分のワークスペースの主体に他テナントのページの権限を配れる。
+	for _, c := range []struct {
+		name   string
+		pageID func() string
+	}{
+		{"別ワークスペースのページ", func() string {
+			return mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "他社").ID
+		}},
+		{"存在しないページ", newID},
+	} {
+		t.Run(c.name+"には張れない", func(t *testing.T) {
+			target := c.pageID()
+			_, err := f.perm.UpsertPageGrant(ctx, f.ws, target, alice.ID, domain.GrantRoleEditor)
+			require.Error(t, err)
 
-	t.Run("存在しないページには張れない", func(t *testing.T) {
-		_, err := f.perm.UpsertPageGrant(ctx, f.ws, newID(), alice.ID, domain.GrantRoleEditor)
-		assert.Error(t, err)
-	})
+			// 断られただけでなく、行が 1 つも残っていないこと。
+			// 「エラーは返るが書けている」は、次の一覧で初めて見つかる壊れ方になる。
+			var count int
+			require.NoError(t, sqlDB.QueryRow(
+				`SELECT count(*) FROM page_grants WHERE page_id = $1`, target,
+			).Scan(&count))
+			assert.Zero(t, count, "断った要求の行を残さない")
+		})
+	}
 
 	t.Run("ページを消すと張った行も消える", func(t *testing.T) {
 		doomed := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "消す").ID

@@ -30,6 +30,7 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	}
 
 	testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+	ensureCourses(t, sqlDB, nil, 10, 20, 30)
 	insertCompany(t, sqlDB, 1, "会社 A", true)
 	insertCompany(t, sqlDB, 2, "会社 B", true)
 	runStartupBackfill(ctx, t, sqlDB)
@@ -47,7 +48,7 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	require.NoError(t, repo.Create(ctx, mk(&ws1Str, 10, "c10-draft", false)))
 	require.NoError(t, repo.Create(ctx, mk(&ws1Str, 20, "c20-pub", true)))
 	// ワークスペース B: 別ワークスペース分は集計に含まれない
-	require.NoError(t, repo.Create(ctx, mk(&ws2Str, 10, "other-workspace", true)))
+	require.NoError(t, repo.Create(ctx, mk(&ws2Str, 30, "other-workspace", true)))
 
 	t.Run("published のみ (trainee 相当)", func(t *testing.T) {
 		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), false)
@@ -76,6 +77,7 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, sqlDB, "course_chapters")
+	ensureCourses(t, sqlDB, nil, 10, 20, 30)
 	m := &domain.TeachingMaterial{
 		CourseID: 10, CreatedByUserID: 1,
 		Title: "章", OrderInCourse: 1, IsPublished: true,
@@ -127,6 +129,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Create は id 採番・既定 revision/schema_version=1・created_at を現在時刻で埋める", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		m := mk(10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.NotZero(t, m.ID)
@@ -138,6 +141,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Create は sort_order=0 のとき既定 100 を当てる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		m := mk(10, "章", 0, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.Equal(t, 100, m.OrderInCourse) // GORM default:100 相当
@@ -145,6 +149,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Create は int32 を超える revision / schema_version / sort_order を切り詰めず保存する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		// revision / schema_version / sort_order はいずれも bigint 列。パラメータを int4 に
 		// 落とすとこの値は負数へ巻き戻り、エラーも出ないまま別の値が保存される。
 		const beyondInt32 = math.MaxInt32 + 1
@@ -162,6 +167,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("GetByID は本文 doc・workspace_id を含めて返し、未存在は domain.ErrNotFound", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
@@ -194,6 +200,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("ListByCourse は sort_order 昇順・published フィルタ・doc 本体なし", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		c3 := mk(10, "c3", 3, true)
 		c1 := mk(10, "c1", 1, true)
 		c2 := mk(10, "c2", 2, false) // draft
@@ -224,6 +231,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("ListByWorkspace はワークスペースで絞り・published フィルタ・更新日降順", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
@@ -282,6 +290,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("ListByCourse / ListByWorkspace は workspace_id も含めて返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		runStartupBackfill(ctx, t, sqlDB)
 		ws1 := companyWorkspaceID(t, sqlDB, 1)
@@ -307,6 +316,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Update は title/sort_order/is_published を書き・不変列を保ち・updated_at を進める", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
 		insertCompany(t, sqlDB, 2, "会社 B", true)
 		runStartupBackfill(ctx, t, sqlDB)
@@ -344,6 +354,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Update は存在しない id で domain.ErrNotFound を返す（黙って成功にしない）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		// 巻き添えで他の行が書き換わらないことも同時に見るため 1 件だけ残しておく。
 		keep := mk(10, "残す", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
@@ -359,6 +370,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Update は取得後に消えた章でも domain.ErrNotFound を返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		m := mk(10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		// usecase は Update の前に GetByID する。その隙に行が消える競合を再現する。
@@ -381,6 +393,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	//   not-found にすると空のコースを削除できなくなる。
 	t.Run("存在しない id への Delete は not-found / DeleteByCourse は 0 件でも成功", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		keep := mk(20, "keep", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
 
@@ -394,6 +407,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("Delete は 1 件を物理削除する", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		m := mk(10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.NoError(t, repo.Delete(ctx, m.ID))
@@ -403,6 +417,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 	t.Run("DeleteByCourse はコース配下を全削除し他コースは残す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
+		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		a1 := mk(10, "a1", 1, true)
 		a2 := mk(10, "a2", 2, true)
 		keep := mk(20, "keep", 1, true)

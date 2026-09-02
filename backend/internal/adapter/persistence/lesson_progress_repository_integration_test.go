@@ -77,6 +77,8 @@ func TestLessonProgressRepository_CountCompletedByUserGroupedByCourse_Integratio
 
 	testsupport.TruncateAll(t, sqlDB, "user_chapter_progress")
 	testsupport.TruncateAll(t, sqlDB, "course_chapters")
+	// 章は実在するコースにしかぶら下がらない（course_chapters → courses の FK）。
+	ensureCourses(t, sqlDB, nil, 10, 20)
 
 	mk := func(courseID uint64, title string, published bool) *domain.TeachingMaterial {
 		m := &domain.TeachingMaterial{

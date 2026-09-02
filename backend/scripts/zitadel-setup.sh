@@ -61,13 +61,19 @@ for p in d.get('result',[]):
 )"
 
 if [ -z "$PROJECT_ID" ]; then
-  PROJECT_ID="$(api POST /management/v1/projects "{\"name\":\"${PROJECT_NAME}\"}" | jqp "d['id']")"
+  # set -e の下では、jqp が失敗した時点でここが黙って終わる（エラーも出ない）。
+  # 応答を一度受けてから取り出し、取れなければ応答ごと見せて止める。
+  CREATED_PROJECT="$(api POST /management/v1/projects "{\"name\":\"${PROJECT_NAME}\"}")"
+  PROJECT_ID="$(printf '%s' "$CREATED_PROJECT" | jqp "d['id']" || true)"
+  if [ -z "$PROJECT_ID" ]; then
+    echo "プロジェクトを作れなかった。発行者の応答:" >&2
+    echo "$CREATED_PROJECT" >&2
+    exit 1
+  fi
   echo "プロジェクトを作った: ${PROJECT_NAME} (${PROJECT_ID})"
 else
   echo "プロジェクトは既にある: ${PROJECT_NAME} (${PROJECT_ID})"
 fi
-
-[ -n "$PROJECT_ID" ] || { echo "プロジェクト ID を取れない" >&2; exit 1; }
 
 # ---- OIDC クライアント ----
 APP_JSON="$(
@@ -100,7 +106,7 @@ if [ -z "$APP_JSON" ]; then
 }
 JSON
 )")"
-  CLIENT_ID="$(echo "$CREATED" | jqp "d['clientId']")"
+  CLIENT_ID="$(echo "$CREATED" | jqp "d['clientId']" || true)"
   if [ -z "$CLIENT_ID" ]; then
     echo "クライアントを作れなかった:" >&2
     echo "$CREATED" >&2
@@ -108,7 +114,12 @@ JSON
   fi
   echo "OIDC クライアントを作った: ${APP_NAME}"
 else
-  CLIENT_ID="$(echo "$APP_JSON" | jqp "d['oidcConfig']['clientId']")"
+  CLIENT_ID="$(echo "$APP_JSON" | jqp "d['oidcConfig']['clientId']" || true)"
+  if [ -z "$CLIENT_ID" ]; then
+    echo "既存のクライアントから client_id を取れない:" >&2
+    echo "$APP_JSON" >&2
+    exit 1
+  fi
   echo "OIDC クライアントは既にある: ${APP_NAME}"
 fi
 

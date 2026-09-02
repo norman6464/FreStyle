@@ -55,6 +55,25 @@ describe('buildAuthorizeUrl', () => {
     expect(url.toString()).not.toContain(flow.codeVerifier);
   });
 
+  // **要約と検証値が対応していること。**
+  // ここを見ないと、challenge に無関係な乱数を入れていても上のテストは通る。
+  // 対応が崩れていると、発行者が交換の時点で必ず弾く（ログインが最後まで通らない）。
+  it('code_challenge は手元の検証値の S256 要約になっている', async () => {
+    const url = new URL(await buildAuthorizeUrl());
+    const flow = JSON.parse(sessionStorage.getItem('oidc.authFlow') as string);
+
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(flow.codeVerifier),
+    );
+    const expected = btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    expect(url.searchParams.get('code_challenge')).toBe(expected);
+  });
+
   it('state と nonce を載せ、同じ値を手元に置く', async () => {
     const url = new URL(await buildAuthorizeUrl());
     const flow = JSON.parse(sessionStorage.getItem('oidc.authFlow') as string);

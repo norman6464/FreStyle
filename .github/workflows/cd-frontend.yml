@@ -80,6 +80,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # 認可の設定が空のままビルドすると、**動くように見えて誰もログインできない**
+      # 成果物が本番へ出る（認可 URL の組み立てが実行時に失敗する）。
+      # 出す前にここで止める。END_SESSION は空でも動く設計なので必須にしない。
+      - name: 認可の設定が揃っているか確かめる
+        run: |
+          missing=""
+          for k in VITE_OIDC_AUTHORIZE_URI VITE_OIDC_CLIENT_ID VITE_OIDC_REDIRECT_URI; do
+            eval "v=\$$k"
+            [ -n "$v" ] || missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::認可の設定が空です:$missing — 本番の発行者を決めて Secrets を設定してください"
+            exit 1
+          fi
+
       # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
       # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
       - name: Setup pnpm

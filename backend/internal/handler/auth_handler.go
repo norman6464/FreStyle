@@ -250,12 +250,22 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	tok, err := h.tokens.RefreshAccessToken(c.Request.Context(), rt)
 	if err != nil {
-		// refresh_token 無効は Cookie クリアして 401。それ以外（502 等）は Cookie を残す。
 		var exErr *oidc.TokenExchangeError
 		if errors.As(err, &exErr) {
 			log.Printf("refresh: status=%d body=%s", exErr.HTTPStatus, exErr.Body)
-			middleware.ClearAuthCookies(c)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_failed"})
+			// **Cookie を消すのは「この refresh_token はもう使えない」と分かったときだけ。**
+			//
+			// TokenExchangeError は 200 以外のすべてを表すので、429（絞られた）や
+			// 5xx（発行者が一時的に落ちている）でも同じ扱いにすると、
+			// 発行者の短い不調が「全利用者の強制ログアウト」に化ける。
+			// 手元のトークンはまだ有効なのに、こちらから捨てることになる。
+			if isUnrecoverableGrantError(exErr) {
+				middleware.ClearAuthCookies(c)
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_failed"})
+				return
+			}
+			// 一時的な失敗。Cookie は残し、後でもう一度試せるようにする。
+			c.JSON(http.StatusBadGateway, gin.H{"error": "idp_unreachable"})
 			return
 		}
 		status, body, _ := h.handleTokenError(c, "refresh", err)
@@ -363,6 +373,20 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 	default:
 		log.Printf("%s: unexpected error: %v", op, err)
 		return http.StatusInternalServerError, gin.H{"error": "internal_error"}, true
+	}
+}
+
+// isUnrecoverableGrantError は「その refresh_token はもう使えない」と言い切れる失敗かを返す。
+//
+// OAuth2 は、grant そのものが無効なときに 400 と invalid_grant を返す（RFC 6749 §5.2）。
+// 401 も資格の問題なので同じ扱いにする。それ以外（429 / 5xx / 想定外）は
+// 「今は無理」であって「もう使えない」ではないので、手元の Cookie を捨てない。
+func isUnrecoverableGrantError(e *oidc.TokenExchangeError) bool {
+	switch e.HTTPStatus {
+	case http.StatusBadRequest, http.StatusUnauthorized:
+		return true
+	default:
+		return false
 	}
 }
 

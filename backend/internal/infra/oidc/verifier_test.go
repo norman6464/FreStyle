@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -26,7 +27,9 @@ type idp struct {
 	kid    string
 	server *httptest.Server
 	// hits は JWKS を何回取りに来たかの数。取得の抑止が効いているかを見る。
-	hits int
+	// 検証器は取得を別の goroutine から呼び得るので atomic で数える
+	// （-race で data race として報告されないように）。
+	hits atomic.Int64
 }
 
 func newIdP(t *testing.T) *idp {
@@ -37,7 +40,7 @@ func newIdP(t *testing.T) *idp {
 	}
 	i := &idp{key: key, kid: "kid-1"}
 	i.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		i.hits++
+		i.hits.Add(1)
 		n := base64.RawURLEncoding.EncodeToString(key.N.Bytes())
 		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes())
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -172,6 +175,21 @@ func Test_検証_受け入れる宛先を設定で足せる(t *testing.T) {
 	}
 }
 
+// **設定で足しても client_id は受け入れ続ける。**
+// ここが「置き換え」になっていると、id_token の aud は client_id なので、
+// プロジェクト識別子を設定した環境でログインが全員落ちる。
+func Test_検証_宛先を足してもclient_idは受け入れる(t *testing.T) {
+	i := newIdP(t)
+	v := newVerifier(t, i, "project-1")
+	tok := i.sign(t, map[string]any{
+		"iss": testIssuer, "aud": testClientID, "sub": "u1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	if _, err := v.Verify(context.Background(), tok); err != nil {
+		t.Fatalf("client_id 宛のトークンが落ちた（受入が置き換えになっている）: %v", err)
+	}
+}
+
 // azp は「誰のために出したか」。aud に巻き添えで並んでいるだけのトークンを弾く。
 func Test_検証_azpが別のクライアントなら弾く(t *testing.T) {
 	i := newIdP(t)
@@ -290,7 +308,7 @@ func Test_検証_未知の鍵でも取得を連打しない(t *testing.T) {
 			t.Fatal("未知の鍵のトークンが通ってしまった")
 		}
 	}
-	if i.hits > 1 {
-		t.Fatalf("JWKS を %d 回取りに行った（1 回に抑えたい）", i.hits)
+	if got := i.hits.Load(); got > 1 {
+		t.Fatalf("JWKS を %d 回取りに行った（1 回に抑えたい）", got)
 	}
 }

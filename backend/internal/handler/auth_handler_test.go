@@ -506,11 +506,14 @@ func Test_IDトークンからユーザー登録_宛先違いを弾く(t *testin
 	idp := newTestIdP(t)
 	h := newTestAuthHandler(t, idp, &fakeUserRepo{}, &fakeInvitationRepo{})
 
+	// aud だけを不正にする。ほかの必須クレームは有効なままにしておく
+	// （そうしないと、aud の検査を外しても別の理由で落ちてテストが通ってしまう）。
 	idToken := idp.signExact(t, map[string]any{
 		"iss":   testIssuer,
 		"aud":   "someone-elses-client",
 		"sub":   "u1",
 		"email": "u@example.com",
+		"iat":   time.Now().Add(-time.Minute).Unix(),
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 

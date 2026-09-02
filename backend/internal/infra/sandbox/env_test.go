@@ -15,6 +15,11 @@ func Test_機密env判定(t *testing.T) {
 		"DATABASE_URL",
 		"DB_PASSWORD",
 		"COGNITO_CLIENT_SECRET",
+		// 認証の設定は演習コードに見せない。CLIENT_SECRET は "SECRET" を含むので
+		// もともと弾かれるが、ISSUER のように含まないものは接頭辞でしか止まらない。
+		"OIDC_CLIENT_SECRET",
+		"OIDC_ISSUER",
+		"OIDC_CLIENT_ID",
 		"SES_FROM_ADDRESS",
 		"BEDROCK_MODEL_ID",
 		"CODE_RUNNER_URL",
@@ -50,6 +55,11 @@ func Test_サンドボックスenv_機密を除去し無害は残す(t *testing.
 		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
 		"DATABASE_URL",
 		"COGNITO_CLIENT_SECRET",
+		// 認証の設定は演習コードに見せない。CLIENT_SECRET は "SECRET" を含むので
+		// もともと弾かれるが、ISSUER のように含まないものは接頭辞でしか止まらない。
+		"OIDC_CLIENT_SECRET",
+		"OIDC_ISSUER",
+		"OIDC_CLIENT_ID",
 		"super-secret",
 	} {
 		if strings.Contains(joined, leaked) {

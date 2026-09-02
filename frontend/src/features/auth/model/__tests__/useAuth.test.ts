@@ -34,6 +34,41 @@ describe('useAuth', () => {
     vi.clearAllMocks();
   });
 
+  // 発行者側のセッション終了先が返ってきたら、そちらへ飛ぶ。
+  // 手元の Cookie を消すだけだと発行者にログイン済みが残り、同じ端末で入り直せてしまう。
+  it('logout: 発行者のセッション終了先が返れば そちらへ遷移する', async () => {
+    mockedRepo.logout.mockResolvedValue({
+      message: 'ログアウトしました。',
+      endSessionUrl: 'https://issuer.test/oidc/v1/end_session',
+    });
+    const original = window.location;
+    // location.href への代入を観測する（jsdom は実際の遷移をしない）。
+    const assigned: string[] = [];
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...original,
+        set href(v: string) {
+          assigned.push(v);
+        },
+        get href() {
+          return assigned[assigned.length - 1] ?? '';
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    Object.defineProperty(window, 'location', { configurable: true, value: original });
+
+    expect(assigned).toContain('https://issuer.test/oidc/v1/end_session');
+    // 発行者へ飛ばすので、SPA 内の /login へは送らない（二重遷移になる）。
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login');
+  });
+
   it('logout: ログアウト成功時にログインページに遷移する', async () => {
     mockedRepo.logout.mockResolvedValue({ message: 'ログアウトしました。' });
 

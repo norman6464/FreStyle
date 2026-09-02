@@ -17,7 +17,13 @@
 
 :8081 {
 	# ログイン画面（v4 では別コンテナ）。
-	handle /ui/v2/login/* {
+	#
+	# パスの照合は完全一致が既定で、スラッシュに意味がある。/ui/v2/login/* だけだと
+	# 末尾スラッシュ無しの /ui/v2/login が本体側へ行ってしまう。
+	# handle は照合子を 1 つしか取れないので、両方を名前付き照合子にまとめる。
+	# 前方一致の /ui/v2/login* にしないのは、/ui/v2/loginfoo まで拾ってしまうため。
+	@login path /ui/v2/login /ui/v2/login/*
+	handle @login {
 		reverse_proxy zitadel-login:3000
 	}
 

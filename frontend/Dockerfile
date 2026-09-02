@@ -43,6 +43,13 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_OIDC_END_SESSION_URI=$VITE_OIDC_END_SESSION_URI \
     VITE_OIDC_SCOPE=$VITE_OIDC_SCOPE
 
+# 認可の設定が空のままイメージを作らせない。空でビルドすると、起動はするのに
+# 誰もログインできないものが出来上がり、原因が実行時まで分からない。
+# END_SESSION は空でも動く設計（未設定なら発行者側のログアウトへ飛ばさない）なので除く。
+RUN test -n "$VITE_OIDC_AUTHORIZE_URI" || (echo "VITE_OIDC_AUTHORIZE_URI is required" >&2; exit 1) \
+ && test -n "$VITE_OIDC_CLIENT_ID"     || (echo "VITE_OIDC_CLIENT_ID is required" >&2; exit 1) \
+ && test -n "$VITE_OIDC_REDIRECT_URI"  || (echo "VITE_OIDC_REDIRECT_URI is required" >&2; exit 1)
+
 RUN pnpm run build
 
 # --- Runtime stage ---

@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/big"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -79,11 +80,14 @@ type Config struct {
 	JWKSURI string
 	// ClientID はこのアプリの client_id。azp（認可された相手）の照合に使う。
 	ClientID string
-	// Audiences は aud に含まれていることを要求する値。空なら ClientID だけを要求する。
+	// Audiences は ClientID に **足して** 受け入れる aud の値。
 	//
-	// 発行者によっては access_token の aud に client_id ではなくプロジェクト ID を
-	// 入れる。受け入れる値をここで明示できるようにしてあるのは、その差を
-	// 推測ではなく設定で吸収するため。
+	// 発行者によっては access_token の aud に client_id ではなくプロジェクトの
+	// 識別子を入れる。その差を推測ではなく設定で吸収するための項目。
+	//
+	// **ClientID は常に受け入れる**（ここを「置き換え」にしてはいけない）。
+	// id_token の aud は client_id なので、置き換えにすると
+	// 「プロジェクト識別子を設定したらログインが全員落ちる」ことになる。
 	Audiences []string
 }
 
@@ -101,9 +105,12 @@ func NewVerifier(cfg Config) (*Verifier, error) {
 	if cfg.ClientID == "" {
 		return nil, errors.New("oidc: client id is required")
 	}
-	auds := cfg.Audiences
-	if len(auds) == 0 {
-		auds = []string{cfg.ClientID}
+	// ClientID は常に受け入れる。設定はそれに足すだけ（重複は落とす）。
+	auds := []string{cfg.ClientID}
+	for _, a := range cfg.Audiences {
+		if a != "" && !slices.Contains(auds, a) {
+			auds = append(auds, a)
+		}
 	}
 	return &Verifier{
 		issuer:          cfg.Issuer,

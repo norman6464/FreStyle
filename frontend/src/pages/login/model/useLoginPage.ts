@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { buildAuthorizeUrl } from '@/features/auth';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
@@ -23,7 +23,15 @@ export function useLoginPage() {
   const navState = location.state as { toast?: string; message?: string } | null;
   const flashMessage = navState?.toast ?? navState?.message ?? null;
 
+  // 二重押しの見張り。state と検証値は呼ぶたびに作り直して sessionStorage を
+  // 上書きするので、同時に 2 回走らせると、先に飛んだ方の戻りで state が合わなくなる
+  // （利用者から見ると「押しただけでログインに失敗する」）。
+  // setLoading は次の描画までしか効かないので、描画に依らない印で止める。
+  const starting = useRef(false);
+
   const startLogin = useCallback(async (provider?: string) => {
+    if (starting.current) return;
+    starting.current = true;
     setLoading(true);
     setErrorMessage(null);
     try {
@@ -31,6 +39,7 @@ export function useLoginPage() {
       // 待たずに遷移すると、検証値を置く前にページが消えて次に進めなくなる。
       window.location.href = await buildAuthorizeUrl(provider);
     } catch (err) {
+      starting.current = false;
       setLoading(false);
       setErrorMessage(classifyApiError(err, 'ログイン画面へ移動できませんでした。'));
     }

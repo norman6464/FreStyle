@@ -332,8 +332,14 @@ services:
     volumes:
       - ./docker/zitadel-proxy/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
-      # 中と外で同じ番号にする（Host ヘッダにポートが乗るため）。
-      - '${LOCAL_ZITADEL_PORT:-8081}:8081'
+      # **8081 は固定。** 変えられるようにしない。
+      #
+      # Zitadel は Host ヘッダ（ポートを含む）でインスタンスを決め、issuer もその値で
+      # 組み立てる。ここだけ変えると、ブラウザは新しいポートで入るのに発行される iss は
+      # 8081 のままになり、検証器は iss を完全一致で見るのでログインした全員が 401 になる。
+      # 変えるなら、本体の ExternalPort・ログイン画面の URL・backend の OIDC_* を
+      # 同時に揃える必要がある。踏める分岐を残すより固定した方が安全。
+      - '8081:8081'
     networks:
       default:
         aliases:

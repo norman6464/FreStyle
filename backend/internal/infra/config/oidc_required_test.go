@@ -39,6 +39,14 @@ func Test_設定_APP_ENV未設定でも認証設定は必須(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://x/y")
 	// APP_ENV は設定しない（未設定なら既定の local に解決される）
 	t.Setenv("APP_ENV", "")
+	// 手元のシェルに OIDC_* が残っていると、このテストが「別の理由で」通ってしまう。
+	// 見たいのは「認証設定が無いこと」なので、明示的に空にする。
+	for _, k := range []string{
+		"OIDC_ISSUER", "OIDC_JWKS_URI", "OIDC_TOKEN_URI",
+		"OIDC_CLIENT_ID", "OIDC_REDIRECT_URI",
+	} {
+		t.Setenv(k, "")
+	}
 
 	cfg, err := Load()
 	require.Error(t, err, "APP_ENV 未設定でも認証設定は必須のはず")

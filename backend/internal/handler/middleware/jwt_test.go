@@ -95,6 +95,32 @@ func Test_JWT認証_検証が通ればsubと役割を渡す(t *testing.T) {
 	}
 }
 
+// 役割は発行者ごとに形が違う。配列だと決めつけると、表で来た瞬間に空になり、
+// 弾かれるのではなく静かに権限が消える。どの形でも読めることを固定する。
+func Test_JWT認証_役割はどの形でも読める(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		raw  any
+		want string
+	}{
+		{"文字列の配列", []any{"admin", "editor"}, `"roles":["admin","editor"]`},
+		{"文字列ひとつ", "admin", `"roles":["admin"]`},
+		{"役割名を鍵にした表", map[string]any{"admin": map[string]any{"org": "acme"}}, `"roles":["admin"]`},
+		{"空の配列", []any{}, `"roles":[]`},
+		{"想定外の型", 42, `"roles":null`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := newAuthedEngine(func(context.Context, string) (map[string]any, error) {
+				return map[string]any{"sub": "s", testRolesClaim: c.raw}, nil
+			})
+			body := getWithCookie(r, "tok").Body.String()
+			if !strings.Contains(body, c.want) {
+				t.Fatalf("body = %s, want %s", body, c.want)
+			}
+		})
+	}
+}
+
 // 役割のクレーム名を空にしたら、役割は積まれない（設定で切れることの確認）。
 func Test_JWT認証_役割クレーム名が空なら役割を積まない(t *testing.T) {
 	gin.SetMode(gin.TestMode)

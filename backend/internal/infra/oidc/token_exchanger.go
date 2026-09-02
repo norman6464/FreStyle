@@ -154,5 +154,11 @@ func (t *TokenExchanger) exchange(ctx context.Context, form url.Values) (*Token,
 	if err := json.Unmarshal(body, &tok); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
+	// 200 でも中身が空のことはある（発行者の不調・前段のプロキシが本文を落とす等）。
+	// そのまま返すと、空文字を Cookie に書いて「ログインできたのに全部 401」になる。
+	// 落ちる側に倒して、原因が分かる形で止める。
+	if tok.AccessToken == "" {
+		return nil, fmt.Errorf("%w: access_token が空", ErrInvalidResponse)
+	}
 	return &tok, nil
 }

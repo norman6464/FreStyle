@@ -3,6 +3,7 @@ import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
 
 import { useNavigate } from 'react-router-dom';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
+import { clearAuthHint } from '@/shared/lib/authHint';
 import { AuthRepository, UserInfo } from '@/entities/user';
 import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 
@@ -41,6 +42,9 @@ export const useAuth = () => {
       const { endSessionUrl } = await AuthRepository.logout();
       setUser(null);
       dispatch(clearAuth());
+      // 認証ヒント（次回の初期描画を早めるための印）も消す。
+      // 残すと、ログアウト後の再訪でログイン済みとして描き始めてしまう。
+      clearAuthHint();
       // 発行者側のセッションも終わらせる（手元の Cookie を消すだけでは残る）。
       if (endSessionUrl) {
         window.location.href = endSessionUrl;

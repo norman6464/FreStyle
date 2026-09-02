@@ -152,30 +152,69 @@ func Test_リフレッシュ_Cookieが無ければ401(t *testing.T) {
 	}
 }
 
-// 更新に失敗したら Cookie を消してログインへ戻す。残すと、無効な値で叩き続ける。
-func Test_リフレッシュ_更新に失敗したらCookieを消す(t *testing.T) {
-	idp := newTestIdP(t)
+// newFailingRefreshHandler は、発行者が指定の状態コードを返す状況を作る。
+func newFailingRefreshHandler(t *testing.T, idp *testIdP, status int, body string) *AuthHandler {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-
 	cfg := &config.OIDCConfig{ClientID: testClientID, TokenURI: srv.URL, AdminRoleClaim: testRolesClaim, AdminRole: "admin"}
-	h := &AuthHandler{
+	return &AuthHandler{
 		oidcCfg:  cfg,
 		verifier: idp.verifier(t),
 		tokens:   oidc.NewTokenExchanger(oidc.ExchangerConfig{ClientID: cfg.ClientID, TokenURI: cfg.TokenURI}),
 	}
+}
+
+// clearsAuthCookies は、失効させる Set-Cookie が出ているかを返す。
+func clearsAuthCookies(rec *httptest.ResponseRecorder) bool {
+	raw := strings.Join(rec.Result().Header.Values("Set-Cookie"), " | ")
+	return strings.Contains(raw, middleware.CookieRefreshToken) &&
+		strings.Contains(raw, middleware.CookieAccessToken)
+}
+
+// その refresh_token がもう使えないと分かったときは、Cookie を消してログインへ戻す。
+// 残すと、無効な値で叩き続けることになる。
+func Test_リフレッシュ_grantが無効ならCookieを消す(t *testing.T) {
+	idp := newTestIdP(t)
+	h := newFailingRefreshHandler(t, idp, http.StatusBadRequest, `{"error":"invalid_grant"}`)
 
 	rec := doRefresh(h, "expired")
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	// 失効させる Set-Cookie（Max-Age=0 / 過去日時）が出ていること。
-	raw := strings.Join(rec.Result().Header.Values("Set-Cookie"), " | ")
-	if !strings.Contains(raw, middleware.CookieRefreshToken) || !strings.Contains(raw, middleware.CookieAccessToken) {
-		t.Fatalf("Cookie の消去が出ていない: %s", raw)
+	if !clearsAuthCookies(rec) {
+		t.Fatalf("Cookie の消去が出ていない: %v", rec.Result().Header.Values("Set-Cookie"))
+	}
+}
+
+// **発行者の一時的な不調で全員をログアウトさせない。**
+// 429 や 5xx は「今は無理」であって「もう使えない」ではない。ここで Cookie を消すと、
+// 発行者の短い不調が全利用者の強制ログアウトに化ける。
+func Test_リフレッシュ_一時的な失敗ではCookieを消さない(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"絞られた（429）", http.StatusTooManyRequests, `{"error":"slow_down"}`},
+		{"発行者が落ちている（500）", http.StatusInternalServerError, `{"error":"server_error"}`},
+		{"上流が詰まっている（503）", http.StatusServiceUnavailable, ``},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			idp := newTestIdP(t)
+			h := newFailingRefreshHandler(t, idp, c.status, c.body)
+
+			rec := doRefresh(h, "still-valid")
+			if rec.Code != http.StatusBadGateway {
+				t.Fatalf("status = %d, want 502（後で再試行できる形）body=%s", rec.Code, rec.Body.String())
+			}
+			if clearsAuthCookies(rec) {
+				t.Fatal("一時的な失敗なのに Cookie を消してしまっている")
+			}
+		})
 	}
 }
 
@@ -208,8 +247,11 @@ func Test_リフレッシュ_期限切れのアクセストークンでは昇格
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"u1": {ID: 1, Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
+	// exp だけを期限切れにする。ほかの必須クレームは有効なままにしておく
+	// （そうしないと、期限の検査を外しても別の理由で落ちてテストが通ってしまう）。
 	expired := idp.signExact(t, map[string]any{
 		"iss": testIssuer, "aud": testClientID, "sub": "u1",
+		"iat":          time.Now().Add(-3 * time.Hour).Unix(),
 		"exp":          time.Now().Add(-2 * time.Hour).Unix(),
 		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})

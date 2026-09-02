@@ -484,6 +484,70 @@ func (q *Queries) IsWorkspaceMember(ctx context.Context, arg IsWorkspaceMemberPa
 	return is_member, err
 }
 
+const listGrantablePrincipals = `-- name: ListGrantablePrincipals :many
+WITH grantable AS (
+    SELECT p.id, p.kind,
+           CASE p.kind
+               WHEN 'group' THEN p.name
+               WHEN 'user' THEN COALESCE(u.name, '')
+               WHEN 'space_all' THEN COALESCE(s.name, '')
+               ELSE ''
+           END AS name
+    FROM principals p
+    LEFT JOIN users u
+           ON p.kind = 'user' AND u.id = p.user_id
+    LEFT JOIN spaces s
+           ON p.kind = 'space_all' AND s.workspace_id = p.workspace_id AND s.id = p.space_id
+    WHERE p.workspace_id = $1
+      AND p.kind <> 'share_link'
+)
+SELECT id, kind, name FROM grantable
+ORDER BY kind, name, id
+`
+
+type ListGrantablePrincipalsRow struct {
+	ID   uuid.UUID
+	Kind string
+	Name string
+}
+
+// 権限を張れる相手の一覧（画面の相手選びに使う）。
+//
+// 表示名の正本はそれぞれ別の表にある。principals.name が埋まるのは group だけで、
+// ユーザー名は users、スペース名は spaces が持つ（principals へ写すと二重管理になる）。
+// 画面には名前が要るので、ここで 1 回だけ突き合わせる。
+//
+// share_link は除く。あれは「リンクを踏んだ来訪者」を表す主体で、リンクを発行したときに
+// 自動で作られる。人が選んで役割を与える相手ではない（与えても意味を持たない）。
+//
+// 並びは kind → 名前 → id。名前が空でも順序が決まるように id まで入れる
+// （ユーザーが消えた直後など、名前が引けない行が混ざり得る）。
+//
+// 名前を組み立ててから CTE の外で並べ替える。JOIN したままの ORDER BY name は
+// principals.name と users.name のどちらを指すのか決まらず、sqlc が曖昧だと断る。
+func (q *Queries) ListGrantablePrincipals(ctx context.Context, workspaceID uuid.UUID) ([]ListGrantablePrincipalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGrantablePrincipals, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGrantablePrincipalsRow{}
+	for rows.Next() {
+		var i ListGrantablePrincipalsRow
+		if err := rows.Scan(&i.ID, &i.Kind, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMemberWorkspaces = `-- name: ListMemberWorkspaces :many
 SELECT w.id, w.slug, w.name, w.is_active, w.personal_owner_user_id, w.created_at, w.updated_at, (COALESCE(wg.role, '') = 'admin') AS is_admin FROM workspaces w
 JOIN principals p

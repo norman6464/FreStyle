@@ -222,6 +222,12 @@ var kbPermCases = []kbPermCase{
 		okStatus: http.StatusNoContent,
 	},
 	{
+		name: "権限を張れる相手の一覧", method: http.MethodGet,
+		path:     "/api/v2/kb/workspaces/{slug}/pages/{page}/principals",
+		missing:  []string{"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingIntegrationUUID + "/principals"},
+		okStatus: http.StatusOK,
+	},
+	{
 		name: "ページ例外の設定", method: http.MethodPut,
 		path: "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
 		missing: []string{

@@ -149,6 +149,40 @@ SELECT * FROM space_grants
 WHERE workspace_id = $1 AND space_id = $2
 ORDER BY principal_id;
 
+-- name: ListGrantablePrincipals :many
+-- 権限を張れる相手の一覧（画面の相手選びに使う）。
+--
+-- 表示名の正本はそれぞれ別の表にある。principals.name が埋まるのは group だけで、
+-- ユーザー名は users、スペース名は spaces が持つ（principals へ写すと二重管理になる）。
+-- 画面には名前が要るので、ここで 1 回だけ突き合わせる。
+--
+-- share_link は除く。あれは「リンクを踏んだ来訪者」を表す主体で、リンクを発行したときに
+-- 自動で作られる。人が選んで役割を与える相手ではない（与えても意味を持たない）。
+--
+-- 並びは kind → 名前 → id。名前が空でも順序が決まるように id まで入れる
+-- （ユーザーが消えた直後など、名前が引けない行が混ざり得る）。
+--
+-- 名前を組み立ててから CTE の外で並べ替える。JOIN したままの ORDER BY name は
+-- principals.name と users.name のどちらを指すのか決まらず、sqlc が曖昧だと断る。
+WITH grantable AS (
+    SELECT p.id, p.kind,
+           CASE p.kind
+               WHEN 'group' THEN p.name
+               WHEN 'user' THEN COALESCE(u.name, '')
+               WHEN 'space_all' THEN COALESCE(s.name, '')
+               ELSE ''
+           END AS name
+    FROM principals p
+    LEFT JOIN users u
+           ON p.kind = 'user' AND u.id = p.user_id
+    LEFT JOIN spaces s
+           ON p.kind = 'space_all' AND s.workspace_id = p.workspace_id AND s.id = p.space_id
+    WHERE p.workspace_id = sqlc.arg(workspace_id)
+      AND p.kind <> 'share_link'
+)
+SELECT id, kind, name FROM grantable
+ORDER BY kind, name, id;
+
 -- name: UpsertPageGrant :one
 -- ページでの既定の役割の付与（同じ主体には 1 行だけ）。
 --

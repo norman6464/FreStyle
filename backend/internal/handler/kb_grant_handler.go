@@ -24,6 +24,7 @@ type KnowledgeBaseGrantHandler struct {
 	grantPageRole       *usecase.GrantPageRoleUseCase
 	revokePageRole      *usecase.RevokePageRoleUseCase
 	listPageGrants      *usecase.ListPageGrantsUseCase
+	listPrincipals      *usecase.ListGrantablePrincipalsUseCase
 	setRestriction      *usecase.SetPageRestrictionUseCase
 	clearRestriction    *usecase.ClearPageRestrictionUseCase
 	canRemoveAdmin      *usecase.CanRemoveWorkspaceAdminUseCase
@@ -39,6 +40,7 @@ func NewKnowledgeBaseGrantHandler(
 	grantPageRole *usecase.GrantPageRoleUseCase,
 	revokePageRole *usecase.RevokePageRoleUseCase,
 	listPageGrants *usecase.ListPageGrantsUseCase,
+	listPrincipals *usecase.ListGrantablePrincipalsUseCase,
 	setRestriction *usecase.SetPageRestrictionUseCase,
 	clearRestriction *usecase.ClearPageRestrictionUseCase,
 	canRemoveAdmin *usecase.CanRemoveWorkspaceAdminUseCase,
@@ -52,6 +54,7 @@ func NewKnowledgeBaseGrantHandler(
 		grantPageRole:       grantPageRole,
 		revokePageRole:      revokePageRole,
 		listPageGrants:      listPageGrants,
+		listPrincipals:      listPrincipals,
 		setRestriction:      setRestriction,
 		clearRestriction:    clearRestriction,
 		canRemoveAdmin:      canRemoveAdmin,
@@ -484,6 +487,53 @@ func (h *KnowledgeBaseGrantHandler) ListPageGrants(c *gin.Context) {
 	out := make([]kbPageGrantResponse, 0, len(grants))
 	for i := range grants {
 		out = append(out, toKbPageGrantResponse(&grants[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// kbGrantablePrincipalResponse は権限を張れる相手 1 件の返却形。
+type kbGrantablePrincipalResponse struct {
+	ID   string `json:"id"   example:"0198a000-0000-7000-8000-00000000000a"`
+	Kind string `json:"kind" example:"user"`
+	// Name は表示名。引けなかった場合は空文字（行は落とさない）。
+	Name string `json:"name" example:"田中 太郎"`
+}
+
+// ListGrantablePrincipals はそのページに権限を張れる相手を表示名つきで返す。
+//
+//	@Summary      ノート の 権限 を 張れる 相手 の 一覧
+//	@Description  その ページ に 権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 リンク の 来訪者 を 表す 主体 (share_link) は 含ま ない — あれ は リンク の 発行 時 に 自動 で 作ら れる もの で、 人 が 選ん で 役割 を 与える 相手 で は ない。 名前 が 引け なかっ た 行 も 空文字 の まま 返す (一覧 から 黙っ て 消す と、 その 相手 に 張っ た 権限 が 画面 に 残っ た まま 選べ なく なる)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
+//	@Param        pageId         path  string  true  "ページ ID (UUID)"
+//	@Success      200            {array}   kbGrantablePrincipalResponse
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/principals [get]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseGrantHandler) ListGrantablePrincipals(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	// 認可をページ単位で掛けるのは、この一覧を使うのが「そのページの権限を変えられる人」
+	// だから。ワークスペースの admin に絞ると、ページに admin を張られた人が
+	// 相手を選べなくなる（権限はあるのに画面が使えない）。
+	if !h.requirePageAdmin(c, scope, c.Param("pageId")) {
+		return
+	}
+	principals, err := h.listPrincipals.Execute(c.Request.Context(), usecase.ListGrantablePrincipalsInput{
+		WorkspaceID: scope.workspaceID,
+	})
+	if err != nil {
+		respondKbPermissionOperationErr(c, err)
+		return
+	}
+	out := make([]kbGrantablePrincipalResponse, 0, len(principals))
+	for _, p := range principals {
+		out = append(out, kbGrantablePrincipalResponse{ID: p.ID, Kind: string(p.Kind), Name: p.Name})
 	}
 	c.JSON(http.StatusOK, out)
 }

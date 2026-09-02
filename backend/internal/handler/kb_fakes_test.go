@@ -569,6 +569,10 @@ type kbFakePerms struct {
 	// pageGrants は page_grants の行（既定の 3 段目）。入れ物の grant と別に持つのは、
 	// 効く範囲が違うため — こちらは張ったページとその子孫にだけ届く。
 	pageGrants map[kbGrantKey]domain.GrantRole
+	// userNames は users.name の写し（相手選びの一覧で使う表示名）。
+	// principals.name とは別に持つ。本番でも正本が別の表なので、
+	// まとめると「グループ以外は名前が空」という挙動を再現できない。
+	userNames map[uint64]string
 	// shareLinks は share_links の行（linkID -> 行）。
 	shareLinks map[string]*domain.ShareLink
 	// scopeFactsErr は入れ物単位の事実収集を失敗させる（500 経路の確認用）。
@@ -606,6 +610,7 @@ func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakeP
 		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
 		grants:       map[kbGrantKey]domain.GrantRole{},
 		pageGrants:   map[kbGrantKey]domain.GrantRole{},
+		userNames:    map[uint64]string{},
 		shareLinks:   map[string]*domain.ShareLink{},
 		fallback:     fallback,
 	}
@@ -1182,6 +1187,46 @@ func (f *kbFakePerms) FindUserPrincipal(_ context.Context, workspaceID string, u
 	}
 	c := *p
 	return &c, nil
+}
+
+// ListGrantablePrincipals は権限を張れる相手を kind → 名前 → id の順で返す。
+//
+// 名前は本番と同じ出どころにする（group は principals.name、user は users、
+// space_all は spaces）。fake で principals.name を全 kind に使うと、
+// 「グループ以外は名前が空で返る」という本番の挙動をテストで再現できない。
+func (f *kbFakePerms) ListGrantablePrincipals(_ context.Context, workspaceID string) ([]domain.GrantablePrincipal, error) {
+	out := []domain.GrantablePrincipal{}
+	for _, p := range f.principals {
+		if p.WorkspaceID != workspaceID || p.Kind == domain.PrincipalKindShareLink {
+			continue
+		}
+		name := ""
+		switch p.Kind {
+		case domain.PrincipalKindGroup:
+			name = p.Name
+		case domain.PrincipalKindUser:
+			if p.UserID != nil {
+				name = f.userNames[*p.UserID]
+			}
+		case domain.PrincipalKindSpaceAll:
+			if p.SpaceID != nil {
+				if sp, ok := f.pages.spaces[*p.SpaceID]; ok {
+					name = sp.Name
+				}
+			}
+		}
+		out = append(out, domain.GrantablePrincipal{ID: p.ID, Kind: p.Kind, Name: name})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
 }
 
 // DeletePrincipal は主体と、それに紐づく例外・グループ所属を消す（本番の FK CASCADE と同じ）。

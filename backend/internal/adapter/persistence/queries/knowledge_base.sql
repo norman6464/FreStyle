@@ -45,7 +45,7 @@ RETURNING *;
 -- name: DeleteWorkspace :execrows
 -- ワークスペースを消す。**そこに所属している人がいるものは消さない**（WHERE で弾く）。
 --
--- 配下（spaces / pages / blocks / page_paths / principals / grants / 例外 / 共有リンク）は
+-- 配下（spaces / pages / blocks / page_paths / principals / grants / 共有リンク）は
 -- すべて workspaces への FK が ON DELETE CASCADE で連なっているので、この 1 文で消える。
 --
 -- 人が居るワークスペースを守るのは、そこに全員のノートが入るため。1 人の操作でみんなの

@@ -347,19 +347,29 @@ func Test_ノートAPI_スペース直下のページ作成はスペースの権
 		assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
 	})
 
-	t.Run("親を指定した作成はスペースの権限では通らない", func(t *testing.T) {
-		// スペースでは editor だが、親ページだけ例外で外されている。
-		// スペース単位の判定でページ作成を通してしまうと、この経路が開く。
+	t.Run("親を指定した作成はURLのスペースの権限では通らない", func(t *testing.T) {
+		// URL のスペースでは editor だが、親に指定したページは自分に役割の届かない
+		// スペースにある。ここをスペース単位の判定で通してしまうと、開けもしない
+		// ページの下へ書き込める経路が開く。
 		//
-		// 「親だけ弱い役割を張る」では再現できない。既定は 3 段から届いて最も強いものが
-		// 実効になるので、弱い役割を足しても下がらない（弱めるのは例外の層の仕事）。
+		// 「親だけ弱い役割を張る」では再現できない。役割は 3 段（ワークスペース /
+		// スペース / ページ）から届いて最も強いものが実効になり、下の段が上の段を
+		// 弱めることはないため。届かない親を作るには別のスペースへ置くしかない
+		// （本番の運用と同じ）。
 		f := newKbFixture(kbNoPerm, kbUserID)
 		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleEditor)
-		f.perms.denyPage(kbWorkspaceID, kbRootPageID, kbUserID, domain.CapabilityView)
+		// 子を持つページは動かせない（スペースは親子で揃う）ので、末端の dest を親にする。
+		f.perms.hideInOwnPrivateSpace(kbWorkspaceID, kbDestPageID)
 
-		w := f.do(t, http.MethodPost, pagesPath, `{"parentId":"`+kbRootPageID+`","title":"子"}`)
+		w := f.do(t, http.MethodPost, pagesPath, `{"parentId":"`+kbDestPageID+`","title":"子"}`)
 
+		// 本文まで見る。**コードだけでは足りない。** 親が別スペースにある以上、
+		// 権限の判定を素通りしても CreatePageUseCase の別スペース検査（400
+		// parent_space_mismatch）で止まる。本文を見ないと、権限で断ったのか
+		// 別スペースで断ったのかが区別できず、判定を緩めても緑のままになる。
 		assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"not_found"}`, w.Body.String(),
+			"権限で断ったことを見る（別スペース検査で断ったのなら parent_space_mismatch になる）")
 	})
 
 	t.Run("別ワークスペースのslugでは作れない", func(t *testing.T) {

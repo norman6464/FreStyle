@@ -34,33 +34,6 @@ func (q *Queries) DeletePageGrant(ctx context.Context, arg DeletePageGrantParams
 	return result.RowsAffected()
 }
 
-const deletePageRestriction = `-- name: DeletePageRestriction :execrows
-DELETE FROM page_restrictions
-WHERE workspace_id = $1 AND page_id = $2 AND principal_id = $3 AND capability = $4
-`
-
-type DeletePageRestrictionParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	PrincipalID uuid.UUID
-	Capability  string
-}
-
-// ページの例外の解除。最後の 1 行が消えるとその段には制限が無くなり、
-// 解決は「より遠い祖先の制限」→「grant の既定」の順に戻る。
-func (q *Queries) DeletePageRestriction(ctx context.Context, arg DeletePageRestrictionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deletePageRestriction,
-		arg.WorkspaceID,
-		arg.PageID,
-		arg.PrincipalID,
-		arg.Capability,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const deletePrincipal = `-- name: DeletePrincipal :execrows
 DELETE FROM principals
 WHERE workspace_id = $1 AND id = $2
@@ -71,7 +44,7 @@ type DeletePrincipalParams struct {
 	ID          uuid.UUID
 }
 
-// 主体の削除。grant / restriction / principal_members は FK の CASCADE で一緒に消える
+// 主体の削除。grant / principal_members は FK の CASCADE で一緒に消える
 // （権限だけが残って別人に引き継がれることが無いように、行を残さず消す）。
 func (q *Queries) DeletePrincipal(ctx context.Context, arg DeletePrincipalParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deletePrincipal, arg.WorkspaceID, arg.ID)
@@ -138,33 +111,6 @@ func (q *Queries) DeleteWorkspaceGrant(ctx context.Context, arg DeleteWorkspaceG
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const getPageRestrictionMode = `-- name: GetPageRestrictionMode :one
-SELECT mode FROM page_restrictions
-WHERE workspace_id = $1 AND page_id = $2 AND principal_id = $3 AND capability = $4
-FOR UPDATE
-`
-
-type GetPageRestrictionModeParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	PrincipalID uuid.UUID
-	Capability  string
-}
-
-// 例外 1 行の現在の向き。allow → deny の書き換えで印を畳むべきかを、
-// 同じトランザクション内で判断するために引く。
-func (q *Queries) GetPageRestrictionMode(ctx context.Context, arg GetPageRestrictionModeParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getPageRestrictionMode,
-		arg.WorkspaceID,
-		arg.PageID,
-		arg.PrincipalID,
-		arg.Capability,
-	)
-	var mode string
-	err := row.Scan(&mode)
-	return mode, err
 }
 
 const getPrincipal = `-- name: GetPrincipal :one
@@ -329,7 +275,7 @@ type InsertPrincipalParams struct {
 }
 
 // ノートの権限モデル（principals / principal_members / workspace_grants /
-// space_grants / page_restrictions / share_links）のクエリ。
+// space_grants / page_grants / share_links）のクエリ。
 //
 // 作法（knowledge_base.sql と同じ）:
 //   - すべての SELECT / UPDATE / DELETE の WHERE に workspace_id を含める。
@@ -616,43 +562,6 @@ func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64
 	return items, nil
 }
 
-const listPageAllowLists = `-- name: ListPageAllowLists :many
-SELECT capability FROM page_allow_lists
-WHERE workspace_id = $1 AND page_id = $2
-ORDER BY capability
-`
-
-type ListPageAllowListsParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-}
-
-// そのページ自身が許可リスト制になっているケイパビリティの一覧。
-// 許可リストが空（載っていた主体が消えた）の段はここにしか現れないため、
-// 例外の一覧と合わせて読まないと「制限なし」に見えてしまう。
-func (q *Queries) ListPageAllowLists(ctx context.Context, arg ListPageAllowListsParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listPageAllowLists, arg.WorkspaceID, arg.PageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var capability string
-		if err := rows.Scan(&capability); err != nil {
-			return nil, err
-		}
-		items = append(items, capability)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listPageGrants = `-- name: ListPageGrants :many
 SELECT workspace_id, page_id, principal_id, role, created_at, updated_at FROM page_grants
 WHERE workspace_id = $1 AND page_id = $2
@@ -680,49 +589,6 @@ func (q *Queries) ListPageGrants(ctx context.Context, arg ListPageGrantsParams) 
 			&i.PageID,
 			&i.PrincipalID,
 			&i.Role,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPageRestrictions = `-- name: ListPageRestrictions :many
-SELECT workspace_id, page_id, principal_id, capability, mode, created_at, updated_at FROM page_restrictions
-WHERE workspace_id = $1 AND page_id = $2
-ORDER BY principal_id, capability
-`
-
-type ListPageRestrictionsParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-}
-
-// そのページ自身に張られた例外の一覧（祖先から継承したものは含まない）。
-func (q *Queries) ListPageRestrictions(ctx context.Context, arg ListPageRestrictionsParams) ([]PageRestriction, error) {
-	rows, err := q.db.QueryContext(ctx, listPageRestrictions, arg.WorkspaceID, arg.PageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []PageRestriction{}
-	for rows.Next() {
-		var i PageRestriction
-		if err := rows.Scan(
-			&i.WorkspaceID,
-			&i.PageID,
-			&i.PrincipalID,
-			&i.Capability,
-			&i.Mode,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -857,30 +723,6 @@ mine AS (
       )
       AND EXISTS (SELECT 1 FROM me)
 ),
-onpath AS (
-    SELECT pp.page_id, pp.depth, r.mode, r.principal_id
-    FROM page_paths pp
-    JOIN pages tp ON tp.workspace_id = pp.workspace_id AND tp.id = pp.page_id
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id AND r.capability = 'view'
-    WHERE pp.workspace_id = $1
-      AND tp.space_id = $2
-      -- archived と「アーカイブ済みか」が一致する行だけ。3 箇所すべて同じ条件にすること。
-      -- 片方だけ現役に絞ると、アーカイブ済みページに例外の事実が 1 つも付かず、
-      -- 伏せてあるはずのページが見える側へ倒れる。
-      AND ($3::boolean) = (tp.archived_at IS NOT NULL)
-),
-allow_scope AS (
-    SELECT pp.page_id, MIN(pp.depth) AS nearest_depth
-    FROM page_paths pp
-    JOIN pages tp ON tp.workspace_id = pp.workspace_id AND tp.id = pp.page_id
-    JOIN page_allow_lists a
-      ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id AND a.capability = 'view'
-    WHERE pp.workspace_id = $1
-      AND tp.space_id = $2
-      AND ($3::boolean) = (tp.archived_at IS NOT NULL)
-    GROUP BY pp.page_id
-),
 page_grant_rank AS (
     SELECT pp.page_id,
            max(CASE pg."role"
@@ -895,17 +737,6 @@ page_grant_rank AS (
       AND ($3::boolean) = (tp.archived_at IS NOT NULL)
       AND pg.principal_id IN (SELECT id FROM mine)
     GROUP BY pp.page_id
-),
-exception AS (
-    -- 最も近い段の depth を JOIN で持ってくる理由は ResolvePagePermissionFacts と同じ
-    -- （相関副問い合わせは経路上の制限の行数に対して二乗になる）。
-    SELECT o.page_id,
-           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
-           bool_or(o.mode = 'allow' AND o.depth = s.nearest_depth
-                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
-    FROM onpath o
-    LEFT JOIN allow_scope s ON s.page_id = o.page_id
-    GROUP BY o.page_id
 )
 SELECT
     p.id, p.workspace_id, p.space_id, p.parent_id, p.position, p.title, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at,
@@ -932,15 +763,9 @@ SELECT
                AND sg.principal_id IN (SELECT id FROM mine)
         ) g
     ), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank,
-    (e.page_id IS NOT NULL OR s.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(e.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (s.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(e.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest,
     -- 親がアーカイブ済みか（親を持たない行は false）。
     (par.archived_at IS NOT NULL)::boolean AS parent_archived
 FROM pages p
-LEFT JOIN exception e ON e.page_id = p.id
-LEFT JOIN allow_scope s ON s.page_id = p.id
 LEFT JOIN page_grant_rank pgr ON pgr.page_id = p.id
 LEFT JOIN pages par ON par.workspace_id = p.workspace_id AND par.id = p.parent_id
 WHERE p.workspace_id = $1
@@ -957,22 +782,18 @@ type ListSpacePageViewFactsParams struct {
 }
 
 type ListSpacePageViewFactsRow struct {
-	ID                   uuid.UUID
-	WorkspaceID          uuid.UUID
-	SpaceID              uuid.UUID
-	ParentID             uuid.NullUUID
-	Position             string
-	Title                string
-	CreatedByUserID      int64
-	ArchivedAt           sql.NullTime
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	GrantRank            int32
-	ViewRestricted       bool
-	ViewDeniedAnywhere   bool
-	ViewHasAllowList     bool
-	ViewAllowedAtNearest bool
-	ParentArchived       bool
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	ParentID        uuid.NullUUID
+	Position        string
+	Title           string
+	CreatedByUserID int64
+	ArchivedAt      sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	GrantRank       int32
+	ParentArchived  bool
 }
 
 // スペース配下のページ全件と、それぞれの「閲覧の事実」を 1 回のクエリで返す。
@@ -980,20 +801,14 @@ type ListSpacePageViewFactsRow struct {
 //
 // # なぜアーカイブ用に別のクエリを作らないのか
 //
-// 権限の事実を組み立てる部分（deny は経路全体・許可リストは最も近い段・段かどうかは
-// page_allow_lists の印）を写経することになるため。**同じ判断を 2 箇所に置くと必ずずれる**
-// （このクエリ自身が下で「1 ページの解決と一覧で違う畳み方をすると『開くと見えるのに
-// 一覧に出ない』ずれになる」と書いているのと同じ理由）。違うのは対象の絞り込みだけなので、
-// そこだけを引数にする。
-// 判定は domain.ResolvePagePermission が行い、呼び出し側がふるい落とす。
+// 権限の事実を組み立てる部分を写経することになるため。**同じ判断を 2 箇所に置くと必ずずれる。**
+// 違うのは対象の絞り込みだけなので、そこだけを引数にする。
+// 判定は domain.ResolvePageView が行い、呼び出し側がふるい落とす。
 //
 // ページごとに権限クエリを投げる（N+1）ことは避ける。ツリー表示は 1 スペースで
 // 数百〜数千ページを一度に扱うため、1 ページ 1 往復では表示のたびにその回数だけ往復する。
-// 制限を持つページはごく少数なので、closure との JOIN で拾えるのは実際には数行だけになる。
 //
-// 集計は ResolvePagePermissionFacts と同じ事実（deny は経路全体・許可リストは最も近い段・
-// 段かどうかは page_allow_lists の印）。ケイパビリティは 'view' に絞ってあるので、
-// 分けるのはページ単位だけで足りる。
+// 集めるのは ResolvePagePermissionFacts と同じ事実（届いた中で最も強い役割）。
 // 1 ページの解決と一覧で違う畳み方をすると「開くと見えるのに一覧に出ない」ずれになる。
 // 各ページについて、経路上（自分と祖先）のページ付与の最大値。ページごとに値が変わるので
 // スペース単位の既定のように 1 行へ畳めない。1 回のクエリで集めて LEFT JOIN する
@@ -1001,8 +816,6 @@ type ListSpacePageViewFactsRow struct {
 // 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
 // 親がアーカイブ済みかは**事実**として返すだけで、ここでは何の判断にも使わない。
 // 「復帰できるか」の規則は UnarchivePageUseCase が持つ（親がアーカイブ中なら断る）。
-// 相関副問い合わせにしないのは、経路の集計で二乗になるのを避けるのと同じ流儀
-// （こちらは主キー 1 件の引きなので実害は無いが、書き方を揃える）。
 func (q *Queries) ListSpacePageViewFacts(ctx context.Context, arg ListSpacePageViewFactsParams) ([]ListSpacePageViewFactsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listSpacePageViewFacts,
 		arg.WorkspaceID,
@@ -1029,10 +842,6 @@ func (q *Queries) ListSpacePageViewFacts(ctx context.Context, arg ListSpacePageV
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.GrantRank,
-			&i.ViewRestricted,
-			&i.ViewDeniedAnywhere,
-			&i.ViewHasAllowList,
-			&i.ViewAllowedAtNearest,
 			&i.ParentArchived,
 		); err != nil {
 			return nil, err
@@ -1102,10 +911,9 @@ type ListSpaceScopeGrantRolesParams struct {
 // max(rank) を SQL 側で計算すると「最も強いものを採る」という規則が DB へ写り、
 // ページ 1 枚の解決と食い違ったときにどちらが正か決められなくなる。
 //
-// ページ単位の例外（page_restrictions / page_allow_lists）はここでは一切見ない。
-// スペースには例外の層が無く、あるのは grants の既定だけ。この結果を
-// 「そのスペースのあるページを編集してよいか」に使ってはいけない（ページの deny を
-// 見ていないため必ず緩い側へ倒れる）。呼び出し側は対象がまだ存在しない操作にだけ使う。
+// ページ付与（page_grants）はここでは一切見ない。この結果を「そのスペースのあるページを
+// 編集してよいか」に使ってはいけない（祖先のページ付与を見ていないため必ず狭い側へ倒れる）。
+// 呼び出し側は対象がまだ存在しない操作にだけ使う。
 //
 // mine（自分に効く主体）の作り方は ResolvePagePermissionFacts と同じ:
 // 自分自身 + 所属グループ + そのスペースの「全員」。グループの入れ子は DB 側で
@@ -1171,34 +979,6 @@ mine AS (
       AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me)
 ),
-onpath AS (
-    SELECT s.page_id, pp.depth, r.capability, r.mode, r.principal_id
-    FROM subtree s
-    JOIN page_paths pp
-      ON pp.workspace_id = $1 AND pp.page_id = s.page_id
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id
-),
-allow_scope AS (
-    SELECT s.page_id, a.capability, MIN(pp.depth) AS nearest_depth
-    FROM subtree s
-    JOIN page_paths pp
-      ON pp.workspace_id = $1 AND pp.page_id = s.page_id
-    JOIN page_allow_lists a
-      ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id
-    GROUP BY s.page_id, a.capability
-),
-exception AS (
-    -- 最も近い段の depth を JOIN で持ってくる理由は ResolvePagePermissionFacts と同じ
-    -- （相関副問い合わせは経路上の制限の行数に対して二乗になる）。
-    SELECT o.page_id, o.capability,
-           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
-           bool_or(o.mode = 'allow' AND o.depth = sc.nearest_depth
-                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
-    FROM onpath o
-    LEFT JOIN allow_scope sc ON sc.page_id = o.page_id AND sc.capability = o.capability
-    GROUP BY o.page_id, o.capability
-),
 grants AS (
     -- ワークスペースとスペースの既定はサブツリー全体で同じ値なので 1 行に畳んでから配る
     -- （ページごとに引き直すと行数ぶんの集約になる）。意味と 0 の扱いは
@@ -1233,21 +1013,9 @@ page_grant_rank AS (
 SELECT
     s.page_id,
     EXISTS (SELECT 1 FROM me) AS is_member,
-    GREATEST(COALESCE((SELECT grants.grant_rank FROM grants), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank,
-    (ev.page_id IS NOT NULL OR av.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(ev.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (av.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(ev.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest,
-    (ee.page_id IS NOT NULL OR ae.page_id IS NOT NULL)::boolean AS edit_restricted,
-    COALESCE(ee.denied_anywhere, false)::boolean AS edit_denied_anywhere,
-    (ae.page_id IS NOT NULL)::boolean AS edit_has_allow_list,
-    COALESCE(ee.allowed_at_nearest, false)::boolean AS edit_allowed_at_nearest
+    GREATEST(COALESCE((SELECT grants.grant_rank FROM grants), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank
 FROM subtree s
 LEFT JOIN page_grant_rank pgr ON pgr.page_id = s.page_id
-LEFT JOIN exception ev ON ev.page_id = s.page_id AND ev.capability = 'view'
-LEFT JOIN allow_scope av ON av.page_id = s.page_id AND av.capability = 'view'
-LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
-LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id
 `
 
@@ -1258,17 +1026,9 @@ type ListSubtreePagePermissionFactsParams struct {
 }
 
 type ListSubtreePagePermissionFactsRow struct {
-	PageID               uuid.UUID
-	IsMember             bool
-	GrantRank            int32
-	ViewRestricted       bool
-	ViewDeniedAnywhere   bool
-	ViewHasAllowList     bool
-	ViewAllowedAtNearest bool
-	EditRestricted       bool
-	EditDeniedAnywhere   bool
-	EditHasAllowList     bool
-	EditAllowedAtNearest bool
+	PageID    uuid.UUID
+	IsMember  bool
+	GrantRank int32
 }
 
 // サブツリー（対象ページ自身 + 全子孫）の各ページについて、実効権限を決める「事実」を
@@ -1278,10 +1038,9 @@ type ListSubtreePagePermissionFactsRow struct {
 // 根 1 枚の編集権限だけで通すと、同じページを直接 rename すると 403 になるのに
 // 祖先のアーカイブ経由なら書き換えられる、という経路依存の食い違いになる。
 //
-// ページごとに ResolvePagePermissionFacts を投げない（N+1 にしない）。集計は
-// ListSpacePageViewFacts と同じ形（deny は経路全体・許可リストは最も近い段・段かどうかは
-// page_allow_lists の印）で、違いは対象の絞り方（スペース全体 → closure のサブツリー）と
-// 編集の列も集めることだけ。
+// ページごとに ResolvePagePermissionFacts を投げない（N+1 にしない）。集めるのは
+// ListSpacePageViewFacts と同じ形で、違いは対象の絞り方（スペース全体 → closure の
+// サブツリー）だけ。
 //
 // アーカイブ済みのページも外さない。操作の影響が及ぶ範囲はアーカイブ状態と関係なく
 // サブツリー全体で、外すと「先に子だけアーカイブしておけば検査を迂回できる」経路ができる。
@@ -1289,15 +1048,8 @@ type ListSubtreePagePermissionFactsRow struct {
 // サブツリーは必ず 1 つのスペースに収まる（スペースをまたぐ移動はサブツリーの space_id を
 // まとめて付け替える）ので、space_grants と space_all の主体は根のスペースで引けば足りる。
 //
-// 計算量（PostgreSQL 17.6 / EXPLAIN ANALYZE で実測）。効くのは closure 上の
-// 「子孫 × 経路上で制限を持つ祖先」の組の数で、ページ数に対して線形。
-//   - 制限が無いとき: 5,000 ページのサブツリーで 3.0 ms（同じデータでの
-//     ListSpacePageViewFacts が 2.7 ms なので、既存のツリー取得と同じ桁）
-//   - 全 5,000 ページに deny 10 行 + 2,500 段に許可リストの印（組の数 33 万）という
-//     極端な形で 174 ms。サブツリーを 85 / 341 / 1,365 / 5,000 ページと変えると
-//     4 / 12 / 47 / 174 ms で、二乗には膨らまない
-//
-// 呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
+// ページごとに値が変わるのは経路上のページ付与だけなので、closure を辿るのは
+// page_grant_rank の 1 本で済む。呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
 // ページ付与だけは畳めない。サブツリーの中でも「祖先のどこに張られているか」で
 // ページごとに値が変わるため、page_id ごとに集めて下の SELECT へ LEFT JOIN する。
 // 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
@@ -1310,19 +1062,7 @@ func (q *Queries) ListSubtreePagePermissionFacts(ctx context.Context, arg ListSu
 	items := []ListSubtreePagePermissionFactsRow{}
 	for rows.Next() {
 		var i ListSubtreePagePermissionFactsRow
-		if err := rows.Scan(
-			&i.PageID,
-			&i.IsMember,
-			&i.GrantRank,
-			&i.ViewRestricted,
-			&i.ViewDeniedAnywhere,
-			&i.ViewHasAllowList,
-			&i.ViewAllowedAtNearest,
-			&i.EditRestricted,
-			&i.EditDeniedAnywhere,
-			&i.EditHasAllowList,
-			&i.EditAllowedAtNearest,
-		); err != nil {
+		if err := rows.Scan(&i.PageID, &i.IsMember, &i.GrantRank); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1406,36 +1146,6 @@ cand AS (
       )
     ORDER BY pg.title, pg.id
 ),
-onpath AS (
-    SELECT pp1.page_id, c1.space_id AS page_space, pp1.depth, rst.mode, rst.principal_id
-    FROM page_paths pp1
-    JOIN cand c1 ON c1.workspace_id = pp1.workspace_id AND c1.id = pp1.page_id
-    JOIN page_restrictions rst
-      ON rst.workspace_id = pp1.workspace_id AND rst.page_id = pp1.ancestor_id AND rst.capability = 'view'
-    WHERE pp1.workspace_id = $1
-),
-allow_scope AS (
-    SELECT pp2.page_id, MIN(pp2.depth) AS nearest_depth
-    FROM page_paths pp2
-    JOIN cand c2 ON c2.workspace_id = pp2.workspace_id AND c2.id = pp2.page_id
-    JOIN page_allow_lists alw
-      ON alw.workspace_id = pp2.workspace_id AND alw.page_id = pp2.ancestor_id AND alw.capability = 'view'
-    WHERE pp2.workspace_id = $1
-    GROUP BY pp2.page_id
-),
-exception AS (
-    SELECT onp.page_id,
-           bool_or(onp.mode = 'deny'
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS denied_anywhere,
-           bool_or(onp.mode = 'allow' AND onp.depth = asc1.nearest_depth
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS allowed_at_nearest
-    FROM onpath onp
-    LEFT JOIN allow_scope asc1 ON asc1.page_id = onp.page_id
-    LEFT JOIN space_allp sap ON sap.space_id = onp.page_space
-    GROUP BY onp.page_id
-),
 wsrank AS (
     SELECT COALESCE(max(CASE wg."role"
                           WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
@@ -1471,21 +1181,13 @@ pgrank AS (
 )
 SELECT
     cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
-    -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
-    -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
       COALESCE(pgr.v, 0)
-    )::integer AS grant_rank,
-    (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+    )::integer AS grant_rank
 FROM cand cnd
 JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
-LEFT JOIN exception exc ON exc.page_id = cnd.id
-LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
 ORDER BY cnd.title, cnd.id
@@ -1498,21 +1200,17 @@ type ListWorkspacePageViewFactsByIDsParams struct {
 }
 
 type ListWorkspacePageViewFactsByIDsRow struct {
-	ID                   uuid.UUID
-	WorkspaceID          uuid.UUID
-	SpaceID              uuid.UUID
-	ParentID             uuid.NullUUID
-	Position             string
-	Title                string
-	CreatedByUserID      int64
-	ArchivedAt           sql.NullTime
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	GrantRank            int32
-	ViewRestricted       bool
-	ViewDeniedAnywhere   bool
-	ViewHasAllowList     bool
-	ViewAllowedAtNearest bool
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	ParentID        uuid.NullUUID
+	Position        string
+	Title           string
+	CreatedByUserID int64
+	ArchivedAt      sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	GrantRank       int32
 }
 
 // 指定した ID 群の**現役**ページについて「閲覧の事実」を 1 回のクエリで返す
@@ -1533,16 +1231,7 @@ type ListWorkspacePageViewFactsByIDsRow struct {
 //
 // 表の別名はクエリ全体で一意（CTE をまたぐ使い回しは sqlc の列解決が混線する — 検索の
 // クエリのコメントを参照）。
-// ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
-// 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
-//
-// この経路の mine は「自分と所属グループ」だけで、スペース全員（space_all）は space_allp が
-// 別に持つ。両方を見ないと、全員宛ての付与が 1 ページの解決では効くのにここでは効かず、
-// 「開けるのに検索に出ない」ずれになる。
-//
-// 候補（cand）に絞ってから集計する。ワークスペース全体の経路を集めると、候補が数件でも
-// 全ページ分の JOIN を回すことになる。
-// pages → spaces は複合 FK があるので必ず 1 行に当たる。
+// ページ付与。候補に絞ってから経路を辿る（意味は検索側と同じ）。
 func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListWorkspacePageViewFactsByIDsParams) ([]ListWorkspacePageViewFactsByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspacePageViewFactsByIDs, arg.WorkspaceID, arg.UserID, arg.PageIds)
 	if err != nil {
@@ -1564,10 +1253,6 @@ func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListW
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.GrantRank,
-			&i.ViewRestricted,
-			&i.ViewDeniedAnywhere,
-			&i.ViewHasAllowList,
-			&i.ViewAllowedAtNearest,
 		); err != nil {
 			return nil, err
 		}
@@ -1820,25 +1505,6 @@ func (q *Queries) LockWorkspaceAdminGrantsForRemoval(ctx context.Context, arg Lo
 	return i, err
 }
 
-const markPageAllowList = `-- name: MarkPageAllowList :exec
-INSERT INTO page_allow_lists (workspace_id, page_id, capability)
-VALUES ($1, $2, $3)
-ON CONFLICT (workspace_id, page_id, capability) DO NOTHING
-`
-
-type MarkPageAllowListParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	Capability  string
-}
-
-// 「このページのこのケイパビリティは許可リスト制」の印を立てる（冪等）。
-// allow 行を書いたのと同じトランザクションで呼ぶ。
-func (q *Queries) MarkPageAllowList(ctx context.Context, arg MarkPageAllowListParams) error {
-	_, err := q.db.ExecContext(ctx, markPageAllowList, arg.WorkspaceID, arg.PageID, arg.Capability)
-	return err
-}
-
 const resolvePagePermissionFacts = `-- name: ResolvePagePermissionFacts :one
 WITH target AS (
     -- スペースの visibility も一緒に引く。'private' のスペースには
@@ -1875,21 +1541,6 @@ mine AS (
       AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me WHERE me.kind = 'user')
 ),
-onpath AS (
-    SELECT r.capability, r.mode, r.principal_id, pp.depth
-    FROM page_paths pp
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id
-    WHERE pp.workspace_id = $1 AND pp.page_id = $2
-),
-allow_scope AS (
-    SELECT a.capability, MIN(pp.depth) AS nearest_depth
-    FROM page_paths pp
-    JOIN page_allow_lists a
-      ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id
-    WHERE pp.workspace_id = $1 AND pp.page_id = $2
-    GROUP BY a.capability
-),
 page_grant_rank AS (
     SELECT max(CASE pg."role"
                  WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
@@ -1899,23 +1550,11 @@ page_grant_rank AS (
       ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
     WHERE pp.workspace_id = $1 AND pp.page_id = $2
       AND pg.principal_id IN (SELECT id FROM mine)
-),
-exception AS (
-    -- 最も近い段の depth は allow_scope（ケイパビリティごとに 1 行）から JOIN で持ってくる。
-    -- 相関副問い合わせにすると onpath の 1 行ごとに集約をやり直すことになり、
-    -- 経路上の制限が増えるほど計算量が行数の二乗に膨らむ。
-    SELECT o.capability,
-           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
-           bool_or(o.mode = 'allow' AND o.depth = s.nearest_depth
-                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
-    FROM onpath o
-    LEFT JOIN allow_scope s ON s.capability = o.capability
-    GROUP BY o.capability
 )
 SELECT
     EXISTS (SELECT 1 FROM target) AS page_exists,
     EXISTS (SELECT 1 FROM me WHERE me.kind = 'user') AS is_member,
-    -- ワークスペースの grant とスペースの grant を合わせ、最も強い役割の強さを返す。
+    -- 3 段の grant を合わせ、最も強い役割の強さを返す。
     -- 弱い方を採るとスペースに viewer を張るだけでワークスペース管理者を締め出せてしまう。
     --
     -- 役割そのもの（text）ではなく強さ（整数）を返すのは、役割が 1 つも無いときに
@@ -1938,20 +1577,7 @@ SELECT
              WHERE sg.workspace_id = $1 AND sg.space_id = t.space_id
                AND sg.principal_id IN (SELECT id FROM mine)
         ) g
-    ), 0), COALESCE((SELECT rank FROM page_grant_rank), 0))::integer AS grant_rank,
-    -- restricted は「経路に例外の材料が 1 つでもあるか」。印だけがあって allow 行が
-    -- 1 つも無い段（載っていた主体が消えた段）も制限として扱わなければ、
-    -- 印を分けた意味が無くなる。
-    (EXISTS (SELECT 1 FROM exception e WHERE e.capability = 'view')
-     OR EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'view'))::boolean AS view_restricted,
-    COALESCE((SELECT e.denied_anywhere FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_denied_anywhere,
-    EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'view') AS view_has_allow_list,
-    COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_allowed_at_nearest,
-    (EXISTS (SELECT 1 FROM exception e WHERE e.capability = 'edit')
-     OR EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'edit'))::boolean AS edit_restricted,
-    COALESCE((SELECT e.denied_anywhere FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_denied_anywhere,
-    EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'edit') AS edit_has_allow_list,
-    COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_allowed_at_nearest
+    ), 0), COALESCE((SELECT rank FROM page_grant_rank), 0))::integer AS grant_rank
 `
 
 type ResolvePagePermissionFactsParams struct {
@@ -1962,17 +1588,9 @@ type ResolvePagePermissionFactsParams struct {
 }
 
 type ResolvePagePermissionFactsRow struct {
-	PageExists           bool
-	IsMember             bool
-	GrantRank            int32
-	ViewRestricted       bool
-	ViewDeniedAnywhere   bool
-	ViewHasAllowList     bool
-	ViewAllowedAtNearest bool
-	EditRestricted       bool
-	EditDeniedAnywhere   bool
-	EditHasAllowList     bool
-	EditAllowedAtNearest bool
+	PageExists bool
+	IsMember   bool
+	GrantRank  int32
 }
 
 // 1 ページの実効権限を決めるのに必要な「事実」を 1 回のクエリで集める。
@@ -1983,30 +1601,17 @@ type ResolvePagePermissionFactsRow struct {
 //
 // CTE の役割:
 //
-//	target      … 対象ページの所属スペース（space_grants を引くのに要る）
-//	me          … 自分自身の主体
-//	mine        … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
-//	               グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
-//	               スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
-//	onpath      … 対象ページ自身と祖先に張られた制限を depth 付きで集める（0 が自分自身）
-//	allow_scope … ケイパビリティごとの「許可リスト制の印を持つ最も近い段」の depth
-//	exception   … ケイパビリティごとに 2 つの事実へ畳む:
-//	               (a) 経路上のどこかに自分宛ての deny があるか
-//	               (b) 最も近い許可リスト制の段に自分宛ての allow があるか
-//	               「許可リスト制の段があるか」は allow 行ではなく allow_scope（印）が答える
+//	target … 対象ページの所属スペース（space_grants を引くのに要る）
+//	me     … 自分自身の主体
+//	mine   … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
+//	         グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
+//	         スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
 //
-// deny を経路全体で見るのが肝。最も近い段だけを見ると、deny 行しか無い段が最近段になった
-// 瞬間に「deny だけの段は既定に戻す」規則が働き、より遠い祖先の許可リストが
-// 無関係な deny 1 行で解除されてしまう（規則の適用は domain 側だが、
-// 事実として最近段しか返さない限り domain からは直しようがない）。
-//
-// 「限定公開かどうか」を allow 行の有無で数えないのも同じ理由。allow 行は principals への
-// CASCADE で消えるので、載っていた主体を消しただけでその段が「制限なし」に化ける。
-// 印（page_allow_lists）は主体を参照しないため、誰が消えても段は残る。
+// **打ち消す層は無い。** 権限は 3 段の付与を足し合わせ、届いた中で最も強い役割で決まる。
+// 下の段が上の段を弱めることはないので、経路をさかのぼって拾うのは「最も強い役割」だけでよく、
+// どの段にあったかを覚えておく必要がない（最近段の depth も要らない）。
 // 経路上のページ付与（自分自身と祖先）のうち最も強いもの。祖先に editor を張れば
 // 子孫の既定が editor 以上になる、という降り方は grant の他の 2 段と同じ。
-// 例外（allow_scope / onpath）と違って「最も近い段」は見ない。付与は足し算だけで、
-// 近い付与が遠い付与を弱めることはないため（domain/grant.go の Rank のコメント）。
 func (q *Queries) ResolvePagePermissionFacts(ctx context.Context, arg ResolvePagePermissionFactsParams) (ResolvePagePermissionFactsRow, error) {
 	row := q.db.QueryRowContext(ctx, resolvePagePermissionFacts,
 		arg.WorkspaceID,
@@ -2015,19 +1620,7 @@ func (q *Queries) ResolvePagePermissionFacts(ctx context.Context, arg ResolvePag
 		arg.PrincipalID,
 	)
 	var i ResolvePagePermissionFactsRow
-	err := row.Scan(
-		&i.PageExists,
-		&i.IsMember,
-		&i.GrantRank,
-		&i.ViewRestricted,
-		&i.ViewDeniedAnywhere,
-		&i.ViewHasAllowList,
-		&i.ViewAllowedAtNearest,
-		&i.EditRestricted,
-		&i.EditDeniedAnywhere,
-		&i.EditHasAllowList,
-		&i.EditAllowedAtNearest,
-	)
+	err := row.Scan(&i.PageExists, &i.IsMember, &i.GrantRank)
 	return i, err
 }
 
@@ -2088,36 +1681,6 @@ cand AS (
     ORDER BY pg.title, pg.id
     LIMIT 200
 ),
-onpath AS (
-    SELECT pp1.page_id, c1.space_id AS page_space, pp1.depth, rst.mode, rst.principal_id
-    FROM page_paths pp1
-    JOIN cand c1 ON c1.workspace_id = pp1.workspace_id AND c1.id = pp1.page_id
-    JOIN page_restrictions rst
-      ON rst.workspace_id = pp1.workspace_id AND rst.page_id = pp1.ancestor_id AND rst.capability = 'view'
-    WHERE pp1.workspace_id = $1
-),
-allow_scope AS (
-    SELECT pp2.page_id, MIN(pp2.depth) AS nearest_depth
-    FROM page_paths pp2
-    JOIN cand c2 ON c2.workspace_id = pp2.workspace_id AND c2.id = pp2.page_id
-    JOIN page_allow_lists alw
-      ON alw.workspace_id = pp2.workspace_id AND alw.page_id = pp2.ancestor_id AND alw.capability = 'view'
-    WHERE pp2.workspace_id = $1
-    GROUP BY pp2.page_id
-),
-exception AS (
-    SELECT onp.page_id,
-           bool_or(onp.mode = 'deny'
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS denied_anywhere,
-           bool_or(onp.mode = 'allow' AND onp.depth = asc1.nearest_depth
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS allowed_at_nearest
-    FROM onpath onp
-    LEFT JOIN allow_scope asc1 ON asc1.page_id = onp.page_id
-    LEFT JOIN space_allp sap ON sap.space_id = onp.page_space
-    GROUP BY onp.page_id
-),
 wsrank AS (
     SELECT COALESCE(max(CASE wg."role"
                           WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
@@ -2159,15 +1722,9 @@ SELECT
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
       COALESCE(pgr.v, 0)
-    )::integer AS grant_rank,
-    (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+    )::integer AS grant_rank
 FROM cand cnd
 JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
-LEFT JOIN exception exc ON exc.page_id = cnd.id
-LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
 ORDER BY cnd.title, cnd.id
@@ -2180,29 +1737,24 @@ type SearchWorkspacePageViewFactsParams struct {
 }
 
 type SearchWorkspacePageViewFactsRow struct {
-	ID                   uuid.UUID
-	WorkspaceID          uuid.UUID
-	SpaceID              uuid.UUID
-	ParentID             uuid.NullUUID
-	Position             string
-	Title                string
-	CreatedByUserID      int64
-	ArchivedAt           sql.NullTime
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	GrantRank            int32
-	ViewRestricted       bool
-	ViewDeniedAnywhere   bool
-	ViewHasAllowList     bool
-	ViewAllowedAtNearest bool
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	ParentID        uuid.NullUUID
+	Position        string
+	Title           string
+	CreatedByUserID int64
+	ArchivedAt      sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	GrantRank       int32
 }
 
 // ワークスペース全体から、題名が部分一致する**現役**ページを候補にして、
 // それぞれの「閲覧の事実」を 1 回のクエリで返す（サイドバーの題名検索用）。
 //
-// 事実の組み立ては ListSpacePageViewFacts と同じ見方（deny は経路全体・許可リストは
-// 最も近い段・段かどうかは page_allow_lists の印）で、判定は domain.ResolvePageView が行う。
-// 違いは 2 つだけ:
+// 事実の組み立ては ListSpacePageViewFacts と同じ見方（届いた中で最も強い役割）で、
+// 判定は domain.ResolvePageView が行う。違いは 2 つだけ:
 //  1. 対象がスペース 1 つではなくワークスペース全体（題名の一致で先に候補を絞る）
 //  2. スペース単位の主体（space_all）と space_grants は**そのページのスペース**のもので
 //     突き合わせる。1 スペース版は引数のスペースに固定できたが、こちらは行ごとに違うので、
@@ -2221,7 +1773,7 @@ type SearchWorkspacePageViewFactsRow struct {
 // 数百〜数千ページ）では十分速い。伸びたら pg_trgm の GIN を検討する（拡張が要るので
 // そのときに判断する）。
 //
-// 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c1 / c2 …）。CTE ごとに同じ
+// 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c …）。CTE ごとに同じ
 // 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
 // 「column ... does not exist」で生成が落ちる（実測）。
 // ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
@@ -2255,10 +1807,6 @@ func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWo
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.GrantRank,
-			&i.ViewRestricted,
-			&i.ViewDeniedAnywhere,
-			&i.ViewHasAllowList,
-			&i.ViewAllowedAtNearest,
 		); err != nil {
 			return nil, err
 		}
@@ -2273,14 +1821,14 @@ func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWo
 	return items, nil
 }
 
-const subtreeHasForeignSpaceAllRestriction = `-- name: SubtreeHasForeignSpaceAllRestriction :one
+const subtreeHasForeignSpaceAllGrant = `-- name: SubtreeHasForeignSpaceAllGrant :one
 SELECT EXISTS (
     SELECT 1
     FROM page_paths pp
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.page_id
+    JOIN page_grants g
+      ON g.workspace_id = pp.workspace_id AND g.page_id = pp.page_id
     JOIN principals pr
-      ON pr.workspace_id = r.workspace_id AND pr.id = r.principal_id
+      ON pr.workspace_id = g.workspace_id AND pr.id = g.principal_id
     WHERE pp.workspace_id = $1
       AND pp.ancestor_id = $2
       AND pr.kind = 'space_all'
@@ -2288,59 +1836,25 @@ SELECT EXISTS (
 ) AS found
 `
 
-type SubtreeHasForeignSpaceAllRestrictionParams struct {
+type SubtreeHasForeignSpaceAllGrantParams struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID
 	NewSpaceID  uuid.UUID
 }
 
-// 移動するサブツリー（自分自身 + 子孫）に「移動先スペース以外のスペース全員」宛ての例外が
-// あるか。KnowledgeBaseRepository.MovePage が同じトランザクションで使う。
+// 移動するサブツリー（自分自身 + 子孫）に「移動先スペース以外のスペース全員」宛ての
+// ページ付与があるか。KnowledgeBaseRepository.MovePage が同じトランザクションで使う。
 //
 // space_all の主体は「そのスペースの全員」を表すため、スペースをまたぐ移動で行だけが残り
 // 評価されなくなる（権限解決は対象ページが今いるスペースの space_all しか主体に取らない）。
-// 行は権限設定画面に見えているのに実効は違う、という追跡困難なずれになり、
-// しかも allow は締め出す側・deny は開く側へ倒れるという非対称ができる。
-// 移動そのものを止めることで、緩む向きにも締まる向きにも黙って変わらないようにする。
-func (q *Queries) SubtreeHasForeignSpaceAllRestriction(ctx context.Context, arg SubtreeHasForeignSpaceAllRestrictionParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, subtreeHasForeignSpaceAllRestriction, arg.WorkspaceID, arg.PageID, arg.NewSpaceID)
+// 行は権限設定画面に見えているのに実効は違う、という追跡困難なずれになる。
+// 倒れる向きは常に「狭まる側」だが、見えている行が効かないこと自体が説明できないので、
+// 移動そのものを止める。
+func (q *Queries) SubtreeHasForeignSpaceAllGrant(ctx context.Context, arg SubtreeHasForeignSpaceAllGrantParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, subtreeHasForeignSpaceAllGrant, arg.WorkspaceID, arg.PageID, arg.NewSpaceID)
 	var found bool
 	err := row.Scan(&found)
 	return found, err
-}
-
-const unmarkPageAllowListIfEmpty = `-- name: UnmarkPageAllowListIfEmpty :exec
-DELETE FROM page_allow_lists a
-WHERE a.workspace_id = $1 AND a.page_id = $2 AND a.capability = $3
-  AND NOT EXISTS (
-      SELECT 1 FROM page_restrictions r
-      WHERE r.workspace_id = a.workspace_id AND r.page_id = a.page_id
-        AND r.capability = a.capability AND r.mode = 'allow'
-  )
-`
-
-type UnmarkPageAllowListIfEmptyParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	Capability  string
-}
-
-// 許可リスト制の印を畳む。allow 行がまだ残っているなら何もしない。
-//
-// 呼ぶのは「allow 行を明示的に減らした」操作の直後だけ（解除 / allow → deny の書き換え）。
-// deny 行の解除など allow に触れない操作から呼ぶと、無関係な 1 行の解除で限定公開が
-// 解けることになり、印を別テーブルに分けた意味が無くなる。
-//
-// そのため印だけを直接取り消す操作は用意していない。principals の削除（CASCADE）で
-// allow 行が全部消えた段には印だけが残り、「誰も載っていない許可リスト」＝ 誰にも見えない
-// 状態で固定される。これは fail-closed で設計どおり。復旧は allow 行を通常の操作で
-// 入れ直して行う（残したい主体を allow に載せる。限定公開そのものをやめるなら、
-// allow 行を 1 行張ってから解除すると最後の allow が消えて印も畳まれる）。
-// 印だけを消せる操作は「限定公開を 1 手で解除できる」ということでもあるので、
-// 足すなら誰がそれを実行できるかの設計から別途行う。
-func (q *Queries) UnmarkPageAllowListIfEmpty(ctx context.Context, arg UnmarkPageAllowListIfEmptyParams) error {
-	_, err := q.db.ExecContext(ctx, unmarkPageAllowListIfEmpty, arg.WorkspaceID, arg.PageID, arg.Capability)
-	return err
 }
 
 const upsertPageGrant = `-- name: UpsertPageGrant :one
@@ -2361,8 +1875,8 @@ type UpsertPageGrantParams struct {
 // ページでの既定の役割の付与（同じ主体には 1 行だけ）。
 //
 // 3 段目の既定で、このページとその子孫に効く。合成は他の 2 段と同じ「最も強いものを採る」
-// なので、ここに弱い役割を張っても上位で得た強い役割は下がらない（弱める操作は
-// page_restrictions の deny が担う）。
+// なので、ここに弱い役割を張っても上位で得た強い役割は下がらない。**弱める手段はどの層にも
+// 無い**ので、狭めたい内容は private のスペースへ置く。
 func (q *Queries) UpsertPageGrant(ctx context.Context, arg UpsertPageGrantParams) (PageGrant, error) {
 	row := q.db.QueryRowContext(ctx, upsertPageGrant,
 		arg.WorkspaceID,
@@ -2376,45 +1890,6 @@ func (q *Queries) UpsertPageGrant(ctx context.Context, arg UpsertPageGrantParams
 		&i.PageID,
 		&i.PrincipalID,
 		&i.Role,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertPageRestriction = `-- name: UpsertPageRestriction :one
-INSERT INTO page_restrictions (workspace_id, page_id, principal_id, capability, mode)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (workspace_id, page_id, principal_id, capability)
-DO UPDATE SET mode = EXCLUDED.mode, updated_at = now()
-RETURNING workspace_id, page_id, principal_id, capability, mode, created_at, updated_at
-`
-
-type UpsertPageRestrictionParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	PrincipalID uuid.UUID
-	Capability  string
-	Mode        string
-}
-
-// ページの例外の設定。同じ (ページ, 主体, ケイパビリティ) の行は 1 つだけなので、
-// allow と deny を入れ替えるときも行は増えない。
-func (q *Queries) UpsertPageRestriction(ctx context.Context, arg UpsertPageRestrictionParams) (PageRestriction, error) {
-	row := q.db.QueryRowContext(ctx, upsertPageRestriction,
-		arg.WorkspaceID,
-		arg.PageID,
-		arg.PrincipalID,
-		arg.Capability,
-		arg.Mode,
-	)
-	var i PageRestriction
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.PageID,
-		&i.PrincipalID,
-		&i.Capability,
-		&i.Mode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

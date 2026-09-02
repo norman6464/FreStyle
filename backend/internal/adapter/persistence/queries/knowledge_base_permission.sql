@@ -1,5 +1,5 @@
 -- ノートの権限モデル（principals / principal_members / workspace_grants /
--- space_grants / page_restrictions / share_links）のクエリ。
+-- space_grants / page_grants / share_links）のクエリ。
 --
 -- 作法（knowledge_base.sql と同じ）:
 --   - すべての SELECT / UPDATE / DELETE の WHERE に workspace_id を含める。
@@ -37,7 +37,7 @@ SELECT * FROM principals
 WHERE workspace_id = $1 AND kind = 'space_all' AND space_id = $2;
 
 -- name: DeletePrincipal :execrows
--- 主体の削除。grant / restriction / principal_members は FK の CASCADE で一緒に消える
+-- 主体の削除。grant / principal_members は FK の CASCADE で一緒に消える
 -- （権限だけが残って別人に引き継がれることが無いように、行を残さず消す）。
 DELETE FROM principals
 WHERE workspace_id = $1 AND id = $2;
@@ -187,8 +187,8 @@ ORDER BY kind, name, id;
 -- ページでの既定の役割の付与（同じ主体には 1 行だけ）。
 --
 -- 3 段目の既定で、このページとその子孫に効く。合成は他の 2 段と同じ「最も強いものを採る」
--- なので、ここに弱い役割を張っても上位で得た強い役割は下がらない（弱める操作は
--- page_restrictions の deny が担う）。
+-- なので、ここに弱い役割を張っても上位で得た強い役割は下がらない。**弱める手段はどの層にも
+-- 無い**ので、狭めたい内容は private のスペースへ置く。
 INSERT INTO page_grants (workspace_id, page_id, principal_id, "role")
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (workspace_id, page_id, principal_id)
@@ -207,70 +207,27 @@ SELECT * FROM page_grants
 WHERE workspace_id = $1 AND page_id = $2
 ORDER BY principal_id;
 
--- name: UpsertPageRestriction :one
--- ページの例外の設定。同じ (ページ, 主体, ケイパビリティ) の行は 1 つだけなので、
--- allow と deny を入れ替えるときも行は増えない。
-INSERT INTO page_restrictions (workspace_id, page_id, principal_id, capability, mode)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (workspace_id, page_id, principal_id, capability)
-DO UPDATE SET mode = EXCLUDED.mode, updated_at = now()
-RETURNING *;
-
--- name: DeletePageRestriction :execrows
--- ページの例外の解除。最後の 1 行が消えるとその段には制限が無くなり、
--- 解決は「より遠い祖先の制限」→「grant の既定」の順に戻る。
-DELETE FROM page_restrictions
-WHERE workspace_id = $1 AND page_id = $2 AND principal_id = $3 AND capability = $4;
-
--- name: ListPageRestrictions :many
--- そのページ自身に張られた例外の一覧（祖先から継承したものは含まない）。
-SELECT * FROM page_restrictions
-WHERE workspace_id = $1 AND page_id = $2
-ORDER BY principal_id, capability;
-
--- name: MarkPageAllowList :exec
--- 「このページのこのケイパビリティは許可リスト制」の印を立てる（冪等）。
--- allow 行を書いたのと同じトランザクションで呼ぶ。
-INSERT INTO page_allow_lists (workspace_id, page_id, capability)
-VALUES ($1, $2, $3)
-ON CONFLICT (workspace_id, page_id, capability) DO NOTHING;
-
--- name: UnmarkPageAllowListIfEmpty :exec
--- 許可リスト制の印を畳む。allow 行がまだ残っているなら何もしない。
+-- name: SubtreeHasForeignSpaceAllGrant :one
+-- 移動するサブツリー（自分自身 + 子孫）に「移動先スペース以外のスペース全員」宛ての
+-- ページ付与があるか。KnowledgeBaseRepository.MovePage が同じトランザクションで使う。
 --
--- 呼ぶのは「allow 行を明示的に減らした」操作の直後だけ（解除 / allow → deny の書き換え）。
--- deny 行の解除など allow に触れない操作から呼ぶと、無関係な 1 行の解除で限定公開が
--- 解けることになり、印を別テーブルに分けた意味が無くなる。
---
--- そのため印だけを直接取り消す操作は用意していない。principals の削除（CASCADE）で
--- allow 行が全部消えた段には印だけが残り、「誰も載っていない許可リスト」＝ 誰にも見えない
--- 状態で固定される。これは fail-closed で設計どおり。復旧は allow 行を通常の操作で
--- 入れ直して行う（残したい主体を allow に載せる。限定公開そのものをやめるなら、
--- allow 行を 1 行張ってから解除すると最後の allow が消えて印も畳まれる）。
--- 印だけを消せる操作は「限定公開を 1 手で解除できる」ということでもあるので、
--- 足すなら誰がそれを実行できるかの設計から別途行う。
-DELETE FROM page_allow_lists a
-WHERE a.workspace_id = $1 AND a.page_id = $2 AND a.capability = $3
-  AND NOT EXISTS (
-      SELECT 1 FROM page_restrictions r
-      WHERE r.workspace_id = a.workspace_id AND r.page_id = a.page_id
-        AND r.capability = a.capability AND r.mode = 'allow'
-  );
-
--- name: GetPageRestrictionMode :one
--- 例外 1 行の現在の向き。allow → deny の書き換えで印を畳むべきかを、
--- 同じトランザクション内で判断するために引く。
-SELECT mode FROM page_restrictions
-WHERE workspace_id = $1 AND page_id = $2 AND principal_id = $3 AND capability = $4
-FOR UPDATE;
-
--- name: ListPageAllowLists :many
--- そのページ自身が許可リスト制になっているケイパビリティの一覧。
--- 許可リストが空（載っていた主体が消えた）の段はここにしか現れないため、
--- 例外の一覧と合わせて読まないと「制限なし」に見えてしまう。
-SELECT capability FROM page_allow_lists
-WHERE workspace_id = $1 AND page_id = $2
-ORDER BY capability;
+-- space_all の主体は「そのスペースの全員」を表すため、スペースをまたぐ移動で行だけが残り
+-- 評価されなくなる（権限解決は対象ページが今いるスペースの space_all しか主体に取らない）。
+-- 行は権限設定画面に見えているのに実効は違う、という追跡困難なずれになる。
+-- 倒れる向きは常に「狭まる側」だが、見えている行が効かないこと自体が説明できないので、
+-- 移動そのものを止める。
+SELECT EXISTS (
+    SELECT 1
+    FROM page_paths pp
+    JOIN page_grants g
+      ON g.workspace_id = pp.workspace_id AND g.page_id = pp.page_id
+    JOIN principals pr
+      ON pr.workspace_id = g.workspace_id AND pr.id = g.principal_id
+    WHERE pp.workspace_id = sqlc.arg(workspace_id)
+      AND pp.ancestor_id = sqlc.arg(page_id)
+      AND pr.kind = 'space_all'
+      AND pr.space_id IS DISTINCT FROM sqlc.arg(new_space_id)::uuid
+) AS found;
 
 -- name: InsertShareLink :one
 -- 共有リンクの発行。principal（kind='share_link'）は同じトランザクションで先に作る。
@@ -305,28 +262,6 @@ SELECT * FROM share_links
 WHERE workspace_id = $1 AND page_id = $2
 ORDER BY created_at DESC;
 
--- name: SubtreeHasForeignSpaceAllRestriction :one
--- 移動するサブツリー（自分自身 + 子孫）に「移動先スペース以外のスペース全員」宛ての例外が
--- あるか。KnowledgeBaseRepository.MovePage が同じトランザクションで使う。
---
--- space_all の主体は「そのスペースの全員」を表すため、スペースをまたぐ移動で行だけが残り
--- 評価されなくなる（権限解決は対象ページが今いるスペースの space_all しか主体に取らない）。
--- 行は権限設定画面に見えているのに実効は違う、という追跡困難なずれになり、
--- しかも allow は締め出す側・deny は開く側へ倒れるという非対称ができる。
--- 移動そのものを止めることで、緩む向きにも締まる向きにも黙って変わらないようにする。
-SELECT EXISTS (
-    SELECT 1
-    FROM page_paths pp
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.page_id
-    JOIN principals pr
-      ON pr.workspace_id = r.workspace_id AND pr.id = r.principal_id
-    WHERE pp.workspace_id = sqlc.arg(workspace_id)
-      AND pp.ancestor_id = sqlc.arg(page_id)
-      AND pr.kind = 'space_all'
-      AND pr.space_id IS DISTINCT FROM sqlc.arg(new_space_id)::uuid
-) AS found;
-
 -- name: ResolvePagePermissionFacts :one
 -- 1 ページの実効権限を決めるのに必要な「事実」を 1 回のクエリで集める。
 -- 判定そのものは domain.ResolvePagePermission が行う（ここには規則を書かない）。
@@ -335,26 +270,15 @@ SELECT EXISTS (
 -- 後者は共有リンクの来訪者（kind='share_link'）として解決する。
 --
 -- CTE の役割:
---   target      … 対象ページの所属スペース（space_grants を引くのに要る）
---   me          … 自分自身の主体
---   mine        … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
---                  グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
---                  スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
---   onpath      … 対象ページ自身と祖先に張られた制限を depth 付きで集める（0 が自分自身）
---   allow_scope … ケイパビリティごとの「許可リスト制の印を持つ最も近い段」の depth
---   exception   … ケイパビリティごとに 2 つの事実へ畳む:
---                  (a) 経路上のどこかに自分宛ての deny があるか
---                  (b) 最も近い許可リスト制の段に自分宛ての allow があるか
---                  「許可リスト制の段があるか」は allow 行ではなく allow_scope（印）が答える
+--   target … 対象ページの所属スペース（space_grants を引くのに要る）
+--   me     … 自分自身の主体
+--   mine   … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
+--            グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
+--            スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
 --
--- deny を経路全体で見るのが肝。最も近い段だけを見ると、deny 行しか無い段が最近段になった
--- 瞬間に「deny だけの段は既定に戻す」規則が働き、より遠い祖先の許可リストが
--- 無関係な deny 1 行で解除されてしまう（規則の適用は domain 側だが、
--- 事実として最近段しか返さない限り domain からは直しようがない）。
---
--- 「限定公開かどうか」を allow 行の有無で数えないのも同じ理由。allow 行は principals への
--- CASCADE で消えるので、載っていた主体を消しただけでその段が「制限なし」に化ける。
--- 印（page_allow_lists）は主体を参照しないため、誰が消えても段は残る。
+-- **打ち消す層は無い。** 権限は 3 段の付与を足し合わせ、届いた中で最も強い役割で決まる。
+-- 下の段が上の段を弱めることはないので、経路をさかのぼって拾うのは「最も強い役割」だけでよく、
+-- どの段にあったかを覚えておく必要がない（最近段の depth も要らない）。
 WITH target AS (
     -- スペースの visibility も一緒に引く。'private' のスペースには
     -- ワークスペース全体の grant と space_all（そのスペースの全員）を届かせない
@@ -390,25 +314,8 @@ mine AS (
       AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me WHERE me.kind = 'user')
 ),
-onpath AS (
-    SELECT r.capability, r.mode, r.principal_id, pp.depth
-    FROM page_paths pp
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id
-    WHERE pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = sqlc.arg(page_id)
-),
-allow_scope AS (
-    SELECT a.capability, MIN(pp.depth) AS nearest_depth
-    FROM page_paths pp
-    JOIN page_allow_lists a
-      ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id
-    WHERE pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = sqlc.arg(page_id)
-    GROUP BY a.capability
-),
 -- 経路上のページ付与（自分自身と祖先）のうち最も強いもの。祖先に editor を張れば
 -- 子孫の既定が editor 以上になる、という降り方は grant の他の 2 段と同じ。
--- 例外（allow_scope / onpath）と違って「最も近い段」は見ない。付与は足し算だけで、
--- 近い付与が遠い付与を弱めることはないため（domain/grant.go の Rank のコメント）。
 page_grant_rank AS (
     SELECT max(CASE pg."role"
                  WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
@@ -418,23 +325,11 @@ page_grant_rank AS (
       ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
     WHERE pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = sqlc.arg(page_id)
       AND pg.principal_id IN (SELECT id FROM mine)
-),
-exception AS (
-    -- 最も近い段の depth は allow_scope（ケイパビリティごとに 1 行）から JOIN で持ってくる。
-    -- 相関副問い合わせにすると onpath の 1 行ごとに集約をやり直すことになり、
-    -- 経路上の制限が増えるほど計算量が行数の二乗に膨らむ。
-    SELECT o.capability,
-           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
-           bool_or(o.mode = 'allow' AND o.depth = s.nearest_depth
-                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
-    FROM onpath o
-    LEFT JOIN allow_scope s ON s.capability = o.capability
-    GROUP BY o.capability
 )
 SELECT
     EXISTS (SELECT 1 FROM target) AS page_exists,
     EXISTS (SELECT 1 FROM me WHERE me.kind = 'user') AS is_member,
-    -- ワークスペースの grant とスペースの grant を合わせ、最も強い役割の強さを返す。
+    -- 3 段の grant を合わせ、最も強い役割の強さを返す。
     -- 弱い方を採るとスペースに viewer を張るだけでワークスペース管理者を締め出せてしまう。
     --
     -- 役割そのもの（text）ではなく強さ（整数）を返すのは、役割が 1 つも無いときに
@@ -457,20 +352,7 @@ SELECT
              WHERE sg.workspace_id = sqlc.arg(workspace_id) AND sg.space_id = t.space_id
                AND sg.principal_id IN (SELECT id FROM mine)
         ) g
-    ), 0), COALESCE((SELECT rank FROM page_grant_rank), 0))::integer AS grant_rank,
-    -- restricted は「経路に例外の材料が 1 つでもあるか」。印だけがあって allow 行が
-    -- 1 つも無い段（載っていた主体が消えた段）も制限として扱わなければ、
-    -- 印を分けた意味が無くなる。
-    (EXISTS (SELECT 1 FROM exception e WHERE e.capability = 'view')
-     OR EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'view'))::boolean AS view_restricted,
-    COALESCE((SELECT e.denied_anywhere FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_denied_anywhere,
-    EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'view') AS view_has_allow_list,
-    COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_allowed_at_nearest,
-    (EXISTS (SELECT 1 FROM exception e WHERE e.capability = 'edit')
-     OR EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'edit'))::boolean AS edit_restricted,
-    COALESCE((SELECT e.denied_anywhere FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_denied_anywhere,
-    EXISTS (SELECT 1 FROM allow_scope s WHERE s.capability = 'edit') AS edit_has_allow_list,
-    COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_allowed_at_nearest;
+    ), 0), COALESCE((SELECT rank FROM page_grant_rank), 0))::integer AS grant_rank;
 
 -- name: ListSpacePageViewFacts :many
 -- スペース配下のページ全件と、それぞれの「閲覧の事実」を 1 回のクエリで返す。
@@ -478,20 +360,14 @@ SELECT
 --
 -- # なぜアーカイブ用に別のクエリを作らないのか
 --
--- 権限の事実を組み立てる部分（deny は経路全体・許可リストは最も近い段・段かどうかは
--- page_allow_lists の印）を写経することになるため。**同じ判断を 2 箇所に置くと必ずずれる**
--- （このクエリ自身が下で「1 ページの解決と一覧で違う畳み方をすると『開くと見えるのに
--- 一覧に出ない』ずれになる」と書いているのと同じ理由）。違うのは対象の絞り込みだけなので、
--- そこだけを引数にする。
--- 判定は domain.ResolvePagePermission が行い、呼び出し側がふるい落とす。
+-- 権限の事実を組み立てる部分を写経することになるため。**同じ判断を 2 箇所に置くと必ずずれる。**
+-- 違うのは対象の絞り込みだけなので、そこだけを引数にする。
+-- 判定は domain.ResolvePageView が行い、呼び出し側がふるい落とす。
 --
 -- ページごとに権限クエリを投げる（N+1）ことは避ける。ツリー表示は 1 スペースで
 -- 数百〜数千ページを一度に扱うため、1 ページ 1 往復では表示のたびにその回数だけ往復する。
--- 制限を持つページはごく少数なので、closure との JOIN で拾えるのは実際には数行だけになる。
 --
--- 集計は ResolvePagePermissionFacts と同じ事実（deny は経路全体・許可リストは最も近い段・
--- 段かどうかは page_allow_lists の印）。ケイパビリティは 'view' に絞ってあるので、
--- 分けるのはページ単位だけで足りる。
+-- 集めるのは ResolvePagePermissionFacts と同じ事実（届いた中で最も強い役割）。
 -- 1 ページの解決と一覧で違う畳み方をすると「開くと見えるのに一覧に出ない」ずれになる。
 WITH me AS (
     SELECT p.id
@@ -519,30 +395,6 @@ mine AS (
       )
       AND EXISTS (SELECT 1 FROM me)
 ),
-onpath AS (
-    SELECT pp.page_id, pp.depth, r.mode, r.principal_id
-    FROM page_paths pp
-    JOIN pages tp ON tp.workspace_id = pp.workspace_id AND tp.id = pp.page_id
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id AND r.capability = 'view'
-    WHERE pp.workspace_id = sqlc.arg(workspace_id)
-      AND tp.space_id = sqlc.arg(space_id)
-      -- archived と「アーカイブ済みか」が一致する行だけ。3 箇所すべて同じ条件にすること。
-      -- 片方だけ現役に絞ると、アーカイブ済みページに例外の事実が 1 つも付かず、
-      -- 伏せてあるはずのページが見える側へ倒れる。
-      AND (sqlc.arg(archived)::boolean) = (tp.archived_at IS NOT NULL)
-),
-allow_scope AS (
-    SELECT pp.page_id, MIN(pp.depth) AS nearest_depth
-    FROM page_paths pp
-    JOIN pages tp ON tp.workspace_id = pp.workspace_id AND tp.id = pp.page_id
-    JOIN page_allow_lists a
-      ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id AND a.capability = 'view'
-    WHERE pp.workspace_id = sqlc.arg(workspace_id)
-      AND tp.space_id = sqlc.arg(space_id)
-      AND (sqlc.arg(archived)::boolean) = (tp.archived_at IS NOT NULL)
-    GROUP BY pp.page_id
-),
 -- 各ページについて、経路上（自分と祖先）のページ付与の最大値。ページごとに値が変わるので
 -- スペース単位の既定のように 1 行へ畳めない。1 回のクエリで集めて LEFT JOIN する
 -- （ページごとに引き直すと行数ぶんの集約になる）。
@@ -561,17 +413,6 @@ page_grant_rank AS (
       AND (sqlc.arg(archived)::boolean) = (tp.archived_at IS NOT NULL)
       AND pg.principal_id IN (SELECT id FROM mine)
     GROUP BY pp.page_id
-),
-exception AS (
-    -- 最も近い段の depth を JOIN で持ってくる理由は ResolvePagePermissionFacts と同じ
-    -- （相関副問い合わせは経路上の制限の行数に対して二乗になる）。
-    SELECT o.page_id,
-           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
-           bool_or(o.mode = 'allow' AND o.depth = s.nearest_depth
-                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
-    FROM onpath o
-    LEFT JOIN allow_scope s ON s.page_id = o.page_id
-    GROUP BY o.page_id
 )
 SELECT
     p.*,
@@ -598,20 +439,12 @@ SELECT
                AND sg.principal_id IN (SELECT id FROM mine)
         ) g
     ), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank,
-    (e.page_id IS NOT NULL OR s.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(e.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (s.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(e.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest,
     -- 親がアーカイブ済みか（親を持たない行は false）。
     (par.archived_at IS NOT NULL)::boolean AS parent_archived
 FROM pages p
-LEFT JOIN exception e ON e.page_id = p.id
-LEFT JOIN allow_scope s ON s.page_id = p.id
 LEFT JOIN page_grant_rank pgr ON pgr.page_id = p.id
 -- 親がアーカイブ済みかは**事実**として返すだけで、ここでは何の判断にも使わない。
 -- 「復帰できるか」の規則は UnarchivePageUseCase が持つ（親がアーカイブ中なら断る）。
--- 相関副問い合わせにしないのは、経路の集計で二乗になるのを避けるのと同じ流儀
--- （こちらは主キー 1 件の引きなので実害は無いが、書き方を揃える）。
 LEFT JOIN pages par ON par.workspace_id = p.workspace_id AND par.id = p.parent_id
 WHERE p.workspace_id = sqlc.arg(workspace_id)
   AND p.space_id = sqlc.arg(space_id)
@@ -626,10 +459,9 @@ ORDER BY p."position";
 -- 根 1 枚の編集権限だけで通すと、同じページを直接 rename すると 403 になるのに
 -- 祖先のアーカイブ経由なら書き換えられる、という経路依存の食い違いになる。
 --
--- ページごとに ResolvePagePermissionFacts を投げない（N+1 にしない）。集計は
--- ListSpacePageViewFacts と同じ形（deny は経路全体・許可リストは最も近い段・段かどうかは
--- page_allow_lists の印）で、違いは対象の絞り方（スペース全体 → closure のサブツリー）と
--- 編集の列も集めることだけ。
+-- ページごとに ResolvePagePermissionFacts を投げない（N+1 にしない）。集めるのは
+-- ListSpacePageViewFacts と同じ形で、違いは対象の絞り方（スペース全体 → closure の
+-- サブツリー）だけ。
 --
 -- アーカイブ済みのページも外さない。操作の影響が及ぶ範囲はアーカイブ状態と関係なく
 -- サブツリー全体で、外すと「先に子だけアーカイブしておけば検査を迂回できる」経路ができる。
@@ -637,14 +469,8 @@ ORDER BY p."position";
 -- サブツリーは必ず 1 つのスペースに収まる（スペースをまたぐ移動はサブツリーの space_id を
 -- まとめて付け替える）ので、space_grants と space_all の主体は根のスペースで引けば足りる。
 --
--- 計算量（PostgreSQL 17.6 / EXPLAIN ANALYZE で実測）。効くのは closure 上の
--- 「子孫 × 経路上で制限を持つ祖先」の組の数で、ページ数に対して線形。
---   - 制限が無いとき: 5,000 ページのサブツリーで 3.0 ms（同じデータでの
---     ListSpacePageViewFacts が 2.7 ms なので、既存のツリー取得と同じ桁）
---   - 全 5,000 ページに deny 10 行 + 2,500 段に許可リストの印（組の数 33 万）という
---     極端な形で 174 ms。サブツリーを 85 / 341 / 1,365 / 5,000 ページと変えると
---     4 / 12 / 47 / 174 ms で、二乗には膨らまない
--- 呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
+-- ページごとに値が変わるのは経路上のページ付与だけなので、closure を辿るのは
+-- page_grant_rank の 1 本で済む。呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
 WITH target AS (
     -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
     SELECT p.space_id, s.visibility AS space_visibility
@@ -679,34 +505,6 @@ mine AS (
       AND sp.kind = 'space_all' AND sp.space_id = t.space_id
       AND t.space_visibility = 'workspace'
       AND EXISTS (SELECT 1 FROM me)
-),
-onpath AS (
-    SELECT s.page_id, pp.depth, r.capability, r.mode, r.principal_id
-    FROM subtree s
-    JOIN page_paths pp
-      ON pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = s.page_id
-    JOIN page_restrictions r
-      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id
-),
-allow_scope AS (
-    SELECT s.page_id, a.capability, MIN(pp.depth) AS nearest_depth
-    FROM subtree s
-    JOIN page_paths pp
-      ON pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = s.page_id
-    JOIN page_allow_lists a
-      ON a.workspace_id = pp.workspace_id AND a.page_id = pp.ancestor_id
-    GROUP BY s.page_id, a.capability
-),
-exception AS (
-    -- 最も近い段の depth を JOIN で持ってくる理由は ResolvePagePermissionFacts と同じ
-    -- （相関副問い合わせは経路上の制限の行数に対して二乗になる）。
-    SELECT o.page_id, o.capability,
-           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
-           bool_or(o.mode = 'allow' AND o.depth = sc.nearest_depth
-                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
-    FROM onpath o
-    LEFT JOIN allow_scope sc ON sc.page_id = o.page_id AND sc.capability = o.capability
-    GROUP BY o.page_id, o.capability
 ),
 grants AS (
     -- ワークスペースとスペースの既定はサブツリー全体で同じ値なので 1 行に畳んでから配る
@@ -745,21 +543,9 @@ page_grant_rank AS (
 SELECT
     s.page_id,
     EXISTS (SELECT 1 FROM me) AS is_member,
-    GREATEST(COALESCE((SELECT grants.grant_rank FROM grants), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank,
-    (ev.page_id IS NOT NULL OR av.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(ev.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (av.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(ev.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest,
-    (ee.page_id IS NOT NULL OR ae.page_id IS NOT NULL)::boolean AS edit_restricted,
-    COALESCE(ee.denied_anywhere, false)::boolean AS edit_denied_anywhere,
-    (ae.page_id IS NOT NULL)::boolean AS edit_has_allow_list,
-    COALESCE(ee.allowed_at_nearest, false)::boolean AS edit_allowed_at_nearest
+    GREATEST(COALESCE((SELECT grants.grant_rank FROM grants), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank
 FROM subtree s
 LEFT JOIN page_grant_rank pgr ON pgr.page_id = s.page_id
-LEFT JOIN exception ev ON ev.page_id = s.page_id AND ev.capability = 'view'
-LEFT JOIN allow_scope av ON av.page_id = s.page_id AND av.capability = 'view'
-LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
-LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id;
 
 -- name: ListMemberWorkspaces :many
@@ -794,10 +580,9 @@ ORDER BY w.slug;
 -- max(rank) を SQL 側で計算すると「最も強いものを採る」という規則が DB へ写り、
 -- ページ 1 枚の解決と食い違ったときにどちらが正か決められなくなる。
 --
--- ページ単位の例外（page_restrictions / page_allow_lists）はここでは一切見ない。
--- スペースには例外の層が無く、あるのは grants の既定だけ。この結果を
--- 「そのスペースのあるページを編集してよいか」に使ってはいけない（ページの deny を
--- 見ていないため必ず緩い側へ倒れる）。呼び出し側は対象がまだ存在しない操作にだけ使う。
+-- ページ付与（page_grants）はここでは一切見ない。この結果を「そのスペースのあるページを
+-- 編集してよいか」に使ってはいけない（祖先のページ付与を見ていないため必ず狭い側へ倒れる）。
+-- 呼び出し側は対象がまだ存在しない操作にだけ使う。
 --
 -- mine（自分に効く主体）の作り方は ResolvePagePermissionFacts と同じ:
 -- 自分自身 + 所属グループ + そのスペースの「全員」。グループの入れ子は DB 側で
@@ -947,9 +732,8 @@ ORDER BY s."key", r."role";
 -- ワークスペース全体から、題名が部分一致する**現役**ページを候補にして、
 -- それぞれの「閲覧の事実」を 1 回のクエリで返す（サイドバーの題名検索用）。
 --
--- 事実の組み立ては ListSpacePageViewFacts と同じ見方（deny は経路全体・許可リストは
--- 最も近い段・段かどうかは page_allow_lists の印）で、判定は domain.ResolvePageView が行う。
--- 違いは 2 つだけ:
+-- 事実の組み立ては ListSpacePageViewFacts と同じ見方（届いた中で最も強い役割）で、
+-- 判定は domain.ResolvePageView が行う。違いは 2 つだけ:
 --   1. 対象がスペース 1 つではなくワークスペース全体（題名の一致で先に候補を絞る）
 --   2. スペース単位の主体（space_all）と space_grants は**そのページのスペース**のもので
 --      突き合わせる。1 スペース版は引数のスペースに固定できたが、こちらは行ごとに違うので、
@@ -968,7 +752,7 @@ ORDER BY s."key", r."role";
 -- 数百〜数千ページ）では十分速い。伸びたら pg_trgm の GIN を検討する（拡張が要るので
 -- そのときに判断する）。
 --
--- 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c1 / c2 …）。CTE ごとに同じ
+-- 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c …）。CTE ごとに同じ
 -- 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
 -- 「column ... does not exist」で生成が落ちる（実測）。
 WITH me AS (
@@ -1005,36 +789,6 @@ cand AS (
       AND pg.title ILIKE ('%' || sqlc.arg(needle)::text || '%')
     ORDER BY pg.title, pg.id
     LIMIT 200
-),
-onpath AS (
-    SELECT pp1.page_id, c1.space_id AS page_space, pp1.depth, rst.mode, rst.principal_id
-    FROM page_paths pp1
-    JOIN cand c1 ON c1.workspace_id = pp1.workspace_id AND c1.id = pp1.page_id
-    JOIN page_restrictions rst
-      ON rst.workspace_id = pp1.workspace_id AND rst.page_id = pp1.ancestor_id AND rst.capability = 'view'
-    WHERE pp1.workspace_id = sqlc.arg(workspace_id)
-),
-allow_scope AS (
-    SELECT pp2.page_id, MIN(pp2.depth) AS nearest_depth
-    FROM page_paths pp2
-    JOIN cand c2 ON c2.workspace_id = pp2.workspace_id AND c2.id = pp2.page_id
-    JOIN page_allow_lists alw
-      ON alw.workspace_id = pp2.workspace_id AND alw.page_id = pp2.ancestor_id AND alw.capability = 'view'
-    WHERE pp2.workspace_id = sqlc.arg(workspace_id)
-    GROUP BY pp2.page_id
-),
-exception AS (
-    SELECT onp.page_id,
-           bool_or(onp.mode = 'deny'
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS denied_anywhere,
-           bool_or(onp.mode = 'allow' AND onp.depth = asc1.nearest_depth
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS allowed_at_nearest
-    FROM onpath onp
-    LEFT JOIN allow_scope asc1 ON asc1.page_id = onp.page_id
-    LEFT JOIN space_allp sap ON sap.space_id = onp.page_space
-    GROUP BY onp.page_id
 ),
 wsrank AS (
     SELECT COALESCE(max(CASE wg."role"
@@ -1086,16 +840,10 @@ SELECT
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
       COALESCE(pgr.v, 0)
-    )::integer AS grant_rank,
-    (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+    )::integer AS grant_rank
 FROM cand cnd
 -- pages → spaces は複合 FK があるので必ず 1 行に当たる。
 JOIN spaces spvis ON spvis.workspace_id = sqlc.arg(workspace_id) AND spvis.id = cnd.space_id
-LEFT JOIN exception exc ON exc.page_id = cnd.id
-LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
 ORDER BY cnd.title, cnd.id;
@@ -1152,36 +900,6 @@ cand AS (
       )
     ORDER BY pg.title, pg.id
 ),
-onpath AS (
-    SELECT pp1.page_id, c1.space_id AS page_space, pp1.depth, rst.mode, rst.principal_id
-    FROM page_paths pp1
-    JOIN cand c1 ON c1.workspace_id = pp1.workspace_id AND c1.id = pp1.page_id
-    JOIN page_restrictions rst
-      ON rst.workspace_id = pp1.workspace_id AND rst.page_id = pp1.ancestor_id AND rst.capability = 'view'
-    WHERE pp1.workspace_id = sqlc.arg(workspace_id)
-),
-allow_scope AS (
-    SELECT pp2.page_id, MIN(pp2.depth) AS nearest_depth
-    FROM page_paths pp2
-    JOIN cand c2 ON c2.workspace_id = pp2.workspace_id AND c2.id = pp2.page_id
-    JOIN page_allow_lists alw
-      ON alw.workspace_id = pp2.workspace_id AND alw.page_id = pp2.ancestor_id AND alw.capability = 'view'
-    WHERE pp2.workspace_id = sqlc.arg(workspace_id)
-    GROUP BY pp2.page_id
-),
-exception AS (
-    SELECT onp.page_id,
-           bool_or(onp.mode = 'deny'
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS denied_anywhere,
-           bool_or(onp.mode = 'allow' AND onp.depth = asc1.nearest_depth
-                   AND (onp.principal_id IN (SELECT id FROM mine)
-                        OR onp.principal_id = sap.id)) AS allowed_at_nearest
-    FROM onpath onp
-    LEFT JOIN allow_scope asc1 ON asc1.page_id = onp.page_id
-    LEFT JOIN space_allp sap ON sap.space_id = onp.page_space
-    GROUP BY onp.page_id
-),
 wsrank AS (
     SELECT COALESCE(max(CASE wg."role"
                           WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
@@ -1201,15 +919,7 @@ sgrank AS (
       AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
     GROUP BY sg.space_id
 ),
--- ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
--- 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
---
--- この経路の mine は「自分と所属グループ」だけで、スペース全員（space_all）は space_allp が
--- 別に持つ。両方を見ないと、全員宛ての付与が 1 ページの解決では効くのにここでは効かず、
--- 「開けるのに検索に出ない」ずれになる。
---
--- 候補（cand）に絞ってから集計する。ワークスペース全体の経路を集めると、候補が数件でも
--- 全ページ分の JOIN を回すことになる。
+-- ページ付与。候補に絞ってから経路を辿る（意味は検索側と同じ）。
 pgrank AS (
     SELECT pp.page_id,
            max(CASE pgt."role"
@@ -1226,22 +936,13 @@ pgrank AS (
 )
 SELECT
     cnd.*,
-    -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
-    -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
       COALESCE(pgr.v, 0)
-    )::integer AS grant_rank,
-    (exc.page_id IS NOT NULL OR asc2.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(exc.denied_anywhere, false)::boolean AS view_denied_anywhere,
-    (asc2.page_id IS NOT NULL)::boolean AS view_has_allow_list,
-    COALESCE(exc.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
+    )::integer AS grant_rank
 FROM cand cnd
--- pages → spaces は複合 FK があるので必ず 1 行に当たる。
 JOIN spaces spvis ON spvis.workspace_id = sqlc.arg(workspace_id) AND spvis.id = cnd.space_id
-LEFT JOIN exception exc ON exc.page_id = cnd.id
-LEFT JOIN allow_scope asc2 ON asc2.page_id = cnd.id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
 ORDER BY cnd.title, cnd.id;

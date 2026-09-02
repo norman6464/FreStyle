@@ -165,7 +165,9 @@ func Test_共有リンク権限_対象ページの外は拒否(t *testing.T) {
 	perms.AssertNotCalled(t, "PagePermissionFactsForPrincipal", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-func Test_共有リンク権限_リンクの既定を出発点に例外を適用する(t *testing.T) {
+// リンクの既定は対象ページの子孫にもそのまま届く。子 1 枚だけ狭めることはできないので、
+// 見せたくないものはリンクの範囲の外（別のスペース）へ置いてから共有する。
+func Test_共有リンク権限_リンクの既定は子ページにも届く(t *testing.T) {
 	link := kbShareLinkFor("tok")
 	link.Capability = domain.CapabilityEdit
 	child := "0198a000-0000-7000-8000-00000000000d"
@@ -183,20 +185,28 @@ func Test_共有リンク権限_リンクの既定を出発点に例外を適用
 	assert.True(t, got.CanEdit, "編集可のリンクなので子ページも編集できる")
 }
 
-func Test_共有リンク権限_子ページのdenyで隠せる(t *testing.T) {
+// 共有リンクは広げる方向にしか働かない。閲覧のリンクで来た人は、対象ページの中を
+// 読めるだけで、書くことも権限を変えることもできない。
+func Test_共有リンク権限_閲覧のリンクでは書けず権限も変えられない(t *testing.T) {
 	child := "0198a000-0000-7000-8000-00000000000d"
 	pages := &mockKnowledgeBaseRepo{}
 	pages.On("HasDescendant", mock.Anything, kbWS, kbPage, child).Return(true, nil)
 	perms := &mockKBPermissionRepo{}
 	perms.On("PagePermissionFactsForPrincipal", mock.Anything, kbWS, child, kbPrincipal).
-		Return(&domain.PagePermissionFacts{View: &domain.RestrictionFacts{DeniedAnywhere: true}}, nil)
+		Return(&domain.PagePermissionFacts{}, nil)
 	uc := usecase.NewCheckShareLinkPermissionUseCase(perms, pages)
 
 	got, err := uc.Execute(context.Background(), usecase.CheckShareLinkPermissionInput{
 		Link: kbShareLinkFor("tok"), PageID: child,
 	})
 	require.NoError(t, err)
-	assert.False(t, got.CanView, "公開リンクの主体を deny した子ページは開けない")
+	assert.True(t, got.CanView, "閲覧のリンクなので子ページも読める")
+	assert.False(t, got.CanEdit, "閲覧のリンクは書き込みまで広げない")
+	// CanManage は役割からしか立たず、リンクの来訪者は役割を持たない（Role が nil）。
+	// **この assert は配線の上では落ちようがない**（規則を書き換えても false のまま）。
+	// それでも置くのは、将来リンクに役割を持たせる変更が入ったときに、ここが
+	// 「広げる方向にしか働かない」という約束を破る最初の場所になるため。
+	assert.False(t, got.CanManage, "リンクの来訪者は役割を持たないので権限を変えられない")
 }
 
 func Test_共有リンク権限_必須項目の検証(t *testing.T) {

@@ -497,20 +497,6 @@ type kbPermKey struct {
 	userID uint64
 }
 
-// kbRestrictionKey は page_restrictions の主キー（ワークスペースはページから決まる）。
-type kbRestrictionKey struct {
-	pageID      string
-	principalID string
-	capability  domain.Capability
-}
-
-// kbAllowListKey は page_allow_lists の主キー。主体を含まないのが要点で、
-// 許可リストに載っていた主体が消えても印だけは残る。
-type kbAllowListKey struct {
-	pageID     string
-	capability domain.Capability
-}
-
 // errKbFakeNotModeled はこの fake が再現していない口を呼ばれたときのエラー。
 //
 // nil を返して黙って成功させない。ここが呼ばれるのは配線が変わったときだけなので、
@@ -520,13 +506,10 @@ var errKbFakeNotModeled = errors.New("kb fake: この口は再現していない
 // kbFakePerms は repository.KnowledgeBasePermissionRepository の in-memory fake。
 //
 // 判定そのものはせず、domain.ResolvePagePermission がその答えを出すような「事実」を返す。
-// 例外（page_restrictions）と「その段が許可リスト制である」という印（page_allow_lists）は
-// 本番の repository と同じ規則で持ち回る:
 //
-//   - allow を張ると印が立つ
-//   - 最後の allow を消す / allow を deny へ書き換えて allow が 0 行になると印が畳まれる
-//   - deny 行を消しても印は畳まれない
-//   - 主体を消すと allow 行は道連れに消えるが、印は残る（＝ 閉じる側に倒れる）
+// 権限は 3 段の付与（ワークスペース / スペース / ページ）を足し合わせ、届いた中で最も強い
+// 役割で決まる。打ち消す層は無いので、**同じスペースの中で 1 枚だけ隠すことはできない**
+// （見せたくないものは別のスペースへ置く。hideInOwnPrivateSpace 参照）。
 //
 // 印を「allow 行があるか」で代用すると、主体を 1 つ消しただけで限定公開が解けるという
 // 本番には無い挙動になり、その穴を踏むテストが緑のまま通ってしまう。
@@ -537,11 +520,7 @@ type kbFakePerms struct {
 	principals map[string]*domain.Principal
 	// groupMembers は groupPrincipalID -> memberPrincipalID の集合。
 	groupMembers map[string]map[string]bool
-	// restrictions は page_restrictions の行。
-	restrictions map[kbRestrictionKey]domain.RestrictionMode
-	// allowLists は page_allow_lists の印。
-	allowLists map[kbAllowListKey]bool
-	nextID     int
+	nextID       int
 	// permReadCalls は「権限を決めるための読み取り」が呼ばれた回数（メソッド名ごと）。
 	//
 	// 権限操作の入口が **結果によらず同じ回数・同じ内訳で引く** ことをテストから確かめるために
@@ -604,8 +583,6 @@ func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakeP
 		pages:        pages,
 		principals:   map[string]*domain.Principal{},
 		groupMembers: map[string]map[string]bool{},
-		restrictions: map[kbRestrictionKey]domain.RestrictionMode{},
-		allowLists:   map[kbAllowListKey]bool{},
 		perPage:      map[kbPermKey]domain.PagePermission{},
 		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
 		grants:       map[kbGrantKey]domain.GrantRole{},
@@ -625,17 +602,41 @@ func (f *kbFakePerms) addMember(workspaceID string, userID uint64) {
 //
 // 既定を弱く張り替える形では表せない。既定は 3 段（ワークスペース / スペース / ページ）
 // から届いて**最も強いものが実効**になるので、弱い役割を足しても下がらない。
-// 弱める操作は必ずこの例外の層が担う（domain.GrantRole.Rank に規則がある）。
-func (f *kbFakePerms) denyPage(workspaceID, pageID string, userID uint64, c domain.Capability) {
-	p := f.userPrincipal(workspaceID, userID)
-	if p == nil {
-		panic("denyPage: 対象がワークスペースのメンバーではない（deny が効かない）")
+// hideInOwnPrivateSpace は対象ページを「自分が届かない private スペース」へ移し、
+// その相手から見えなくする。
+//
+// **これが「見えないページ」を作る唯一のやり方**。権限は 3 段の付与を足し合わせて
+// 最も強い役割で決まり、打ち消す層が無いので、同じスペースの中で 1 枚だけ隠すことはできない。
+// 見せたくないものは別のスペースへ置く、という本番の運用をそのまま写している。
+//
+// 親子は DB の複合 FK（fk_pages_parent）でスペースが揃うので、子を持つページには使わない。
+func (f *kbFakePerms) hideInOwnPrivateSpace(workspaceID, pageID string) {
+	page, ok := f.pages.pages[pageID]
+	if !ok || page.WorkspaceID != workspaceID {
+		panic("hideInOwnPrivateSpace: そのページが無い")
 	}
-	f.restrictions[kbRestrictionKey{pageID: pageID, principalID: p.ID, capability: c}] = domain.RestrictionModeDeny
+	for _, other := range f.pages.pages {
+		if other.ParentID != nil && *other.ParentID == pageID {
+			panic("hideInOwnPrivateSpace: 子を持つページには使えない（スペースは親子で揃う）")
+		}
+	}
+	hidden := "0198a000-0000-7000-8000-0000000000ff"
+	if _, exists := f.pages.spaces[hidden]; !exists {
+		f.pages.spaces[hidden] = &domain.Space{
+			ID: hidden, WorkspaceID: workspaceID, Key: "hidden", Name: "hidden",
+			Visibility: domain.SpaceVisibilityPrivate,
+		}
+	}
+	page.SpaceID = hidden
+	page.ParentID = nil
 }
 
 // setPagePermission はそのページでの既定（役割）を差し替える。
-// 例外（page_restrictions）ではないので、子孫には伝わらない。
+//
+// **これはテスト用の口で、ページの grant を張ったのに近いが子孫には伝わらない。**
+// 本番のページ付与は子孫へ降りるので、「祖先より弱い子孫」を作れるのは fake の中だけ。
+// サブツリー検査のような防御を突く回帰テストに使う（本番では起こらない状態を作って、
+// 検査がまだ働くことを確かめる）。
 func (f *kbFakePerms) setPagePermission(pageID string, userID uint64, perm domain.PagePermission) {
 	f.perPage[kbPermKey{pageID: pageID, userID: userID}] = perm
 }
@@ -708,52 +709,6 @@ func (f *kbFakePerms) mine(workspaceID, spaceID string, userID uint64) map[strin
 	return out
 }
 
-// restrictionFacts は経路上の例外と印を「deny は経路全体・許可リストは最も近い段」に畳む。
-// 経路に 1 行も無ければ nil（domain 側が既定へのフォールバックと解釈する）。
-func (f *kbFakePerms) restrictionFacts(
-	workspaceID, pageID string, capability domain.Capability, mine map[string]bool,
-) *domain.RestrictionFacts {
-	restricted := false
-	denied := false
-	nearest := -1
-	for depth, ancestorID := range f.pages.ancestorsOf(workspaceID, pageID) {
-		if f.allowLists[kbAllowListKey{pageID: ancestorID, capability: capability}] {
-			restricted = true
-			if nearest < 0 {
-				nearest = depth
-			}
-		}
-		for key, mode := range f.restrictions {
-			if key.pageID != ancestorID || key.capability != capability {
-				continue
-			}
-			// 自分宛てでない行も「経路に制限がある」ことは示す（本番の view_restricted と同じ）。
-			restricted = true
-			if mode == domain.RestrictionModeDeny && mine[key.principalID] {
-				denied = true
-			}
-		}
-	}
-	if !restricted {
-		return nil
-	}
-	allowedAtNearest := false
-	if nearest >= 0 {
-		nearestPageID := f.pages.ancestorsOf(workspaceID, pageID)[nearest]
-		for key, mode := range f.restrictions {
-			if key.pageID == nearestPageID && key.capability == capability &&
-				mode == domain.RestrictionModeAllow && mine[key.principalID] {
-				allowedAtNearest = true
-			}
-		}
-	}
-	return &domain.RestrictionFacts{
-		DeniedAnywhere:   denied,
-		HasAllowList:     nearest >= 0,
-		AllowedAtNearest: allowedAtNearest,
-	}
-}
-
 func (f *kbFakePerms) IsWorkspaceMember(_ context.Context, workspaceID string, userID uint64) (bool, error) {
 	if f.membersErr != nil {
 		return false, f.membersErr
@@ -785,18 +740,31 @@ func (f *kbFakePerms) PagePermissionFactsForUser(_ context.Context, workspaceID,
 	if f.userPrincipal(workspaceID, userID) == nil {
 		return &domain.PagePermissionFacts{}, nil
 	}
-	mine := f.mine(workspaceID, page.SpaceID, userID)
-	roles := f.rolesAt(kbScopeKey{scopeID: page.SpaceID, userID: userID}, workspaceID, userID)
-	roles = append(roles, f.pageGrantRoles(workspaceID, pageID, mine)...)
-	if role := roleFor(f.permFor(pageID, userID)); role != nil {
-		roles = append(roles, *role)
-	}
 	return &domain.PagePermissionFacts{
 		Member: true,
-		Role:   domain.StrongestGrantRole(roles),
-		View:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityView, mine),
-		Edit:   f.restrictionFacts(workspaceID, pageID, domain.CapabilityEdit, mine),
+		Role:   f.roleForPage(workspaceID, page, userID),
 	}, nil
+}
+
+// roleForPage はそのページに届いている最も強い役割を返す（grant が 1 つも無ければ nil）。
+//
+// **1 ページ解決も一覧も検索もこれを通す。** 本番はどの経路も同じ 3 段の付与を同じ
+// 畳み方で集めるので、fake がどれか 1 つだけ別の作り方をすると「開けるのに一覧に出ない」
+// 側のずれをテストが見逃す。
+//
+// fallback / perPage は「このページでの既定」をテストが直接指定するための口で、
+// 合成の 3 つ目として混ぜる（ページの grant を張ったのと同じ扱い）。
+func (f *kbFakePerms) roleForPage(workspaceID string, page *domain.Page, userID uint64) *domain.GrantRole {
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return nil
+	}
+	mine := f.mine(workspaceID, page.SpaceID, userID)
+	roles := f.rolesAt(kbScopeKey{scopeID: page.SpaceID, userID: userID}, workspaceID, userID)
+	roles = append(roles, f.pageGrantRoles(workspaceID, page.ID, mine)...)
+	if role := roleFor(f.permFor(page.ID, userID)); role != nil {
+		roles = append(roles, *role)
+	}
+	return domain.StrongestGrantRole(roles)
 }
 
 // pageGrantRoles は対象ページと祖先に張られた grant のうち、自分に効くものを返す。
@@ -816,8 +784,8 @@ func (f *kbFakePerms) pageGrantRoles(workspaceID, pageID string, mine map[string
 
 // SearchWorkspacePageViewFacts は本番のクエリと同じ見方で候補と事実を返す:
 // 題名の部分一致（大文字小文字は区別しない）・現役のみ・ワークスペース境界。
-// 事実（役割と経路上の例外）は一覧（ListSpacePageViewFacts）と同じ作り方にする —
-// 検索だけ Role しか返さないと、deny のあるページが検索でだけ見える fake になり、
+// 事実（届いた中で最も強い役割）は一覧（ListSpacePageViewFacts）と同じ作り方にする —
+// 検索だけ別の作り方をすると、届かないスペースのページが検索でだけ見える fake になり、
 // 本番との差がテストの穴になる。判定（ふるい）は usecase が行う。
 func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 	_ context.Context, workspaceID string, userID uint64, query string,
@@ -835,13 +803,9 @@ func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 		if !strings.Contains(strings.ToLower(p.Title), needle) {
 			continue
 		}
-		mine := f.mine(workspaceID, p.SpaceID, userID)
 		out = append(out, repository.PageWithViewFacts{
 			Page: *p,
-			Facts: domain.PageViewFacts{
-				Role: roleFor(f.permFor(p.ID, userID)),
-				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
-			},
+			Role: f.roleForPage(workspaceID, p, userID),
 		})
 	}
 	// map の巡回順に依存しない並び（本番は題名順）。
@@ -850,7 +814,7 @@ func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 }
 
 // ListWorkspacePageViewFactsByIDs は ID 群の可視事実。事実の作り方は検索と同一
-// （ここだけ Role しか返さないと、deny のある参照が fake でだけ解決されてしまう）。
+// （ここだけ別の作り方をすると、届かないスペースの参照が fake でだけ解決されてしまう）。
 func (f *kbFakePerms) ListWorkspacePageViewFactsByIDs(
 	_ context.Context, workspaceID string, userID uint64, pageIDs []string,
 ) ([]repository.PageWithViewFacts, error) {
@@ -868,13 +832,9 @@ func (f *kbFakePerms) ListWorkspacePageViewFactsByIDs(
 		if p.WorkspaceID != workspaceID || !wanted[p.ID] {
 			continue
 		}
-		mine := f.mine(workspaceID, p.SpaceID, userID)
 		out = append(out, repository.PageWithViewFacts{
 			Page: *p,
-			Facts: domain.PageViewFacts{
-				Role: roleFor(f.permFor(p.ID, userID)),
-				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
-			},
+			Role: f.roleForPage(workspaceID, p, userID),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Page.Title < out[j].Page.Title })
@@ -887,16 +847,13 @@ func (f *kbFakePerms) ListSpacePageViewFacts(
 	if f.listFactsErr != nil {
 		return nil, f.listFactsErr
 	}
-	mine := f.mine(workspaceID, spaceID, userID)
 	pages := f.pages.pagesInSpace(workspaceID, spaceID, archived)
 	out := make([]repository.PageWithViewFacts, 0, len(pages))
 	for _, p := range pages {
+		page := p
 		out = append(out, repository.PageWithViewFacts{
-			Page: p,
-			Facts: domain.PageViewFacts{
-				Role: roleFor(f.permFor(p.ID, userID)),
-				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
-			},
+			Page:           p,
+			Role:           f.roleForPage(workspaceID, &page, userID),
 			ParentArchived: f.pages.parentArchived(p),
 		})
 	}
@@ -916,7 +873,6 @@ func (f *kbFakePerms) ListSubtreePagePermissionFacts(
 		// closure が 1 行も無い状態と同じ（呼び出し側はここを許可に倒さない）。
 		return []repository.PageWithPermissionFacts{}, nil
 	}
-	mine := f.mine(workspaceID, root.SpaceID, userID)
 	member := f.userPrincipal(workspaceID, userID) != nil
 	ids := make([]string, 0, len(f.pages.pages))
 	for id, p := range f.pages.pages {
@@ -934,9 +890,7 @@ func (f *kbFakePerms) ListSubtreePagePermissionFacts(
 			PageID: id,
 			Facts: domain.PagePermissionFacts{
 				Member: member,
-				Role:   roleFor(f.permFor(id, userID)),
-				View:   f.restrictionFacts(workspaceID, id, domain.CapabilityView, mine),
-				Edit:   f.restrictionFacts(workspaceID, id, domain.CapabilityEdit, mine),
+				Role:   f.roleForPage(workspaceID, f.pages.pages[id], userID),
 			},
 		})
 	}
@@ -953,7 +907,7 @@ func (f *kbFakePerms) countPermRead(method string) {
 }
 
 // SpacePermissionFactsForUser はスペース単位の事実（届いている役割の集合）を返す。
-// 例外（page_restrictions）は見ない — 本番の口と同じで、スペースには例外の層が無い。
+// ページ付与（page_grants）は見ない — 本番の口と同じで、対象がまだ存在しない操作に使う。
 func (f *kbFakePerms) SpacePermissionFactsForUser(
 	_ context.Context, workspaceID, spaceID string, userID uint64,
 ) (*domain.ScopeFacts, error) {
@@ -1242,11 +1196,6 @@ func (f *kbFakePerms) DeletePrincipal(_ context.Context, workspaceID, principalI
 	for _, members := range f.groupMembers {
 		delete(members, principalID)
 	}
-	for key := range f.restrictions {
-		if key.principalID == principalID {
-			delete(f.restrictions, key)
-		}
-	}
 	return nil
 }
 
@@ -1263,103 +1212,6 @@ func (f *kbFakePerms) RemoveGroupMember(_ context.Context, _, groupPrincipalID, 
 	return nil
 }
 
-// UpsertPageRestriction は例外 1 行と許可リスト制の印を同時に揃える（本番と同じ 1 トランザクション）。
-func (f *kbFakePerms) UpsertPageRestriction(
-	_ context.Context, workspaceID, pageID, principalID string,
-	capability domain.Capability, mode domain.RestrictionMode,
-) (*domain.PageRestriction, error) {
-	page, ok := f.pages.pages[pageID]
-	if !ok || page.WorkspaceID != workspaceID {
-		return nil, repository.ErrPageNotFound
-	}
-	key := kbRestrictionKey{pageID: pageID, principalID: principalID, capability: capability}
-	prev, existed := f.restrictions[key]
-	f.restrictions[key] = mode
-	switch {
-	case mode == domain.RestrictionModeAllow:
-		f.allowLists[kbAllowListKey{pageID: pageID, capability: capability}] = true
-	case existed && prev == domain.RestrictionModeAllow:
-		// allow を deny へ書き換えた。その段の最後の allow だったなら印も畳む。
-		f.unmarkAllowListIfEmpty(pageID, capability)
-	}
-	return &domain.PageRestriction{
-		WorkspaceID: workspaceID, PageID: pageID, PrincipalID: principalID,
-		Capability: capability, Mode: mode,
-	}, nil
-}
-
-// DeletePageRestriction は例外を解除する。消したのが allow 行のときだけ印を畳む。
-func (f *kbFakePerms) DeletePageRestriction(
-	_ context.Context, workspaceID, pageID, principalID string, capability domain.Capability,
-) error {
-	page, ok := f.pages.pages[pageID]
-	if !ok || page.WorkspaceID != workspaceID {
-		return nil
-	}
-	key := kbRestrictionKey{pageID: pageID, principalID: principalID, capability: capability}
-	prev, existed := f.restrictions[key]
-	if !existed {
-		return nil // 元から無い（冪等）
-	}
-	delete(f.restrictions, key)
-	if prev == domain.RestrictionModeAllow {
-		f.unmarkAllowListIfEmpty(pageID, capability)
-	}
-	return nil
-}
-
-// unmarkAllowListIfEmpty は allow 行が 1 行も残っていない段の印を畳む。
-// 呼ぶのは「allow 行を明示的に減らした」直後だけ（本番の UnmarkPageAllowListIfEmpty と同じ）。
-func (f *kbFakePerms) unmarkAllowListIfEmpty(pageID string, capability domain.Capability) {
-	for key, mode := range f.restrictions {
-		if key.pageID == pageID && key.capability == capability && mode == domain.RestrictionModeAllow {
-			return
-		}
-	}
-	delete(f.allowLists, kbAllowListKey{pageID: pageID, capability: capability})
-}
-
-func (f *kbFakePerms) ListPageRestrictions(_ context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error) {
-	page, ok := f.pages.pages[pageID]
-	if !ok || page.WorkspaceID != workspaceID {
-		return []domain.PageRestriction{}, nil
-	}
-	out := make([]domain.PageRestriction, 0, len(f.restrictions))
-	for key, mode := range f.restrictions {
-		if key.pageID != pageID {
-			continue
-		}
-		out = append(out, domain.PageRestriction{
-			WorkspaceID: workspaceID, PageID: pageID, PrincipalID: key.principalID,
-			Capability: key.capability, Mode: mode,
-		})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].PrincipalID != out[j].PrincipalID {
-			return out[i].PrincipalID < out[j].PrincipalID
-		}
-		return out[i].Capability < out[j].Capability
-	})
-	return out, nil
-}
-
-// ListPageAllowListCapabilities はそのページ自身が許可リスト制になっているケイパビリティを返す。
-// 載っていた主体が消えて allow 行が 0 行になった段はここにしか現れない。
-func (f *kbFakePerms) ListPageAllowListCapabilities(_ context.Context, workspaceID, pageID string) ([]domain.Capability, error) {
-	page, ok := f.pages.pages[pageID]
-	if !ok || page.WorkspaceID != workspaceID {
-		return []domain.Capability{}, nil
-	}
-	out := make([]domain.Capability, 0, len(f.allowLists))
-	for key := range f.allowLists {
-		if key.pageID == pageID {
-			out = append(out, key.capability)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out, nil
-}
-
 // --- ここから grant（既定の権限）と共有リンク。権限操作 API が通る口。
 
 // mirrorGrant は grant の書き換えを読み取り側（scopeRoles）にも反映する。
@@ -1367,7 +1219,7 @@ func (f *kbFakePerms) ListPageAllowListCapabilities(_ context.Context, workspace
 // fake が「書けるが読めない」状態だと、権限を付与する API のテストが
 // 「付与したのに実効権限が変わらない」ことに気づけない。反映するのは kind='user' の
 // 主体だけ（scopeRoles がユーザー単位のため）。グループやスペース全員宛ての grant は
-// grants にだけ残り、そちらの実効権限はページ経路の perPage / restrictions で表す。
+// grants にだけ残り、そちらの実効権限はページ経路の perPage で表す。
 func (f *kbFakePerms) mirrorGrant(scopeID, principalID string, role *domain.GrantRole) {
 	p, ok := f.principals[principalID]
 	if !ok || p.Kind != domain.PrincipalKindUser || p.UserID == nil {

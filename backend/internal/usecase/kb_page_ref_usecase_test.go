@@ -28,33 +28,38 @@ func kbRefDoc(refs ...string) string {
 	return `{"type":"doc","content":[{"type":"paragraph","content":[` + content + `]}]}`
 }
 
+// kbViewableFacts は「閲覧の役割が届いているページ」の行。
 func kbViewableFacts(id, title string) repository.PageWithViewFacts {
 	return repository.PageWithViewFacts{
-		Page:  domain.Page{ID: id, Title: title},
-		Facts: domain.PageViewFacts{Role: rolePtr(domain.GrantRoleViewer)},
+		Page: domain.Page{ID: id, Title: title},
+		Role: kbGrantRole(domain.GrantRoleViewer),
 	}
 }
 
-func rolePtr(r domain.GrantRole) *domain.GrantRole { return &r }
+// kbUnreachableFacts は「付与が 1 つも届いていないページ」の行（Role が nil）。
+// 自分が入っていない private のスペースに置かれたページがこれにあたる。
+// repository は行そのものは返す（本番の SQL も候補として引いてくる）ので、
+// 見えるかどうかは Role を見て usecase 側の domain.ResolvePageView が決める。
+func kbUnreachableFacts(id, title string) repository.PageWithViewFacts {
+	return repository.PageWithViewFacts{Page: domain.Page{ID: id, Title: title}}
+}
 
 func Test_ページ参照の題名解決_閲覧できる参照だけを現在の題名にする(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	visible := "00000000-0000-7000-8000-000000000001"
-	hidden := "00000000-0000-7000-8000-000000000002"
-	// hidden は経路上に deny がある（事実だけ返し、判定は usecase 側の ResolvePageView）。
-	deniedFacts := repository.PageWithViewFacts{
-		Page: domain.Page{ID: hidden, Title: "隠しページの新題名"},
-		Facts: domain.PageViewFacts{
-			Role: rolePtr(domain.GrantRoleViewer),
-			View: &domain.RestrictionFacts{DeniedAnywhere: true},
-		},
-	}
-	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{visible, hidden}).
-		Return([]repository.PageWithViewFacts{kbViewableFacts(visible, "設計メモ v2"), deniedFacts}, nil)
+	unreachable := "00000000-0000-7000-8000-000000000002"
+	// unreachable には役割が届いていない（別の private なスペースに置かれたページ）。
+	// repository が返すのは事実（届いた中で最も強い役割。無ければ nil）だけで、
+	// 判定は usecase 側の ResolvePageView が行う。
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{visible, unreachable}).
+		Return([]repository.PageWithViewFacts{
+			kbViewableFacts(visible, "設計メモ v2"),
+			kbUnreachableFacts(unreachable, "届かないページの新題名"),
+		}, nil)
 
 	uc := usecase.NewResolvePageRefTitlesUseCase(repo)
 	got, err := uc.Execute(context.Background(), usecase.ResolvePageRefTitlesInput{
-		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(visible, hidden),
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(visible, unreachable),
 	})
 	assert.NoError(t, err)
 
@@ -64,7 +69,7 @@ func Test_ページ参照の題名解決_閲覧できる参照だけを現在の
 	first := inline[0].(map[string]any)["attrs"].(map[string]any)
 	second := inline[1].(map[string]any)["attrs"].(map[string]any)
 	assert.Equal(t, "設計メモ v2", first["title"], "閲覧できる参照は現在の題名になる")
-	// deny のある参照には題名を入れない。保存されていた title も読み出し時に剥がす
+	// 届いていない参照には題名を入れない。保存されていた title も読み出し時に剥がす
 	// （剥がす前に保存された doc から、権限を失った読み手へ古い題名が返らないように）。
 	assert.Nil(t, second["title"])
 	repo.AssertExpectations(t)
@@ -187,8 +192,8 @@ func Test_ページ参照の題名解決_アーカイブ済みの参照は題名
 	id := "00000000-0000-7000-8000-000000000001"
 	archivedAt := time.Now()
 	archived := repository.PageWithViewFacts{
-		Page:  domain.Page{ID: id, Title: "隠した題名", ArchivedAt: &archivedAt},
-		Facts: domain.PageViewFacts{Role: rolePtr(domain.GrantRoleViewer)},
+		Page: domain.Page{ID: id, Title: "隠した題名", ArchivedAt: &archivedAt},
+		Role: kbGrantRole(domain.GrantRoleViewer),
 	}
 	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{id}).
 		Return([]repository.PageWithViewFacts{archived}, nil)
@@ -213,22 +218,19 @@ func Test_パンくず_閲覧できる祖先だけがclosureの順で返る(t *t
 	// 題名順をそのまま使う退行をこの並びで捕まえる。
 	root := "00000000-0000-7000-8000-00000000000a"
 	child := "00000000-0000-7000-8000-00000000000b"
-	hidden := "00000000-0000-7000-8000-00000000000c"
+	unreachable := "00000000-0000-7000-8000-00000000000c"
 	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "page-x").
-		Return([]string{root, child, hidden}, nil)
+		Return([]string{root, child, unreachable}, nil)
+	// 祖先には届いていないのに手前のページは開ける、という並びは本番でも起こる:
+	// 付与は 3 段（ワークスペース / スペース / ページ）を足し合わせるので、深い側の
+	// ページに直接付与を張れば、その祖先に役割が無いまま子だけが見える。
 	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7),
-		[]string{root, child, hidden}).
+		[]string{root, child, unreachable}).
 		Return([]repository.PageWithViewFacts{
-			// 題名順: 「あ」(child) が先、「ん」(root) が後。hidden は deny の事実つき。
+			// 題名順: 「あ」(child) が先、「ん」(root) が後。unreachable は役割が nil。
 			kbViewableFacts(child, "あ"),
 			kbViewableFacts(root, "ん"),
-			{
-				Page: domain.Page{ID: hidden, Title: "見えない段"},
-				Facts: domain.PageViewFacts{
-					Role: rolePtr(domain.GrantRoleViewer),
-					View: &domain.RestrictionFacts{DeniedAnywhere: true},
-				},
-			},
+			kbUnreachableFacts(unreachable, "見えない段"),
 		}, nil)
 	uc := usecase.NewListViewableAncestorsUseCase(pages, perms)
 
@@ -256,8 +258,8 @@ func Test_パンくず_アーカイブ済みの祖先も閲覧できる限り含
 		Return([]string{arch}, nil)
 	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{arch}).
 		Return([]repository.PageWithViewFacts{{
-			Page:  domain.Page{ID: arch, Title: "片付けた親", ArchivedAt: &archivedAt},
-			Facts: domain.PageViewFacts{Role: rolePtr(domain.GrantRoleViewer)},
+			Page: domain.Page{ID: arch, Title: "片付けた親", ArchivedAt: &archivedAt},
+			Role: kbGrantRole(domain.GrantRoleViewer),
 		}}, nil)
 	uc := usecase.NewListViewableAncestorsUseCase(pages, perms)
 

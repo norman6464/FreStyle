@@ -14,9 +14,6 @@ var ErrInvalidGrantRole = errors.New("invalid grant role")
 // ErrInvalidCapability は既知でないケイパビリティを指定したときに返す。
 var ErrInvalidCapability = errors.New("invalid capability")
 
-// ErrInvalidRestrictionMode は既知でない例外の向きを指定したときに返す。
-var ErrInvalidRestrictionMode = errors.New("invalid restriction mode")
-
 // GrantWorkspaceRoleUseCase はワークスペース全体での既定の役割を主体に与える。
 // 配下の全スペースに効くので、テナント全体の管理者はここで 1 行張れば足りる。
 type GrantWorkspaceRoleUseCase struct {
@@ -144,9 +141,9 @@ func (u *RevokeSpaceRoleUseCase) Execute(ctx context.Context, in RevokeSpaceRole
 // 合成は上の 2 段と同じで、複数の経路から届いた役割のうち最も強いものが実効になる。
 //
 // **これで誰かを弱めることはできない。** 上位で editor を得ている相手にここで viewer を
-// 張っても editor のままで、下げたつもりが効かない。既定の層はどこまでも足し算だけにして、
-// 弱める操作は例外の層（SetPageRestrictionUseCase の deny）に集約している
-// （domain.GrantRole.Rank に規則と理由がある）。
+// 張っても editor のままで、下げたつもりが効かない。付与はどこまでも足し算だけで、
+// 打ち消す層は持たない（domain.GrantRole.Rank と domain.PagePermissionFacts に規則と理由がある）。
+// 狭めたい内容は private のスペースへ置く。
 type GrantPageRoleUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -184,7 +181,8 @@ func (u *GrantPageRoleUseCase) Execute(ctx context.Context, in GrantPageRoleInpu
 // RevokePageRoleUseCase はページでの既定の役割を剥がす（冪等）。
 //
 // 消えるのはこの段で足した分だけで、ワークスペース / スペース / 祖先のページから
-// 届いている役割はそのまま残る。「このページだけ見せない」は例外の層の deny で表す。
+// 届いている役割はそのまま残る。**「このページだけ見せない」は書けない** —
+// 狭めたい内容は private のスペースへ置く。
 //
 // 「最後の admin」の検査は要らない。守っているのはワークスペースの admin が 0 人に
 // なることで、ページの grant を全部消してもワークスペースの admin は配下の全ページに届く
@@ -272,80 +270,4 @@ func (u *ListGrantablePrincipalsUseCase) Execute(
 		return nil, errors.New("workspaceID is required")
 	}
 	return u.repo.ListGrantablePrincipals(ctx, in.WorkspaceID)
-}
-
-// SetPageRestrictionUseCase はページ以下だけ既定を上書きする例外を設定する。
-//
-// allow を 1 つ足すと、そのページのそのケイパビリティは「載っている主体だけ」の限定公開に
-// 切り替わる（domain.ResolvePagePermission の規則 3）。deny だけを足した場合は
-// 名指しした主体だけが外れ、ほかの人の既定は変わらない。
-type SetPageRestrictionUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
-}
-
-func NewSetPageRestrictionUseCase(r repository.KnowledgeBasePermissionRepository) *SetPageRestrictionUseCase {
-	return &SetPageRestrictionUseCase{repo: r}
-}
-
-type SetPageRestrictionInput struct {
-	WorkspaceID string
-	PageID      string
-	PrincipalID string
-	Capability  domain.Capability
-	Mode        domain.RestrictionMode
-}
-
-func (u *SetPageRestrictionUseCase) Execute(ctx context.Context, in SetPageRestrictionInput) (*domain.PageRestriction, error) {
-	if in.WorkspaceID == "" {
-		return nil, errors.New("workspaceID is required")
-	}
-	if in.PageID == "" {
-		return nil, errors.New("pageID is required")
-	}
-	if in.PrincipalID == "" {
-		return nil, errors.New("principalID is required")
-	}
-	if !in.Capability.Valid() {
-		return nil, ErrInvalidCapability
-	}
-	if !in.Mode.Valid() {
-		return nil, ErrInvalidRestrictionMode
-	}
-	if _, err := u.repo.FindPrincipal(ctx, in.WorkspaceID, in.PrincipalID); err != nil {
-		return nil, err
-	}
-	return u.repo.UpsertPageRestriction(ctx, in.WorkspaceID, in.PageID, in.PrincipalID, in.Capability, in.Mode)
-}
-
-// ClearPageRestrictionUseCase はページの例外を解除する（冪等）。
-// その段の最後の 1 行が消えると、解決はより遠い祖先の制限 → grant の既定へ戻る。
-type ClearPageRestrictionUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
-}
-
-func NewClearPageRestrictionUseCase(r repository.KnowledgeBasePermissionRepository) *ClearPageRestrictionUseCase {
-	return &ClearPageRestrictionUseCase{repo: r}
-}
-
-type ClearPageRestrictionInput struct {
-	WorkspaceID string
-	PageID      string
-	PrincipalID string
-	Capability  domain.Capability
-}
-
-func (u *ClearPageRestrictionUseCase) Execute(ctx context.Context, in ClearPageRestrictionInput) error {
-	if in.WorkspaceID == "" {
-		return errors.New("workspaceID is required")
-	}
-	if in.PageID == "" {
-		return errors.New("pageID is required")
-	}
-	if in.PrincipalID == "" {
-		return errors.New("principalID is required")
-	}
-	if !in.Capability.Valid() {
-		return ErrInvalidCapability
-	}
-	return u.repo.DeletePageRestriction(ctx, in.WorkspaceID, in.PageID, in.PrincipalID, in.Capability)
 }

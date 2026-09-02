@@ -11,10 +11,9 @@ import (
 // CheckSpacePermissionUseCase は「このユーザーはこのスペースで既定で何ができるか」に答える。
 //
 // ページを名指しできない操作（スペース直下へのページ作成）の入口で使う。
-// **ページの可否をこれで決めてはいけない。** スペースにはページ単位の例外
-// （page_restrictions）の層が無く、集めた事実にも入っていないので、あるページで
-// deny されていても CanEdit が true のまま返る。ページには
-// CheckPagePermissionUseCase（domain.ResolvePagePermission）を使う。
+// **ページの可否をこれで決めてはいけない。** ここが集める事実にはページ付与
+// （page_grants）が入っていないので、祖先のページで足された役割を取りこぼし、
+// 必ず狭い側へ倒れる。ページには CheckPagePermissionUseCase を使う。
 //
 // 判定規則は domain.ResolveScopePermission にあり、ここには写経しない。
 type CheckSpacePermissionUseCase struct {
@@ -96,11 +95,11 @@ func (u *CheckWorkspacePermissionUseCase) Execute(ctx context.Context, in CheckW
 // 「admin なら〜」を書き足すと、同じ役割の意味がスペース 1 つの解決（CheckSpacePermissionUseCase）
 // と一覧で食い違い、「開けるのに一覧に出ない」「一覧に出るのに開けない」というずれ方をする。
 //
-// # ページ単位の例外は見ていない
+// # ページ付与は見ていない
 //
-// 使うのは ScopePermission なので、ページに張った例外（page_restrictions）は一切見ない。
-// これは正しい。スペースの中の 1 枚が deny されていても、そのスペース自体が見えないことには
-// ならないため。逆に**この結果をページの可否に使ってはいけない**（必ず緩い側へ倒れる）。
+// 使うのは ScopePermission なので、ページに張った付与（page_grants）は一切見ない。
+// これは正しい。スペースが見えるかは、そのスペース自体に届いている役割で決まるため。
+// 逆に**この結果をページの可否に使ってはいけない**（必ず狭い側へ倒れる）。
 type ListViewableSpacesUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }

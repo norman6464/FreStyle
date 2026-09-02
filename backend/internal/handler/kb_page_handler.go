@@ -182,12 +182,12 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, errorResponse{Error: "parent_archived"})
 	case errors.Is(err, usecase.ErrPageCycle):
 		c.JSON(http.StatusConflict, errorResponse{Error: "page_cycle"})
-	case errors.Is(err, repository.ErrPageMoveVoidsSpaceRestriction):
+	case errors.Is(err, repository.ErrPageMoveVoidsSpaceGrant):
 		// 「今の権限設定のままでは移せない」という業務上の衝突であって、サーバの故障ではない。
 		// 既にアーカイブ済み・循環と同じ 409 に揃える（どれも「リクエスト自体は正しいが、
 		// 対象の現在の状態と両立しない」）。500 で返すと、クライアントは DB 障害と区別できず
 		// 再試行してよいものと誤解する（何度試しても同じ結果になる）。
-		c.JSON(http.StatusConflict, errorResponse{Error: "space_restriction_voided"})
+		c.JSON(http.StatusConflict, errorResponse{Error: "space_grant_voided"})
 	case errors.Is(err, repository.ErrWorkspaceSlugTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "slug_taken"})
 	case errors.Is(err, repository.ErrSpaceKeyTaken):
@@ -269,10 +269,10 @@ func (h *KnowledgeBasePageHandler) requirePagePermission(
 // requireSpacePermission はスペース 1 つの実効権限を確かめる。満たさなければレスポンスを
 // 書いて false を返す。
 //
-// **ページを名指しする経路でこれを使ってはいけない。** スペースの判定はページ単位の例外
-// （page_restrictions）を見ておらず、あるページで deny されている相手にも
-// スペースの既定が editor なら true を返す。使ってよいのは対象がまだ存在しない操作
-// （スペース直下へのページ作成）だけで、親を持つ作成は requirePagePermission を通す。
+// **ページを名指しする経路でこれを使ってはいけない。** スペースの判定はページ付与
+// （page_grants）を見ておらず、祖先のページで足された役割を取りこぼす。
+// 使ってよいのは対象がまだ存在しない操作（スペース直下へのページ作成）だけで、
+// 親を持つ作成は requirePagePermission を通す。
 func (h *KnowledgeBasePageHandler) requireSpacePermission(
 	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
@@ -301,11 +301,11 @@ func (h *KnowledgeBasePageHandler) requireSpacePermission(
 // requireSubtreeEditPermission はページと全子孫の編集権限を確かめる。満たさなければ
 // レスポンスを書いて false を返す。子孫ごと影響が及ぶ操作（アーカイブ / 復帰 / 移動）が通す。
 //
-// 根 1 枚だけを見ないのは、同じ「編集」の判定が経路で食い違わないようにするため。
-// 子孫には親と違う例外を張れるので、根だけで通すと、直接 rename すれば 403 になる子を
-// 祖先のアーカイブ経由で書き換えられる（管理者のツリーからも消える）。部分的に
-// アーカイブして逃げる手も採れない — アーカイブ済みの親の下に現役の子が残ると
-// ツリーに現れない迷子ページになり、復帰の前提（親から順に戻す）も壊れる。
+// いまの権限モデルでは役割は木を下るほど弱くならないので、この検査が断ることは無い
+// （理由は CanEditPageSubtreeUseCase の doc）。事実を集めるクエリの回帰を捕まえる
+// 最後の網として残してある。部分的にアーカイブして逃げる手も採れない —
+// アーカイブ済みの親の下に現役の子が残るとツリーに現れない迷子ページになり、
+// 復帰の前提（親から順に戻す）も壊れる。
 // 全部できるか、何もしないかの二択なので、フェイルクローズ側に倒して断る。
 //
 // 引き換えに、断ること自体が「この下に触れないページがある」という粒度の粗い信号になる
@@ -398,8 +398,8 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 //
 // parentId は任意。省略するとスペース直下（ルート）に作る。どちらで判断するかが変わる:
 // 親を指定したときは「その親ページの編集権限」、省略したときは「そのスペースの編集権限」。
-// ページの例外（page_restrictions）は経路の上から効くので、親を持つ作成をスペースの
-// 判定で通してはいけない（親で deny されている相手がその下に書けてしまう）。
+// ページ付与（page_grants）は経路の上から降りてくるので、親を持つ作成をスペースの
+// 判定で通してはいけない（親に足された役割を取りこぼして、書ける相手を断ってしまう）。
 type kbCreatePageRequest struct {
 	// ParentID が空文字（未指定）ならスペース直下に作る。
 	ParentID string `json:"parentId,omitempty" example:"0198a000-0000-7000-8000-000000000003"`
@@ -409,7 +409,7 @@ type kbCreatePageRequest struct {
 // Create は親ページの下に新しいページを作る（親の編集権限が要る）。
 //
 //	@Summary      ノート の ページ 作成
-//	@Description  parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
+//	@Description  parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース の 判定 は ページ 付与 を 見 ない ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -437,9 +437,10 @@ func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 		return
 	}
 	spaceID := c.Param("spaceId")
-	// 判定の入口を親の有無で分ける。親があるならページの権限（経路上の例外まで見る）、
-	// 無いならスペースの権限（例外の層が無い）。取り違えると、親で deny されている相手が
-	// その下にページを足せる／スペースの editor がルートを作れない、のどちらかになる。
+	// 判定の入口を親の有無で分ける。親があるならページの権限（祖先のページ付与まで見る）、
+	// 無いならスペースの権限（ページ付与を見ない段）。取り違えると、親に editor を
+	// 張られただけの相手がその下に書けない／スペースの editor がルートを作れない、
+	// のどちらかになる。
 	var parentID *string
 	if req.ParentID == "" {
 		if !h.requireSpacePermission(c, scope, spaceID, domain.CapabilityEdit) {
@@ -572,7 +573,7 @@ type kbMovePageRequest struct {
 	//
 	// 省けるようにしたのはドラッグのため。入れ子になったページを最上段へ戻すのは
 	// 基本の操作で、これが無いと「入れることはできるが出せない」ドラッグになる。
-	// 判断はスペースの編集権限で行う（ページの例外の層が無い段なので、そこが正しい単位）。
+	// 判断はスペースの編集権限で行う（ページ付与が届かない段なので、そこが正しい単位）。
 	ParentID string `json:"parentId,omitempty" example:"0198a000-0000-7000-8000-000000000003"`
 	// AfterPageID / BeforePageID は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。
 	// どちらも空なら末尾。**両方を指定することはできない。**
@@ -587,7 +588,7 @@ type kbMovePageRequest struct {
 // Move はページ（と子孫）を別の親の下へ移す。動かすページと移動先の親の両方に編集権限が要る。
 //
 //	@Summary      ノート の ページ 移動
-//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
+//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 parentId を 省く と、 動かす ページ が いま いる スペース の 直下 (ルート) へ 戻す。 スペース を またぐ 移動 は この 口 で は 扱わ ない。 動かす サブツリー に 「スペース 全員」 宛て の ページ 付与 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_grant_voided) で 断る (移動 先 で は 評価 さ れ なく なる ため)。 付与 を 先 に 整理 し て から 移す。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -599,7 +600,7 @@ type kbMovePageRequest struct {
 //	@Failure      401            {object}  errorResponse  "未 認証"
 //	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
 //	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動"
+//	@Failure      409            {object}  errorResponse  "アーカイブ 済み / 循環 / スペース 全員 宛て の ページ 付与 が 失効 する 移動"
 //	@Failure      500            {object}  errorResponse  "DB 失敗"
 //	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/move [post]
 //	@Security     CookieAuth
@@ -618,11 +619,11 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	// # なぜ移動でも子孫を見るのか
 	//
 	// 移動はサブツリーごと動く。動いた瞬間、**子孫それぞれの祖先の並びが変わる**。
-	// ページの例外（page_restrictions / page_allow_lists）は経路の上から効くので、
-	// 祖先が変われば子孫の実効権限も変わる — 限定公開だったページが移動先の既定で
-	// 開いたり、逆に見えていた相手から消えたりする。操作者はその子孫を見られないので、
-	// **自分が何を open / close したのか分からないまま権限を書き換えることになる。**
-	// 権限を変える操作は例外なく admin の gate（kb_permission_gate.go）を通すのに、
+	// ページ付与（page_grants）は経路の上から降りてくるので、祖先が変われば子孫の
+	// 実効権限も変わる — 移動先の祖先に張られた付与が新たに届いたり、元の祖先から
+	// 届いていた付与が外れたりする。操作者はその子孫を見られないので、**自分が誰に何を
+	// 開いたのか分からないまま権限を書き換えることになる。**
+	// 権限を変える操作は必ず admin の gate（kb_permission_gate.go）を通すのに、
 	// 移動だけがその外側から同じ結果を作れてしまう、というのがこの穴の正体。
 	//
 	// # なぜアーカイブと同じ判定に揃えたのか（移動特有の事情を検討したうえで）
@@ -650,8 +651,8 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	//
 	// # 同一スペース内の移動もここを通る
 	//
-	// repository.ErrPageMoveVoidsSpaceRestriction が塞いでいるのはスペースをまたぐ
-	// 移動だけ（「スペース全員」宛ての例外が移動先で失効する場合）。同一スペース内で
+	// repository.ErrPageMoveVoidsSpaceGrant が塞いでいるのはスペースをまたぐ
+	// 移動だけ（「スペース全員」宛てのページ付与が移動先で失効する場合）。同一スペース内で
 	// 親を付け替える移動には、子孫の権限を見る経路がこれ以外に無い。
 	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
@@ -667,9 +668,9 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	//
 	// 親を指定したときは**その親ページ**の編集権限、省いたとき（スペース直下へ戻す）は
 	// **そのスペース**の編集権限で判断する。作成の入口と同じ分け方で、理由も同じ —
-	// ページの例外（page_restrictions）は経路の上から効くので、親を持つ移動を
-	// スペースの判定で通すと、親で deny されている相手がその下に差し込める。
-	// 逆にスペース直下には例外の層が無いので、そこはスペースの権限が正しい単位。
+	// ページ付与（page_grants）は経路の上から降りてくるので、親を持つ移動を
+	// スペースの判定で通すと、親に張られた付与を取りこぼして書ける相手を断ってしまう。
+	// 逆にスペース直下にはページ付与が届かないので、そこはスペースの権限が正しい単位。
 	var newParentID *string
 	if req.ParentID != "" {
 		if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
@@ -919,8 +920,7 @@ type kbResolvedPageResponse struct {
 	Doc           json.RawMessage `json:"doc" swaggertype:"object"`
 	CanEdit       bool            `json:"canEdit"`
 	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
-	// 経路上の例外を見ないので、自分を deny したページでも true のまま返る
-	// （domain.PagePermission.CanManage の doc に理由がある）。
+	// 届いている役割が admin かどうかだけで決まる。
 	CanManage bool                  `json:"canManage"`
 	Ancestors []usecase.AncestorRef `json:"ancestors"`
 }

@@ -212,7 +212,7 @@ export const CHAPTER_VIEW = {
  *
  * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧で、
  * UI は撤去済み（データは残っているが、フロントからはもう呼ばない）。
- * こちらは付与（grant）と例外（restriction）で解決する木。
+ * こちらは付与（grant）だけで解決する木（打ち消す層は持たない）。
  *
  * ワークスペースは URL の slug で指す（内部 UUID は外に出さない）。slug から所属を確定する
  * middleware を backend 側の group が通しているので、slug を含まないパスは一覧と作成だけ。

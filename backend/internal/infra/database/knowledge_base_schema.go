@@ -7,7 +7,7 @@ import (
 
 // ApplyKnowledgeBaseSchema はノート（workspaces / spaces / pages / blocks /
 // page_paths / page_snapshots と、権限モデルの principals / principal_members /
-// workspace_grants / space_grants / page_restrictions / page_allow_lists / share_links）の
+// workspace_grants / space_grants / page_grants / share_links）の
 // スキーマを適用する（冪等）。
 //
 // 2 つの DDL は 1 つのトランザクションで順に流す。権限側は骨格側の spaces / pages と

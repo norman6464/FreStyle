@@ -609,10 +609,10 @@ func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pag
 			return repository.ErrPageNotFound
 		}
 	} else {
-		// 「そのスペースの全員」宛ての例外はスペースをまたぐと評価されなくなり、
-		// deny なら開く側・allow なら締まる側へ黙って倒れる。同じトランザクションで
+		// 「そのスペースの全員」宛ての付与はスペースをまたぐと評価されなくなり、行は
+		// 権限設定画面に見えているのに効かない状態になる。同じトランザクションで
 		// 調べて拒否する（先に調べても、移動までのあいだに張られた行を取りこぼす）。
-		voids, err := qtx.SubtreeHasForeignSpaceAllRestriction(ctx, sqlcgen.SubtreeHasForeignSpaceAllRestrictionParams{
+		voids, err := qtx.SubtreeHasForeignSpaceAllGrant(ctx, sqlcgen.SubtreeHasForeignSpaceAllGrantParams{
 			WorkspaceID: wsID,
 			PageID:      pgID,
 			NewSpaceID:  spID,
@@ -621,7 +621,7 @@ func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pag
 			return err
 		}
 		if voids {
-			return repository.ErrPageMoveVoidsSpaceRestriction
+			return repository.ErrPageMoveVoidsSpaceGrant
 		}
 		// スペースをまたぐ移動は本人 + 子孫の space_id を 1 文で更新する（クエリ側コメント参照）。
 		n, err := qtx.MovePageSubtreeToSpace(ctx, sqlcgen.MovePageSubtreeToSpaceParams{

@@ -118,8 +118,6 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewRevokePageRoleUseCase(permissions),
 		usecase.NewListPageGrantsUseCase(permissions),
 		usecase.NewListGrantablePrincipalsUseCase(permissions),
-		usecase.NewSetPageRestrictionUseCase(permissions),
-		usecase.NewClearPageRestrictionUseCase(permissions),
 		canRemoveAdmin,
 	)
 
@@ -199,12 +197,6 @@ func registerKnowledgeBaseRoutesWith(
 	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.RevokePageRole)
 	// 権限を張れる相手（画面の相手選び）。認可はページ単位で、返る中身はワークスペース全体。
 	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/principals", gh.ListGrantablePrincipals)
-
-	// ページ以下だけ既定を上書きする例外（restriction）。
-	// URL が (ページ, 主体, ケイパビリティ) を指すのは、それが DB の主キーそのもので、
-	// PUT / DELETE が同じ 1 行を指すため。
-	kb.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", gh.SetPageRestriction)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability", gh.ClearPageRestriction)
 
 	// 権限を張る相手（principals）の出し入れ。
 	// メンバー追加だけは回数に上限を置く。この口は users.id をそのまま受け取り、

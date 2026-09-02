@@ -24,7 +24,7 @@ import (
 // kbIntegrationTables は結合テストが触るノートのテーブル（TRUNCATE 対象）。
 // users は他の結合テストと共有するため消さず、毎回一意なアドレスで足す。
 var kbIntegrationTables = []string{
-	"share_links", "page_restrictions", "space_grants", "workspace_grants",
+	"share_links", "page_grants", "space_grants", "workspace_grants",
 	"principal_members", "principals",
 	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
 }
@@ -86,8 +86,12 @@ func (e *kbEnv) do(t *testing.T, method, path, body string) *httptest.ResponseRe
 	return w
 }
 
+func (e *kbEnv) spacePagesPath(spaceID string) string {
+	return "/api/v2/kb/workspaces/" + e.slug + "/spaces/" + spaceID + "/pages"
+}
+
 func (e *kbEnv) pagesPath() string {
-	return "/api/v2/kb/workspaces/" + e.slug + "/spaces/" + e.spaceID + "/pages"
+	return e.spacePagesPath(e.spaceID)
 }
 
 func (e *kbEnv) pagePath(pageID string) string {
@@ -109,6 +113,22 @@ func kbInsertSpace(t *testing.T, db *sql.DB, workspaceID, key string) string {
 	id := kbNewUUID()
 	_, err := db.Exec(`INSERT INTO spaces (id, workspace_id, "key", name) VALUES ($1, $2, $3, $3)`,
 		id, workspaceID, key)
+	require.NoError(t, err)
+	return id
+}
+
+// kbInsertPrivateSpace は visibility='private' のスペースを入れる。
+//
+// ワークスペース全体の役割はこのスペースへ届かない（届くのはスペース付与とページ付与だけ）。
+// 権限は 3 段の付与を足し合わせて最も強い役割で決まり、弱める層はどこにも無いので、
+// **同じスペースの中で 1 枚だけ隠すことはできない。見せたくないものはこちらへ置く。**
+func kbInsertPrivateSpace(t *testing.T, db *sql.DB, workspaceID, key string) string {
+	t.Helper()
+	id := kbNewUUID()
+	_, err := db.Exec(
+		`INSERT INTO spaces (id, workspace_id, "key", name, visibility) VALUES ($1, $2, $3, $3, 'private')`,
+		id, workspaceID, key,
+	)
 	require.NoError(t, err)
 	return id
 }
@@ -167,6 +187,31 @@ func (e *kbEnv) joinWorkspace(t *testing.T, userID uint64, role domain.GrantRole
 	_, err = e.permissions.UpsertWorkspaceGrant(t.Context(), e.workspaceID, principal.ID, role)
 	require.NoError(t, err)
 	return principal
+}
+
+// joinWorkspaceWithoutRole は所属だけさせて役割を 1 つも与えない。
+//
+// ページ付与だけが届く相手を作るのに使う。ワークスペースの役割があると、それが配下の
+// 全ページへ届いてしまい「このページとその子孫にだけ届く」ことを確かめられない。
+func (e *kbEnv) joinWorkspaceWithoutRole(t *testing.T, userID uint64) *domain.Principal {
+	t.Helper()
+	principal, err := e.permissions.EnsureUserPrincipal(t.Context(), e.workspaceID, userID)
+	require.NoError(t, err)
+	return principal
+}
+
+// grantPage はページとその子孫に届く役割を与える（付与の 3 段目）。
+func (e *kbEnv) grantPage(t *testing.T, pageID, principalID string, role domain.GrantRole) {
+	t.Helper()
+	_, err := e.permissions.UpsertPageGrant(t.Context(), e.workspaceID, pageID, principalID, role)
+	require.NoError(t, err)
+}
+
+// grantSpace はスペース 1 つに届く役割を与える（private のスペースへ届く唯一の入れ物の段）。
+func (e *kbEnv) grantSpace(t *testing.T, spaceID, principalID string, role domain.GrantRole) {
+	t.Helper()
+	_, err := e.permissions.UpsertSpaceGrant(t.Context(), e.workspaceID, spaceID, principalID, role)
+	require.NoError(t, err)
 }
 
 func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
@@ -240,30 +285,23 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("ページの例外で隠した親の子はツリーに現れない", func(t *testing.T) {
+	t.Run("役割が届かない親も、その子もツリーに現れない", func(t *testing.T) {
+		// bob にはワークスペースの役割が無く、片方のルートページにだけ付与がある。
+		// 付与はそのページと子孫にしか届かないので、もう一方のルートは配下ごと見えない。
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		bobPrincipal := env.joinWorkspaceWithoutRole(t, bob)
 
 		secret := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "秘密")
 		open := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a5", "公開")
 
-		// 秘密の下に子を作る（alice の権限で）。
 		adminEnv := env.as(alice)
-		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
-			`{"parentId":"`+secret+`","title":"秘密の子"}`)
-		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-		var child kbPageResponse
-		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+		secretChild := kbCreateChild(t, adminEnv, secret, "秘密の子")
+		openChild := kbCreateChild(t, adminEnv, open, "公開の子")
 
-		// bob だけ「秘密」の閲覧を外す。子には例外を張らない（継承で消えるかを見る）。
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, secret, bobPrincipal.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
+		env.grantPage(t, open, bobPrincipal.ID, domain.GrantRoleViewer)
 
 		e := env.as(bob)
 		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
@@ -271,48 +309,55 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		var body kbPageTreeRootResponse
 		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
 		nodes := body.Pages
-		require.Len(t, nodes, 1, "隠した親も、その子も根に浮かない")
+		require.Len(t, nodes, 1, "付与の届かない親も、その子も根に浮かない")
 		assert.Equal(t, open, nodes[0].Page.ID)
+		require.Len(t, nodes[0].Children, 1, "付与は子孫まで降りるので子は見える")
+		assert.Equal(t, openChild, nodes[0].Children[0].Page.ID)
+		assert.True(t, body.HasHiddenChildren, "スペース直下に見えないページが在ることだけは知らせる")
 
-		// 直リンクでも開けない（子は親の例外を継承する）。
+		// 直リンクでも開けない（子は親までの経路に付与が無い）。
 		assert.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(secret), "").Code)
-		assert.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(child.ID), "").Code)
+		assert.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(secretChild), "").Code)
+		assert.Equal(t, http.StatusOK, e.do(t, http.MethodGet, e.pagePath(openChild), "").Code)
 	})
 
-	t.Run("存在しないページと隠したページの応答が同じ", func(t *testing.T) {
+	t.Run("届かないスペースのページと存在しないページの応答が同じ", func(t *testing.T) {
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
-		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
-		secret := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "秘密")
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, secret, bobPrincipal.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
+		alicePrincipal := env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		// bob はワークスペース全体では編集者。それでも private のスペースには届かない。
+		env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+
+		vault := kbInsertPrivateSpace(t, sqlDB, env.workspaceID, "vault")
+		env.grantSpace(t, vault, alicePrincipal.ID, domain.GrantRoleAdmin)
+		page := kbInsertRootPage(t, sqlDB, env.workspaceID, vault, alice, "a0", "人事の記録")
 
 		e := env.as(bob)
-		hidden := e.do(t, http.MethodGet, e.pagePath(secret), "")
+		hidden := e.do(t, http.MethodGet, e.pagePath(page), "")
 		missing := e.do(t, http.MethodGet, e.pagePath(kbNewUUID()), "")
 
 		assert.Equal(t, http.StatusNotFound, hidden.Code)
 		assert.Equal(t, hidden.Code, missing.Code)
 		assert.Equal(t, hidden.Body.String(), missing.Body.String())
+
+		tree := e.do(t, http.MethodGet, e.spacePagesPath(vault), "")
+		require.Equal(t, http.StatusOK, tree.Code)
+		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, tree.Body.String(),
+			"存在しないスペースと同じ応答（スペース ID の総当たりで実在を数えられないように）")
+
+		// スペース付与を持つ alice には見える（private でも入れ物の段は届く）。
+		assert.Equal(t, http.StatusOK, env.as(alice).do(t, http.MethodGet, env.pagePath(page), "").Code)
 	})
 
-	t.Run("編集を外した相手は改名できないが閲覧はできる", func(t *testing.T) {
+	t.Run("ページに閲覧の役割だけ張った相手は改名できないが閲覧はできる", func(t *testing.T) {
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		bobPrincipal := env.joinWorkspaceWithoutRole(t, bob)
 		page := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "共有")
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, page, bobPrincipal.ID,
-			domain.CapabilityEdit, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
+		env.grantPage(t, page, bobPrincipal.ID, domain.GrantRoleViewer)
 
 		e := env.as(bob)
 		assert.Equal(t, http.StatusOK, e.do(t, http.MethodGet, e.pagePath(page), "").Code)
@@ -320,23 +365,24 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 			e.do(t, http.MethodPatch, e.pagePath(page), `{"title":"改訂"}`).Code)
 	})
 
-	t.Run("移動先の親に編集権限が無ければ移せない", func(t *testing.T) {
+	t.Run("移動元を編集できなければ移せない", func(t *testing.T) {
+		// 移動には動かすページと移動先の親の両方の編集権限が要る。ここは移動元が足りない側
+		// （移動先が足りない側は TestKnowledgeBaseMovePermission_Integration が見ている）。
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		bobPrincipal := env.joinWorkspaceWithoutRole(t, bob)
 		src := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "移動元")
 		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a5", "移動先")
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, dest, bobPrincipal.ID,
-			domain.CapabilityEdit, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
+		// 移動先は編集できるが、移動元は閲覧しかできない。
+		env.grantPage(t, src, bobPrincipal.ID, domain.GrantRoleViewer)
+		env.grantPage(t, dest, bobPrincipal.ID, domain.GrantRoleEditor)
 
 		e := env.as(bob)
 		w := e.do(t, http.MethodPost, e.pagePath(src)+"/move", `{"parentId":"`+dest+`"}`)
-		assert.Equal(t, http.StatusForbidden, w.Code, "移動元だけ編集できても移せない")
+		assert.Equal(t, http.StatusForbidden, w.Code, "移動先だけ編集できても移せない")
+		assert.JSONEq(t, `{"error":"forbidden"}`, w.Body.String())
 
 		// alice（管理者）なら移せる。
 		admin := env.as(alice)
@@ -368,126 +414,81 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		assert.Len(t, nodes[0].Children, 1, "一緒にアーカイブした子も戻る")
 	})
 
-	t.Run("スペース全員宛ての例外が残るサブツリーの別スペースへの移動は409", func(t *testing.T) {
+	t.Run("スペース全員宛てのページ付与が残るサブツリーの別スペースへの移動は409", func(t *testing.T) {
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
 		e := env.as(alice)
+		child := kbCreateChild(t, e, parent, "子")
 
-		created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parent+`","title":"子"}`)
-		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-		var child kbPageResponse
-		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
-
-		// 「このスペースの全員」宛ての例外。別スペースへ移ると行だけが残って評価されなくなる。
-		//
-		// mode を allow にしてあるのは、deny だと**動かす本人まで締め出される**ため。
-		// space_all は「そのスペースの全員」なので、ワークスペースのメンバーは全員それを
-		// 自分の主体として持つ（権限クエリの mine CTE）。deny を張ると alice 自身が
-		// 子を見られなくなり、サブツリーの編集検査に先に引っかかって 403 になる
-		// （それはそれで正しい応答だが、この test で見たいのは移動先スペースの検査）。
-		// allow なら alice は許可リストに載っている側なので通り、行は space_all 宛てのまま残る。
+		// 「このスペースの全員」宛ての付与。別スペースへ移ると行だけが残って評価されなくなる
+		// （権限の解決は、ページがいま居るスペースの「全員」しか自分の主体に取らない）。
+		// 付与は誰かを弱めないので、張った本人が締め出されることはない。それでも
+		// 権限設定画面に見えている行が効かなくなるので、移動そのものを断る。
 		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
 		require.NoError(t, err)
-		_, err = env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, child.ID, everyone.ID,
-			domain.CapabilityView, domain.RestrictionModeAllow,
-		)
-		require.NoError(t, err)
+		env.grantPage(t, child, everyone.ID, domain.GrantRoleViewer)
 
 		otherSpace := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
 		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, otherSpace, alice, "a0", "移動先")
 
+		before := kbDumpTreeState(t, sqlDB, env.workspaceID)
 		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/move", `{"parentId":"`+dest+`"}`)
 		require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
-		assert.JSONEq(t, `{"error":"space_restriction_voided"}`, w.Body.String(),
+		assert.JSONEq(t, `{"error":"space_grant_voided"}`, w.Body.String(),
 			"正当な業務エラーであって DB 障害ではない（500 だとクライアントが再試行してよいと誤解する）")
+		assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID),
+			"repository の同一トランザクションで断るので、移動はロールバックされている")
 
 		got := e.do(t, http.MethodGet, e.pagePath(parent), "")
 		require.Equal(t, http.StatusOK, got.Code)
 		var page kbPageDocResponse
 		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &page))
-		assert.Equal(t, env.spaceID, page.Page.SpaceID, "移動はロールバックされている")
+		assert.Equal(t, env.spaceID, page.Page.SpaceID)
 	})
 
-	t.Run("見えない子を持つ親はアーカイブできない", func(t *testing.T) {
+	t.Run("親に張った編集の役割は子孫まで届きサブツリーごとアーカイブできる", func(t *testing.T) {
+		// アーカイブ / 復帰はサブツリー全体の編集権限を要求する。役割が親から子へ届いて
+		// いなければ、その検査（subtree_forbidden）で断られる。**根の付与が子孫まで
+		// 降りることを、事実を集めるクエリごと確かめる**のがこのテスト。
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		bobPrincipal := env.joinWorkspaceWithoutRole(t, bob)
 		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
 
 		adminEnv := env.as(alice)
-		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
-			`{"parentId":"`+parent+`","title":"見えない子"}`)
-		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-		var child kbPageResponse
-		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+		child := kbCreateChild(t, adminEnv, parent, "子")
+		grandchild := kbCreateChild(t, adminEnv, child, "孫")
 
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, child.ID, bobPrincipal.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
+		// bob に与えるのは親 1 枚への editor だけ。
+		env.grantPage(t, parent, bobPrincipal.ID, domain.GrantRoleEditor)
 
 		e := env.as(bob)
-		require.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(child.ID), "").Code,
-			"bob には子が見えていない")
+		require.Equal(t, http.StatusOK, e.do(t, http.MethodGet, e.pagePath(grandchild), "").Code,
+			"孫まで届く")
+		require.Equal(t, http.StatusOK,
+			e.do(t, http.MethodPatch, e.pagePath(grandchild), `{"title":"改訂"}`).Code,
+			"編集の役割も同じだけ降りる")
 
-		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/archive", "")
-		assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
-		assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
-
-		// 管理者のツリーからも消えていない（見えないページを黙って消せない）。
-		tree := adminEnv.do(t, http.MethodGet, adminEnv.pagesPath(), "")
+		require.Equal(t, http.StatusNoContent,
+			e.do(t, http.MethodPost, e.pagePath(parent)+"/archive", "").Code,
+			"配下に編集できないページが 1 枚も無いので通る")
+		tree := e.do(t, http.MethodGet, e.pagesPath(), "")
 		require.Equal(t, http.StatusOK, tree.Code)
+		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, tree.Body.String())
+
+		require.Equal(t, http.StatusOK,
+			e.do(t, http.MethodPost, e.pagePath(parent)+"/unarchive", "").Code,
+			"復帰も同じ判定を通る（片側だけ厳しくしない）")
+		tree = e.do(t, http.MethodGet, e.pagesPath(), "")
 		var body kbPageTreeRootResponse
 		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &body))
-		nodes := body.Pages
-		require.Len(t, nodes, 1)
-		require.Len(t, nodes[0].Children, 1)
-		assert.Equal(t, child.ID, nodes[0].Children[0].Page.ID)
-	})
-
-	t.Run("編集できない子を持つ親はアーカイブできず復帰もできない", func(t *testing.T) {
-		env := newKbEnv(t, sqlDB, "acme")
-		alice := kbInsertUser(t, sqlDB, "alice")
-		bob := kbInsertUser(t, sqlDB, "bob")
-		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
-		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
-
-		adminEnv := env.as(alice)
-		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
-			`{"parentId":"`+parent+`","title":"読めるが書けない子"}`)
-		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-		var child kbPageResponse
-		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
-
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, child.ID, bobPrincipal.ID,
-			domain.CapabilityEdit, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
-
-		e := env.as(bob)
-		require.Equal(t, http.StatusForbidden,
-			e.do(t, http.MethodPatch, e.pagePath(child.ID), `{"title":"改訂"}`).Code,
-			"子を直接改名すると 403")
-		assert.Equal(t, http.StatusForbidden,
-			e.do(t, http.MethodPost, e.pagePath(parent)+"/archive", "").Code,
-			"親のアーカイブ経由でも同じ判定になる")
-
-		// 管理者がアーカイブしたあと、bob は復帰もできない（片側だけ緩くしない）。
-		require.Equal(t, http.StatusNoContent,
-			adminEnv.do(t, http.MethodPost, adminEnv.pagePath(parent)+"/archive", "").Code)
-		assert.Equal(t, http.StatusForbidden,
-			e.do(t, http.MethodPost, e.pagePath(parent)+"/unarchive", "").Code)
-		require.Equal(t, http.StatusOK,
-			adminEnv.do(t, http.MethodPost, adminEnv.pagePath(parent)+"/unarchive", "").Code,
-			"全部編集できる管理者は通る（アーカイブが常に失敗する締め方にはしない）")
+		require.Len(t, body.Pages, 1)
+		require.Len(t, body.Pages[0].Children, 1)
+		assert.Equal(t, child, body.Pages[0].Children[0].Page.ID)
 	})
 
 	t.Run("役割が無いメンバーは何も見えない", func(t *testing.T) {
@@ -496,8 +497,7 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		carol := kbInsertUser(t, sqlDB, "carol")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
 		// carol は所属だけ（grant なし）。
-		_, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, carol)
-		require.NoError(t, err)
+		env.joinWorkspaceWithoutRole(t, carol)
 		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "root")
 
 		e := env.as(carol)
@@ -506,6 +506,20 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		require.Equal(t, http.StatusOK, tree.Code)
 		assert.JSONEq(t, `{"pages":[],"hasHiddenChildren":false}`, tree.Body.String())
 	})
+}
+
+// kbCreateChild は parentID の下にページを 1 枚作って ID を返す（e の current user の権限で）。
+//
+// 根は kbInsertRootPage で直接入れる。スペース直下の作成も HTTP からできる（parentId を
+// 省いた POST が 201 になることは別のテストが固定している）が、作成者・position・題名を
+// テストごとに固定したいので、前提データは HTTP を通さず用意する。
+func kbCreateChild(t *testing.T, e *kbEnv, parentID, title string) string {
+	t.Helper()
+	created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parentID+`","title":"`+title+`"}`)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	var page kbPageResponse
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &page))
+	return page.ID
 }
 
 // kbDumpTreeState はサブツリーの配置を決める列を丸ごと写し取る。
@@ -536,73 +550,56 @@ func kbDumpTreeState(t *testing.T, db *sql.DB, workspaceID string) string {
 // TestKnowledgeBaseMovePermission_Integration は「移動は根 1 枚の権限しか見ていない」
 // 穴が塞がっていることを実 PostgreSQL で確かめる。
 //
-// 移動はサブツリーごと動くので、子孫それぞれの祖先の並びが変わる。ページの例外は
-// 経路の上から効くため、祖先が変われば子孫の実効権限も変わる。操作者から見えない
-// 子孫の権限が本人の知らないうちに書き換わる、というのが塞ぐ相手。
+// 移動はサブツリーごと動くので、子孫それぞれの祖先の並びが変わる。ページ付与は経路の上から
+// 降りてくるため、祖先が変われば子孫に届く役割も変わる。操作者から見えない子孫の権限が
+// 本人の知らないうちに変わる、というのが塞ぐ相手（「移動すると移動先に張った役割が
+// 子孫まで届く」がその変化そのものを見ている）。
 //
-// 判定はアーカイブ / 復帰と同じ（サブツリー全体を編集できなければ 403 subtree_forbidden）。
-// closure まで含めて「断ったら何も書き換わらない」ことを見るので結合テストに置く
+// **いまの権限モデルでは、サブツリーの検査が断ることは無い。** 役割は 3 段の付与を
+// 足し合わせて最も強いものが実効になり、子の経路は親の経路を含むので、木を下るほど
+// 弱くなることがない（handler の requireSubtreeEditPermission の doc も同じことを言う）。
+// したがってここで確かめるのは「通るべき移動が通ること」と「断ったときに何も
+// 書き換わらないこと」の 2 つで、closure まで見るので結合テストに置く
 // （page_paths は fake が持っていない）。
 func TestKnowledgeBaseMovePermission_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 
-	// setup は 親(root) → 子(child) と、移動先(dest) を用意して bob の principal を返す。
-	// bob はワークスペース全体では editor（root と dest は編集できる）。
-	setup := func(t *testing.T, env *kbEnv, alice, bob uint64) (string, string, string, *domain.Principal) {
+	// seed は 親(root) → 子(child) と、移動先(dest) を alice（管理者）の権限で用意する。
+	seed := func(t *testing.T, env *kbEnv, alice uint64) (root, child, dest string) {
 		t.Helper()
-		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
-		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
-		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a2", "移動先")
-
-		adminEnv := env.as(alice)
-		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
-			`{"parentId":"`+root+`","title":"子"}`)
-		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-		var child kbPageResponse
-		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
-		return root, child.ID, dest, bobPrincipal
+		root = kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "移動元")
+		dest = kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a2", "移動先")
+		child = kbCreateChild(t, env.as(alice), root, "子")
+		return root, child, dest
 	}
 
-	cases := map[string]domain.Capability{
-		"編集だけ外した子": domain.CapabilityEdit,
-		"閲覧ごと外した子": domain.CapabilityView,
-	}
-	for name, capability := range cases {
-		t.Run(name+"を持つ親は移動できず何も書き換わらない", func(t *testing.T) {
-			env := newKbEnv(t, sqlDB, "acme")
-			alice := kbInsertUser(t, sqlDB, "alice")
-			bob := kbInsertUser(t, sqlDB, "bob")
-			root, child, dest, bobPrincipal := setup(t, env, alice, bob)
-
-			_, err := env.permissions.UpsertPageRestriction(
-				t.Context(), env.workspaceID, child, bobPrincipal.ID,
-				capability, domain.RestrictionModeDeny,
-			)
-			require.NoError(t, err)
-
-			before := kbDumpTreeState(t, sqlDB, env.workspaceID)
-			e := env.as(bob)
-			w := e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`)
-
-			assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
-			assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
-			assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID),
-				"断ったなら parent_id / position / page_paths のどれも動かない")
-		})
-	}
-
-	t.Run("子孫まで編集できるなら通ってclosureも張り替わる", func(t *testing.T) {
+	t.Run("移動先を編集できない相手は移せず何も書き換わらない", func(t *testing.T) {
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
-		root, child, dest, _ := setup(t, env, alice, bob)
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		bobPrincipal := env.joinWorkspaceWithoutRole(t, bob)
+		root, child, dest := seed(t, env, alice)
 
+		// bob は移動元（と子）を編集でき、移動先は閲覧しかできない。
+		env.grantPage(t, root, bobPrincipal.ID, domain.GrantRoleEditor)
+		env.grantPage(t, dest, bobPrincipal.ID, domain.GrantRoleViewer)
+
+		before := kbDumpTreeState(t, sqlDB, env.workspaceID)
 		e := env.as(bob)
 		w := e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`)
-		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
-		// 例外が 1 つも無いのが普通の状態なので、通常の移動まで止めない。
+		assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"forbidden"}`, w.Body.String())
+		assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID),
+			"断ったなら parent_id / position / page_paths のどれも動かない")
+
+		// 移動先の役割を editor に上げれば通り、closure も張り替わる
+		// （移動が常に失敗する締め方にはしない）。
+		env.grantPage(t, dest, bobPrincipal.ID, domain.GrantRoleEditor)
+		ok := e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`)
+		require.Equal(t, http.StatusOK, ok.Code, ok.Body.String())
+
 		var parentID string
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT parent_id::text FROM pages WHERE workspace_id = $1 AND id = $2`,
@@ -611,7 +608,7 @@ func TestKnowledgeBaseMovePermission_Integration(t *testing.T) {
 		assert.Equal(t, dest, parentID)
 
 		// 子の祖先に移動先が加わる（＝ 継承の経路が変わる）。これがそのまま
-		// 「見えない子孫の権限が変わる」の中身で、だから移動でも子孫を見る。
+		// 「見えない子孫に届く役割が変わる」の中身で、だから移動でも子孫を見る。
 		var depth int
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT depth FROM page_paths WHERE workspace_id = $1 AND page_id = $2 AND ancestor_id = $3`,
@@ -620,77 +617,34 @@ func TestKnowledgeBaseMovePermission_Integration(t *testing.T) {
 		assert.Equal(t, 2, depth, "子から見て移動先は 2 段上の祖先になる")
 	})
 
-	t.Run("スペース全員宛てのdenyは動かす本人も締め出す", func(t *testing.T) {
-		// space_all は「そのスペースの全員」なので、ワークスペースのメンバーは全員それを
-		// 自分の主体として持つ。子に deny を張ると、張った admin 自身もその子を見られなくなり、
-		// 親の移動はサブツリーの検査で止まる。
-		//
-		// これは意図した結果。見えない子孫を巻き込む移動を断るのがこの検査の役目で、
-		// 「自分で張った例外だから自分は例外」という抜け道は作らない
-		// （権限は誰が張ったかではなく、いま誰に何が届いているかだけで決まる）。
+	t.Run("移動すると移動先に張った役割が子孫まで届く", func(t *testing.T) {
+		// 同じスペースの中で親を付け替えるだけの移動でも、子孫に届く役割は変わる。
+		// 操作者（alice）には carol の視界が見えないまま、carol の権限が動く。
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
+		carol := kbInsertUser(t, sqlDB, "carol")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
-		e := env.as(alice)
+		carolPrincipal := env.joinWorkspaceWithoutRole(t, carol)
+		root, child, dest := seed(t, env, alice)
 
-		created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parent+`","title":"子"}`)
-		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-		var child kbPageResponse
-		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+		// carol の役割は移動先にしかない。
+		env.grantPage(t, dest, carolPrincipal.ID, domain.GrantRoleEditor)
 
-		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
-		require.NoError(t, err)
-		_, err = env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, child.ID, everyone.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
+		c := env.as(carol)
+		require.Equal(t, http.StatusNotFound, c.do(t, http.MethodGet, c.pagePath(root), "").Code,
+			"移動前は移動元にも子にも届いていない")
+		require.Equal(t, http.StatusNotFound, c.do(t, http.MethodGet, c.pagePath(child), "").Code)
 
-		otherSpace := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
-		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, otherSpace, alice, "a0", "移動先")
-
-		before := kbDumpTreeState(t, sqlDB, env.workspaceID)
-		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/move", `{"parentId":"`+dest+`"}`)
-
-		assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
-		assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String(),
-			"移動先スペースの検査（409）より手前で断る")
-		assert.Equal(t, before, kbDumpTreeState(t, sqlDB, env.workspaceID))
-	})
-
-	t.Run("同一スペース内の移動でも子孫を見る", func(t *testing.T) {
-		// ErrPageMoveVoidsSpaceRestriction が塞いでいるのはスペースをまたぐ移動だけ。
-		// 同一スペース内で親を付け替える移動には、子孫の権限を見る経路がこれしかない。
-		env := newKbEnv(t, sqlDB, "acme")
-		alice := kbInsertUser(t, sqlDB, "alice")
-		bob := kbInsertUser(t, sqlDB, "bob")
-		root, child, dest, bobPrincipal := setup(t, env, alice, bob)
-
-		var spaceIDs int
-		require.NoError(t, sqlDB.QueryRow(
-			`SELECT count(DISTINCT space_id) FROM pages WHERE workspace_id = $1`,
-			env.workspaceID,
-		).Scan(&spaceIDs))
-		require.Equal(t, 1, spaceIDs, "前提: 移動元も移動先も同じスペース")
-
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, child, bobPrincipal.ID,
-			domain.CapabilityEdit, domain.RestrictionModeDeny,
-		)
-		require.NoError(t, err)
-
-		e := env.as(bob)
-		require.Equal(t, http.StatusForbidden,
-			e.do(t, http.MethodPatch, e.pagePath(child), `{"title":"改訂"}`).Code,
-			"子を直接改名すると 403")
-		assert.Equal(t, http.StatusForbidden,
-			e.do(t, http.MethodPost, e.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`).Code,
-			"親の移動経由でも同じ判定になる（アーカイブと揃えてある）")
-
-		// 全部編集できる管理者は通る（移動が常に失敗する締め方にはしない）。
 		adminEnv := env.as(alice)
-		assert.Equal(t, http.StatusOK,
+		require.Equal(t, http.StatusOK,
 			adminEnv.do(t, http.MethodPost, adminEnv.pagePath(root)+"/move", `{"parentId":"`+dest+`"}`).Code)
+
+		assert.Equal(t, http.StatusOK, c.do(t, http.MethodGet, c.pagePath(root), "").Code,
+			"移動先の下に入ったので届くようになる")
+		assert.Equal(t, http.StatusOK, c.do(t, http.MethodGet, c.pagePath(child), "").Code,
+			"子孫にも同じだけ降りる")
+		assert.Equal(t, http.StatusOK,
+			c.do(t, http.MethodPatch, c.pagePath(child), `{"title":"改訂"}`).Code,
+			"編集の役割も降りる（見えるだけではない）")
 	})
 }

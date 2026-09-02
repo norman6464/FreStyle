@@ -89,7 +89,7 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 		if row.Page.ArchivedAt != nil {
 			continue
 		}
-		if domain.ResolvePageView(row.Facts) {
+		if domain.ResolvePageView(row.Role) {
 			titles[row.Page.ID] = row.Page.Title
 		}
 	}
@@ -287,7 +287,7 @@ func (u *ListViewableAncestorsUseCase) Execute(ctx context.Context, in ListViewa
 	}
 	viewable := make(map[string]string, len(rows))
 	for _, row := range rows {
-		if domain.ResolvePageView(row.Facts) {
+		if domain.ResolvePageView(row.Role) {
 			viewable[row.Page.ID] = row.Page.Title
 		}
 	}

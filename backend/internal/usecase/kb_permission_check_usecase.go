@@ -91,11 +91,11 @@ func (u *IsWorkspaceMemberUseCase) Execute(ctx context.Context, in IsWorkspaceMe
 // ListViewablePagesUseCase はスペース配下の現役ページのうち、そのユーザーが閲覧できるものを返す。
 // ツリー取得の土台。ページ数によらず問い合わせは 1 回で、一覧の閲覧判定は
 // domain.ResolvePageView に集約する（1 ページ解決の CheckPagePermissionUseCase は
-// domain.ResolvePagePermission を通る。入口の関数は違うが、既定と例外の突き合わせは
+// domain.ResolvePagePermission を通る。入口の関数は違うが、役割から可否を出す規則は
 // どちらも同じ 1 つの実装へ落ちる）。
 //
 // 答えられるのは閲覧可否だけ。編集可否が要る画面は CheckPagePermissionUseCase を使う
-// （一覧のクエリは編集の例外を集めていない）。
+// （一覧のクエリは所属（Member）まで集めていない）。
 type ListViewablePagesUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -164,7 +164,7 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 	viewable := make(map[string]bool, len(rows))
 	parentArchived := make(map[string]bool)
 	for _, row := range rows {
-		if domain.ResolvePageView(row.Facts) {
+		if domain.ResolvePageView(row.Role) {
 			viewable[row.Page.ID] = true
 			pages = append(pages, row.Page)
 			if row.ParentArchived {
@@ -231,9 +231,17 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 // CanEditPageSubtreeUseCase は「このユーザーは、このページと全子孫を編集できるか」に答える。
 // ページを名指しして子孫ごと書き換える操作（アーカイブ / 復帰）の入口で使う。
 //
-// 根 1 枚の CheckPagePermissionUseCase では足りない。子孫には親と違う例外が張られている
-// ことがあり、根だけを見て通すと「その子を直接 rename すると 403 なのに、親のアーカイブ
-// 経由なら書き換えられる」という、同じ編集判定が経路で食い違う状態になる。
+// # いまの権限モデルでは、この検査は断らない
+//
+// 権限は 3 段の付与を足し合わせて「届いた中で最も強い役割」で決まり、打ち消す層が無い。
+// 子孫の経路は親の経路を必ず含み（page_paths）、スペースは親子で揃う（fk_pages_parent が
+// (workspace_id, space_id, parent_id) で参照するため DB が強制する）。
+// つまり**役割は木を下るほど弱くならない**ので、根を編集できるなら全子孫も編集できる。
+//
+// それでも残しているのは、これが**事実を集めるクエリの回帰を捕まえる最後の網**だから。
+// 経路の辿り方を取り違える（祖先ではなく子孫を集めてしまう等）と、1 枚解決と一覧で
+// 答えが食い違い、根だけ見て通す実装では気づけない。1 スペース 5,000 ページで 3 ms、
+// 呼ぶのはアーカイブ / 復帰の 1 回だけなので、置いておく代償は小さい。
 //
 // 問い合わせはページ数によらず 1 回（サブツリーの事実をまとめて集める）。判定は
 // domain.ResolvePagePermission を 1 ページずつ通す — 1 枚解決と同じ規則を使い、
@@ -329,7 +337,7 @@ func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewa
 	// 使わない — 上で挟んでいても、確保だけ大きくする余地を入力に持たせない。
 	pages := make([]domain.Page, 0, len(rows))
 	for _, row := range rows {
-		if !domain.ResolvePageView(row.Facts) {
+		if !domain.ResolvePageView(row.Role) {
 			continue
 		}
 		pages = append(pages, row.Page)

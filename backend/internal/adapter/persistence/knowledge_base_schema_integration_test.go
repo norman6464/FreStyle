@@ -30,7 +30,7 @@ const (
 // 権限モデル（principals 以下）も含める。principals は users を親に持つが、
 // users はここで消さない（ほかの結合テストと共有するため。principals 側だけ空にすれば足りる）。
 var kbTables = []string{
-	"share_links", "page_restrictions", "page_allow_lists", "space_grants", "workspace_grants",
+	"share_links", "page_grants", "space_grants", "workspace_grants",
 	"principal_members", "principals",
 	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
 }
@@ -478,6 +478,37 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		}
 	})
 
+	// 権限を弱める層のテーブルは撤去した。DDL がうっかり作り直していないことを固定する。
+	//
+	// 「無いこと」をテストで押さえるのは、在るだけで書き込めてしまうため。表が戻ると
+	// 実効権限を決めるクエリはそれを読まないまま行だけが溜まり、権限設定の画面に
+	// 見えているものと実際の見え方が食い違う（しかも誰も気づけない）。
+	//
+	// 権限は 3 段の付与（workspace_grants / space_grants / page_grants）を足し合わせ、
+	// 届いた中で最も強い役割で決まる。狭めたい内容は private のスペースへ置く。
+	t.Run("権限を弱める層のテーブルは存在しない", func(t *testing.T) {
+		for _, table := range []string{"page_restrictions", "page_allow_lists"} {
+			var exists bool
+			require.NoError(t, db.QueryRow(
+				`SELECT EXISTS (
+				   SELECT 1 FROM information_schema.tables
+				   WHERE table_schema = current_schema() AND table_name = $1
+				 )`, table,
+			).Scan(&exists))
+			require.Falsef(t, exists, "%s が復活しています（弱める層は持たない）", table)
+		}
+
+		// 空振り防止: 同じ引き方で、在るはずの表はちゃんと在ると答えること。
+		var exists bool
+		require.NoError(t, db.QueryRow(
+			`SELECT EXISTS (
+			   SELECT 1 FROM information_schema.tables
+			   WHERE table_schema = current_schema() AND table_name = 'page_grants'
+			 )`,
+		).Scan(&exists))
+		require.True(t, exists, "3 段目の付与の表が見つかりません")
+	})
+
 	// DDL は起動のたびに流れる。何度適用しても落ちず、制約が 1 本も欠けないことを固定する
 	// （CREATE ... IF NOT EXISTS だけで冪等にしており、DO ブロックによる張り替えは持ち込まない）。
 	// スキーマそのものを見るので、この DB を使う他のサブテストの後（最後）に置く。
@@ -721,13 +752,8 @@ func seedPermissionRows(t *testing.T, db *sql.DB, workspaceID, spaceID, pageID s
 	)
 	require.NoError(t, err)
 	_, err = db.Exec(
-		`INSERT INTO page_restrictions (workspace_id, page_id, principal_id, capability, mode)
-		 VALUES ($1, $2, $3, 'view', 'deny')`, workspaceID, pageID, userPrincipal,
-	)
-	require.NoError(t, err)
-	_, err = db.Exec(
-		`INSERT INTO page_allow_lists (workspace_id, page_id, capability) VALUES ($1, $2, 'view')`,
-		workspaceID, pageID,
+		`INSERT INTO page_grants (workspace_id, page_id, principal_id, "role") VALUES ($1, $2, $3, 'viewer')`,
+		workspaceID, pageID, userPrincipal,
 	)
 	require.NoError(t, err)
 	_, err = db.Exec(

@@ -7,7 +7,7 @@ import "time"
 // 既存アプリの RoleName（super_admin / company_admin / trainee）とは別物で、統合もしない。
 // あちらは「アプリ全体で何ができるか」を 1 人 1 つ持つグローバルなロール、こちらは
 // 「この入れ物（ワークスペース / スペース）で何ができるか」を入れ物ごとに持つ。
-// ノートの権限は principals / grants / restrictions だけで閉じており、
+// ノートの権限は principals / grants だけで閉じており、
 // 「特権ロールなら全部見える」という抜け道は解決ロジックに持たせない。
 type GrantRole string
 
@@ -51,8 +51,9 @@ func (r GrantRole) Valid() bool {
 //     テナント全体の管理者という概念が成り立たない（スペースを 1 つ作って viewer を
 //     張るだけで管理者を締め出せる）
 //
-// 「この人だけこのページでは外す」は grant ではなく PageRestriction の deny で表す。
-// 弱める操作は例外の層に集約し、既定の層（grant）は足し算だけにする。
+// **弱める手段はどの層にも無い。** 付与は足し算だけで、下の段が上の段を打ち消すことはない。
+// 「親は共有、この子だけ隠す」は書けず、狭めたい内容は private のスペースへ置く
+// （理由は PagePermissionFacts の doc）。
 func (r GrantRole) Rank() int {
 	switch r {
 	case GrantRoleAdmin:
@@ -92,7 +93,7 @@ func GrantRoleByRank(rank int) *GrantRole {
 // 同じスペースの直下にページを作れない」といった経路ごとのずれになる。
 // 未知の値（Rank が 0）は役割として数えない。
 //
-// ページ 1 枚 / ページ一覧の経路だけは例外で、SQL が役割の集合ではなく強さ（整数）を返す
+// ページ 1 枚 / ページ一覧の経路だけは別で、SQL が役割の集合ではなく強さ（整数）を返す
 // （ResolvePagePermissionFacts のコメント参照。ページごとに集約するため、
 // 役割を集合のまま返すと 1 リクエストで多数のページを扱えない）。強さから役割へは
 // GrantRoleByRank で戻し、両経路の答えが一致することは結合テストで固定する。
@@ -119,7 +120,7 @@ func (r GrantRole) CanComment() bool { return r.Rank() >= GrantRoleCommenter.Ran
 // CanEdit は既定でページを編集できる役割かを返す。
 func (r GrantRole) CanEdit() bool { return r.Rank() >= GrantRoleEditor.Rank() }
 
-// CanManage は権限そのもの（grant / restriction / 共有リンク）を変えられる役割かを返す。
+// CanManage は権限そのもの（grant / 共有リンク）を変えられる役割かを返す。
 func (r GrantRole) CanManage() bool { return r.Rank() >= GrantRoleAdmin.Rank() }
 
 // WorkspaceGrant はワークスペース全体での既定の権限。配下の全スペースに効く。

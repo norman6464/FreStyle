@@ -3677,7 +3677,7 @@ export interface paths {
         post?: never;
         /**
          * ノート の メンバー 削除
-         * @description ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / 例外 / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
+         * @description ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
          */
         delete: {
             parameters: {
@@ -4234,7 +4234,7 @@ export interface paths {
         get?: never;
         /**
          * ノート の ページ 権限 付与
-         * @description ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が 実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer を 張っ て も editor の まま)。 弱める に は 例外 (restriction) の deny を 使う。 呼べる の は その ページ の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。
+         * @description ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が 実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer を 張っ て も editor の まま)。 弱める 手段 は どの 層 に も 無い ので、 狭め たい 内容 は private の スペース へ 置く。 呼べる の は その ページ の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。
          */
         put: {
             parameters: {
@@ -4302,7 +4302,7 @@ export interface paths {
         post?: never;
         /**
          * ノート の ページ 権限 取り消し
-         * @description ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この ページ だけ 見せ ない」 は 例外 の deny で 表す)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         * @description ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この ページ だけ 見せ ない」 は 書け ない — 狭め たい 内容 は private の スペース へ 置く)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
          */
         delete: {
             parameters: {
@@ -4372,7 +4372,7 @@ export interface paths {
         put?: never;
         /**
          * ノート の ページ 移動
-         * @description ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
+         * @description ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 parentId を 省く と、 動かす ページ が いま いる スペース の 直下 (ルート) へ 戻す。 スペース を またぐ 移動 は この 口 で は 扱わ ない。 動かす サブツリー に 「スペース 全員」 宛て の ページ 付与 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_grant_voided) で 断る (移動 先 で は 評価 さ れ なく なる ため)。 付与 を 先 に 整理 し て から 移す。
          */
         post: {
             parameters: {
@@ -4438,7 +4438,7 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動 */
+                /** @description アーカイブ 済み / 循環 / スペース 全員 宛て の ページ 付与 が 失効 する 移動 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -4530,161 +4530,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/restrictions/{principalId}/{capability}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * ノート の ページ 例外 設定
-         * @description ページ と その 子孫 に だけ 効く 例外 を 1 行 設定 する。 mode=deny は 名指し し た 主体 だけ を 外す (ほか の 人 の 既定 は 変わら ない)。 mode=allow は その ページ の その ケイパビリティ を 「載っ て いる 主体 だけ」 の 限定 公開 に 切り替える。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ。 閲覧 権限 は 要求 し ない (自分 を deny し た ページ の 例外 を 自分 で 戻せ なく なる ため)。 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ワークスペース の slug */
-                    workspaceSlug: string;
-                    /** @description ページ ID (UUID) */
-                    pageId: string;
-                    /** @description 主体 ID (UUID) */
-                    principalId: string;
-                    /** @description ケイパビリティ (view / edit) */
-                    capability: string;
-                };
-                cookie?: never;
-            };
-            /** @description 例外 の 向き (allow / deny) */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.kbSetRestrictionRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.kbPageRestrictionResponse"];
-                    };
-                };
-                /** @description バリデーション エラー */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 権限 が 無い か 対象 が 無い */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        /**
-         * ノート の ページ 例外 解除
-         * @description ページ に 張ら れ た 例外 を 1 行 解除 する。 元 から 無い 行 に 対し て も 成功 する (冪等)。 消し た の が 最後 の allow 行 なら 限定 公開 も 畳ま れ、 解決 は より 遠い 祖先 の 制限 → grant の 既定 へ 戻る。 deny 行 の 解除 で は 限定 公開 を 畳ま ない。 呼べる の は その ページ が 属する スペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description ワークスペース の slug */
-                    workspaceSlug: string;
-                    /** @description ページ ID (UUID) */
-                    pageId: string;
-                    /** @description 主体 ID (UUID) */
-                    principalId: string;
-                    /** @description ケイパビリティ (view / edit) */
-                    capability: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description 解除 済み */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description バリデーション エラー */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 権限 が 無い か 対象 が 無い */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
         options?: never;
         head?: never;
         patch?: never;
@@ -5518,7 +5363,7 @@ export interface paths {
         put?: never;
         /**
          * ノート の ページ 作成
-         * @description parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
+         * @description parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース の 判定 は ページ 付与 を 見 ない ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
          */
         post: {
             parameters: {
@@ -7961,7 +7806,7 @@ export interface components {
              *
              *     省けるようにしたのはドラッグのため。入れ子になったページを最上段へ戻すのは
              *     基本の操作で、これが無いと「入れることはできるが出せない」ドラッグになる。
-             *     判断はスペースの編集権限で行う（ページの例外の層が無い段なので、そこが正しい単位）。
+             *     判断はスペースの編集権限で行う（ページ付与が届かない段なので、そこが正しい単位）。
              * @example 0198a000-0000-7000-8000-000000000003
              */
             parentId?: string;
@@ -7996,18 +7841,6 @@ export interface components {
             spaceId?: string;
             /** @example 設計メモ */
             title?: string;
-            updatedAt?: string;
-        };
-        "internal_handler.kbPageRestrictionResponse": {
-            /** @example view */
-            capability?: string;
-            createdAt?: string;
-            /** @example deny */
-            mode?: string;
-            /** @example 0198a000-0000-7000-8000-000000000003 */
-            pageId?: string;
-            /** @example 0198a000-0000-7000-8000-00000000000a */
-            principalId?: string;
             updatedAt?: string;
         };
         "internal_handler.kbPageTreeResponse": {
@@ -8071,8 +7904,7 @@ export interface components {
             canEdit?: boolean;
             /**
              * @description CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
-             *     経路上の例外を見ないので、自分を deny したページでも true のまま返る
-             *     （domain.PagePermission.CanManage の doc に理由がある）。
+             *     届いている役割が admin かどうかだけで決まる。
              */
             canManage?: boolean;
             doc?: Record<string, never>;
@@ -8081,13 +7913,6 @@ export interface components {
             workspaceName?: string;
             /** @example w-3f2a9c */
             workspaceSlug?: string;
-        };
-        "internal_handler.kbSetRestrictionRequest": {
-            /**
-             * @description Mode は allow（限定公開の許可リストへ載せる）か deny（この主体だけ外す）。
-             * @example deny
-             */
-            mode: string;
         };
         "internal_handler.kbShareLinkResponse": {
             /**

@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 権限操作 API（grant / restriction / メンバー / グループ / 共有リンク）の handler テスト。
+// 権限操作 API（grant / メンバー / グループ / 共有リンク）の handler テスト。
 //
 // 見るのは 2 つだけ:
 //
@@ -134,25 +134,6 @@ var kbPermissionEndpoints = []kbPermissionEndpoint{
 			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/principals",
 		},
 		okStatus: http.StatusOK,
-	},
-	{
-		name: "ページ例外の設定", method: http.MethodPut,
-		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability",
-		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
-		missing: []string{
-			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/restrictions/{target}/view",
-			"/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/" + kbMissingID + "/view",
-		},
-		body: `{"mode":"deny"}`, okStatus: http.StatusOK,
-	},
-	{
-		name: "ページ例外の解除", method: http.MethodDelete,
-		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability",
-		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
-		missing: []string{
-			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/restrictions/{target}/view",
-		},
-		okStatus: http.StatusNoContent,
 	},
 	{
 		name: "メンバー追加", method: http.MethodPut,
@@ -418,15 +399,6 @@ func Test_ノート権限API_ページを名指しする入口は結果によら
 		suffix func(f kbPermFixture) string
 		body   string
 	}{
-		{
-			name: "例外の設定", method: http.MethodPut,
-			suffix: func(f kbPermFixture) string { return "/restrictions/" + f.targetPrincipalID + "/view" },
-			body:   `{"mode":"deny"}`,
-		},
-		{
-			name: "例外の解除", method: http.MethodDelete,
-			suffix: func(f kbPermFixture) string { return "/restrictions/" + f.targetPrincipalID + "/view" },
-		},
 		{
 			name: "権限一覧", method: http.MethodGet,
 			suffix: func(kbPermFixture) string { return "/grants" },
@@ -738,6 +710,33 @@ func Test_ノート権限API_未知の役割は400(t *testing.T) {
 		`{"role":"super_admin"}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code,
 		"アプリ内ロールは grant の役割として通らない（権限の出どころを 2 系統にしない）")
+}
+
+func Test_ノート権限API_弱い付与を足しても管理の口は閉じない(t *testing.T) {
+	// 権限は 3 段（ワークスペース / スペース / ページ）の付与を足し合わせ、届いた中で
+	// 最も強い役割で決まる。下の段が上の段を弱めることはないので、自分自身に弱い付与を
+	// 張っても、上から届いている管理権限は残る。
+	//
+	// 「近い段が勝つ」形へ戻すと、ここが 404 に落ちる（自分で自分の管理権限を
+	// 取り上げられてしまい、張った行を消す手段が本人から消える）。
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	grants := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/grants"
+
+	require.Equal(t, http.StatusOK,
+		f.do(t, http.MethodPut, grants+"/"+f.callerPrincipalID, `{"role":"viewer"}`).Code,
+		"自分自身に viewer のページ付与を張る")
+
+	listed := f.do(t, http.MethodGet, grants, "")
+	require.Equal(t, http.StatusOK, listed.Code,
+		"ワークスペースの admin が届いたままなので、権限の口は開いている")
+
+	// 張った行そのものは残っている（下がらないのは実効の役割だけ）。
+	// ここまで見ないと、付与が黙って捨てられていても上の 200 で緑になる。
+	var rows []map[string]any
+	require.NoError(t, json.Unmarshal(listed.Body.Bytes(), &rows))
+	require.Len(t, rows, 1)
+	assert.Equal(t, f.callerPrincipalID, rows[0]["principalId"])
+	assert.Equal(t, "viewer", rows[0]["role"])
 }
 
 // kbSuperAdminRouter は current user に super_admin を持たせたルータを組む

@@ -104,18 +104,6 @@ func toDomainPageGrant(row sqlcgen.PageGrant) domain.PageGrant {
 	}
 }
 
-func toDomainPageRestriction(row sqlcgen.PageRestriction) domain.PageRestriction {
-	return domain.PageRestriction{
-		WorkspaceID: row.WorkspaceID.String(),
-		PageID:      row.PageID.String(),
-		PrincipalID: row.PrincipalID.String(),
-		Capability:  domain.Capability(row.Capability),
-		Mode:        domain.RestrictionMode(row.Mode),
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
-	}
-}
-
 func toDomainShareLink(row sqlcgen.ShareLink) domain.ShareLink {
 	l := domain.ShareLink{
 		ID:              row.ID.String(),
@@ -141,19 +129,6 @@ func toDomainShareLink(row sqlcgen.ShareLink) domain.ShareLink {
 		l.RevokedAt = &t
 	}
 	return l
-}
-
-// restrictionFacts は「経路上に制限が 1 行も無い」を nil で返す
-// （domain 側が nil を既定へのフォールバックと解釈する）。
-func restrictionFacts(restricted, deniedAnywhere, hasAllowList, allowedAtNearest bool) *domain.RestrictionFacts {
-	if !restricted {
-		return nil
-	}
-	return &domain.RestrictionFacts{
-		DeniedAnywhere:   deniedAnywhere,
-		HasAllowList:     hasAllowList,
-		AllowedAtNearest: allowedAtNearest,
-	}
 }
 
 func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
@@ -675,150 +650,6 @@ func (r *knowledgeBasePermissionRepository) ListPageGrants(ctx context.Context, 
 	return grants, nil
 }
 
-func (r *knowledgeBasePermissionRepository) UpsertPageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability, mode domain.RestrictionMode) (*domain.PageRestriction, error) {
-	wsID, ok := kbParseID(workspaceID)
-	pgID, ok2 := kbParseID(pageID)
-	prID, ok3 := kbParseID(principalID)
-	if !ok || !ok2 || !ok3 {
-		return nil, repository.ErrPageNotFound
-	}
-
-	// 例外 1 行と「その段が許可リスト制か」の印は必ず同じトランザクションで揃える。
-	// 別々に書くと、片方だけ入った瞬間にページが開く / 閉じる中間状態ができる。
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-	qtx := r.q.WithTx(tx)
-
-	prevMode, err := qtx.GetPageRestrictionMode(ctx, sqlcgen.GetPageRestrictionModeParams{
-		WorkspaceID: wsID,
-		PageID:      pgID,
-		PrincipalID: prID,
-		Capability:  string(capability),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	row, err := qtx.UpsertPageRestriction(ctx, sqlcgen.UpsertPageRestrictionParams{
-		WorkspaceID: wsID,
-		PageID:      pgID,
-		PrincipalID: prID,
-		Capability:  string(capability),
-		Mode:        string(mode),
-	})
-	if err != nil {
-		return nil, err
-	}
-	switch {
-	case mode == domain.RestrictionModeAllow:
-		if err := qtx.MarkPageAllowList(ctx, sqlcgen.MarkPageAllowListParams{
-			WorkspaceID: wsID, PageID: pgID, Capability: string(capability),
-		}); err != nil {
-			return nil, err
-		}
-	case prevMode == string(domain.RestrictionModeAllow):
-		// allow を deny へ書き換えた。その段の最後の allow だったなら印も畳む。
-		if err := qtx.UnmarkPageAllowListIfEmpty(ctx, sqlcgen.UnmarkPageAllowListIfEmptyParams{
-			WorkspaceID: wsID, PageID: pgID, Capability: string(capability),
-		}); err != nil {
-			return nil, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	res := toDomainPageRestriction(row)
-	return &res, nil
-}
-
-// DeletePageRestriction はページの例外（allow / deny 1 行）を取り消す。
-//
-// ここも 0 行削除は成功のまま。そもそも直前の GetPageRestrictionMode が sql.ErrNoRows なら
-// 「元から無い（冪等）」として早期 return しており、DELETE まで来て 0 行になるのは
-// その 2 文のあいだに他の管理操作が同じ行を消した競合だけ。求められている事後条件
-// （その例外が無い状態）はどちらにせよ満たされているので、取り消しは冪等に成功させる。
-func (r *knowledgeBasePermissionRepository) DeletePageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability) error {
-	wsID, ok := kbParseID(workspaceID)
-	pgID, ok2 := kbParseID(pageID)
-	prID, ok3 := kbParseID(principalID)
-	if !ok || !ok2 || !ok3 {
-		return nil
-	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-	qtx := r.q.WithTx(tx)
-
-	// 消したのが allow 行だったときだけ印を畳む。deny 行の解除で畳むと、
-	// 無関係な 1 行の解除で限定公開が解けることになる。
-	prevMode, err := qtx.GetPageRestrictionMode(ctx, sqlcgen.GetPageRestrictionModeParams{
-		WorkspaceID: wsID,
-		PageID:      pgID,
-		PrincipalID: prID,
-		Capability:  string(capability),
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil // 元から無い（冪等）
-		}
-		return err
-	}
-	if _, err := qtx.DeletePageRestriction(ctx, sqlcgen.DeletePageRestrictionParams{
-		WorkspaceID: wsID,
-		PageID:      pgID,
-		PrincipalID: prID,
-		Capability:  string(capability),
-	}); err != nil {
-		return err
-	}
-	if prevMode == string(domain.RestrictionModeAllow) {
-		if err := qtx.UnmarkPageAllowListIfEmpty(ctx, sqlcgen.UnmarkPageAllowListIfEmptyParams{
-			WorkspaceID: wsID, PageID: pgID, Capability: string(capability),
-		}); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-func (r *knowledgeBasePermissionRepository) ListPageAllowListCapabilities(ctx context.Context, workspaceID, pageID string) ([]domain.Capability, error) {
-	wsID, ok := kbParseID(workspaceID)
-	pgID, ok2 := kbParseID(pageID)
-	if !ok || !ok2 {
-		return []domain.Capability{}, nil
-	}
-	rows, err := r.q.ListPageAllowLists(ctx, sqlcgen.ListPageAllowListsParams{WorkspaceID: wsID, PageID: pgID})
-	if err != nil {
-		return nil, err
-	}
-	list := make([]domain.Capability, 0, len(rows))
-	for _, c := range rows {
-		list = append(list, domain.Capability(c))
-	}
-	return list, nil
-}
-
-func (r *knowledgeBasePermissionRepository) ListPageRestrictions(ctx context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error) {
-	wsID, ok := kbParseID(workspaceID)
-	pgID, ok2 := kbParseID(pageID)
-	if !ok || !ok2 {
-		return []domain.PageRestriction{}, nil
-	}
-	rows, err := r.q.ListPageRestrictions(ctx, sqlcgen.ListPageRestrictionsParams{WorkspaceID: wsID, PageID: pgID})
-	if err != nil {
-		return nil, err
-	}
-	list := make([]domain.PageRestriction, 0, len(rows))
-	for _, row := range rows {
-		list = append(list, toDomainPageRestriction(row))
-	}
-	return list, nil
-}
-
 func (r *knowledgeBasePermissionRepository) CreateShareLink(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
 	wsID, ok := kbParseID(in.WorkspaceID)
 	pgID, ok2 := kbParseID(in.PageID)
@@ -938,12 +769,9 @@ func (r *knowledgeBasePermissionRepository) PagePermissionFactsForUser(ctx conte
 	// is_member=false / grant_rank=0 / denied_anywhere=false / allowed_at_nearest=false。
 	// つまり Member=false / Role=nil で、非メンバーが得るものと同じ。
 	//
-	// ゼロ値で返すので View / Edit は nil（経路に制限が無い）になる。ページ側に制限が
-	// 張られていれば実際のクエリは非 nil を返すが、そこは違っていて構わない。
-	// domain.ResolvePagePermission に通したときの答えがどちらも同じだからで、
-	// 既定が roleAllows(nil) = false である以上、resolveCapability は
-	// 例外が nil でも（deny / 許可リストで）非 nil でも false を返す。
-	// CanEdit は CanView を含むのでさらに閉じる。拒否側へ倒れることが確実に決まる。
+	// domain.ResolvePagePermission に通すと、役割が nil である以上どのケイパビリティも
+	// 許されない（roleAllows(nil) は常に false）。CanEdit は CanView を含むのでさらに閉じる。
+	// 拒否側へ倒れることが確実に決まる。
 	//
 	// ページの実在は確かめない（確かめる術がクエリしか無く、その入力がここでは作れない）。
 	// 存在しないページを名指しされたときの応答が 404 ではなく 403 になるが、
@@ -991,8 +819,6 @@ func (r *knowledgeBasePermissionRepository) pagePermissionFacts(
 	return &domain.PagePermissionFacts{
 		Member: row.IsMember,
 		Role:   domain.GrantRoleByRank(int(row.GrantRank)),
-		View:   restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
-		Edit:   restrictionFacts(row.EditRestricted, row.EditDeniedAnywhere, row.EditHasAllowList, row.EditAllowedAtNearest),
 	}, nil
 }
 
@@ -1036,11 +862,8 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 			UpdatedAt:       row.UpdatedAt,
 		})
 		out = append(out, repository.PageWithViewFacts{
-			Page: page,
-			Facts: domain.PageViewFacts{
-				Role: domain.GrantRoleByRank(int(row.GrantRank)),
-				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
-			},
+			Page:           page,
+			Role:           domain.GrantRoleByRank(int(row.GrantRank)),
 			ParentArchived: row.ParentArchived,
 		})
 	}
@@ -1091,10 +914,7 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
-			Facts: domain.PageViewFacts{
-				Role: domain.GrantRoleByRank(int(row.GrantRank)),
-				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
-			},
+			Role: domain.GrantRoleByRank(int(row.GrantRank)),
 			// ParentArchived は集めない（検索は現役だけが対象）。既定の false のまま。
 		})
 	}
@@ -1151,10 +971,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
-			Facts: domain.PageViewFacts{
-				Role: domain.GrantRoleByRank(int(row.GrantRank)),
-				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
-			},
+			Role: domain.GrantRoleByRank(int(row.GrantRank)),
 			// ParentArchived は集めない（検索と同じく現役だけが対象）。既定の false のまま。
 		})
 	}
@@ -1358,8 +1175,6 @@ func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx c
 			Facts: domain.PagePermissionFacts{
 				Member: row.IsMember,
 				Role:   domain.GrantRoleByRank(int(row.GrantRank)),
-				View:   restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
-				Edit:   restrictionFacts(row.EditRestricted, row.EditDeniedAnywhere, row.EditHasAllowList, row.EditAllowedAtNearest),
 			},
 		})
 	}

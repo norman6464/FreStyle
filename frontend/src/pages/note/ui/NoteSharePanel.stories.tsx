@@ -25,8 +25,9 @@ const meta = {
     loading: false,
     error: null,
     saving: false,
-    onGrant: fn(),
-    onRevoke: fn(),
+    // 成功可否を返す契約（失敗したときに選択を消さないため）。
+    onGrant: fn(async () => true),
+    onRevoke: fn(async () => true),
     onClose: fn(),
   },
 } satisfies Meta<typeof NoteSharePanel>;

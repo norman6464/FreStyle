@@ -266,7 +266,9 @@ describe('NotePage の共有', () => {
 
     const share = await screen.findByRole('button', { name: '共有' });
     // 開いていないパネルのために、ページを開くたび 2 本引かない。
+    // 片方だけ先読みに戻る退行を拾えるよう、両方を見る。
     expect(hoisted.listPageGrants).not.toHaveBeenCalled();
+    expect(hoisted.listGrantablePrincipals).not.toHaveBeenCalled();
 
     fireEvent.click(share);
     await waitFor(() => expect(hoisted.listPageGrants).toHaveBeenCalledWith('w-3f2a9c', 'p1'));

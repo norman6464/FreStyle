@@ -73,7 +73,7 @@ describe('useNoteShare', () => {
     const { result } = renderHook(() => useNoteShare(SLUG, PAGE));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.candidates.map((c) => c.id)).toEqual(['pr-dev']);
+    expect(result.current.candidates.map((candidate) => candidate.id)).toEqual(['pr-dev']);
   });
 
   it('付与のあとは引き直す（画面と実態をずらさない）', async () => {
@@ -132,7 +132,7 @@ describe('useNoteShare', () => {
 
   it('速く開き直したとき、古い応答で新しい結果を上書きしない', async () => {
     // 1 本目をわざと遅らせ、2 本目のページの結果が出たあとに着地させる。
-    let settleFirst: (v: unknown) => void = () => {};
+    let settleFirst: (value: unknown) => void = () => {};
     hoisted.listPageGrants.mockImplementationOnce(
       () => new Promise((resolve) => { settleFirst = resolve; }),
     );
@@ -150,6 +150,90 @@ describe('useNoteShare', () => {
     await act(async () => {
       settleFirst([grant('pr-tanaka'), grant('pr-dev')]);
     });
-    expect(result.current.rows.map((r) => r.principalId)).toEqual(['pr-dev']);
+    expect(result.current.rows.map((row) => row.principalId)).toEqual(['pr-dev']);
+  });
+});
+
+describe('useNoteShare の宛先', () => {
+  it('書き込み中にページを移ったら、旧ページを引き直さない', async () => {
+    // 引き直しが旧ページへ向かうと、新しいページのパネルに旧ページの相手が並び、
+    // そのまま権限を張れてしまう（宛先が画面と食い違う）。
+    let finishWrite: () => void = () => {};
+    hoisted.grantPageRole.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { finishWrite = resolve; }),
+    );
+
+    const { result, rerender } = renderHook(({ page }) => useNoteShare(SLUG, page), {
+      initialProps: { page: 'p-old' },
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const writing = result.current.grant('pr-dev', 'viewer');
+    hoisted.listPageGrants.mockClear();
+
+    // 書き込みが飛んでいる間に別のページへ移る。
+    rerender({ page: 'p-new' });
+    await waitFor(() => expect(hoisted.listPageGrants).toHaveBeenCalledWith(SLUG, 'p-new'));
+    hoisted.listPageGrants.mockClear();
+
+    let succeeded: boolean | undefined;
+    await act(async () => {
+      finishWrite();
+      succeeded = await writing;
+    });
+
+    expect(succeeded).toBe(false);
+    expect(hoisted.listPageGrants).not.toHaveBeenCalled();
+  });
+
+  it('宛先が無くなったら状態を畳む（次に開いたとき前のページの行を出さない）', async () => {
+    const { result, rerender } = renderHook(
+      ({ page }: { page: string | undefined }) => useNoteShare(SLUG, page),
+      { initialProps: { page: 'p1' as string | undefined } },
+    );
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+
+    rerender({ page: undefined });
+
+    expect(result.current.rows).toHaveLength(0);
+    expect(result.current.candidates).toHaveLength(0);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('閉じたあとに着地した応答は捨てる', async () => {
+    let settle: (value: unknown) => void = () => {};
+    hoisted.listPageGrants.mockImplementationOnce(
+      () => new Promise((resolve) => { settle = resolve; }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ page }: { page: string | undefined }) => useNoteShare(SLUG, page),
+      { initialProps: { page: 'p1' as string | undefined } },
+    );
+    rerender({ page: undefined });
+
+    await act(async () => {
+      settle([grant('pr-tanaka')]);
+    });
+
+    expect(result.current.rows).toHaveLength(0);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('成功・失敗を呼び出し側へ返す', async () => {
+    const { result } = renderHook(() => useNoteShare(SLUG, PAGE));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await result.current.grant('pr-dev', 'viewer');
+    });
+    expect(ok).toBe(true);
+
+    hoisted.grantPageRole.mockRejectedValue(new Error('boom'));
+    await act(async () => {
+      ok = await result.current.grant('pr-dev', 'viewer');
+    });
+    expect(ok).toBe(false);
   });
 });

@@ -1,15 +1,9 @@
 import { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import type { NoteGrantablePrincipal, NoteGrantRole } from '@/entities/note';
-import type { NoteShareRow } from '../model/useNoteShare';
-
-/** 役割の選択肢（強い順）。値は backend の domain.GrantRole と同じ。 */
-const ROLES: ReadonlyArray<{ value: NoteGrantRole; label: string }> = [
-  { value: 'admin', label: '管理' },
-  { value: 'editor', label: '編集' },
-  { value: 'commenter', label: 'コメント' },
-  { value: 'viewer', label: '閲覧' },
-];
+import type { NoteShareRow as ShareRowData } from '../model/useNoteShare';
+import NoteShareRow from './NoteShareRow';
+import { ROLES, displayName } from './noteShareLabels';
 
 /**
  * 上の段から届いている人はここに出ない、と画面に書く一文。
@@ -26,7 +20,7 @@ export interface NoteSharePanelProps {
   /** いま開いているページの題名（どのページを共有しているかの手がかり）。 */
   pageTitle: string;
   /** このページ自身に張った権限。上の段から届いている相手は含まない。 */
-  rows: NoteShareRow[];
+  rows: ShareRowData[];
   /** まだ権限を張っていない相手（追加の候補）。 */
   candidates: NoteGrantablePrincipal[];
   loading: boolean;
@@ -34,8 +28,9 @@ export interface NoteSharePanelProps {
   error: string | null;
   /** 書き込みが飛んでいる間 true（二重送信を止める）。 */
   saving: boolean;
-  onGrant: (principalId: string, role: NoteGrantRole) => void | Promise<void>;
-  onRevoke: (principalId: string) => void | Promise<void>;
+  /** 付与。**成功したかを返す**（失敗したときに選択を消さないため）。 */
+  onGrant: (principalId: string, role: NoteGrantRole) => Promise<boolean>;
+  onRevoke: (principalId: string) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -66,10 +61,11 @@ export default function NoteSharePanel({
 
   const handleAdd = async () => {
     if (!pickedPrincipal) return;
-    await onGrant(pickedPrincipal, pickedRole);
-    // 追加した相手は候補から外れるので、選択も戻す
-    // （残すと次の追加で、もう候補に無い相手を指したままになる）。
-    setPickedPrincipal('');
+    const added = await onGrant(pickedPrincipal, pickedRole);
+    // 成功したときだけ選択を戻す。追加した相手は候補から外れるので、残すと次の追加で
+    // もう候補に無い相手を指したままになる。**失敗したときは残す** — 消すと、
+    // エラーを読んだ人が同じ相手をもう一度選び直すことになる。
+    if (added) setPickedPrincipal('');
   };
 
   return (
@@ -100,8 +96,11 @@ export default function NoteSharePanel({
           {/*
             注記は行があるときだけ。空のときは下の一文が同じことをより強く言うので、
             両方出すと似た文が 2 つ並んで、どちらも読み飛ばされる。
+
+            **error では消さない。** 書き込みに失敗したときは行が残ったままなので、
+            そこで注記だけ消えると、残っている一覧を「見られる人の全部」と読める。
           */}
-          {!loading && !error && rows.length > 0 && (
+          {!loading && rows.length > 0 && (
             <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-muted)]">
               {INHERITED_NOTE}
             </p>
@@ -129,10 +128,10 @@ export default function NoteSharePanel({
           </p>
         )}
 
-        {!loading && !error && rows.length > 0 && (
+        {!loading && rows.length > 0 && (
           <ul className="flex flex-col gap-0.5">
             {rows.map((row) => (
-              <ShareRow
+              <NoteShareRow
                 key={row.principalId}
                 row={row}
                 disabled={saving}
@@ -158,9 +157,9 @@ export default function NoteSharePanel({
               className="min-w-0 flex-1 rounded border border-surface-3 bg-surface-1 px-2 py-1.5 text-sm text-[var(--color-text-secondary)]"
             >
               <option value="">相手を選ぶ…</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {displayName(c.name, c.id)}
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {displayName(candidate.name, candidate.id)}
                 </option>
               ))}
             </select>
@@ -171,9 +170,9 @@ export default function NoteSharePanel({
               disabled={saving}
               className="rounded border border-surface-3 bg-surface-1 px-2 py-1.5 text-sm text-[var(--color-text-secondary)]"
             >
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
+              {ROLES.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
                 </option>
               ))}
             </select>
@@ -190,85 +189,4 @@ export default function NoteSharePanel({
       </div>
     </section>
   );
-}
-
-interface ShareRowProps {
-  row: NoteShareRow;
-  disabled: boolean;
-  onChangeRole: (role: NoteGrantRole) => void;
-  onRemove: () => void;
-}
-
-function ShareRow({ row, disabled, onChangeRole, onRemove }: ShareRowProps) {
-  const name = displayName(row.name, row.principalId);
-  return (
-    <li className="flex items-center gap-2 rounded px-1 py-1.5 hover:bg-surface-2">
-      <span
-        aria-hidden="true"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-surface-3 bg-surface-2 text-[0.6875rem] font-bold text-[var(--color-text-tertiary)]"
-      >
-        {initials(row)}
-      </span>
-      <span className="min-w-0 flex-1">
-        {/* 名前が引けなかった相手は ID が出る。切り詰められるので全体を title で補う。 */}
-        <span
-          title={name}
-          className="block truncate text-sm font-medium text-[var(--color-text-primary)]"
-        >
-          {name}
-        </span>
-        <span className="block text-[0.6875rem] text-[var(--color-text-muted)]">
-          {KIND_LABEL[row.kind]}
-        </span>
-      </span>
-      <select
-        aria-label={`${name} の役割`}
-        value={row.role}
-        onChange={(e) => onChangeRole(e.target.value as NoteGrantRole)}
-        disabled={disabled}
-        className="shrink-0 rounded border border-surface-3 bg-surface-1 px-1.5 py-1 text-sm text-[var(--color-text-secondary)]"
-      >
-        {ROLES.map((r) => (
-          <option key={r.value} value={r.value}>
-            {r.label}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={disabled}
-        aria-label={`${name} を外す`}
-        className="shrink-0 rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-45"
-      >
-        <XMarkIcon className="h-4 w-4" />
-      </button>
-    </li>
-  );
-}
-
-const KIND_LABEL: Record<NoteShareRow['kind'], string> = {
-  user: 'メンバー',
-  group: 'グループ',
-  space_all: 'スペースの全員',
-  // 相手の一覧に居ない ID。引いた直後に主体が消えるとこうなる。行は残す
-  // （消すと、取り消せない権限が画面から見えないまま残る）。
-  unknown: '不明な相手',
-};
-
-/**
- * displayName は名前が空のとき ID を代わりに出す。
- *
- * backend は名前を引けなかった相手も空文字で返す（行を落とさない）。ここで
- * 「名前のない行」として出すと、どの権限を消せばよいのか人が選べない。
- */
-function displayName(name: string, principalId: string): string {
-  return name.trim() === '' ? principalId : name;
-}
-
-function initials(row: NoteShareRow): string {
-  if (row.kind === 'space_all') return '全';
-  if (row.kind === 'group') return 'G';
-  const name = row.name.trim();
-  return name === '' ? '?' : name.slice(0, 1);
 }

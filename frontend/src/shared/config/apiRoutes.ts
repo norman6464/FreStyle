@@ -228,6 +228,25 @@ export const NOTES_API = {
    * 判定はツリーと同じ規則をサーバーが持つ（検索だけ別の判定にしない）。
    */
   search: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/search`,
+  /**
+   * GET(一覧) — /api/v2/kb/workspaces/:slug/pages/:pageId/grants
+   *
+   * **返るのはそのページ自身に張った行だけ**で、上の段（ワークスペース / スペース /
+   * 祖先のページ）から届いている相手は含まない。空 = 誰も見られない、ではない。
+   */
+  pageGrants: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/grants`,
+  /** PUT(付与) / DELETE(取り消し) — 同じ 1 行を指す（DB の主キーと同じ形） */
+  pageGrant: (workspaceSlug: string, pageId: string, principalId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/grants/${principalId}`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/pages/:pageId/principals
+   *
+   * 権限を張れる相手を表示名つきで返す（相手選び用）。中身はワークスペース全体だが、
+   * 呼べるかはページ単位で決まる。
+   */
+  pagePrincipals: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/principals`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

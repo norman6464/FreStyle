@@ -1,35 +1,35 @@
 import { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import type { NoteGrantablePrincipal, NoteGrantRole } from '@/entities/note';
-import type { NoteShareRow as ShareRowData } from '../model/useNoteShare';
-import NoteShareRow from './NoteShareRow';
-import { ROLES, displayName } from './noteShareLabels';
+import type { SharePrincipal, ShareRole, ShareRow as ShareRowData } from '../model/types';
+import ShareRow from './ShareRow';
+import { ROLES, displayName } from '../model/labels';
 
-/**
- * 上の段から届いている人はここに出ない、と画面に書く一文。
- *
- * **これは飾りではない。** 一覧に出るのはこのページ自身に張った行だけなので、
- * 何も書かないと「このページを見られる人の一覧」に読める。実際はスペースの editor 全員が
- * 編集できるページでも、この一覧は空になり得る。空を「誰も見られない」と取り違えたまま
- * 機密を書き込む事故を、文言 1 つで塞ぐ。
- */
-const INHERITED_NOTE =
-  '上の段（ワークスペース・スペース・親ページ）から届いている人はここには出ません。';
-
-export interface NoteSharePanelProps {
-  /** いま開いているページの題名（どのページを共有しているかの手がかり）。 */
-  pageTitle: string;
+export interface SharePanelProps {
+  /** いま開いている対象の名前（何を共有しているかの手がかり）。 */
+  targetTitle: string;
+  /**
+   * 一覧に行があるときに見出しの下へ出す一文。
+   *
+   * **これは飾りではない。** 一覧に出るのはこの段に張った行だけなので、何も書かないと
+   * 「これを見られる人の一覧」に読める。実際は上の段から届いている人が居ても、この一覧は
+   * 空になり得る。空を「誰も見られない」と取り違えたまま機密を書き込む事故を、文言 1 つで塞ぐ。
+   *
+   * 段の呼び名が対象で違う（ノートはスペースと親ページ、教材はコース）ので、呼び出し側が渡す。
+   */
+  inheritedNote: string;
+  /** 行が 1 つも無いときに出す一文。上の一文より強く、空の意味を明示する。 */
+  emptyNote: string;
   /** このページ自身に張った権限。上の段から届いている相手は含まない。 */
   rows: ShareRowData[];
   /** まだ権限を張っていない相手（追加の候補）。 */
-  candidates: NoteGrantablePrincipal[];
+  candidates: SharePrincipal[];
   loading: boolean;
   /** 失敗の理由。null なら失敗していない。 */
   error: string | null;
   /** 書き込みが飛んでいる間 true（二重送信を止める）。 */
   saving: boolean;
   /** 付与。**成功したかを返す**（失敗したときに選択を消さないため）。 */
-  onGrant: (principalId: string, role: NoteGrantRole) => Promise<boolean>;
+  onGrant: (principalId: string, role: ShareRole) => Promise<boolean>;
   onRevoke: (principalId: string) => Promise<boolean>;
   onClose: () => void;
 }
@@ -45,8 +45,10 @@ export interface NoteSharePanelProps {
  * 出すかどうかは呼び出し側が canManage を見て決める。権限が無い相手に押せるボタンを
  * 出しても、返るのは 404 だけで「権限が無い」ことすら伝わらない。
  */
-export default function NoteSharePanel({
-  pageTitle,
+export default function SharePanel({
+  targetTitle,
+  inheritedNote,
+  emptyNote,
   rows,
   candidates,
   loading,
@@ -55,9 +57,9 @@ export default function NoteSharePanel({
   onGrant,
   onRevoke,
   onClose,
-}: NoteSharePanelProps) {
+}: SharePanelProps) {
   const [pickedPrincipal, setPickedPrincipal] = useState('');
-  const [pickedRole, setPickedRole] = useState<NoteGrantRole>('editor');
+  const [pickedRole, setPickedRole] = useState<ShareRole>('editor');
 
   const handleAdd = async () => {
     if (!pickedPrincipal) return;
@@ -76,7 +78,7 @@ export default function NoteSharePanel({
       <header className="flex items-center gap-3 border-b border-surface-3 px-4 py-3">
         <h2 className="text-sm font-bold text-[var(--color-text-primary)]">共有</h2>
         <span className="min-w-0 flex-1 truncate text-right text-xs text-[var(--color-text-muted)]">
-          {pageTitle}
+          {targetTitle}
         </span>
         <button
           type="button"
@@ -91,7 +93,7 @@ export default function NoteSharePanel({
       <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
         <div>
           <h3 className="text-[0.6875rem] font-bold tracking-wide text-[var(--color-text-muted)]">
-            このページで足した権限
+            ここで足した権限
           </h3>
           {/*
             注記は行があるときだけ。空のときは下の一文が同じことをより強く言うので、
@@ -102,7 +104,7 @@ export default function NoteSharePanel({
           */}
           {!loading && rows.length > 0 && (
             <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-muted)]">
-              {INHERITED_NOTE}
+              {inheritedNote}
             </p>
           )}
         </div>
@@ -123,15 +125,13 @@ export default function NoteSharePanel({
         )}
 
         {!loading && !error && rows.length === 0 && (
-          <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-muted)]">
-            このページではまだ誰にも権限を足していません。上の段（ワークスペース・スペース・親ページ）から届いている人は、ここが空でもこのページを見られます。
-          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-muted)]">{emptyNote}</p>
         )}
 
         {!loading && rows.length > 0 && (
           <ul className="flex flex-col gap-0.5">
             {rows.map((row) => (
-              <NoteShareRow
+              <ShareRow
                 key={row.principalId}
                 row={row}
                 disabled={saving}
@@ -166,7 +166,7 @@ export default function NoteSharePanel({
             <select
               aria-label="与える役割"
               value={pickedRole}
-              onChange={(e) => setPickedRole(e.target.value as NoteGrantRole)}
+              onChange={(e) => setPickedRole(e.target.value as ShareRole)}
               disabled={saving}
               className="rounded border border-surface-3 bg-surface-1 px-2 py-1.5 text-sm text-[var(--color-text-secondary)]"
             >

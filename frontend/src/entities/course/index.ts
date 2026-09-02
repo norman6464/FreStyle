@@ -20,6 +20,7 @@ export type {
 } from './model/types';
 
 export { default as CourseProgressBar } from './ui/CourseProgressBar';
+export type { MaterialGrant, MaterialGrantRole, MaterialPrincipal } from './model/types';
 
 export { COURSE_CATEGORIES, findCourseCategory } from './config/courseCategories';
 export { COURSE_LANGUAGES } from './config/courseLanguages';

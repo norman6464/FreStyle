@@ -970,7 +970,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                            "$ref": "#/definitions/internal_handler.courseDetailResponse"
                         }
                     },
                     "400": {
@@ -6749,6 +6749,14 @@ const docTemplate = `{
         "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             "type": "object",
             "properties": {
+                "canEdit": {
+                    "description": "CanEdit は書き換えられるか。一覧から編集の入口を出すかの判定に使う。\n\n画面がアプリのロールで判断しないよう、可否はここでサーバーが答える\n（ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。",
+                    "type": "boolean"
+                },
+                "canManage": {
+                    "description": "CanManage は権限そのものを変えられるか。",
+                    "type": "boolean"
+                },
                 "category": {
                     "type": "string"
                 },
@@ -6776,7 +6784,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "materialCount": {
-                    "description": "MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。",
+                    "description": "MaterialCount はコース内の章数。下書きを数に含めるのは、そのコースを編集できる場合だけ。",
                     "type": "integer"
                 },
                 "sortOrder": {
@@ -7012,6 +7020,54 @@ const docTemplate = `{
                 },
                 "invitationToken": {
                     "description": "InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.courseDetailResponse": {
+            "type": "object",
+            "properties": {
+                "canEdit": {
+                    "description": "CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。\n\n画面がアプリのロールで判断しないよう、可否はサーバーが答える\n（ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。",
+                    "type": "boolean"
+                },
+                "canManage": {
+                    "description": "CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。",
+                    "type": "boolean"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }

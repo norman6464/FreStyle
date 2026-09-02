@@ -147,10 +147,37 @@ export const COURSES = {
   materials: (id: number | string) => `${API_V2}/courses/${id}/materials`,
   /** GET /api/v2/courses/:id/last-viewed — コース内で最後に閲覧した章（履歴なしは 204）*/
   lastViewed: (id: number | string) => `${API_V2}/courses/${id}/last-viewed`,
+  /**
+   * GET(一覧) — /api/v2/courses/:id/grants
+   *
+   * **返るのはそのコース自身に張った行だけ。** ワークスペースの admin は含まれず、
+   * 空 = 誰も編集できない、ではない。
+   */
+  grants: (id: number | string) => `${API_V2}/courses/${id}/grants`,
+  /** PUT(付与) / DELETE(取り消し) — 同じ 1 行を指す */
+  grant: (id: number | string, principalId: string) =>
+    `${API_V2}/courses/${id}/grants/${principalId}`,
+  /**
+   * GET — /api/v2/courses/:id/principals
+   *
+   * 権限を張れる相手を表示名つきで返す。中身はワークスペース全体だが、
+   * 呼べるかはコース単位で決まる。
+   */
+  principals: (id: number | string) => `${API_V2}/courses/${id}/principals`,
 } as const;
 
 /** 教材 個別 CRUD（コース配下）*/
 export const TEACHING_MATERIALS = {
+  /**
+   * GET(一覧) — /api/v2/teaching-materials/:id/grants
+   *
+   * **返るのはその教材自身に張った行だけ**で、コースから降りてくる分は含まない。
+   * 空 = 誰も編集できない、ではない。
+   */
+  grants: (id: number | string) => `${API_V2}/teaching-materials/${id}/grants`,
+  /** PUT(付与) / DELETE(取り消し) — 同じ 1 行を指す */
+  grant: (id: number | string, principalId: string) =>
+    `${API_V2}/teaching-materials/${id}/grants/${principalId}`,
   byId: (id: number | string) => `${API_V2}/teaching-materials/${id}`,
   /** PUT /api/v2/teaching-materials/:id/doc — リッチ本文（tiptap JSON）の楽観ロック保存 */
   doc: (id: number | string) => `${API_V2}/teaching-materials/${id}/doc`,

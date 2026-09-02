@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -47,12 +48,27 @@ func (h *CourseHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
+// courseDetailResponse はコース詳細の返却形。
+//
+// usecase の型をそのまま返さないのは、内部の型を変えたときに HTTP の契約が
+// 黙って変わらないようにするため。載せる項目はここで明示する。
+type courseDetailResponse struct {
+	domain.Course
+	// CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。
+	//
+	// 画面がアプリのロールで判断しないよう、可否はサーバーが答える
+	// （ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。
+	CanEdit bool `json:"canEdit"`
+	// CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。
+	CanManage bool `json:"canManage"`
+}
+
 // @Summary      コース 詳細
 // @Description  指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。
 // @Tags         courses
 // @Produce      json
 // @Param        id  path      int  true  "コース ID"
-// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Success      200  {object}  courseDetailResponse
 // @Failure      400  {object}  errorResponse  "id 不正"
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      403  {object}  errorResponse  "操作 権限 なし"
@@ -74,7 +90,11 @@ func (h *CourseHandler) Get(c *gin.Context) {
 		respondEntityErr(c, err, "コースが見つかりません", "コースの取得に失敗しました")
 		return
 	}
-	c.JSON(http.StatusOK, course)
+	c.JSON(http.StatusOK, courseDetailResponse{
+		Course:    course.Course,
+		CanEdit:   course.CanEdit,
+		CanManage: course.CanManage,
+	})
 }
 
 // LastViewed は current user がコース内で最後に閲覧した章の閲覧記録を返す。

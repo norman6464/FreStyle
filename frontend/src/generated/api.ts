@@ -1273,7 +1273,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Course"];
+                        "application/json": components["schemas"]["internal_handler.courseDetailResponse"];
                     };
                 };
                 /** @description id 不正 */
@@ -7620,6 +7620,15 @@ export interface components {
             traineeCount?: number;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
+            /**
+             * @description CanEdit は書き換えられるか。一覧から編集の入口を出すかの判定に使う。
+             *
+             *     画面がアプリのロールで判断しないよう、可否はここでサーバーが答える
+             *     （ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。
+             */
+            canEdit?: boolean;
+            /** @description CanManage は権限そのものを変えられるか。 */
+            canManage?: boolean;
             category?: string;
             /** @description CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。 */
             completedCount?: number;
@@ -7633,7 +7642,7 @@ export interface components {
              *     演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
              */
             language?: string;
-            /** @description MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。 */
+            /** @description MaterialCount はコース内の章数。下書きを数に含めるのは、そのコースを編集できる場合だけ。 */
             materialCount?: number;
             sortOrder?: number;
             title?: string;
@@ -7720,6 +7729,36 @@ export interface components {
             code: string;
             /** @description InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。 */
             invitationToken?: string;
+        };
+        "internal_handler.courseDetailResponse": {
+            /**
+             * @description CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。
+             *
+             *     画面がアプリのロールで判断しないよう、可否はサーバーが答える
+             *     （ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。
+             */
+            canEdit?: boolean;
+            /** @description CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。 */
+            canManage?: boolean;
+            category?: string;
+            createdAt?: string;
+            createdByUserId?: number;
+            description?: string;
+            id?: number;
+            isPublished?: boolean;
+            /**
+             * @description Language は主に扱う言語・技術（例: "go" / "docker" / "terraform"。空 = 言語が主題でない）。
+             *     演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
+             */
+            language?: string;
+            sortOrder?: number;
+            title?: string;
+            updatedAt?: string;
+            /**
+             * @description WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
+             *     通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
+             */
+            workspaceId?: string;
         };
         "internal_handler.courseRequest": {
             /**

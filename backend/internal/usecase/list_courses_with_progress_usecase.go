@@ -11,10 +11,17 @@ import (
 // 埋め込みにより JSON は Course のフィールドへ materialCount / completedCount が加わったフラットな形になる。
 type CourseWithProgress struct {
 	domain.Course
-	// MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。
+	// MaterialCount はコース内の章数。下書きを数に含めるのは、そのコースを編集できる場合だけ。
 	MaterialCount int `json:"materialCount"`
 	// CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。
 	CompletedCount int `json:"completedCount"`
+	// CanEdit は書き換えられるか。一覧から編集の入口を出すかの判定に使う。
+	//
+	// 画面がアプリのロールで判断しないよう、可否はここでサーバーが答える
+	// （ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。
+	CanEdit bool `json:"canEdit"`
+	// CanManage は権限そのものを変えられるか。
+	CanManage bool `json:"canManage"`
 }
 
 // ListCoursesWithProgressUseCase はコース一覧に章数と完了章数を付けて返す。
@@ -61,6 +68,7 @@ func (u *ListCoursesWithProgressUseCase) Execute(ctx context.Context, in ListCou
 	// 1 つでも編集できれば全部を下書き込みで数える、としてはいけない。閲覧しかできない
 	// コースの下書き章数まで数に出てしまい、そのコースに何本の下書きがあるかが漏れる。
 	editable := make(map[uint64]bool, len(facts))
+	manageable := make(map[uint64]bool, len(facts))
 	for _, f := range facts {
 		perm := domain.ResolveMaterialPermission(f.Facts)
 		if !perm.CanView {
@@ -68,6 +76,7 @@ func (u *ListCoursesWithProgressUseCase) Execute(ctx context.Context, in ListCou
 		}
 		rows = append(rows, f.Course)
 		editable[f.Course.ID] = perm.CanEdit
+		manageable[f.Course.ID] = perm.CanManage
 	}
 
 	// 公開だけの数と下書き込みの数を両方引き、コースごとに選ぶ。
@@ -100,6 +109,8 @@ func (u *ListCoursesWithProgressUseCase) Execute(ctx context.Context, in ListCou
 			Course:         c,
 			MaterialCount:  count,
 			CompletedCount: completedCounts[c.ID],
+			CanEdit:        editable[c.ID],
+			CanManage:      manageable[c.ID],
 		})
 	}
 	return out, nil

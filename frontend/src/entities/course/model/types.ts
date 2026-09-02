@@ -29,6 +29,16 @@ export interface Course {
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * 書き換えられるか（編集 UI を出すかの判定）。
+   *
+   * **画面が自分で判断しない。** 以前はアプリのロール（company_admin なら編集できる）で
+   * 出していたが、可否は対象ごとの付与で決まるので、ロールで出すと「ボタンは出るのに
+   * 保存が弾かれる」状態になる。サーバーの答えに従う。
+   */
+  canEdit?: boolean;
+  /** 権限そのものを変えられるか（共有ボタンを出すかの判定）。 */
+  canManage?: boolean;
 }
 
 /**
@@ -89,4 +99,32 @@ export interface UserChapterView {
   firstViewedAt: string;
   lastViewedAt: string;
   viewCount: number;
+}
+
+/** 教材の付与で与える役割。強い順に admin > editor > commenter > viewer。 */
+export type MaterialGrantRole = 'admin' | 'editor' | 'commenter' | 'viewer';
+
+/**
+ * コース / 教材に張られた付与 1 件。
+ *
+ * **「これを編集できる人」ではない。** 返るのはその段に張った行だけで、
+ * ワークスペースの admin も、コースから章へ降りてくる分も含まれない。
+ */
+export interface MaterialGrant {
+  principalId: string;
+  role: MaterialGrantRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 権限を張れる相手 1 件。
+ *
+ * name は表示名で、**引けなかった場合は空文字**（backend が行を落とさずそう返す）。
+ * 画面もそれに合わせて行を消さない。
+ */
+export interface MaterialPrincipal {
+  id: string;
+  kind: 'user' | 'group' | 'space_all';
+  name: string;
 }

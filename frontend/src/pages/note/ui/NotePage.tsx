@@ -12,7 +12,7 @@ import { useNotePageDoc } from '../model/useNotePageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { subscribeNoteTreeEvents } from '@/entities/note';
 import NotePageTitle from './NotePageTitle';
-import NoteSharePanel from './NoteSharePanel';
+import { SharePanel } from '@/features/permission-sharing';
 import { useNoteShare } from '../model/useNoteShare';
 
 /**
@@ -201,8 +201,10 @@ export default function NotePage() {
                   </button>
                   {shareOpen && (
                     <div className="absolute right-0 top-full z-20 mt-1">
-                      <NoteSharePanel
-                        pageTitle={data.page.title}
+                      <SharePanel
+                        targetTitle={data.page.title}
+                        inheritedNote="上の段（ワークスペース・スペース・親ページ）から届いている人はここには出ません。"
+                        emptyNote="このページではまだ誰にも権限を足していません。上の段から届いている人は、ここが空でもこのページを見られます。"
                         rows={share.rows}
                         candidates={share.candidates}
                         loading={share.loading}

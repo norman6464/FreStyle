@@ -120,6 +120,13 @@ function view(teachingMaterialId: number): UserChapterView {
   };
 }
 
+/**
+ * renderPage は画面を描く。
+ *
+ * **編集できるかはロールでは決まらない。** サーバーが返す canEdit / canManage で決まるので、
+ * 管理者として見たいテストは course() の側を差し替える（renderPage の引数では変わらない）。
+ * ロールはまだ store に置かれているが、この画面はもう見ていない。
+ */
 function renderPage(role = 'trainee') {
   const store = configureStore({
     reducer: { auth: authReducer },
@@ -189,8 +196,11 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
     );
   });
 
-  it('管理ロールでは自動選択も閲覧記録もされない', async () => {
-    renderPage('company_admin');
+  it('編集できる人には自動選択も閲覧記録もされない', async () => {
+    // 付与を持つ人（canEdit=true）。ロールではなくサーバーの答えで決まる。
+    // canManage は false。ここで true にすると、対象コードが canManage を見ていても通る。
+    mockGetCourse.mockResolvedValue({ ...course(), canEdit: true, canManage: false });
+    renderPage('trainee');
     await waitFor(() => expect(mockListMaterials).toHaveBeenCalled());
     // 章メニューはモバイル drawer とデスクトップパネルの 2 箇所に描画される。
     await waitFor(() => expect(screen.getAllByText('章 11').length).toBeGreaterThan(0));

@@ -237,3 +237,30 @@ describe('useNoteShare の宛先', () => {
     expect(ok).toBe(false);
   });
 });
+
+describe('useNoteShare の要求の連番', () => {
+  it('同じページへの古い読み込みが後から着地しても捨てる', async () => {
+    // 宛先だけを見ていると、同じページへの 2 本目が飛んでいる最中に 1 本目が着地して
+    // 古い一覧で上書きされる（宛先が同じなので見分けられない）。
+    let settleFirst: (value: unknown) => void = () => {};
+    hoisted.listPageGrants.mockImplementationOnce(
+      () => new Promise((resolve) => { settleFirst = resolve; }),
+    );
+
+    const { result } = renderHook(() => useNoteShare(SLUG, PAGE));
+
+    // 1 本目が飛んでいる間に引き直しを起こす（付与の成功が同じことをする）。
+    hoisted.listPageGrants.mockResolvedValue([grant('pr-dev')]);
+    await act(async () => {
+      await result.current.reload();
+    });
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    expect(result.current.rows[0].principalId).toBe('pr-dev');
+
+    // 遅れて着地した 1 本目は捨てる。
+    await act(async () => {
+      settleFirst([grant('pr-tanaka'), grant('pr-dev')]);
+    });
+    expect(result.current.rows.map((row) => row.principalId)).toEqual(['pr-dev']);
+  });
+});

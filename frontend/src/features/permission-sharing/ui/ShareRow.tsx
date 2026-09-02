@@ -1,13 +1,12 @@
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import type { NoteGrantRole } from '@/entities/note';
-import type { NoteShareRow as ShareRowData } from '../model/useNoteShare';
-import { ROLES, displayName } from './noteShareLabels';
+import type { ShareRole, ShareRow as ShareRowData } from '../model/types';
+import { ROLES, displayName } from '../model/labels';
 
-export interface NoteShareRowProps {
+export interface ShareRowProps {
   row: ShareRowData;
   /** 書き込み中は操作を止める（二重に送らない）。 */
   disabled: boolean;
-  onChangeRole: (role: NoteGrantRole) => void;
+  onChangeRole: (role: ShareRole) => void;
   onRemove: () => void;
 }
 
@@ -17,7 +16,7 @@ export interface NoteShareRowProps {
  * 名前が引けなかった相手は ID で出す。行ごと消すと、取り消せない権限が画面から
  * 見えないまま残る（誰が見られるのかを人が説明できなくなる）。
  */
-export default function NoteShareRow({ row, disabled, onChangeRole, onRemove }: NoteShareRowProps) {
+export default function ShareRow({ row, disabled, onChangeRole, onRemove }: ShareRowProps) {
   const name = displayName(row.name, row.principalId);
   return (
     <li className="flex items-center gap-2 rounded px-1 py-1.5 hover:bg-surface-2">
@@ -42,7 +41,7 @@ export default function NoteShareRow({ row, disabled, onChangeRole, onRemove }: 
       <select
         aria-label={`${name} の役割`}
         value={row.role}
-        onChange={(e) => onChangeRole(e.target.value as NoteGrantRole)}
+        onChange={(e) => onChangeRole(e.target.value as ShareRole)}
         disabled={disabled}
         className="shrink-0 rounded border border-surface-3 bg-surface-1 px-1.5 py-1 text-sm text-[var(--color-text-secondary)]"
       >

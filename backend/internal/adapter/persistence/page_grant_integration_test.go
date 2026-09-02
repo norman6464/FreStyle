@@ -357,3 +357,120 @@ func TestPageGrant_一覧はその段に張った行だけを返す_Integration(
 	require.Len(t, onParent, 1)
 	assert.Equal(t, alice.ID, onParent[0].PrincipalID)
 }
+
+// ページ単位の付与が無いとき、権限操作の入口の答えがスペースを名指しで引いたときと
+// 一致することを固定する。
+//
+// # なぜこれが要るのか
+//
+// 権限操作の入口（kbPermissionGate.requirePageAdmin）は、以前はスペースを名指しで引いた
+// 役割だけを見ていた。ページ単位の付与を数に入れるためにページ経由の解決へ差し替えたが、
+// **その差し替えで意図しない方向に緩む余地がある**。2 つの経路は別々の SQL で、
+// 主体の集め方（自分 / 所属グループ / スペース全員）も private スペースの扱いも
+// それぞれに書いてある。片方だけが緩ければ、ページ単位の付与を 1 行も張っていないのに
+// 「スペースでは admin ではないのに、ページの権限は変えられる」人ができる。
+//
+// 増やしたかったのは「ページに admin を張られた人」だけ。それ以外は前と同じであること。
+func TestPageGrant_付与が無ければ入口の答えはスペース経由と一致する_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	for _, c := range []struct {
+		name  string
+		setup func(t *testing.T, f kbPermFixture, spaceID string)
+		// private はスペースを private にしてから配役する（ワークスペースの既定が届かない段）。
+		private bool
+		// wantManage はその配役で権限を変えられるべきか。
+		//
+		// 2 つの経路が一致することだけを見ると、**両方とも同じように壊れた場合に空振りする**
+		// （どちらも false を返すようになれば、一致はするが誰も権限を変えられない）。
+		// 期待値を先に書いて、一致と正しさの両方を見る。
+		wantManage bool
+	}{
+		{name: "何も張らない", setup: func(*testing.T, kbPermFixture, string) {}, wantManage: false},
+		{
+			name:       "ワークスペースに admin",
+			wantManage: true,
+			setup: func(t *testing.T, f kbPermFixture, _ string) {
+				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:       "スペースに admin",
+			wantManage: true,
+			setup: func(t *testing.T, f kbPermFixture, spaceID string) {
+				f.grantSpace(ctx, t, spaceID, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+			},
+		},
+		{
+			name:       "スペースに editor（admin には届かない）",
+			wantManage: false,
+			setup: func(t *testing.T, f kbPermFixture, spaceID string) {
+				f.grantSpace(ctx, t, spaceID, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleEditor)
+			},
+		},
+		{
+			name:       "スペース全員に admin",
+			wantManage: true,
+			setup: func(t *testing.T, f kbPermFixture, spaceID string) {
+				f.principalFor(ctx, t, f.alice)
+				f.grantSpace(ctx, t, spaceID, f.everyoneOf(ctx, t, spaceID).ID, domain.GrantRoleAdmin)
+			},
+		},
+		{
+			name:       "所属グループに admin",
+			wantManage: true,
+			setup: func(t *testing.T, f kbPermFixture, spaceID string) {
+				self := f.principalFor(ctx, t, f.alice)
+				group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "運用")
+				require.NoError(t, err)
+				require.NoError(t, f.perm.AddGroupMember(ctx, f.ws, group.ID, self.ID))
+				f.grantSpace(ctx, t, spaceID, group.ID, domain.GrantRoleAdmin)
+			},
+		},
+		{
+			name:       "private スペースにワークスペースの admin（届かない）",
+			wantManage: false,
+			private:    true,
+			setup: func(t *testing.T, f kbPermFixture, _ string) {
+				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:       "private スペースにスペースの admin（届く）",
+			wantManage: true,
+			private:    true,
+			setup: func(t *testing.T, f kbPermFixture, spaceID string) {
+				f.grantSpace(ctx, t, spaceID, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+			},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := setupKBPermission(t, sqlDB)
+			if c.private {
+				_, err := sqlDB.Exec(
+					`UPDATE spaces SET visibility = 'private' WHERE workspace_id = $1 AND id = $2`, f.ws, f.spaceA,
+				)
+				require.NoError(t, err)
+			}
+			page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
+			c.setup(t, f, f.spaceA)
+
+			// 入口が実際に見る答え（ページ経由）。
+			facts, err := f.perm.PagePermissionFactsForUser(ctx, f.ws, page, f.alice)
+			require.NoError(t, err)
+			viaPage := domain.ResolvePagePermission(*facts).CanManage
+
+			// 差し替える前に見ていた答え（スペースを名指し）。
+			scope, err := f.perm.SpacePermissionFactsForUser(ctx, f.ws, f.spaceA, f.alice)
+			require.NoError(t, err)
+			viaSpace := domain.ResolveScopePermission(*scope).CanManage
+
+			assert.Equal(t, c.wantManage, viaPage, "ページ経由の答え")
+			assert.Equal(t, viaSpace, viaPage,
+				"ページ単位の付与が 1 行も無いのに、2 つの経路で答えが割れている")
+		})
+	}
+}

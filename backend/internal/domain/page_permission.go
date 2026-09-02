@@ -79,6 +79,19 @@ func ResolvePageView(role *GrantRole) bool {
 // ResolvePagePermission は集めた事実から 1 ページの実効権限を決める。
 // ノートの権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
 func ResolvePagePermission(f PagePermissionFacts) PagePermission {
+	// 所属していない相手には何もさせない。
+	//
+	// いまは事実を集める側（SQL）が主体を辿るので、所属していなければ役割も届かない。
+	// それでもここで閉じるのは、**規則の側で閉じておかないと集め方を変えたときに開く**ため。
+	// 「所属している人にだけ効く」はこの型が持つ約束で、集め方の性質に頼らない
+	// （ResolveMaterialPermission が同じ理由で同じことをしている）。
+	//
+	// 共有リンクの来訪者はログインしていないので Member は false だが、そちらは
+	// 所属ではなくリンク自身のケイパビリティで決まる。だから Member を見るのは
+	// 「リンク経由ではないとき」に限る。
+	if f.ShareLinkCapability == nil && !f.Member {
+		return PagePermission{}
+	}
 	canView := f.defaultAllows(CapabilityView)
 	// 編集は閲覧を含む。閲覧できないページを編集できる状態は、UI でも監査でも説明できない。
 	// いまの役割の並び（GrantRole.Rank）では編集できる者は必ず閲覧もできるので、この

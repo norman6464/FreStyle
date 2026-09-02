@@ -115,12 +115,40 @@ func Test_実効権限_共有リンクは既定をリンク自身から得る(t 
 
 // 所属していない相手には役割が 1 つも届かない（役割は principals の kind='user' の行から
 // 集めるので、その行が無ければ集めようがない）。事実がこの形になることは
-// repository 側の結合テストが持ち、ここでは「その事実なら何もできない」を固定する。
-func Test_実効権限_非メンバーは何もできない(t *testing.T) {
-	got := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: false})
-	assert.False(t, got.CanView)
-	assert.False(t, got.CanEdit)
-	assert.False(t, got.CanManage)
+// 所属していない相手は、役割が届いていても何もできない。
+//
+// **これは規則の側で閉じていることを見るテスト。** 本番では事実を集める側（SQL）が
+// 主体を辿るので、所属していなければ役割はそもそも届かない — つまり
+// {Member: false, Role: editor} は本番では作れない事実。それをあえて渡すのは、
+// 集め方を変えたときに規則が開かないことを固定するため。
+//
+// 共有リンクの来訪者は所属を持たない（Member は false）が、そちらはリンク自身の
+// ケイパビリティで決まるので別扱いになる。それも一緒に見る。
+func Test_実効権限_所属していなければ役割が届いていても何もできない(t *testing.T) {
+	for _, r := range []domain.GrantRole{
+		domain.GrantRoleAdmin, domain.GrantRoleEditor,
+		domain.GrantRoleCommenter, domain.GrantRoleViewer,
+	} {
+		t.Run(string(r), func(t *testing.T) {
+			got := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: false, Role: role(r)})
+			assert.False(t, got.CanView, "所属していないのに閲覧できる")
+			assert.False(t, got.CanEdit, "所属していないのに編集できる")
+			assert.False(t, got.CanManage, "所属していないのに権限を変えられる")
+		})
+	}
+
+	// 同じ役割でも、所属していれば届く（上の false が「役割の側の問題」ではないことを見る）。
+	member := domain.ResolvePagePermission(
+		domain.PagePermissionFacts{Member: true, Role: role(domain.GrantRoleAdmin)},
+	)
+	assert.True(t, member.CanManage, "所属していれば admin は権限を変えられる")
+
+	// 共有リンクの来訪者は所属しないが、リンク自身の既定で閲覧できる。
+	visitor := domain.ResolvePagePermission(domain.PagePermissionFacts{
+		Member: false, ShareLinkCapability: capability(domain.CapabilityView),
+	})
+	assert.True(t, visitor.CanView, "リンクの来訪者は所属していなくても読める")
+	assert.False(t, visitor.CanManage, "ただし役割は持たない")
 }
 
 // 一覧（役割の列しか集めない経路）と 1 ページ解決が食い違わないことを、

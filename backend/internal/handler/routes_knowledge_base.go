@@ -104,7 +104,7 @@ func registerKnowledgeBaseRoutesWith(
 	gate := newKbPermissionGate(
 		usecase.NewCheckWorkspacePermissionUseCase(permissions),
 		usecase.NewCheckSpacePermissionUseCase(permissions),
-		usecase.NewCheckPageSpacePermissionUseCase(permissions),
+		usecase.NewCheckPagePermissionUseCase(permissions),
 	)
 	canRemoveAdmin := usecase.NewCanRemoveWorkspaceAdminUseCase(permissions)
 
@@ -114,6 +114,9 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewRevokeWorkspaceRoleUseCase(permissions),
 		usecase.NewGrantSpaceRoleUseCase(permissions),
 		usecase.NewRevokeSpaceRoleUseCase(permissions),
+		usecase.NewGrantPageRoleUseCase(permissions),
+		usecase.NewRevokePageRoleUseCase(permissions),
+		usecase.NewListPageGrantsUseCase(permissions),
 		usecase.NewSetPageRestrictionUseCase(permissions),
 		usecase.NewClearPageRestrictionUseCase(permissions),
 		canRemoveAdmin,
@@ -188,6 +191,11 @@ func registerKnowledgeBaseRoutesWith(
 	kb.DELETE("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.RevokeWorkspaceRole)
 	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.GrantSpaceRole)
 	kb.DELETE("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.RevokeSpaceRole)
+	// ページ単位の grant（既定の 3 段目）。このページとその子孫に効く。
+	// 一覧が返すのはこの段で足した行だけで、上の段や祖先から届いている相手は含まない。
+	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/grants", gh.ListPageGrants)
+	kb.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.GrantPageRole)
+	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.RevokePageRole)
 
 	// ページ以下だけ既定を上書きする例外（restriction）。
 	// URL が (ページ, 主体, ケイパビリティ) を指すのは、それが DB の主キーそのもので、
@@ -239,7 +247,7 @@ func registerKnowledgeBasePublicRoutesWith(
 		newKbPermissionGate(
 			usecase.NewCheckWorkspacePermissionUseCase(permissions),
 			usecase.NewCheckSpacePermissionUseCase(permissions),
-			usecase.NewCheckPageSpacePermissionUseCase(permissions),
+			usecase.NewCheckPagePermissionUseCase(permissions),
 		),
 		usecase.NewIssueShareLinkUseCase(permissions),
 		usecase.NewRevokeShareLinkUseCase(permissions),

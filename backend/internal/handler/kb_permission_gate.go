@@ -68,16 +68,16 @@ import (
 type kbPermissionGate struct {
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase
 	checkSpace     *usecase.CheckSpacePermissionUseCase
-	checkPageSpace *usecase.CheckPageSpacePermissionUseCase
+	checkPage      *usecase.CheckPagePermissionUseCase
 }
 
 // newKbPermissionGate は権限操作 API 共通の認可判定を組み立てる。
 func newKbPermissionGate(
 	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
 	checkSpace *usecase.CheckSpacePermissionUseCase,
-	checkPageSpace *usecase.CheckPageSpacePermissionUseCase,
+	checkPage *usecase.CheckPagePermissionUseCase,
 ) *kbPermissionGate {
-	return &kbPermissionGate{checkWorkspace: checkWorkspace, checkSpace: checkSpace, checkPageSpace: checkPageSpace}
+	return &kbPermissionGate{checkWorkspace: checkWorkspace, checkSpace: checkSpace, checkPage: checkPage}
 }
 
 // respondKbPermissionDenied は権限操作 API の唯一の拒否応答。
@@ -137,45 +137,40 @@ func (g *kbPermissionGate) requireSpaceAdmin(c *gin.Context, scope kbRequestScop
 	return true
 }
 
-// requirePageAdmin はページに対する権限を変えてよいかを確かめ、そのページのスペース ID を返す。
-// 満たさなければ応答を書いて ok=false を返す。
+// requirePageAdmin はページに対する権限を変えてよいかを確かめる。
+// 満たさなければ応答を書いて false を返す。
 //
-// 判定は「そのページが属するスペースの admin か」。ページ単位の例外
-// （page_restrictions）は view / edit しか表せず（domain.Capability に admin は無い）、
-// admin は必ずワークスペースかスペースの grant から来る。つまりページに対する
-// 「権限を変えられる」は、スペースの admin であることと同義になる。
+// 判定は「そのページに届いている既定の役割が admin か」。役割は 3 段（ワークスペース /
+// スペース / ページ）のどこから来ても構わず、最も強いものが実効になる。ページに admin を
+// 張られた相手がそのページの共有設定を触れるのは、この段を数に入れているため。
 //
-// **閲覧できるかは確かめない。** ここで CanView を要求すると、admin が自分自身を
-// deny したページの例外を自分では戻せなくなる（締め出しが自分で解けない）。
-// 権限を変える口は、閲覧の例外の影響を受けない側に置く。
+// **以前はスペースの admin かどうかだけを見ていた。** page_grants が入る前は
+// 「ページに対する管理者」が存在し得なかった（例外の層は view / edit しか表せない）ので
+// それで足りていたが、いまはページにも admin を張れる。スペースだけを見ていると、
+// admin を与えられた本人がその権限を一切行使できない状態になる。
 //
-// 順序は「ページを引く → スペースの admin か」。スペースを知らないと認可できないので
-// 先に引くしかないが、引いた結果（不在）と認可の結果（無権限）は同じ応答に落ちるので、
-// ページの実在は漏れない。読むのはメタ情報だけ（FindPageUseCase）で本文は読まない。
-// requirePageAdmin は「そのページが属するスペースの admin か」を確かめ、通ればスペース ID を返す。
+// **閲覧できるかは確かめない。** domain.PagePermission.CanManage は経路上の例外を
+// 通さないので、自分を deny したページでも true のまま返る（そうでないと締め出しを
+// 自分で解けなくなる）。理由はあちらの doc にある。
 //
-// **DB への問い合わせは 1 回だけ。** 以前は「ページを引く → スペースの実在を確かめる →
-// 役割を集める」の 3 段で、どれも同じ 404 を返すのに落ちる段によって往復が 0 / 1 / 3 回に
-// 分かれていた。応答のバイト列を揃えても、返るまでの時間から「そのページ ID が実在するか」が
-// 読める。このファイルの冒頭が「認可を先に、対象に触るのは後」と書いているのに、
-// ページの経路だけがその約束を守れていなかった。
-//
-// いまは「ページが無い」も「役割が無い」も同じ空が返り、どちらも下の 1 行で拒否に落ちる。
-func (g *kbPermissionGate) requirePageAdmin(c *gin.Context, scope kbRequestScope, pageID string) (string, bool) {
-	out, err := g.checkPageSpace.Execute(c.Request.Context(), usecase.CheckPageSpacePermissionInput{
+// **DB への問い合わせは 1 回だけ。** ページが無い場合は ErrPageNotFound が返り、
+// 役割が足りない場合と同じ 404 に落ちる。落ちる段によって往復の回数が変わらないので、
+// 返るまでの時間から「そのページ ID が実在するか」は読めない。
+func (g *kbPermissionGate) requirePageAdmin(c *gin.Context, scope kbRequestScope, pageID string) bool {
+	perm, err := g.checkPage.Execute(c.Request.Context(), usecase.CheckPagePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		UserID:      scope.userID,
 	})
 	if err != nil {
 		respondKbPermissionErr(c, err)
-		return "", false
+		return false
 	}
-	if !out.Permission.CanManage {
+	if !perm.CanManage {
 		respondKbPermissionDenied(c)
-		return "", false
+		return false
 	}
-	return out.SpaceID, true
+	return true
 }
 
 // respondKbPermissionErr は認可判定の途中で起きたエラーを応答へ落とす。

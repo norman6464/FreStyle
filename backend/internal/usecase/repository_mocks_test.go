@@ -439,12 +439,6 @@ func (m *mockKBPermissionRepo) SpacePermissionFactsForUser(ctx context.Context, 
 	return f, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) PageSpaceScopeFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*repository.PageScopeFacts, error) {
-	args := m.Called(ctx, workspaceID, pageID, userID)
-	f, _ := args.Get(0).(*repository.PageScopeFacts)
-	return f, args.Error(1)
-}
-
 func (m *mockKBPermissionRepo) WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error) {
 	args := m.Called(ctx, workspaceID, userID)
 	f, _ := args.Get(0).(*domain.ScopeFacts)
@@ -500,6 +494,23 @@ func (m *mockKBPermissionRepo) ListWorkspaceGrants(ctx context.Context, workspac
 	args := m.Called(ctx, workspaceID)
 	rows, _ := args.Get(0).([]domain.WorkspaceGrant)
 	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error) {
+	args := m.Called(ctx, workspaceID, pageID, principalID, role)
+	g, _ := args.Get(0).(*domain.PageGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error {
+	args := m.Called(ctx, workspaceID, pageID, principalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	g, _ := args.Get(0).([]domain.PageGrant)
+	return g, args.Error(1)
 }
 
 func (m *mockKBPermissionRepo) UpsertSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string, role domain.GrantRole) (*domain.SpaceGrant, error) {

@@ -7,9 +7,11 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,16 +26,14 @@ import (
 // 専用に見える」というずれになる。経路ごとに別の答えを返すのが、この実装で最も起こり
 // やすい壊れ方。
 
-// grantPage はページに既定の役割を 1 行張る（書き込み API はまだ無いので直に入れる）。
+// grantPage はページに既定の役割を 1 行張る。
+//
+// SQL を直に書かず repository を通すのは、読みの検証が書き経路と同じ道を通るようにするため。
+// 直に入れると、書き経路が壊れていても読みのテストだけは緑のままになる。
 func grantPage(t *testing.T, db *sql.DB, workspaceID, pageID, principalID string, role domain.GrantRole) {
 	t.Helper()
-	_, err := db.Exec(
-		`INSERT INTO page_grants (workspace_id, page_id, principal_id, "role")
-		 VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (workspace_id, page_id, principal_id)
-		 DO UPDATE SET "role" = EXCLUDED."role", updated_at = now()`,
-		workspaceID, pageID, principalID, string(role),
-	)
+	_, err := persistence.NewKnowledgeBasePermissionRepository(db).
+		UpsertPageGrant(context.Background(), workspaceID, pageID, principalID, role)
 	require.NoError(t, err)
 }
 
@@ -224,4 +224,126 @@ func contains(xs []string, v string) bool {
 		}
 	}
 	return false
+}
+
+func TestPageGrant_書き経路_付与と取り消し_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
+	alice := f.principalFor(ctx, t, f.alice)
+
+	t.Run("張った内容がそのまま返る", func(t *testing.T) {
+		got, err := f.perm.UpsertPageGrant(ctx, f.ws, page, alice.ID, domain.GrantRoleEditor)
+		require.NoError(t, err)
+		assert.Equal(t, page, got.PageID)
+		assert.Equal(t, alice.ID, got.PrincipalID)
+		assert.Equal(t, domain.GrantRoleEditor, got.Role)
+	})
+
+	t.Run("同じ主体に 2 度張ると行は増えず役割だけ変わる", func(t *testing.T) {
+		before, err := f.perm.UpsertPageGrant(ctx, f.ws, page, alice.ID, domain.GrantRoleEditor)
+		require.NoError(t, err)
+
+		after, err := f.perm.UpsertPageGrant(ctx, f.ws, page, alice.ID, domain.GrantRoleViewer)
+		require.NoError(t, err)
+		assert.Equal(t, domain.GrantRoleViewer, after.Role)
+		assert.Equal(t, before.CreatedAt, after.CreatedAt, "作成時刻は動かない")
+		assert.True(t, after.UpdatedAt.After(before.UpdatedAt) || after.UpdatedAt.Equal(before.UpdatedAt),
+			"更新時刻は巻き戻らない")
+
+		rows, err := f.perm.ListPageGrants(ctx, f.ws, page)
+		require.NoError(t, err)
+		assert.Len(t, rows, 1, "行は 1 つのまま")
+	})
+
+	t.Run("取り消しは冪等", func(t *testing.T) {
+		require.NoError(t, f.perm.DeletePageGrant(ctx, f.ws, page, alice.ID))
+		require.NoError(t, f.perm.DeletePageGrant(ctx, f.ws, page, alice.ID), "元から無くても成功する")
+
+		rows, err := f.perm.ListPageGrants(ctx, f.ws, page)
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+	})
+
+	t.Run("UUID として読めない ID は not found（取り消しは黙って成功）", func(t *testing.T) {
+		_, err := f.perm.UpsertPageGrant(ctx, f.ws, page, "not-a-uuid", domain.GrantRoleEditor)
+		assert.ErrorIs(t, err, repository.ErrPrincipalNotFound)
+
+		assert.NoError(t, f.perm.DeletePageGrant(ctx, f.ws, page, "not-a-uuid"))
+
+		rows, err := f.perm.ListPageGrants(ctx, f.ws, "not-a-uuid")
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+	})
+}
+
+func TestPageGrant_書き経路_テナントと参照の整合_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
+	alice := f.principalFor(ctx, t, f.alice)
+
+	t.Run("別ワークスペースのページには張れない", func(t *testing.T) {
+		// 複合 FK（workspace_id, page_id）が塞ぐ。ここが通ると、自分のワークスペースの
+		// 主体に他テナントのページの権限を配れる。
+		other := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "他社").ID
+		_, err := f.perm.UpsertPageGrant(ctx, f.ws, other, alice.ID, domain.GrantRoleEditor)
+		assert.Error(t, err)
+	})
+
+	t.Run("存在しないページには張れない", func(t *testing.T) {
+		_, err := f.perm.UpsertPageGrant(ctx, f.ws, newID(), alice.ID, domain.GrantRoleEditor)
+		assert.Error(t, err)
+	})
+
+	t.Run("ページを消すと張った行も消える", func(t *testing.T) {
+		doomed := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "消す").ID
+		grantPage(t, sqlDB, f.ws, doomed, alice.ID, domain.GrantRoleEditor)
+
+		_, err := sqlDB.Exec(`DELETE FROM pages WHERE workspace_id = $1 AND id = $2`, f.ws, doomed)
+		require.NoError(t, err)
+
+		rows, err := f.perm.ListPageGrants(ctx, f.ws, doomed)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "ページと一緒に消える（孤児の grant を残さない）")
+	})
+
+	t.Run("主体を消すと張った行も消える", func(t *testing.T) {
+		grantPage(t, sqlDB, f.ws, page, alice.ID, domain.GrantRoleEditor)
+		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, alice.ID))
+
+		rows, err := f.perm.ListPageGrants(ctx, f.ws, page)
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+	})
+}
+
+func TestPageGrant_一覧はその段に張った行だけを返す_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親").ID
+	child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent, "子").ID
+	alice := f.principalFor(ctx, t, f.alice)
+
+	grantPage(t, sqlDB, f.ws, parent, alice.ID, domain.GrantRoleEditor)
+
+	// 解決は祖先まで辿るので、子でも編集できる。
+	require.True(t, f.permFor(ctx, t, child, f.alice).CanEdit, "前提: 親の付与が子へ降りている")
+
+	// 一覧はそれを写さない。「どの段で足したか」が分からなくなると、
+	// 取り消すべき行を人が選べない（子で消そうとしても消せる行がそこには無い）。
+	onChild, err := f.perm.ListPageGrants(ctx, f.ws, child)
+	require.NoError(t, err)
+	assert.Empty(t, onChild, "祖先の行は含めない")
+
+	onParent, err := f.perm.ListPageGrants(ctx, f.ws, parent)
+	require.NoError(t, err)
+	require.Len(t, onParent, 1)
+	assert.Equal(t, alice.ID, onParent[0].PrincipalID)
 }

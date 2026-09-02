@@ -580,3 +580,88 @@ func Test_題名検索_空の問い合わせは誤り(t *testing.T) {
 	assert.Error(t, err)
 	repo.AssertNotCalled(t, "SearchWorkspacePageViewFacts", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+func Test_ページ権限付与_必須項目と役割の検証(t *testing.T) {
+	ctx := context.Background()
+	uc := usecase.NewGrantPageRoleUseCase(&mockKBPermissionRepo{})
+
+	_, err := uc.Execute(ctx, usecase.GrantPageRoleInput{
+		PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
+	})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, usecase.GrantPageRoleInput{
+		WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
+	})
+	require.Error(t, err, "pageID 必須")
+	_, err = uc.Execute(ctx, usecase.GrantPageRoleInput{
+		WorkspaceID: kbWS, PageID: kbPage, Role: domain.GrantRoleEditor,
+	})
+	require.Error(t, err, "principalID 必須")
+	_, err = uc.Execute(ctx, usecase.GrantPageRoleInput{
+		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRole("owner"),
+	})
+	require.ErrorIs(t, err, usecase.ErrInvalidGrantRole)
+}
+
+func Test_ページ権限付与_別ワークスペースの主体は拒否(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("FindPrincipal", mock.Anything, kbWS, kbPrincipal).Return(nil, repository.ErrPrincipalNotFound)
+
+	_, err := usecase.NewGrantPageRoleUseCase(repo).Execute(context.Background(), usecase.GrantPageRoleInput{
+		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
+	})
+	require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
+	// 主体を確かめる前に書き込まないこと（FK 違反ではなく not found として返すため）。
+	repo.AssertNotCalled(t, "UpsertPageGrant",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ権限付与_repository_へ委譲する(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("FindPrincipal", mock.Anything, kbWS, kbPrincipal).
+		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
+	repo.On("UpsertPageGrant", mock.Anything, kbWS, kbPage, kbPrincipal, domain.GrantRoleAdmin).
+		Return(&domain.PageGrant{
+			WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin,
+		}, nil)
+
+	got, err := usecase.NewGrantPageRoleUseCase(repo).Execute(context.Background(), usecase.GrantPageRoleInput{
+		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domain.GrantRoleAdmin, got.Role)
+	assert.Equal(t, kbPage, got.PageID)
+}
+
+func Test_ページ権限剥奪_必須項目の検証と委譲(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockKBPermissionRepo{}
+	uc := usecase.NewRevokePageRoleUseCase(repo)
+
+	require.Error(t, uc.Execute(ctx, usecase.RevokePageRoleInput{PageID: kbPage, PrincipalID: kbPrincipal}))
+	require.Error(t, uc.Execute(ctx, usecase.RevokePageRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
+	require.Error(t, uc.Execute(ctx, usecase.RevokePageRoleInput{WorkspaceID: kbWS, PageID: kbPage}))
+
+	repo.On("DeletePageGrant", mock.Anything, kbWS, kbPage, kbPrincipal).Return(nil)
+	require.NoError(t, uc.Execute(ctx, usecase.RevokePageRoleInput{
+		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
+	}))
+}
+
+func Test_ページ権限一覧_必須項目の検証と委譲(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockKBPermissionRepo{}
+	uc := usecase.NewListPageGrantsUseCase(repo)
+
+	_, err := uc.Execute(ctx, usecase.ListPageGrantsInput{PageID: kbPage})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, usecase.ListPageGrantsInput{WorkspaceID: kbWS})
+	require.Error(t, err, "pageID 必須")
+
+	repo.On("ListPageGrants", mock.Anything, kbWS, kbPage).
+		Return([]domain.PageGrant{{WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal}}, nil)
+	got, err := uc.Execute(ctx, usecase.ListPageGrantsInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, kbPrincipal, got[0].PrincipalID)
+}

@@ -99,6 +99,34 @@ var kbPermissionEndpoints = []kbPermissionEndpoint{
 		okStatus: http.StatusNoContent,
 	},
 	{
+		name: "ページ権限一覧", method: http.MethodGet,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/grants",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/grants",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/grants",
+		},
+		okStatus: http.StatusOK,
+	},
+	{
+		name: "ページ権限付与", method: http.MethodPut,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/grants/{target}",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/grants/{target}",
+			"/api/v2/kb/workspaces/{slug}/pages/{page}/grants/" + kbMissingID,
+		},
+		body: `{"role":"editor"}`, okStatus: http.StatusOK,
+	},
+	{
+		name: "ページ権限取り消し", method: http.MethodDelete,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/grants/{target}",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/grants/{target}",
+		},
+		okStatus: http.StatusNoContent,
+	},
+	{
 		name: "ページ例外の設定", method: http.MethodPut,
 		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability",
 		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
@@ -405,7 +433,7 @@ func Test_ノート権限API_ページを名指しする入口は結果によら
 				assert.Equal(t, 0, got.findPage, "認可より先にページを読まない")
 				// **絶対値も固定する。** 一致だけを見ると、入口が権限を一切引かずに
 				// 一律拒否する退行（全ケース 0 回）でも通ってしまう。
-				assert.Equal(t, map[string]int{"PageSpaceScopeFactsForUser": 1}, got.permReads,
+				assert.Equal(t, map[string]int{"PagePermissionFactsForUser": 1}, got.permReads,
 					"引くのはページ経由の 1 回だけ")
 				return
 			}

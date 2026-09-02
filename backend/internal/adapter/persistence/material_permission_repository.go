@@ -97,6 +97,50 @@ func (r *materialPermissionRepository) ChapterFactsForUser(
 	}, nil
 }
 
+func (r *materialPermissionRepository) ListCourseFactsForUser(
+	ctx context.Context, workspaceID string, userID uint64,
+) ([]repository.CourseWithFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	uID, ok2 := toInt64ID(userID)
+	if !ok || !ok2 {
+		// どの行にも一致しない ID。コースが 1 件も無いのと同じ空を返す。
+		return []repository.CourseWithFacts{}, nil
+	}
+	rows, err := r.q.ListCourseFactsForUser(ctx, sqlcgen.ListCourseFactsForUserParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: uID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.CourseWithFacts, 0, len(rows))
+	for _, row := range rows {
+		course := toDomainCourse(sqlcgen.Course{
+			ID:              row.ID,
+			CreatedByUserID: row.CreatedByUserID,
+			Title:           row.Title,
+			Description:     row.Description,
+			Category:        row.Category,
+			Language:        row.Language,
+			SortOrder:       row.SortOrder,
+			IsPublished:     row.IsPublished,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
+			WorkspaceID:     row.WorkspaceID,
+		})
+		out = append(out, repository.CourseWithFacts{
+			Course: course,
+			Facts: domain.MaterialFacts{
+				Member:         row.IsMember,
+				WorkspaceAdmin: row.IsWorkspaceAdmin,
+				Role:           domain.GrantRoleByRank(int(row.GrantRank)),
+				Published:      row.IsPublished,
+			},
+		})
+	}
+	return out, nil
+}
+
 func (r *materialPermissionRepository) UpsertCourseGrant(
 	ctx context.Context, workspaceID string, courseID uint64, principalID string, role domain.GrantRole,
 ) (*domain.CourseGrant, error) {

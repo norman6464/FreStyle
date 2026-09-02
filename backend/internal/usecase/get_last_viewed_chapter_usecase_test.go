@@ -21,13 +21,17 @@ func chapterViewRepo(lastViewed *domain.UserChapterView, getErr error) *mockChap
 	return repo
 }
 
-func Test_最終閲覧章_履歴があれば返す(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	view := &domain.UserChapterView{UserID: 7, TeachingMaterialID: 42, CourseID: 5, LastViewedAt: time.Now()}
-	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(view, nil))
+func newLastViewedUC(cfg materialFactsConfig, view *domain.UserChapterView) *usecase.GetLastViewedChapterUseCase {
+	_, perm := materialPerm(cfg)
+	return usecase.NewGetLastViewedChapterUseCase(chapterViewRepo(view, nil), perm)
+}
+
+func Test_最終閲覧章_公開コースなら履歴を返す(t *testing.T) {
+	view := &domain.UserChapterView{UserID: 1, TeachingMaterialID: 42, CourseID: 5, LastViewedAt: time.Now()}
+	uc := newLastViewedUC(materialFactsConfig{member: true, published: true}, view)
 
 	got, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, CourseID: 5,
+		MaterialActor: actorIn(wsA), CourseID: 5,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -35,44 +39,39 @@ func Test_最終閲覧章_履歴があれば返す(t *testing.T) {
 }
 
 func Test_最終閲覧章_履歴なしはnilを返す(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
+	uc := newLastViewedUC(materialFactsConfig{member: true, published: true}, nil)
 
 	got, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, CourseID: 5,
+		MaterialActor: actorIn(wsA), CourseID: 5,
 	})
 	require.NoError(t, err)
 	assert.Nil(t, got, "初めて開くコースは履歴なし = 正常系")
 }
 
-func Test_最終閲覧章_別ワークスペースのコースは禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
-
-	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsB), ActorRole: domain.RoleTrainee, CourseID: 5,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
+func Test_最終閲覧章_読めないコースは実在を教えない(t *testing.T) {
+	// 履歴の有無からコースの実在が読めてはいけない。どの理由でも同じ ErrNotFound。
+	for _, c := range []struct {
+		name string
+		cfg  materialFactsConfig
+	}{
+		{"別テナントのコース", materialFactsConfig{notFound: true}},
+		{"付与の無い下書き", materialFactsConfig{member: true, published: false}},
+		{"所属していない", materialFactsConfig{member: false, published: true}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			uc := newLastViewedUC(c.cfg, nil)
+			_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
+				MaterialActor: actorIn(wsA), CourseID: 5,
+			})
+			assert.ErrorIs(t, err, domain.ErrNotFound)
+		})
+	}
 }
 
-func Test_最終閲覧章_traineeは未公開コース禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
-	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
-
+func Test_最終閲覧章_未所属は読めない(t *testing.T) {
+	uc := newLastViewedUC(materialFactsConfig{member: true, published: true}, nil)
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, CourseID: 5,
+		MaterialActor: usecase.MaterialActor{ActorUserID: 1}, CourseID: 5,
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
-}
-
-func Test_最終閲覧章_コースが無ければNotFound(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{getErr: domain.ErrNotFound})
-	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
-
-	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, CourseID: 5,
-	})
-	require.ErrorIs(t, err, domain.ErrNotFound)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
 }

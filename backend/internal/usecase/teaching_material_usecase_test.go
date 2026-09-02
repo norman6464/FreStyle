@@ -2,7 +2,6 @@ package usecase_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -82,6 +81,8 @@ type courseStore struct {
 	created *domain.Course
 	updated *domain.Course
 	deleted uint64
+	// ownerPrincipalID は CreateWithOwnerGrant が受け取った作成者の主体。
+	ownerPrincipalID string
 }
 
 // courseFakeConfig はコース mock の応答設定。ゼロ値はすべて「空を返す」。
@@ -103,6 +104,13 @@ func courseRepo(cfg courseFakeConfig) (*mockCourseRepo, *courseStore) {
 			c.ID = 88
 			st.created = c
 		}).Return(nil).Maybe()
+	repo.On("CreateWithOwnerGrant", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			c := args.Get(1).(*domain.Course)
+			c.ID = 88
+			st.created = c
+			st.ownerPrincipalID = args.Get(2).(string)
+		}).Return(nil).Maybe()
 	repo.On("Update", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			st.updated = args.Get(1).(*domain.Course)
@@ -114,244 +122,155 @@ func courseRepo(cfg courseFakeConfig) (*mockCourseRepo, *courseStore) {
 	return repo, st
 }
 
-func Test_教材_ワークスペース別一覧_所属workspaceで絞り込む(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.List(context.Background(), domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.NoError(t, err)
-	assert.Equal(t, wsA, mstore.listWorkspaceID)
-	assert.False(t, mstore.listWorkspaceIncludeAll, "trainee は draft を含まない")
+// newMaterialUC は教材の usecase を、指定した「見え方」で組み立てる。
+func newMaterialUC(cfg materialFactsConfig, mcfg materialFakeConfig) (*usecase.TeachingMaterialUseCase, *materialStore, *mockMaterialRepo) {
+	mrepo, mstore := materialRepo(mcfg)
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
+	_, perm := materialPerm(cfg)
+	return usecase.NewTeachingMaterialUseCase(mrepo, crepo, perm), mstore, mrepo
 }
 
-func Test_教材_ワークスペース別一覧_会社管理者は下書きも含む(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.List(context.Background(), domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
-	require.NoError(t, err)
-	assert.True(t, mstore.listWorkspaceIncludeAll)
+// existingChapter は下ごしらえの 1 件。
+func existingChapter() materialFakeConfig {
+	return materialFakeConfig{get: &domain.TeachingMaterial{ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA)}}
 }
 
-func Test_教材_ワークスペース別一覧_未所属は空を返しrepoを呼ばない(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	rows, err := uc.List(context.Background(), domain.NoWorkspace(), domain.RoleSuperAdmin)
-	require.NoError(t, err)
-	assert.Empty(t, rows)
-	mrepo.AssertNotCalled(t, "ListByWorkspace", mock.Anything, mock.Anything, mock.Anything)
+func Test_教材_コース別一覧_見えないコースは実在を教えない(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		cfg  materialFactsConfig
+	}{
+		{"別テナント", materialFactsConfig{notFound: true}},
+		{"付与の無い下書き", materialFactsConfig{member: true, published: false}},
+		{"所属していない", materialFactsConfig{member: false, published: true}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			uc, _, _ := newMaterialUC(c.cfg, materialFakeConfig{})
+			_, err := uc.ListByCourse(context.Background(), 5, actorIn(wsA))
+			assert.ErrorIs(t, err, domain.ErrNotFound)
+		})
+	}
 }
 
-func Test_教材_ワークスペース別一覧_repositoryエラーをそのまま返す(t *testing.T) {
-	wantErr := errors.New("repository failed")
-	mrepo, _ := materialRepo(materialFakeConfig{listErr: wantErr})
-	crepo, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.List(context.Background(), domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	assert.ErrorIs(t, err, wantErr)
+func Test_教材_コース別一覧_下書きを混ぜるかは編集できるかで決まる(t *testing.T) {
+	t.Run("付与が無ければ公開のみ", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{member: true, published: true}, materialFakeConfig{})
+		_, err := uc.ListByCourse(context.Background(), 5, actorIn(wsA))
+		require.NoError(t, err)
+		assert.False(t, mstore.listIncludeAll)
+	})
+
+	t.Run("editor なら下書きも含む", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, materialFakeConfig{})
+		_, err := uc.ListByCourse(context.Background(), 5, actorIn(wsA))
+		require.NoError(t, err)
+		assert.True(t, mstore.listIncludeAll)
+	})
 }
 
-func Test_教材_コース別一覧_traineeは公開のみ(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.ListByCourse(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(5), mstore.listCourseID)
-	assert.False(t, mstore.listIncludeAll, "trainee は draft を含まない")
+func Test_教材_取得_見えなければ実在を教えない(t *testing.T) {
+	uc, _, mrepo := newMaterialUC(materialFactsConfig{member: true, published: false}, existingChapter())
+	_, err := uc.Get(context.Background(), 1, actorIn(wsA))
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	// 認可が先。断った要求は中身を一度も読まない。
+	mrepo.AssertNotCalled(t, "GetByID", mock.Anything, mock.Anything)
 }
 
-func Test_教材_コース別一覧_traineeは非公開コースを見られない(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.ListByCourse(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
-}
-
-func Test_教材_コース別一覧_会社管理者は下書きも含む(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.ListByCourse(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
-	require.NoError(t, err)
-	assert.True(t, mstore.listIncludeAll)
-}
-
-func Test_教材_取得_traineeは下書き不可(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: false,
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
-}
-
-func Test_教材_取得_traineeは自社の公開を読める(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: true,
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	got, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
+func Test_教材_取得_公開済みは一員なら誰でも読める(t *testing.T) {
+	uc, _, _ := newMaterialUC(materialFactsConfig{member: true, published: true}, existingChapter())
+	got, err := uc.Get(context.Background(), 1, actorIn(wsA))
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), got.ID)
 }
 
-func Test_教材_取得_別会社は禁止(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: true,
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsB), domain.RoleCompanyAdmin)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
-}
-
-func Test_教材_取得_運営は別会社も許可(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), IsPublished: false,
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	got, err := uc.Get(context.Background(), 1, domain.WorkspaceRefOf(wsB), domain.RoleSuperAdmin)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), got.ID)
-}
-
-func Test_教材_作成_traineeは禁止(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee,
-		CourseID: 5, Title: "X", IsPublished: true,
+func Test_教材_作成_コースを編集できる人だけが足せる(t *testing.T) {
+	t.Run("コースID欠落は 400 相当", func(t *testing.T) {
+		uc, _, _ := newMaterialUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, materialFakeConfig{})
+		_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
+			MaterialActor: actorIn(wsA), Title: "章",
+		})
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, usecase.ErrMaterialForbidden)
 	})
-	require.Error(t, err)
-	mrepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
-}
 
-func Test_教材_作成_会社管理者は成功(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	got, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		CourseID: 5, Title: "Spring 入門", IsPublished: true,
+	t.Run("読めるだけでは足せない", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{member: true, published: true}, materialFakeConfig{})
+		_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
+			MaterialActor: actorIn(wsA), CourseID: 5, Title: "章",
+		})
+		assert.ErrorIs(t, err, usecase.ErrMaterialForbidden)
+		assert.Nil(t, mstore.created)
 	})
-	require.NoError(t, err)
-	require.NotNil(t, mstore.created)
-	assert.Equal(t, uint64(7), mstore.created.CreatedByUserID)
-	assert.Equal(t, uint64(5), mstore.created.CourseID)
-	assert.Equal(t, "Spring 入門", mstore.created.Title)
-	assert.True(t, mstore.created.IsPublished)
-	require.NotNil(t, mstore.created.WorkspaceID)
-	assert.Equal(t, wsA, *mstore.created.WorkspaceID, "コースの workspace_id を継承する")
-	assert.Equal(t, "Spring 入門", got.Title)
-	require.NotNil(t, got.WorkspaceID)
-	assert.Equal(t, wsA, *got.WorkspaceID)
-}
 
-func Test_教材_作成_コースID欠落は禁止(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "X",
+	t.Run("見えないコースへは実在を教えない", func(t *testing.T) {
+		uc, _, _ := newMaterialUC(materialFactsConfig{notFound: true}, materialFakeConfig{})
+		_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
+			MaterialActor: actorIn(wsA), CourseID: 5, Title: "章",
+		})
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "course_id")
-}
 
-func Test_教材_作成_別会社コースは禁止(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsB)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		CourseID: 5, Title: "X",
+	t.Run("editor なら足せて、所属はコースから継ぐ", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, materialFakeConfig{})
+		got, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
+			MaterialActor: actorIn(wsA), CourseID: 5, Title: "章", OrderInCourse: 1,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, mstore.created)
+		assert.Equal(t, "章", mstore.created.Title)
+		assert.Equal(t, wsA, *got.WorkspaceID)
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
-	mrepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
-func Test_教材_作成_会社未所属は禁止(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	crepo, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorWorkspace: domain.NoWorkspace(), ActorRole: domain.RoleCompanyAdmin,
-		CourseID: 5, Title: "X",
+func Test_教材_更新は編集できる人だけ(t *testing.T) {
+	update := func(uc *usecase.TeachingMaterialUseCase) error {
+		_, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
+			MaterialActor: actorIn(wsA), ID: 1, Title: "改題",
+		})
+		return err
+	}
+
+	t.Run("読めるが付与が無ければ 403", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{member: true, published: true}, existingChapter())
+		assert.ErrorIs(t, update(uc), usecase.ErrMaterialForbidden)
+		assert.Nil(t, mstore.updated)
 	})
-	require.Error(t, err)
-}
 
-func Test_教材_更新_別会社は禁止(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), Title: "old",
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), ActorRole: domain.RoleCompanyAdmin, Title: "new",
+	t.Run("editor なら書き換えられる", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, existingChapter())
+		require.NoError(t, update(uc))
+		require.NotNil(t, mstore.updated)
+		assert.Equal(t, "改題", mstore.updated.Title)
 	})
-	require.Error(t, err)
-	assert.Nil(t, mstore.updated)
-}
 
-func Test_教材_更新_自社管理者は成功(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA), Title: "old",
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	got, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "new", OrderInCourse: 200, IsPublished: true,
+	t.Run("ワークスペースの admin も書き換えられる", func(t *testing.T) {
+		uc, _, _ := newMaterialUC(materialFactsConfig{member: true, workspaceAdmin: true}, existingChapter())
+		assert.NoError(t, update(uc))
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "new", got.Title)
-	assert.Equal(t, 200, got.OrderInCourse)
-	require.NotNil(t, mstore.updated)
-	assert.Equal(t, "new", mstore.updated.Title)
-	assert.Equal(t, 200, mstore.updated.OrderInCourse)
-	assert.True(t, mstore.updated.IsPublished)
 }
 
-func Test_教材_削除_traineeは禁止(t *testing.T) {
-	mrepo, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA),
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	err := uc.Delete(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.Error(t, err)
-	mrepo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
-}
+func Test_教材_削除は編集できる人だけ(t *testing.T) {
+	t.Run("付与が無ければ消せない", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{member: true, published: true}, existingChapter())
+		assert.ErrorIs(t, uc.Delete(context.Background(), 1, actorIn(wsA)), usecase.ErrMaterialForbidden)
+		assert.Zero(t, mstore.deleted)
+	})
 
-func Test_教材_削除_自社管理者は成功(t *testing.T) {
-	mrepo, mstore := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
-		ID: 1, CourseID: 5, WorkspaceID: strPtr(wsA),
-	}})
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
-	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	err := uc.Delete(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), mstore.deleted)
-}
-
-// newIdleCourseRepo は UpdateDoc 系テスト用の「呼ばれない」course repo mock。
-func newIdleCourseRepo() *mockCourseRepo {
-	repo := &mockCourseRepo{}
-	repo.On("GetByID", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
-	return repo
+	t.Run("editor なら消せる", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, existingChapter())
+		require.NoError(t, uc.Delete(context.Background(), 1, actorIn(wsA)))
+		assert.Equal(t, uint64(1), mstore.deleted)
+	})
 }
 
 // --- UpdateDoc（リッチ本文の楽観ロック保存） ---
@@ -364,84 +283,68 @@ func docUpdateRepo(existing *domain.TeachingMaterial, updated *domain.TeachingMa
 	return repo
 }
 
+func newDocUC(cfg materialFactsConfig, repo *mockMaterialRepo) *usecase.TeachingMaterialUseCase {
+	crepo, _ := courseRepo(courseFakeConfig{})
+	_, perm := materialPerm(cfg)
+	return usecase.NewTeachingMaterialUseCase(repo, crepo, perm)
+}
+
 func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 	validDoc := `{"type":"doc","content":[{"type":"paragraph"}]}`
 	existing := &domain.TeachingMaterial{ID: 1, WorkspaceID: strPtr(wsA), Revision: 3}
+	editable := materialFactsConfig{member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor)}
 
-	t.Run("company_admin は自社の章を保存でき revision 付きで返る", func(t *testing.T) {
+	t.Run("編集できる人は保存でき revision 付きで返る", func(t *testing.T) {
 		updatedDoc := validDoc
 		updated := &domain.TeachingMaterial{ID: 1, WorkspaceID: strPtr(wsA), Revision: 4, Doc: &updatedDoc}
 		repo := docUpdateRepo(existing, updated, nil)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-			Doc: validDoc, ExpectedRevision: 3,
+		got, err := newDocUC(editable, repo).UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			MaterialActor: actorIn(wsA), ID: 1, Doc: validDoc, ExpectedRevision: 3,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, 4, got.Revision)
 		repo.AssertCalled(t, "UpdateDocWithRevision", mock.Anything, uint64(1), validDoc, 3)
 	})
 
-	t.Run("trainee は forbidden", func(t *testing.T) {
+	t.Run("読めるだけでは保存できない", func(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee,
-			Doc: validDoc, ExpectedRevision: 3,
-		})
-		require.ErrorContains(t, err, "forbidden")
+		_, err := newDocUC(materialFactsConfig{member: true, published: true}, repo).
+			UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+				MaterialActor: actorIn(wsA), ID: 1, Doc: validDoc, ExpectedRevision: 3,
+			})
+		require.ErrorIs(t, err, usecase.ErrMaterialForbidden)
 		repo.AssertNotCalled(t, "UpdateDocWithRevision", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
-	t.Run("未所属の super_admin は他社の章も保存できる", func(t *testing.T) {
-		updatedDoc := validDoc
-		updated := &domain.TeachingMaterial{ID: 1, WorkspaceID: strPtr(wsA), Revision: 4, Doc: &updatedDoc}
-		repo := docUpdateRepo(existing, updated, nil)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.NoWorkspace(), ActorRole: domain.RoleSuperAdmin,
-			Doc: validDoc, ExpectedRevision: 3,
-		})
-		require.NoError(t, err)
-		assert.Equal(t, 4, got.Revision)
+	t.Run("見えない章は実在を教えない", func(t *testing.T) {
+		repo := docUpdateRepo(existing, nil, nil)
+		_, err := newDocUC(materialFactsConfig{notFound: true}, repo).
+			UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+				MaterialActor: actorIn(wsA), ID: 1, Doc: validDoc, ExpectedRevision: 3,
+			})
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
-	t.Run("他社の章は company_admin でも forbidden", func(t *testing.T) {
+	t.Run("revision が 1 未満は 400 相当", func(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), ActorRole: domain.RoleCompanyAdmin,
-			Doc: validDoc, ExpectedRevision: 3,
-		})
-		require.ErrorContains(t, err, "forbidden")
-	})
-
-	t.Run("doc の型不正（type が doc でない）は ErrChapterDocInvalid", func(t *testing.T) {
-		repo := docUpdateRepo(existing, nil, nil)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-			Doc: `{"type":"paragraph"}`, ExpectedRevision: 3,
+		_, err := newDocUC(editable, repo).UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			MaterialActor: actorIn(wsA), ID: 1, Doc: validDoc, ExpectedRevision: 0,
 		})
 		require.ErrorIs(t, err, usecase.ErrChapterDocInvalid)
 	})
 
-	t.Run("expectedRevision が 0 以下は ErrChapterDocInvalid", func(t *testing.T) {
+	t.Run("doc が不正なら 400 相当", func(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-			Doc: validDoc, ExpectedRevision: 0,
+		_, err := newDocUC(editable, repo).UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			MaterialActor: actorIn(wsA), ID: 1, Doc: `{"type":"paragraph"}`, ExpectedRevision: 3,
 		})
 		require.ErrorIs(t, err, usecase.ErrChapterDocInvalid)
 	})
 
-	t.Run("repository の版不一致（ErrChapterDocConflict）は素通しする", func(t *testing.T) {
+	t.Run("競合はそのまま伝える", func(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, repository.ErrChapterDocConflict)
-		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
-		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-			Doc: validDoc, ExpectedRevision: 2,
+		_, err := newDocUC(editable, repo).UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			MaterialActor: actorIn(wsA), ID: 1, Doc: validDoc, ExpectedRevision: 3,
 		})
 		require.ErrorIs(t, err, repository.ErrChapterDocConflict)
 	})

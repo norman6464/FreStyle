@@ -150,3 +150,49 @@ WHERE workspace_id = $1 AND chapter_id = $2 AND principal_id = $3;
 SELECT * FROM chapter_grants
 WHERE workspace_id = $1 AND chapter_id = $2
 ORDER BY principal_id;
+
+-- name: ListCourseFactsForUser :many
+-- ワークスペース内のコース全件と、その実効権限を決める事実を 1 回のクエリで返す。
+--
+-- **返り値はまだ「見せてよいコース」ではない。** ふるい落とすのは呼び出し側で、
+-- 判定は domain.ResolveMaterialPermission が行う（ここで絞ると規則が 2 箇所に分かれる）。
+--
+-- コースごとに ResolveCoursePermissionFacts を呼ぶ（N+1）ことはしない。一覧は画面を
+-- 開くたびに引くので、コース数だけ往復するとそのまま待ち時間になる。
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = sqlc.arg(workspace_id)
+      AND pr.kind = 'user' AND pr.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = sqlc.arg(workspace_id)
+),
+ranks AS (
+    SELECT cg.course_id,
+           max(CASE cg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
+    FROM course_grants cg
+    WHERE cg.workspace_id = sqlc.arg(workspace_id)
+      AND cg.principal_id IN (SELECT id FROM mine)
+    GROUP BY cg.course_id
+)
+SELECT c.*,
+    EXISTS (SELECT 1 FROM me) AS is_member,
+    EXISTS (
+        SELECT 1 FROM workspace_grants wg
+         WHERE wg.workspace_id = sqlc.arg(workspace_id)
+           AND wg.principal_id IN (SELECT id FROM mine)
+           AND wg."role" = 'admin'
+    ) AS is_workspace_admin,
+    COALESCE(r.rank, 0)::integer AS grant_rank
+FROM courses c
+LEFT JOIN ranks r ON r.course_id = c.id
+WHERE c.workspace_id = sqlc.arg(workspace_id)
+ORDER BY c.sort_order, c.id;

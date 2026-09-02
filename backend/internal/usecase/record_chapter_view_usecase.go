@@ -11,19 +11,19 @@ import (
 // RecordChapterViewUseCase はユーザーが章（教材）を開いたときに閲覧記録を残す。
 // 「続きから」カードや閲覧履歴の基盤となる。完了（MarkLessonCompleted）とは別に、
 // ページを開いただけでも記録するため、離脱した章も追跡できる。
-// canRead で actor の会社・ロールを検証し、他社教材への不正記録を防ぐ。
+// 読めるかは対象ごとの付与で決める（他テナントの教材への不正記録もここで塞がる）。
 type RecordChapterViewUseCase struct {
 	chapterViews repository.UserChapterViewRepository
 	materials    repository.TeachingMaterialRepository
-	courses      repository.CourseRepository
+	perm         *CheckMaterialPermissionUseCase
 }
 
 func NewRecordChapterViewUseCase(
 	cv repository.UserChapterViewRepository,
 	m repository.TeachingMaterialRepository,
-	c repository.CourseRepository,
+	perm *CheckMaterialPermissionUseCase,
 ) *RecordChapterViewUseCase {
-	return &RecordChapterViewUseCase{chapterViews: cv, materials: m, courses: c}
+	return &RecordChapterViewUseCase{chapterViews: cv, materials: m, perm: perm}
 }
 
 // RecordChapterViewInput は章閲覧記録の入力。actor のワークスペース・ロールで可視性を検証する。
@@ -47,14 +47,18 @@ func (u *RecordChapterViewUseCase) Execute(ctx context.Context, in RecordChapter
 	if m == nil {
 		return ErrLessonNotFound
 	}
-	course, err := u.courses.GetByID(ctx, m.CourseID)
+	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return ErrChapterViewForbidden
+	}
+	perm, err := u.perm.Chapter(ctx, workspaceID, in.TeachingMaterialID, in.UserID)
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return ErrChapterViewForbidden
+		}
 		return err
 	}
-	if course == nil {
-		return ErrLessonNotFound
-	}
-	if !canRead(m, course, in.ActorWorkspace, in.ActorRole) {
+	if !perm.CanView {
 		return ErrChapterViewForbidden
 	}
 	return u.chapterViews.UpsertView(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)

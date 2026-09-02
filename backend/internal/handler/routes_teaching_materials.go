@@ -13,9 +13,9 @@ func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	courseRepo := persistence.NewCourseRepository(deps.db)
 	materialRepo := persistence.NewTeachingMaterialRepository(deps.db)
 	chapterViewRepo := persistence.NewUserChapterViewRepository(deps.db)
-	uc := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo)
+	permUC := usecase.NewCheckMaterialPermissionUseCase(persistence.NewMaterialPermissionRepository(deps.db))
+	uc := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo, permUC)
 	h := NewTeachingMaterialHandler(uc)
-	g.GET("/teaching-materials", h.List) // backward-compat（frontend のコース対応後に削除予定）
 	g.GET("/teaching-materials/:id", h.Get)
 	g.POST("/teaching-materials", h.Create)
 	g.PUT("/teaching-materials/:id", h.Update)
@@ -23,6 +23,6 @@ func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.DELETE("/teaching-materials/:id", h.Delete)
 
 	// 章閲覧記録（「続きから」カードの基盤）。ベストエフォートなので失敗しても 204 を返す。
-	cvh := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(chapterViewRepo, materialRepo, courseRepo))
+	cvh := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(chapterViewRepo, materialRepo, permUC))
 	g.POST("/teaching-materials/:id/view", cvh.RecordView)
 }

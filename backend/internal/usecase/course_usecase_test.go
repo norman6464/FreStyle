@@ -7,228 +7,146 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// wsA / wsB はコースの workspace_id 比較を固定するための 2 つのワークスペース ID。
-// wsA が「自社」、wsB が「別会社」を表す。
+// wsA / wsB はコースの所属比較を固定するための 2 つのワークスペース ID。
 const (
 	wsA = "0198a000-0000-7000-8000-0000000000c1"
 	wsB = "0198a000-0000-7000-8000-0000000000c2"
 )
 
-func Test_コース_取得_traineeは下書き不可(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: false}})
+// newCourseUC はコースの usecase を、指定した「見え方」で組み立てる。
+func newCourseUC(cfg materialFactsConfig, member bool) (*usecase.CourseUseCase, *courseStore, *mockCourseRepo) {
+	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA)}})
 	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	_, err := uc.Get(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden")
+	_, perm := materialPerm(cfg)
+	return usecase.NewCourseUseCase(crepo, mrepo, perm, principalsFor(member)), cstore, crepo
 }
 
-func Test_コース_取得_traineeは自社の公開を読める(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Get(context.Background(), 5, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
+func Test_コース_見えない相手には実在を教えない(t *testing.T) {
+	// 「無い」と「見えない」を撃ち分けると、ID を総当たりするだけで隠したコースの
+	// 実在が分かる。どちらも同じ ErrNotFound に落ちること。
+	for _, c := range []struct {
+		name string
+		cfg  materialFactsConfig
+	}{
+		{"下書きに付与が無い", materialFactsConfig{member: true, published: false}},
+		{"別テナントのコース", materialFactsConfig{notFound: true}},
+		{"ワークスペースに所属していない", materialFactsConfig{member: false, published: true}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			uc, _, _ := newCourseUC(c.cfg, true)
+			_, err := uc.Get(context.Background(), 5, actorIn(wsA))
+			assert.ErrorIs(t, err, domain.ErrNotFound)
+		})
+	}
+}
+
+func Test_コース_公開済みは一員なら誰でも読める(t *testing.T) {
+	// 読むことに付与を要求しない（研修を受ける人が教材を開くたびに権限を配らない）。
+	uc, _, _ := newCourseUC(materialFactsConfig{member: true, published: true}, true)
+	got, err := uc.Get(context.Background(), 5, actorIn(wsA))
 	require.NoError(t, err)
 	assert.Equal(t, uint64(5), got.ID)
 }
 
-func Test_コース_取得_別会社は禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	_, err := uc.Get(context.Background(), 5, domain.WorkspaceRefOf(wsB), domain.RoleCompanyAdmin)
-	require.Error(t, err)
-}
-
-func Test_コース_作成_traineeは禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
+func Test_コース_未所属は作れない(t *testing.T) {
+	uc, _, _ := newCourseUC(materialFactsConfig{}, false)
 	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 1, ActorRole: domain.RoleTrainee,
-		Title: "Web 基礎",
+		MaterialActor: usecase.MaterialActor{ActorUserID: 1},
+		Title:         "Web 基礎", Category: domain.ValidCourseCategories[0],
 	})
-	require.Error(t, err)
+	assert.ErrorIs(t, err, usecase.ErrMaterialForbidden)
 }
 
-func Test_コース_作成_会社管理者は成功(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
+func Test_コース_一員でなければ作れない(t *testing.T) {
+	// 所属は principals の行が唯一の表現。行が無ければ一員ではない。
+	uc, _, _ := newCourseUC(materialFactsConfig{}, false)
+	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		MaterialActor: actorIn(wsA),
+		Title:         "Web 基礎", Category: domain.ValidCourseCategories[0],
+	})
+	assert.ErrorIs(t, err, usecase.ErrMaterialForbidden)
+}
+
+func Test_コース_一員なら作れて作成者がadminになる(t *testing.T) {
+	// 誰でも作れるのに誰も扱えない、という状態を作らない。コースと付与は 1 つの
+	// トランザクションで書くので、repository も専用のメソッドを通ること。
+	uc, _, crepo := newCourseUC(materialFactsConfig{}, true)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "Web 基礎", Description: "HTTP / REST", SortOrder: 10, IsPublished: true,
+		MaterialActor: actorIn(wsA),
+		Title:         "Web 基礎", Category: domain.ValidCourseCategories[0],
 	})
 	require.NoError(t, err)
-	require.NotNil(t, cstore.created)
-	assert.Equal(t, uint64(7), cstore.created.CreatedByUserID)
-	require.NotNil(t, cstore.created.WorkspaceID)
-	assert.Equal(t, wsA, *cstore.created.WorkspaceID)
-	assert.Equal(t, "Web 基礎", cstore.created.Title)
-	assert.Equal(t, "HTTP / REST", cstore.created.Description)
-	assert.Equal(t, 10, cstore.created.SortOrder)
-	assert.True(t, cstore.created.IsPublished)
 	assert.Equal(t, "Web 基礎", got.Title)
-	assert.Equal(t, 10, got.SortOrder)
+	assert.Equal(t, wsA, *got.WorkspaceID)
+	crepo.AssertCalled(t, "CreateWithOwnerGrant", mock.Anything, mock.Anything,
+		"0198a000-0000-7000-8000-0000000000a1")
+	// 付与を伴わない Create は使わない（使うと権限の無いコースが残る）。
+	crepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
-func Test_コース_更新_別会社は禁止(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA), Title: "old"}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	_, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), ActorRole: domain.RoleCompanyAdmin, Title: "new",
-	})
-	require.Error(t, err)
-	assert.Nil(t, cstore.updated)
-}
-
-func Test_コース_更新_自社管理者は成功(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA), Title: "old"}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "new", Description: "X", SortOrder: 200, IsPublished: true,
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "new", got.Title)
-	require.NotNil(t, cstore.updated)
-	assert.Equal(t, "new", cstore.updated.Title)
-	assert.Equal(t, "X", cstore.updated.Description)
-	assert.Equal(t, 200, cstore.updated.SortOrder)
-	assert.True(t, cstore.updated.IsPublished)
-}
-
-func Test_コース_削除_traineeは禁止(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA)}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	err := uc.Delete(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleTrainee)
-	require.Error(t, err)
-}
-
-func Test_コース_削除_自社管理者は教材も連鎖削除(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA)}})
-	mrepo, mstore := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	err := uc.Delete(context.Background(), 1, domain.WorkspaceRefOf(wsA), domain.RoleCompanyAdmin)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), cstore.deleted)
-	assert.Equal(t, uint64(1), mstore.deletedByCourse, "コース配下の教材も cascade で削除される")
-}
-
-func Test_コース_作成_カテゴリ付きで成功(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "PostgreSQL 徹底入門", Category: domain.CourseCategoryDatabase,
-	})
-	require.NoError(t, err)
-	assert.Equal(t, domain.CourseCategoryDatabase, got.Category)
-}
-
-func Test_コース_作成_不正なカテゴリは拒否(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
+func Test_コース_分類が既知でなければ作れない(t *testing.T) {
+	uc, _, _ := newCourseUC(materialFactsConfig{}, true)
 	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "X", Category: "unknown-category",
+		MaterialActor: actorIn(wsA),
+		Title:         "Web 基礎", Category: "unknown",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid course category")
-	assert.Nil(t, cstore.created)
+	assert.NotErrorIs(t, err, usecase.ErrMaterialForbidden)
 }
 
-func Test_コース_作成_カテゴリ未分類は許可(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "X", Category: "",
+func Test_コース_編集は付与で決まる(t *testing.T) {
+	update := func(uc *usecase.CourseUseCase) error {
+		_, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
+			MaterialActor: actorIn(wsA), ID: 5,
+			Title: "改題", Category: domain.ValidCourseCategories[0],
+		})
+		return err
+	}
+
+	t.Run("読めるが付与が無ければ 403", func(t *testing.T) {
+		// 見えている相手には理由を返してよい（実在は既に知っている）。
+		uc, _, _ := newCourseUC(materialFactsConfig{member: true, published: true}, true)
+		assert.ErrorIs(t, update(uc), usecase.ErrMaterialForbidden)
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "", got.Category)
+
+	t.Run("editor の付与があれば編集できる", func(t *testing.T) {
+		uc, cstore, _ := newCourseUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, true)
+		require.NoError(t, update(uc))
+		require.NotNil(t, cstore.updated)
+		assert.Equal(t, "改題", cstore.updated.Title)
+	})
+
+	t.Run("ワークスペースの admin も編集できる", func(t *testing.T) {
+		uc, _, _ := newCourseUC(materialFactsConfig{member: true, workspaceAdmin: true}, true)
+		assert.NoError(t, update(uc))
+	})
+
+	t.Run("viewer の付与では編集できない", func(t *testing.T) {
+		uc, _, _ := newCourseUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleViewer),
+		}, true)
+		assert.ErrorIs(t, update(uc), usecase.ErrMaterialForbidden)
+	})
 }
 
-func Test_コース_作成_ワークスペース未所属は禁止(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorWorkspace: domain.NoWorkspace(), ActorRole: domain.RoleCompanyAdmin,
-		Title: "X",
+func Test_コース_削除も編集と同じ条件(t *testing.T) {
+	t.Run("付与が無ければ消せない", func(t *testing.T) {
+		uc, cstore, _ := newCourseUC(materialFactsConfig{member: true, published: true}, true)
+		assert.ErrorIs(t, uc.Delete(context.Background(), 5, actorIn(wsA)), usecase.ErrMaterialForbidden)
+		assert.Zero(t, cstore.deleted, "断ったのに消しに行っている")
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "workspace")
-	assert.Nil(t, cstore.created)
-}
 
-func Test_コース_更新_カテゴリを変更できる(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA), Category: domain.CourseCategoryDevBasics}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "Terraform 入門", Category: domain.CourseCategoryInfra,
+	t.Run("editor なら配下ごと消せる", func(t *testing.T) {
+		uc, cstore, _ := newCourseUC(materialFactsConfig{
+			member: true, published: true, role: grantRoleOf(domain.GrantRoleEditor),
+		}, true)
+		require.NoError(t, uc.Delete(context.Background(), 5, actorIn(wsA)))
+		assert.Equal(t, uint64(5), cstore.deleted)
 	})
-	require.NoError(t, err)
-	assert.Equal(t, domain.CourseCategoryInfra, got.Category)
-}
-
-func Test_コース_作成_言語付きで成功(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
-		ActorUserID: 7, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "Go 言語徹底攻略", Category: domain.CourseCategoryBackend, Language: "go",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "go", got.Language)
-	assert.Equal(t, "go", cstore.created.Language)
-}
-
-func Test_コース_更新_言語を変更できる(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA), Language: "go"}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "Terraform 入門", Language: "terraform",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "terraform", got.Language)
-}
-
-func Test_コース_更新_言語は空にもできる(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA), Language: "go"}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "Design Doc 入門", Language: "",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "", got.Language)
-}
-
-func Test_コース_更新_不正なカテゴリは拒否(t *testing.T) {
-	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, WorkspaceID: strPtr(wsA)}})
-	mrepo, _ := materialRepo(materialFakeConfig{})
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	_, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
-		ID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleCompanyAdmin,
-		Title: "X", Category: "nope",
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid course category")
-	assert.Nil(t, cstore.updated)
 }

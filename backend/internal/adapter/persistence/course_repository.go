@@ -80,6 +80,12 @@ func (r *courseRepository) GetByID(ctx context.Context, id uint64) (*domain.Cour
 }
 
 func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
+	return insertCourseWith(ctx, sqlcgen.New(r.db), c)
+}
+
+// insertCourseWith はコースを 1 行入れて、採番された値を c へ書き戻す。
+// 単独の Create とトランザクション版の両方から通す（組み立てを 2 か所に書かない）。
+func insertCourseWith(ctx context.Context, q *sqlcgen.Queries, c *domain.Course) error {
 	wid, ok := nullWorkspaceID(c.WorkspaceID)
 	if !ok {
 		return fmt.Errorf("workspace_id が不正な形式です: %q", *c.WorkspaceID)
@@ -98,7 +104,7 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 	if updatedAt.IsZero() {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(r.db).InsertCourse(ctx, sqlcgen.InsertCourseParams{
+	row, err := q.InsertCourse(ctx, sqlcgen.InsertCourseParams{
 		WorkspaceID:     wid,
 		CreatedByUserID: createdBy,
 		Title:           c.Title,
@@ -118,6 +124,41 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 	c.CreatedAt = row.CreatedAt
 	c.UpdatedAt = row.UpdatedAt
 	return nil
+}
+
+// CreateWithOwnerGrant はコースと、作成者への admin の付与を 1 つのトランザクションで書く。
+//
+// 分けて書くと、間に落ちたときに「誰も編集できないコース」が残る。いまのワークスペースには
+// admin が居ないので、そうなると作り直す以外に直す手が無い。
+func (r *courseRepository) CreateWithOwnerGrant(ctx context.Context, c *domain.Course, ownerPrincipalID string) error {
+	prID, ok := kbParseID(ownerPrincipalID)
+	if !ok {
+		return fmt.Errorf("principal_id が不正な形式です: %q", ownerPrincipalID)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	q := sqlcgen.New(tx)
+	if err := insertCourseWith(ctx, q, c); err != nil {
+		return err
+	}
+	courseID, ok := toInt64ID(c.ID)
+	if !ok {
+		return outOfRangeIDError("course", c.ID)
+	}
+	wid, _ := nullWorkspaceID(c.WorkspaceID)
+	if _, err := q.UpsertCourseGrant(ctx, sqlcgen.UpsertCourseGrantParams{
+		WorkspaceID: wid.UUID,
+		CourseID:    courseID,
+		PrincipalID: prID,
+		Role:        string(domain.GrantRoleAdmin),
+	}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Update はコースの 4 列を書き換える。対象行が無ければ domain.ErrNotFound を返す。

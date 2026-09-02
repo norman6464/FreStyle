@@ -5325,45 +5325,6 @@
             }
         },
         "/teaching-materials": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "teaching-materials"
-                ],
-                "summary": "教材 全 件 一覧 (deprecated)",
-                "deprecated": true,
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {

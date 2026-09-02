@@ -1121,6 +1121,210 @@ const docTemplate = `{
                 }
             }
         },
+        "/courses/{id}/grants": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その コース 自身 に 張ら れ た 付与 を 返す。 **「この コース を 編集 できる 人 の 一覧」 で は ない** — ワークスペース の admin は 含ま れ ず、 空 で も 「誰 も 編集 でき ない」 の 意味 に なら ない。 呼べる の は その コース を 管理 できる 人 だけ で、 読め ない 相手 に は 404、 読める が 管理 でき ない 場合 は 403。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース の 権限 一覧",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.materialGrantResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が 無い か 読め ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{id}/grants/{principalId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "コース で の 既定 の 役割 を 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 章 に も 効く。 合成 は 「最も 強い もの を 採る」 な の で、 **ここ に 弱い 役割 を 張っ て も 上位 で 得 て いる 役割 は 下がら ない**。 呼べる の は その コース を 管理 できる 人 だけ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース の 権限 付与",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "役割 (admin / editor / commenter / viewer)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.materialGrantRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.materialGrantResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース か 主体 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "コース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その コース を 管理 できる 人 だけ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース の 権限 取り消し",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "取り消し 済み"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が 無い か 読め ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{id}/last-viewed": {
             "get": {
                 "security": [
@@ -1230,6 +1434,67 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "他社 コース",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{id}/principals": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 中身 は ワークスペース 全体 だ が、 **呼べる か は コース 単位 で 決まる** — ワークスペース の admin に 絞る と、 コース に admin を 張ら れ た 人 が 相手 を 選べ なく なる。 名前 が 引け なかっ た 行 も 空文字 の まま 返す。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "教材 の 権限 を 張れる 相手 の 一覧",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.materialPrincipalResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が 無い か 読め ない",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5643,6 +5908,210 @@ const docTemplate = `{
                 }
             }
         },
+        "/teaching-materials/{id}/grants": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その 教材 (章) 自身 に 張ら れ た 付与 を 返す。 **コース から 降り て くる 分 は 含ま ない** の で、 空 で も 「誰 も 編集 でき ない」 の 意味 に なら ない。 呼べる の は その 教材 を 管理 できる 人 だけ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 の 権限 一覧",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.materialGrantResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材 が 無い か 読め ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/teaching-materials/{id}/grants/{principalId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その 教材 (章) だけ に 効く 既定 の 役割 を 与える。 コース の 付与 より 弱い 役割 を ここ に 張っ て も 下がら ない (合成 は 最も 強い もの を 採る)。 呼べる の は その 教材 を 管理 できる 人 だけ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 の 権限 付与",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "役割 (admin / editor / commenter / viewer)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.materialGrantRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.materialGrantResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材 か 主体 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その 教材 (章) で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 コース から 降り て いる 役割 は そのまま 残る。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 の 権限 取り消し",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "取り消し 済み"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材 が 無い か 読め ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/teaching-materials/{id}/view": {
             "post": {
                 "security": [
@@ -7444,6 +7913,56 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.materialGrantResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "principalId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "editor"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.materialGrantRoleRequest": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "description": "Role は domain.ValidGrantRoles のいずれか。既知でない値は usecase が弾く。",
+                    "type": "string",
+                    "example": "editor"
+                }
+            }
+        },
+        "internal_handler.materialPrincipalResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "name": {
+                    "description": "Name は表示名。引けなかった場合は空文字（行は落とさない）。",
+                    "type": "string",
+                    "example": "田中 太郎"
                 }
             }
         },

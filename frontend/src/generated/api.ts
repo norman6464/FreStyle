@@ -1449,6 +1449,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * コース の 権限 一覧
+         * @description その コース 自身 に 張ら れ た 付与 を 返す。 **「この コース を 編集 できる 人 の 一覧」 で は ない** — ワークスペース の admin は 含ま れ ず、 空 で も 「誰 も 編集 でき ない」 の 意味 に なら ない。 呼べる の は その コース を 管理 できる 人 だけ で、 読め ない 相手 に は 404、 読める が 管理 でき ない 場合 は 403。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.materialGrantResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース が 無い か 読め ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{id}/grants/{principalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * コース の 権限 付与
+         * @description コース で の 既定 の 役割 を 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 章 に も 効く。 合成 は 「最も 強い もの を 採る」 な の で、 **ここ に 弱い 役割 を 張っ て も 上位 で 得 て いる 役割 は 下がら ない**。 呼べる の は その コース を 管理 できる 人 だけ。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["internal_handler.materialGrantRoleRequest"];
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.materialGrantResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース か 主体 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * コース の 権限 取り消し
+         * @description コース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その コース を 管理 できる 人 だけ。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消し 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース が 無い か 読め ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/{id}/last-viewed": {
         parameters: {
             query?: never;
@@ -1586,6 +1815,84 @@ export interface paths {
                 };
                 /** @description 他社 コース */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{id}/principals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 教材 の 権限 を 張れる 相手 の 一覧
+         * @description 権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 中身 は ワークスペース 全体 だ が、 **呼べる か は コース 単位 で 決まる** — ワークスペース の admin に 絞る と、 コース に admin を 張ら れ た 人 が 相手 を 選べ なく なる。 名前 が 引け なかっ た 行 も 空文字 の まま 返す。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.materialPrincipalResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース が 無い か 読め ない */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -6733,6 +7040,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teaching-materials/{id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 教材 の 権限 一覧
+         * @description その 教材 (章) 自身 に 張ら れ た 付与 を 返す。 **コース から 降り て くる 分 は 含ま ない** の で、 空 で も 「誰 も 編集 でき ない」 の 意味 に なら ない。 呼べる の は その 教材 を 管理 できる 人 だけ。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.materialGrantResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材 が 無い か 読め ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teaching-materials/{id}/grants/{principalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 教材 の 権限 付与
+         * @description その 教材 (章) だけ に 効く 既定 の 役割 を 与える。 コース の 付与 より 弱い 役割 を ここ に 張っ て も 下がら ない (合成 は 最も 強い もの を 採る)。 呼べる の は その 教材 を 管理 できる 人 だけ。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["internal_handler.materialGrantRoleRequest"];
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.materialGrantResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材 か 主体 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * 教材 の 権限 取り消し
+         * @description その 教材 (章) で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 コース から 降り て いる 役割 は そのまま 残る。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消し 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理 権限 が 無い */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材 が 無い か 読め ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teaching-materials/{id}/view": {
         parameters: {
             query?: never;
@@ -7608,6 +8144,32 @@ export interface components {
             status?: string;
             title?: string;
         };
+        "internal_handler.materialGrantResponse": {
+            createdAt?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            principalId?: string;
+            /** @example editor */
+            role?: string;
+            updatedAt?: string;
+        };
+        "internal_handler.materialGrantRoleRequest": {
+            /**
+             * @description Role は domain.ValidGrantRoles のいずれか。既知でない値は usecase が弾く。
+             * @example editor
+             */
+            role: string;
+        };
+        "internal_handler.materialPrincipalResponse": {
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            id?: string;
+            /** @example user */
+            kind?: string;
+            /**
+             * @description Name は表示名。引けなかった場合は空文字（行は落とさない）。
+             * @example 田中 太郎
+             */
+            name?: string;
+        };
         "internal_handler.meResponse": {
             createdAt?: string;
             /** @example user@example.com */
@@ -7706,6 +8268,12 @@ export interface components {
         "internal_handler.kbGrantRoleRequest": {
             content: {
                 "application/json": components["schemas"]["internal_handler.kbGrantRoleRequest"];
+            };
+        };
+        /** @description 役割 (admin / editor / commenter / viewer) */
+        "internal_handler.materialGrantRoleRequest": {
+            content: {
+                "application/json": components["schemas"]["internal_handler.materialGrantRoleRequest"];
             };
         };
     };

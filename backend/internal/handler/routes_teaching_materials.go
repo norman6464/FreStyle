@@ -25,4 +25,10 @@ func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	// 章閲覧記録（「続きから」カードの基盤）。ベストエフォートなので失敗しても 204 を返す。
 	cvh := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(chapterViewRepo, materialRepo, permUC))
 	g.POST("/teaching-materials/:id/view", cvh.RecordView)
+
+	// 教材 1 つだけに効く権限（「この教材だけ編集してよい」）。
+	gh := newMaterialGrantHandler(deps, permUC, persistence.NewKnowledgeBasePermissionRepository(deps.db))
+	g.GET("/teaching-materials/:id/grants", gh.ListChapterGrants)
+	g.PUT("/teaching-materials/:id/grants/:principalId", gh.GrantChapterRole)
+	g.DELETE("/teaching-materials/:id/grants/:principalId", gh.RevokeChapterRole)
 }

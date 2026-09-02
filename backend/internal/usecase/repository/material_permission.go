@@ -25,7 +25,11 @@ type MaterialPermissionRepository interface {
 	ChapterFactsForUser(ctx context.Context, workspaceID string, chapterID uint64, userID uint64) (*domain.MaterialFacts, error)
 
 	// UpsertCourseGrant はコースでの既定の役割を与える（同じ主体には 1 行だけ）。
-	// **これで誰かを弱めることはできない**（合成は最も強いものを採る）。
+	//
+	// **既存の行があれば役割を置き換える**ので、この行だけを見れば弱めることもできる。
+	// 弱められないのは**段をまたいだとき**で、章に弱い役割を張ってもコースの役割は
+	// 下がらない（合成は最も強いものを採る）。「この人だけこの章では外す」は
+	// この層では表せない。
 	UpsertCourseGrant(ctx context.Context, workspaceID string, courseID uint64, principalID string, role domain.GrantRole) (*domain.CourseGrant, error)
 	// DeleteCourseGrant はコースでの既定の役割を剥がす（冪等）。
 	DeleteCourseGrant(ctx context.Context, workspaceID string, courseID uint64, principalID string) error

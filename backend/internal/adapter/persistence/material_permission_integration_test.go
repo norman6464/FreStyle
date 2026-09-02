@@ -31,7 +31,9 @@ type materialFixture struct {
 	ws      string
 	otherWS string
 	course  uint64
-	chapter uint64
+	// draftCourse は未公開のコース。公開判定がコース側でも効くことを見るために持つ。
+	draftCourse uint64
+	chapter     uint64
 	// draft は同じコースの未公開の章。
 	draft uint64
 	alice uint64
@@ -52,9 +54,12 @@ func setupMaterialPermission(t *testing.T, db *sql.DB) materialFixture {
 	f.bob = createUser(t, db, "mat-bob")
 
 	f.course = 7001
+	f.draftCourse = 7002
 	_, err := db.Exec(
 		`INSERT INTO courses (id, workspace_id, created_by_user_id, title, is_published, created_at, updated_at)
-		 VALUES ($1, $2, $3, 'コース', true, now(), now())`, f.course, f.ws, f.alice,
+		 VALUES ($1, $3, $4, '公開のコース', true, now(), now()),
+		        ($2, $3, $4, '下書きのコース', false, now(), now())`,
+		f.course, f.draftCourse, f.ws, f.alice,
 	)
 	require.NoError(t, err)
 	f.chapter = 7101
@@ -93,7 +98,14 @@ func (f materialFixture) draftPerm(ctx context.Context, t *testing.T, userID uin
 
 func (f materialFixture) coursePerm(ctx context.Context, t *testing.T, userID uint64) domain.MaterialPermission {
 	t.Helper()
-	facts, err := f.perm.CourseFactsForUser(ctx, f.ws, f.course, userID)
+	return f.coursePermOf(ctx, t, f.course, userID)
+}
+
+func (f materialFixture) coursePermOf(
+	ctx context.Context, t *testing.T, courseID, userID uint64,
+) domain.MaterialPermission {
+	t.Helper()
+	facts, err := f.perm.CourseFactsForUser(ctx, f.ws, courseID, userID)
 	require.NoError(t, err)
 	return domain.ResolveMaterialPermission(*facts)
 }
@@ -201,6 +213,21 @@ func TestMaterialPermission_読むことに付与を要求しない_Integration(
 	assert.True(t, got.CanView, "公開済みなら一員は誰でも読める")
 	assert.False(t, got.CanEdit)
 	assert.False(t, f.draftPerm(ctx, t, f.alice).CanView, "下書きは編集できる人にしか見せない")
+
+	// コース側でも同じ規則が効くこと。章だけを見ていると、コースの is_published を
+	// 取り違えても気付けない（章は公開・コースは下書き、という食い違いが起こり得る）。
+	assert.True(t, f.coursePerm(ctx, t, f.alice).CanView, "公開のコースは読める")
+	assert.False(t, f.coursePermOf(ctx, t, f.draftCourse, f.alice).CanView,
+		"付与の無い一員に下書きのコースは見えない")
+
+	// 付与を張れば下書きのコースも扱える。
+	alice, err := f.kb.EnsureUserPrincipal(ctx, f.ws, f.alice)
+	require.NoError(t, err)
+	_, err = f.perm.UpsertCourseGrant(ctx, f.ws, f.draftCourse, alice.ID, domain.GrantRoleEditor)
+	require.NoError(t, err)
+	got = f.coursePermOf(ctx, t, f.draftCourse, f.alice)
+	assert.True(t, got.CanView, "editor には下書きのコースも見える")
+	assert.True(t, got.CanEdit)
 }
 
 func TestMaterialPermission_テナントを跨がない_Integration(t *testing.T) {

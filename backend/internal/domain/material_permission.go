@@ -75,13 +75,18 @@ func ResolveMaterialPermission(f MaterialFacts) MaterialPermission {
 		admin := GrantRoleAdmin
 		role = &admin
 	}
-	canEdit := roleAllows(role, CapabilityEdit)
-	canManage := role != nil && role.CanManage()
-	// 所属していない相手には何も見せない。公開済みでも他テナントの教材は読めない。
-	canView := f.Member && (f.Published || roleAllows(role, CapabilityView))
+	// 所属していない相手には何もさせない。公開済みでも他テナントの教材は読めないし、
+	// 権限を変えることもできない。
+	//
+	// いまは事実を集める側（SQL）が主体を辿るので、所属していなければ役割も届かない。
+	// それでもここで閉じるのは、**規則の側で閉じておかないと集め方を変えたときに開く**ため。
+	// 「所属している人にだけ効く」はこの型が持つ約束で、集め方の性質に頼らない。
+	if !f.Member {
+		return MaterialPermission{}
+	}
 	return MaterialPermission{
-		CanView:   canView,
-		CanEdit:   canView && canEdit,
-		CanManage: canManage,
+		CanView:   f.Published || roleAllows(role, CapabilityView),
+		CanEdit:   roleAllows(role, CapabilityEdit),
+		CanManage: role != nil && role.CanManage(),
 	}
 }

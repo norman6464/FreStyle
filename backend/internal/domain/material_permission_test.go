@@ -7,8 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func materialRole(r domain.GrantRole) *domain.GrantRole { return &r }
-
 func Test_教材の権限_読むことに付与を要求しない(t *testing.T) {
 	// ここに付与を求めると、研修を受ける人が教材を開くたびに権限を配ることになる。
 	got := domain.ResolveMaterialPermission(domain.MaterialFacts{Member: true, Published: true})
@@ -21,12 +19,12 @@ func Test_教材の権限_下書きは編集できる人にしか見せない(t 
 	member := domain.MaterialFacts{Member: true, Published: false}
 	assert.False(t, domain.ResolveMaterialPermission(member).CanView, "付与の無い一員には見えない")
 
-	editor := domain.MaterialFacts{Member: true, Published: false, Role: materialRole(domain.GrantRoleEditor)}
+	editor := domain.MaterialFacts{Member: true, Published: false, Role: role(domain.GrantRoleEditor)}
 	got := domain.ResolveMaterialPermission(editor)
 	assert.True(t, got.CanView, "編集できる人には下書きも見える")
 	assert.True(t, got.CanEdit)
 
-	viewer := domain.MaterialFacts{Member: true, Published: false, Role: materialRole(domain.GrantRoleViewer)}
+	viewer := domain.MaterialFacts{Member: true, Published: false, Role: role(domain.GrantRoleViewer)}
 	assert.True(t, domain.ResolveMaterialPermission(viewer).CanView, "viewer を張れば下書きを覗ける")
 	assert.False(t, domain.ResolveMaterialPermission(viewer).CanEdit)
 }
@@ -38,13 +36,16 @@ func Test_教材の権限_所属していなければ何も見えない(t *testi
 		facts domain.MaterialFacts
 	}{
 		{"公開済み", domain.MaterialFacts{Member: false, Published: true}},
-		{"付与あり", domain.MaterialFacts{Member: false, Role: materialRole(domain.GrantRoleAdmin)}},
+		{"付与あり", domain.MaterialFacts{Member: false, Role: role(domain.GrantRoleAdmin)}},
 		{"ワークスペースの admin", domain.MaterialFacts{Member: false, WorkspaceAdmin: true, Published: true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			got := domain.ResolveMaterialPermission(c.facts)
 			assert.False(t, got.CanView, "所属していない相手に中身が見えている")
 			assert.False(t, got.CanEdit)
+			// 権限を変える口も閉じる。ここが開いていると、所属していない相手が
+			// 付与を書き換えられる（認可に CanManage を使う口ができたときに効く）。
+			assert.False(t, got.CanManage, "所属していない相手が権限を変えられる")
 		})
 	}
 }

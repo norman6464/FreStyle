@@ -93,6 +93,17 @@ func toDomainSpaceGrant(row sqlcgen.SpaceGrant) domain.SpaceGrant {
 	}
 }
 
+func toDomainPageGrant(row sqlcgen.PageGrant) domain.PageGrant {
+	return domain.PageGrant{
+		WorkspaceID: row.WorkspaceID.String(),
+		PageID:      row.PageID.String(),
+		PrincipalID: row.PrincipalID.String(),
+		Role:        domain.GrantRole(row.Role),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+}
+
 func toDomainPageRestriction(row sqlcgen.PageRestriction) domain.PageRestriction {
 	return domain.PageRestriction{
 		WorkspaceID: row.WorkspaceID.String(),
@@ -586,6 +597,60 @@ func (r *knowledgeBasePermissionRepository) ListSpaceGrants(ctx context.Context,
 	grants := make([]domain.SpaceGrant, 0, len(rows))
 	for _, row := range rows {
 		grants = append(grants, toDomainSpaceGrant(row))
+	}
+	return grants, nil
+}
+
+func (r *knowledgeBasePermissionRepository) UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	prID, ok3 := kbParseID(principalID)
+	if !ok || !ok2 || !ok3 {
+		return nil, repository.ErrPrincipalNotFound
+	}
+	row, err := r.q.UpsertPageGrant(ctx, sqlcgen.UpsertPageGrantParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+		PrincipalID: prID,
+		Role:        string(role),
+	})
+	if err != nil {
+		return nil, err
+	}
+	g := toDomainPageGrant(row)
+	return &g, nil
+}
+
+// DeletePageGrant はページ権限を 1 件取り消す。
+// DeleteSpaceGrant と同じ理由で 0 行削除は成功のまま（取り消しは冪等）。
+func (r *knowledgeBasePermissionRepository) DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	prID, ok3 := kbParseID(principalID)
+	if !ok || !ok2 || !ok3 {
+		return nil
+	}
+	_, err := r.q.DeletePageGrant(ctx, sqlcgen.DeletePageGrantParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+		PrincipalID: prID,
+	})
+	return err
+}
+
+func (r *knowledgeBasePermissionRepository) ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return []domain.PageGrant{}, nil
+	}
+	rows, err := r.q.ListPageGrants(ctx, sqlcgen.ListPageGrantsParams{WorkspaceID: wsID, PageID: pgID})
+	if err != nil {
+		return nil, err
+	}
+	grants := make([]domain.PageGrant, 0, len(rows))
+	for _, row := range rows {
+		grants = append(grants, toDomainPageGrant(row))
 	}
 	return grants, nil
 }
@@ -1107,54 +1172,6 @@ func (r *knowledgeBasePermissionRepository) ListMemberWorkspaces(ctx context.Con
 		})
 	}
 	return out, nil
-}
-
-func (r *knowledgeBasePermissionRepository) PageSpaceScopeFactsForUser(
-	ctx context.Context, workspaceID, pageID string, userID uint64,
-) (*repository.PageScopeFacts, error) {
-	empty := &repository.PageScopeFacts{Facts: domain.ScopeFacts{Roles: toGrantRoles(nil)}}
-
-	wsID, ok := kbParseID(workspaceID)
-	pgID, ok2 := kbParseID(pageID)
-	if !ok || !ok2 {
-		// UUID ですらない文字列はどのページにも一致しない。**エラーではなく空を返す**
-		// （見つからなかったときと同じ扱い）。ここだけ別のエラーにすると、呼び出し側が
-		// 撃ち分けなくても応答の作られ方が変わる余地が残る。
-		return empty, nil
-	}
-	// bigint に収まらない userID はどの主体にも一致しない ＝ 役割を 1 つも持たない。
-	// これも空で返す（0 行が返ったときと同じ）。
-	uid, uok := toInt64ID(userID)
-	if !uok {
-		return empty, nil
-	}
-
-	// **問い合わせは 1 回だけ。** ページの実在確認とスペースの実在確認と役割の収集を
-	// 別々に行うと、落ちる段によって DB の往復が変わり、同じ 404 でも返るまでの時間から
-	// ページ ID の実在が読める（ListPageSpaceScopeGrantRoles の doc に経緯がある）。
-	rows, err := r.q.ListPageSpaceScopeGrantRoles(ctx, sqlcgen.ListPageSpaceScopeGrantRolesParams{
-		WorkspaceID: wsID,
-		PageID:      pgID,
-		UserID:      sql.NullInt64{Int64: uid, Valid: true},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		// ページが無い / そのスペースに役割が 1 つも届いていない のどちらか。
-		// **区別しない。** どちらも呼び出し側では拒否に落ちる。
-		return empty, nil
-	}
-
-	roles := make([]string, 0, len(rows))
-	for _, row := range rows {
-		roles = append(roles, row.Role)
-	}
-	return &repository.PageScopeFacts{
-		// 全行が同じページから引いた space_id なので、どれを採っても同じ。
-		SpaceID: rows[0].SpaceID.String(),
-		Facts:   domain.ScopeFacts{Roles: toGrantRoles(roles)},
-	}, nil
 }
 
 func (r *knowledgeBasePermissionRepository) SpacePermissionFactsForUser(

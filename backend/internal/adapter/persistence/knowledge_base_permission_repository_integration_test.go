@@ -288,40 +288,48 @@ func TestKnowledgeBaseArchivedViewFacts_Integration(t *testing.T) {
 	})
 }
 
-func TestKnowledgeBasePageSpaceScope_Integration(t *testing.T) {
+// ページを名指しする権限操作の入口が見る事実を確かめる。
+//
+// 入口（kbPermissionGate.requirePageAdmin）は「そのページに届いている既定の役割が admin か」で
+// 判断する。役割はワークスペース / スペース / ページの 3 段のどこから来てもよく、
+// 最も強いものが実効になる。ここで固定するのは、その 3 段が全部届くことと、
+// 対象が引けない場合の返り方が実在で変わらないこと。
+func TestKnowledgeBasePageManageFacts_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	t.Run("ページから引いた役割が、スペースを名指しで引いたものと一致する", func(t *testing.T) {
+	canManage := func(t *testing.T, f kbPermFixture, pageID string, userID uint64) bool {
+		t.Helper()
+		facts, err := f.perm.PagePermissionFactsForUser(ctx, f.ws, pageID, userID)
+		require.NoError(t, err)
+		return domain.ResolvePagePermission(*facts).CanManage
+	}
+
+	t.Run("スペースの admin はページも管理できる", func(t *testing.T) {
+		// スペースを名指しで引いた答えと食い違わないこと。ここが割れると、
+		// スペースの管理者がスペースの設定は変えられるのにページの共有は触れない、
+		// といった説明できない状態になる。
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice := f.principalFor(ctx, t, f.alice)
 		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleAdmin)
 
-		got, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, page.ID, f.alice)
-		require.NoError(t, err)
 		want, err := f.perm.SpacePermissionFactsForUser(ctx, f.ws, f.spaceA, f.alice)
 		require.NoError(t, err)
+		require.True(t, domain.ResolveScopePermission(*want).CanManage, "前提: スペースでは admin")
 
-		assert.Equal(t, f.spaceA, got.SpaceID, "ページからスペースを引けている")
-		assert.ElementsMatch(t, want.Roles, got.Facts.Roles,
-			"スペースを名指しで引いたときと同じ役割になる（2 つの経路で答えが割れない）")
-		assert.True(t, domain.ResolveScopePermission(got.Facts).CanManage)
+		assert.True(t, canManage(t, f, page.ID, f.alice), "ページ経由でも同じ答えになる")
 	})
 
 	t.Run("ワークスペースの役割も届く", func(t *testing.T) {
-		// workspace_grants は配下の全スペースに届く。ページ版でも同じであること。
+		// workspace_grants は配下の全スペース・全ページに届く。
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice := f.principalFor(ctx, t, f.alice)
 		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
 		require.NoError(t, err)
 
-		got, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, page.ID, f.alice)
-		require.NoError(t, err)
-
-		assert.Equal(t, f.spaceA, got.SpaceID)
-		assert.True(t, domain.ResolveScopePermission(got.Facts).CanManage)
+		assert.True(t, canManage(t, f, page.ID, f.alice))
 	})
 
 	t.Run("スペースの全員宛ての役割も届く", func(t *testing.T) {
@@ -331,47 +339,62 @@ func TestKnowledgeBasePageSpaceScope_Integration(t *testing.T) {
 		everyone := f.everyoneOf(ctx, t, f.spaceA)
 		f.grantSpace(ctx, t, f.spaceA, everyone.ID, domain.GrantRoleAdmin)
 
-		got, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, page.ID, f.alice)
-		require.NoError(t, err)
-
-		assert.Equal(t, f.spaceA, got.SpaceID)
-		assert.True(t, domain.ResolveScopePermission(got.Facts).CanManage)
+		assert.True(t, canManage(t, f, page.ID, f.alice))
 	})
 
-	t.Run("存在しないページと役割の無いページを撃ち分けない", func(t *testing.T) {
-		// **この経路の核心。** どちらも同じ空が返ること。エラーで撃ち分けると、
-		// 応答の差から「そのページ ID が実在するか」が読める。
+	t.Run("ページに張られた admin も届く", func(t *testing.T) {
+		// 3 段目。ここが届かないと、ページに admin を与えられた本人が
+		// その権限を一切行使できない（与えられるのに使えない）。
+		f := setupKBPermission(t, sqlDB)
+		parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親").ID
+		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent, "子").ID
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantPage(ctx, t, child, alice.ID, domain.GrantRoleAdmin)
+
+		assert.True(t, canManage(t, f, child, f.alice), "張ったページは管理できる")
+		assert.False(t, canManage(t, f, parent, f.alice), "親へは上がらない")
+	})
+
+	t.Run("editor では管理できない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+
+		assert.False(t, canManage(t, f, page.ID, f.alice))
+	})
+
+	t.Run("引けないページはどれも同じセンチネルになる", func(t *testing.T) {
+		// 応答の差から「そのページ ID が実在するか」を読ませない。存在しない ID も
+		// UUID ですらない文字列も他テナントのページも、返るものが同じであること。
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws,
+			f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+		require.NoError(t, err)
+		other := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "他社のページ")
+
+		for _, c := range []struct {
+			name   string
+			pageID string
+		}{
+			{"存在しない UUID", "0198a000-0000-7000-8000-0000000000ff"},
+			{"UUID ですらない文字列", "not-a-uuid"},
+			{"他テナントのページ", other.ID},
+		} {
+			_, err := f.perm.PagePermissionFactsForUser(ctx, f.ws, c.pageID, f.alice)
+			assert.ErrorIs(t, err, repository.ErrPageNotFound, c.name)
+		}
+	})
+
+	t.Run("実在するが役割が無いページは拒否へ倒れる", func(t *testing.T) {
+		// 上の 3 つと返り方（値かエラーか）は違うが、呼び出し側では同じ拒否に落ちる。
+		// どちらも DB への問い合わせは 1 回なので、時間差からも区別できない。
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		f.principalFor(ctx, t, f.carol) // 所属はしているが役割を 1 つも持たない
 
-		onExisting, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, page.ID, f.carol)
-		require.NoError(t, err)
-		onMissing, err := f.perm.PageSpaceScopeFactsForUser(
-			ctx, f.ws, "0198a000-0000-7000-8000-0000000000ff", f.carol,
-		)
-		require.NoError(t, err)
-		onGarbage, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, "not-a-uuid", f.carol)
-		require.NoError(t, err)
-
-		assert.Equal(t, onMissing, onExisting, "実在の有無で返る値を変えない")
-		assert.Equal(t, onMissing, onGarbage, "UUID ですらない文字列も同じ")
-		assert.Empty(t, onExisting.SpaceID)
-		assert.False(t, domain.ResolveScopePermission(onExisting.Facts).CanManage)
-	})
-
-	t.Run("他テナントのページは引けない", func(t *testing.T) {
-		f := setupKBPermission(t, sqlDB)
-		other := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "他社のページ")
-		alice := f.principalFor(ctx, t, f.alice)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
-		require.NoError(t, err)
-
-		got, err := f.perm.PageSpaceScopeFactsForUser(ctx, f.ws, other.ID, f.alice)
-		require.NoError(t, err)
-
-		assert.Empty(t, got.SpaceID, "自分のワークスペースの admin でも、他社のページからは何も引けない")
-		assert.False(t, domain.ResolveScopePermission(got.Facts).CanManage)
+		assert.False(t, canManage(t, f, page.ID, f.carol))
 	})
 }
 

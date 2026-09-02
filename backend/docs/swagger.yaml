@@ -892,6 +892,22 @@ definitions:
       page:
         $ref: '#/definitions/internal_handler.kbPageResponse'
     type: object
+  internal_handler.kbPageGrantResponse:
+    properties:
+      createdAt:
+        type: string
+      pageId:
+        example: 0198a000-0000-7000-8000-000000000003
+        type: string
+      principalId:
+        example: 0198a000-0000-7000-8000-00000000000a
+        type: string
+      role:
+        example: editor
+        type: string
+      updatedAt:
+        type: string
+    type: object
   internal_handler.kbPageResponse:
     properties:
       archivedAt:
@@ -1023,6 +1039,12 @@ definitions:
           $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef'
         type: array
       canEdit:
+        type: boolean
+      canManage:
+        description: |-
+          CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
+          経路上の例外を見ないので、自分を deny したページでも true のまま返る
+          （domain.PagePermission.CanManage の doc に理由がある）。
         type: boolean
       doc:
         type: object
@@ -3422,6 +3444,153 @@ paths:
       security:
       - CookieAuth: []
       summary: ノート の ページ 本文 置き換え
+      tags:
+      - knowledge-base
+  /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants:
+    get:
+      description: その ページ 自身 に 張ら れ た 既定 の 役割 を 返す (祖先 から 降り て くる 分 は 含ま ない)。 **「この
+        ページ を 見 られる 人 の 一覧」 で は ない** — ワークスペース / スペース の grant で 届い て いる 相手 も、 祖先 の
+        ページ に 張ら れ た grant で 届い て いる 相手 も 含ま れ ない。 空 で 返っ て き て も 「誰 も 見 られ ない」 で
+        は なく 「この 段 で は 何 も 足し て い ない」 の 意味。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合
+        と 対象 が 存在 し ない 場合 は 同じ 404。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      - description: ページ ID (UUID)
+        in: path
+        name: pageId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.kbPageGrantResponse'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 権限 が 無い か 対象 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート の ページ 権限 一覧
+      tags:
+      - knowledge-base
+  /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId}:
+    delete:
+      description: ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は
+        この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この
+        ページ だけ 見せ ない」 は 例外 の deny で 表す)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と
+        対象 が 存在 し ない 場合 は 同じ 404。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      - description: ページ ID (UUID)
+        in: path
+        name: pageId
+        required: true
+        type: string
+      - description: 主体 ID (UUID)
+        in: path
+        name: principalId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 取り消し 済み
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 権限 が 無い か 対象 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート の ページ 権限 取り消し
+      tags:
+      - knowledge-base
+    put:
+      consumes:
+      - application/json
+      description: ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この
+        ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が
+        実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer
+        を 張っ て も editor の まま)。 弱める に は 例外 (restriction) の deny を 使う。 呼べる の は その ページ
+        の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体)
+        が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。
+      parameters:
+      - description: ワークスペース の slug
+        in: path
+        name: workspaceSlug
+        required: true
+        type: string
+      - description: ページ ID (UUID)
+        in: path
+        name: pageId
+        required: true
+        type: string
+      - description: 主体 ID (UUID)
+        in: path
+        name: principalId
+        required: true
+        type: string
+      - description: 役割 (admin / editor / commenter / viewer)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.kbGrantRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.kbPageGrantResponse'
+        "400":
+          description: バリデーション エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 権限 が 無い か 対象 が 無い
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート の ページ 権限 付与
       tags:
       - knowledge-base
   /kb/workspaces/{workspaceSlug}/pages/{pageId}/move:

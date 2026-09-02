@@ -910,15 +910,19 @@ func limitKnowledgeBaseBody(c *gin.Context) {
 
 // kbResolvedPageResponse は /kb/pages/{pageId}（URL にテナントを持たない解決）の返却形。
 // workspaceSlug は以降の API 呼び出し（木・保存）に、workspaceName と ancestors は
-// パンくず（場所の表示）に、canEdit は編集 UI の出し分けに使う。
+// パンくず（場所の表示）に、canEdit は編集 UI の、canManage は共有 UI の出し分けに使う。
 // ancestors は**読み手が閲覧できる祖先だけ**を根から順に持つ（木と同じ規則で穴があき得る）。
 type kbResolvedPageResponse struct {
-	WorkspaceSlug string                `json:"workspaceSlug" example:"w-3f2a9c"`
-	WorkspaceName string                `json:"workspaceName" example:"開発チーム"`
-	Page          kbPageResponse        `json:"page"`
-	Doc           json.RawMessage       `json:"doc" swaggertype:"object"`
-	CanEdit       bool                  `json:"canEdit"`
-	Ancestors     []usecase.AncestorRef `json:"ancestors"`
+	WorkspaceSlug string          `json:"workspaceSlug" example:"w-3f2a9c"`
+	WorkspaceName string          `json:"workspaceName" example:"開発チーム"`
+	Page          kbPageResponse  `json:"page"`
+	Doc           json.RawMessage `json:"doc" swaggertype:"object"`
+	CanEdit       bool            `json:"canEdit"`
+	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
+	// 経路上の例外を見ないので、自分を deny したページでも true のまま返る
+	// （domain.PagePermission.CanManage の doc に理由がある）。
+	CanManage bool                  `json:"canManage"`
+	Ancestors []usecase.AncestorRef `json:"ancestors"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -995,6 +999,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		Page:          toKbPageResponse(&out.Page),
 		Doc:           json.RawMessage(doc),
 		CanEdit:       perm.CanEdit,
+		CanManage:     perm.CanManage,
 		Ancestors:     ancestors,
 	})
 }

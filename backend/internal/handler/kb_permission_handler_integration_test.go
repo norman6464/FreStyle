@@ -199,6 +199,29 @@ var kbPermCases = []kbPermCase{
 		okStatus: http.StatusNoContent,
 	},
 	{
+		name: "ページ権限一覧", method: http.MethodGet,
+		path:     "/api/v2/kb/workspaces/{slug}/pages/{page}/grants",
+		missing:  []string{"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingIntegrationUUID + "/grants"},
+		okStatus: http.StatusOK,
+	},
+	{
+		name: "ページ権限付与", method: http.MethodPut,
+		path: "/api/v2/kb/workspaces/{slug}/pages/{page}/grants/{target}",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingIntegrationUUID + "/grants/{target}",
+			"/api/v2/kb/workspaces/{slug}/pages/{page}/grants/" + kbMissingIntegrationUUID,
+		},
+		body: `{"role":"editor"}`, okStatus: http.StatusOK,
+	},
+	{
+		name: "ページ権限取り消し", method: http.MethodDelete,
+		path: "/api/v2/kb/workspaces/{slug}/pages/{page}/grants/{target}",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingIntegrationUUID + "/grants/{target}",
+		},
+		okStatus: http.StatusNoContent,
+	},
+	{
 		name: "ページ例外の設定", method: http.MethodPut,
 		path: "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
 		missing: []string{
@@ -655,4 +678,105 @@ func TestKnowledgeBasePermissionAPI_SuperAdminHasNoBypass_Integration(t *testing
 			assert.Equal(t, kbDeniedBody, w.Body.String())
 		})
 	}
+}
+
+// ページに admin を張られた相手が、その枝だけを管理できることを実 PostgreSQL で確かめる。
+//
+// # なぜこれが要るのか
+//
+// 既定は 3 段（ワークスペース / スペース / ページ）から届く。page_grants を入れるまで
+// 「ページに対する管理者」は存在し得なかった（例外の層は view / edit しか表せない）ので、
+// 権限操作の入口はスペースの admin だけを見ていた。その前提のまま page_grants を足すと、
+// **admin を与えられた本人がその権限を一切行使できない**。与えられるのに使えない、という
+// 一番たちの悪い壊れ方になる（画面には権限があるように見える）。
+//
+// 併せて、その枝から外へはみ出さないことも固定する。付与は経路をさかのぼって効くので
+// 子孫には届き、祖先には届かない。ここが崩れると、下位ページの管理者が親ごと乗っ取れる。
+func TestKnowledgeBasePageGrantAPI_ページのadminはその枝だけを管理できる_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	env := newKbPermEnv(t, sqlDB)
+	grandchild := kbInsertChildPage(t, sqlDB, env.workspaceID, env.spaceID, env.childPage, env.admin, "a2", "孫")
+
+	grantsOf := func(pageID string) string {
+		return "/api/v2/kb/workspaces/" + env.slug + "/pages/" + pageID + "/grants"
+	}
+
+	admin := env.as(env.admin)
+	// target はワークスペースでは viewer。まだどのページの権限も触れない。
+	target := env.as(env.target)
+	require.Equal(t, http.StatusNotFound, target.do(t, http.MethodGet, grantsOf(env.childPage), "").Code,
+		"前提: 付与の前は子ページの権限を見られない")
+
+	granted := admin.do(t, http.MethodPut, grantsOf(env.childPage)+"/"+env.targetPrincipal, `{"role":"admin"}`)
+	require.Equal(t, http.StatusOK, granted.Code, granted.Body.String())
+
+	t.Run("張られたページを管理できる", func(t *testing.T) {
+		w := target.do(t, http.MethodGet, grantsOf(env.childPage), "")
+		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	})
+
+	t.Run("子孫まで届く", func(t *testing.T) {
+		w := target.do(t, http.MethodGet, grantsOf(grandchild), "")
+		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	})
+
+	t.Run("親へは上がらない", func(t *testing.T) {
+		// 経路は祖先だけを辿る。ここが 200 になると、末端の管理者が親を掌握できる。
+		w := target.do(t, http.MethodGet, grantsOf(env.rootPage), "")
+		assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+		assert.Equal(t, kbDeniedBody, w.Body.String())
+	})
+
+	t.Run("一覧に出るのはその段に張った行だけ", func(t *testing.T) {
+		// 子ページに張った行が孫の一覧に出てしまうと、「どの段で足したか」が
+		// 画面から分からなくなり、取り消すべき行を人が選べない。
+		var onChild, onGrandchild []map[string]any
+		require.NoError(t, json.Unmarshal(
+			admin.do(t, http.MethodGet, grantsOf(env.childPage), "").Body.Bytes(), &onChild,
+		))
+		require.NoError(t, json.Unmarshal(
+			admin.do(t, http.MethodGet, grantsOf(grandchild), "").Body.Bytes(), &onGrandchild,
+		))
+
+		require.Len(t, onChild, 1)
+		assert.Equal(t, env.targetPrincipal, onChild[0]["principalId"])
+		assert.Equal(t, "admin", onChild[0]["role"], "役割まで返る（キー名も含めて固定する）")
+		assert.Empty(t, onGrandchild, "祖先の行は含めない（届いてはいるが、張った段はここではない）")
+	})
+
+	t.Run("取り消すと元の立場へ戻る", func(t *testing.T) {
+		w := admin.do(t, http.MethodDelete, grantsOf(env.childPage)+"/"+env.targetPrincipal, "")
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		assert.Equal(t, http.StatusNotFound, target.do(t, http.MethodGet, grantsOf(env.childPage), "").Code)
+		assert.Equal(t, http.StatusNotFound, target.do(t, http.MethodGet, grantsOf(grandchild), "").Code,
+			"子孫の分も一緒に消える（張ったのは 1 行だけ）")
+	})
+}
+
+// 自分を締め出したページの例外を、自分で戻せることを確かめる。
+//
+// 権限を変える口は閲覧の可否を要求しない（domain.PagePermission.CanManage）。
+// ここを「閲覧できる相手だけ」に狭めると、deny を 1 行張った瞬間にその行を消す手段が
+// 本人から消え、DB を直接触るしか復旧の道が無くなる。
+func TestKnowledgeBasePageGrantAPI_自分を締め出しても権限は戻せる_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	env := newKbPermEnv(t, sqlDB)
+	admin := env.as(env.admin)
+
+	restriction := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + env.childPage +
+		"/restrictions/" + env.adminPrincipal + "/view"
+
+	denied := admin.do(t, http.MethodPut, restriction, `{"mode":"deny"}`)
+	require.Equal(t, http.StatusOK, denied.Code, denied.Body.String())
+
+	// 前提: 締め出しは効いている（ページ本体はもう読めない）。
+	page := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + env.childPage
+	require.Equal(t, http.StatusNotFound, admin.do(t, http.MethodGet, page, "").Code,
+		"前提: deny が効いて本文は読めない")
+
+	// それでも権限の口は開いている。
+	assert.Equal(t, http.StatusNoContent, admin.do(t, http.MethodDelete, restriction, "").Code,
+		"自分で張った deny を自分で外せる")
+	assert.Equal(t, http.StatusOK, admin.do(t, http.MethodGet, page, "").Code, "外したら読める")
 }

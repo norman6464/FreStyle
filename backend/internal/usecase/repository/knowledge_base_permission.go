@@ -106,16 +106,6 @@ type ShareLinkWrite struct {
 	CreatedByUserID uint64
 }
 
-// PageScopeFacts は「あるページが属するスペース」についての事実。
-//
-// SpaceID は、そのページが見つかったときだけ入る。**ページが無いときは空文字**で、
-// Roles も空になる。呼び出し側はこの 2 つを区別せず、まとめて拒否へ落とす
-// （区別すると、応答の差からページ ID の実在が読めるようになる）。
-type PageScopeFacts struct {
-	SpaceID string
-	Facts   domain.ScopeFacts
-}
-
 // KnowledgeBasePermissionRepository はノートの権限モデル（principals /
 // principal_members / workspace_grants / space_grants / page_restrictions / share_links）への
 // アクセスを提供する。
@@ -188,6 +178,24 @@ type KnowledgeBasePermissionRepository interface {
 	DeleteSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string) error
 	// ListSpaceGrants はスペースの grant 一覧を返す。
 	ListSpaceGrants(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceGrant, error)
+
+	// UpsertPageGrant はページでの既定の役割を与える（同じ主体には 1 行だけ）。
+	//
+	// workspace / space に続く 3 段目で、このページとその子孫に効く。合成は他の 2 段と
+	// 同じ「最も強いものを採る」なので、**これで誰かを弱めることはできない**
+	// （上位で editor を得ている相手にここで viewer を張っても editor のまま）。
+	// 弱めるのは例外の層（UpsertPageRestriction の deny）の仕事。
+	UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error)
+	// DeletePageGrant はページでの既定の役割を剥がす（冪等）。
+	// 上位の段で得ている役割はそのまま残る（消えるのはこの段で足した分だけ）。
+	DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error
+	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
+	//
+	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、
+	// ワークスペース / スペースの grant で届いている相手も、祖先のページに張られた
+	// grant で届いている相手も含まれない。空で返ってきても「誰も見られない」ではなく
+	// 「この段では何も足していない」の意味（ListPageRestrictions と同じ見方）。
+	ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error)
 
 	// UpsertPageRestriction はページの例外を設定する（同じ (ページ, 主体, ケイパビリティ) は 1 行）。
 	// allow を張ると、そのページのそのケイパビリティは許可リスト制になる（印も同じ
@@ -265,22 +273,6 @@ type KnowledgeBasePermissionRepository interface {
 	// editor と答えてしまう。
 	SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error)
 
-	// PageSpaceScopeFactsForUser は「そのページが属するスペース」についての事実を、
-	// **1 回の問い合わせ**で集める。ページを名指しする権限操作の入口が使う。
-	//
-	// SpacePermissionFactsForUser との違いは、スペース ID を引数で受けずページから引くこと。
-	// これは手間を省くためではなく、**問い合わせの回数を一定にする**ため。
-	// 以前は「ページを引く → スペースの実在を確かめる → 役割を集める」の 3 段で、
-	// どれも同じ 404 を返すのに落ちる段によって DB の往復が 0 / 1 / 3 回に分かれ、
-	// 応答のバイト列を揃えても返るまでの時間から「そのページ ID が実在するか」が読めた。
-	//
-	// ページが無い場合も役割が 1 つも無い場合も、返るのは同じ「空」（SpaceID は空文字、
-	// Roles は空）。どちらも呼び出し側では拒否に落ちるので、区別が付かないのが正しい。
-	//
-	// **ページ単位の例外（page_restrictions / page_allow_lists）は見ていない。**
-	// 返すのはスペースの既定だけなので、ページの閲覧・編集の可否をこれで決めてはいけない
-	// （SpacePermissionFactsForUser と同じ制限。そちらの doc も参照）。
-	PageSpaceScopeFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*PageScopeFacts, error)
 	// WorkspacePermissionFactsForUser はワークスペースそのものに対する実効権限を決める事実を集める。
 	// スペースを作る操作のように、どのスペースにも属さない判定に使う。
 	//

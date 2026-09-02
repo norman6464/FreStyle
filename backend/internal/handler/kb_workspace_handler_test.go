@@ -348,10 +348,14 @@ func Test_ノートAPI_スペース直下のページ作成はスペースの権
 	})
 
 	t.Run("親を指定した作成はスペースの権限では通らない", func(t *testing.T) {
-		// スペースでは editor だが、親ページは閲覧すらできない。
+		// スペースでは editor だが、親ページだけ例外で外されている。
 		// スペース単位の判定でページ作成を通してしまうと、この経路が開く。
+		//
+		// 「親だけ弱い役割を張る」では再現できない。既定は 3 段から届いて最も強いものが
+		// 実効になるので、弱い役割を足しても下がらない（弱めるのは例外の層の仕事）。
 		f := newKbFixture(kbNoPerm, kbUserID)
 		f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleEditor)
+		f.perms.denyPage(kbWorkspaceID, kbRootPageID, kbUserID, domain.CapabilityView)
 
 		w := f.do(t, http.MethodPost, pagesPath, `{"parentId":"`+kbRootPageID+`","title":"子"}`)
 

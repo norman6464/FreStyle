@@ -99,6 +99,34 @@ var kbPermissionEndpoints = []kbPermissionEndpoint{
 		okStatus: http.StatusNoContent,
 	},
 	{
+		name: "ページ権限一覧", method: http.MethodGet,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/grants",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/grants",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/grants",
+		},
+		okStatus: http.StatusOK,
+	},
+	{
+		name: "ページ権限付与", method: http.MethodPut,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/grants/{target}",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/grants/{target}",
+			"/api/v2/kb/workspaces/{slug}/pages/{page}/grants/" + kbMissingID,
+		},
+		body: `{"role":"editor"}`, okStatus: http.StatusOK,
+	},
+	{
+		name: "ページ権限取り消し", method: http.MethodDelete,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/grants/{target}",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/grants/{target}",
+		},
+		okStatus: http.StatusNoContent,
+	},
+	{
 		name: "ページ例外の設定", method: http.MethodPut,
 		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability",
 		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
@@ -353,8 +381,11 @@ func Test_ノート権限API_ページを名指しする入口は結果によら
 	// 数えるのは問い合わせの回数そのもの。時間を測るテストは環境のノイズで揺れるので、
 	// 揺れない量で固定する。**特定の数と比べるのではなく、4 通りの内訳が互いに一致すること**を
 	// 見る。こうしておくと、別のメソッドで前段の確認が復活しても（回数が結果で変われば）落ちる。
-	restrictionPath := func(pageID string) string {
-		return "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + pageID + "/restrictions/"
+	//
+	// ページを名指しする入口は 1 本ではないので、**経路ごとに** 4 通りを回す。
+	// 1 本だけ見ていると、あとから足した口が gate より先にページを読んでいても気付けない。
+	pagePath := func(pageID string) string {
+		return "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + pageID
 	}
 
 	// snapshot は「権限の読み取り（メソッド名ごと）」と「ページの読み取り」の内訳。
@@ -370,6 +401,47 @@ func Test_ノート権限API_ページを名指しする入口は結果によら
 		return snapshot{permReads: reads, findPage: f.pages.findPageCalls}
 	}
 
+	// routes はページを名指しする権限操作の全経路。主体を URL に含むものは
+	// fixture の targetPrincipalID を後から差し込む。
+	routes := []struct {
+		name   string
+		method string
+		suffix func(f kbPermFixture) string
+		body   string
+	}{
+		{
+			name: "例外の設定", method: http.MethodPut,
+			suffix: func(f kbPermFixture) string { return "/restrictions/" + f.targetPrincipalID + "/view" },
+			body:   `{"mode":"deny"}`,
+		},
+		{
+			name: "例外の解除", method: http.MethodDelete,
+			suffix: func(f kbPermFixture) string { return "/restrictions/" + f.targetPrincipalID + "/view" },
+		},
+		{
+			name: "権限一覧", method: http.MethodGet,
+			suffix: func(kbPermFixture) string { return "/grants" },
+		},
+		{
+			name: "権限付与", method: http.MethodPut,
+			suffix: func(f kbPermFixture) string { return "/grants/" + f.targetPrincipalID },
+			body:   `{"role":"editor"}`,
+		},
+		{
+			name: "権限取り消し", method: http.MethodDelete,
+			suffix: func(f kbPermFixture) string { return "/grants/" + f.targetPrincipalID },
+		},
+		{
+			name: "共有リンク一覧", method: http.MethodGet,
+			suffix: func(kbPermFixture) string { return "/share-links" },
+		},
+		{
+			name: "共有リンク発行", method: http.MethodPost,
+			suffix: func(kbPermFixture) string { return "/share-links" },
+			body:   `{"capability":"view"}`,
+		},
+	}
+
 	cases := []struct {
 		name   string
 		role   *domain.GrantRole
@@ -381,35 +453,38 @@ func Test_ノート権限API_ページを名指しする入口は結果によら
 		{"存在しないページ・admin", kbGrantRolePtr(domain.GrantRoleAdmin), kbMissingID},
 	}
 
-	var want *snapshot
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newKbPermFixture(t, kbUserID, tc.role)
-			before := take(f)
+	for _, route := range routes {
+		t.Run(route.name, func(t *testing.T) {
+			var want *snapshot
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					f := newKbPermFixture(t, kbUserID, tc.role)
+					before := take(f)
 
-			w := f.do(t, http.MethodPut,
-				restrictionPath(tc.pageID)+f.targetPrincipalID+"/view", `{"mode":"deny"}`)
-			require.NotEqual(t, http.StatusInternalServerError, w.Code)
+					w := f.do(t, route.method, pagePath(tc.pageID)+route.suffix(f), route.body)
+					require.NotEqual(t, http.StatusInternalServerError, w.Code)
 
-			after := take(f)
-			got := snapshot{permReads: map[string]int{}, findPage: after.findPage - before.findPage}
-			for k, v := range after.permReads {
-				if d := v - before.permReads[k]; d != 0 {
-					got.permReads[k] = d
-				}
+					after := take(f)
+					got := snapshot{permReads: map[string]int{}, findPage: after.findPage - before.findPage}
+					for k, v := range after.permReads {
+						if d := v - before.permReads[k]; d != 0 {
+							got.permReads[k] = d
+						}
+					}
+
+					if want == nil {
+						want = &got
+						// 認可の前に対象を読まないこと自体も押さえる（読むと必ず回数が結果で揺れる）。
+						assert.Equal(t, 0, got.findPage, "認可より先にページを読まない")
+						// **絶対値も固定する。** 一致だけを見ると、入口が権限を一切引かずに
+						// 一律拒否する退行（全ケース 0 回）でも通ってしまう。
+						assert.Equal(t, map[string]int{"PagePermissionFactsForUser": 1}, got.permReads,
+							"引くのはページ経由の 1 回だけ")
+						return
+					}
+					assert.Equal(t, *want, got, "結果が違っても引く回数と内訳は同じであること")
+				})
 			}
-
-			if want == nil {
-				want = &got
-				// 認可の前に対象を読まないこと自体も押さえる（読むと必ず回数が結果で揺れる）。
-				assert.Equal(t, 0, got.findPage, "認可より先にページを読まない")
-				// **絶対値も固定する。** 一致だけを見ると、入口が権限を一切引かずに
-				// 一律拒否する退行（全ケース 0 回）でも通ってしまう。
-				assert.Equal(t, map[string]int{"PageSpaceScopeFactsForUser": 1}, got.permReads,
-					"引くのはページ経由の 1 回だけ")
-				return
-			}
-			assert.Equal(t, *want, got, "結果が違っても引く回数と内訳は同じであること")
 		})
 	}
 }
@@ -685,4 +760,26 @@ func Test_ノート権限API_アプリ内のsuperadminでも通らない(t *test
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.JSONEq(t, kbDenied, w.Body.String())
+}
+
+func Test_ノート権限API_fakeは非メンバーに既定の役割を届かせない(t *testing.T) {
+	// これは fake そのものの検査。本番は主体（principals の kind='user' の行）から
+	// 役割を集めるので、その行が無ければ何も集まらない。fake がそこを素通しにすると、
+	// **ほかのテストが軒並み緩くなる** — 「非メンバーは 1 本も通せない」を確かめている
+	// 検査が、実際には非メンバーを再現できていないまま緑になる。
+	//
+	// 入れ物の役割も、ページごとの上書きも、どちらも所属より先には効かないこと。
+	f := newKbFixture(kbCanEdit, kbUserID) // fallback は「誰でも編集できる」
+	f.perms.setScopeRole(kbSpaceID, kbSecondUserID, domain.GrantRoleAdmin)
+	f.perms.setPagePermission(kbChildPageID, kbSecondUserID, kbCanEdit)
+
+	facts, err := f.perms.PagePermissionFactsForUser(
+		t.Context(), kbWorkspaceID, kbChildPageID, kbSecondUserID,
+	)
+	require.NoError(t, err)
+
+	assert.False(t, facts.Member, "所属していない")
+	assert.Nil(t, facts.Role, "役割は 1 つも届かない")
+	assert.False(t, domain.ResolvePagePermission(*facts).CanManage)
+	assert.False(t, domain.ResolvePagePermission(*facts).CanView)
 }

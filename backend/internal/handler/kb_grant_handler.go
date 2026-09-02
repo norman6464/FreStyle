@@ -21,6 +21,9 @@ type KnowledgeBaseGrantHandler struct {
 	revokeWorkspaceRole *usecase.RevokeWorkspaceRoleUseCase
 	grantSpaceRole      *usecase.GrantSpaceRoleUseCase
 	revokeSpaceRole     *usecase.RevokeSpaceRoleUseCase
+	grantPageRole       *usecase.GrantPageRoleUseCase
+	revokePageRole      *usecase.RevokePageRoleUseCase
+	listPageGrants      *usecase.ListPageGrantsUseCase
 	setRestriction      *usecase.SetPageRestrictionUseCase
 	clearRestriction    *usecase.ClearPageRestrictionUseCase
 	canRemoveAdmin      *usecase.CanRemoveWorkspaceAdminUseCase
@@ -33,6 +36,9 @@ func NewKnowledgeBaseGrantHandler(
 	revokeWorkspaceRole *usecase.RevokeWorkspaceRoleUseCase,
 	grantSpaceRole *usecase.GrantSpaceRoleUseCase,
 	revokeSpaceRole *usecase.RevokeSpaceRoleUseCase,
+	grantPageRole *usecase.GrantPageRoleUseCase,
+	revokePageRole *usecase.RevokePageRoleUseCase,
+	listPageGrants *usecase.ListPageGrantsUseCase,
 	setRestriction *usecase.SetPageRestrictionUseCase,
 	clearRestriction *usecase.ClearPageRestrictionUseCase,
 	canRemoveAdmin *usecase.CanRemoveWorkspaceAdminUseCase,
@@ -43,6 +49,9 @@ func NewKnowledgeBaseGrantHandler(
 		revokeWorkspaceRole: revokeWorkspaceRole,
 		grantSpaceRole:      grantSpaceRole,
 		revokeSpaceRole:     revokeSpaceRole,
+		grantPageRole:       grantPageRole,
+		revokePageRole:      revokePageRole,
+		listPageGrants:      listPageGrants,
 		setRestriction:      setRestriction,
 		clearRestriction:    clearRestriction,
 		canRemoveAdmin:      canRemoveAdmin,
@@ -79,6 +88,25 @@ type kbSpaceGrantResponse struct {
 func toKbSpaceGrantResponse(g *domain.SpaceGrant) kbSpaceGrantResponse {
 	return kbSpaceGrantResponse{
 		SpaceID:     g.SpaceID,
+		PrincipalID: g.PrincipalID,
+		Role:        string(g.Role),
+		CreatedAt:   g.CreatedAt,
+		UpdatedAt:   g.UpdatedAt,
+	}
+}
+
+// kbPageGrantResponse はページの既定の役割 1 件の返却形。
+type kbPageGrantResponse struct {
+	PageID      string    `json:"pageId"      example:"0198a000-0000-7000-8000-000000000003"`
+	PrincipalID string    `json:"principalId" example:"0198a000-0000-7000-8000-00000000000a"`
+	Role        string    `json:"role"        example:"editor"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+func toKbPageGrantResponse(g *domain.PageGrant) kbPageGrantResponse {
+	return kbPageGrantResponse{
+		PageID:      g.PageID,
 		PrincipalID: g.PrincipalID,
 		Role:        string(g.Role),
 		CreatedAt:   g.CreatedAt,
@@ -338,6 +366,128 @@ func (h *KnowledgeBaseGrantHandler) RevokeSpaceRole(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// GrantPageRole はページでの既定の役割を主体に与える。
+//
+//	@Summary      ノート の ページ 権限 付与
+//	@Description  ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が 実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer を 張っ て も editor の まま)。 弱める に は 例外 (restriction) の deny を 使う。 呼べる の は その ページ の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。
+//	@Tags         knowledge-base
+//	@Accept       json
+//	@Produce      json
+//	@Param        workspaceSlug  path      string              true  "ワークスペース の slug"
+//	@Param        pageId         path      string              true  "ページ ID (UUID)"
+//	@Param        principalId    path      string              true  "主体 ID (UUID)"
+//	@Param        body           body      kbGrantRoleRequest  true  "役割 (admin / editor / commenter / viewer)"
+//	@Success      200            {object}  kbPageGrantResponse
+//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId} [put]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseGrantHandler) GrantPageRole(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePageAdmin(c, scope, pageID) {
+		return
+	}
+	limitKnowledgeBaseBody(c)
+	var req kbGrantRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	// 「最後の admin」の検査はここでも行わない。守っているのはワークスペースの admin が
+	// 0 人になることで、ページの grant をどう変えてもワークスペースの admin は
+	// 配下の全ページに届き続ける（RevokeSpaceRole と同じ理由）。
+	grant, err := h.grantPageRole.Execute(c.Request.Context(), usecase.GrantPageRoleInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		PrincipalID: c.Param("principalId"),
+		Role:        domain.GrantRole(req.Role),
+	})
+	if err != nil {
+		respondKbPermissionOperationErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toKbPageGrantResponse(grant))
+}
+
+// RevokePageRole はページでの既定の役割を剥がす（冪等）。
+//
+//	@Summary      ノート の ページ 権限 取り消し
+//	@Description  ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この ページ だけ 見せ ない」 は 例外 の deny で 表す)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
+//	@Param        pageId         path  string  true  "ページ ID (UUID)"
+//	@Param        principalId    path  string  true  "主体 ID (UUID)"
+//	@Success      204            "取り消し 済み"
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId} [delete]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseGrantHandler) RevokePageRole(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePageAdmin(c, scope, pageID) {
+		return
+	}
+	if err := h.revokePageRole.Execute(c.Request.Context(), usecase.RevokePageRoleInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		PrincipalID: c.Param("principalId"),
+	}); err != nil {
+		respondKbPermissionOperationErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ListPageGrants はそのページ自身に張られた既定の役割の一覧を返す。
+//
+//	@Summary      ノート の ページ 権限 一覧
+//	@Description  その ページ 自身 に 張ら れ た 既定 の 役割 を 返す (祖先 から 降り て くる 分 は 含ま ない)。 **「この ページ を 見 られる 人 の 一覧」 で は ない** — ワークスペース / スペース の grant で 届い て いる 相手 も、 祖先 の ページ に 張ら れ た grant で 届い て いる 相手 も 含ま れ ない。 空 で 返っ て き て も 「誰 も 見 られ ない」 で は なく 「この 段 で は 何 も 足し て い ない」 の 意味。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+//	@Tags         knowledge-base
+//	@Produce      json
+//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
+//	@Param        pageId         path  string  true  "ページ ID (UUID)"
+//	@Success      200            {array}   kbPageGrantResponse
+//	@Failure      401            {object}  errorResponse  "未 認証"
+//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
+//	@Failure      500            {object}  errorResponse  "DB 失敗"
+//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants [get]
+//	@Security     CookieAuth
+func (h *KnowledgeBaseGrantHandler) ListPageGrants(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePageAdmin(c, scope, pageID) {
+		return
+	}
+	grants, err := h.listPageGrants.Execute(c.Request.Context(), usecase.ListPageGrantsInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+	})
+	if err != nil {
+		respondKbPermissionOperationErr(c, err)
+		return
+	}
+	out := make([]kbPageGrantResponse, 0, len(grants))
+	for i := range grants {
+		out = append(out, toKbPageGrantResponse(&grants[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 // SetPageRestriction はページ以下だけ既定を上書きする例外を設定する。
 //
 //	@Summary      ノート の ページ 例外 設定
@@ -363,7 +513,7 @@ func (h *KnowledgeBaseGrantHandler) SetPageRestriction(c *gin.Context) {
 		return
 	}
 	pageID := c.Param("pageId")
-	if _, ok := h.requirePageAdmin(c, scope, pageID); !ok {
+	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
 	limitKnowledgeBaseBody(c)
@@ -409,7 +559,7 @@ func (h *KnowledgeBaseGrantHandler) ClearPageRestriction(c *gin.Context) {
 		return
 	}
 	pageID := c.Param("pageId")
-	if _, ok := h.requirePageAdmin(c, scope, pageID); !ok {
+	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
 	if err := h.clearRestriction.Execute(c.Request.Context(), usecase.ClearPageRestrictionInput{

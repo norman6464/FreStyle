@@ -175,7 +175,7 @@ func (h *KnowledgeBaseShareLinkHandler) ListShareLinks(c *gin.Context) {
 		return
 	}
 	pageID := c.Param("pageId")
-	if _, ok := h.requirePageAdmin(c, scope, pageID); !ok {
+	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
 	links, err := h.list.Execute(c.Request.Context(), usecase.ListPageShareLinksInput{
@@ -216,7 +216,7 @@ func (h *KnowledgeBaseShareLinkHandler) IssueShareLink(c *gin.Context) {
 		return
 	}
 	pageID := c.Param("pageId")
-	if _, ok := h.requirePageAdmin(c, scope, pageID); !ok {
+	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
 	limitKnowledgeBaseBody(c)
@@ -264,7 +264,7 @@ func (h *KnowledgeBaseShareLinkHandler) RevokeShareLink(c *gin.Context) {
 		return
 	}
 	pageID := c.Param("pageId")
-	if _, ok := h.requirePageAdmin(c, scope, pageID); !ok {
+	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
 	shareLinkID := c.Param("shareLinkId")

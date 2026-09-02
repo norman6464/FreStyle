@@ -89,6 +89,15 @@ type PagePermission struct {
 	CanView bool `json:"canView"`
 	// CanEdit はページを編集できるか。CanView が false のとき必ず false。
 	CanEdit bool `json:"canEdit"`
+	// CanManage はそのページの権限（grant / 例外 / 共有リンク）を変えられるか。
+	//
+	// **ほかの 2 つと違い、経路上の例外を見ない。** 見るのは届いている既定の役割だけで、
+	// 自分を deny したページでも true のままになる。そうしないと、管理者が自分を
+	// 締め出した瞬間にその例外を自分で戻せなくなる（閉じ込めを解く手段が消える）。
+	//
+	// 例外の層が admin を表せないことも理由の 1 つ。Capability は view / edit しか無く、
+	// 「この人だけ管理者から外す」は書けないので、見るべき例外がそもそも存在しない。
+	CanManage bool `json:"canManage"`
 }
 
 // defaultAllows は例外がまったく無いときに許されるか（既定）を返す。
@@ -148,7 +157,10 @@ func ResolvePagePermission(f PagePermissionFacts) PagePermission {
 	// 編集は閲覧を含む。閲覧できないページを編集できる状態は、UI でも監査でも説明できず、
 	// 「view だけ deny した」つもりが編集経路から中身を読めてしまう穴になる。
 	canEdit := canView && resolveCapability(f.defaultAllows(CapabilityEdit), f.Edit)
-	return PagePermission{CanView: canView, CanEdit: canEdit}
+	// 管理は例外を通さない（CanManage の doc に理由がある）。共有リンクの来訪者は
+	// 役割を持たないので、ここは必ず false になる。
+	canManage := f.Role != nil && f.Role.CanManage()
+	return PagePermission{CanView: canView, CanEdit: canEdit, CanManage: canManage}
 }
 
 // Allows は実効権限が指定のケイパビリティを満たすかを返す。

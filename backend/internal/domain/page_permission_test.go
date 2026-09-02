@@ -245,3 +245,55 @@ func Test_権限モデルの値の検証(t *testing.T) {
 	}
 	assert.False(t, domain.RestrictionMode("ignore").Valid())
 }
+
+func Test_ページ権限_管理は役割だけで決まり例外を通さない(t *testing.T) {
+	admin := domain.GrantRoleAdmin
+	editor := domain.GrantRoleEditor
+
+	t.Run("admin が届いていれば管理できる", func(t *testing.T) {
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true, Role: &admin})
+		assert.True(t, got.CanManage)
+	})
+
+	t.Run("editor では管理できない", func(t *testing.T) {
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true, Role: &editor})
+		assert.False(t, got.CanManage)
+		assert.True(t, got.CanEdit, "編集はできる")
+	})
+
+	t.Run("自分を deny したページでも管理は残る", func(t *testing.T) {
+		// ここが false になると、締め出しを張った本人がその例外を戻せなくなる
+		// （権限を変える口が、閲覧の例外に巻き込まれて閉じてしまう）。
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{
+			Member: true,
+			Role:   &admin,
+			View:   &domain.RestrictionFacts{DeniedAnywhere: true},
+			Edit:   &domain.RestrictionFacts{DeniedAnywhere: true},
+		})
+		assert.False(t, got.CanView, "閲覧は外れる")
+		assert.False(t, got.CanEdit)
+		assert.True(t, got.CanManage, "権限を変える口は開いたまま")
+	})
+
+	t.Run("限定公開で外されていても管理は残る", func(t *testing.T) {
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{
+			Member: true,
+			Role:   &admin,
+			View:   &domain.RestrictionFacts{HasAllowList: true, AllowedAtNearest: false},
+		})
+		assert.False(t, got.CanView)
+		assert.True(t, got.CanManage)
+	})
+
+	t.Run("共有リンクの来訪者は管理できない", func(t *testing.T) {
+		// リンクは役割を持たない（Role が nil）ので、edit のリンクでも管理には届かない。
+		edit := domain.CapabilityEdit
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{ShareLinkCapability: &edit})
+		assert.True(t, got.CanEdit)
+		assert.False(t, got.CanManage)
+	})
+
+	t.Run("役割が無ければ管理できない", func(t *testing.T) {
+		assert.False(t, domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true}).CanManage)
+	})
+}

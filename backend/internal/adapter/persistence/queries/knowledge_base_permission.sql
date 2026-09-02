@@ -149,6 +149,30 @@ SELECT * FROM space_grants
 WHERE workspace_id = $1 AND space_id = $2
 ORDER BY principal_id;
 
+-- name: UpsertPageGrant :one
+-- ページでの既定の役割の付与（同じ主体には 1 行だけ）。
+--
+-- 3 段目の既定で、このページとその子孫に効く。合成は他の 2 段と同じ「最も強いものを採る」
+-- なので、ここに弱い役割を張っても上位で得た強い役割は下がらない（弱める操作は
+-- page_restrictions の deny が担う）。
+INSERT INTO page_grants (workspace_id, page_id, principal_id, "role")
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (workspace_id, page_id, principal_id)
+DO UPDATE SET "role" = EXCLUDED."role", updated_at = now()
+RETURNING *;
+
+-- name: DeletePageGrant :execrows
+-- ページでの既定の役割の剥奪。
+DELETE FROM page_grants
+WHERE workspace_id = $1 AND page_id = $2 AND principal_id = $3;
+
+-- name: ListPageGrants :many
+-- そのページ自身に張られた grant の一覧（祖先から降りてくる分は含まない）。
+-- ListPageRestrictions と同じ見方で、返るのは「この段で足したもの」だけ。
+SELECT * FROM page_grants
+WHERE workspace_id = $1 AND page_id = $2
+ORDER BY principal_id;
+
 -- name: UpsertPageRestriction :one
 -- ページの例外の設定。同じ (ページ, 主体, ケイパビリティ) の行は 1 つだけなので、
 -- allow と deny を入れ替えるときも行は増えない。
@@ -727,87 +751,6 @@ JOIN principals p
 LEFT JOIN workspace_grants wg
   ON wg.workspace_id = w.id AND wg.principal_id = p.id
 ORDER BY w.slug;
-
--- name: ListPageSpaceScopeGrantRoles :many
--- そのページが属するスペースの「既定の役割」として自分に届いている役割を、
--- スペース ID と組で返す（事実だけ）。ListSpaceScopeGrantRoles のページ版。
---
--- # なぜページ版が要るのか（問い合わせの回数を一定にするため）
---
--- ページを名指しする権限操作の入口は、以前は 3 段だった:
--- ページを引く → スペースの実在を確かめる → 役割を集める。
--- どれも同じ 404 を返すのに、落ちる段で **DB の往復が 0 / 1 / 3 回に分かれる**。
--- 応答のバイト列を揃えても、返るまでの時間が違えば「そのページ ID が実在するか」が
--- 読めてしまう。存在の有無そのものが他人の情報なので、これは塞ぐべき差。
---
--- 1 回に畳むと、**ページが無い場合も役割が無い場合も等しく 0 行**になる。
--- どちらも呼び出し側では拒否に落ちるので、区別が付かないこと自体が正しい。
---
--- # スペースの実在をここで確かめなくてよい理由
---
--- ListSpaceScopeGrantRoles 側は、役割を集める前にスペースの実在を別途確かめている
--- （workspace_grants は配下の全スペースに届くので、確かめないと存在しないスペースにも
--- 役割が返ってしまう）。こちらはスペース ID を引数で受け取らず **ページから引く**ので、
--- その穴が構造上ありえない。pages と spaces には複合 FK が張ってあり、
--- ページが同じワークスペースに在ることが、そのスペースも同じワークスペースに在ることを保証する。
---
--- mine（自分に効く主体）の作り方は ListSpaceScopeGrantRoles と同じ。
--- 「全員」主体だけはスペース ID が要るので、pg から引いた値を使う。
-WITH pg AS (
-    -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
-    SELECT p.space_id, s.visibility AS space_visibility
-    FROM pages p
-    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
-    WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.id = sqlc.arg(page_id)
-),
-me AS (
-    SELECT pr.id
-    FROM principals pr
-    WHERE pr.workspace_id = sqlc.arg(workspace_id)
-      AND pr.kind = 'user' AND pr.user_id = sqlc.arg(user_id)
-),
-mine AS (
-    SELECT id FROM me
-    UNION
-    SELECT pm.group_principal_id
-    FROM principal_members pm
-    JOIN me ON me.id = pm.member_principal_id
-    WHERE pm.workspace_id = sqlc.arg(workspace_id)
-    UNION
-    SELECT sp.id
-    FROM principals sp
-    JOIN pg ON pg.space_id = sp.space_id
-    WHERE sp.workspace_id = sqlc.arg(workspace_id)
-      AND sp.kind = 'space_all'
-      AND pg.space_visibility = 'workspace'
-      AND EXISTS (SELECT 1 FROM me)
-)
--- ワークスペースの grant は visibility='workspace' のスペースにだけ届く
--- （private にはスペース単位の grant だけが届く）。スペースの grant と合わせて返す。
--- pg を JOIN しているので、ページが無ければどちらの枝も 0 行になる。
-SELECT pg.space_id, wg."role"
-  FROM workspace_grants wg
-  JOIN pg ON pg.space_visibility = 'workspace'
- WHERE wg.workspace_id = sqlc.arg(workspace_id)
-   AND wg.principal_id IN (SELECT id FROM mine)
-UNION
-SELECT pg.space_id, sg."role"
-  FROM space_grants sg
-  JOIN pg ON pg.space_id = sg.space_id
- WHERE sg.workspace_id = sqlc.arg(workspace_id)
-   AND sg.principal_id IN (SELECT id FROM mine)
-UNION
--- 経路上（自分と祖先）のページ付与も既定の役割として返す。ここを落とすと
--- 「そのページは編集できるのに、権限の画面には入れない」というずれになる
--- （このクエリは権限操作の入口が使う）。
-SELECT pg.space_id, pgr."role"
-  FROM page_grants pgr
-  JOIN page_paths pp
-    ON pp.workspace_id = pgr.workspace_id AND pp.ancestor_id = pgr.page_id
-  JOIN pg ON true
- WHERE pgr.workspace_id = sqlc.arg(workspace_id)
-   AND pp.page_id = sqlc.arg(page_id)
-   AND pgr.principal_id IN (SELECT id FROM mine);
 
 -- name: ListSpaceScopeGrantRoles :many
 -- そのスペースの「既定の役割」として自分に届いている役割をすべて返す（事実だけ）。

@@ -48,18 +48,6 @@ func (h *CourseHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
-// @Summary      コース 詳細
-// @Description  指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。
-// @Tags         courses
-// @Produce      json
-// @Param        id  path      int  true  "コース ID"
-// @Success      200  {object}  courseDetailResponse
-// @Failure      400  {object}  errorResponse  "id 不正"
-// @Failure      401  {object}  errorResponse  "未 認証"
-// @Failure      403  {object}  errorResponse  "操作 権限 なし"
-// @Failure      404  {object}  errorResponse  "コース が ない"
-// @Router       /courses/{id} [get]
-// @Security     CookieAuth
 // courseDetailResponse はコース詳細の返却形。
 //
 // usecase の型をそのまま返さないのは、内部の型を変えたときに HTTP の契約が
@@ -75,6 +63,18 @@ type courseDetailResponse struct {
 	CanManage bool `json:"canManage"`
 }
 
+// @Summary      コース 詳細
+// @Description  指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。
+// @Tags         courses
+// @Produce      json
+// @Param        id  path      int  true  "コース ID"
+// @Success      200  {object}  courseDetailResponse
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "操作 権限 なし"
+// @Failure      404  {object}  errorResponse  "コース が ない"
+// @Router       /courses/{id} [get]
+// @Security     CookieAuth
 func (h *CourseHandler) Get(c *gin.Context) {
 	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {

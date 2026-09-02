@@ -943,6 +943,62 @@ const docTemplate = `{
             }
         },
         "/courses/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース 詳細",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.courseDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
@@ -6964,6 +7020,54 @@ const docTemplate = `{
                 },
                 "invitationToken": {
                     "description": "InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.courseDetailResponse": {
+            "type": "object",
+            "properties": {
+                "canEdit": {
+                    "description": "CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。\n\n画面がアプリのロールで判断しないよう、可否はサーバーが答える\n（ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。",
+                    "type": "boolean"
+                },
+                "canManage": {
+                    "description": "CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。",
+                    "type": "boolean"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }

@@ -90,6 +90,8 @@ type courseFakeConfig struct {
 	rows   []domain.Course
 	get    *domain.Course
 	getErr error
+	// writeErr は書き込み（作成・付与）を失敗させる。
+	writeErr error
 }
 
 // courseRepo は CourseRepository の mock に、このクラスタが使う応答を設定して返す。
@@ -106,11 +108,14 @@ func courseRepo(cfg courseFakeConfig) (*mockCourseRepo, *courseStore) {
 		}).Return(nil).Maybe()
 	repo.On("CreateWithOwnerGrant", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
+			if cfg.writeErr != nil {
+				return // 書けていないので記録もしない
+			}
 			c := args.Get(1).(*domain.Course)
 			c.ID = 88
 			st.created = c
 			st.ownerPrincipalID = args.Get(2).(string)
-		}).Return(nil).Maybe()
+		}).Return(cfg.writeErr).Maybe()
 	repo.On("Update", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			st.updated = args.Get(1).(*domain.Course)
@@ -255,6 +260,12 @@ func Test_教材_更新は編集できる人だけ(t *testing.T) {
 		uc, _, _ := newMaterialUC(materialFactsConfig{member: true, workspaceAdmin: true}, existingChapter())
 		assert.NoError(t, update(uc))
 	})
+
+	t.Run("見えない章は実在を教えない", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{notFound: true}, existingChapter())
+		assert.ErrorIs(t, update(uc), domain.ErrNotFound)
+		assert.Nil(t, mstore.updated, "断ったのに書きに行っている")
+	})
 }
 
 func Test_教材_削除は編集できる人だけ(t *testing.T) {
@@ -270,6 +281,12 @@ func Test_教材_削除は編集できる人だけ(t *testing.T) {
 		}, existingChapter())
 		require.NoError(t, uc.Delete(context.Background(), 1, actorIn(wsA)))
 		assert.Equal(t, uint64(1), mstore.deleted)
+	})
+
+	t.Run("見えない章は実在を教えない", func(t *testing.T) {
+		uc, mstore, _ := newMaterialUC(materialFactsConfig{notFound: true}, existingChapter())
+		assert.ErrorIs(t, uc.Delete(context.Background(), 1, actorIn(wsA)), domain.ErrNotFound)
+		assert.Zero(t, mstore.deleted, "断ったのに消しに行っている")
 	})
 }
 

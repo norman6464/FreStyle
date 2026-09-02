@@ -1141,7 +1141,7 @@ export interface paths {
         };
         /**
          * コース 一覧 (進捗付き)
-         * @description current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。
+         * @description 見せ て よい コース だけ を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも、 下書き は その コース を 編集 できる 人 だけ に 見える。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 する (下書き の 章 を 数 に 含める の は、 その コース を 編集 できる 場合 だけ)。
          */
         get: {
             parameters: {
@@ -1184,7 +1184,7 @@ export interface paths {
         put?: never;
         /**
          * コース 作成
-         * @description company_admin / super_admin の み。 CompanyAdmin は 自社 固定。
+         * @description ワークスペース の 一員 なら 誰 でも 作れる。 作っ た 人 は その コース の admin に なる (コース と 付与 は 同じ トランザクション で 書く)。 未 所属 は 403。
          */
         post: {
             parameters: {
@@ -1253,7 +1253,7 @@ export interface paths {
         };
         /**
          * コース 詳細
-         * @description 指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。
+         * @description 指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。
          */
         get: {
             parameters: {
@@ -1316,7 +1316,7 @@ export interface paths {
         };
         /**
          * コース 更新
-         * @description 指定 id を 更新 (company_admin / super_admin)。
+         * @description その コース を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める (アプリ の ロール は 見 ない)。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
          */
         put: {
             parameters: {
@@ -1385,7 +1385,7 @@ export interface paths {
         post?: never;
         /**
          * コース 削除
-         * @description 指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。
+         * @description その コース を 編集 できる 人 だけ。 配下 の 教材 も 一緒 に 消える。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
          */
         delete: {
             parameters: {
@@ -1543,7 +1543,7 @@ export interface paths {
         };
         /**
          * コース内 教材 一覧
-         * @description 指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+         * @description 指定 コース 配下 の 教材 を 返す。 下書き が 混ざる の は その コース を 編集 できる 場合 だけ。 コース を 読め ない 相手 に は 404。
          */
         get: {
             parameters: {
@@ -3846,6 +3846,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ノート の ページ 権限 一覧
+         * @description その ページ 自身 に 張ら れ た 既定 の 役割 を 返す (祖先 から 降り て くる 分 は 含ま ない)。 **「この ページ を 見 られる 人 の 一覧」 で は ない** — ワークスペース / スペース の grant で 届い て いる 相手 も、 祖先 の ページ に 張ら れ た grant で 届い て いる 相手 も 含ま れ ない。 空 で 返っ て き て も 「誰 も 見 られ ない」 で は なく 「この 段 で は 何 も 足し て い ない」 の 意味。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageGrantResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * ノート の ページ 権限 付与
+         * @description ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が 実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer を 張っ て も editor の まま)。 弱める に は 例外 (restriction) の deny を 使う。 呼べる の は その ページ の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["internal_handler.kbGrantRoleRequest"];
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbPageGrantResponse"];
+                    };
+                };
+                /** @description バリデーション エラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * ノート の ページ 権限 取り消し
+         * @description ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この ページ だけ 見せ ない」 は 例外 の deny で 表す)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                    /** @description 主体 ID (UUID) */
+                    principalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消し 済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/kb/workspaces/{workspaceSlug}/pages/{pageId}/move": {
         parameters: {
             query?: never;
@@ -3943,6 +4151,77 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kb/workspaces/{workspaceSlug}/pages/{pageId}/principals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ノート の 権限 を 張れる 相手 の 一覧
+         * @description その ページ に 権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 リンク の 来訪者 を 表す 主体 (share_link) は 含ま ない — あれ は リンク の 発行 時 に 自動 で 作ら れる もの で、 人 が 選ん で 役割 を 与える 相手 で は ない。 名前 が 引け なかっ た 行 も 空文字 の まま 返す (一覧 から 黙っ て 消す と、 その 相手 に 張っ た 権限 が 画面 に 残っ た まま 選べ なく なる)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description ワークスペース の slug */
+                    workspaceSlug: string;
+                    /** @description ページ ID (UUID) */
+                    pageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.kbGrantablePrincipalResponse"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 権限 が 無い か 対象 が 無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6093,53 +6372,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * 教材 全 件 一覧 (deprecated)
-         * @deprecated
-         * @description backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"][];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description DB 失敗 */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
+        get?: never;
         put?: never;
         /**
          * 教材 作成
-         * @description company_admin / super_admin の み。 courseId 必須。
+         * @description その コース を 編集 できる 人 だけ。 courseId 必須。 コース を 読め ない 相手 に は 404、 読める が 編集 でき ない 場合 は 403。
          */
         post: {
             parameters: {
@@ -6208,7 +6445,7 @@ export interface paths {
         };
         /**
          * 教材 詳細
-         * @description 指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+         * @description 指定 id の 教材 を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す。
          */
         get: {
             parameters: {
@@ -6271,7 +6508,7 @@ export interface paths {
         };
         /**
          * 教材 更新
-         * @description 指定 id の 教材 を 更新 (company_admin / super_admin)。
+         * @description その 教材 を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
          */
         put: {
             parameters: {
@@ -6340,7 +6577,7 @@ export interface paths {
         post?: never;
         /**
          * 教材 削除
-         * @description 指定 id の 教材 を 削除 (company_admin / super_admin)。
+         * @description その 教材 を 編集 できる 人 だけ。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
          */
         delete: {
             parameters: {
@@ -7101,6 +7338,17 @@ export interface components {
              */
             role: string;
         };
+        "internal_handler.kbGrantablePrincipalResponse": {
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            id?: string;
+            /** @example user */
+            kind?: string;
+            /**
+             * @description Name は表示名。引けなかった場合は空文字（行は落とさない）。
+             * @example 田中 太郎
+             */
+            name?: string;
+        };
         "internal_handler.kbIssueShareLinkRequest": {
             /**
              * @description Capability はリンク経由でできることの既定（view / edit）。
@@ -7150,6 +7398,16 @@ export interface components {
         "internal_handler.kbPageDocResponse": {
             doc?: Record<string, never>;
             page?: components["schemas"]["internal_handler.kbPageResponse"];
+        };
+        "internal_handler.kbPageGrantResponse": {
+            createdAt?: string;
+            /** @example 0198a000-0000-7000-8000-000000000003 */
+            pageId?: string;
+            /** @example 0198a000-0000-7000-8000-00000000000a */
+            principalId?: string;
+            /** @example editor */
+            role?: string;
+            updatedAt?: string;
         };
         "internal_handler.kbPageResponse": {
             archivedAt?: string;
@@ -7236,6 +7494,12 @@ export interface components {
         "internal_handler.kbResolvedPageResponse": {
             ancestors?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.AncestorRef"][];
             canEdit?: boolean;
+            /**
+             * @description CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
+             *     経路上の例外を見ないので、自分を deny したページでも true のまま返る
+             *     （domain.PagePermission.CanManage の doc に理由がある）。
+             */
+            canManage?: boolean;
             doc?: Record<string, never>;
             page?: components["schemas"]["internal_handler.kbPageResponse"];
             /** @example 開発チーム */

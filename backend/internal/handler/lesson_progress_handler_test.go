@@ -163,7 +163,7 @@ func Test_進捗ハンドラ_完了_正常系(t *testing.T) {
 	}
 }
 
-func Test_進捗ハンドラ_完了_別ワークスペースの教材は403(t *testing.T) {
+func Test_進捗ハンドラ_完了_別ワークスペースの教材は404(t *testing.T) {
 	mat, crs := publishedMaterial(9) // workspace lessonProgressWsA の教材
 	// 別ワークスペースから引くと対象そのものが見つからない（テナントを跨げない）。
 	r := newLessonProgressEngine(engineOpts{
@@ -171,8 +171,9 @@ func Test_進捗ハンドラ_完了_別ワークスペースの教材は403(t *t
 		perm: &fakeMaterialPerm{notFound: true},
 	})
 	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	// 404 であること。403 だと、存在しない ID（404）との差から他社の教材の実在が読める。
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 

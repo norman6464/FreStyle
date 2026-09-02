@@ -24,7 +24,7 @@ func NewTeachingMaterialHandler(uc *usecase.TeachingMaterialUseCase) *TeachingMa
 // ListByCourse はコース配下の教材を返す（path の :id はコース ID）。
 //
 //	@Summary      コース内 教材 一覧
-//	@Description  指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+//	@Description  指定 コース 配下 の 教材 を 返す。 下書き が 混ざる の は その コース を 編集 できる 場合 だけ。 コース を 読め ない 相手 に は 404。
 //	@Tags         teaching-materials
 //	@Produce      json
 //	@Param        id  path      int  true  "コース ID"
@@ -54,7 +54,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 }
 
 // @Summary      教材 詳細
-// @Description  指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+// @Description  指定 id の 教材 を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す。
 // @Tags         teaching-materials
 // @Produce      json
 // @Param        id  path      int  true  "教材 ID"
@@ -182,7 +182,7 @@ type teachingMaterialUpdateRequest struct {
 }
 
 // @Summary      教材 作成
-// @Description  company_admin / super_admin の み。 courseId 必須。
+// @Description  その コース を 編集 できる 人 だけ。 courseId 必須。 コース を 読め ない 相手 に は 404、 読める が 編集 でき ない 場合 は 403。
 // @Tags         teaching-materials
 // @Accept       json
 // @Produce      json
@@ -218,7 +218,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 }
 
 // @Summary      教材 更新
-// @Description  指定 id の 教材 を 更新 (company_admin / super_admin)。
+// @Description  その 教材 を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
 // @Tags         teaching-materials
 // @Accept       json
 // @Produce      json
@@ -261,7 +261,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 }
 
 // @Summary      教材 削除
-// @Description  指定 id の 教材 を 削除 (company_admin / super_admin)。
+// @Description  その 教材 を 編集 できる 人 だけ。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
 // @Tags         teaching-materials
 // @Produce      json
 // @Param        id  path  int  true  "教材 ID"

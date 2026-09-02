@@ -64,8 +64,10 @@ func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonC
 	}
 	perm, err := u.perm.Chapter(ctx, workspaceID, in.TeachingMaterialID, in.UserID)
 	if err != nil {
+		// 引けない対象は「無い」で返す。ここを 403 にすると、存在しない ID は 404・
+		// 別テナントに実在する ID は 403 となり、応答の差から他社の教材の実在が分かる。
 		if errors.Is(err, domain.ErrNotFound) {
-			return ErrLessonForbidden
+			return ErrLessonNotFound
 		}
 		return err
 	}

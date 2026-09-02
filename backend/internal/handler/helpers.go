@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
@@ -33,7 +34,10 @@ func respondEntityErr(c *gin.Context, err error, notFoundMsg, fallback string) {
 		c.JSON(http.StatusNotFound, gin.H{"error": notFoundMsg})
 		return
 	}
-	if strings.HasPrefix(err.Error(), "forbidden") || err.Error() == "actor must belong to a workspace" {
+	// 教材の拒否はセンチネルで判定する。文字列の前方一致に頼ると、message を
+	// 変えただけで 403 が 500 に化ける（実際 "material forbidden" は前方一致しない）。
+	if errors.Is(err, usecase.ErrMaterialForbidden) ||
+		strings.HasPrefix(err.Error(), "forbidden") || err.Error() == "actor must belong to a workspace" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "操作権限がありません"})
 		return
 	}

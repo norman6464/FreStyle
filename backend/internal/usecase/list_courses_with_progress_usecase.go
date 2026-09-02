@@ -57,39 +57,61 @@ func (u *ListCoursesWithProgressUseCase) Execute(ctx context.Context, in ListCou
 	}
 	// 見せてよいコースだけに絞る。規則は domain が持つので、ここでは答えを使うだけ。
 	rows := make([]domain.Course, 0, len(facts))
-	// 下書きの章まで数えてよいのは、そのコースを編集できる人だけ。1 つでもあれば
-	// 章数の集計は下書き込みで引き、コースごとに数え直さない。
-	includeUnpublished := false
+	// 下書きの章まで数えてよいのは、**そのコースを編集できる人だけ**。
+	// 1 つでも編集できれば全部を下書き込みで数える、としてはいけない。閲覧しかできない
+	// コースの下書き章数まで数に出てしまい、そのコースに何本の下書きがあるかが漏れる。
+	editable := make(map[uint64]bool, len(facts))
 	for _, f := range facts {
 		perm := domain.ResolveMaterialPermission(f.Facts)
 		if !perm.CanView {
 			continue
 		}
 		rows = append(rows, f.Course)
-		if perm.CanEdit {
-			includeUnpublished = true
-		}
+		editable[f.Course.ID] = perm.CanEdit
 	}
-	materialCounts, err := u.materials.CountByCourseForWorkspace(ctx, workspaceID, includeUnpublished)
+
+	// 公開だけの数と下書き込みの数を両方引き、コースごとに選ぶ。
+	// 2 回引くが、どちらもワークスペース単位の集計 1 回なのでコース数には依存しない。
+	publishedCounts, err := u.materials.CountByCourseForWorkspace(ctx, workspaceID, false)
 	if err != nil {
 		return nil, err
 	}
-	completedCounts := map[uint64]int{}
-	if !includeUnpublished {
-		// 完了記録を持つのは受講者のみ。管理ロールでは 1 クエリ節約する。
-		completedCounts, err = u.progress.CountCompletedByUserGroupedByCourse(ctx, in.ActorUserID)
+	allCounts := publishedCounts
+	if anyEditable(editable) {
+		allCounts, err = u.materials.CountByCourseForWorkspace(ctx, workspaceID, true)
 		if err != nil {
 			return nil, err
 		}
 	}
+	// 完了記録は常に引く。編集できるコースが 1 つでもあると省く、としていたため、
+	// 受講もしている人の進捗が全コースで 0 に見えていた。
+	completedCounts, err := u.progress.CountCompletedByUserGroupedByCourse(ctx, in.ActorUserID)
+	if err != nil {
+		return nil, err
+	}
 	// 0 件時も JSON で null にならないよう必ず空スライスを返す(FRESTYLE-70 と同じ理由)。
 	out := make([]CourseWithProgress, 0, len(rows))
 	for _, c := range rows {
+		count := publishedCounts[c.ID]
+		if editable[c.ID] {
+			count = allCounts[c.ID]
+		}
 		out = append(out, CourseWithProgress{
 			Course:         c,
-			MaterialCount:  materialCounts[c.ID],
+			MaterialCount:  count,
 			CompletedCount: completedCounts[c.ID],
 		})
 	}
 	return out, nil
+}
+
+// anyEditable は編集できるコースが 1 つでもあるかを返す。
+// 1 つも無いなら下書き込みの集計を引かずに済む（引いても使わない）。
+func anyEditable(editable map[uint64]bool) bool {
+	for _, ok := range editable {
+		if ok {
+			return true
+		}
+	}
+	return false
 }

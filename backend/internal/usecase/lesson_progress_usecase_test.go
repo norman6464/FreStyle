@@ -86,17 +86,20 @@ func Test_レッスン完了_読める教材はcourse_idを解決して記録す
 	assert.Equal(t, uint64(99), pstore.completed[5]) // 教材の course_id が使われる
 }
 
-func Test_レッスン完了_別ワークスペースの教材は403相当で弾く(t *testing.T) {
+func Test_レッスン完了_別ワークスペースの教材は実在を教えない(t *testing.T) {
 	progress, pstore := progressRepo(progressFakeConfig{})
-	mat, _ := publishedSetup(5, 99)                // wsA の教材
-	permCfg := materialFactsConfig{notFound: true} // 別テナントからは引けない
+	mat, _ := publishedSetup(5, 99) // wsA の教材
+	// 別テナントからは引けない。**403 ではなく 404 に落とす** — 403 にすると、
+	// 存在しない ID は 404・別テナントに実在する ID は 403 となり、応答の差から
+	// 他社の教材の実在が分かる。
+	permCfg := materialFactsConfig{notFound: true}
 	_, perm := materialPerm(permCfg)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, &nopActivityRepo{}, perm)
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), TeachingMaterialID: 5, // 別 workspace
 	})
-	assert.ErrorIs(t, err, usecase.ErrLessonForbidden)
+	assert.ErrorIs(t, err, usecase.ErrLessonNotFound)
 	assert.Empty(t, pstore.completed)
 }
 

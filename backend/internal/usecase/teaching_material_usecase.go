@@ -38,7 +38,11 @@ func NewTeachingMaterialUseCase(
 func (uc *TeachingMaterialUseCase) requireChapter(
 	ctx context.Context, in MaterialActor, chapterID uint64, want func(domain.MaterialPermission) bool,
 ) error {
-	perm, err := uc.chapterPermission(ctx, in, chapterID)
+	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return domain.ErrNotFound
+	}
+	perm, err := uc.chapterPermission(ctx, workspaceID, chapterID, in.ActorUserID)
 	if err != nil {
 		return err
 	}
@@ -48,15 +52,29 @@ func (uc *TeachingMaterialUseCase) requireChapter(
 	return nil
 }
 
-// chapterPermission は章の実効権限を返す。見えない相手には domain.ErrNotFound。
-func (uc *TeachingMaterialUseCase) chapterPermission(
-	ctx context.Context, in MaterialActor, chapterID uint64,
+// coursePermission はコースの実効権限を返す。見えない相手には domain.ErrNotFound。
+//
+// 一覧（読む）と作成（書く）の両方から通す。手順が 2 つに分かれていると、片方だけを
+// 直したときに同じコースの可否が経路で食い違う — 認可で最も起こりやすい穴。
+// 未所属の扱いだけは呼び出し側に残す（作る操作には隠す対象がまだ無いため）。
+func (uc *TeachingMaterialUseCase) coursePermission(
+	ctx context.Context, workspaceID string, courseID, userID uint64,
 ) (*domain.MaterialPermission, error) {
-	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
-	if !affiliated {
+	perm, err := uc.perm.Course(ctx, workspaceID, courseID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !perm.CanView {
 		return nil, domain.ErrNotFound
 	}
-	perm, err := uc.perm.Chapter(ctx, workspaceID, chapterID, in.ActorUserID)
+	return perm, nil
+}
+
+// chapterPermission は章の実効権限を返す。見えない相手には domain.ErrNotFound。
+func (uc *TeachingMaterialUseCase) chapterPermission(
+	ctx context.Context, workspaceID string, chapterID, userID uint64,
+) (*domain.MaterialPermission, error) {
+	perm, err := uc.perm.Chapter(ctx, workspaceID, chapterID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +107,9 @@ func (uc *TeachingMaterialUseCase) ListByCourse(
 	if !affiliated {
 		return nil, domain.ErrNotFound
 	}
-	perm, err := uc.perm.Course(ctx, workspaceID, courseID, actor.ActorUserID)
+	perm, err := uc.coursePermission(ctx, workspaceID, courseID, actor.ActorUserID)
 	if err != nil {
 		return nil, err
-	}
-	if !perm.CanView {
-		return nil, domain.ErrNotFound
 	}
 	return uc.repo.ListByCourse(ctx, courseID, perm.CanEdit)
 }
@@ -103,9 +118,13 @@ func (uc *TeachingMaterialUseCase) ListByCourse(
 func (uc *TeachingMaterialUseCase) Get(
 	ctx context.Context, id uint64, actor MaterialActor,
 ) (*domain.TeachingMaterial, error) {
-	if err := uc.requireChapter(ctx, actor, id, func(p domain.MaterialPermission) bool {
-		return p.CanView
-	}); err != nil {
+	// 見えることだけが条件なので chapterPermission を直に通す。
+	// requireChapter に「常に true」の述語を渡すと、そこで何かを見ているように読める。
+	workspaceID, affiliated := actor.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return nil, domain.ErrNotFound
+	}
+	if _, err := uc.chapterPermission(ctx, workspaceID, id, actor.ActorUserID); err != nil {
 		return nil, err
 	}
 	return uc.repo.GetByID(ctx, id)
@@ -132,12 +151,9 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 	if !affiliated {
 		return nil, ErrMaterialForbidden
 	}
-	perm, err := uc.perm.Course(ctx, workspaceID, in.CourseID, in.ActorUserID)
+	perm, err := uc.coursePermission(ctx, workspaceID, in.CourseID, in.ActorUserID)
 	if err != nil {
 		return nil, err
-	}
-	if !perm.CanView {
-		return nil, domain.ErrNotFound
 	}
 	if !perm.CanEdit {
 		return nil, ErrMaterialForbidden

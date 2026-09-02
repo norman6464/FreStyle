@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -86,6 +87,21 @@ func Test_コース_一員なら作れて作成者がadminになる(t *testing.T
 		"0198a000-0000-7000-8000-0000000000a1")
 	// 付与を伴わない Create は使わない（使うと権限の無いコースが残る）。
 	crepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+}
+
+func Test_コース_付与に失敗したら作成も失敗する(t *testing.T) {
+	// コースだけ出来て誰も扱えない、という状態を返さないこと。
+	crepo, _ := courseRepo(courseFakeConfig{writeErr: errors.New("db")})
+	mrepo, _ := materialRepo(materialFakeConfig{})
+	_, perm := materialPerm(materialFactsConfig{})
+	uc := usecase.NewCourseUseCase(crepo, mrepo, perm, principalsFor(true))
+
+	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		MaterialActor: actorIn(wsA),
+		Title:         "Web 基礎", Category: domain.ValidCourseCategories[0],
+	})
+	require.Error(t, err)
+	assert.Nil(t, got, "失敗したのにコースを返している")
 }
 
 func Test_コース_分類が既知でなければ作れない(t *testing.T) {

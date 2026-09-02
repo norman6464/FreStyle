@@ -49,9 +49,11 @@ func (u *CheckMaterialPermissionUseCase) Chapter(
 	return &perm, nil
 }
 
-// ErrMaterialForbidden は教材に対して権限が足りないときに返す。
+// ErrMaterialForbidden は「見えてはいるが、その操作をする権限が無い」ときに返す。
+// handler はこれを 403 に写す。
 //
-// 「無い」と「見えない」を撃ち分けないため、呼び出し側（handler）はこれと
-// domain.ErrNotFound を同じ応答へ落とす。撃ち分けると、ID を総当たりするだけで
-// 隠した教材の実在が分かる。
+// **見えない相手には返さない。** そちらは domain.ErrNotFound（404）で、
+// 「無い」と「見えない」を同じ応答に揃える。撃ち分けると、ID を総当たりするだけで
+// 隠した教材の実在が分かる。既に見えている相手に理由を返すのは、実在を知っている
+// 以上なにも漏れないため。
 var ErrMaterialForbidden = errors.New("material forbidden")

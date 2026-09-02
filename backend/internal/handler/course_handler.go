@@ -24,7 +24,7 @@ func NewCourseHandler(
 }
 
 // @Summary      コース 一覧 (進捗付き)
-// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。
+// @Description  見せ て よい コース だけ を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも、 下書き は その コース を 編集 できる 人 だけ に 見える。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 する (下書き の 章 を 数 に 含める の は、 その コース を 編集 できる 場合 だけ)。
 // @Tags         courses
 // @Produce      json
 // @Success      200  {array}   usecase.CourseWithProgress
@@ -48,7 +48,7 @@ func (h *CourseHandler) List(c *gin.Context) {
 }
 
 // @Summary      コース 詳細
-// @Description  指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。
+// @Description  指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。
 // @Tags         courses
 // @Produce      json
 // @Param        id  path      int  true  "コース ID"
@@ -131,7 +131,7 @@ type courseRequest struct {
 }
 
 // @Summary      コース 作成
-// @Description  company_admin / super_admin の み。 CompanyAdmin は 自社 固定。
+// @Description  ワークスペース の 一員 なら 誰 でも 作れる。 作っ た 人 は その コース の admin に なる (コース と 付与 は 同じ トランザクション で 書く)。 未 所属 は 403。
 // @Tags         courses
 // @Accept       json
 // @Produce      json
@@ -169,7 +169,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 }
 
 // @Summary      コース 更新
-// @Description  指定 id を 更新 (company_admin / super_admin)。
+// @Description  その コース を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める (アプリ の ロール は 見 ない)。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
 // @Tags         courses
 // @Accept       json
 // @Produce      json
@@ -215,7 +215,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 }
 
 // @Summary      コース 削除
-// @Description  指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。
+// @Description  その コース を 編集 できる 人 だけ。 配下 の 教材 も 一緒 に 消える。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
 // @Tags         courses
 // @Produce      json
 // @Param        id  path  int  true  "コース ID"

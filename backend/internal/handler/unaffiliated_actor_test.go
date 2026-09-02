@@ -55,27 +55,29 @@ func Test_未所属actor_教材の経路は何も通らない(t *testing.T) {
 		}
 	})
 
-	t.Run("作成は通らない", func(t *testing.T) {
+	// 書き込みも返るコードを固定する。「成功ではない」だけだと 500 でも通ってしまい、
+	// 拒否のセンチネルが 403 / 404 に写らなくなった退行を拾えない。
+	t.Run("作成は 403（作る操作には隠す対象がまだ無い）", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPost, `{"courseId":5,"title":"t"}`, nil, unaffiliatedSuperAdmin())
 		newTM().Create(c)
-		if w.Code == http.StatusOK || w.Code == http.StatusCreated {
-			t.Fatalf("未所属で教材を作れてしまった: %d", w.Code)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("want 403, got %d", w.Code)
 		}
 	})
 
-	t.Run("更新は通らない", func(t *testing.T) {
+	t.Run("更新は 404（実在を教えない）", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"t"}`, idParam("9"), unaffiliatedSuperAdmin())
 		newTM().Update(c)
-		if w.Code == http.StatusOK {
-			t.Fatalf("未所属で教材を書き換えられてしまった: %d", w.Code)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d", w.Code)
 		}
 	})
 
-	t.Run("削除は通らない", func(t *testing.T) {
+	t.Run("削除も 404", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodDelete, "", idParam("9"), unaffiliatedSuperAdmin())
 		newTM().Delete(c)
-		if w.Code == http.StatusNoContent {
-			t.Fatalf("未所属で教材を消せてしまった: %d", w.Code)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d", w.Code)
 		}
 	})
 }
@@ -105,24 +107,27 @@ func Test_未所属actor_コースの経路は何も通らない(t *testing.T) {
 		}
 	})
 
-	t.Run("作成は通らない", func(t *testing.T) {
+	t.Run("作成は 403（作る操作には隠す対象がまだ無い）", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPost, `{"title":"t","category":"`+domain.ValidCourseCategories[0]+`"}`, nil, unaffiliatedSuperAdmin())
 		h().Create(c)
-		if w.Code == http.StatusCreated || w.Code == http.StatusOK {
-			t.Fatalf("未所属でコースを作れてしまった: %d", w.Code)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("want 403, got %d", w.Code)
 		}
 	})
 
-	t.Run("更新・削除も通らない", func(t *testing.T) {
+	t.Run("更新は 404（実在を教えない）", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"t","category":"`+domain.ValidCourseCategories[0]+`"}`, idParam("5"), unaffiliatedSuperAdmin())
 		h().Update(c)
-		if w.Code == http.StatusOK {
-			t.Fatalf("未所属でコースを書き換えられてしまった: %d", w.Code)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d", w.Code)
 		}
-		w2, c2 := ctxJSON(http.MethodDelete, "", idParam("5"), unaffiliatedSuperAdmin())
-		h().Delete(c2)
-		if w2.Code == http.StatusNoContent {
-			t.Fatalf("未所属でコースを消せてしまった: %d", w2.Code)
+	})
+
+	t.Run("削除も 404", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodDelete, "", idParam("5"), unaffiliatedSuperAdmin())
+		h().Delete(c)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d", w.Code)
 		}
 	})
 

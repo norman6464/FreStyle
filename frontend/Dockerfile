@@ -46,9 +46,14 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
 # 認可の設定が空のままイメージを作らせない。空でビルドすると、起動はするのに
 # 誰もログインできないものが出来上がり、原因が実行時まで分からない。
 # END_SESSION は空でも動く設計（未設定なら発行者側のログアウトへ飛ばさない）なので除く。
-RUN test -n "$VITE_OIDC_AUTHORIZE_URI" || (echo "VITE_OIDC_AUTHORIZE_URI is required" >&2; exit 1) \
- && test -n "$VITE_OIDC_CLIENT_ID"     || (echo "VITE_OIDC_CLIENT_ID is required" >&2; exit 1) \
- && test -n "$VITE_OIDC_REDIRECT_URI"  || (echo "VITE_OIDC_REDIRECT_URI is required" >&2; exit 1)
+# && と || は左結合なので、1 本の連鎖に並べると「最初の 1 つが空」でも
+# 後続のエラー分岐まで実行され、出力が実際の未設定値と食い違う。
+# 空のものだけを集めて 1 度に報告する。
+RUN missing=""; \
+    for k in VITE_OIDC_AUTHORIZE_URI VITE_OIDC_CLIENT_ID VITE_OIDC_REDIRECT_URI; do \
+      eval "v=\$$k"; [ -n "$v" ] || missing="$missing $k"; \
+    done; \
+    if [ -n "$missing" ]; then echo "required build args are empty:$missing" >&2; exit 1; fi
 
 RUN pnpm run build
 

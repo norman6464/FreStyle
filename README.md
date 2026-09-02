@@ -34,8 +34,8 @@ backend を起動し直す。**認証の設定が欠けていると backend は�
 | 認証の管理画面 | http://zitadel.localhost:8081/ui/console |
 | 受信メール | http://localhost:8025 |
 
-初期管理者は `admin@frestyle.local`。パスワードは `docker-compose.yml` の
-`ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD`（手元専用の固定値）を見る。
+初期管理者は `admin@frestyle.local`。パスワードは `.env` の
+`LOCAL_ZITADEL_ADMIN_PASSWORD` で決める（未設定なら手元専用の既定値が入る）。
 
 ### 認証の構成
 

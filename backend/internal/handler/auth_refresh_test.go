@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -168,11 +167,21 @@ func newFailingRefreshHandler(t *testing.T, idp *testIdP, status int, body strin
 	}
 }
 
-// clearsAuthCookies は、失効させる Set-Cookie が出ているかを返す。
+// clearsAuthCookies は、両方の認証 Cookie が **失効させられている** かを返す。
+//
+// 名前があるかだけを見てはいけない。通常の値で再発行する回帰でも通ってしまい、
+// 「消したつもりで消えていない」を捕まえられない。
 func clearsAuthCookies(rec *httptest.ResponseRecorder) bool {
-	raw := strings.Join(rec.Result().Header.Values("Set-Cookie"), " | ")
-	return strings.Contains(raw, middleware.CookieRefreshToken) &&
-		strings.Contains(raw, middleware.CookieAccessToken)
+	expired := map[string]bool{}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name != middleware.CookieAccessToken && c.Name != middleware.CookieRefreshToken {
+			continue
+		}
+		if c.MaxAge < 0 || (!c.Expires.IsZero() && c.Expires.Before(time.Now())) {
+			expired[c.Name] = true
+		}
+	}
+	return expired[middleware.CookieAccessToken] && expired[middleware.CookieRefreshToken]
 }
 
 // その refresh_token がもう使えないと分かったときは、Cookie を消してログインへ戻す。
@@ -202,6 +211,11 @@ func Test_リフレッシュ_一時的な失敗ではCookieを消さない(t *te
 		{"絞られた（429）", http.StatusTooManyRequests, `{"error":"slow_down"}`},
 		{"発行者が落ちている（500）", http.StatusInternalServerError, `{"error":"server_error"}`},
 		{"上流が詰まっている（503）", http.StatusServiceUnavailable, ``},
+		// 400 / 401 でも、原因が設定なら利用者のトークンは生きている。
+		// 状態コードだけで判断すると、設定を 1 つ間違えた瞬間に全員がログアウトする。
+		{"要求の組み立てが悪い（400 invalid_request）", http.StatusBadRequest, `{"error":"invalid_request"}`},
+		{"クライアント設定が悪い（401 invalid_client）", http.StatusUnauthorized, `{"error":"invalid_client"}`},
+		{"本文が読めない（400）", http.StatusBadRequest, `<html>gateway error</html>`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			idp := newTestIdP(t)

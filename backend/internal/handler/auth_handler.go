@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"log/slog"
@@ -378,16 +379,22 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 
 // isUnrecoverableGrantError は「その refresh_token はもう使えない」と言い切れる失敗かを返す。
 //
-// OAuth2 は、grant そのものが無効なときに 400 と invalid_grant を返す（RFC 6749 §5.2）。
-// 401 も資格の問題なので同じ扱いにする。それ以外（429 / 5xx / 想定外）は
-// 「今は無理」であって「もう使えない」ではないので、手元の Cookie を捨てない。
+// **状態コードだけでは決められない。** OAuth2 は grant が無効なときに 400 を返すが
+// （RFC 6749 §5.2）、同じ 400 は invalid_request（こちらの組み立て方が悪い）でも返るし、
+// 401 は invalid_client（クライアントの設定が悪い）で返る。どちらも設定の問題であって、
+// 利用者の refresh_token は生きている。ここで消すと、設定を 1 つ間違えた瞬間に
+// 全利用者がログアウトさせられる。
+//
+// 消してよいのは error が invalid_grant のときだけ。本文が読めない・別の error なら
+// 消さない（分からないときは手元の資格を残す側に倒す）。
 func isUnrecoverableGrantError(e *oidc.TokenExchangeError) bool {
-	switch e.HTTPStatus {
-	case http.StatusBadRequest, http.StatusUnauthorized:
-		return true
-	default:
+	var body struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(e.Body), &body); err != nil {
 		return false
 	}
+	return body.Error == "invalid_grant"
 }
 
 // errIDTokenRejected は id_token の署名・クレーム検証に落ちたことを表す。

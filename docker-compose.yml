@@ -246,7 +246,10 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin@frestyle.local
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: admin@frestyle.local
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: 'true'
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: 'Password1!'
+      # 手元専用の初期パスワード。DB の資格（LOCAL_DB_PASSWORD）と同じ扱いで、
+      # .env に書けば差し替えられる。既定値は「手元の localhost にしか効かない」
+      # 前提のもの。**手元より外へ出す構成では必ず .env で上書きする。**
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${LOCAL_ZITADEL_ADMIN_PASSWORD:-Password1!}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: 'false'
 
       # 機械ユーザーと個人アクセストークン（PAT）を初期化時に作る。

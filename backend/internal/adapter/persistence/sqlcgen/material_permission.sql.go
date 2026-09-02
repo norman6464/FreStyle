@@ -8,6 +8,7 @@ package sqlcgen
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -78,6 +79,113 @@ func (q *Queries) ListChapterGrants(ctx context.Context, arg ListChapterGrantsPa
 			&i.Role,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCourseFactsForUser = `-- name: ListCourseFactsForUser :many
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = $1
+      AND pr.kind = 'user' AND pr.user_id = $2
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = $1
+),
+ranks AS (
+    SELECT cg.course_id,
+           max(CASE cg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
+    FROM course_grants cg
+    WHERE cg.workspace_id = $1
+      AND cg.principal_id IN (SELECT id FROM mine)
+    GROUP BY cg.course_id
+)
+SELECT c.id, c.created_by_user_id, c.title, c.description, c.category, c.language, c.sort_order, c.is_published, c.created_at, c.updated_at, c.workspace_id,
+    EXISTS (SELECT 1 FROM me) AS is_member,
+    EXISTS (
+        SELECT 1 FROM workspace_grants wg
+         WHERE wg.workspace_id = $1
+           AND wg.principal_id IN (SELECT id FROM mine)
+           AND wg."role" = 'admin'
+    ) AS is_workspace_admin,
+    COALESCE(r.rank, 0)::integer AS grant_rank
+FROM courses c
+LEFT JOIN ranks r ON r.course_id = c.id
+WHERE c.workspace_id = $1
+ORDER BY c.sort_order, c.id
+`
+
+type ListCourseFactsForUserParams struct {
+	WorkspaceID uuid.UUID
+	UserID      sql.NullInt64
+}
+
+type ListCourseFactsForUserRow struct {
+	ID               int64
+	CreatedByUserID  int64
+	Title            string
+	Description      string
+	Category         string
+	Language         string
+	SortOrder        int64
+	IsPublished      bool
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	WorkspaceID      uuid.NullUUID
+	IsMember         bool
+	IsWorkspaceAdmin bool
+	GrantRank        int32
+}
+
+// ワークスペース内のコース全件と、その実効権限を決める事実を 1 回のクエリで返す。
+//
+// **返り値はまだ「見せてよいコース」ではない。** ふるい落とすのは呼び出し側で、
+// 判定は domain.ResolveMaterialPermission が行う（ここで絞ると規則が 2 箇所に分かれる）。
+//
+// コースごとに ResolveCoursePermissionFacts を呼ぶ（N+1）ことはしない。一覧は画面を
+// 開くたびに引くので、コース数だけ往復するとそのまま待ち時間になる。
+func (q *Queries) ListCourseFactsForUser(ctx context.Context, arg ListCourseFactsForUserParams) ([]ListCourseFactsForUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCourseFactsForUser, arg.WorkspaceID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCourseFactsForUserRow{}
+	for rows.Next() {
+		var i ListCourseFactsForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedByUserID,
+			&i.Title,
+			&i.Description,
+			&i.Category,
+			&i.Language,
+			&i.SortOrder,
+			&i.IsPublished,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+			&i.IsMember,
+			&i.IsWorkspaceAdmin,
+			&i.GrantRank,
 		); err != nil {
 			return nil, err
 		}

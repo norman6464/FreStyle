@@ -1070,7 +1070,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。",
+                "description": "見せ て よい コース だけ を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも、 下書き は その コース を 編集 できる 人 だけ に 見える。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 する (下書き の 章 を 数 に 含める の は、 その コース を 編集 できる 場合 だけ)。",
                 "tags": [
                     "courses"
                 ],
@@ -1117,7 +1117,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "company_admin / super_admin の み。 CompanyAdmin は 自社 固定。",
+                "description": "ワークスペース の 一員 なら 誰 でも 作れる。 作っ た 人 は その コース の admin に なる (コース と 付与 は 同じ トランザクション で 書く)。 未 所属 は 403。",
                 "tags": [
                     "courses"
                 ],
@@ -1184,7 +1184,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。",
+                "description": "指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。",
                 "tags": [
                     "courses"
                 ],
@@ -1259,7 +1259,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id を 更新 (company_admin / super_admin)。",
+                "description": "その コース を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める (アプリ の ロール は 見 ない)。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "tags": [
                     "courses"
                 ],
@@ -1345,7 +1345,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。",
+                "description": "その コース を 編集 できる 人 だけ。 配下 の 教材 も 一緒 に 消える。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "tags": [
                     "courses"
                 ],
@@ -1495,7 +1495,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 コース 配下 の 教材 を 返す。 trainee は published のみ。",
+                "description": "指定 コース 配下 の 教材 を 返す。 下書き が 混ざる の は その コース を 編集 できる 場合 だけ。 コース を 読め ない 相手 に は 404。",
                 "tags": [
                     "teaching-materials"
                 ],
@@ -3965,6 +3965,259 @@
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/grants": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その ページ 自身 に 張ら れ た 既定 の 役割 を 返す (祖先 から 降り て くる 分 は 含ま ない)。 **「この ページ を 見 られる 人 の 一覧」 で は ない** — ワークスペース / スペース の grant で 届い て いる 相手 も、 祖先 の ページ に 張ら れ た grant で 届い て いる 相手 も 含ま れ ない。 空 で 返っ て き て も 「誰 も 見 られ ない」 で は なく 「この 段 で は 何 も 足し て い ない」 の 意味。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ページ 権限 一覧",
+                "parameters": [
+                    {
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/internal_handler.kbPageGrantResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が 実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer を 張っ て も editor の まま)。 弱める に は 例外 (restriction) の deny を 使う。 呼べる の は その ページ の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。",
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ページ 権限 付与",
+                "parameters": [
+                    {
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/internal_handler.kbGrantRoleRequest"
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.kbPageGrantResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この ページ だけ 見せ ない」 は 例外 の deny で 表す)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の ページ 権限 取り消し",
+                "parameters": [
+                    {
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "主体 ID (UUID)",
+                        "name": "principalId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "取り消し 済み"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/pages/{pageId}/move": {
             "post": {
                 "security": [
@@ -4061,6 +4314,85 @@
                     },
                     "409": {
                         "description": "アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/principals": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その ページ に 権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 リンク の 来訪者 を 表す 主体 (share_link) は 含ま ない — あれ は リンク の 発行 時 に 自動 で 作ら れる もの で、 人 が 選ん で 役割 を 与える 相手 で は ない。 名前 が 引け なかっ た 行 も 空文字 の まま 返す (一覧 から 黙っ て 消す と、 その 相手 に 張っ た 権限 が 画面 に 残っ た まま 選べ なく なる)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の 権限 を 張れる 相手 の 一覧",
+                "parameters": [
+                    {
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/internal_handler.kbGrantablePrincipalResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6413,61 +6745,13 @@
             }
         },
         "/teaching-materials": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。",
-                "tags": [
-                    "teaching-materials"
-                ],
-                "summary": "教材 全 件 一覧 (deprecated)",
-                "deprecated": true,
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
                         "CookieAuth": []
                     }
                 ],
-                "description": "company_admin / super_admin の み。 courseId 必須。",
+                "description": "その コース を 編集 できる 人 だけ。 courseId 必須。 コース を 読め ない 相手 に は 404、 読める が 編集 でき ない 場合 は 403。",
                 "tags": [
                     "teaching-materials"
                 ],
@@ -6534,7 +6818,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。",
+                "description": "指定 id の 教材 を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す。",
                 "tags": [
                     "teaching-materials"
                 ],
@@ -6609,7 +6893,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の 教材 を 更新 (company_admin / super_admin)。",
+                "description": "その 教材 を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "tags": [
                     "teaching-materials"
                 ],
@@ -6695,7 +6979,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の 教材 を 削除 (company_admin / super_admin)。",
+                "description": "その 教材 を 編集 できる 人 だけ。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "tags": [
                     "teaching-materials"
                 ],
@@ -8177,6 +8461,24 @@
                     }
                 }
             },
+            "internal_handler.kbGrantablePrincipalResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "0198a000-0000-7000-8000-00000000000a"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "example": "user"
+                    },
+                    "name": {
+                        "description": "Name は表示名。引けなかった場合は空文字（行は落とさない）。",
+                        "type": "string",
+                        "example": "田中 太郎"
+                    }
+                }
+            },
             "internal_handler.kbIssueShareLinkRequest": {
                 "type": "object",
                 "required": [
@@ -8249,6 +8551,29 @@
                     },
                     "page": {
                         "$ref": "#/components/schemas/internal_handler.kbPageResponse"
+                    }
+                }
+            },
+            "internal_handler.kbPageGrantResponse": {
+                "type": "object",
+                "properties": {
+                    "createdAt": {
+                        "type": "string"
+                    },
+                    "pageId": {
+                        "type": "string",
+                        "example": "0198a000-0000-7000-8000-000000000003"
+                    },
+                    "principalId": {
+                        "type": "string",
+                        "example": "0198a000-0000-7000-8000-00000000000a"
+                    },
+                    "role": {
+                        "type": "string",
+                        "example": "editor"
+                    },
+                    "updatedAt": {
+                        "type": "string"
                     }
                 }
             },
@@ -8429,6 +8754,10 @@
                         }
                     },
                     "canEdit": {
+                        "type": "boolean"
+                    },
+                    "canManage": {
+                        "description": "CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。\n経路上の例外を見ないので、自分を deny したページでも true のまま返る\n（domain.PagePermission.CanManage の doc に理由がある）。",
                         "type": "boolean"
                     },
                     "doc": {

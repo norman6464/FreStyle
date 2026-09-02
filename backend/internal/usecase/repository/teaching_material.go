@@ -15,9 +15,6 @@ var ErrChapterDocInvalidData = errors.New("chapter doc contains invalid data")
 
 // TeachingMaterialRepository は教材の永続化を担う（クエリは workspace_id 指定で他社漏れを防ぐ）。
 type TeachingMaterialRepository interface {
-	// ListByWorkspace はワークスペース内全教材を返す backward-compat 用
-	// （コース対応への移行後に削除予定。TeachingMaterialUseCase.List が使う現行の経路）。
-	ListByWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.TeachingMaterial, error)
 	ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error)
 	GetByID(ctx context.Context, id uint64) (*domain.TeachingMaterial, error)
 	// CountByCourseForWorkspace はワークスペース内の教材件数を course_id ごとに一括集計して返す

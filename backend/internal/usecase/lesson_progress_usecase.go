@@ -24,17 +24,17 @@ var (
 type MarkLessonCompletedUseCase struct {
 	progress  repository.LessonProgressRepository
 	materials repository.TeachingMaterialRepository
-	courses   repository.CourseRepository
 	activity  repository.UserDailyActivityRepository
+	perm      *CheckMaterialPermissionUseCase
 }
 
 func NewMarkLessonCompletedUseCase(
 	p repository.LessonProgressRepository,
 	m repository.TeachingMaterialRepository,
-	c repository.CourseRepository,
 	activity repository.UserDailyActivityRepository,
+	perm *CheckMaterialPermissionUseCase,
 ) *MarkLessonCompletedUseCase {
-	return &MarkLessonCompletedUseCase{progress: p, materials: m, courses: c, activity: activity}
+	return &MarkLessonCompletedUseCase{progress: p, materials: m, activity: activity, perm: perm}
 }
 
 // MarkLessonCompletedInput は完了記録の入力。 actor の workspace / role で可視性を検証する。
@@ -56,16 +56,22 @@ func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonC
 	if m == nil {
 		return ErrLessonNotFound
 	}
-	course, err := u.courses.GetByID(ctx, m.CourseID)
+	// 読める教材だけを完了にできる（他テナント / 見えない下書きを弾く）。
+	// 判定は TeachingMaterialUseCase.Get と同じ経路を通す。
+	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return ErrLessonForbidden
+	}
+	perm, err := u.perm.Chapter(ctx, workspaceID, in.TeachingMaterialID, in.UserID)
 	if err != nil {
+		// 引けない対象は「無い」で返す。ここを 403 にすると、存在しない ID は 404・
+		// 別テナントに実在する ID は 403 となり、応答の差から他社の教材の実在が分かる。
 		if errors.Is(err, domain.ErrNotFound) {
 			return ErrLessonNotFound
 		}
 		return err
 	}
-	// 自社かつ閲覧可能な教材のみ完了にできる（他社教材 / trainee に未公開の教材を弾く）。
-	// 既存の単一教材取得 (TeachingMaterialUseCase.Get) と同じ canRead で判定する。
-	if !canRead(m, course, in.ActorWorkspace, in.ActorRole) {
+	if !perm.CanView {
 		return ErrLessonForbidden
 	}
 	changed, err := u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)

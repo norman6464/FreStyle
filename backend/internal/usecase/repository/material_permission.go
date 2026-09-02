@@ -6,6 +6,17 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
+// CourseWithFacts は 1 コースと、その実効権限を決める事実の組。
+// ListCourseFactsForUser が返す（ふるい落としは domain.ResolveMaterialPermission が行う）。
+//
+// **返ってきた時点ではまだ「見せてよいコース」に絞られていない。** 下書きも、
+// 付与の無いコースも含まれる。絞るのは呼び出し側で、ここで絞らないのは判定規則を
+// domain の 1 箇所に閉じるため。
+type CourseWithFacts struct {
+	Course domain.Course
+	Facts  domain.MaterialFacts
+}
+
 // MaterialPermissionRepository は教材（コース / 章）の権限モデルへのアクセスを提供する。
 //
 // TeachingMaterialRepository / CourseRepository と分けているのは、境界が違うため。
@@ -23,6 +34,10 @@ type MaterialPermissionRepository interface {
 	// ChapterFactsForUser は章 1 つについて同じ事実を集める。
 	// コースに張られた付与も見る（章へ降りてくるため）。
 	ChapterFactsForUser(ctx context.Context, workspaceID string, chapterID uint64, userID uint64) (*domain.MaterialFacts, error)
+
+	// ListCourseFactsForUser はワークスペース内のコース全件と、それぞれの事実を
+	// 1 回のクエリで返す（sort_order 順）。コースごとに引く（N+1）ことはしない。
+	ListCourseFactsForUser(ctx context.Context, workspaceID string, userID uint64) ([]CourseWithFacts, error)
 
 	// UpsertCourseGrant はコースでの既定の役割を与える（同じ主体には 1 行だけ）。
 	//

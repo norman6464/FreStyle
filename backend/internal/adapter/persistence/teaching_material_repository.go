@@ -84,34 +84,6 @@ func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.Teaching
 	return m
 }
 
-// toDomainChapterWorkspaceSummary は workspace 別一覧の軽量行を domain へ写す。
-// 列構成が course 別一覧とずれたらこの型変換がコンパイルエラーになる。
-func toDomainChapterWorkspaceSummary(row sqlcgen.ListChaptersByWorkspaceRow) domain.TeachingMaterial {
-	return toDomainChapterSummary(sqlcgen.ListChaptersByCourseRow(row))
-}
-
-// ListByWorkspace は backward-compat 用（コース対応完了後に削除予定）。ListByCompany の
-// workspace_id 版で、TeachingMaterialUseCase.List が使う現行の経路。
-func (r *teachingMaterialRepository) ListByWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-	wid, ok := toNullUUID(workspaceID)
-	if !ok {
-		return []domain.TeachingMaterial{}, nil // 不正 / 空の ID は該当なしと同じ扱い
-	}
-	// 一覧は本文（doc・jsonb）を返さない（ListByCourse と同じ軽量な列構成）。
-	rows, err := sqlcgen.New(r.db).ListChaptersByWorkspace(ctx, sqlcgen.ListChaptersByWorkspaceParams{
-		WorkspaceID:        wid,
-		IncludeUnpublished: includeUnpublished,
-	})
-	if err != nil {
-		return nil, err
-	}
-	materials := make([]domain.TeachingMaterial, 0, len(rows))
-	for _, row := range rows {
-		materials = append(materials, toDomainChapterWorkspaceSummary(row))
-	}
-	return materials, nil
-}
-
 // ListByCourse はコース内の章を sort_order 昇順で返す。
 func (r *teachingMaterialRepository) ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
 	cid, ok := toInt64ID(courseID)

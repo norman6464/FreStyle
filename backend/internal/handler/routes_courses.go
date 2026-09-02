@@ -14,12 +14,19 @@ func registerCourseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	progressRepo := persistence.NewLessonProgressRepository(deps.db)
 	chapterViewRepo := persistence.NewUserChapterViewRepository(deps.db)
 
-	courseUC := usecase.NewCourseUseCase(courseRepo, materialRepo)
-	listWithProgressUC := usecase.NewListCoursesWithProgressUseCase(courseRepo, materialRepo, progressRepo)
-	lastViewedUC := usecase.NewGetLastViewedChapterUseCase(courseRepo, chapterViewRepo)
+	// 教材の可否は対象ごとの付与だけで決まる。判定はこの 1 つを全経路が共有する
+	// （経路ごとに別の判定を持つと、同じ教材の可否が場所によって食い違う）。
+	permUC := usecase.NewCheckMaterialPermissionUseCase(persistence.NewMaterialPermissionRepository(deps.db))
+	principalRepo := persistence.NewKnowledgeBasePermissionRepository(deps.db)
+
+	courseUC := usecase.NewCourseUseCase(courseRepo, materialRepo, permUC, principalRepo)
+	listWithProgressUC := usecase.NewListCoursesWithProgressUseCase(
+		materialRepo, progressRepo, persistence.NewMaterialPermissionRepository(deps.db),
+	)
+	lastViewedUC := usecase.NewGetLastViewedChapterUseCase(chapterViewRepo, permUC)
 	courseHandler := NewCourseHandler(courseUC, listWithProgressUC, lastViewedUC)
 
-	materialUC := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo)
+	materialUC := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo, permUC)
 	materialHandler := NewTeachingMaterialHandler(materialUC)
 
 	g.GET("/courses", courseHandler.List)

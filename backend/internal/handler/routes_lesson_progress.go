@@ -11,10 +11,10 @@ import (
 func registerLessonProgressRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	progressRepo := persistence.NewLessonProgressRepository(deps.db)
 	materialRepo := persistence.NewTeachingMaterialRepository(deps.db)
-	courseRepo := persistence.NewCourseRepository(deps.db)
 	activityRepo := persistence.NewUserDailyActivityRepository(deps.db)
+	permUC := usecase.NewCheckMaterialPermissionUseCase(persistence.NewMaterialPermissionRepository(deps.db))
 	h := NewLessonProgressHandler(
-		usecase.NewMarkLessonCompletedUseCase(progressRepo, materialRepo, courseRepo, activityRepo),
+		usecase.NewMarkLessonCompletedUseCase(progressRepo, materialRepo, activityRepo, permUC),
 		usecase.NewMarkLessonIncompleteUseCase(progressRepo),
 		usecase.NewListLessonProgressUseCase(progressRepo),
 	)

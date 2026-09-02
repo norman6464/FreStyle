@@ -9,122 +9,158 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// TeachingMaterialUseCase は教材の list / get / create / update / delete を 1 構造体で扱う。
-// 教材は必ず Course に所属するため list は Course 単位、create は course_id 必須。
-// trainee は published コース内の published 教材のみ閲覧、編集系は company_admin / super_admin。
+// TeachingMaterialUseCase は教材の get / create / update / delete を 1 構造体で扱う。
+// 教材は必ず Course に所属するため一覧は Course 単位、create は course_id 必須。
 //
-//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく List/Get/Create 等で公開する
+// **可否は対象ごとの付与だけが決める。** アプリのロール（company_admin など）は見ない。
+// 判定は CheckMaterialPermissionUseCase を通し、規則は domain が持つ。
+//
+//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく Get/Create 等で公開する
 type TeachingMaterialUseCase struct {
 	repo    repository.TeachingMaterialRepository
 	courses repository.CourseRepository
+	perm    *CheckMaterialPermissionUseCase
 }
 
-func NewTeachingMaterialUseCase(repo repository.TeachingMaterialRepository, courses repository.CourseRepository) *TeachingMaterialUseCase {
-	return &TeachingMaterialUseCase{repo: repo, courses: courses}
+func NewTeachingMaterialUseCase(
+	repo repository.TeachingMaterialRepository,
+	courses repository.CourseRepository,
+	perm *CheckMaterialPermissionUseCase,
+) *TeachingMaterialUseCase {
+	return &TeachingMaterialUseCase{repo: repo, courses: courses, perm: perm}
 }
 
-// canManage は教材を作成 / 編集 / 削除できる role 判定。
-func canManage(role domain.RoleName) bool {
-	return role == domain.RoleCompanyAdmin || role == domain.RoleSuperAdmin
-}
-
-// List はワークスペース内の全教材を返す backward-compat 用（コース対応への移行後に削除予定）。
-func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) ([]domain.TeachingMaterial, error) {
-	// workspace 単位の一覧なので、未所属の actor には（super_admin であっても）空を返す。
-	workspaceID, affiliated := actorWorkspace.WorkspaceID()
+// requireChapter は章 1 つの実効権限を引き、求める条件を満たさなければ断る。
+//
+// **見えない相手には実在を教えない**（domain.ErrNotFound）。見えている相手には
+// 理由を返してよい（ErrMaterialForbidden）。前者を撃ち分けると、ID を総当たりする
+// だけで隠した教材の実在が分かる。後者は既に実在を知っているので隠す意味が無い。
+func (uc *TeachingMaterialUseCase) requireChapter(
+	ctx context.Context, in MaterialActor, chapterID uint64, want func(domain.MaterialPermission) bool,
+) error {
+	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
 	if !affiliated {
-		return []domain.TeachingMaterial{}, nil
+		return domain.ErrNotFound
 	}
-	includeUnpublished := canManage(actorRole)
-	return uc.repo.ListByWorkspace(ctx, workspaceID, includeUnpublished)
+	perm, err := uc.chapterPermission(ctx, workspaceID, chapterID, in.ActorUserID)
+	if err != nil {
+		return err
+	}
+	if !want(*perm) {
+		return ErrMaterialForbidden
+	}
+	return nil
 }
 
-// ListByCourse は指定コース配下の教材を返す（role / workspace を検証してから）。
-func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID uint64, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) ([]domain.TeachingMaterial, error) {
-	course, err := uc.courses.GetByID(ctx, courseID)
+// coursePermission はコースの実効権限を返す。見えない相手には domain.ErrNotFound。
+//
+// 一覧（読む）と作成（書く）の両方から通す。手順が 2 つに分かれていると、片方だけを
+// 直したときに同じコースの可否が経路で食い違う — 認可で最も起こりやすい穴。
+// 未所属の扱いだけは呼び出し側に残す（作る操作には隠す対象がまだ無いため）。
+func (uc *TeachingMaterialUseCase) coursePermission(
+	ctx context.Context, workspaceID string, courseID, userID uint64,
+) (*domain.MaterialPermission, error) {
+	perm, err := uc.perm.Course(ctx, workspaceID, courseID, userID)
 	if err != nil {
 		return nil, err
 	}
-	if !canReadCourse(course, actorWorkspace, actorRole) {
-		return nil, fmt.Errorf("forbidden")
+	if !perm.CanView {
+		return nil, domain.ErrNotFound
 	}
-	includeUnpublished := canManage(actorRole)
-	return uc.repo.ListByCourse(ctx, courseID, includeUnpublished)
+	return perm, nil
 }
 
-// Get は ID 指定で 1 件取得する（workspace 不一致 / 非公開コースは閲覧不可）。
-func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id uint64, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) (*domain.TeachingMaterial, error) {
-	m, err := uc.repo.GetByID(ctx, id)
+// chapterPermission は章の実効権限を返す。見えない相手には domain.ErrNotFound。
+func (uc *TeachingMaterialUseCase) chapterPermission(
+	ctx context.Context, workspaceID string, chapterID, userID uint64,
+) (*domain.MaterialPermission, error) {
+	perm, err := uc.perm.Chapter(ctx, workspaceID, chapterID, userID)
 	if err != nil {
 		return nil, err
 	}
-	course, err := uc.courses.GetByID(ctx, m.CourseID)
+	if !perm.CanView {
+		return nil, domain.ErrNotFound
+	}
+	return perm, nil
+}
+
+// MaterialActor は「誰が」を表す共通部分。教材の入力はどれもこの 2 つを要るので、
+// 埋め込みで持たせる。
+//
+// **アプリのロール（company_admin など）は持たない。** 教材の可否は対象ごとの付与だけで
+// 決まるので、ロールを受け取る口を残すと「役割で通す」判定が戻ってくる余地になる。
+type MaterialActor struct {
+	// ActorUserID は呼び出し元。付与は主体（principals）経由でこの人へ届く。
+	ActorUserID uint64
+	// ActorWorkspace は呼び出し元の所属。未所属なら教材には一切触れない。
+	ActorWorkspace domain.WorkspaceRef
+}
+
+// ListByCourse は指定コース配下の教材を返す。
+//
+// 下書きを混ぜるかはコースの実効権限で決める。編集できる人にだけ見せる、という規則は
+// domain.ResolveMaterialPermission が持っていて、ここはその答えを使うだけ。
+func (uc *TeachingMaterialUseCase) ListByCourse(
+	ctx context.Context, courseID uint64, actor MaterialActor,
+) ([]domain.TeachingMaterial, error) {
+	workspaceID, affiliated := actor.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return nil, domain.ErrNotFound
+	}
+	perm, err := uc.coursePermission(ctx, workspaceID, courseID, actor.ActorUserID)
 	if err != nil {
 		return nil, err
 	}
-	if !canRead(m, course, actorWorkspace, actorRole) {
-		return nil, fmt.Errorf("forbidden")
-	}
-	return m, nil
+	return uc.repo.ListByCourse(ctx, courseID, perm.CanEdit)
 }
 
-// canRead は対象教材を actorWorkspace が閲覧できるかを判定する。
-// courses.workspace_id / course_chapters.workspace_id は起動時バックフィルと
-// 作成時の書き込みにより、リクエストを捌く時点で必ず埋まっている。
-func canRead(m *domain.TeachingMaterial, course *domain.Course, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
-	if !materialBelongsToWorkspace(m, actorWorkspace, actorRole) {
-		return false
+// Get は ID 指定で 1 件取得する。認可が先で、通らなければ中身を一度も読まない。
+func (uc *TeachingMaterialUseCase) Get(
+	ctx context.Context, id uint64, actor MaterialActor,
+) (*domain.TeachingMaterial, error) {
+	// 見えることだけが条件なので chapterPermission を直に通す。
+	// requireChapter に「常に true」の述語を渡すと、そこで何かを見ているように読める。
+	workspaceID, affiliated := actor.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return nil, domain.ErrNotFound
 	}
-	// 所属コースが閲覧可能でなければ教材も見せない。
-	if !canReadCourse(course, actorWorkspace, actorRole) {
-		return false
+	if _, err := uc.chapterPermission(ctx, workspaceID, id, actor.ActorUserID); err != nil {
+		return nil, err
 	}
-	if !m.IsPublished && !canManage(actorRole) {
-		return false
-	}
-	return true
-}
-
-// materialBelongsToWorkspace は super_admin か、対象教材が actorWorkspace に属するかを返す。
-// Get（canRead 経由）/ Update / UpdateDoc / Delete で同じ形の所属チェックが個別に書かれていた
-// 重複を、courseBelongsToWorkspace と対になる形でここに集約した（判定結果は変えない）。
-func materialBelongsToWorkspace(m *domain.TeachingMaterial, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) bool {
-	if actorRole == domain.RoleSuperAdmin {
-		return true
-	}
-	wid, ok := m.WorkspaceRef().WorkspaceID()
-	// 未所属の actor・対象教材の workspace_id 未設定はどちらも一致し得ない。
-	return ok && actorWorkspace.Matches(wid)
+	return uc.repo.GetByID(ctx, id)
 }
 
 // CreateTeachingMaterialInput は POST 入力。CourseID は必須。
 type CreateTeachingMaterialInput struct {
-	ActorUserID    uint64
-	ActorWorkspace domain.WorkspaceRef
-	ActorRole      domain.RoleName
-	CourseID       uint64
-	Title          string
-	OrderInCourse  int
-	IsPublished    bool
+	MaterialActor
+	CourseID      uint64
+	Title         string
+	OrderInCourse int
+	IsPublished   bool
 }
 
 func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeachingMaterialInput) (*domain.TeachingMaterial, error) {
-	if !canManage(in.ActorRole) {
-		return nil, fmt.Errorf("forbidden: only company_admin or super_admin can create materials")
-	}
-	// 教材はコース（= ワークスペース）配下に作るため、未所属の actor は super_admin でも作成できない。
-	if _, affiliated := in.ActorWorkspace.WorkspaceID(); !affiliated {
-		return nil, fmt.Errorf("actor must belong to a workspace")
-	}
 	if in.CourseID == 0 {
 		return nil, fmt.Errorf("course_id is required")
+	}
+	// 章を足すのはコースを書き換えること。コースを編集できる人だけが足せる。
+	//
+	// 未所属はここで断る。作る操作には隠すべき対象がまだ無いので、実在を伏せる
+	// 必要も無い（読み取りの経路とは扱いが違う）。
+	workspaceID, affiliated := in.ActorWorkspace.WorkspaceID()
+	if !affiliated {
+		return nil, ErrMaterialForbidden
+	}
+	perm, err := uc.coursePermission(ctx, workspaceID, in.CourseID, in.ActorUserID)
+	if err != nil {
+		return nil, err
+	}
+	if !perm.CanEdit {
+		return nil, ErrMaterialForbidden
 	}
 	course, err := uc.courses.GetByID(ctx, in.CourseID)
 	if err != nil {
 		return nil, err
-	}
-	if !courseBelongsToWorkspace(course, in.ActorWorkspace, in.ActorRole) {
-		return nil, fmt.Errorf("forbidden")
 	}
 	m := &domain.TeachingMaterial{
 		CourseID:        in.CourseID,
@@ -144,24 +180,22 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 }
 
 type UpdateTeachingMaterialInput struct {
-	ID             uint64
-	ActorWorkspace domain.WorkspaceRef
-	ActorRole      domain.RoleName
-	Title          string
-	OrderInCourse  int
-	IsPublished    bool
+	MaterialActor
+	ID            uint64
+	Title         string
+	OrderInCourse int
+	IsPublished   bool
 }
 
 func (uc *TeachingMaterialUseCase) Update(ctx context.Context, in UpdateTeachingMaterialInput) (*domain.TeachingMaterial, error) {
+	if err := uc.requireChapter(ctx, in.MaterialActor, in.ID, func(p domain.MaterialPermission) bool {
+		return p.CanEdit
+	}); err != nil {
+		return nil, err
+	}
 	existing, err := uc.repo.GetByID(ctx, in.ID)
 	if err != nil {
 		return nil, err
-	}
-	if !canManage(in.ActorRole) {
-		return nil, fmt.Errorf("forbidden")
-	}
-	if !materialBelongsToWorkspace(existing, in.ActorWorkspace, in.ActorRole) {
-		return nil, fmt.Errorf("forbidden")
 	}
 	existing.Title = in.Title
 	existing.OrderInCourse = in.OrderInCourse
@@ -174,9 +208,8 @@ func (uc *TeachingMaterialUseCase) Update(ctx context.Context, in UpdateTeaching
 
 // UpdateChapterDocInput は章のリッチ本文（tiptap JSON）更新の入力。
 type UpdateChapterDocInput struct {
+	MaterialActor
 	ID               uint64
-	ActorWorkspace   domain.WorkspaceRef
-	ActorRole        domain.RoleName
 	Doc              string
 	ExpectedRevision int
 }
@@ -184,18 +217,13 @@ type UpdateChapterDocInput struct {
 // ErrChapterDocInvalid は doc がリッチ本文として不正（型不一致・サイズ超過・NUL 含み等）。
 var ErrChapterDocInvalid = errors.New("chapter doc is invalid")
 
-// UpdateDoc は章のリッチ本文を楽観ロックで保存する。canManage（company_admin / super_admin）のみ。
+// UpdateDoc は章のリッチ本文を楽観ロックで保存する。その章を編集できる人だけ。
 // doc の検証（object かつ type='doc'・1MiB 上限・NUL 拒否）は rich_documents と同じ基準で行う。
 func (uc *TeachingMaterialUseCase) UpdateDoc(ctx context.Context, in UpdateChapterDocInput) (*domain.TeachingMaterial, error) {
-	existing, err := uc.repo.GetByID(ctx, in.ID)
-	if err != nil {
+	if err := uc.requireChapter(ctx, in.MaterialActor, in.ID, func(p domain.MaterialPermission) bool {
+		return p.CanEdit
+	}); err != nil {
 		return nil, err
-	}
-	if !canManage(in.ActorRole) {
-		return nil, fmt.Errorf("forbidden")
-	}
-	if !materialBelongsToWorkspace(existing, in.ActorWorkspace, in.ActorRole) {
-		return nil, fmt.Errorf("forbidden")
 	}
 	if in.ExpectedRevision < 1 {
 		return nil, fmt.Errorf("%w: expectedRevision must be >= 1", ErrChapterDocInvalid)
@@ -207,16 +235,11 @@ func (uc *TeachingMaterialUseCase) UpdateDoc(ctx context.Context, in UpdateChapt
 	return uc.repo.UpdateDocWithRevision(ctx, in.ID, in.Doc, in.ExpectedRevision)
 }
 
-func (uc *TeachingMaterialUseCase) Delete(ctx context.Context, id uint64, actorWorkspace domain.WorkspaceRef, actorRole domain.RoleName) error {
-	existing, err := uc.repo.GetByID(ctx, id)
-	if err != nil {
+func (uc *TeachingMaterialUseCase) Delete(ctx context.Context, id uint64, actor MaterialActor) error {
+	if err := uc.requireChapter(ctx, actor, id, func(p domain.MaterialPermission) bool {
+		return p.CanEdit
+	}); err != nil {
 		return err
-	}
-	if !canManage(actorRole) {
-		return fmt.Errorf("forbidden")
-	}
-	if !materialBelongsToWorkspace(existing, actorWorkspace, actorRole) {
-		return fmt.Errorf("forbidden")
 	}
 	return uc.repo.Delete(ctx, id)
 }

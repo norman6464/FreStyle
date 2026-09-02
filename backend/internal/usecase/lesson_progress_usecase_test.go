@@ -72,40 +72,48 @@ func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time
 	return nil, nil
 }
 
-func Test_レッスン完了_同じワークスペースの公開教材はcourse_idを解決して記録する(t *testing.T) {
+func Test_レッスン完了_読める教材はcourse_idを解決して記録する(t *testing.T) {
 	progress, pstore := progressRepo(progressFakeConfig{})
-	mat, crs := publishedSetup(5, 99)
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
+	mat, _ := publishedSetup(5, 99)
+	permCfg := materialFactsConfig{member: true, published: true}
+	_, perm := materialPerm(permCfg)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, &nopActivityRepo{}, perm)
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
+		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), TeachingMaterialID: 5,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(99), pstore.completed[5]) // 教材の course_id が使われる
 }
 
-func Test_レッスン完了_別ワークスペースの教材は403相当で弾く(t *testing.T) {
+func Test_レッスン完了_別ワークスペースの教材は実在を教えない(t *testing.T) {
 	progress, pstore := progressRepo(progressFakeConfig{})
-	mat, crs := publishedSetup(5, 99) // wsA の教材
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
+	mat, _ := publishedSetup(5, 99) // wsA の教材
+	// 別テナントからは引けない。**403 ではなく 404 に落とす** — 403 にすると、
+	// 存在しない ID は 404・別テナントに実在する ID は 403 となり、応答の差から
+	// 他社の教材の実在が分かる。
+	permCfg := materialFactsConfig{notFound: true}
+	_, perm := materialPerm(permCfg)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, &nopActivityRepo{}, perm)
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5, // 別 workspace
+		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsB), TeachingMaterialID: 5, // 別 workspace
 	})
-	assert.ErrorIs(t, err, usecase.ErrLessonForbidden)
+	assert.ErrorIs(t, err, usecase.ErrLessonNotFound)
 	assert.Empty(t, pstore.completed)
 }
 
-func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testing.T) {
+func Test_レッスン完了_見えない下書きは403相当(t *testing.T) {
 	progress, _ := progressRepo(progressFakeConfig{})
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
 		ID: 5, CourseID: 99, WorkspaceID: strPtr(wsA), IsPublished: false, // 下書き
 	}})
-	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, WorkspaceID: strPtr(wsA), IsPublished: true}})
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
+	permCfg := materialFactsConfig{member: true, published: false} // 付与が無いので見えない
+	_, perm := materialPerm(permCfg)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, &nopActivityRepo{}, perm)
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
+		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), TeachingMaterialID: 5,
 	})
 	assert.ErrorIs(t, err, usecase.ErrLessonForbidden)
 }
@@ -113,10 +121,11 @@ func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testin
 func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 	progress, _ := progressRepo(progressFakeConfig{})
 	mat, _ := materialRepo(materialFakeConfig{getErr: domain.ErrNotFound})
-	crs, _ := courseRepo(courseFakeConfig{})
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
+	permCfg := materialFactsConfig{member: true, published: true}
+	_, perm := materialPerm(permCfg)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, &nopActivityRepo{}, perm)
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, TeachingMaterialID: 404,
+		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), TeachingMaterialID: 404,
 	})
 	assert.ErrorIs(t, err, usecase.ErrLessonNotFound)
 }
@@ -124,11 +133,12 @@ func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 func Test_レッスン完了_記録失敗を伝播(t *testing.T) {
 	wantErr := errors.New("db")
 	progress, _ := progressRepo(progressFakeConfig{completeErr: wantErr})
-	mat, crs := publishedSetup(5, 1)
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
+	mat, _ := publishedSetup(5, 1)
+	_, perm := materialPerm(materialFactsConfig{member: true, published: true})
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, &nopActivityRepo{}, perm)
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
+		UserID: 1, ActorWorkspace: domain.WorkspaceRefOf(wsA), TeachingMaterialID: 5,
 	})
 	assert.ErrorIs(t, err, wantErr, "repository のエラーを別のエラーに置き換えず伝播する")
 }

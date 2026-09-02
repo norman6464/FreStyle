@@ -229,66 +229,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, []string{"c1", "c2", "c3"}, []string{all[0].Title, all[1].Title, all[2].Title})
 	})
 
-	t.Run("ListByWorkspace はワークスペースで絞り・published フィルタ・更新日降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
-		ensureCourses(t, sqlDB, nil, 10, 20, 30)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		insertCompany(t, sqlDB, 2, "会社 B", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
-		ws2 := companyWorkspaceID(t, sqlDB, 2)
-		require.True(t, ws1.Valid)
-		require.True(t, ws2.Valid)
-		require.NotEqual(t, ws1.UUID, ws2.UUID)
-		ws1Str := ws1.UUID.String()
-		ws2Str := ws2.UUID.String()
-
-		a := mk(10, "a", 1, true)
-		a.WorkspaceID = &ws1Str
-		b := mk(20, "b", 1, false) // draft
-		b.WorkspaceID = &ws1Str
-		foreign := mk(10, "foreign", 1, true)
-		foreign.WorkspaceID = &ws2Str
-		for _, m := range []*domain.TeachingMaterial{a, b, foreign} {
-			require.NoError(t, repo.Create(ctx, m))
-		}
-		// a に doc を入れておく（それでも一覧は doc を返さないことを確認する）。
-		// updated_at を now() へ進めるので、先に済ませてから並び順を固定する。
-		_, err := repo.UpdateDocWithRevision(ctx, a.ID, `{"type":"doc","content":[]}`, 1)
-		require.NoError(t, err)
-		// updated_at を明示的に置いて降順を固定する（Go 時計と DB 時計の差でフレークしないように）。
-		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE id = $1`, b.ID)
-		require.NoError(t, err)
-		_, err = sqlDB.Exec(`UPDATE course_chapters SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = $1`, a.ID)
-		require.NoError(t, err)
-
-		pub, err := repo.ListByWorkspace(ctx, ws1.UUID.String(), false)
-		require.NoError(t, err)
-		require.Len(t, pub, 1) // published の a のみ（b は draft、foreign は別ワークスペース）
-		require.Equal(t, "a", pub[0].Title)
-		require.Nil(t, pub[0].Doc) // 一覧は本文を読み込まない（応答でも json:"-" で出ない）
-
-		all, err := repo.ListByWorkspace(ctx, ws1.UUID.String(), true)
-		require.NoError(t, err)
-		require.Len(t, all, 2)
-		require.Equal(t, "a", all[0].Title) // updated_at 降順
-		require.Equal(t, "b", all[1].Title)
-
-		otherWs, err := repo.ListByWorkspace(ctx, ws2.UUID.String(), true)
-		require.NoError(t, err)
-		require.Len(t, otherWs, 1)
-		require.Equal(t, "foreign", otherWs[0].Title)
-
-		empty, err := repo.ListByWorkspace(ctx, "", true)
-		require.NoError(t, err)
-		require.Empty(t, empty, "空 ID は該当なし扱い")
-
-		invalid, err := repo.ListByWorkspace(ctx, "not-a-uuid", true)
-		require.NoError(t, err)
-		require.Empty(t, invalid, "不正な形式の ID も該当なし扱い")
-	})
-
-	t.Run("ListByCourse / ListByWorkspace は workspace_id も含めて返す", func(t *testing.T) {
+	t.Run("ListByCourse は workspace_id も含めて返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
 		ensureCourses(t, sqlDB, nil, 10, 20, 30)
 		insertCompany(t, sqlDB, 1, "会社 A", true)
@@ -306,12 +247,6 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Len(t, byCourse, 1)
 		require.NotNil(t, byCourse[0].WorkspaceID)
 		require.Equal(t, ws1.UUID.String(), *byCourse[0].WorkspaceID)
-
-		byWorkspace, err := repo.ListByWorkspace(ctx, ws1Str, true)
-		require.NoError(t, err)
-		require.Len(t, byWorkspace, 1)
-		require.NotNil(t, byWorkspace[0].WorkspaceID)
-		require.Equal(t, ws1.UUID.String(), *byWorkspace[0].WorkspaceID)
 	})
 
 	t.Run("Update は title/sort_order/is_published を書き・不変列を保ち・updated_at を進める", func(t *testing.T) {

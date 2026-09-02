@@ -33,15 +33,18 @@ func (f *fakeCourseRepo) Create(_ context.Context, c *domain.Course) error {
 	}
 	return f.writeErr
 }
+
+func (f *fakeCourseRepo) CreateWithOwnerGrant(_ context.Context, c *domain.Course, _ string) error {
+	if f.writeErr == nil {
+		c.ID = 100
+	}
+	return f.writeErr
+}
 func (f *fakeCourseRepo) Update(context.Context, *domain.Course) error { return f.writeErr }
 func (f *fakeCourseRepo) Delete(context.Context, uint64) error         { return f.writeErr }
 
 // fakeMaterialRepo は repository.TeachingMaterialRepository の no-op fake（Delete cascade 用）。
 type fakeMaterialRepo struct{}
-
-func (fakeMaterialRepo) ListByWorkspace(context.Context, string, bool) ([]domain.TeachingMaterial, error) {
-	return nil, nil
-}
 
 func (fakeMaterialRepo) ListByCourse(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
 	return nil, nil
@@ -82,10 +85,21 @@ func newCourseHandler(cr repository.CourseRepository) *CourseHandler {
 }
 
 func newCourseHandlerWithViews(cr repository.CourseRepository, cv repository.UserChapterViewRepository) *CourseHandler {
+	// 既定は「編集できる人」。認可そのものを見るテストは newCourseHandlerWith で
+	// 見え方を差し替える。
+	return newCourseHandlerWith(cr, cv, materialPermOf(domain.GrantRoleEditor))
+}
+
+func newCourseHandlerWith(
+	cr repository.CourseRepository, cv repository.UserChapterViewRepository, perm *fakeMaterialPerm,
+) *CourseHandler {
+	permUC := usecase.NewCheckMaterialPermissionUseCase(perm)
+	principals := newKbFakePerms(newKbFakePages(), kbCanEdit)
+	principals.addMember(courseWorkspaceID, 1)
 	return NewCourseHandler(
-		usecase.NewCourseUseCase(cr, fakeMaterialRepo{}),
-		usecase.NewListCoursesWithProgressUseCase(cr, fakeMaterialRepo{}, &fakeProgressRepoH{}),
-		usecase.NewGetLastViewedChapterUseCase(cr, cv),
+		usecase.NewCourseUseCase(cr, fakeMaterialRepo{}, permUC, principals),
+		usecase.NewListCoursesWithProgressUseCase(fakeMaterialRepo{}, &fakeProgressRepoH{}, perm),
+		usecase.NewGetLastViewedChapterUseCase(cv, permUC),
 	)
 }
 
@@ -121,8 +135,11 @@ func Test_コースハンドラ_一覧(t *testing.T) {
 		}
 	})
 	t.Run("リポジトリエラー → 500", func(t *testing.T) {
+		// 一覧は権限の事実をまとめて引くので、失敗もそちらから来る。
 		w, c := ctxJSON(http.MethodGet, "", nil, superAdminCo())
-		newCourseHandler(&fakeCourseRepo{listErr: context.DeadlineExceeded}).List(c)
+		perm := materialPermOf(domain.GrantRoleEditor)
+		perm.listErr = context.DeadlineExceeded
+		newCourseHandlerWith(&fakeCourseRepo{}, &fakeChapterViewRepoH{}, perm).List(c)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("want 500, got %d", w.Code)
 		}

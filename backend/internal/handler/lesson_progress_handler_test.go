@@ -65,22 +65,6 @@ func (f *fakeMaterialRepoH) UpdateDocWithRevision(context.Context, uint64, strin
 func (f *fakeMaterialRepoH) Delete(context.Context, uint64) error         { return nil }
 func (f *fakeMaterialRepoH) DeleteByCourse(context.Context, uint64) error { return nil }
 
-type fakeCourseRepoH struct{ c *domain.Course }
-
-func (f *fakeCourseRepoH) GetByID(context.Context, uint64) (*domain.Course, error) {
-	if f.c == nil {
-		return nil, domain.ErrNotFound
-	}
-	return f.c, nil
-}
-
-func (f *fakeCourseRepoH) ListByWorkspaceID(context.Context, string, bool) ([]domain.Course, error) {
-	return nil, nil
-}
-func (f *fakeCourseRepoH) Create(context.Context, *domain.Course) error { return nil }
-func (f *fakeCourseRepoH) Update(context.Context, *domain.Course) error { return nil }
-func (f *fakeCourseRepoH) Delete(context.Context, uint64) error         { return nil }
-
 // lessonProgressWsA / lessonProgressWsB は actor / 対象教材の workspace_id 比較を
 // 固定するための 2 つのワークスペース ID（wsA が自ワークスペース、wsB が別ワークスペース）。
 const (
@@ -90,8 +74,10 @@ const (
 
 // engineOpts はテストルータ構築のオプション。
 type engineOpts struct {
-	material    *fakeMaterialRepoH
-	course      *domain.Course
+	material *fakeMaterialRepoH
+	course   *domain.Course
+	// perm はその人にとって教材がどう見えるか。nil なら「読めるが編集はできない」。
+	perm        *fakeMaterialPerm
 	withUser    bool
 	workspaceID string
 }
@@ -107,9 +93,13 @@ func newLessonProgressEngine(o engineOpts) *gin.Engine {
 	if materials == nil {
 		materials = &fakeMaterialRepoH{}
 	}
-	courses := &fakeCourseRepoH{c: o.course}
+	perm := o.perm
+	if perm == nil {
+		perm = materialPermOf(domain.GrantRoleViewer) // 受講者は読めるだけ
+	}
 	h := NewLessonProgressHandler(
-		usecase.NewMarkLessonCompletedUseCase(progress, materials, courses, &nopActivityRepo{}),
+		usecase.NewMarkLessonCompletedUseCase(progress, materials, &nopActivityRepo{},
+			usecase.NewCheckMaterialPermissionUseCase(perm)),
 		usecase.NewMarkLessonIncompleteUseCase(progress),
 		usecase.NewListLessonProgressUseCase(progress),
 	)
@@ -173,12 +163,17 @@ func Test_進捗ハンドラ_完了_正常系(t *testing.T) {
 	}
 }
 
-func Test_進捗ハンドラ_完了_別ワークスペースの教材は403(t *testing.T) {
+func Test_進捗ハンドラ_完了_別ワークスペースの教材は404(t *testing.T) {
 	mat, crs := publishedMaterial(9) // workspace lessonProgressWsA の教材
-	r := newLessonProgressEngine(engineOpts{material: mat, course: crs, withUser: true, workspaceID: lessonProgressWsB})
+	// 別ワークスペースから引くと対象そのものが見つからない（テナントを跨げない）。
+	r := newLessonProgressEngine(engineOpts{
+		material: mat, course: crs, withUser: true, workspaceID: lessonProgressWsB,
+		perm: &fakeMaterialPerm{notFound: true},
+	})
 	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	// 404 であること。403 だと、存在しない ID（404）との差から他社の教材の実在が読める。
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 

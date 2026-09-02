@@ -21,35 +21,10 @@ func NewTeachingMaterialHandler(uc *usecase.TeachingMaterialUseCase) *TeachingMa
 	return &TeachingMaterialHandler{uc: uc}
 }
 
-// List はワークスペース内全教材を返す backward-compat 用（コース対応完了後に削除予定）。
-//
-//	@Summary      教材 全 件 一覧 (deprecated)
-//	@Description  backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
-//	@Tags         teaching-materials
-//	@Produce      json
-//	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /teaching-materials [get]
-//	@Security     CookieAuth
-//	@Deprecated
-func (h *TeachingMaterialHandler) List(c *gin.Context) {
-	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
-	if !ok {
-		return
-	}
-	rows, err := h.uc.List(c.Request.Context(), actorWorkspace, role)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "教材の取得に失敗しました"})
-		return
-	}
-	c.JSON(http.StatusOK, rows)
-}
-
 // ListByCourse はコース配下の教材を返す（path の :id はコース ID）。
 //
 //	@Summary      コース内 教材 一覧
-//	@Description  指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+//	@Description  指定 コース 配下 の 教材 を 返す。 下書き が 混ざる の は その コース を 編集 できる 場合 だけ。 コース を 読め ない 相手 に は 404。
 //	@Tags         teaching-materials
 //	@Produce      json
 //	@Param        id  path      int  true  "コース ID"
@@ -61,7 +36,7 @@ func (h *TeachingMaterialHandler) List(c *gin.Context) {
 //	@Router       /courses/{id}/materials [get]
 //	@Security     CookieAuth
 func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
-	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -70,7 +45,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid course id"})
 		return
 	}
-	rows, err := h.uc.ListByCourse(c.Request.Context(), courseID, actorWorkspace, role)
+	rows, err := h.uc.ListByCourse(c.Request.Context(), courseID, usecase.MaterialActor{ActorUserID: uid, ActorWorkspace: actorWorkspace})
 	if err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の取得に失敗しました")
 		return
@@ -79,7 +54,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 }
 
 // @Summary      教材 詳細
-// @Description  指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+// @Description  指定 id の 教材 を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す。
 // @Tags         teaching-materials
 // @Produce      json
 // @Param        id  path      int  true  "教材 ID"
@@ -91,7 +66,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 // @Router       /teaching-materials/{id} [get]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Get(c *gin.Context) {
-	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -100,13 +75,13 @@ func (h *TeachingMaterialHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	m, err := h.uc.Get(c.Request.Context(), id, actorWorkspace, role)
+	m, err := h.uc.Get(c.Request.Context(), id, usecase.MaterialActor{ActorUserID: uid, ActorWorkspace: actorWorkspace})
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教材が見つかりません"})
 			return
 		}
-		if err.Error() == "forbidden" {
+		if errors.Is(err, usecase.ErrMaterialForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "閲覧権限がありません"})
 			return
 		}
@@ -155,7 +130,7 @@ type updateChapterDocRequest struct {
 //	@Router       /teaching-materials/{id}/doc [put]
 //	@Security     CookieAuth
 func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
-	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -170,9 +145,8 @@ func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
 		return
 	}
 	m, err := h.uc.UpdateDoc(c.Request.Context(), usecase.UpdateChapterDocInput{
+		MaterialActor:    usecase.MaterialActor{ActorUserID: uid, ActorWorkspace: actorWorkspace},
 		ID:               id,
-		ActorWorkspace:   actorWorkspace,
-		ActorRole:        role,
 		Doc:              string(req.Doc),
 		ExpectedRevision: req.ExpectedRevision,
 	})
@@ -184,7 +158,7 @@ func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "他の場所で更新されています。最新版を読み込み直してください"})
 		case errors.Is(err, usecase.ErrChapterDocInvalid), errors.Is(err, repository.ErrChapterDocInvalidData):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "本文の形式が不正です"})
-		case err.Error() == "forbidden":
+		case errors.Is(err, usecase.ErrMaterialForbidden):
 			c.JSON(http.StatusForbidden, gin.H{"error": "編集権限がありません"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "教材の更新に失敗しました"})
@@ -208,7 +182,7 @@ type teachingMaterialUpdateRequest struct {
 }
 
 // @Summary      教材 作成
-// @Description  company_admin / super_admin の み。 courseId 必須。
+// @Description  その コース を 編集 できる 人 だけ。 courseId 必須。 コース を 読め ない 相手 に は 404、 読める が 編集 でき ない 場合 は 403。
 // @Tags         teaching-materials
 // @Accept       json
 // @Produce      json
@@ -220,7 +194,7 @@ type teachingMaterialUpdateRequest struct {
 // @Router       /teaching-materials [post]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Create(c *gin.Context) {
-	uid, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -230,13 +204,11 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 		return
 	}
 	m, err := h.uc.Create(c.Request.Context(), usecase.CreateTeachingMaterialInput{
-		ActorUserID:    uid,
-		ActorWorkspace: actorWorkspace,
-		ActorRole:      role,
-		CourseID:       req.CourseID,
-		Title:          req.Title,
-		OrderInCourse:  req.OrderInCourse,
-		IsPublished:    req.IsPublished,
+		MaterialActor: usecase.MaterialActor{ActorUserID: uid, ActorWorkspace: actorWorkspace},
+		CourseID:      req.CourseID,
+		Title:         req.Title,
+		OrderInCourse: req.OrderInCourse,
+		IsPublished:   req.IsPublished,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の作成に失敗しました")
@@ -246,7 +218,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 }
 
 // @Summary      教材 更新
-// @Description  指定 id の 教材 を 更新 (company_admin / super_admin)。
+// @Description  その 教材 を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
 // @Tags         teaching-materials
 // @Accept       json
 // @Produce      json
@@ -260,7 +232,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 // @Router       /teaching-materials/{id} [put]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Update(c *gin.Context) {
-	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -275,12 +247,11 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 		return
 	}
 	m, err := h.uc.Update(c.Request.Context(), usecase.UpdateTeachingMaterialInput{
-		ID:             id,
-		ActorWorkspace: actorWorkspace,
-		ActorRole:      role,
-		Title:          req.Title,
-		OrderInCourse:  req.OrderInCourse,
-		IsPublished:    req.IsPublished,
+		ID:            id,
+		MaterialActor: usecase.MaterialActor{ActorUserID: uid, ActorWorkspace: actorWorkspace},
+		Title:         req.Title,
+		OrderInCourse: req.OrderInCourse,
+		IsPublished:   req.IsPublished,
 	})
 	if err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の更新に失敗しました")
@@ -290,7 +261,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 }
 
 // @Summary      教材 削除
-// @Description  指定 id の 教材 を 削除 (company_admin / super_admin)。
+// @Description  その 教材 を 編集 できる 人 だけ。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
 // @Tags         teaching-materials
 // @Produce      json
 // @Param        id  path  int  true  "教材 ID"
@@ -302,7 +273,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 // @Router       /teaching-materials/{id} [delete]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
-	_, actorWorkspace, role, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -311,7 +282,7 @@ func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := h.uc.Delete(c.Request.Context(), id, actorWorkspace, role); err != nil {
+	if err := h.uc.Delete(c.Request.Context(), id, usecase.MaterialActor{ActorUserID: uid, ActorWorkspace: actorWorkspace}); err != nil {
 		respondEntityErr(c, err, "教材が見つかりません", "教材の削除に失敗しました")
 		return
 	}

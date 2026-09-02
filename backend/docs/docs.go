@@ -854,7 +854,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。",
+                "description": "見せ て よい コース だけ を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも、 下書き は その コース を 編集 できる 人 だけ に 見える。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 する (下書き の 章 を 数 に 含める の は、 その コース を 編集 できる 場合 だけ)。",
                 "produces": [
                     "application/json"
                 ],
@@ -892,7 +892,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "company_admin / super_admin の み。 CompanyAdmin は 自社 固定。",
+                "description": "ワークスペース の 一員 なら 誰 でも 作れる。 作っ た 人 は その コース の admin に なる (コース と 付与 は 同じ トランザクション で 書く)。 未 所属 は 403。",
                 "consumes": [
                     "application/json"
                 ],
@@ -949,7 +949,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。",
+                "description": "指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。",
                 "produces": [
                     "application/json"
                 ],
@@ -1005,7 +1005,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id を 更新 (company_admin / super_admin)。",
+                "description": "その コース を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める (アプリ の ロール は 見 ない)。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1073,7 +1073,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。",
+                "description": "その コース を 編集 できる 人 だけ。 配下 の 教材 も 一緒 に 消える。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "produces": [
                     "application/json"
                 ],
@@ -1189,7 +1189,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 コース 配下 の 教材 を 返す。 trainee は published のみ。",
+                "description": "指定 コース 配下 の 教材 を 返す。 下書き が 混ざる の は その コース を 編集 できる 場合 だけ。 コース を 読め ない 相手 に は 404。",
                 "produces": [
                     "application/json"
                 ],
@@ -5332,52 +5332,13 @@ const docTemplate = `{
             }
         },
         "/teaching-materials": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "backward-compat 用。 ワークスペース 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "teaching-materials"
-                ],
-                "summary": "教材 全 件 一覧 (deprecated)",
-                "deprecated": true,
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
                         "CookieAuth": []
                     }
                 ],
-                "description": "company_admin / super_admin の み。 courseId 必須。",
+                "description": "その コース を 編集 できる 人 だけ。 courseId 必須。 コース を 読め ない 相手 に は 404、 読める が 編集 でき ない 場合 は 403。",
                 "consumes": [
                     "application/json"
                 ],
@@ -5434,7 +5395,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。",
+                "description": "指定 id の 教材 を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す。",
                 "produces": [
                     "application/json"
                 ],
@@ -5490,7 +5451,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の 教材 を 更新 (company_admin / super_admin)。",
+                "description": "その 教材 を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "consumes": [
                     "application/json"
                 ],
@@ -5558,7 +5519,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の 教材 を 削除 (company_admin / super_admin)。",
+                "description": "その 教材 を 編集 できる 人 だけ。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。",
                 "produces": [
                     "application/json"
                 ],

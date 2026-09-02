@@ -21,14 +21,13 @@ const API_V2 = '/api/v2' as const;
 
 /** 認証 (Cognito Hosted UI / SRP / 自己情報取得) */
 export const AUTH = {
-  login: `${API_V2}/auth/cognito/login`,
-  // 一時パスワード初回ログインの新パスワード設定（NEW_PASSWORD_REQUIRED 応答・FRESTYLE-313）
-  newPassword: `${API_V2}/auth/cognito/new-password`,
-  // OAuth Hosted UI ログイン(認可コード→token 交換)/ logout / refresh は
-  // provider 非依存の REST パスに統一(/auth/login, /auth/logout, /auth/refresh)。
+  // 認可コードの交換 / ログアウト / 更新は発行者に依存しない REST パスに統一する。
+  //
+  // メールとパスワードをアプリで受ける口（/auth/cognito/login など）は撤去した。
+  // パスワードを受け取るのは発行者のログイン画面の役目で、アプリが受け取ると
+  // 二要素・ロックアウト・パスワードの強さといった発行者側の守りを素通りする
+  // 経路を自分で開くことになる。
   callback: `${API_V2}/auth/login`,
-  forgotPassword: `${API_V2}/auth/cognito/forgot-password`,
-  confirmForgotPassword: `${API_V2}/auth/cognito/confirm-forgot-password`,
   logout: `${API_V2}/auth/logout`,
   refreshToken: `${API_V2}/auth/refresh`,
   me: `${API_V2}/auth/me`,

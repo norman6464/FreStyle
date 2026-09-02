@@ -76,7 +76,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。",
+                "description": "招待を作成する。受諾リンクをメールで送る。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。",
                 "consumes": [
                     "application/json"
                 ],
@@ -100,7 +100,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される",
+                        "description": "作成された招待行",
                         "schema": {
                             "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"
                         }
@@ -410,155 +410,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/cognito/login": {
-            "post": {
-                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "ログイン (メール / パスワード)",
-                "parameters": [
-                    {
-                        "description": "メール / パスワード",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.passwordLoginReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.messageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "入力 不正 (email 形式 / password 欠落)",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "資格 情報 誤り",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "最初の運営管理者作成の競合負け",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "同じ email での同時サインアップ競合",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "429": {
-                        "description": "レート制限超過",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        },
-                        "headers": {
-                            "Retry-After": {
-                                "type": "string",
-                                "description": "再試行までの秒数 (例: 60)"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "内部 エラー (Cognito 未 設定 / DB 失敗 等)",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "502": {
-                        "description": "Cognito 到達 不可",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/cognito/new-password": {
-            "post": {
-                "description": "一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ\n新パスワードで応答する。成功で認証 Cookie を発行する。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "初回パスワード設定（一時パスワードログイン）",
-                "parameters": [
-                    {
-                        "description": "email / session / 新パスワード",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.newPasswordReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "設定してログイン",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.messageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "入力エラー / パスワードポリシー違反",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "session 失効等",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "最初の運営管理者作成の競合負け",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "同じ email での同時サインアップ競合",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "429": {
-                        "description": "レート制限超過",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/auth/login": {
             "post": {
-                "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。",
+                "description": "発行者 の ログイン 画面 から の callback。 authorization code を PKCE の code_verifier つき で access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 id_token は 署名 と nonce を 検証 する。",
                 "consumes": [
                     "application/json"
                 ],
@@ -571,12 +425,12 @@ const docTemplate = `{
                 "summary": "ログイン (認可 コード → token 交換)",
                 "parameters": [
                     {
-                        "description": "Cognito callback (code 必須、 invitationToken 任意)",
+                        "description": "code / codeVerifier / nonce (invitationToken は任意)",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.cognitoCallbackReq"
+                            "$ref": "#/definitions/internal_handler.callbackReq"
                         }
                     }
                 ],
@@ -594,7 +448,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "token 交換 失敗",
+                        "description": "token 交換 失敗 / id_token 検証 失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -624,13 +478,13 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Cognito 未 設定 等 の 内部 エラー",
+                        "description": "発行者 未 設定 等 の 内部 エラー",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "502": {
-                        "description": "Cognito 到達 不可",
+                        "description": "発行者 到達 不可",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -640,7 +494,7 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
-                "description": "HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション は 別途 hosted UI で 切る。",
+                "description": "HttpOnly Cookie の access / refresh token を 消去 し、 発行者 側 の セッション 終了 URL を 返す。",
                 "produces": [
                     "application/json"
                 ],
@@ -652,7 +506,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.messageResponse"
+                            "$ref": "#/definitions/internal_handler.logoutResponse"
                         }
                     }
                 }
@@ -687,7 +541,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "DB に user が ない (Cognito 側 だけ 存在)",
+                        "description": "DB に user が ない (発行者 側 だけ 存在)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -703,7 +557,7 @@ const docTemplate = `{
         },
         "/auth/refresh": {
             "post": {
-                "description": "refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。",
+                "description": "refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 発行者 が refresh_token を 回転 させた 場合 は 新しい 値 で Cookie も 更新 する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。",
                 "produces": [
                     "application/json"
                 ],
@@ -737,7 +591,7 @@ const docTemplate = `{
                         }
                     },
                     "502": {
-                        "description": "Cognito 到達 不可",
+                        "description": "発行者 到達 不可",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -6764,6 +6618,31 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.callbackReq": {
+            "type": "object",
+            "required": [
+                "code",
+                "codeVerifier",
+                "nonce"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "codeVerifier": {
+                    "description": "CodeVerifier は PKCE の検証値。認可を始めたブラウザが作って手元に置いた乱数で、\n発行者がこれと認可要求に載った要約を突き合わせる。",
+                    "type": "string"
+                },
+                "invitationToken": {
+                    "description": "InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。",
+                    "type": "string"
+                },
+                "nonce": {
+                    "description": "Nonce は認可を始めたブラウザが作った値。id_token の中身と一致することを確かめる。",
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.chapterDetailResponse": {
             "type": "object",
             "properties": {
@@ -6841,21 +6720,6 @@ const docTemplate = `{
             "properties": {
                 "ready": {
                     "type": "boolean"
-                }
-            }
-        },
-        "internal_handler.cognitoCallbackReq": {
-            "type": "object",
-            "required": [
-                "code"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "invitationToken": {
-                    "description": "InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。",
-                    "type": "string"
                 }
             }
         },
@@ -6953,11 +6817,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "method": {
-                    "description": "Method は招待方式。\"magic_link\"（既定・受諾リンクをメール）か\n\"temporary_password\"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。\n未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。",
+                    "description": "Method は招待方式。いまは \"magic_link\"（受諾リンクをメールで送る）だけ。\n未知の値は binding で 400 にする（黙って別の方式にフォールバックさせない）。\n\n初期パスワード方式は撤去した。発行者側にユーザーを作って一時パスワードを配る\n仕組みで、特定の発行者の管理 API に直結していた。ログインが発行者の画面に\n移った今、アプリが人のパスワードを決めて渡す経路そのものを持たない。",
                     "type": "string",
                     "enum": [
-                        "magic_link",
-                        "temporary_password"
+                        "magic_link"
                     ]
                 },
                 "name": {
@@ -7717,6 +7580,18 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.logoutResponse": {
+            "type": "object",
+            "properties": {
+                "endSessionUrl": {
+                    "description": "EndSessionURL は発行者側のセッションも終わらせるための遷移先（設定が無ければ空）。",
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.markLessonCompleteRequest": {
             "type": "object",
             "required": [
@@ -7891,26 +7766,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.newPasswordReq": {
-            "type": "object",
-            "required": [
-                "email",
-                "newPassword",
-                "session"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "format": "email"
-                },
-                "newPassword": {
-                    "type": "string"
-                },
-                "session": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_handler.noteCreateReq": {
             "type": "object",
             "required": [
@@ -7947,22 +7802,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handler.passwordLoginReq": {
-            "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "format": "email"
-                },
-                "password": {
                     "type": "string"
                 }
             }

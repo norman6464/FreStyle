@@ -34,37 +34,8 @@ describe('useAuth', () => {
     vi.clearAllMocks();
   });
 
-  it('login: ログイン成功時にtrueを返す', async () => {
-    const mockUser = { id: 1, email: 'test@example.com', name: 'テスト', sub: 'sub-123' };
-    mockedRepo.login.mockResolvedValue(mockUser);
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = false;
-    await act(async () => {
-      success = await result.current.login({ email: 'test@example.com', password: 'password' });
-    });
-
-    expect(success).toBe(true);
-    expect(result.current.isAuthenticated).toBe(true);
-  });
-
-  it('login: ログイン失敗時にfalseとerrorを返す', async () => {
-    mockedRepo.login.mockRejectedValue(new Error('認証失敗'));
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = true;
-    await act(async () => {
-      success = await result.current.login({ email: 'test@example.com', password: 'wrong' });
-    });
-
-    expect(success).toBe(false);
-    expect(result.current.error).toBe('ログインに失敗しました。');
-  });
-
   it('logout: ログアウト成功時にログインページに遷移する', async () => {
-    mockedRepo.logout.mockResolvedValue(undefined);
+    mockedRepo.logout.mockResolvedValue({ message: 'ログアウトしました。' });
 
     const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 

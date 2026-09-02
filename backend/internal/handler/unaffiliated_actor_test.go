@@ -143,7 +143,7 @@ func Test_未所属actor_コースの経路は何も通らない(t *testing.T) {
 func Test_未所属actor_招待取り消しは運営管理者として通る(t *testing.T) {
 	invWorkspace := otherWorkspaceID
 	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, WorkspaceID: &invWorkspace}}}
-	h := NewAdminInvitationHandler(nil, nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
+	h := NewAdminInvitationHandler(nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
 
 	r := gin.New()
 	r.DELETE("/admin/invitations/:id", func(c *gin.Context) {
@@ -164,7 +164,7 @@ func Test_未所属actor_招待取り消しはワークスペース管理者だ�
 	// 一致しないため、存在を漏らさない 404 になる。
 	invWorkspace := otherWorkspaceID
 	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, WorkspaceID: &invWorkspace}}}
-	h := NewAdminInvitationHandler(nil, nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
+	h := NewAdminInvitationHandler(nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
 
 	r := gin.New()
 	r.DELETE("/admin/invitations/:id", func(c *gin.Context) {

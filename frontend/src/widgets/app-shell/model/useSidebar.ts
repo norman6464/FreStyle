@@ -14,9 +14,18 @@ export function useSidebar() {
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
     try {
-      await AuthRepository.logout();
+      const { endSessionUrl } = await AuthRepository.logout();
       dispatch(clearAuth());
       clearAuthHint();
+      // 発行者側のセッションも終わらせる。
+      //
+      // 手元の Cookie を消すだけだと、発行者には「ログイン済み」が残る。同じ端末で
+      // もう一度ログインを始めると、ログイン画面すら出ずにそのまま入り直せてしまう。
+      // 共用端末では、前の人のアカウントに次の人が入れることになる。
+      if (endSessionUrl) {
+        window.location.href = endSessionUrl;
+        return;
+      }
       navigate('/login');
     } catch {
       setLoggingOut(false);

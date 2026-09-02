@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -11,61 +9,51 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
+	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// passwordAuthenticator は email / password を Cognito で検証して token を返す境界。
-// infra/cognito.PasswordAuthenticator が実装し、テストでは fake を注入する。
-type passwordAuthenticator interface {
-	Authenticate(ctx context.Context, email, password string) (*cognito.Token, error)
-	// RespondToNewPassword は NEW_PASSWORD_REQUIRED チャレンジに新パスワードで応答する
-	// （一時パスワードでの初回ログイン）。session は Authenticate が返した
-	// *cognito.NewPasswordRequiredError の Session。
-	RespondToNewPassword(ctx context.Context, email, session, newPassword string) (*cognito.Token, error)
-}
-
-// AuthHandler は Cognito 関連の認証エンドポイントを提供する。
-// OAuth2 通信は infra/cognito.TokenExchanger に切り出し、ここは HTTP 境界と user upsert だけを持つ。
+// AuthHandler は認証エンドポイントを提供する。
+// 発行者との通信は infra/oidc に切り出し、ここは HTTP の境界とユーザーの upsert だけを持つ。
 type AuthHandler struct {
 	getCurrentUser          *usecase.GetCurrentUserUseCase
 	upsertUser              *usecase.UpsertUserFromIDTokenUseCase
 	ensurePersonalWorkspace *usecase.EnsurePersonalWorkspaceUseCase
 	promoteAdmin            *usecase.PromoteCognitoAdminRoleUseCase
-	cognitoCfg              *config.CognitoConfig
-	tokens                  *cognito.TokenExchanger
-	passwordAuth            passwordAuthenticator
+	oidcCfg                 *config.OIDCConfig
+	tokens                  *oidc.TokenExchanger
+	verifier                *oidc.Verifier
 }
 
-// NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
+// NewAuthHandler は AuthHandler を組み立てる。
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
 	ensurePersonalWorkspace *usecase.EnsurePersonalWorkspaceUseCase,
 	promoteAdmin *usecase.PromoteCognitoAdminRoleUseCase,
-	cognitoCfg *config.CognitoConfig,
-	passwordAuth passwordAuthenticator,
+	oidcCfg *config.OIDCConfig,
+	verifier *oidc.Verifier,
 ) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser:          getCurrentUser,
 		upsertUser:              upsertUser,
 		ensurePersonalWorkspace: ensurePersonalWorkspace,
 		promoteAdmin:            promoteAdmin,
-		cognitoCfg:              cognitoCfg,
-		passwordAuth:            passwordAuth,
-		tokens: cognito.NewTokenExchanger(cognito.Config{
-			ClientID:     cognitoCfg.ClientID,
-			ClientSecret: cognitoCfg.ClientSecret,
-			RedirectURI:  cognitoCfg.RedirectURI,
-			TokenURI:     cognitoCfg.TokenURI,
+		oidcCfg:                 oidcCfg,
+		verifier:                verifier,
+		tokens: oidc.NewTokenExchanger(oidc.ExchangerConfig{
+			ClientID:     oidcCfg.ClientID,
+			ClientSecret: oidcCfg.ClientSecret,
+			RedirectURI:  oidcCfg.RedirectURI,
+			TokenURI:     oidcCfg.TokenURI,
 		}),
 	}
 }
 
-// Me は現在ログイン中のユーザー情報（+ 派生 isAdmin / groups）を返す。
-// isAdmin は Cognito groups に "admin" を含むか、DB role が super_admin / company_admin なら true。
+// Me は現在ログイン中のユーザー情報（+ 派生 isAdmin / roles）を返す。
+// isAdmin は発行者の役割に管理者が含まれるか、DB role が super_admin / company_admin なら true。
 //
 //	@Summary      current user 情報 取得
 //	@Description  Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin 等) を 返す。
@@ -73,12 +61,12 @@ func NewAuthHandler(
 //	@Produce      json
 //	@Success      200  {object}  meResponse
 //	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      404  {object}  errorResponse  "DB に user が ない (Cognito 側 だけ 存在)"
+//	@Failure      404  {object}  errorResponse  "DB に user が ない (発行者 側 だけ 存在)"
 //	@Failure      500  {object}  errorResponse  "DB / repository 取得 失敗"
 //	@Router       /auth/me [get]
 //	@Security     CookieAuth
 func (h *AuthHandler) Me(c *gin.Context) {
-	sub, ok := c.Get(middleware.ContextKeyCognitoSub)
+	sub, ok := c.Get(middleware.ContextKeySubject)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -92,16 +80,16 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 		return
 	}
-	groups := middleware.CognitoGroupsFromContext(c)
-	isAdmin := middleware.IsAdminFromGroups(groups) ||
+	roles := middleware.RolesFromContext(c)
+	isIdPAdmin := oidc.HasRole(roles, h.adminRole())
+	isAdmin := isIdPAdmin ||
 		user.Role == domain.RoleSuperAdmin ||
 		user.Role == domain.RoleCompanyAdmin
-	// Cognito group admin だが DB role が未昇格なら同期する（federated ユーザー対策）。
-	// 昇格できたらこのレスポンスの role も揃える。捨てると、初回だけ
+	// 発行者側では管理者だが DB role が未昇格なら同期する。捨てると、初回だけ
 	// 「isAdmin=true / role=trainee」という起き得ない組み合わせをフロントへ返してしまう
 	// （次回の /auth/me では直るが、role を見て画面を出し分けている箇所が初回だけ食い違う）。
-	if middleware.IsAdminFromGroups(groups) && user.Role != domain.RoleSuperAdmin && user.Role != domain.RoleCompanyAdmin {
-		if h.promoteCognitoAdmin(c, sub.(string)) {
+	if isIdPAdmin && user.Role != domain.RoleSuperAdmin && user.Role != domain.RoleCompanyAdmin {
+		if h.promoteIdPAdmin(c, sub.(string)) {
 			user.Role = domain.RoleSuperAdmin
 		}
 	}
@@ -112,7 +100,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"role":      user.Role,
 		"createdAt": user.CreatedAt,
 		"updatedAt": user.UpdatedAt,
-		"groups":    groups,
+		"groups":    roles,
 		"isAdmin":   isAdmin,
 	}
 	// workspaceId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
@@ -122,86 +110,80 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// Logout はリフレッシュ・アクセストークンの Cookie を消去する。
+// logoutResponse は Cookie 消去に続けてフロントが踏むべき URL を返す。
+type logoutResponse struct {
+	Message string `json:"message"`
+	// EndSessionURL は発行者側のセッションも終わらせるための遷移先（設定が無ければ空）。
+	EndSessionURL string `json:"endSessionUrl,omitempty"`
+}
+
+// Logout は認証 Cookie を消去し、発行者側のセッション終了先を返す。
+//
+// Cookie を消すだけでは、発行者の側にはログイン済みのセッションが残る。同じ端末で
+// もう一度ログインを始めると、ログイン画面すら出ずにそのまま入り直せてしまう。
+// 共用端末では、前の人のアカウントに次の人が入れることになる。
 //
 //	@Summary      ログアウト
-//	@Description  HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション は 別途 hosted UI で 切る。
+//	@Description  HttpOnly Cookie の access / refresh token を 消去 し、 発行者 側 の セッション 終了 URL を 返す。
 //	@Tags         auth
 //	@Produce      json
-//	@Success      200  {object}  messageResponse
+//	@Success      200  {object}  logoutResponse
 //	@Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	middleware.ClearAuthCookies(c)
-	c.JSON(http.StatusOK, gin.H{"message": "ログアウトしました。"})
+	c.JSON(http.StatusOK, logoutResponse{
+		Message:       "ログアウトしました。",
+		EndSessionURL: h.oidcCfg.EndSessionURI,
+	})
 }
 
-type passwordLoginReq struct {
-	Email    string `json:"email" binding:"required,email" format:"email"`
-	Password string `json:"password" binding:"required"`
+type callbackReq struct {
+	Code string `json:"code" binding:"required"`
+	// CodeVerifier は PKCE の検証値。認可を始めたブラウザが作って手元に置いた乱数で、
+	// 発行者がこれと認可要求に載った要約を突き合わせる。
+	CodeVerifier string `json:"codeVerifier" binding:"required"`
+	// Nonce は認可を始めたブラウザが作った値。id_token の中身と一致することを確かめる。
+	Nonce string `json:"nonce" binding:"required"`
+	// InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。
+	InvitationToken string `json:"invitationToken"`
 }
 
-// Login は email / password を Cognito(USER_PASSWORD_AUTH)で検証して HttpOnly Cookie を発行する。
-// Hosted UI を経由しないアプリ内ログインフォーム用。ユーザー作成は Callback と同じく upsert 側で行う。
+// Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
+// 招待が無くても新規ユーザーを自己サインアップとして作成する（招待は役割・所属先の指定としてだけ働く）。
 //
-//	@Summary      ログイン (メール / パスワード)
-//	@Description  email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。
+//	@Summary      ログイン (認可 コード → token 交換)
+//	@Description  発行者 の ログイン 画面 から の callback。 authorization code を PKCE の code_verifier つき で access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 id_token は 署名 と nonce を 検証 する。
 //	@Tags         auth
 //	@Accept       json
 //	@Produce      json
-//	@Param        body  body      passwordLoginReq  true  "メール / パスワード"
+//	@Param        body  body      callbackReq  true  "code / codeVerifier / nonce (invitationToken は任意)"
 //	@Success      200   {object}  messageResponse
-//	@Failure      400   {object}  errorResponse  "入力 不正 (email 形式 / password 欠落)"
-//	@Failure      401   {object}  errorResponse  "資格 情報 誤り"
+//	@Failure      400   {object}  errorResponse  "code 欠落 等"
+//	@Failure      401   {object}  errorResponse  "token 交換 失敗 / id_token 検証 失敗"
 //	@Failure      403   {object}  errorResponse  "最初の運営管理者作成の競合負け"
 //	@Failure      409   {object}  errorResponse  "同じ email での同時サインアップ競合"
-//	@Failure      500   {object}  errorResponse  "内部 エラー (Cognito 未 設定 / DB 失敗 等)"
-//	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
+//	@Failure      500   {object}  errorResponse  "発行者 未 設定 等 の 内部 エラー"
+//	@Failure      502   {object}  errorResponse  "発行者 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
 //	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
-//	@Router       /auth/cognito/login [post]
-func (h *AuthHandler) Login(c *gin.Context) {
-	var req passwordLoginReq
+//	@Router       /auth/login [post]
+func (h *AuthHandler) Callback(c *gin.Context) {
+	var req callbackReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if h.passwordAuth == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
 
-	tok, err := h.passwordAuth.Authenticate(c.Request.Context(), req.Email, req.Password)
-	if err != nil {
-		// 一時パスワードでの初回ログインはチャレンジが返る。session をフロントへ渡し、
-		// 新パスワード設定（/auth/cognito/new-password）へ誘導する（トークンはまだ発行しない）。
-		var challenge *cognito.NewPasswordRequiredError
-		if errors.As(err, &challenge) {
-			c.JSON(http.StatusOK, gin.H{
-				"challenge": "NEW_PASSWORD_REQUIRED",
-				"session":   challenge.Session,
-			})
-			return
-		}
-		switch {
-		case errors.Is(err, cognito.ErrInvalidCredentials):
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
-		case errors.Is(err, cognito.ErrNotConfigured):
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
-		default:
-			log.Printf("cognito password login: unexpected error: %v", err)
-			c.JSON(http.StatusBadGateway, gin.H{"error": "cognito_unreachable"})
-		}
+	tok, err := h.tokens.ExchangeAuthorizationCode(c.Request.Context(), req.Code, req.CodeVerifier)
+	if status, body, ok := h.handleTokenError(c, "callback", err); ok {
+		c.JSON(status, body)
 		return
 	}
 
-	h.finishPasswordLogin(c, tok)
-}
-
-// finishPasswordLogin は取得済みトークンでユーザーを解決し、Cookie を発行する。
-// パスワードログイン（Login）と新パスワード設定（NewPassword）で共有する。
-func (h *AuthHandler) finishPasswordLogin(c *gin.Context, tok *cognito.Token) {
-	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
-	if !h.respondUpsertOutcome(c, "cognito password login", tok, user, upErr) {
+	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する
+	// （招待が無くても個人サインアップとして新規作成する。招待は役割・所属先の指定としてだけ働く）。
+	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.Nonce, req.InvitationToken)
+	if !h.respondUpsertOutcome(c, "callback", tok, user, upErr) {
 		return
 	}
 
@@ -211,17 +193,23 @@ func (h *AuthHandler) finishPasswordLogin(c *gin.Context, tok *cognito.Token) {
 // respondUpsertOutcome は upsertUserFromIDToken の結果を HTTP レスポンスへ変換する。
 // 成功時のみ Cookie を発行して true を返す。false を返したときは呼び出し元がそのまま return する。
 //
-// upErr は原因ごとに扱いを分ける: 内部エラー(DB/decode)は 500、同じ email での同時サインアップ
-// 競合(repository.ErrEmailTaken)は 409、最初の運営管理者作成の競合負け(user == nil, err == nil)は
-// 403。ErrEmailTaken を bootstrap 競合負けと同じ 403 に丸めると、招待とは無関係の一時的な
+// upErr は原因ごとに扱いを分ける: id_token の検証失敗は 401、内部エラー(DB)は 500、
+// 同じ email での同時サインアップ競合(repository.ErrEmailTaken)は 409、
+// 最初の運営管理者作成の競合負け(user == nil, err == nil)は 403。
+// ErrEmailTaken を bootstrap 競合負けと同じ 403 に丸めると、招待とは無関係の一時的な
 // 二重送信なのに「招待を受けてください」という見当違いの案内を返してしまう。
-func (h *AuthHandler) respondUpsertOutcome(c *gin.Context, logPrefix string, tok *cognito.Token, user *domain.User, upErr error) bool {
+func (h *AuthHandler) respondUpsertOutcome(c *gin.Context, logPrefix string, tok *oidc.Token, user *domain.User, upErr error) bool {
 	if upErr != nil {
 		if errors.Is(upErr, repository.ErrEmailTaken) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "email_taken",
 				"message": "同じメールアドレスでの登録が別のリクエストで同時に完了しました。もう一度ログインし直してください。",
 			})
+			return false
+		}
+		if errors.Is(upErr, errIDTokenRejected) {
+			log.Printf("%s: id_token rejected: %v", logPrefix, upErr)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_id_token"})
 			return false
 		}
 		log.Printf("%s: upsert failed: %v", logPrefix, upErr)
@@ -241,116 +229,15 @@ func (h *AuthHandler) respondUpsertOutcome(c *gin.Context, logPrefix string, tok
 	return true
 }
 
-type newPasswordReq struct {
-	Email       string `json:"email" binding:"required,email" format:"email"`
-	Session     string `json:"session" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required"`
-}
-
-// NewPassword は NEW_PASSWORD_REQUIRED チャレンジに新パスワードで応答し、
-// 成功したらパスワードログインと同じく Cookie を発行する（一時パスワードでの初回ログイン）。
-//
-//	@Summary      初回パスワード設定（一時パスワードログイン）
-//	@Description  一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ
-//	@Description  新パスワードで応答する。成功で認証 Cookie を発行する。
-//	@Tags         auth
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      newPasswordReq  true  "email / session / 新パスワード"
-//	@Success      200   {object}  messageResponse  "設定してログイン"
-//	@Failure      400   {object}  errorResponse    "入力エラー / パスワードポリシー違反"
-//	@Failure      401   {object}  errorResponse    "session 失効等"
-//	@Failure      403   {object}  errorResponse    "最初の運営管理者作成の競合負け"
-//	@Failure      409   {object}  errorResponse    "同じ email での同時サインアップ競合"
-//	@Failure      429   {object}  errorResponse    "レート制限超過"
-//	@Router       /auth/cognito/new-password [post]
-func (h *AuthHandler) NewPassword(c *gin.Context) {
-	var req newPasswordReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if h.passwordAuth == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
-		return
-	}
-
-	tok, err := h.passwordAuth.RespondToNewPassword(c.Request.Context(), req.Email, req.Session, req.NewPassword)
-	if err != nil {
-		switch {
-		case errors.Is(err, cognito.ErrInvalidCredentials):
-			// session 失効・不正など。再ログインを促す。
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_session"})
-		case errors.Is(err, cognito.ErrNotConfigured):
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
-		default:
-			// パスワードポリシー違反などは 400。詳細メッセージはユーザーに出さず code のみ。
-			log.Printf("cognito new password: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_new_password"})
-		}
-		return
-	}
-
-	h.finishPasswordLogin(c, tok)
-}
-
-type cognitoCallbackReq struct {
-	Code string `json:"code" binding:"required"`
-	// InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。
-	InvitationToken string `json:"invitationToken"`
-}
-
-// Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
-// 招待が無くても新規ユーザーを自己サインアップとして作成する（招待は役割・所属先の指定としてだけ働く）。
-//
-//	@Summary      ログイン (認可 コード → token 交換)
-//	@Description  Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito admin group だけでは昇格しない）。
-//	@Tags         auth
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      cognitoCallbackReq  true  "Cognito callback (code 必須、 invitationToken 任意)"
-//	@Success      200   {object}  messageResponse
-//	@Failure      400   {object}  errorResponse  "code 欠落 等"
-//	@Failure      401   {object}  errorResponse  "token 交換 失敗"
-//	@Failure      403   {object}  errorResponse  "最初の運営管理者作成の競合負け"
-//	@Failure      409   {object}  errorResponse  "同じ email での同時サインアップ競合"
-//	@Failure      500   {object}  errorResponse  "Cognito 未 設定 等 の 内部 エラー"
-//	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
-//	@Failure      429   {object}  errorResponse  "レート制限超過"
-//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
-//	@Router       /auth/login [post]
-func (h *AuthHandler) Callback(c *gin.Context) {
-	var req cognitoCallbackReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	tok, err := h.tokens.ExchangeAuthorizationCode(c.Request.Context(), req.Code)
-	if status, body, ok := h.handleTokenError(c, "callback", err); ok {
-		c.JSON(status, body)
-		return
-	}
-
-	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する
-	// （招待が無くても個人サインアップとして新規作成する。招待は役割・所属先の指定としてだけ働く）。
-	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
-	if !h.respondUpsertOutcome(c, "cognito callback", tok, user, upErr) {
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
-}
-
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
 //
 //	@Summary      アクセス トークン リフレッシュ
-//	@Description  refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+//	@Description  refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 発行者 が refresh_token を 回転 させた 場合 は 新しい 値 で Cookie も 更新 する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
 //	@Tags         auth
 //	@Produce      json
 //	@Success      200  {object}  messageResponse
 //	@Failure      401  {object}  errorResponse  "refresh_token 欠落 / 無効"
-//	@Failure      502  {object}  errorResponse  "Cognito 到達 不可"
+//	@Failure      502  {object}  errorResponse  "発行者 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
 //	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
 //	@Router       /auth/refresh [post]
@@ -364,9 +251,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	tok, err := h.tokens.RefreshAccessToken(c.Request.Context(), rt)
 	if err != nil {
 		// refresh_token 無効は Cookie クリアして 401。それ以外（502 等）は Cookie を残す。
-		var exErr *cognito.TokenExchangeError
+		var exErr *oidc.TokenExchangeError
 		if errors.As(err, &exErr) {
-			log.Printf("cognito refresh: status=%d body=%s", exErr.HTTPStatus, exErr.Body)
+			log.Printf("refresh: status=%d body=%s", exErr.HTTPStatus, exErr.Body)
 			middleware.ClearAuthCookies(c)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_failed"})
 			return
@@ -377,12 +264,24 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	// id_token があれば DB role を同期する。無ければ access_token の claims から昇格を試みる
-	// （federated ユーザーは id_token に groups が無いことがある）。refresh は既存ユーザー前提。
+	// **回転した refresh_token を必ず書き戻す。**
+	//
+	// 発行者によっては、交換のたびに refresh_token 自体が新しいものへ入れ替わる。
+	// 書き戻さないと Cookie には使用済みの値が残り、次の更新で「使い回し」と見なされて
+	// 失敗する。しかも多くの実装は使い回しをトークン窃取の兆候として扱い、
+	// そのトークン系列をまとめて失効させる。結果、2 回目の更新で全員が
+	// ログイン画面へ飛ばされ、書きかけの内容が消える。
+	// 空文字のときは何もしない（SetRefreshTokenCookie 側で握る）。
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
+
+	// id_token があれば DB role を同期する。無ければ access_token の検証済みクレームから昇格を試みる。
+	// refresh は既存ユーザー前提なので、失敗してもレスポンスは変えないがログには残す
+	// （恒久的に失敗し続ける状態に気付けるようにする）。
+	//
+	// nonce は空を渡す。nonce は「認可を始めた本人か」を確かめるためのもので、
+	// 更新の応答には対応する認可要求が無い（そもそも発行者が nonce を載せない）。
 	if tok.IDToken != "" {
-		// refresh は既存ユーザー前提。role 同期の best-effort なのでレスポンスは変えないが、
-		// 失敗は握り潰さずログに残す（恒久的に失敗し続ける状態に気付けるようにする）。
-		if _, err := h.upsertUserFromIDToken(c, tok.IDToken, ""); err != nil {
+		if _, err := h.upsertUserFromIDToken(c, tok.IDToken, "", ""); err != nil {
 			slog.WarnContext(c.Request.Context(), "refresh: user upsert failed", "err", err)
 		}
 	} else {
@@ -391,96 +290,113 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "refreshed"})
 }
 
-// syncRoleFromAccessToken は access_token の cognito:groups を見て DB role を super_admin に昇格する。
-// ID token に groups が含まれない Google federated ユーザー向けのフォールバック。
+// syncRoleFromAccessToken は access_token の役割を見て DB role を super_admin に昇格する。
+// id_token に役割が含まれない構成向けのフォールバック。
+//
+// **署名を検証したうえで読む。** 以前はここも id_token の読み取りも署名を確かめずに
+// payload をデコードしていた。役割の昇格という、最も強い権限の入口を、
+// 誰でも書き換えられる値で駆動していたことになる。
 func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string) {
-	claims, err := middleware.DecodeClaims(accessToken)
+	ctx := c.Request.Context()
+	claims, err := h.verifier.Verify(ctx, accessToken)
 	if err != nil {
-		slog.WarnContext(c.Request.Context(), "refresh: access_token decode failed", "err", err)
+		slog.WarnContext(ctx, "refresh: access_token verify failed", "err", err)
 		return
 	}
 	sub, _ := claims["sub"].(string)
 	if sub == "" {
 		return
 	}
-	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
-	if !middleware.IsAdminFromGroups(groups) {
+	roles := oidc.RolesFromClaim(claims[h.rolesClaim()])
+	if !oidc.HasRole(roles, h.adminRole()) {
 		return
 	}
-	h.promoteCognitoAdmin(c, sub)
+	h.promoteIdPAdmin(c, sub)
 }
 
-// promoteCognitoAdmin は Cognito admin グループのユーザーを super_admin へ同期する（昇格のみ）。
+// promoteIdPAdmin は発行者側で管理者の役割を持つユーザーを super_admin へ同期する（昇格のみ）。
 // 戻り値は実際に昇格したか（未配線・失敗・既に管理者なら false）。
 // 失敗してもレスポンスのステータスは変えない（本人の閲覧・refresh は妨げない）が、必ずログに残す。
 // role 名の解決失敗のような恒久エラーを握り潰すと、そのユーザーは「UI 上は管理者・API は 403」の
 // 壊れた状態にログすら残さず留まり続けるため。
-func (h *AuthHandler) promoteCognitoAdmin(c *gin.Context, cognitoSub string) bool {
+func (h *AuthHandler) promoteIdPAdmin(c *gin.Context, subject string) bool {
 	if h.promoteAdmin == nil {
 		return false
 	}
 	ctx := c.Request.Context()
 	promoted, err := h.promoteAdmin.Execute(ctx, usecase.PromoteCognitoAdminRoleInput{
-		CognitoSub: cognitoSub,
+		CognitoSub: subject,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "cognito admin role sync failed", "cognitoSub", cognitoSub, "err", err)
+		slog.ErrorContext(ctx, "idp admin role sync failed", "subject", subject, "err", err)
 		return false
 	}
 	return promoted
 }
 
-// handleTokenError は cognito.TokenExchanger が返したエラーを HTTP レスポンスに変換する。
+// rolesClaim / adminRole は設定の既定を 1 か所に閉じる。
+func (h *AuthHandler) rolesClaim() string { return h.oidcCfg.AdminRoleClaim }
+func (h *AuthHandler) adminRole() string  { return h.oidcCfg.AdminRole }
+
+// handleTokenError は TokenExchanger が返したエラーを HTTP レスポンスに変換する。
 // returned ok=true なら呼び元は早期 return する想定。
 func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (int, gin.H, bool) {
 	if err == nil {
 		return 0, nil, false
 	}
 
-	var exErr *cognito.TokenExchangeError
+	var exErr *oidc.TokenExchangeError
 	switch {
-	case errors.Is(err, cognito.ErrNotConfigured):
-		return http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"}, true
+	case errors.Is(err, oidc.ErrNotConfigured):
+		return http.StatusInternalServerError, gin.H{"error": "oidc_not_configured"}, true
 	case errors.As(err, &exErr):
 		// 本物の理由は log に残し、クライアントには簡素なエラーだけ返す。
-		log.Printf("cognito %s: token exchange status=%d body=%s redirect_uri=%s client_id_set=%t client_secret_set=%t",
-			op, exErr.HTTPStatus, exErr.Body, h.cognitoCfg.RedirectURI, h.cognitoCfg.ClientID != "", h.cognitoCfg.ClientSecret != "")
+		log.Printf("%s: token exchange status=%d body=%s redirect_uri=%s client_id_set=%t client_secret_set=%t",
+			op, exErr.HTTPStatus, exErr.Body, h.oidcCfg.RedirectURI, h.oidcCfg.ClientID != "", h.oidcCfg.ClientSecret != "")
 		return http.StatusUnauthorized, gin.H{"error": "token_exchange_failed"}, true
-	case errors.Is(err, cognito.ErrUnreachable):
-		log.Printf("cognito %s: token endpoint unreachable: %v", op, err)
-		return http.StatusBadGateway, gin.H{"error": "cognito_unreachable"}, true
-	case errors.Is(err, cognito.ErrInvalidResponse):
-		log.Printf("cognito %s: invalid token response: %v", op, err)
+	case errors.Is(err, oidc.ErrUnreachable):
+		log.Printf("%s: token endpoint unreachable: %v", op, err)
+		return http.StatusBadGateway, gin.H{"error": "idp_unreachable"}, true
+	case errors.Is(err, oidc.ErrInvalidResponse):
+		log.Printf("%s: invalid token response: %v", op, err)
 		return http.StatusBadGateway, gin.H{"error": "invalid_token_response"}, true
 	default:
-		log.Printf("cognito %s: unexpected error: %v", op, err)
+		log.Printf("%s: unexpected error: %v", op, err)
 		return http.StatusInternalServerError, gin.H{"error": "internal_error"}, true
 	}
 }
 
-// upsertUserFromIDToken はIDトークンから認証情報を取得し、ユーザー更新をusecaseへ委譲する。
+// errIDTokenRejected は id_token の署名・クレーム検証に落ちたことを表す。
+// respondUpsertOutcome がこれを 401 に変換する（DB 障害の 500 と区別する）。
+var errIDTokenRejected = errors.New("handler: id_token rejected")
+
+// upsertUserFromIDToken は id_token を検証してユーザー更新を usecase へ委譲する。
 // 続けて個人ワークスペースの確保まで行う（無ければ作る。既存なら 1 回の SELECT で終わる）。
 // user が nil かつ err が nil のときだけ、最初の運営管理者作成の競合負けで弾かれたことを表す
 // （招待必須のゲートは撤去済みで、それ以外の新規ユーザーはここで弾かれない）。
 func (h *AuthHandler) upsertUserFromIDToken(
 	c *gin.Context,
 	idToken string,
+	expectedNonce string,
 	invitationToken string,
 ) (user *domain.User, err error) {
-	claims, decodeErr := middleware.DecodeClaims(idToken)
-	if decodeErr != nil {
-		return nil, fmt.Errorf("failed to decode id_token: %w", decodeErr)
-	}
-
 	if h.upsertUser == nil {
 		return nil, errors.New("upsert user usecase not configured")
+	}
+
+	// **署名とクレームを検証してから読む。**
+	// ここで作られるのはユーザーそのもの（sub / email / 役割）で、検証せずに読むと
+	// 「好きな sub と email を名乗って新しいユーザーを作る」ことができてしまう。
+	claims, verifyErr := h.verifier.VerifyIDToken(c.Request.Context(), idToken, expectedNonce)
+	if verifyErr != nil {
+		return nil, errors.Join(errIDTokenRejected, verifyErr)
 	}
 
 	sub, _ := claims["sub"].(string)
 	email, _ := claims["email"].(string)
 	name, _ := claims["name"].(string)
-	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
-	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
+	roles := oidc.RolesFromClaim(claims[h.rolesClaim()])
+	isIdPAdmin := oidc.HasRole(roles, h.adminRole())
 
 	user, err = h.upsertUser.Execute(
 		c.Request.Context(),
@@ -488,7 +404,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 			CognitoSub:      sub,
 			Email:           email,
 			Name:            name,
-			IsCognitoAdmin:  isCognitoAdmin,
+			IsCognitoAdmin:  isIdPAdmin,
 			InvitationToken: invitationToken,
 		},
 	)

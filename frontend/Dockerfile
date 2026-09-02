@@ -4,8 +4,8 @@
 # 本番は S3 + CloudFront 配信のためこの Dockerfile は使わない（ステージング検証専用）。
 #
 # VITE_* はビルド時にバンドルへ焼き込まれるため build-arg で受け取る。
-# サブドメインごとに redirect_uri（Cognito callback）が変わるため、deploy 時に
-# VITE_REDIRECT_URI をそのサブドメインの値で渡してビルドする。
+# サブドメインごとに戻り先が変わるため、deploy 時に
+# VITE_OIDC_REDIRECT_URI をそのサブドメインの値で渡してビルドする。
 # API は同一ホストの /api/* を Caddy が backend に振るので VITE_API_BASE_URL は
 # 空（相対パス）でよい。
 
@@ -26,18 +26,22 @@ COPY . .
 
 # Vite に焼き込む公開設定（すべて build-arg 経由）。
 ARG VITE_API_BASE_URL=""
-ARG VITE_COGNITO_DOMAIN=""
-ARG VITE_CLIENT_ID=""
-ARG VITE_REDIRECT_URI=""
-ARG VITE_RESPONSE_TYPE="code"
-ARG VITE_SCOPE="openid"
+ARG VITE_OIDC_AUTHORIZE_URI=""
+ARG VITE_OIDC_CLIENT_ID=""
+ARG VITE_OIDC_REDIRECT_URI=""
+ARG VITE_OIDC_END_SESSION_URI=""
+# 既定に profile / email / offline_access を含める。
+# openid だけだと、発行者は id_token に名前もメールも載せず、
+# offline_access が無ければ更新用のトークンをそもそも発行しない
+# （アクセストークンが切れた瞬間に全員ログイン画面へ飛ぶ）。
+ARG VITE_OIDC_SCOPE="openid profile email offline_access"
 
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
-    VITE_COGNITO_DOMAIN=$VITE_COGNITO_DOMAIN \
-    VITE_CLIENT_ID=$VITE_CLIENT_ID \
-    VITE_REDIRECT_URI=$VITE_REDIRECT_URI \
-    VITE_RESPONSE_TYPE=$VITE_RESPONSE_TYPE \
-    VITE_SCOPE=$VITE_SCOPE
+    VITE_OIDC_AUTHORIZE_URI=$VITE_OIDC_AUTHORIZE_URI \
+    VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID \
+    VITE_OIDC_REDIRECT_URI=$VITE_OIDC_REDIRECT_URI \
+    VITE_OIDC_END_SESSION_URI=$VITE_OIDC_END_SESSION_URI \
+    VITE_OIDC_SCOPE=$VITE_OIDC_SCOPE
 
 RUN pnpm run build
 

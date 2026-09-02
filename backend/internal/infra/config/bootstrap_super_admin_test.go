@@ -8,6 +8,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setRequiredEnv は Load() が要求する最低限の設定を積む。
+// 認証の設定が欠けていると Load は起動を止めるので、他の項目を見るテストでも必ず要る。
+func setRequiredEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("DATABASE_URL", "postgres://x/y")
+	t.Setenv("OIDC_ISSUER", "https://issuer.test")
+	t.Setenv("OIDC_JWKS_URI", "https://issuer.test/oauth/v2/keys")
+	t.Setenv("OIDC_TOKEN_URI", "https://issuer.test/oauth/v2/token")
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_REDIRECT_URI", "http://localhost:5173/login/callback")
+}
+
 // Test_BootstrapSuperAdminEmail_既定は空で前後空白を落とす は、招待免除のブートストラップが
 // 「明示的に環境変数を設定したときだけ効く」ことと、打ち間違いで黙って無効化されないよう
 // 前後の空白を落とすことを固定する。
@@ -26,7 +38,7 @@ func Test_BootstrapSuperAdminEmail_既定は空で前後空白を落とす(t *te
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			t.Setenv("DATABASE_URL", "postgres://x/y")
+			setRequiredEnv(t)
 			t.Setenv("BOOTSTRAP_SUPER_ADMIN_EMAIL", c.env)
 
 			cfg, err := Load()
@@ -41,7 +53,7 @@ func Test_BootstrapSuperAdminEmail_既定は空で前後空白を落とす(t *te
 // 存在を分岐する実装に変えると通る経路が変わる。この免除は「明示的に設定したときだけ効く」
 // ことが安全性の根拠なので、既定（未設定）で免除が付かないことを直接押さえる。
 func Test_BootstrapSuperAdminEmail_環境変数が無ければ免除しない(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://x/y")
+	setRequiredEnv(t)
 	// t.Setenv を先に呼んでおくと、テスト終了時に元の値へ復元される（Unsetenv しても戻る）。
 	t.Setenv("BOOTSTRAP_SUPER_ADMIN_EMAIL", "ops@example.com")
 	require.NoError(t, os.Unsetenv("BOOTSTRAP_SUPER_ADMIN_EMAIL"))

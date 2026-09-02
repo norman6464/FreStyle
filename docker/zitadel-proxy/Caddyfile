@@ -1,0 +1,28 @@
+# Zitadel 本体とログイン画面を、同じホスト名・同じポートの下にまとめる。
+#
+# **なぜ前段が要るか。** Zitadel は Host ヘッダを見て「どのインスタンス宛か」を決める。
+# ログイン画面は別のコンテナで動くが、そこから本体の API を叩くとき Host が
+# 別の名前（login.localhost:3000 など）になると、本体は
+# 「Instance not found. ExternalDomain is ...」と答えて何もできない。
+#
+# そこで、ブラウザから見ても、ログイン画面から見ても、backend から見ても
+# 同じ zitadel.localhost:8081 になるように、前段で振り分ける。
+# オンプレでも同じ形（前段のプロキシ + 本体 + ログイン画面）になるので、
+# 手元だけ構成を変えないでおく。
+{
+	# 手元は TLS を張らない。証明書の自動取得もしない。
+	auto_https off
+	admin off
+}
+
+:8081 {
+	# ログイン画面（v4 では別コンテナ）。
+	handle /ui/v2/login/* {
+		reverse_proxy zitadel-login:3000
+	}
+
+	# それ以外は本体。gRPC-Web / Connect も通るよう、素通しにする。
+	handle {
+		reverse_proxy zitadel:8081
+	}
+}

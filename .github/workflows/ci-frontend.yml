@@ -86,11 +86,11 @@ jobs:
         env:
           # ビルド時の VITE_* は本番値ではなくダミーで OK（型チェック・syntax確認が目的）
           VITE_API_BASE_URL: https://example.invalid
-          VITE_COGNITO_DOMAIN: https://example.invalid
-          VITE_CLIENT_ID: ci-dummy
-          VITE_REDIRECT_URI: https://example.invalid/callback
-          VITE_RESPONSE_TYPE: code
-          VITE_SCOPE: openid
+          VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
+          VITE_OIDC_CLIENT_ID: ci-dummy
+          VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
+          VITE_OIDC_END_SESSION_URI: https://example.invalid/oidc/v1/end_session
+          VITE_OIDC_SCOPE: openid profile email offline_access
         run: pnpm run build
 
   # 未使用ファイル / 未使用依存 / 未宣言(phantom)依存を knip で検出する。
@@ -195,11 +195,11 @@ jobs:
       - name: Build
         env:
           VITE_API_BASE_URL: https://example.invalid
-          VITE_COGNITO_DOMAIN: https://example.invalid
-          VITE_CLIENT_ID: ci-dummy
-          VITE_REDIRECT_URI: https://example.invalid/callback
-          VITE_RESPONSE_TYPE: code
-          VITE_SCOPE: openid
+          VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
+          VITE_OIDC_CLIENT_ID: ci-dummy
+          VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
+          VITE_OIDC_END_SESSION_URI: https://example.invalid/oidc/v1/end_session
+          VITE_OIDC_SCOPE: openid profile email offline_access
         run: pnpm run build
 
       # 計測結果を Job Summary に残す。上限超過で size-limit は非 0 を返すが、

@@ -688,7 +688,7 @@ func sandboxEnv(extra ...string) []string {
 // isSensitiveEnvKey はユーザコードに渡してはいけない env 名かを判定する。
 func isSensitiveEnvKey(key string) bool {
 	k := strings.ToUpper(key)
-	for _, p := range []string{"AWS_", "COGNITO_", "DB_", "DATABASE", "SES_", "DYNAMODB_", "NOTE_IMAGES", "BEDROCK_", "CODE_RUNNER", "CODE_PG", "PG"} {
+	for _, p := range []string{"AWS_", "OIDC_", "COGNITO_", "DB_", "DATABASE", "SES_", "DYNAMODB_", "NOTE_IMAGES", "BEDROCK_", "CODE_RUNNER", "CODE_PG", "PG"} {
 		if strings.HasPrefix(k, p) {
 			return true
 		}

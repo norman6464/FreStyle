@@ -1,32 +1,25 @@
 import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '@/shared/ui/PublicHeader';
-import InputField from '@/shared/ui/InputField';
 import Button from '@/shared/ui/Button';
 import SNSSignInButton from '@/shared/ui/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
-import { getCognitoAuthUrl } from '@/features/auth';
-import { useLoginPage } from '../model/useLoginPage';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
+import { useLoginPage } from '../model/useLoginPage';
 
+/**
+ * ログイン画面。
+ *
+ * メールとパスワードのフォームは置かない。パスワードを受け取るのは発行者の
+ * ログイン画面の役目で、アプリが受け取ると、二要素・ロックアウト・パスワードの
+ * 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
+ *
+ * ここは「発行者へ送る」ことだけをする。
+ */
 export default function LoginPage() {
-  const {
-    form,
-    loginMessage,
-    flashMessage,
-    loading,
-    handleLogin,
-    handleChange,
-    newPasswordPhase,
-    newPassword,
-    newPasswordConfirm,
-    setNewPassword,
-    setNewPasswordConfirm,
-    handleNewPassword,
-  } = useLoginPage();
+  const { flashMessage, errorMessage, loading, startLogin } = useLoginPage();
 
   return (
-    <AuthLayout title={newPasswordPhase ? '新しいパスワードの設定' : 'ログイン'} header={<PublicHeader />}>
-      {/* フラッシュメッセージ（ログアウト後・招待受諾後などの成功通知） */}
+    <AuthLayout title="ログイン" header={<PublicHeader />}>
       {flashMessage && (
         <p
           role="status"
@@ -37,75 +30,26 @@ export default function LoginPage() {
         </p>
       )}
 
-      {/* エラーメッセージ */}
-      {loginMessage?.type === 'error' && (
+      {errorMessage && (
         <p
           role="alert"
           className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
         >
-          {loginMessage.text}
-        </p>
-      )}
-      {/* 初回ログイン案内など（成功系の通知） */}
-      {loginMessage?.type === 'success' && (
-        <p
-          role="status"
-          className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center font-medium text-emerald-700"
-        >
-          {loginMessage.text}
+          {errorMessage}
         </p>
       )}
 
-      {newPasswordPhase ? (
-        /* 一時パスワード初回ログイン: 新パスワード設定フォーム（FRESTYLE-313） */
-        <form onSubmit={handleNewPassword} aria-label="新しいパスワードの設定フォーム">
-          <InputField
-            label="新しいパスワード"
-            name="newPassword"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            disabled={loading}
-          />
-          <InputField
-            label="新しいパスワード（確認）"
-            name="newPasswordConfirm"
-            type="password"
-            value={newPasswordConfirm}
-            onChange={(e) => setNewPasswordConfirm(e.target.value)}
-            disabled={loading}
-          />
-          <Button variant="primary" fullWidth type="submit" loading={loading}>
-            {loading ? '設定中...' : 'パスワードを設定してログイン'}
-          </Button>
-        </form>
-      ) : (
-        <>
-          {/* メール・パスワードフォーム（Cognito USER_PASSWORD_AUTH） */}
-          <form onSubmit={handleLogin} aria-label="ログインフォーム">
-            <InputField
-              label="メールアドレス"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              disabled={loading}
-            />
-            <InputField
-              label="パスワード"
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={handleChange}
-              disabled={loading}
-            />
-            <Button variant="primary" fullWidth type="submit" loading={loading}>
-              {loading ? 'ログイン中...' : 'ログイン'}
-            </Button>
-          </form>
+      <Button
+        variant="primary"
+        fullWidth
+        type="button"
+        loading={loading}
+        onClick={() => startLogin()}
+      >
+        {loading ? 'ログイン画面へ移動しています...' : 'ログインする'}
+      </Button>
 
-          {/* 区切り線 */}
-          <div className="relative my-5">
+      <div className="relative my-5">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-surface-3"></div>
         </div>
@@ -114,21 +58,13 @@ export default function LoginPage() {
         </div>
       </div>
 
-          {/* Google で直接ログイン（Hosted UI） */}
-          <SNSSignInButton
-            provider="google"
-            onClick={() => {
-              window.location.href = getCognitoAuthUrl('Google');
-            }}
-          />
+      <SNSSignInButton provider="google" onClick={() => startLogin('Google')} />
 
-          <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
-            招待された方は招待メールのリンクからログインできます。
-            <br />
-            アカウントをお持ちでない方は <LinkText to="/signup">アカウントを作成</LinkText>。
-          </p>
-        </>
-      )}
+      <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
+        招待された方は招待メールのリンクからログインできます。
+        <br />
+        アカウントをお持ちでない方は <LinkText to="/signup">アカウントを作成</LinkText>。
+      </p>
     </AuthLayout>
   );
 }

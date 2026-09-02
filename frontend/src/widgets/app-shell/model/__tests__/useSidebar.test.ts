@@ -28,7 +28,7 @@ vi.mock('@/entities/user/api/authRepository', () => ({
 describe('useSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLogout.mockResolvedValue(undefined);
+    mockLogout.mockResolvedValue({ message: 'ログアウトしました。' });
   });
 
   it('ログアウトでdispatch(clearAuth)とnavigate(/login)を呼ぶ', async () => {

@@ -3,10 +3,7 @@ import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
 
 import { useNavigate } from 'react-router-dom';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
-import { AuthRepository, LoginRequest,
-  ForgotPasswordRequest,
-  ConfirmForgotPasswordRequest,
-  UserInfo } from '@/entities/user';
+import { AuthRepository, UserInfo } from '@/entities/user';
 import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 
 /**
@@ -34,76 +31,6 @@ export const useAuth = () => {
   const authState = useAppSelector((state) => state.auth);
 
   /**
-   * ログイン
-   */
-  const login = useCallback(
-    async (request: LoginRequest): Promise<boolean> => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const userInfo = await AuthRepository.login(request);
-        setUser(userInfo);
-        dispatch(
-          setAuthData({
-            isAdmin: !!userInfo.isAdmin,
-            // 値が無いときは undefined のまま渡し、setAuthData に現在値を維持させる
-            // （FRESTYLE-233）。?? で null / true を入れると、ユーザー情報を返さない
-            // 応答（/auth/cognito/login は message のみ）で確定済みのロールを消してしまう。
-            role: userInfo.role,
-          }),
-        );
-        return true;
-      } catch (err) {
-        setError(classifyApiError(err, 'ログインに失敗しました。'));
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [dispatch]
-  );
-
-  /**
-   * パスワード再設定リクエスト
-   */
-  const forgotPassword = useCallback(async (request: ForgotPasswordRequest): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await AuthRepository.forgotPassword(request);
-      return true;
-    } catch (err) {
-      setError(classifyApiError(err, 'パスワード再設定リクエストに失敗しました。'));
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * パスワード再設定確認
-   */
-  const confirmForgotPassword = useCallback(
-    async (request: ConfirmForgotPasswordRequest): Promise<boolean> => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        await AuthRepository.confirmForgotPassword(request);
-        return true;
-      } catch (err) {
-        setError(classifyApiError(err, 'パスワード再設定確認に失敗しました。'));
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  /**
    * ログアウト
    */
   const logout = useCallback(async (): Promise<void> => {
@@ -111,9 +38,14 @@ export const useAuth = () => {
     setError(null);
 
     try {
-      await AuthRepository.logout();
+      const { endSessionUrl } = await AuthRepository.logout();
       setUser(null);
       dispatch(clearAuth());
+      // 発行者側のセッションも終わらせる（手元の Cookie を消すだけでは残る）。
+      if (endSessionUrl) {
+        window.location.href = endSessionUrl;
+        return;
+      }
       navigate('/login');
     } catch (err) {
       setError(classifyApiError(err, 'ログアウトに失敗しました。'));
@@ -168,9 +100,6 @@ export const useAuth = () => {
     loading,
     error,
     isAuthenticated: authState.isAuthenticated,
-    login,
-    forgotPassword,
-    confirmForgotPassword,
     logout,
     getCurrentUser,
     refreshToken,

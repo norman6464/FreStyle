@@ -10,13 +10,17 @@
 # 出力はそのまま .env に貼れる形にしてある。
 set -euo pipefail
 
-ZITADEL_URL="${ZITADEL_URL:-http://localhost:8081}"
+ZITADEL_URL="${ZITADEL_URL:-http://zitadel.localhost:8081}"
 PAT_VOLUME="${ZITADEL_PAT_VOLUME:-frestyle-local-zitadel-pat}"
 PROJECT_NAME="${ZITADEL_PROJECT_NAME:-FreStyle}"
 APP_NAME="${ZITADEL_APP_NAME:-frestyle-web}"
 # 手元のフロントエンド。認可コードの戻り先。
-REDIRECT_URI="${ZITADEL_REDIRECT_URI:-http://localhost:5173/auth/callback}"
+# **SPA のルートと一致していること**（frontend/src/app/App.tsx の /login/callback）。
+# ここがずれると、発行者は redirect_uri_mismatch で交換を拒む。
+REDIRECT_URI="${ZITADEL_REDIRECT_URI:-http://localhost:5173/login/callback}"
 LOGOUT_URI="${ZITADEL_LOGOUT_URI:-http://localhost:5173/}"
+# docker-compose の初期化で作られる管理者。ここに admin の役割を与える。
+ADMIN_LOGIN_NAME="${ZITADEL_ADMIN_LOGIN_NAME:-admin@frestyle.local}"
 
 # PAT は zitadel イメージに cat が無いので、alpine を挟んで読む
 # （docker compose exec zitadel cat ... は "file not found in $PATH" を
@@ -90,7 +94,9 @@ if [ -z "$APP_JSON" ]; then
   "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
   "devMode": true,
   "accessTokenType": "OIDC_TOKEN_TYPE_JWT",
-  "idTokenUserinfoAssertion": true
+  "idTokenUserinfoAssertion": true,
+  "idTokenRoleAssertion": true,
+  "accessTokenRoleAssertion": true
 }
 JSON
 )")"
@@ -108,22 +114,111 @@ fi
 
 # devMode を立てているのは、手元が http で、Zitadel が既定では
 # https 以外の redirect_uri を拒むため。**本番では絶対に立てない。**
+#
+# roleAssertion を 2 つ立てているのが要点。Zitadel は既定では**役割をトークンに載せない**。
+# 立て忘れると、アプリ側でクレーム名を正しく読んでいても役割は常に空になり、
+# 管理者判定が黙って false のままになる。エラーもログも出ないので気づけない。
 
-# ---- ログインのふるまい（Notion に寄せる） ----
+# ---- プロジェクトロール ----
 #
-# Notion の認証は「メールで入る」が中心で、パスワードは主役ではない。
-# 具体的には次の 5 つ。ここで作れるのは 1・2・3・5 で、4（招待）はアプリ側の口。
+# アプリは「発行者側で admin の役割を持っているか」を見て運営管理者へ昇格させる。
+# その役割がそもそも存在しないと、誰にも付けられないので昇格の経路が丸ごと死ぬ。
 #
-#   1. メールアドレスだけでログインできる（コード / パスキー）
-#   2. Google などのソーシャルログイン
-#   3. ワークスペース（＝ Zitadel の組織）に属する ID
-#   4. 招待でメンバーになる
-#   5. 段階的に強くできる（2 要素）
+# 既にあれば 409 が返る。作成の成否は HTTP の状態コードで見る
+# （本文の details を見てはいけない — エラー応答にも入っているので取り違える）。
+ROLE_STATUS="$(
+  curl -sS -o /dev/null -w '%{http_code}' -X POST "${ZITADEL_URL}/management/v1/projects/${PROJECT_ID}/roles" \
+    -H "Authorization: Bearer ${PAT}" -H 'Content-Type: application/json' \
+    -d '{"roleKey":"admin","displayName":"FreStyle 運営管理者","group":"frestyle"}'
+)"
+case "$ROLE_STATUS" in
+  200|201) echo "プロジェクトロール admin を作った" ;;
+  409)     echo "プロジェクトロール admin は既にある" ;;
+  *)       echo "プロジェクトロールを作れない（HTTP ${ROLE_STATUS}）" >&2; exit 1 ;;
+esac
+
+# このプロジェクトへの認可を持つ相手にだけトークンを出す（hasProjectCheck）。
+# 立てないと、インスタンス上の誰でもこのクライアント宛のトークンを取れる。
+# 役割をトークンに載せる設定（projectRoleAssertion）も同時に入れる。
+api PUT "/management/v1/projects/${PROJECT_ID}" "$(cat <<JSON
+{
+  "name": "${PROJECT_NAME}",
+  "projectRoleAssertion": true,
+  "projectRoleCheck": false,
+  "hasProjectCheck": true,
+  "privateLabelingSetting": "PRIVATE_LABELING_SETTING_UNSPECIFIED"
+}
+JSON
+)" > /dev/null
+echo "プロジェクトの設定を更新した（役割をトークンに載せる / このプロジェクトの利用者に限る）"
+
+# ---- ログイン画面の資格 ----
+#
+# v4 のログイン画面は別コンテナで動き、本体の API を機械ユーザーとして叩く。
+# その相手に IAM_LOGIN_CLIENT が無いと、パスワードを入れた後の
+# 「認可を完了する」呼び出しだけが permission_denied で落ちる。
+# 画面には "Unknown error occurred" としか出ないので、原因はログを見ないと分からない。
+MACHINE_USER_ID="$(
+  api POST /management/v1/users/_search '{"query":{"limit":100}}' \
+    | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for u in d.get('result',[]):
+    if u.get('userName')=='frestyle-admin':
+        print(u['id']); break
+" 2>/dev/null
+)"
+if [ -n "$MACHINE_USER_ID" ]; then
+  api PUT "/admin/v1/members/${MACHINE_USER_ID}" '{"roles":["IAM_OWNER","IAM_LOGIN_CLIENT"]}' > /dev/null
+  echo "機械ユーザーに IAM_LOGIN_CLIENT を付けた"
+else
+  echo "機械ユーザー frestyle-admin が見つからない" >&2
+  exit 1
+fi
+
+# ---- 最初の管理者に admin の役割を与える ----
+#
+# 役割を作っただけでは誰も持っていない。アプリは「発行者側で admin を持っているか」を
+# 見て運営管理者へ昇格させるので、最初の 1 人に付けておかないと、
+# 手元で管理者向けの画面を一度も開けない。
+ADMIN_USER_ID="$(
+  api POST /management/v1/users/_search '{"query":{"limit":100}}' \
+    | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for u in d.get('result',[]):
+    if u.get('userName')=='${ADMIN_LOGIN_NAME}':
+        print(u['id']); break
+" 2>/dev/null
+)"
+if [ -n "$ADMIN_USER_ID" ]; then
+  GRANT_STATUS="$(
+    curl -sS -o /dev/null -w '%{http_code}' -X POST "${ZITADEL_URL}/management/v1/users/${ADMIN_USER_ID}/grants" \
+      -H "Authorization: Bearer ${PAT}" -H 'Content-Type: application/json' \
+      -d "{\"projectId\":\"${PROJECT_ID}\",\"roleKeys\":[\"admin\"]}"
+  )"
+  case "$GRANT_STATUS" in
+    200|201) echo "${ADMIN_LOGIN_NAME} に admin の役割を与えた" ;;
+    409)     echo "${ADMIN_LOGIN_NAME} は既に admin の役割を持っている" ;;
+    *)       echo "役割を与えられない（HTTP ${GRANT_STATUS}）" >&2; exit 1 ;;
+  esac
+else
+  echo "初期管理者 ${ADMIN_LOGIN_NAME} が見つからない（docker-compose の初期化設定を確認）" >&2
+fi
+
+# ---- ログインのふるまい ----
+#
+# 目指す形は「メールで入る」が中心で、パスワードは主役ではないログイン。
+# ここで設定できるのは次の 4 つ（招待そのものはアプリ側の口）。
+#
+#   1. メールアドレスだけで入れる（コード / パスキー）
+#   2. 外部の IdP でのログイン
+#   3. 組織に属する ID として扱う
+#   4. 後から強くできる（2 要素）
 #
 # ignoreUnknownUsernames を立てるのが要点のひとつ。立てないと、存在しない
 # メールアドレスに対してだけ違う応答が返り、**そのアドレスが登録済みかどうかを
-# 外から確かめられる**（総当たりでメンバーを割り出せる）。Notion も存在の有無で
-# 応答を変えない。
+# 外から確かめられる**（総当たりでメンバーを割り出せる）。
 #
 # disableLoginWithPhone は、電話番号でのログインを塞ぐ。研修プラットフォームで
 # 電話番号を持つ理由が無く、持たない情報は漏れない。
@@ -164,16 +259,30 @@ esac
 cat <<ENV
 
 # ---- .env へ貼る ----
-# 認証は Zitadel（OIDC）。issuer は待ち受けと一致していること。
-# ここがずれると、発行される issuer と検出文書が食い違い、
-# トークン検証が「issuer が違う」で必ず落ちる。
+# 認証は Zitadel（OIDC）。
+#
+# issuer とトークンの取得先を分けて指す。issuer はトークンの iss と突き合わせる
+# 文字列で、ブラウザが見る URL と同じでなければならない。ここを JWKS の URL から
+# 推測すると、発行者を替えた瞬間に「全員 401」になる（以前それで踏んだ）。
 OIDC_ISSUER=${ZITADEL_URL}
 OIDC_JWKS_URI=${ZITADEL_URL}/oauth/v2/keys
-OIDC_AUTHORIZE_URI=${ZITADEL_URL}/oauth/v2/authorize
 OIDC_TOKEN_URI=${ZITADEL_URL}/oauth/v2/token
+OIDC_END_SESSION_URI=${ZITADEL_URL}/oidc/v1/end_session
 OIDC_CLIENT_ID=${CLIENT_ID}
 OIDC_REDIRECT_URI=${REDIRECT_URI}
+# 公開クライアント（PKCE）なので client secret は持たない。
+OIDC_CLIENT_SECRET=
+
+# ---- frontend/.env へ貼る ----
+VITE_OIDC_AUTHORIZE_URI=${ZITADEL_URL}/oauth/v2/authorize
+VITE_OIDC_CLIENT_ID=${CLIENT_ID}
+VITE_OIDC_REDIRECT_URI=${REDIRECT_URI}
+VITE_OIDC_END_SESSION_URI=${ZITADEL_URL}/oidc/v1/end_session
+# offline_access が無いと更新用のトークンが発行されず、
+# アクセストークンが切れた瞬間に全員ログイン画面へ飛ぶ。
+VITE_OIDC_SCOPE=openid profile email offline_access
 
 # ログイン画面   ${ZITADEL_URL}/ui/v2/login
 # コンソール     ${ZITADEL_URL}/ui/console
+# 受信メール     http://localhost:8025
 ENV

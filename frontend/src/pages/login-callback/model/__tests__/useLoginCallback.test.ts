@@ -17,7 +17,7 @@ vi.mock('@/shared/lib/store', () => ({
 vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     callback: vi.fn(),
-    // 遷移前にロールを確定させるため callback 成功後に呼ばれる（FRESTYLE-233）。
+    // 遷移前にロールを確定させるため callback 成功後に呼ばれる。
     probeCurrentUser: vi.fn(),
   },
 }));
@@ -26,36 +26,90 @@ vi.mock('@/entities/user/model/authSlice', () => ({
   setAuthData: () => ({ type: 'auth/setAuthData' }),
 }));
 
+// 認可を始めたときに置いた値を取り出す側。テストごとに中身を差し替える。
+vi.mock('@/features/auth', () => ({
+  consumeAuthFlowState: () => mockFlow,
+}));
+
 import authRepository from '@/entities/user/api/authRepository';
 
 let mockSearchParams = '';
+let mockFlow: { state: string; nonce: string; codeVerifier: string } | null = null;
+
+const FLOW = { state: 'my-state', nonce: 'my-nonce', codeVerifier: 'my-verifier' };
 
 describe('useLoginCallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams = '';
+    mockFlow = { ...FLOW };
     vi.mocked(authRepository.probeCurrentUser).mockResolvedValue({
       id: 1,
       isAdmin: false,
       role: 'trainee',
-    } as any);
+    } as never);
   });
 
-  it('codeがある場合にauthRepository.callbackを呼び出す', async () => {
-    mockSearchParams = 'code=test-code';
-    vi.mocked(authRepository.callback).mockResolvedValue({} as any);
+  it('state が一致すれば、検証値と nonce を添えて交換する', async () => {
+    mockSearchParams = 'code=test-code&state=my-state';
+    vi.mocked(authRepository.callback).mockResolvedValue({} as never);
 
     await act(async () => {
       renderHook(() => useLoginCallback());
     });
 
-    // 第 2 引数 invitationToken は sessionStorage に何も無いとき null。
-    expect(authRepository.callback).toHaveBeenCalledWith('test-code', null);
+    expect(authRepository.callback).toHaveBeenCalledWith({
+      code: 'test-code',
+      codeVerifier: 'my-verifier',
+      nonce: 'my-nonce',
+      invitationToken: null,
+    });
   });
 
-  it('callback成功時にsetAuthDataをdispatchしホームに遷移する', async () => {
+  // **この PR の要のひとつ。**
+  // state を確かめないと、攻撃者が自分の認可コードを他人のブラウザに踏ませて、
+  // 被害者を攻撃者のアカウントでログインさせられる。
+  it('state が一致しなければ交換しない', async () => {
+    mockSearchParams = 'code=test-code&state=attacker-state';
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(authRepository.callback).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/login', {
+      state: { toast: 'ログインの検証に失敗しました。もう一度お試しください。' },
+    });
+  });
+
+  it('state が返ってこなければ交換しない', async () => {
     mockSearchParams = 'code=test-code';
-    vi.mocked(authRepository.callback).mockResolvedValue({} as any);
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(authRepository.callback).not.toHaveBeenCalled();
+  });
+
+  // この端末で始めていない認可の戻り（別タブ・別端末で始めた、あるいは仕込まれた URL）。
+  it('手元に手続きが残っていなければ交換しない', async () => {
+    mockSearchParams = 'code=test-code&state=my-state';
+    mockFlow = null;
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(authRepository.callback).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/login', {
+      state: { toast: 'ログインの手続きが見つかりませんでした。もう一度お試しください。' },
+    });
+  });
+
+  it('交換に成功したらロールを確定させてホームへ遷移する', async () => {
+    mockSearchParams = 'code=test-code&state=my-state';
+    vi.mocked(authRepository.callback).mockResolvedValue({} as never);
 
     await act(async () => {
       renderHook(() => useLoginCallback());
@@ -65,8 +119,8 @@ describe('useLoginCallback', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/');
   });
 
-  it('callback失敗時にトースト付きでログインページに遷移する', async () => {
-    mockSearchParams = 'code=test-code';
+  it('交換に失敗したら案内つきでログイン画面へ戻す', async () => {
+    mockSearchParams = 'code=test-code&state=my-state';
     vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
 
     await act(async () => {
@@ -76,18 +130,20 @@ describe('useLoginCallback', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証に失敗しました' } });
   });
 
-  it('errorパラメータがある場合にトースト付きでログインページに遷移する', async () => {
-    mockSearchParams = 'error=access_denied';
+  it('error が返っていれば交換しない', async () => {
+    mockSearchParams = 'error=access_denied&code=test-code&state=my-state';
 
     await act(async () => {
       renderHook(() => useLoginCallback());
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証エラーが発生しました' } });
+    expect(mockNavigate).toHaveBeenCalledWith('/login', {
+      state: { toast: '認証エラーが発生しました' },
+    });
     expect(authRepository.callback).not.toHaveBeenCalled();
   });
 
-  it('codeもerrorもない場合にログインページに遷移する', async () => {
+  it('code も error も無ければログイン画面へ戻す', async () => {
     mockSearchParams = '';
 
     await act(async () => {
@@ -96,58 +152,6 @@ describe('useLoginCallback', () => {
 
     expect(mockNavigate).toHaveBeenCalledWith('/login');
     expect(authRepository.callback).not.toHaveBeenCalled();
-  });
-
-  it('errorパラメータがある場合にcallbackを呼ばない', async () => {
-    mockSearchParams = 'error=server_error&code=test-code';
-
-    await act(async () => {
-      renderHook(() => useLoginCallback());
-    });
-
-    expect(authRepository.callback).not.toHaveBeenCalled();
-  });
-
-  it('callback成功時にトースト付きでホームに遷移する', async () => {
-    mockSearchParams = 'code=valid-code';
-    vi.mocked(authRepository.callback).mockResolvedValue({} as any);
-
-    await act(async () => {
-      renderHook(() => useLoginCallback());
-    });
-
-    expect(mockNavigate).toHaveBeenCalledWith('/');
-  });
-
-  it('callback失敗時にトースト付きで遷移しない', async () => {
-    mockSearchParams = 'code=invalid-code';
-    vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
-
-    await act(async () => {
-      renderHook(() => useLoginCallback());
-    });
-
-    expect(mockNavigate).not.toHaveBeenCalledWith('/', expect.objectContaining({ state: expect.objectContaining({ toast: expect.any(String) }) }));
-  });
-
-  it('callback成功時にエラートーストなしでホームに遷移する', async () => {
-    mockSearchParams = 'code=valid-code';
-    vi.mocked(authRepository.callback).mockResolvedValue({} as any);
-
-    await act(async () => {
-      renderHook(() => useLoginCallback());
-    });
-
-    expect(mockNavigate).not.toHaveBeenCalledWith('/login', expect.objectContaining({ state: expect.objectContaining({ toast: expect.any(String) }) }));
-  });
-
-  it('codeもerrorもない場合にdispatchが呼ばれない', async () => {
-    mockSearchParams = '';
-
-    await act(async () => {
-      renderHook(() => useLoginCallback());
-    });
-
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 });

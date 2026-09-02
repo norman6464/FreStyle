@@ -26,24 +26,12 @@ type Config struct {
 	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
-	// LocalPasswordAuth はローカル開発専用のパスワードログイン（infra/localauth）が有効かの
-	// 解決済み判定。有効になるのは次の 2 条件を両方満たすときだけ（FRESTYLE-311）:
-	//   1. LOCAL_PASSWORD_AUTH が truthy（利用者の明示 opt-in）
-	//   2. APP_ENV が「明示的に」local（既定値 "local" ではなく生の env を見る。APP_ENV を
-	//      注入しない環境＝staging 等を local 扱いしない）
-	// 以前は「三重ガード」と説明していたが、3 か所とも同じ cfg.AppEnv（既定 local）を見るため
-	// 実質 1 条件に縮退していた（多角レビューで指摘）。生の APP_ENV を明示要求することで
-	// staging（APP_ENV 未設定）では確実に無効化する。加えて localauth の署名鍵はプロセス毎の
-	// ランダム値（token.go）なので、固定鍵による偽造も成立しない。
-	// JWKS 設定の有無は条件に含めない（ローカルで実 Cognito プールと併用したい構成があるため）。
-	LocalPasswordAuth bool
-
 	// BootstrapSuperAdminEmail は「最初の運営管理者」を招待なしで受け入れるための
 	// ブートストラップ用アドレス（BOOTSTRAP_SUPER_ADMIN_EMAIL）。
-	// 招待は FreStyle 唯一のアカウント発行統制なので、Cognito の admin グループに属している
+	// 招待は FreStyle 唯一のアカウント発行統制なので、発行者側で管理者の役割を持っている
 	// だけで招待を迂回できてはいけない。一方でその免除は「まだ super_admin が 1 人も居ない
 	// 環境で最初の 1 人を作る」唯一の経路でもある。そこで免除の条件を
-	// 「ここで明示した 1 アドレス」「Cognito admin グループ所属」「super_admin が 0 人」の
+	// 「ここで明示した 1 アドレス」「発行者側の管理者ロール所持」「super_admin が 0 人」の
 	// 3 つ揃いに絞る（判定は usecase 側）。未設定（既定）なら免除は一切効かない。
 	BootstrapSuperAdminEmail string
 
@@ -52,10 +40,10 @@ type Config struct {
 	// （例: http://127.0.0.1:9000）。未設定なら in-process サンドボックスで実行する。
 	CodeRunnerURL string
 
-	Cognito CognitoConfig
-	S3      S3Config
-	SES     SESConfig
-	SMTP    SMTPConfig
+	OIDC OIDCConfig
+	S3   S3Config
+	SES  SESConfig
+	SMTP SMTPConfig
 }
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。
@@ -81,19 +69,43 @@ type SMTPConfig struct {
 	FromAddress string
 }
 
-// CognitoConfig は Cognito Hosted UI / OAuth2 token endpoint との通信に必要な設定。
-// SES マジックリンク方式に切り替えたため AdminCreateUser API は使わない。
-type CognitoConfig struct {
-	ClientID     string
+// OIDCConfig は OpenID Connect の発行者と話すために要る設定。
+//
+// 以前は COGNITO_* という名前で、issuer を持っていなかった（JWKS の URL から
+// 文字列を削って推測していた）。発行者の URL の形に依存する推測なので、
+// 発行者を替えると黙って壊れる。issuer は必ず明示する。
+type OIDCConfig struct {
+	// Issuer は発行者の識別子。トークンの iss と完全一致する値。
+	Issuer string
+	// AuthorizeURI はログイン画面へ送る認可要求の宛先。フロントエンドが使う。
+	AuthorizeURI string
+	// TokenURI は認可コードとリフレッシュトークンの交換先。
+	TokenURI string
+	// JWKSURI は署名鍵の取得先。
+	JWKSURI string
+	// EndSessionURI はログアウトのとき発行者側のセッションも終わらせる宛先。
+	// 空なら発行者側のセッションは残る（同じ端末で再ログインが素通りになる）。
+	EndSessionURI string
+	ClientID      string
+	// ClientSecret は機密クライアントのときだけ設定する。
+	// 空なら公開クライアント（PKCE）として扱う。ブラウザで動くアプリは秘密を
+	// 持てないので、こちらが既定の形。
 	ClientSecret string
 	RedirectURI  string
-	TokenURI     string
-	JwkSetURI    string
-	// Region は USER_PASSWORD_AUTH の InitiateAuth を呼ぶ cognitoidp クライアント用。
-	Region string
-	// UserPoolID は AdminCreateUser（招待の初期パスワード方式・FRESTYLE-313）に使う。
-	// 未設定なら初期パスワード方式は無効（マジックリンクは影響なし）。
-	UserPoolID string
+	// Audiences は access_token の aud に含まれていることを要求する値（カンマ区切り）。
+	// 空なら ClientID を要求する。発行者によっては aud にプロジェクトの識別子を
+	// 入れるので、その差を推測ではなく設定で吸収する。
+	Audiences []string
+	// AdminRoleClaim は役割の一覧が入っているクレーム名。
+	// AdminRole はそのうち運営管理者を表す役割名。
+	AdminRoleClaim string
+	AdminRole      string
+}
+
+// Configured は認証に必要な設定が揃っているかを返す。
+func (c OIDCConfig) Configured() bool {
+	return c.Issuer != "" && c.JWKSURI != "" && c.TokenURI != "" &&
+		c.ClientID != "" && c.RedirectURI != ""
 }
 
 func Load() (*Config, error) {
@@ -111,15 +123,20 @@ func Load() (*Config, error) {
 		CodeRunnerURL: os.Getenv("CODE_RUNNER_URL"),
 		// 前後の空白は運用者の打ち間違いで免除が黙って効かなくなるのを避けるため落とす。
 		BootstrapSuperAdminEmail: strings.TrimSpace(os.Getenv("BOOTSTRAP_SUPER_ADMIN_EMAIL")),
-		Cognito: CognitoConfig{
-			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
-			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),
-			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
-			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
-			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
-			// Cognito が別リージョンの構成も表現できるよう COGNITO_REGION を優先し、未設定時のみ AWS_REGION。
-			Region:     getEnvOrDefault("COGNITO_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
-			UserPoolID: os.Getenv("COGNITO_USER_POOL_ID"),
+		OIDC: OIDCConfig{
+			Issuer:        os.Getenv("OIDC_ISSUER"),
+			AuthorizeURI:  os.Getenv("OIDC_AUTHORIZE_URI"),
+			TokenURI:      os.Getenv("OIDC_TOKEN_URI"),
+			JWKSURI:       os.Getenv("OIDC_JWKS_URI"),
+			EndSessionURI: os.Getenv("OIDC_END_SESSION_URI"),
+			ClientID:      os.Getenv("OIDC_CLIENT_ID"),
+			ClientSecret:  os.Getenv("OIDC_CLIENT_SECRET"),
+			RedirectURI:   os.Getenv("OIDC_REDIRECT_URI"),
+			Audiences:     splitAndTrim(os.Getenv("OIDC_AUDIENCES")),
+			// 役割の在り処は発行者ごとに違うので設定で指す。既定は Zitadel の
+			// プロジェクトロール（役割名を鍵にした表で入る）。
+			AdminRoleClaim: getEnvOrDefault("OIDC_ROLES_CLAIM", "urn:zitadel:iam:org:project:roles"),
+			AdminRole:      getEnvOrDefault("OIDC_ADMIN_ROLE", "admin"),
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
@@ -140,15 +157,19 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}
 
-	// ローカル専用パスワードログインの有効化判定（上の LocalPasswordAuth の 2 条件）。
-	// 生の APP_ENV を見る（既定値 "local" に依存しない）ことが staging での誤有効化を防ぐ肝。
-	localPwRequested := os.Getenv("LOCAL_PASSWORD_AUTH") == "1" || os.Getenv("LOCAL_PASSWORD_AUTH") == "true"
-	appEnvExplicitLocal := os.Getenv("APP_ENV") == "local"
-	cfg.LocalPasswordAuth = localPwRequested && appEnvExplicitLocal
-	if localPwRequested && !cfg.LocalPasswordAuth {
-		fmt.Fprintf(os.Stderr,
-			"WARN: LOCAL_PASSWORD_AUTH は無効化されました（APP_ENV を明示的に local にしてください。現在 APP_ENV=%q）\n",
-			os.Getenv("APP_ENV"))
+	// 認証の設定は揃っているか揃っていないかのどちらかにする。**足りないまま起動しない。**
+	//
+	// 以前は「JWKS が無く、かつ APP_ENV が local なら署名検証をしない」という逃げ道があった。
+	// APP_ENV は未設定でも既定値 local に解決されるので、環境変数を注入し忘れた環境は
+	// そのまま「署名を検証しない本番」になり得た。落ちる側に倒しても気づけるが、
+	// 通す側に倒すと誰も気づかない。だから起動時に止める。
+	if !cfg.OIDC.Configured() {
+		return nil, fmt.Errorf(
+			"OIDC の設定が足りません（OIDC_ISSUER / OIDC_JWKS_URI / OIDC_TOKEN_URI / OIDC_CLIENT_ID / OIDC_REDIRECT_URI は必須）: "+
+				"issuer=%t jwks=%t token=%t client_id=%t redirect_uri=%t",
+			cfg.OIDC.Issuer != "", cfg.OIDC.JWKSURI != "", cfg.OIDC.TokenURI != "",
+			cfg.OIDC.ClientID != "", cfg.OIDC.RedirectURI != "",
+		)
 	}
 
 	return cfg, nil
@@ -171,4 +192,20 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// splitAndTrim はカンマ区切りの設定値を、空要素を落として配列にする。
+// 打ち間違いの空白で値が一致しなくなるのを避けるため前後の空白を落とす。
+func splitAndTrim(v string) []string {
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }

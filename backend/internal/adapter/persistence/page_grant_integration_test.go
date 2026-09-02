@@ -626,47 +626,56 @@ func TestPageGrant_木を下るほど役割は弱くならない_Integration(t *
 				f.grantPage(ctx, t, page, alice.ID, role)
 			}
 
-			// 1 ページの解決。
+			// 1 ページの解決。**できることの数ではなく、1 つずつ比べる。**
+			// 数で比べると「編集が落ちて管理が立った」ような取り違えが同点で通ってしまう。
 			var prev domain.PagePermission
 			for i, d := range depth {
 				got := f.permFor(ctx, t, d.page, f.alice)
 				if i > 0 {
-					assert.GreaterOrEqual(t, permRank(got), permRank(prev),
-						"%s で %s より弱くなった（%+v → %+v）", d.name, depth[i-1].name, prev, got)
+					if prev.CanView {
+						assert.True(t, got.CanView, "%s は見えるのに %s が見えない", depth[i-1].name, d.name)
+					}
+					if prev.CanEdit {
+						assert.True(t, got.CanEdit, "%s は編集できるのに %s ができない", depth[i-1].name, d.name)
+					}
+					if prev.CanManage {
+						assert.True(t, got.CanManage, "%s は権限を変えられるのに %s ができない", depth[i-1].name, d.name)
+					}
 				}
 				prev = got
 			}
 
 			// 一覧の解決も同じでなければならない。片方だけ単調でも、
 			// 「開くと編集できるのに一覧では読み取り専用」というずれ方をする。
+			//
+			// 一覧が返すのは役割そのものなので、閲覧だけでなく編集まで突き合わせる。
+			// 閲覧しか見ないと、役割が viewer へ落ちる取り違えを見逃す。
 			rows, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.spaceA, f.alice, false)
 			require.NoError(t, err)
-			view := map[string]bool{}
+			listed := map[string]domain.PagePermission{}
 			for _, row := range rows {
-				view[row.Page.ID] = domain.ResolvePageView(row.Role)
+				listed[row.Page.ID] = domain.ResolvePagePermission(
+					domain.PagePermissionFacts{Member: true, Role: row.Role},
+				)
+				assert.Equal(t, domain.ResolvePageView(row.Role), listed[row.Page.ID].CanView,
+					"一覧の閲覧判定と 1 ページ解決の閲覧が食い違う")
 			}
 			for i, d := range depth {
-				if i > 0 && view[depth[i-1].page] {
-					assert.True(t, view[d.page],
-						"一覧: %s は見えるのに %s が見えない", depth[i-1].name, d.name)
+				if i == 0 {
+					continue
 				}
+				above := listed[depth[i-1].page]
+				here := listed[d.page]
+				if above.CanView {
+					assert.True(t, here.CanView, "一覧: %s は見えるのに %s が見えない", depth[i-1].name, d.name)
+				}
+				if above.CanEdit {
+					assert.True(t, here.CanEdit, "一覧: %s は編集できるのに %s ができない", depth[i-1].name, d.name)
+				}
+				// 1 ページ解決と一覧が同じ答えになること（経路ごとに割れないこと）。
+				assert.Equal(t, f.permFor(ctx, t, d.page, f.alice).CanEdit, here.CanEdit,
+					"%s: 1 ページ解決と一覧で編集可否が食い違う", d.name)
 			}
 		})
 	}
-}
-
-// permRank は実効権限の強さを 1 つの整数に畳む（比較のためだけに使う）。
-// できることが増えるほど大きくなる。
-func permRank(p domain.PagePermission) int {
-	n := 0
-	if p.CanView {
-		n++
-	}
-	if p.CanEdit {
-		n++
-	}
-	if p.CanManage {
-		n++
-	}
-	return n
 }

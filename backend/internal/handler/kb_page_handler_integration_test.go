@@ -509,7 +509,10 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 }
 
 // kbCreateChild は parentID の下にページを 1 枚作って ID を返す（e の current user の権限で）。
-// スペース直下のページは HTTP から作れないので、根だけ kbInsertRootPage で入れる。
+//
+// 根は kbInsertRootPage で直接入れる。スペース直下の作成も HTTP からできる（parentId を
+// 省いた POST が 201 になることは別のテストが固定している）が、作成者・position・題名を
+// テストごとに固定したいので、前提データは HTTP を通さず用意する。
 func kbCreateChild(t *testing.T, e *kbEnv, parentID, title string) string {
 	t.Helper()
 	created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parentID+`","title":"`+title+`"}`)

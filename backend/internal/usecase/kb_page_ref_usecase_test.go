@@ -32,7 +32,7 @@ func kbRefDoc(refs ...string) string {
 func kbViewableFacts(id, title string) repository.PageWithViewFacts {
 	return repository.PageWithViewFacts{
 		Page: domain.Page{ID: id, Title: title},
-		Role: rolePtr(domain.GrantRoleViewer),
+		Role: kbGrantRole(domain.GrantRoleViewer),
 	}
 }
 
@@ -43,8 +43,6 @@ func kbViewableFacts(id, title string) repository.PageWithViewFacts {
 func kbUnreachableFacts(id, title string) repository.PageWithViewFacts {
 	return repository.PageWithViewFacts{Page: domain.Page{ID: id, Title: title}}
 }
-
-func rolePtr(r domain.GrantRole) *domain.GrantRole { return &r }
 
 func Test_ページ参照の題名解決_閲覧できる参照だけを現在の題名にする(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
@@ -195,7 +193,7 @@ func Test_ページ参照の題名解決_アーカイブ済みの参照は題名
 	archivedAt := time.Now()
 	archived := repository.PageWithViewFacts{
 		Page: domain.Page{ID: id, Title: "隠した題名", ArchivedAt: &archivedAt},
-		Role: rolePtr(domain.GrantRoleViewer),
+		Role: kbGrantRole(domain.GrantRoleViewer),
 	}
 	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{id}).
 		Return([]repository.PageWithViewFacts{archived}, nil)
@@ -261,7 +259,7 @@ func Test_パンくず_アーカイブ済みの祖先も閲覧できる限り含
 	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{arch}).
 		Return([]repository.PageWithViewFacts{{
 			Page: domain.Page{ID: arch, Title: "片付けた親", ArchivedAt: &archivedAt},
-			Role: rolePtr(domain.GrantRoleViewer),
+			Role: kbGrantRole(domain.GrantRoleViewer),
 		}}, nil)
 	uc := usecase.NewListViewableAncestorsUseCase(pages, perms)
 

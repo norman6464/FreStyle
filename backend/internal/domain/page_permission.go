@@ -97,8 +97,16 @@ func ResolvePagePermission(f PagePermissionFacts) PagePermission {
 	// いまの役割の並び（GrantRole.Rank）では編集できる者は必ず閲覧もできるので、この
 	// 掛け合わせで結果が変わることはない。役割を増やしたときに崩れないよう残してある。
 	canEdit := canView && f.defaultAllows(CapabilityEdit)
-	// 共有リンクの来訪者は役割を持たないので、ここは必ず false になる。
-	canManage := f.Role != nil && f.Role.CanManage()
+	// 権限そのものを変えられるのは、届いている役割が admin のときだけ。
+	//
+	// **共有リンク経由では必ず false にする。** 来訪者はログインしていないので、ここが
+	// true になると「URL を知っているだけの人が、誰に何を見せるかを決められる」ことになる。
+	//
+	// 「リンクの主体には役割が届かないはず」に頼ってはいけない。付与の口は主体の実在しか
+	// 確かめず種類を見ないので、リンクの主体へ admin を張ることが API から実際にできる
+	// （リンクの主体 ID は一覧の応答に載っている）。閲覧と編集はリンク自身のケイパビリティで
+	// 頭打ちになるが、管理だけは defaultAllows を通らないのでそこだけ抜けていた。
+	canManage := f.ShareLinkCapability == nil && f.Role != nil && f.Role.CanManage()
 	return PagePermission{CanView: canView, CanEdit: canEdit, CanManage: canManage}
 }
 

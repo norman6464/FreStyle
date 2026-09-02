@@ -987,8 +987,10 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 	t.Run("ページを別のスペースへ動かすと実効権限が変わる", func(t *testing.T) {
 		// 見せたくないものは private のスペースへ置く、という運用をそのまま通す。
-		// 同じスペースの中では、親を替えても見え方は変わらない（付与は足し算だけで、
-		// 親の下へ入れたからといって届いていたものが取り上げられることはない）。
+		//
+		// ここで見るのは**スペースをまたぐ移動**だけ（下の move はどちらも NewSpaceID を渡す）。
+		// 同じスペースの中で親を替えても見え方が変わらないことは、
+		// TestPageGrant_木を下るほど役割は弱くならない_Integration が単調性として押さえている。
 		f := setupKBPermission(t, sqlDB)
 		open := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開の親")
 		moving := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &open.ID, "動くページ")
@@ -1323,6 +1325,38 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 
 		_, err = checkUC.Execute(ctx, usecase.CheckShareLinkPermissionInput{Link: verified, PageID: outside.ID})
 		require.ErrorIs(t, err, usecase.ErrShareLinkPageOutOfScope, "リンクの木の外は開けない")
+	})
+
+	t.Run("リンクの主体に付与を張っても権限は変えられない", func(t *testing.T) {
+		// 共有リンクの来訪者はログインしていない。その相手が「権限を変える」側に回れると、
+		// URL を知っているだけの人が誰に何を見せるかを決められることになる。
+		//
+		// **この状態は API から作れる。** 付与の口は主体の実在しか確かめず、種類を見ない。
+		// 共有リンクの主体 ID はリンク一覧の応答に載るので、admin が取り違えて張れてしまう。
+		// 規則の側（ResolvePagePermission）で閉じていることを、実 DB の経路で固定する。
+		f := setupKBPermission(t, sqlDB)
+		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ページ")
+
+		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
+		})
+		require.NoError(t, err)
+
+		// リンクの主体へ admin を張る（本来やるべきではない操作だが、いまは通ってしまう）。
+		f.grantPage(ctx, t, page.ID, issued.Link.PrincipalID, domain.GrantRoleAdmin)
+
+		verified, err := usecase.NewVerifyShareLinkUseCase(f.perm).
+			Execute(ctx, usecase.VerifyShareLinkInput{Token: issued.Token})
+		require.NoError(t, err)
+
+		got, err := usecase.NewCheckShareLinkPermissionUseCase(f.perm, f.pages).
+			Execute(ctx, usecase.CheckShareLinkPermissionInput{Link: verified, PageID: page.ID})
+		require.NoError(t, err)
+
+		assert.False(t, got.CanManage,
+			"リンクの来訪者が権限を変えられてはいけない（付与を張られても）")
+		assert.False(t, got.CanEdit, "閲覧のリンクなので編集もできない")
+		assert.True(t, got.CanView, "閲覧はリンクの既定どおりできる")
 	})
 
 	t.Run("平文トークンはDBに残らない", func(t *testing.T) {

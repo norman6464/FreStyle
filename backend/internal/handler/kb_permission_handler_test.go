@@ -774,7 +774,8 @@ func Test_ノート権限API_fakeは非メンバーに既定の役割を届か�
 	f.perms.setPagePermission(kbChildPageID, kbSecondUserID, kbCanEdit)
 
 	facts, err := f.perms.PagePermissionFactsForUser(
-		t.Context(), kbWorkspaceID, kbChildPageID, kbSecondUserID)
+		t.Context(), kbWorkspaceID, kbChildPageID, kbSecondUserID,
+	)
 	require.NoError(t, err)
 
 	assert.False(t, facts.Member, "所属していない")

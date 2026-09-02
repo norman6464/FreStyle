@@ -474,3 +474,98 @@ func TestPageGrant_付与が無ければ入口の答えはスペース経由と�
 		})
 	}
 }
+
+// 権限を張れる相手の一覧が、表示名を正しい出どころから引くことを確かめる。
+//
+// 名前の正本は kind ごとに別の表にある（group は principals、user は users、
+// space_all は spaces）。1 箇所でも取り違えると、画面に UUID や空欄が並んで
+// 相手を選べなくなる。
+func TestGrantablePrincipals_表示名を正しい出どころから引く_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	alice := f.principalFor(ctx, t, f.alice)
+	group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "開発チーム")
+	require.NoError(t, err)
+	everyone := f.everyoneOf(ctx, t, f.spaceA)
+
+	// users.name は createUser が渡した接頭辞、spaces.name は createSpace の key と同じ。
+	var aliceName, spaceName string
+	require.NoError(t, sqlDB.QueryRow(`SELECT name FROM users WHERE id = $1`, f.alice).Scan(&aliceName))
+	require.NoError(t, sqlDB.QueryRow(
+		`SELECT name FROM spaces WHERE workspace_id = $1 AND id = $2`, f.ws, f.spaceA,
+	).Scan(&spaceName))
+
+	got, err := f.perm.ListGrantablePrincipals(ctx, f.ws)
+	require.NoError(t, err)
+
+	byID := map[string]domain.GrantablePrincipal{}
+	for _, p := range got {
+		byID[p.ID] = p
+	}
+
+	assert.Equal(t, aliceName, byID[alice.ID].Name, "ユーザーの名前は users から引く")
+	assert.Equal(t, domain.PrincipalKindUser, byID[alice.ID].Kind)
+	assert.Equal(t, "開発チーム", byID[group.ID].Name, "グループの名前は principals から引く")
+	assert.Equal(t, spaceName, byID[everyone.ID].Name, "スペース全員の名前は spaces から引く")
+}
+
+func TestGrantablePrincipals_選べない相手と他テナントを混ぜない_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	f.principalFor(ctx, t, f.alice)
+	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "共有元").ID
+
+	// 共有リンクを 1 本発行する。来訪者を表す主体（kind='share_link'）が一緒に作られる。
+	link, err := f.perm.CreateShareLink(ctx, repository.ShareLinkWrite{
+		WorkspaceID:     f.ws,
+		PageID:          page,
+		Capability:      domain.CapabilityView,
+		TokenHash:       []byte("0123456789abcdef0123456789abcdef"),
+		CreatedByUserID: f.alice,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, link.ID)
+
+	// 別テナントにも主体を作る。
+	otherPrincipal, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.bob)
+	require.NoError(t, err)
+
+	got, err := f.perm.ListGrantablePrincipals(ctx, f.ws)
+	require.NoError(t, err)
+
+	for _, p := range got {
+		assert.NotEqual(t, domain.PrincipalKindShareLink, p.Kind,
+			"リンクの来訪者は選ぶ相手ではない（役割を与えても意味を持たない）")
+		assert.NotEqual(t, otherPrincipal.ID, p.ID, "他テナントの主体を混ぜない")
+	}
+	// 空振り防止: 選べる相手自体はちゃんと返っている。
+	assert.NotEmpty(t, got)
+}
+
+func TestGrantablePrincipals_名前が引けなくても行を落とさない_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	// 名前を空にしたユーザーの主体（users.name が空文字の行）。
+	// 一覧から黙って消えると、この相手に張った権限が画面に出たまま選べなくなる。
+	blank := f.principalFor(ctx, t, f.carol)
+	_, err := sqlDB.Exec(`UPDATE users SET name = '' WHERE id = $1`, f.carol)
+	require.NoError(t, err)
+
+	got, err := f.perm.ListGrantablePrincipals(ctx, f.ws)
+	require.NoError(t, err)
+
+	found := false
+	for _, p := range got {
+		if p.ID == blank.ID {
+			found = true
+			assert.Empty(t, p.Name, "名前は空のまま返す（作り話をしない）")
+		}
+	}
+	assert.True(t, found, "名前が無くても行は残る")
+}

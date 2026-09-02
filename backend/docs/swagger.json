@@ -3401,6 +3401,68 @@
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/principals": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "その ページ に 権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 リンク の 来訪者 を 表す 主体 (share_link) は 含ま ない — あれ は リンク の 発行 時 に 自動 で 作ら れる もの で、 人 が 選ん で 役割 を 与える 相手 で は ない。 名前 が 引け なかっ た 行 も 空文字 の まま 返す (一覧 から 黙っ て 消す と、 その 相手 に 張っ た 権限 が 画面 に 残っ た まま 選べ なく なる)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ノート の 権限 を 張れる 相手 の 一覧",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.kbGrantablePrincipalResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "権限 が 無い か 対象 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/pages/{pageId}/restrictions/{principalId}/{capability}": {
             "put": {
                 "security": [
@@ -6882,6 +6944,24 @@
                     "description": "Role は domain.ValidGrantRoles のいずれか。既知でない値は usecase が弾く。",
                     "type": "string",
                     "example": "editor"
+                }
+            }
+        },
+        "internal_handler.kbGrantablePrincipalResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-00000000000a"
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "name": {
+                    "description": "Name は表示名。引けなかった場合は空文字（行は落とさない）。",
+                    "type": "string",
+                    "example": "田中 太郎"
                 }
             }
         },

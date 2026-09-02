@@ -245,6 +245,35 @@ func (u *ListPageGrantsUseCase) Execute(ctx context.Context, in ListPageGrantsIn
 	return u.repo.ListPageGrants(ctx, in.WorkspaceID, in.PageID)
 }
 
+// ListGrantablePrincipalsUseCase は権限を張れる相手を表示名つきで返す。
+//
+// 返るのはワークスペース全体の主体で、ページでは絞らない。ページ単位の付与も
+// 相手はワークスペースの主体だからで、ここで絞る意味が無い（絞ると
+// 「同じ人に張れるはずなのに一覧に出ない」というずれが生まれる）。
+//
+// 呼べる範囲は handler 側の gate が決める。この一覧を使うのは「そのページの権限を
+// 変えられる人」なので、認可もページ単位で掛ける。
+type ListGrantablePrincipalsUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListGrantablePrincipalsUseCase(r repository.KnowledgeBasePermissionRepository) *ListGrantablePrincipalsUseCase {
+	return &ListGrantablePrincipalsUseCase{repo: r}
+}
+
+type ListGrantablePrincipalsInput struct {
+	WorkspaceID string
+}
+
+func (u *ListGrantablePrincipalsUseCase) Execute(
+	ctx context.Context, in ListGrantablePrincipalsInput,
+) ([]domain.GrantablePrincipal, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	return u.repo.ListGrantablePrincipals(ctx, in.WorkspaceID)
+}
+
 // SetPageRestrictionUseCase はページ以下だけ既定を上書きする例外を設定する。
 //
 // allow を 1 つ足すと、そのページのそのケイパビリティは「載っている主体だけ」の限定公開に

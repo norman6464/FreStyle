@@ -65,3 +65,17 @@ type Principal struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
+
+// GrantablePrincipal は権限を張れる相手 1 件と、その表示名。
+//
+// Principal と分けているのは、名前の出どころが kind ごとに違うため。
+// principals.name が埋まるのは group だけで、ユーザー名は users、スペース名は spaces が
+// 正本になる。Principal に名前を後入れすると「どの kind なら埋まっているか」が
+// 呼び出し側に漏れるので、突き合わせ済みの型を別に持つ。
+type GrantablePrincipal struct {
+	ID   string        `json:"id"`
+	Kind PrincipalKind `json:"kind"`
+	// Name は表示名。引けなかった場合は空文字（行は落とさない — 選べない相手が
+	// 一覧から黙って消えると、消せない権限が画面に残る）。
+	Name string `json:"name"`
+}

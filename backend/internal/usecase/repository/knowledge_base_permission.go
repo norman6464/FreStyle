@@ -189,6 +189,14 @@ type KnowledgeBasePermissionRepository interface {
 	// DeletePageGrant はページでの既定の役割を剥がす（冪等）。
 	// 上位の段で得ている役割はそのまま残る（消えるのはこの段で足した分だけ）。
 	DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error
+	// ListGrantablePrincipals は権限を張れる相手を表示名つきで返す（kind → 名前 → id 順）。
+	//
+	// share_link は含まない。あれはリンクを踏んだ来訪者を表す主体で、リンクの発行時に
+	// 自動で作られる。人が選んで役割を与える相手ではない。
+	//
+	// 名前が引けなかった行も落とさず、Name を空文字にして返す。一覧から黙って消すと、
+	// その主体に張った権限が画面に出たまま選べない（取り消せない行）になる。
+	ListGrantablePrincipals(ctx context.Context, workspaceID string) ([]domain.GrantablePrincipal, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
 	//
 	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、

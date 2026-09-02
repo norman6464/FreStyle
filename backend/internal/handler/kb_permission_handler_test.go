@@ -127,6 +127,15 @@ var kbPermissionEndpoints = []kbPermissionEndpoint{
 		okStatus: http.StatusNoContent,
 	},
 	{
+		name: "権限を張れる相手の一覧", method: http.MethodGet,
+		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/principals",
+		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/principals",
+		missing: []string{
+			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingID + "/principals",
+		},
+		okStatus: http.StatusOK,
+	},
+	{
 		name: "ページ例外の設定", method: http.MethodPut,
 		pattern: "/api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/restrictions/:principalId/:capability",
 		path:    "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
@@ -430,6 +439,10 @@ func Test_ノート権限API_ページを名指しする入口は結果によら
 		{
 			name: "権限取り消し", method: http.MethodDelete,
 			suffix: func(f kbPermFixture) string { return "/grants/" + f.targetPrincipalID },
+		},
+		{
+			name: "相手の一覧", method: http.MethodGet,
+			suffix: func(kbPermFixture) string { return "/principals" },
 		},
 		{
 			name: "共有リンク一覧", method: http.MethodGet,

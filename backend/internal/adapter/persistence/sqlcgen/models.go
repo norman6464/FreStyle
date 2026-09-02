@@ -198,13 +198,6 @@ type Page struct {
 	UpdatedAt       time.Time
 }
 
-type PageAllowList struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	Capability  string
-	CreatedAt   time.Time
-}
-
 type PageGrant struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID
@@ -219,16 +212,6 @@ type PagePath struct {
 	PageID      uuid.UUID
 	AncestorID  uuid.UUID
 	Depth       int32
-}
-
-type PageRestriction struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	PrincipalID uuid.UUID
-	Capability  string
-	Mode        string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
 }
 
 type PageSnapshot struct {

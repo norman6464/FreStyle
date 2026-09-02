@@ -44,8 +44,8 @@ func (u *AddWorkspaceMemberUseCase) Execute(ctx context.Context, in AddWorkspace
 	}
 	// 追加した瞬間から**全員が書ける**（ユーザー決定 2026-08-28）。
 	// 既定を viewer にすると「入れたのに書けない」問い合わせが管理者に集まり、
-	// 結局全員に editor を配って回ることになる。絞りたいスペース・ページは
-	// 個別の grant / 例外で狭める（広い既定 + 狭い例外、の向きに揃える）。
+	// 結局全員に editor を配って回ることになる。狭めたい内容は private のスペースへ置く
+	// （付与は足し算だけで、打ち消す層は持たない）。
 	// **無いときだけ**与える（上書きしない）。追加は冪等で、既に admin の人へ
 	// もう一度実行され得るため、上書きだと admin が editor に落ちる。
 	if gerr := u.repo.GrantWorkspaceRoleIfAbsent(ctx, in.WorkspaceID, principal.ID, domain.GrantRoleEditor); gerr != nil {
@@ -55,7 +55,7 @@ func (u *AddWorkspaceMemberUseCase) Execute(ctx context.Context, in AddWorkspace
 }
 
 // RemoveWorkspaceMemberUseCase はユーザーをワークスペースから外す。
-// principal を消すと、その人に張られていた grant / restriction / グループ所属も
+// principal を消すと、その人に張られていた grant / グループ所属も
 // FK の CASCADE で消える（権限だけが残らない）。
 type RemoveWorkspaceMemberUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository

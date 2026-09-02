@@ -228,21 +228,6 @@ var kbPermCases = []kbPermCase{
 		okStatus: http.StatusOK,
 	},
 	{
-		name: "ページ例外の設定", method: http.MethodPut,
-		path: "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
-		missing: []string{
-			"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingIntegrationUUID + "/restrictions/{target}/view",
-			"/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/" + kbMissingIntegrationUUID + "/view",
-		},
-		body: `{"mode":"deny"}`, okStatus: http.StatusOK,
-	},
-	{
-		name: "ページ例外の解除", method: http.MethodDelete,
-		path:     "/api/v2/kb/workspaces/{slug}/pages/{page}/restrictions/{target}/view",
-		missing:  []string{"/api/v2/kb/workspaces/{slug}/pages/" + kbMissingIntegrationUUID + "/restrictions/{target}/view"},
-		okStatus: http.StatusNoContent,
-	},
-	{
 		name: "メンバー追加", method: http.MethodPut,
 		path:     "/api/v2/kb/workspaces/{slug}/members/{user}",
 		missing:  []string{"/api/v2/kb/workspaces/{slug}/members/" + kbMissingIntegrationUserID},
@@ -391,14 +376,25 @@ func TestKnowledgeBasePermissionAPI_Integration(t *testing.T) {
 			target.do(t, http.MethodPatch, renamePath, `{"title":"改訂"}`).Code,
 			"editor へ上げたら改名できる")
 
-		// ページ単位の deny を張ると、既定が editor でも見えなくなる（例外が既定に勝つ）。
-		denied := admin.do(t, http.MethodPut,
-			"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+
-				"/restrictions/"+env.targetPrincipal+"/view", `{"mode":"deny"}`)
-		require.Equal(t, http.StatusOK, denied.Code, denied.Body.String())
-		assert.Equal(t, http.StatusNotFound,
-			target.do(t, http.MethodGet, renamePath, "").Code,
-			"deny されたページは存在しないページと同じ 404")
+		// 弱い付与を下の段に足しても、上から届いている役割は下がらない。
+		// 3 段（ワークスペース / スペース / ページ）は足し算で、最も強いものが実効になる。
+		weaker := admin.do(t, http.MethodPut,
+			"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+"/grants/"+env.targetPrincipal,
+			`{"role":"viewer"}`)
+		require.Equal(t, http.StatusOK, weaker.Code, weaker.Body.String())
+		assert.Equal(t, http.StatusOK,
+			target.do(t, http.MethodPatch, renamePath, `{"title":"再改訂"}`).Code,
+			"ページに viewer を足してもワークスペースの editor は残る")
+
+		// 逆に強い付与をページに足すと、そのページから下だけ強くなる。
+		stronger := admin.do(t, http.MethodPut,
+			"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+"/grants/"+env.targetPrincipal,
+			`{"role":"admin"}`)
+		require.Equal(t, http.StatusOK, stronger.Code, stronger.Body.String())
+		assert.Equal(t, http.StatusOK,
+			target.do(t, http.MethodGet,
+				"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+"/grants", "").Code,
+			"ページの admin になったので、そのページの権限を見られる")
 	})
 
 	t.Run("スペースadminは自分のスペースだけを変えられる", func(t *testing.T) {
@@ -516,12 +512,13 @@ func TestKnowledgeBasePermissionAPI_Integration(t *testing.T) {
 				`{"role":"super_admin"}`).Code)
 		assert.Equal(t, http.StatusBadRequest,
 			e.do(t, http.MethodPut,
-				"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+
-					"/restrictions/"+env.targetPrincipal+"/manage", `{"mode":"deny"}`).Code)
+				"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+"/grants/"+env.targetPrincipal,
+				`{"role":"owner"}`).Code, "ページ付与でも役割の一覧は同じ")
+		// 共有リンクが持てるのは view / edit の 2 つだけ。
 		assert.Equal(t, http.StatusBadRequest,
-			e.do(t, http.MethodPut,
-				"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+
-					"/restrictions/"+env.targetPrincipal+"/view", `{"mode":"maybe"}`).Code)
+			e.do(t, http.MethodPost,
+				"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+"/share-links",
+				`{"capability":"manage"}`).Code)
 	})
 }
 
@@ -691,10 +688,10 @@ func TestKnowledgeBasePermissionAPI_SuperAdminHasNoBypass_Integration(t *testing
 // # なぜこれが要るのか
 //
 // 既定は 3 段（ワークスペース / スペース / ページ）から届く。page_grants を入れるまで
-// 「ページに対する管理者」は存在し得なかった（例外の層は view / edit しか表せない）ので、
-// 権限操作の入口はスペースの admin だけを見ていた。その前提のまま page_grants を足すと、
-// **admin を与えられた本人がその権限を一切行使できない**。与えられるのに使えない、という
-// 一番たちの悪い壊れ方になる（画面には権限があるように見える）。
+// 「ページに対する管理者」は存在し得なかったので、権限操作の入口はスペースの admin だけを
+// 見ていた。その前提のまま page_grants を足すと、**admin を与えられた本人がその権限を
+// 一切行使できない**。与えられるのに使えない、という一番たちの悪い壊れ方になる
+// （画面には権限があるように見える）。
 //
 // 併せて、その枝から外へはみ出さないことも固定する。付与は経路をさかのぼって効くので
 // 子孫には届き、祖先には届かない。ここが崩れると、下位ページの管理者が親ごと乗っ取れる。
@@ -760,29 +757,28 @@ func TestKnowledgeBasePageGrantAPI_ページのadminはその枝だけを管理�
 	})
 }
 
-// 自分を締め出したページの例外を、自分で戻せることを確かめる。
+// 自分自身に弱い付与を張っても、上の段から届いている管理権限が残ることを確かめる。
 //
-// 権限を変える口は閲覧の可否を要求しない（domain.PagePermission.CanManage）。
-// ここを「閲覧できる相手だけ」に狭めると、deny を 1 行張った瞬間にその行を消す手段が
-// 本人から消え、DB を直接触るしか復旧の道が無くなる。
-func TestKnowledgeBasePageGrantAPI_自分を締め出しても権限は戻せる_Integration(t *testing.T) {
+// 付与は 3 段（ワークスペース / スペース / ページ）の足し算で、届いた中で最も強い役割が
+// 実効になる（domain.GrantRole.Rank）。もし「近い段が勝つ」形だったら、admin が自分の
+// ページに viewer を 1 行張った瞬間にその行を消す手段が本人から消え、DB を直接触るしか
+// 復旧の道が無くなる。権限の口が自分の操作で閉じないことを、実 PostgreSQL で固定する。
+func TestKnowledgeBasePageGrantAPI_自分に弱い付与を張っても管理権限は残る_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	env := newKbPermEnv(t, sqlDB)
 	admin := env.as(env.admin)
 
-	restriction := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + env.childPage +
-		"/restrictions/" + env.adminPrincipal + "/view"
-
-	denied := admin.do(t, http.MethodPut, restriction, `{"mode":"deny"}`)
-	require.Equal(t, http.StatusOK, denied.Code, denied.Body.String())
-
-	// 前提: 締め出しは効いている（ページ本体はもう読めない）。
 	page := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + env.childPage
-	require.Equal(t, http.StatusNotFound, admin.do(t, http.MethodGet, page, "").Code,
-		"前提: deny が効いて本文は読めない")
+	grants := page + "/grants"
 
-	// それでも権限の口は開いている。
-	assert.Equal(t, http.StatusNoContent, admin.do(t, http.MethodDelete, restriction, "").Code,
-		"自分で張った deny を自分で外せる")
-	assert.Equal(t, http.StatusOK, admin.do(t, http.MethodGet, page, "").Code, "外したら読める")
+	weaker := admin.do(t, http.MethodPut, grants+"/"+env.adminPrincipal, `{"role":"viewer"}`)
+	require.Equal(t, http.StatusOK, weaker.Code, weaker.Body.String())
+
+	assert.Equal(t, http.StatusOK, admin.do(t, http.MethodGet, page, "").Code,
+		"ワークスペースの admin が届いたままなので本文は読める")
+	assert.Equal(t, http.StatusOK, admin.do(t, http.MethodGet, grants, "").Code,
+		"権限の口も開いたまま")
+	assert.Equal(t, http.StatusNoContent,
+		admin.do(t, http.MethodDelete, grants+"/"+env.adminPrincipal, "").Code,
+		"張った行は自分で外せる")
 }

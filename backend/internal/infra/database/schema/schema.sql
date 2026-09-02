@@ -14,7 +14,7 @@
 -- 上から順に流すことを前提に書いてある。外部キーの参照先は必ず自分より上にある。
 --   Ⅰ 中核    … users / roles / companies / courses / exercises …
 --   Ⅱ ノートの骨格 … workspaces / spaces / pages / blocks / page_paths / page_snapshots
---   Ⅲ ノートの権限 … principals / grants / restrictions / share_links
+--   Ⅲ ノートの権限 … principals / grants / share_links
 --                    （Ⅰ の users へ FK を張るので Ⅰ より後でなければならない）
 --
 -- ただし**適用そのものは 2 回に分かれる**（Ⅰ と Ⅱ+Ⅲ）。あいだに seed と
@@ -59,7 +59,7 @@
 -- ここに置かないもの:
 --   - ノート（骨格 workspaces / spaces / pages / blocks / page_paths / page_snapshots、
 --     権限モデル principals / principal_members / workspace_grants / space_grants /
---     page_restrictions / page_allow_lists / share_links）→ schema/knowledge_base*.sql が正本。
+--     share_links）→ schema/knowledge_base*.sql が正本。
 --   - FK / CHECK / 部分 UNIQUE のうち、既存データの修復を伴うもの（users の正規化まわり）
 --     → migrate.go の ApplyUserNormalizationConstraints が、バックフィルの後に張る。
 --   - テナント橋渡し列（companies.workspace_id / users.workspace_id）
@@ -954,11 +954,11 @@ CREATE INDEX IF NOT EXISTS idx_page_paths_workspace_id ON page_paths (workspace_
 CREATE INDEX IF NOT EXISTS idx_page_paths_ancestor_id ON page_paths (ancestor_id);
 
 -- =====================================================================
--- Ⅲ. ノートの権限（principals / grants / restrictions / share_links）
+-- Ⅲ. ノートの権限（principals / grants / share_links）
 -- =====================================================================
 
 -- ノートの権限モデル（principals / principal_members / workspace_grants /
--- space_grants / page_restrictions / page_allow_lists / share_links）の DDL。
+-- space_grants / page_grants / share_links）の DDL。
 --
 -- knowledge_base.sql（骨格 6 テーブル）と同じ扱い: このファイルが実スキーマの正本であり、
 -- 同時に sqlc の型付け入力でもある（backend/sqlc.yaml の schema に登録済み）。
@@ -975,20 +975,22 @@ CREATE INDEX IF NOT EXISTS idx_page_paths_ancestor_id ON page_paths (ancestor_id
 -- 設計の柱（骨格の 2 つに加えて）:
 --
 --   (3) 主体（principal）を 1 つの表に集める。ユーザー・グループ・スペース全員・公開リンクは
---       「権限を与える相手」という点で同じなので、grant / restriction 側から見て 1 本の FK で済む。
---       主体ごとに表を分けると grant / restriction が主体の種類だけ列（または表）を持つことになり、
+--       「権限を与える相手」という点で同じなので、grant 側から見て 1 本の FK で済む。
+--       主体ごとに表を分けると grant が主体の種類だけ列（または表）を持つことになり、
 --       権限を解く SQL が主体の種類だけ分岐する。
 --
 --   (4) 種類（kind）によって使う列が変わるので、CHECK で「その kind のときだけ非 NULL」を強制する。
 --       任意の key/value に逃がす（EAV）ことはしない。列は意味を持ったまま、
 --       「いつ埋まるか」だけを制約で表す。
 --
---   (5) 権限は「既定（grants）＋ 例外（page_restrictions）」だけで表す。
+--   (5) 権限は付与（grants）だけで表し、打ち消す層は持たない。
+--       入れ物の階層に合わせて 3 段（workspace_grants / space_grants / page_grants）を置き、
+--       届いた中で最も強い役割を採る。下の段が上の段を弱めることはない。
+--
 --       全ページへ ACL を展開する方式は解決が 1 行の取得で済む代わりに、ページを 1 回動かす /
 --       メンバーを 1 人足すだけで数万行を書き換える。ページ移動が日常の道具である以上、
---       書き込み側の代償が大きすぎる。例外はごく少数のページにしか付かない性質を使い、
---       行を持つのは例外だけにして、解決は page_paths（closure）を 1 回 JOIN するだけで済ませる。
---       既定は入れ物の階層に合わせて 2 段（workspace_grants / space_grants）持つ。
+--       書き込み側の代償が大きすぎる。付与はごく少数のページにしか付かない性質を使い、
+--       行を持つのは付与された段だけにして、解決は page_paths（closure）を 1 回 JOIN するだけで済ませる。
 
 -- principals: 権限を与える相手（主体）。
 --
@@ -1035,7 +1037,7 @@ CREATE TABLE IF NOT EXISTS principals (
     -- 公開リンクの主体は「同じワークスペースの page」にしか結び付かない。
     CONSTRAINT fk_principals_page FOREIGN KEY (workspace_id, page_id)
         REFERENCES pages (workspace_id, id) ON DELETE CASCADE,
-    -- grant / restriction / share_link からの複合 FK の参照先。id の PK があるので実データ上は
+    -- grant / share_link からの複合 FK の参照先。id の PK があるので実データ上は
     -- 冗長だが、「別ワークスペースの principal に権限を張れない」を FK で塞ぐ足場として要る。
     CONSTRAINT uq_principals_workspace_id UNIQUE (workspace_id, id),
     -- kind まで含めた足場。参照側が「この列は group の principal でなければならない」を
@@ -1141,18 +1143,14 @@ CREATE TABLE IF NOT EXISTS space_grants (
 -- page_grants: そのページ以下での既定の役割。workspace_grants / space_grants に続く 3 段目で、
 -- 意味も合成の仕方も上の 2 つと同じ（配下へ降りる・最も強いものを採る）。
 --
--- これが要るのは「この人にこのページだけ編集を渡す」を書くため。例外の層（page_restrictions）
--- でも allow 行で同じことができるように見えるが、あちらは allow を 1 行足した瞬間にその段が
--- 許可リスト制へ切り替わり、載っていない者は既定が admin でも締め出される。つまり
--- 「1 人に渡す」つもりの操作が「その他全員を締め出す」になる。付与の層は足し算だけなので、
--- 1 行足しても他の誰の権限も動かない。
+-- これが要るのは「この人にこのページだけ編集を渡す」を書くため。
 --
--- 経路の扱いは例外と同じで page_paths を辿る。祖先のページに editor を張れば、その子孫は
--- 既定が editor 以上になる（親に渡したら配下も編集できる、という素直な形）。
+-- 経路は page_paths を辿る。祖先のページに editor を張れば、その子孫は既定が editor 以上に
+-- なる（親に渡したら配下も編集できる、という素直な形）。
 --
--- 例外には勝てない。deny と限定公開は既定より強いという優先（domain.resolveCapability）は
--- そのままなので、ここで足した役割も経路上の deny には負ける。弱める操作は例外の層に集約する、
--- という grant 層の約束（domain/grant.go）を崩さない。
+-- **弱める手段はこの層にも、どの層にも無い。** 権限は 3 段の付与を足し合わせて
+-- 「届いた中で最も強いもの」で決まり、下の段が上の段を打ち消すことはない。
+-- 「親は共有、この子だけ隠す」は書けない — 狭めたい内容は private のスペースへ置く。
 CREATE TABLE IF NOT EXISTS page_grants (
     workspace_id uuid NOT NULL,
     page_id      uuid NOT NULL,
@@ -1175,89 +1173,16 @@ CREATE TABLE IF NOT EXISTS page_grants (
 -- principal_id) なので page_id 先頭では principal から引けない。
 CREATE INDEX IF NOT EXISTS idx_page_grants_principal ON page_grants (workspace_id, principal_id);
 
--- page_restrictions: そのページ以下だけ既定を上書きする例外。行を持つのは例外だけ。
---
--- 実効権限の決め方（domain.ResolvePagePermission が唯一の実装。ここは同じ規則の要約）:
---   1. 対象ページ自身から根までの経路のどこかに自分宛ての deny があれば不許可。
---      deny は allow に勝ち、経路全体で効く
---   2. 経路上に許可リスト制の段（page_allow_lists の印）があれば、そのうち最も近い段に
---      自分の allow 行があるかで決まる。無ければ既定が admin でも不許可（限定公開）
---   3. 許可リスト制の段が経路に無ければ grants の既定に従う。
---      deny 行だけの段は「名指しの除外」で、ほかの人の既定は変えない
---
--- 2 と 3 の分かれ目が要るのは、allow と deny で意味が逆だから。allow を 1 つ足した瞬間に
--- 「載っていない人は入れない」に切り替わり（限定公開。その印は page_allow_lists）、deny だけの段は
--- 「その人だけ外す」で他は既定のまま、という 2 つの使い方を 1 つの表で両立させる。
---
--- deny を「最も近い段」だけで見てはいけない。deny 行しか無い段が最近段になると 3 が働き、
--- より遠い祖先の許可リストが第三者への deny 1 行で解除されてしまう。
--- 一方 allow は最も近い段だけで決める（近い許可リストが遠い許可リストを上書きする）。
--- 「この枝だけもう少し広く共有する」を書けるようにするための意図した非対称。
---
--- PK に capability を含めるので、同じ (ページ, 主体, ケイパビリティ) に allow と deny の
--- 2 行は作れない。矛盾した設定はそもそも保存できない。
-CREATE TABLE IF NOT EXISTS page_restrictions (
-    workspace_id uuid NOT NULL,
-    page_id      uuid NOT NULL,
-    principal_id uuid NOT NULL,
-    -- capability の値は domain.Capability が正（view / edit）。
-    capability   varchar(8) NOT NULL,
-    -- mode の値は domain.RestrictionMode が正（allow / deny）。
-    mode         varchar(8) NOT NULL,
-    created_at   timestamptz NOT NULL DEFAULT now(),
-    updated_at   timestamptz NOT NULL DEFAULT now(),
-
-    CONSTRAINT page_restrictions_pkey PRIMARY KEY (workspace_id, page_id, principal_id, capability),
-    CONSTRAINT fk_page_restrictions_page FOREIGN KEY (workspace_id, page_id)
-        REFERENCES pages (workspace_id, id) ON DELETE CASCADE,
-    CONSTRAINT fk_page_restrictions_principal FOREIGN KEY (workspace_id, principal_id)
-        REFERENCES principals (workspace_id, id) ON DELETE CASCADE,
-    CONSTRAINT ck_page_restrictions_capability CHECK (capability IN ('view', 'edit')),
-    CONSTRAINT ck_page_restrictions_mode CHECK (mode IN ('allow', 'deny'))
-);
-
--- page_allow_lists: 「このページのこのケイパビリティは許可リスト制（限定公開）である」という印。
---
--- 限定公開かどうかを page_restrictions の allow 行の有無で表してはいけない。
--- principal_id は principals へ ON DELETE CASCADE なので、許可リストに載っている主体を
--- 消すと allow 行も一緒に消える。行の有無が印を兼ねていると、その瞬間にその段の制限が
--- 0 行になり、解決は「制限が無い」＝ 既定（例: スペース全員 editor）へ戻る。
--- つまり退職者のオフボーディングや部署の統廃合という通常運用の 1 操作で、
--- 無関係な第三者に限定公開のページが子孫ごと開く。ページ移動での失効を
--- ErrPageMoveVoidsSpaceRestriction が経路で止めているのと違い、こちらは
--- 「思いついた経路を塞ぐ」では足りない（削除の入口は増える）ため構造で断つ。
---
--- 印は主体を参照しないので、どの主体が消えても残る。残った結果は
--- 「許可リストが空 ＝ 誰も載っていない」で、fail-closed（閉じる側）に倒れる。
--- 権限管理の usecase（GrantWorkspaceRole / GrantSpaceRole / SetPageRestriction）は
--- ページの閲覧・編集を要求しないので、閉じても管理者は張り直して復旧できる。
---
--- 印の増減は「明示的に allow 行を足した / 減らした」操作だけが行う（repository が同じ
--- トランザクションで揃える）。deny 行の解除など allow に触れない操作では動かさない。
--- 動かしてしまうと、無関係な 1 行の解除で限定公開が解けるという同じ穴を作ることになる。
-CREATE TABLE IF NOT EXISTS page_allow_lists (
-    workspace_id uuid NOT NULL,
-    page_id      uuid NOT NULL,
-    -- capability の値は domain.Capability が正（view / edit）。
-    capability   varchar(8) NOT NULL,
-    created_at   timestamptz NOT NULL DEFAULT now(),
-
-    CONSTRAINT page_allow_lists_pkey PRIMARY KEY (workspace_id, page_id, capability),
-    CONSTRAINT fk_page_allow_lists_page FOREIGN KEY (workspace_id, page_id)
-        REFERENCES pages (workspace_id, id) ON DELETE CASCADE,
-    CONSTRAINT ck_page_allow_lists_capability CHECK (capability IN ('view', 'edit'))
-);
-
 -- share_links: ログイン不要の公開 URL。
 --
--- 来訪者は kind='share_link' の principal として扱う。こうすると「公開リンクからの閲覧者」も
--- ほかの主体と同じく page_restrictions の対象にでき、「ページ全体を公開しつつ 1 枚の子ページだけ
--- 除外する」を deny 行 1 つで書ける。権限解決の入口が主体ごとに分岐しない。
+-- 来訪者は kind='share_link' の principal として扱う。主体の種類を 1 本に揃えておくと、
+-- 権限解決の入口が主体ごとに分岐しない。
 --
 -- ただし既定（そのリンクで何ができるか）は grants ではなくこの表の capability で決める。
--- 公開リンクのために allow 行を足す設計にすると、その瞬間にそのページが「許可リスト」状態に
--- 切り替わり（上の 3）、それまで見えていたチームの全員が締め出される。既定の出どころだけを
--- 分け、例外の層は共有する。
+-- リンクの来訪者はワークスペースに所属しないので、付与の 3 段はそもそも届かない。
+--
+-- **共有リンクは広げる方向にしか働かない。** ログインしていない相手へ「見せる」を足すだけで、
+-- すでに見えている人から取り上げることはない。
 --
 -- token は平文で持たない。DB が漏れた時点で全リンクが開けるのを避けるため、SHA-256 の
 -- ダイジェストだけを保存して照合はハッシュ同士で行う（トークンは十分な長さの乱数なので
@@ -1322,12 +1247,10 @@ CREATE INDEX IF NOT EXISTS idx_principals_page_id ON principals (page_id);
 -- 「このユーザーが属するグループ」を引く経路（PK は group 側が先頭なので member 単独では効かない）。
 CREATE INDEX IF NOT EXISTS idx_principal_members_member
     ON principal_members (workspace_id, member_principal_id);
--- 「この principal の grant / restriction」を引く経路（PK は入れ物側が先頭）。
+-- 「この principal の grant」を引く経路（PK は入れ物側が先頭）。
 -- principal を消すときの CASCADE 走査にも効く。
 -- workspace_grants は PK が (workspace_id, principal_id) そのものなので追加の索引は要らない。
 CREATE INDEX IF NOT EXISTS idx_space_grants_principal ON space_grants (workspace_id, principal_id);
-CREATE INDEX IF NOT EXISTS idx_page_restrictions_principal
-    ON page_restrictions (workspace_id, principal_id);
 CREATE INDEX IF NOT EXISTS idx_share_links_page ON share_links (workspace_id, page_id);
 CREATE INDEX IF NOT EXISTS idx_share_links_created_by ON share_links (created_by_user_id);
 

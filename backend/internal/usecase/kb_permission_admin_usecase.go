@@ -13,7 +13,7 @@ import (
 //
 // # なぜこの問いが要るのか（「最後の admin」を剥がせなくする理由）
 //
-// ノートの権限は principals / grants / restrictions だけで閉じており、
+// ノートの権限は principals / grants だけで閉じており、
 // 「アプリの super_admin なら通る」という抜け道を意図的に持たない（domain/grant.go）。
 // その裏返しとして、ワークスペースの admin が 0 人になった瞬間、そのワークスペースの
 // 権限を変えられる人は API のどこにも居なくなる。スペースを増やすことも、

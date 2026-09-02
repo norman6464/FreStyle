@@ -54,7 +54,7 @@ func NewKnowledgeBaseMemberHandler(
 
 // kbPrincipalResponse は主体 1 件の返却形。
 //
-// workspaceId は載せない（URL の slug で決まる）。id は載せる — grant / restriction を
+// workspaceId は載せない（URL の slug で決まる）。id は載せる — grant を
 // 張る URL がこの ID を取るので、クライアントが知る必要がある唯一の内部 ID。
 type kbPrincipalResponse struct {
 	ID   string `json:"id"   example:"0198a000-0000-7000-8000-00000000000a"`
@@ -145,7 +145,7 @@ func (h *KnowledgeBaseMemberHandler) AddMember(c *gin.Context) {
 // RemoveMember はユーザーをワークスペースから外す（冪等）。
 //
 //	@Summary      ノート の メンバー 削除
-//	@Description  ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / 例外 / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
+//	@Description  ユーザー を ワークスペース から 外す。 主体 を 消す の で、 その 人 に 張ら れ て い た 権限 (grant / グループ 所属) も 一緒 に 消える (権限 だけ が 残ら ない)。 元 から 非 メンバー なら 何 も せ ず 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る。
 //	@Tags         knowledge-base
 //	@Produce      json
 //	@Param        workspaceSlug  path  string   true  "ワークスペース の slug"

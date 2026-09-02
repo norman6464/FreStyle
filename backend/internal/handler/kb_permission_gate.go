@@ -14,7 +14,7 @@ import (
 // # なぜ handler で認可を判定するのか
 //
 // 権限を書き換える usecase（GrantWorkspaceRoleUseCase / GrantSpaceRoleUseCase /
-// SetPageRestrictionUseCase / IssueShareLinkUseCase …）は、認可を一切見ない。
+// GrantPageRoleUseCase / IssueShareLinkUseCase …）は、認可を一切見ない。
 // 受け取った workspaceID / spaceID / principalID をそのまま書くだけで、検査するのは
 // 入力の妥当性（空文字・役割名やケイパビリティが既知の値か・主体が実在するか）に限られる。
 //
@@ -145,13 +145,12 @@ func (g *kbPermissionGate) requireSpaceAdmin(c *gin.Context, scope kbRequestScop
 // 張られた相手がそのページの共有設定を触れるのは、この段を数に入れているため。
 //
 // **以前はスペースの admin かどうかだけを見ていた。** page_grants が入る前は
-// 「ページに対する管理者」が存在し得なかった（例外の層は view / edit しか表せない）ので
-// それで足りていたが、いまはページにも admin を張れる。スペースだけを見ていると、
-// admin を与えられた本人がその権限を一切行使できない状態になる。
+// 「ページに対する管理者」が存在し得なかったのでそれで足りていたが、いまはページにも
+// admin を張れる。スペースだけを見ていると、admin を与えられた本人がその権限を
+// 一切行使できない状態になる。
 //
-// **閲覧できるかは確かめない。** domain.PagePermission.CanManage は経路上の例外を
-// 通さないので、自分を deny したページでも true のまま返る（そうでないと締め出しを
-// 自分で解けなくなる）。理由はあちらの doc にある。
+// **閲覧できるかは別に確かめない。** admin は必ず閲覧もできる（GrantRole.Rank）ので、
+// ここで重ねて問う意味が無い。
 //
 // **DB への問い合わせは 1 回だけ。** ページが無い場合は ErrPageNotFound が返り、
 // 役割が足りない場合と同じ 404 に落ちる。落ちる段によって往復の回数が変わらないので、
@@ -203,7 +202,6 @@ func respondKbPermissionOperationErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrInvalidGrantRole),
 		errors.Is(err, usecase.ErrInvalidCapability),
-		errors.Is(err, usecase.ErrInvalidRestrictionMode),
 		errors.Is(err, usecase.ErrPrincipalKindMismatch):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, repository.ErrPrincipalGroupNameTaken):

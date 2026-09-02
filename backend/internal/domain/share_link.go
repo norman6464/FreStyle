@@ -4,14 +4,14 @@ import "time"
 
 // ShareLink はログイン不要でページを開ける公開 URL。
 //
-// 来訪者は kind='share_link' の Principal として扱う（PrincipalID）。こうすることで
-// 公開リンクの来訪者もほかの主体と同じく PageRestriction の対象にでき、
-// 「ページ全体を公開しつつ 1 枚の子ページだけ除外する」を deny 行 1 つで書ける。
+// 来訪者は kind='share_link' の Principal として扱う（PrincipalID）。主体の種類を
+// 1 本に揃えておくと、権限解決の入口が主体ごとに分岐しない。
 //
-// ただし「そのリンクで何ができるか」の既定は SpaceGrant ではなく Capability で決める。
-// 公開のために allow の PageRestriction を足す設計にすると、その瞬間にそのページが
-// 「許可リスト」状態へ切り替わり（ResolvePagePermission の規則 3）、それまで見えていた
-// チーム全員が締め出される。既定の出どころだけを分け、例外の層は共有する。
+// 「そのリンクで何ができるか」は Capability だけで決まる。来訪者はワークスペースに
+// 所属しないので、付与の 3 段はそもそも届かない。
+//
+// **共有リンクは広げる方向にしか働かない。** ログインしていない相手へ「見せる」を足すだけで、
+// すでに見えている人から取り上げることはない。
 type ShareLink struct {
 	ID string `json:"id"`
 	// WorkspaceID はテナント境界。

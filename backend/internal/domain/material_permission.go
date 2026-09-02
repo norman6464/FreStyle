@@ -30,7 +30,7 @@ type ChapterGrant struct {
 // MaterialFacts は教材（コース 1 つ、または章 1 つ）の実効権限を決める事実の集合。
 //
 // ノートの PagePermissionFacts と分けているのは、集める事実が違うため。
-// 教材には例外（deny / 許可リスト）の層が無く、代わりに「公開済みか」がある。
+// 教材には「公開済みか」があり、ノートには共有リンクの既定がある。
 // 同じ型に載せると、見ていない層の nil が「制限が無い」に化ける。
 type MaterialFacts struct {
 	// Member はそのワークスペースの一員か。所属は principals（kind='user'）の行が唯一の表現。

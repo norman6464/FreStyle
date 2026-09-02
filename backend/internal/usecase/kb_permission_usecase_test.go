@@ -33,21 +33,36 @@ func Test_ページ権限確認_必須項目の検証(t *testing.T) {
 }
 
 func Test_ページ権限確認_集めた事実を規則にかけて返す(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
-	repo.On("PagePermissionFactsForUser", mock.Anything, kbWS, kbPage, uint64(1)).
-		Return(&domain.PagePermissionFacts{
-			Member: true,
-			Role:   kbGrantRole(domain.GrantRoleEditor),
-			View:   &domain.RestrictionFacts{DeniedAnywhere: true},
-		}, nil)
-	uc := usecase.NewCheckPagePermissionUseCase(repo)
+	// 権限は 3 段の付与（ワークスペース / スペース / ページ）を足し合わせ、届いた中で
+	// 最も強い役割だけで決まる。usecase は集めた事実をそのまま domain の規則へ渡し、
+	// 可否の出し方をここに写経しない。
+	cases := map[string]struct {
+		role                        *domain.GrantRole
+		canView, canEdit, canManage bool
+	}{
+		"役割がひとつも届いていない": {role: nil},
+		"閲覧だけ届いている":     {role: kbGrantRole(domain.GrantRoleViewer), canView: true},
+		"編集まで届いている":     {role: kbGrantRole(domain.GrantRoleEditor), canView: true, canEdit: true},
+		"権限も変えられる": {
+			role: kbGrantRole(domain.GrantRoleAdmin), canView: true, canEdit: true, canManage: true,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo := &mockKBPermissionRepo{}
+			repo.On("PagePermissionFactsForUser", mock.Anything, kbWS, kbPage, uint64(1)).
+				Return(&domain.PagePermissionFacts{Member: true, Role: tc.role}, nil)
 
-	got, err := uc.Execute(context.Background(), usecase.CheckPagePermissionInput{
-		WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
-	})
-	require.NoError(t, err)
-	assert.False(t, got.CanView, "祖先の deny が効く")
-	assert.False(t, got.CanEdit, "閲覧できないので編集もできない")
+			got, err := usecase.NewCheckPagePermissionUseCase(repo).
+				Execute(context.Background(), usecase.CheckPagePermissionInput{
+					WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
+				})
+			require.NoError(t, err)
+			assert.Equal(t, tc.canView, got.CanView)
+			assert.Equal(t, tc.canEdit, got.CanEdit)
+			assert.Equal(t, tc.canManage, got.CanManage)
+		})
+	}
 }
 
 func Test_ページ権限確認_ページが無ければそのまま伝える(t *testing.T) {
@@ -83,11 +98,10 @@ func Test_閲覧可能ページ一覧_見えないページを落とす(t *testi
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).
 		Return([]repository.PageWithViewFacts{
-			{Page: visible, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
-			{Page: hidden, Facts: domain.PageViewFacts{
-				Role: kbGrantRole(domain.GrantRoleViewer),
-				View: &domain.RestrictionFacts{HasAllowList: true},
-			}},
+			{Page: visible, Role: kbGrantRole(domain.GrantRoleViewer)},
+			// 見えない行 ＝ 役割がひとつも届いていないページ。private なスペースで、
+			// ある枝にだけページ付与で届いているときに起こる（付与は下へ降りるだけ）。
+			{Page: hidden, Role: nil},
 		}, nil)
 	uc := usecase.NewListViewablePagesUseCase(repo)
 
@@ -102,34 +116,30 @@ func Test_閲覧可能ページ一覧_見えないページを落とす(t *testi
 }
 
 func Test_閲覧可能ページ一覧_見えない親の下は数えない(t *testing.T) {
-	// 見える root ─ 見えない mid ─ その下に 2 枚（見えるものと見えないもの）。
+	// 見える根 a ─ 見えない根 b ─ b の下に 2 枚（見えるものと見えないもの）。
 	//
-	// mid が見えないので、その配下は木に出ない（PageTreeOrphanHidden）。ここで mid の直下を
+	// これは本番でも起こる形。スペース全体には役割が届いておらず、a と orphan にだけ
+	// ページ付与で届いている状態を写している（付与は張ったページから下へ降りるだけで、
+	// 祖先には届かない。だから orphan は見えて親の b は見えない）。
+	//
+	// b が見えないので、その配下は木に出ない（PageTreeOrphanHidden）。ここで b の直下を
 	// 数えてしまうと「見えない枝の中に何枚あるか」が漏れ、木から伏せた判断と食い違う。
-	mid := "mid"
+	b := "b"
 	rows := []repository.PageWithViewFacts{
 		{
-			Page:  domain.Page{ID: "root", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "見える親"},
-			Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)},
+			Page: domain.Page{ID: "a", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "見える根"},
+			Role: kbGrantRole(domain.GrantRoleViewer),
 		},
 		{
-			Page: domain.Page{ID: mid, WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: strPtr("root"), Title: "隠れる中間"},
-			Facts: domain.PageViewFacts{
-				Role: kbGrantRole(domain.GrantRoleViewer),
-				View: &domain.RestrictionFacts{HasAllowList: true},
-			},
+			Page: domain.Page{ID: b, WorkspaceID: kbWS, SpaceID: kbSpace, Title: "見えない根"},
 		},
 		{
-			// 権限だけ見れば通るが、親が見えないので木には出ない（＝孤児）。
-			Page:  domain.Page{ID: "orphan", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &mid, Title: "見えるが孤児"},
-			Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)},
+			// 自分には役割が届いているが、親が見えないので木には出ない（＝孤児）。
+			Page: domain.Page{ID: "orphan", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &b, Title: "見えるが孤児"},
+			Role: kbGrantRole(domain.GrantRoleViewer),
 		},
 		{
-			Page: domain.Page{ID: "buried", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &mid, Title: "見えない孫"},
-			Facts: domain.PageViewFacts{
-				Role: kbGrantRole(domain.GrantRoleViewer),
-				View: &domain.RestrictionFacts{HasAllowList: true},
-			},
+			Page: domain.Page{ID: "buried", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &b, Title: "見えない孫"},
 		},
 	}
 	repo := &mockKBPermissionRepo{}
@@ -139,14 +149,40 @@ func Test_閲覧可能ページ一覧_見えない親の下は数えない(t *te
 		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
 	require.NoError(t, err)
 
-	assert.True(t, out.HasHiddenChildren["root"], "見える親の直下で伏せた分は知らせる")
-	assert.False(t, out.HasHiddenChildren[mid], "見えない親の直下は、伏せた孫が居ても知らせない")
-	assert.False(t, out.HasHiddenChildren[usecase.HiddenChildrenRootKey])
-	assert.Len(t, out.Pages, 2, "root と孤児。孤児を落とすのは木の組み立て側の役目")
+	assert.True(t, out.HasHiddenChildren[usecase.HiddenChildrenRootKey], "スペース直下で伏せた分は知らせる")
+	assert.False(t, out.HasHiddenChildren[b], "見えない親の直下は、伏せた孫が居ても知らせない")
+	assert.Len(t, out.Pages, 2, "見える根と孤児。孤児を落とすのは木の組み立て側の役目")
+}
+
+func Test_閲覧可能ページ一覧_見える親の直下で伏せた分は知らせる(t *testing.T) {
+	// **本番では起こらない形を手で組んで、印の付け先だけを確かめる。**
+	// 役割は木を下るほど弱くならない（親へ届いた役割は子孫にも届き、親子でスペースも
+	// 揃う）ので、「親は見えるのに子は見えない」は事実を集めるクエリからは出てこない。
+	// それでも印を親の ID に付けるという取り決めは固定しておきたいので、事実を直接置く。
+	rows := []repository.PageWithViewFacts{
+		{
+			Page: domain.Page{ID: "root", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "見える親"},
+			Role: kbGrantRole(domain.GrantRoleViewer),
+		},
+		{
+			Page: domain.Page{ID: "child", WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: strPtr("root"), Title: "見えない子"},
+		},
+	}
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).Return(rows, nil)
+
+	out, err := usecase.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	require.NoError(t, err)
+
+	assert.Len(t, out.Pages, 1)
+	assert.True(t, out.HasHiddenChildren["root"], "伏せた分は親の ID に印を付ける")
+	assert.False(t, out.HasHiddenChildren[usecase.HiddenChildrenRootKey], "スペース直下では伏せていない")
 }
 
 func Test_閲覧可能ページ一覧_見える根が無いなら有無も返さない(t *testing.T) {
-	// 根が非公開で、その子だけ閲覧できる形。
+	// 根には役割が届いておらず、その子にだけページ付与で届いている形
+	// （付与は張ったページから下へ降りるだけで、祖先には届かない）。
 	//
 	// 子は「見える」ので pages には入るが、親が見えないので木には繋がらず
 	// （BuildPageTree の PageTreeOrphanHidden が落とす）、画面には 1 行も出ない。
@@ -158,11 +194,8 @@ func Test_閲覧可能ページ一覧_見える根が無いなら有無も返さ
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).
 		Return([]repository.PageWithViewFacts{
-			{Page: root, Facts: domain.PageViewFacts{
-				Role: kbGrantRole(domain.GrantRoleViewer),
-				View: &domain.RestrictionFacts{HasAllowList: true},
-			}},
-			{Page: child, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
+			{Page: root},
+			{Page: child, Role: kbGrantRole(domain.GrantRoleViewer)},
 		}, nil)
 
 	out, err := usecase.NewListViewablePagesUseCase(repo).
@@ -176,15 +209,12 @@ func Test_閲覧可能ページ一覧_見える根が無いなら有無も返さ
 func Test_閲覧可能ページ一覧_1件も見えないなら有無も返さない(t *testing.T) {
 	// 存在しないスペースと「中身が 1 件も見えないスペース」を撃ち分けないための不変条件。
 	// 有無を返すと、前者は false・後者は true になり、スペース ID の総当たりで実在が分かる。
-	deny := domain.PageViewFacts{
-		Role: kbGrantRole(domain.GrantRoleViewer),
-		View: &domain.RestrictionFacts{HasAllowList: true},
-	}
+	// 自分が入っていない private スペース ＝ どの行にも役割が届いていない。
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).
 		Return([]repository.PageWithViewFacts{
-			{Page: domain.Page{ID: "p1", WorkspaceID: kbWS, SpaceID: kbSpace}, Facts: deny},
-			{Page: domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace}, Facts: deny},
+			{Page: domain.Page{ID: "p1", WorkspaceID: kbWS, SpaceID: kbSpace}},
+			{Page: domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace}},
 		}, nil)
 
 	out, err := usecase.NewListViewablePagesUseCase(repo).
@@ -220,6 +250,12 @@ func Test_サブツリー編集可否_必須項目の検証(t *testing.T) {
 }
 
 func Test_サブツリー編集可否_1枚でも編集できなければ不可(t *testing.T) {
+	// **子孫だけ弱い行は、本番では作れない形を手で組んでいる。**
+	// 役割は 3 段の付与を足し合わせた「最も強いもの」で決まり、子孫の経路は親の経路を
+	// 必ず含むので、根を編集できるなら全子孫も編集できる。それでもこの検査を残すのは、
+	// 事実を集めるクエリが経路を取り違えた（祖先ではなく子孫を辿った等）ときに、
+	// 根 1 枚だけ見て通す実装では気づけないため。ここは事実を直接置いて、
+	// 1 枚でも欠けたら断ることを固定する。
 	editable := domain.PagePermissionFacts{Member: true, Role: kbGrantRole(domain.GrantRoleEditor)}
 	cases := map[string]struct {
 		rows []repository.PageWithPermissionFacts
@@ -232,23 +268,19 @@ func Test_サブツリー編集可否_1枚でも編集できなければ不可(t
 			},
 			want: true,
 		},
-		"子孫の編集が外されている": {
+		"子孫には閲覧しか届いていない": {
 			rows: []repository.PageWithPermissionFacts{
 				{PageID: kbPage, Facts: editable},
 				{PageID: kbPage + "1", Facts: domain.PagePermissionFacts{
-					Member: true, Role: kbGrantRole(domain.GrantRoleEditor),
-					Edit: &domain.RestrictionFacts{DeniedAnywhere: true},
+					Member: true, Role: kbGrantRole(domain.GrantRoleViewer),
 				}},
 			},
 			want: false,
 		},
-		"子孫が閲覧すらできない": {
+		"子孫には役割がひとつも届いていない": {
 			rows: []repository.PageWithPermissionFacts{
 				{PageID: kbPage, Facts: editable},
-				{PageID: kbPage + "1", Facts: domain.PagePermissionFacts{
-					Member: true, Role: kbGrantRole(domain.GrantRoleEditor),
-					View: &domain.RestrictionFacts{DeniedAnywhere: true},
-				}},
+				{PageID: kbPage + "1", Facts: domain.PagePermissionFacts{Member: true}},
 			},
 			want: false,
 		},
@@ -460,82 +492,28 @@ func Test_権限剥奪_repository_へ委譲する(t *testing.T) {
 		usecase.RevokeSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal}))
 }
 
-func Test_例外設定_ケイパビリティと向きの検証(t *testing.T) {
-	uc := usecase.NewSetPageRestrictionUseCase(&mockKBPermissionRepo{})
-	ctx := context.Background()
-
-	_, err := uc.Execute(ctx, usecase.SetPageRestrictionInput{
-		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
-		Capability: domain.Capability("comment"), Mode: domain.RestrictionModeAllow,
-	})
-	require.ErrorIs(t, err, usecase.ErrInvalidCapability)
-
-	_, err = uc.Execute(ctx, usecase.SetPageRestrictionInput{
-		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
-		Capability: domain.CapabilityView, Mode: domain.RestrictionMode("ignore"),
-	})
-	require.ErrorIs(t, err, usecase.ErrInvalidRestrictionMode)
-}
-
-func Test_例外設定_主体を確かめてから保存する(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
-	repo.On("FindPrincipal", mock.Anything, kbWS, kbPrincipal).
-		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
-	repo.On("UpsertPageRestriction", mock.Anything, kbWS, kbPage, kbPrincipal, domain.CapabilityView, domain.RestrictionModeDeny).
-		Return(&domain.PageRestriction{
-			WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
-			Capability: domain.CapabilityView, Mode: domain.RestrictionModeDeny,
-		}, nil)
-	uc := usecase.NewSetPageRestrictionUseCase(repo)
-
-	got, err := uc.Execute(context.Background(), usecase.SetPageRestrictionInput{
-		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
-		Capability: domain.CapabilityView, Mode: domain.RestrictionModeDeny,
-	})
-	require.NoError(t, err)
-	assert.Equal(t, domain.RestrictionModeDeny, got.Mode)
-}
-
-func Test_例外解除_検証と委譲(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
-	repo.On("DeletePageRestriction", mock.Anything, kbWS, kbPage, kbPrincipal, domain.CapabilityView).Return(nil)
-	uc := usecase.NewClearPageRestrictionUseCase(repo)
-	ctx := context.Background()
-
-	require.NoError(t, uc.Execute(ctx, usecase.ClearPageRestrictionInput{
-		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Capability: domain.CapabilityView,
-	}))
-	require.ErrorIs(t, uc.Execute(ctx, usecase.ClearPageRestrictionInput{
-		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Capability: domain.Capability("x"),
-	}), usecase.ErrInvalidCapability)
-	require.Error(t, uc.Execute(ctx, usecase.ClearPageRestrictionInput{
-		PageID: kbPage, PrincipalID: kbPrincipal, Capability: domain.CapabilityView,
-	}), "workspaceID 必須")
-}
-
 // strPtr は ParentID のようなポインタ項目をテストから書くための小道具。
 func strPtr(v string) *string { return &v }
 
 func Test_題名検索_見えないページを落とし件数を切る(t *testing.T) {
 	visible := domain.Page{ID: "p-1", Title: "Docker 手順"}
 	visible2 := domain.Page{ID: "p-2", Title: "Docker 入門"}
-	denied := domain.Page{ID: "p-3", Title: "Docker 機密"}
+	hidden := domain.Page{ID: "p-3", Title: "Docker 機密"}
 
 	repo := &mockKBPermissionRepo{}
 	repo.On("SearchWorkspacePageViewFacts", mock.Anything, "ws-1", uint64(7), "docker").
 		Return([]repository.PageWithViewFacts{
-			{Page: visible, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
-			// 経路上で自分が deny されている行 — 一覧と同じ判定（ResolvePageView）で落ちること。
-			{Page: denied, Facts: domain.PageViewFacts{
-				Role: kbGrantRole(domain.GrantRoleViewer),
-				View: &domain.RestrictionFacts{DeniedAnywhere: true},
-			}},
-			{Page: visible2, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
+			{Page: visible, Role: kbGrantRole(domain.GrantRoleViewer)},
+			// 検索はワークスペース全体を候補にするので、自分が入っていない private スペースの
+			// ページも行として返る。役割が届いていないその行が、一覧と同じ判定
+			// （ResolvePageView）で落ちること。
+			{Page: hidden, Role: nil},
+			{Page: visible2, Role: kbGrantRole(domain.GrantRoleViewer)},
 		}, nil)
 
 	uc := usecase.NewSearchViewablePagesUseCase(repo)
 
-	t.Run("deny された行は返らない", func(t *testing.T) {
+	t.Run("役割が届いていない行は返らない", func(t *testing.T) {
 		pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
 			WorkspaceID: "ws-1", UserID: 7, Query: "docker",
 		})

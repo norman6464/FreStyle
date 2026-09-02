@@ -16,8 +16,9 @@ import (
 
 // ページ単位の付与（page_grants）が、既定の役割としてどう効くかを実 PostgreSQL で固定する。
 //
-// 付与は「足す」層で、例外（page_restrictions）は「絞る」層。この 2 つの住み分けと、
-// 経路（自分と祖先）をどう辿るかが、ここで確かめたいこと。
+// 付与は「足す」層しかない。3 段（ワークスペース / スペース / ページ）から届いた役割のうち
+// 最も強いものが実効になり、下の段が上の段を弱めることはない。ここで確かめたいのは、
+// その足し算と、経路（自分と祖先）をどう辿るか。
 //
 // **1 ページの解決と一覧の解決が割れないこと**を特に見る。既定の役割を計算する箇所が
 // 6 つに分かれており、1 つでも枝を足し忘れると「開くと編集できるのに一覧では読み取り
@@ -122,23 +123,28 @@ func TestPageGrant_強い方が採られる_Integration(t *testing.T) {
 		"ページに viewer を張ってもスペースの admin は下がらない（付与は足し算だけ）")
 }
 
-func TestPageGrant_例外は付与に勝つ_Integration(t *testing.T) {
+// 付与を剥がすと届かなくなることを、読みの経路まで通して見る。
+//
+// **見えなくする手段はこれだけ**（同じスペースの中で 1 枚だけ隠す層は無い）。
+// 剥がしたのに読みの経路がまだ役割を返す、という壊れ方をここで捕まえる。
+func TestPageGrant_剥がすと届かなくなる_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 	f := setupKBPermission(t, sqlDB)
 
-	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
+	parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親").ID
+	child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent, "子").ID
 	alice := f.principalFor(ctx, t, f.alice)
 
-	f.grantPage(ctx, t, page, alice.ID, domain.GrantRoleAdmin)
-	require.True(t, f.permFor(ctx, t, page, f.alice).CanView, "前提: 付与で見えている")
+	f.grantPage(ctx, t, parent, alice.ID, domain.GrantRoleAdmin)
+	require.True(t, f.permFor(ctx, t, child, f.alice).CanEdit, "前提: 祖先の付与で編集できている")
 
-	// 同じページに deny を張る。例外は既定より強い。
-	f.restrict(ctx, t, page, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+	require.NoError(t, f.perm.DeletePageGrant(ctx, f.ws, parent, alice.ID))
 
-	got := f.permFor(ctx, t, page, f.alice)
-	assert.False(t, got.CanView, "deny は付与に勝つ（弱める操作は例外の層が担う）")
+	got := f.permFor(ctx, t, child, f.alice)
+	assert.False(t, got.CanView, "剥がせば届かない（ほかに届く段が無いので何もできない）")
 	assert.False(t, got.CanEdit)
+	assert.Empty(t, f.viewablePageIDs(ctx, t, f.spaceA, f.alice), "一覧からも消える")
 }
 
 func TestPageGrant_一覧と1ページの解決が一致する_Integration(t *testing.T) {
@@ -202,7 +208,7 @@ func TestPageGrant_スペース全員宛ての付与が全経路で一致する_
 	rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice, []string{page})
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "ID 指定でも 1 行返る")
-	assert.True(t, domain.ResolvePageView(rows[0].Facts), "ID 指定でも見える")
+	assert.True(t, domain.ResolvePageView(rows[0].Role), "ID 指定でも見える")
 }
 
 func containsPageID(pages []domain.Page, id string) bool {
@@ -450,10 +456,7 @@ func TestPageGrant_付与が無ければ入口の答えはスペース経由と�
 		t.Run(c.name, func(t *testing.T) {
 			f := setupKBPermission(t, sqlDB)
 			if c.private {
-				_, err := sqlDB.Exec(
-					`UPDATE spaces SET visibility = 'private' WHERE workspace_id = $1 AND id = $2`, f.ws, f.spaceA,
-				)
-				require.NoError(t, err)
+				f.makePrivate(t, f.spaceA)
 			}
 			page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
 			c.setup(t, f, f.spaceA)
@@ -568,4 +571,102 @@ func TestGrantablePrincipals_名前が引けなくても行を落とさない_In
 		}
 	}
 	assert.True(t, found, "名前が無くても行は残る")
+}
+
+// 木を下るほど役割が弱くならないことを、**実 PostgreSQL のクエリで**確かめる。
+//
+// これが要るのは、domain 側の単調性（StrongestGrantRole のテスト）だけでは証明にならないため。
+// ページ 1 枚 / 一覧の役割は SQL の `GREATEST(...)` が畳んだ強さを persistence が戻して作るので、
+// domain の合成関数を一度も通らない。両方が単調でなければ「親は編集できるが子は編集できない」が
+// 起きないとは言えない。
+//
+// この性質は 2 つの前提に乗っている。どちらも DB が強制する:
+//   - 子孫の経路は祖先の経路を含む（page_paths が closure）
+//   - スペースは親子で揃う（fk_pages_parent が (workspace_id, space_id, parent_id) を参照する）
+//
+// 壊れ方は「経路の辿り方を取り違える」形で起きる。祖先ではなく子孫を集めてしまうと、
+// 深いページほど弱くなる。根だけ見て通す実装では気づけない。
+func TestPageGrant_木を下るほど役割は弱くならない_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "根").ID
+	mid := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root, "中").ID
+	leaf := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &mid, "葉").ID
+	depth := []struct {
+		name string
+		page string
+	}{{"根", root}, {"中", mid}, {"葉", leaf}}
+
+	alice := f.principalFor(ctx, t, f.alice)
+
+	// 経路のどの段に、どの役割を張っても弱くならないことを見る。
+	// 弱い役割を深い段へ張る組み合わせ（根 admin → 葉 viewer）が、降格が起きないことの肝。
+	for _, tc := range []struct {
+		name  string
+		grant map[string]domain.GrantRole
+	}{
+		{"何も張らない", nil},
+		{"根に viewer", map[string]domain.GrantRole{root: domain.GrantRoleViewer}},
+		{"根に admin・葉に viewer", map[string]domain.GrantRole{
+			root: domain.GrantRoleAdmin, leaf: domain.GrantRoleViewer,
+		}},
+		{"根に viewer・中に editor", map[string]domain.GrantRole{
+			root: domain.GrantRoleViewer, mid: domain.GrantRoleEditor,
+		}},
+		{"中に admin だけ", map[string]domain.GrantRole{mid: domain.GrantRoleAdmin}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// 前の組み合わせを持ち越さない（付与は足し算なので、消さないと強い方が残る）。
+			for _, d := range depth {
+				require.NoError(t, f.perm.DeletePageGrant(ctx, f.ws, d.page, alice.ID))
+			}
+			for page, role := range tc.grant {
+				f.grantPage(ctx, t, page, alice.ID, role)
+			}
+
+			// 1 ページの解決。
+			var prev domain.PagePermission
+			for i, d := range depth {
+				got := f.permFor(ctx, t, d.page, f.alice)
+				if i > 0 {
+					assert.GreaterOrEqual(t, permRank(got), permRank(prev),
+						"%s で %s より弱くなった（%+v → %+v）", d.name, depth[i-1].name, prev, got)
+				}
+				prev = got
+			}
+
+			// 一覧の解決も同じでなければならない。片方だけ単調でも、
+			// 「開くと編集できるのに一覧では読み取り専用」というずれ方をする。
+			rows, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.spaceA, f.alice, false)
+			require.NoError(t, err)
+			view := map[string]bool{}
+			for _, row := range rows {
+				view[row.Page.ID] = domain.ResolvePageView(row.Role)
+			}
+			for i, d := range depth {
+				if i > 0 && view[depth[i-1].page] {
+					assert.True(t, view[d.page],
+						"一覧: %s は見えるのに %s が見えない", depth[i-1].name, d.name)
+				}
+			}
+		})
+	}
+}
+
+// permRank は実効権限の強さを 1 つの整数に畳む（比較のためだけに使う）。
+// できることが増えるほど大きくなる。
+func permRank(p domain.PagePermission) int {
+	n := 0
+	if p.CanView {
+		n++
+	}
+	if p.CanEdit {
+		n++
+	}
+	if p.CanManage {
+		n++
+	}
+	return n
 }

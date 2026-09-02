@@ -539,28 +539,6 @@ func (m *mockKBPermissionRepo) ListSpaceGrants(ctx context.Context, workspaceID,
 	return rows, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) UpsertPageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability, mode domain.RestrictionMode) (*domain.PageRestriction, error) {
-	args := m.Called(ctx, workspaceID, pageID, principalID, capability, mode)
-	r, _ := args.Get(0).(*domain.PageRestriction)
-	return r, args.Error(1)
-}
-
-func (m *mockKBPermissionRepo) DeletePageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability) error {
-	return m.Called(ctx, workspaceID, pageID, principalID, capability).Error(0)
-}
-
-func (m *mockKBPermissionRepo) ListPageRestrictions(ctx context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error) {
-	args := m.Called(ctx, workspaceID, pageID)
-	rows, _ := args.Get(0).([]domain.PageRestriction)
-	return rows, args.Error(1)
-}
-
-func (m *mockKBPermissionRepo) ListPageAllowListCapabilities(ctx context.Context, workspaceID, pageID string) ([]domain.Capability, error) {
-	args := m.Called(ctx, workspaceID, pageID)
-	rows, _ := args.Get(0).([]domain.Capability)
-	return rows, args.Error(1)
-}
-
 func (m *mockKBPermissionRepo) CreateShareLink(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
 	args := m.Called(ctx, in)
 	l, _ := args.Get(0).(*domain.ShareLink)

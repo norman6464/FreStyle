@@ -239,7 +239,7 @@ func (u *RenamePageUseCase) Execute(ctx context.Context, in RenamePageInput) (*d
 //
 // GetPageUseCase と分けているのは、読む量と目的が違うため。あちらは snapshot か blocks から
 // ProseMirror doc を組み立てて返す「本文を画面に出すための口」で、こちらが要るのは
-// ページが属するスペースと現在の状態だけ。権限操作 API（ページの例外・共有リンク）の
+// ページが属するスペースと現在の状態だけ。権限操作 API（ページ付与・共有リンク）の
 // 認可がこれを使う — ページに対する権限を変えてよいかは「そのページが属するスペースの
 // admin か」で決まるので、まずページからスペースを知る必要がある。
 //

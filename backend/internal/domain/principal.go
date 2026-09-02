@@ -5,7 +5,7 @@ import "time"
 // PrincipalKind は principals.kind に入る主体の種類。
 //
 // ユーザー・グループ・スペース全員・公開リンクは「権限を与える相手」という点で同じなので
-// 1 つの表にまとめる。grant / restriction 側は主体の種類を知らずに 1 本の FK で参照でき、
+// 1 つの表にまとめる。grant 側は主体の種類を知らずに 1 本の FK で参照でき、
 // 権限を解く SQL が主体の種類だけ分岐することもない。
 type PrincipalKind string
 
@@ -47,7 +47,7 @@ func (k PrincipalKind) Valid() bool {
 // kind='group' なら Name だけが埋まる）。任意の key/value に逃がす形（EAV）は取らない。
 type Principal struct {
 	ID string `json:"id"`
-	// WorkspaceID はテナント境界。grant / restriction からの複合 FK の参照先にもなり、
+	// WorkspaceID はテナント境界。grant からの複合 FK の参照先にもなり、
 	// 別ワークスペースの主体へ権限を張ることを DB が弾く。
 	WorkspaceID string `json:"workspaceId"`
 	// Kind は主体の種類。

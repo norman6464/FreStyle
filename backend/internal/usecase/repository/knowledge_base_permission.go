@@ -25,7 +25,7 @@ var ErrUserNotFound = errors.New("user not found")
 
 // ErrLastWorkspaceAdmin は「ユーザーの admin が 1 人も残らなくなる操作」を断ったときに返す。
 //
-// ノートの権限は principals / grants / restrictions だけで閉じており、
+// ノートの権限は principals / grants だけで閉じており、
 // 「アプリの super_admin なら通る」という抜け道を意図的に持たない（domain/grant.go）。
 // その裏返しとして、ワークスペースの admin が 0 人になった瞬間、そのワークスペースの
 // 権限を変えられる人は API のどこにも居なくなる。**元 admin を含めて誰も復旧できず、
@@ -45,12 +45,12 @@ var ErrPrincipalGroupNameTaken = errors.New("principal group name is already tak
 // PageWithViewFacts は 1 ページと、そのページを閲覧できるかを決める事実の組。
 // ListSpacePageViewFacts が返す（ふるい落としは domain.ResolvePageView が行う）。
 //
-// 事実が閲覧専用の型なのは、一覧のクエリが閲覧の列しか集めないため。
-// 1 ページ解決と同じ domain.PagePermissionFacts に載せると、編集の例外を 1 つも
-// 見ないまま CanEdit が既定で返る（domain.PageViewFacts の説明を参照）。
+// 事実が役割 1 つなのは、権限が打ち消しを持たないため。届いた中で最も強い役割だけで
+// 閲覧可否が決まり、経路のどこで得たかは結果に影響しない。
 type PageWithViewFacts struct {
-	Page  domain.Page
-	Facts domain.PageViewFacts
+	Page domain.Page
+	// Role は届いた中で最も強い役割。grant が 1 つも無ければ nil。
+	Role *domain.GrantRole
 	// ParentArchived は親がアーカイブ済みか（親を持たない行は false）。
 	//
 	// これは**事実**で、判断ではない。「復帰できるか」の規則は UnarchivePageUseCase が
@@ -62,8 +62,7 @@ type PageWithViewFacts struct {
 // PageWithPermissionFacts は 1 ページの ID と、その実効権限を決める事実の組。
 // ListSubtreePagePermissionFacts が返す（判定は domain.ResolvePagePermission が行う）。
 //
-// 閲覧専用の PageWithViewFacts と分かれているのは、集めた事実が違うため。
-// 編集可否は閲覧可否を含むので、編集を問う経路は閲覧と編集の両方の事実を集める。
+// 閲覧専用の PageWithViewFacts と分かれているのは、こちらが所属（Member）も集めるため。
 // ページ本体を持たないのは、この型を使う経路（サブツリー一括操作の入口検査）が
 // 可否だけを必要とし、見えないページの中身を呼び出し側へ渡す必要が無いため。
 type PageWithPermissionFacts struct {
@@ -75,9 +74,9 @@ type PageWithPermissionFacts struct {
 // ListWorkspaceSpaceScopeFacts が返す（判定は domain.ResolveScopePermission が行う）。
 //
 // ページの事実（PageWithViewFacts / PageWithPermissionFacts）と型を分けているのは、
-// 集めた事実が違うため。入れ物にはページ単位の例外（page_restrictions）の層が無く、
-// ここにあるのは grants で届いた「既定の役割」だけ。同じ型に載せると
-// 「例外を見ていない」ことが「例外が無い」に化ける（domain.ScopeFacts の説明を参照）。
+// 集めた事実が違うため。ここにあるのはワークスペース / スペースの grants で届いた
+// 役割だけで、ページ付与（page_grants）は含まない。同じ型に載せると
+// 「ページ付与を見ていない」ことが「ページ付与が無い」に化ける。
 //
 // スペース本体を持つのは、これが一覧の材料そのものだから（呼び出し側は key / name を返す）。
 // 事実の側で見えないスペースをふるい落とすのは呼び出し側の責務で、
@@ -107,7 +106,7 @@ type ShareLinkWrite struct {
 }
 
 // KnowledgeBasePermissionRepository はノートの権限モデル（principals /
-// principal_members / workspace_grants / space_grants / page_restrictions / share_links）への
+// principal_members / workspace_grants / space_grants / page_grants / share_links）への
 // アクセスを提供する。
 //
 // KnowledgeBaseRepository（ページとブロック）と分けているのは、境界が違うため。
@@ -131,13 +130,8 @@ type KnowledgeBasePermissionRepository interface {
 	FindPrincipal(ctx context.Context, workspaceID, principalID string) (*domain.Principal, error)
 	// FindUserPrincipal はユーザーの主体を引く。無ければ ErrPrincipalNotFound（= 非メンバー）。
 	FindUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error)
-	// DeletePrincipal は主体を消す。紐づく grant / restriction / グループ所属も
+	// DeletePrincipal は主体を消す。紐づく grant / グループ所属も
 	// FK の CASCADE で消える。対象が無ければ ErrPrincipalNotFound。
-	//
-	// 許可リストに載っていた主体でも、その段が許可リスト制であること自体は消えない
-	// （印は page_allow_lists が持ち、主体を参照しない）。載っていた人が居なくなった段は
-	// 「誰も載っていない許可リスト」＝ 誰にも見えない状態になる。閉じる側へ倒すのは、
-	// オフボーディング 1 回で祖先の限定公開が第三者に開くのを避けるため。
 	//
 	// grant も CASCADE で消えるので、これはワークスペースの admin を減らし得る操作でもある。
 	// ユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も消さない
@@ -184,7 +178,7 @@ type KnowledgeBasePermissionRepository interface {
 	// workspace / space に続く 3 段目で、このページとその子孫に効く。合成は他の 2 段と
 	// 同じ「最も強いものを採る」なので、**これで誰かを弱めることはできない**
 	// （上位で editor を得ている相手にここで viewer を張っても editor のまま）。
-	// 弱めるのは例外の層（UpsertPageRestriction の deny）の仕事。
+	// **弱める手段はどの層にも無い。** 狭めたい内容は private のスペースへ置く。
 	UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error)
 	// DeletePageGrant はページでの既定の役割を剥がす（冪等）。
 	// 上位の段で得ている役割はそのまま残る（消えるのはこの段で足した分だけ）。
@@ -204,25 +198,6 @@ type KnowledgeBasePermissionRepository interface {
 	// grant で届いている相手も含まれない。空で返ってきても「誰も見られない」ではなく
 	// 「この段では何も足していない」の意味（ListPageRestrictions と同じ見方）。
 	ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error)
-
-	// UpsertPageRestriction はページの例外を設定する（同じ (ページ, 主体, ケイパビリティ) は 1 行）。
-	// allow を張ると、そのページのそのケイパビリティは許可リスト制になる（印も同じ
-	// トランザクションで立つ）。逆に既存の allow 行を deny へ書き換えたときは、その段に
-	// allow 行が 1 行も残らなければ印も同じトランザクションで畳む。つまり印を畳むのは
-	// DeletePageRestriction だけではない。
-	UpsertPageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability, mode domain.RestrictionMode) (*domain.PageRestriction, error)
-	// DeletePageRestriction はページの例外を解除する（冪等）。消したのが最後の allow 行なら
-	// 許可リスト制も畳み、解決はより遠い祖先 → grant の既定へ戻る。
-	// deny 行の解除では許可リスト制を畳まない（無関係な 1 行で限定公開が解けないように）。
-	DeletePageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability) error
-	// ListPageRestrictions はそのページ自身に張られた例外の一覧を返す（継承分は含まない）。
-	ListPageRestrictions(ctx context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error)
-	// ListPageAllowListCapabilities はそのページ自身が許可リスト制になっている
-	// ケイパビリティを返す。載っていた主体が消えて allow 行が 0 行になった段は
-	// ListPageRestrictions には現れないため、権限設定を見せるときは両方を読む
-	// （でないと「制限なし」に見えるページが実際には誰にも見えない、という説明できない
-	// 食い違いになる）。
-	ListPageAllowListCapabilities(ctx context.Context, workspaceID, pageID string) ([]domain.Capability, error)
 
 	// CreateShareLink は共有リンクを発行する。kind='share_link' の主体の採番と作成も
 	// 同じトランザクションで行う（主体だけが残る／リンクだけが残る状態を作らない）。
@@ -270,9 +245,9 @@ type KnowledgeBasePermissionRepository interface {
 	// ErrSpaceNotFound。
 	//
 	// 返すのは「その入れ物に届いている役割の集合」だけで、どれを採るかの規則は持たない。
-	// ページ単位の例外（page_restrictions）も見ない — スペースには例外の層が無いため。
-	// したがってこの口の答えを「そのスペースのあるページを編集してよいか」に使ってはいけない
-	// （ページに張られた deny を見ておらず、必ず緩い側へ倒れる）。使ってよいのは
+	// ページ付与（page_grants）も見ない。したがってこの口の答えを
+	// 「そのスペースのあるページを編集してよいか」に使ってはいけない
+	// （祖先のページに張られた付与を取りこぼし、必ず狭い側へ倒れる）。使ってよいのは
 	// 対象がまだ存在しない操作（スペース直下へのページ作成）だけ。
 	//
 	// スペースの実在をここで確かめるのは、確かめないと fail-open になるため。

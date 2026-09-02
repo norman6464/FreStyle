@@ -50,9 +50,27 @@ func TestMigrate_Integration(t *testing.T) {
 		for _, table := range []string{
 			"workspaces", "spaces", "pages", "blocks", "page_paths", "page_snapshots",
 			"principals", "principal_members", "workspace_grants", "space_grants",
-			"page_restrictions", "page_allow_lists", "share_links",
+			"page_grants", "share_links",
 		} {
 			require.True(t, tableExists(t, db, table), "ノートのテーブル %s が無い", table)
+		}
+	})
+
+	t.Run("権限を打ち消す置き場は新しい DB に作られない", func(t *testing.T) {
+		// 権限は 3 段の付与（workspace / space / page）を足し合わせ、届いた中で
+		// 最も強い役割で決まる。下の段が上の段を弱める仕組みは持たないので、その
+		// 置き場だったテーブルが DDL に戻っていないことを見る。
+		//
+		// 「無いこと」を確かめるのは、うっかり書き戻しても誰も気づかないため。
+		// 表があれば読む側がそれを見に行く実装を足せてしまい、規則が 2 つに割れる。
+		//
+		// **見られるのは新しい DB だけ。** 起動時 DDL に DROP は書いていない（毎回の起動で
+		// ロックを取る操作を増やさないため）ので、既にこの表を持っている DB では残り続ける。
+		// そちらは 1 回きりの移行 SQL で落とす。順序は「アプリを先に出す → そのあと落とす」で、
+		// 新しいアプリはこの表を一切参照しないので、残っていても壊れない。
+		for _, table := range []string{"page_restrictions", "page_allow_lists"} {
+			require.False(t, tableExists(t, db, table),
+				"使わないテーブル %s が作られている（狭める側の仕組みは持たない）", table)
 		}
 	})
 

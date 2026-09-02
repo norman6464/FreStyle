@@ -10,6 +10,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,31 +103,45 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 			env.as(alice).do(t, http.MethodPost, spacesPath, `{"key":"ops","name":"運用部"}`).Code)
 	})
 
-	t.Run("スペースのeditorでも親ページで外されていればその下には作れない", func(t *testing.T) {
-		// この経路が「スペースの権限」で判断されると、ページに張った deny が素通りする。
-		// 親を指定した作成は必ずページ単位の判定（経路上の例外まで見る）を通ること。
+	t.Run("親が届かないスペースにあるならURLのスペースの権限では通らない", func(t *testing.T) {
+		// この経路が「URL のスペースの権限」で判断されると、自分に役割の届かない
+		// スペースのページの下へ書き込めてしまう。親を指定した作成は必ずページ単位の
+		// 判定（親ページに届いている役割まで見る）を通ること。
+		//
+		// 役割は 3 段（ワークスペース / スペース / ページ）の付与を足し合わせて最も強い
+		// ものが実効になり、下の段が上の段を弱めることはない。だから「同じスペースの中で
+		// 親 1 枚だけ届かなくする」は書けず、届かない親は private のスペースに置く。
 		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
-		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
-		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+		env.joinWorkspace(t, bob, domain.GrantRoleEditor)
 
-		// bob はスペース全体では editor のまま、この親ページだけ閲覧を外される。
-		_, err := env.permissions.UpsertPageRestriction(
-			t.Context(), env.workspaceID, parent, bobPrincipal.ID,
-			domain.CapabilityView, domain.RestrictionModeDeny,
+		// alice のプライベートスペース。ワークスペース全体の付与は private へ届かないので、
+		// ワークスペースの editor である bob からは中のページに手が出ない。
+		private, err := env.provisioner.ProvisionPrivateSpace(
+			t.Context(), repository.PrivateSpaceProvisionInput{
+				WorkspaceID: env.workspaceID, Key: "alice-drafts",
+				Name: "alice の下書き", CreatorUserID: alice,
+			},
 		)
 		require.NoError(t, err)
+		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, private.ID, alice, "a0", "親")
 
 		e := env.as(bob)
 		facts, err := env.permissions.SpacePermissionFactsForUser(t.Context(), env.workspaceID, env.spaceID, bob)
 		require.NoError(t, err)
 		require.True(t, domain.ResolveScopePermission(*facts).CanEdit,
-			"前提: スペース単位ではまだ編集できる（だからこそ経路の取り違えが穴になる）")
+			"前提: URL のスペースではまだ編集できる（だからこそ経路の取り違えが穴になる）")
 
 		denied := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parent+`","title":"子"}`)
+		// 本文まで見る。**コードだけでは足りない。** 親が別スペースにある以上、
+		// 権限の判定を素通りしても CreatePageUseCase の別スペース検査（400
+		// parent_space_mismatch）で止まる。本文を見ないと、権限で断ったのか
+		// 別スペースで断ったのかが区別できず、判定を緩めても緑のままになる。
 		assert.Equal(t, http.StatusNotFound, denied.Code, denied.Body.String())
+		assert.JSONEq(t, `{"error":"not_found"}`, denied.Body.String(),
+			"権限で断ったことを見る（別スペース検査で断ったのなら parent_space_mismatch になる）")
 
 		// 同じ相手でも、親を指定しないルート作成はスペースの既定どおり通る。
 		root := e.do(t, http.MethodPost, e.pagesPath(), `{"title":"自分のルート"}`)

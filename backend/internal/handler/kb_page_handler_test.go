@@ -633,7 +633,7 @@ func Test_ノート移動_親を省くとスペース直下へ戻る(t *testing.
 		assert.Equal(t, kbSpaceID, f.pages.pages[kbChildPageID].SpaceID, "スペースは変わらない")
 	})
 
-	// スペース直下には例外の層が無いので、そこはスペースの権限が正しい単位。
+	// スペース直下へ戻す先はページではないので、そこはスペースの権限が正しい単位。
 	deniedCases := []struct {
 		name string
 		role domain.GrantRole
@@ -951,12 +951,12 @@ func Test_ノートAPI_本文のページ参照は読み出し時に現在の題
 
 func Test_ノートAPI_閲覧できない参照の題名は差し替えない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
-	// 参照先そのものに自分への deny を張る（本文を読むページは見える）。
-	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
-	require.NotNil(t, me)
-	f.perms.restrictions[kbRestrictionKey{
-		pageID: kbChildPageID, principalID: me.ID, capability: domain.CapabilityView,
-	}] = domain.RestrictionModeDeny
+	// 参照先を、自分の役割が届かない private スペースへ移して見えなくする
+	// （本文を読む側のページは見えたまま）。同じスペースの中で 1 枚だけ隠すことはできないので、
+	// 見せたくないものは別のスペースへ置く、という本番の運用をそのまま写す。
+	// fixture の既定はどのページにも届く役割なので、移した先には届かないことも併せて指定する。
+	f.perms.hideInOwnPrivateSpace(kbWorkspaceID, kbChildPageID)
+	f.perms.setPagePermission(kbChildPageID, kbUserID, kbNoPerm)
 
 	refDoc := `{"type":"doc","content":[{"type":"paragraph","content":[` +
 		`{"type":"pageRef","attrs":{"pageId":"` + kbChildPageID + `","title":"無題"}}]}]}`
@@ -968,7 +968,7 @@ func Test_ノートAPI_閲覧できない参照の題名は差し替えない(t 
 	got := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID, "")
 	require.Equal(t, http.StatusOK, got.Code)
 	// 題名は出ない。保存時に title は剥がされており（読み手ごとの派生値なので保存しない）、
-	// 読み出しの解決も deny のある参照には題名を入れない。現在の題名は漏れない。
+	// 読み出しの解決も閲覧できない参照には題名を入れない。現在の題名は漏れない。
 	child := f.pages.pages[kbChildPageID]
 	assert.NotContains(t, got.Body.String(), `"title":"`+child.Title+`"`)
 	assert.NotContains(t, got.Body.String(), `"title":"無題"`)
@@ -988,12 +988,10 @@ func Test_ノートAPI_解決済みの題名を保存しても本文に焼き込
 		`{"doc":`+enriched+`}`)
 	require.Equal(t, http.StatusOK, saved.Code)
 
-	// 以後この読み手が deny されても、保存された文字としての題名は存在しない。
-	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
-	require.NotNil(t, me)
-	f.perms.restrictions[kbRestrictionKey{
-		pageID: kbChildPageID, principalID: me.ID, capability: domain.CapabilityView,
-	}] = domain.RestrictionModeDeny
+	// 以後この読み手から参照先が見えなくなっても、保存された文字としての題名は残っていない。
+	// 参照先を自分の役割が届かない private スペースへ移し、既定も届かない状態にする。
+	f.perms.hideInOwnPrivateSpace(kbWorkspaceID, kbChildPageID)
+	f.perms.setPagePermission(kbChildPageID, kbUserID, kbNoPerm)
 
 	got := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID, "")
 	require.Equal(t, http.StatusOK, got.Code)
@@ -1028,6 +1026,10 @@ func Test_ノートAPI_削除は子孫ごと消える(t *testing.T) {
 
 // 削除は戻せないので、配下に 1 枚でも編集できないページがあれば何もしない
 // （アーカイブと同じ二択: 全部できるか、何もしないか）。
+//
+// 役割は木を下るほど弱くならないので、この状態は本番では起こらない。
+// fake でだけ作れる形をわざと作って、サブツリー検査がまだ働くことを確かめる
+// （事実を集めるクエリが経路を取り違えたときに気づける最後の網）。
 func Test_ノートAPI_配下に編集できないページがあれば削除しない(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	created := f.do(t, http.MethodPost,
@@ -1036,11 +1038,7 @@ func Test_ノートAPI_配下に編集できないページがあれば削除し
 	require.Equal(t, http.StatusCreated, created.Code)
 	var grandchild kbPageResponse
 	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &grandchild))
-	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
-	require.NotNil(t, me)
-	f.perms.restrictions[kbRestrictionKey{
-		pageID: grandchild.ID, principalID: me.ID, capability: domain.CapabilityEdit,
-	}] = domain.RestrictionModeDeny
+	f.perms.setPagePermission(grandchild.ID, kbUserID, kbCanView)
 
 	w := f.do(t, http.MethodDelete,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, "")
@@ -1078,7 +1076,7 @@ func Test_ノートAPI_削除のrepository失敗は500(t *testing.T) {
 	assert.JSONEq(t, `{"error":"internal_error"}`, w.Body.String())
 }
 
-// パンくず: 解決応答に閲覧できる祖先が根から順に載り、deny された祖先は行ごと消える
+// パンくず: 解決応答に閲覧できる祖先が根から順に載り、閲覧できない祖先は行ごと消える
 // （題名どころか実在も知らせない — 木と同じ規則）。
 func Test_ノートAPI_IDだけの解決にパンくずが載る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
@@ -1105,9 +1103,9 @@ func Test_ノートAPI_IDだけの解決にパンくずが載る(t *testing.T) {
 	assert.Equal(t, kbRootPageID, res.Ancestors[0].ID)
 	assert.Equal(t, kbChildPageID, res.Ancestors[1].ID)
 
-	// 祖先への deny はこの fake では経路全体に効き、孫自身も 404 になる
-	// （＝この経路で「祖先だけ消える」形は作れない）。見えない祖先が行ごと
-	// 落ちること・並びが closure の順であることは usecase の単体テストが固定する。
+	// 祖先が見えないなら、その配下の孫も見えない（役割は木を下るほど弱くならない）ので、
+	// この経路で「祖先だけ消える」形は作れない。見えない祖先が行ごと落ちること・
+	// 並びが closure の順であることは usecase の単体テストが固定する。
 }
 
 // ResolveByID（/p の入口）は Get と別経路で WorkspaceID / UserID を組み立てるため、
@@ -1250,12 +1248,12 @@ func Test_ノートアーカイブ_repositoryの失敗は500(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func Test_ノート移動_スペース全員宛ての例外が失効する移動は409(t *testing.T) {
+func Test_ノート移動_スペース全員宛ての付与が失効する移動は409(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
-	// 移動先スペース以外の「全員」宛て例外がサブツリーに残っている状態を repository が
-	// 同一トランザクションで検出して中止する経路。move handler は NewSpaceID を渡さないので、
-	// 別スペースのページを親に指定するだけでここへ来る。
-	f.pages.moveErr = repository.ErrPageMoveVoidsSpaceRestriction
+	// 移動先スペース以外の「そのスペースの全員」宛てページ付与がサブツリーに残っている状態を
+	// repository が同一トランザクションで検出して中止する経路。move handler は NewSpaceID を
+	// 渡さないので、別スペースのページを親に指定するだけでここへ来る。
+	f.pages.moveErr = repository.ErrPageMoveVoidsSpaceGrant
 
 	w := f.do(t, http.MethodPost,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/move",
@@ -1263,20 +1261,23 @@ func Test_ノート移動_スペース全員宛ての例外が失効する移動
 
 	assert.Equal(t, http.StatusConflict, w.Code,
 		"権限設定と両立しないという業務上の衝突であって、DB 障害ではない")
-	assert.JSONEq(t, `{"error":"space_restriction_voided"}`, w.Body.String())
+	assert.JSONEq(t, `{"error":"space_grant_voided"}`, w.Body.String())
 }
 
 func Test_ノートアーカイブ_配下に編集できないページがあれば何もせず403(t *testing.T) {
 	// 子を直接 rename すれば 403 になる相手が、親のアーカイブ経由なら書き換えられる
-	// （見えない子まで巻き込む）状態を塞ぐ。edit を外した場合と view ごと外した場合の両方。
-	cases := map[string]domain.Capability{
-		"編集だけ外した子": domain.CapabilityEdit,
-		"閲覧ごと外した子": domain.CapabilityView,
+	// （見えない子まで巻き込む）状態を塞ぐ。
+	//
+	// 役割は木を下るほど弱くならないので、親より弱い子は本番では起こらない。
+	// fake でだけ作れる形をわざと作って、サブツリー検査がまだ働くことを確かめる。
+	cases := map[string]domain.PagePermission{
+		"閲覧しか届かない子": kbCanView,
+		"何も届かない子":   kbNoPerm,
 	}
-	for name, capability := range cases {
+	for name, perm := range cases {
 		t.Run(name, func(t *testing.T) {
 			f := newKbFixture(kbCanEdit, kbUserID)
-			kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), capability, domain.RestrictionModeDeny)
+			f.perms.setPagePermission(kbChildPageID, kbUserID, perm)
 
 			w := f.do(t, http.MethodPost,
 				"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/archive", "")
@@ -1295,17 +1296,19 @@ func Test_ノートアーカイブ_子孫まで編集できるなら通る(t *te
 	w := f.do(t, http.MethodPost,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/archive", "")
 
-	require.Equal(t, http.StatusNoContent, w.Code, "例外が無いのが普通なので、通常の運用は止めない")
+	require.Equal(t, http.StatusNoContent, w.Code, "根を編集できれば子孫も編集できるので、通常の運用は止めない")
 	assert.NotNil(t, f.pages.pages[kbRootPageID].ArchivedAt)
 	assert.NotNil(t, f.pages.pages[kbChildPageID].ArchivedAt)
 }
 
+// アーカイブと同じく、本番では起こらない「親より弱い子」を fake で作って、
+// 戻す側でもサブツリー検査が働くことを確かめる。
 func Test_ノート復帰_配下に編集できないページがあれば何もせず403(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	f.pages.pages[kbRootPageID].ArchivedAt = &at
 	f.pages.pages[kbChildPageID].ArchivedAt = &at
-	kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityEdit, domain.RestrictionModeDeny)
+	f.perms.setPagePermission(kbChildPageID, kbUserID, kbCanView)
 
 	w := f.do(t, http.MethodPost,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/unarchive", "")
@@ -1377,31 +1380,10 @@ func Test_ノート取得_本文が未保存でも空のdocを返す(t *testing.
 	assert.JSONEq(t, `{"type":"doc","content":[]}`, string(doc.Doc))
 }
 
-// --- 権限の例外（page_restrictions）と許可リスト制の印（page_allow_lists）---
+// --- 付与の届き方（workspace / space / page の 3 段）---
 //
-// ここから下は「既定の役割は editor のまま、例外だけで見え方が変わる」経路を API 越しに見る。
-// fake が印を allow 行の有無で代用していると、主体を消したあとの 2 つのテストが緑にならない。
-
-// kbAlice は許可リストに載せる（そして消す）相手。呼び出し元のユーザーとは別人。
-const kbAlice = uint64(43)
-
-func kbPrincipalOf(t *testing.T, f kbFixture, userID uint64) string {
-	t.Helper()
-	p, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, userID)
-	require.NoError(t, err)
-	return p.ID
-}
-
-func kbRestrict(t *testing.T, f kbFixture, pageID, principalID string, c domain.Capability, m domain.RestrictionMode) {
-	t.Helper()
-	_, err := f.perms.UpsertPageRestriction(context.Background(), kbWorkspaceID, pageID, principalID, c, m)
-	require.NoError(t, err)
-}
-
-func kbUnrestrict(t *testing.T, f kbFixture, pageID, principalID string, c domain.Capability) {
-	t.Helper()
-	require.NoError(t, f.perms.DeletePageRestriction(context.Background(), kbWorkspaceID, pageID, principalID, c))
-}
+// ここから下は「どの段に張った付与が、どこまで届くか」を API 越しに見る。
+// 打ち消す層は無く、届いた中で最も強い役割がそのページの実効になる。
 
 // kbGetStatus はページ取得の HTTP ステータス（見えれば 200、見えなければ 404）。
 func kbGetStatus(t *testing.T, f kbFixture, pageID string) int {
@@ -1429,131 +1411,64 @@ func kbTreeIDs(t *testing.T, f kbFixture) []string {
 	return ids
 }
 
-func Test_ノート権限_祖先のdenyは子孫にも効く(t *testing.T) {
-	f := newKbFixture(kbCanEdit, kbUserID)
-	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityView, domain.RestrictionModeDeny)
-
-	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
-	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbChildPageID),
-		"deny は経路全体で効くので、名指しされていない子も外れたままになる")
-	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f),
-		"1 ページの解決と一覧で畳み方が食い違わない")
-}
-
-func Test_ノート権限_許可リストに載っていなければ既定がeditorでも見えない(t *testing.T) {
-	f := newKbFixture(kbCanEdit, kbUserID)
-	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbAlice), domain.CapabilityView, domain.RestrictionModeAllow)
-
-	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
-	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbChildPageID),
-		"限定公開は子孫にも効く")
-	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f))
-}
-
-func Test_ノート権限_より近い許可リストが遠い許可リストを上書きする(t *testing.T) {
-	f := newKbFixture(kbCanEdit, kbUserID)
-	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbAlice), domain.CapabilityView, domain.RestrictionModeAllow)
-	kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityView, domain.RestrictionModeAllow)
-
-	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID), "root の許可リストには載っていない")
-	assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbChildPageID),
-		"最も近い許可リスト制の段（child）に載っていれば見える")
-	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f),
-		"見える child も、見えない root の配下なのでツリーには出ない")
-}
-
-func Test_ノート権限_許可リストの主体を消しても限定公開は解けない(t *testing.T) {
-	f := newKbFixture(kbCanEdit, kbUserID)
-	alice := kbPrincipalOf(t, f, kbAlice)
-	kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
-	require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
-
-	// 退職者のオフボーディング。allow 行は主体と一緒に消えるが、印は主体を参照しないので残る。
-	require.NoError(t, f.perms.DeletePrincipal(context.Background(), kbWorkspaceID, alice))
+// ページ付与は張った段から子孫へ降りる。スペースの役割が 1 つも届いていない相手でも、
+// 子に付与を張ればその子と子孫だけが開く。1 ページの解決と一覧が同じ事実を通ることも
+// ここで見る（片方だけ別の畳み方をすると「開けるのに一覧に出ない」ずれが生まれる）。
+func Test_ノート権限_ページ付与は張った段から子孫へ届く(t *testing.T) {
+	f := newKbFixture(kbNoPerm, kbUserID)
+	const grandchildID = "0198a000-0000-7000-8000-000000000007"
+	childID := kbChildPageID
+	f.pages.addPage(domain.Page{
+		ID: grandchildID, WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, ParentID: &childID,
+		Position: "a1a", Title: "grandchild", CreatedByUserID: kbUserID,
+	})
+	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
+	require.NotNil(t, me)
+	_, err := f.perms.UpsertPageGrant(
+		context.Background(), kbWorkspaceID, kbChildPageID, me.ID, domain.GrantRoleEditor,
+	)
+	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID),
-		"許可リストが空になった段は「誰も載っていない」＝ 閉じたまま")
-	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f))
-
-	rows, err := f.perms.ListPageRestrictions(context.Background(), kbWorkspaceID, kbRootPageID)
-	require.NoError(t, err)
-	assert.Empty(t, rows, "例外の一覧からは消えている")
-	caps, err := f.perms.ListPageAllowListCapabilities(context.Background(), kbWorkspaceID, kbRootPageID)
-	require.NoError(t, err)
-	assert.Equal(t, []domain.Capability{domain.CapabilityView}, caps,
-		"限定公開であることは印にしか残らない（権限設定を見せるときは両方を読む）")
-}
-
-func Test_ノート権限_deny行を外しても限定公開は解けない(t *testing.T) {
-	f := newKbFixture(kbCanEdit, kbUserID)
-	me := kbPrincipalOf(t, f, kbUserID)
-	alice := kbPrincipalOf(t, f, kbAlice)
-	kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
-	kbRestrict(t, f, kbRootPageID, me, domain.CapabilityView, domain.RestrictionModeDeny)
-	// alice が抜けて許可リストは空になり、印だけが残っている状態を作る。
-	require.NoError(t, f.perms.DeletePrincipal(context.Background(), kbWorkspaceID, alice))
-	require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
-
-	kbUnrestrict(t, f, kbRootPageID, me, domain.CapabilityView)
-
-	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID),
-		"deny 行の解除では印を畳まない（自分宛ての deny を 1 行外すだけで限定公開が解けない）")
-	caps, err := f.perms.ListPageAllowListCapabilities(context.Background(), kbWorkspaceID, kbRootPageID)
-	require.NoError(t, err)
-	assert.Equal(t, []domain.Capability{domain.CapabilityView}, caps)
-}
-
-func Test_ノート権限_最後のallowを外すと既定へ戻る(t *testing.T) {
-	t.Run("解除", func(t *testing.T) {
-		f := newKbFixture(kbCanEdit, kbUserID)
-		alice := kbPrincipalOf(t, f, kbAlice)
-		kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
-		require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
-
-		kbUnrestrict(t, f, kbRootPageID, alice, domain.CapabilityView)
-
-		assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbRootPageID))
-		assert.Equal(t, []string{kbRootPageID, kbChildPageID, kbDestPageID}, kbTreeIDs(t, f))
-	})
-
-	t.Run("denyへの書き換え", func(t *testing.T) {
-		f := newKbFixture(kbCanEdit, kbUserID)
-		alice := kbPrincipalOf(t, f, kbAlice)
-		kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
-		require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
-
-		kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeDeny)
-
-		assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbRootPageID),
-			"その段に allow が 1 行も残らなければ印も畳まれる（畳むのは解除だけではない）")
-		caps, err := f.perms.ListPageAllowListCapabilities(context.Background(), kbWorkspaceID, kbRootPageID)
-		require.NoError(t, err)
-		assert.Empty(t, caps)
-	})
-}
-
-func Test_ノート権限_editのdenyは閲覧を残したまま書き込みだけ止める(t *testing.T) {
-	f := newKbFixture(kbCanEdit, kbUserID)
-	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityEdit, domain.RestrictionModeDeny)
-
+		"付与を張った段より上には届かない")
 	assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbChildPageID))
+	assert.Equal(t, http.StatusOK, kbGetStatus(t, f, grandchildID), "子孫にも降りる")
+	assert.Empty(t, kbTreeIDs(t, f),
+		"開ける child も、届いていない root の配下なのでツリーには出ない（解決と一覧で畳み方が食い違わない）")
+}
+
+// 付与は足し合わせて最も強い役割になるだけで、下るほど強くはならない。
+// 根に viewer を張っても、その配下で書けるようにはならない。
+func Test_ノート権限_祖先へのviewer付与は子孫でも閲覧どまり(t *testing.T) {
+	f := newKbFixture(kbNoPerm, kbUserID)
+	me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
+	require.NotNil(t, me)
+	_, err := f.perms.UpsertPageGrant(
+		context.Background(), kbWorkspaceID, kbRootPageID, me.ID, domain.GrantRoleViewer,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbChildPageID), "根に張った viewer は子にも届く")
 	w := f.do(t, http.MethodPatch,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, `{"title":"改訂"}`)
-	assert.Equal(t, http.StatusForbidden, w.Code, "祖先で編集を外された子も書き込めない")
+	assert.Equal(t, http.StatusForbidden, w.Code, "viewer のままなので子でも書き込めない")
 }
 
 func Test_ノート移動_配下に編集できないページがあれば何も書き換えず403(t *testing.T) {
 	// 移動はサブツリーごと動くので、子孫の祖先の並びが変わる ＝ そこから継承される
 	// 権限が変わる。操作者から見えない子孫の権限が、本人の知らないうちに書き換わる状態を塞ぐ。
 	// アーカイブと同じ判定に揃えてある（片方だけ緩いと、結局そちらから同じ結果を作れる）。
-	cases := map[string]domain.Capability{
-		"編集だけ外した子": domain.CapabilityEdit,
-		"閲覧ごと外した子": domain.CapabilityView,
+	//
+	// 親より弱い子は本番では起こらない。fake でだけ作れる形をわざと作って、
+	// サブツリー検査がまだ働くことを確かめる。
+	cases := map[string]domain.PagePermission{
+		"閲覧しか届かない子": kbCanView,
+		"何も届かない子":   kbNoPerm,
 	}
-	for name, capability := range cases {
+	for name, perm := range cases {
 		t.Run(name, func(t *testing.T) {
 			f := newKbFixture(kbCanEdit, kbUserID)
-			kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), capability, domain.RestrictionModeDeny)
+			f.perms.setPagePermission(kbChildPageID, kbUserID, perm)
 
 			w := f.do(t, http.MethodPost,
 				"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/move",
@@ -1578,7 +1493,7 @@ func Test_ノート移動_子孫まで編集できるなら通る(t *testing.T) 
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/move",
 		`{"parentId":"`+kbDestPageID+`"}`)
 
-	require.Equal(t, http.StatusOK, w.Code, "例外が無いのが普通なので、通常の運用は止めない")
+	require.Equal(t, http.StatusOK, w.Code, "根を編集できれば子孫も編集できるので、通常の運用は止めない")
 	require.NotNil(t, f.pages.pages[kbRootPageID].ParentID)
 	assert.Equal(t, kbDestPageID, *f.pages.pages[kbRootPageID].ParentID)
 }
@@ -1667,14 +1582,13 @@ func Test_ノートAPI_題名検索(t *testing.T) {
 		assert.Equal(t, "[]", strings.TrimSpace(w.Body.String()))
 	})
 
-	t.Run("経路上で deny された相手には出ない（一覧と同じ事実で判定される）", func(t *testing.T) {
+	t.Run("役割の届かないスペースのページは出ない（一覧と同じ事実で判定される）", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
-		me := f.perms.userPrincipal(kbWorkspaceID, kbUserID)
-		require.NotNil(t, me)
-		f.perms.restrictions[kbRestrictionKey{
-			pageID: kbRootPageID, principalID: me.ID, capability: domain.CapabilityView,
-		}] = domain.RestrictionModeDeny
-		w := search(f, t, "root")
+		// dest は子を持たないので、自分の役割が届かない private スペースへ移せる
+		// （fixture の既定はどのページにも届くので、移した先に届かないことも指定する）。
+		f.perms.hideInOwnPrivateSpace(kbWorkspaceID, kbDestPageID)
+		f.perms.setPagePermission(kbDestPageID, kbUserID, kbNoPerm)
+		w := search(f, t, "dest")
 		require.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "[]", strings.TrimSpace(w.Body.String()))
 	})

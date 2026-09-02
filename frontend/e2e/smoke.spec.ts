@@ -1,18 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * スモーク E2E: 認証前でも検証可能な「サイトが生きているか」を網羅的に確認する。
+ * スモーク E2E: 本番の配信が生きているかを、認証の前に確かめる。
  *
  * - 公開 SPA がレンダリングできる
- * - CloudFront 経由のセキュリティヘッダーが正しく配信されている
- * - API ヘルスチェックが 200 を返す
- * - 認証必須エンドポイントが Cookie 無しで 401 を返す
+ * - 配信のセキュリティヘッダーが正しく載っている
  *
- * 認証付きフロー (ログイン後の管理画面 / ノート CRUD 等) は Cognito Hosted UI に
- * 依存するため、別 spec で `storageState` 経由の事前認証パターンを使う想定。
+ * **API を叩く分は落とした。** 本番の API を動かしていた実行環境ごと畳んだので、
+ * api.frestyle.jp は名前解決すらできない。存在しない相手に対する検査を残すと、
+ * すべての PR で赤いままになり、やがて誰も見なくなる。
+ * API を出し直したときに、この spec へ戻す。
+ *
+ * 認証付きの導線は e2e/local/ 側で、API をモックして確かめている。
  */
-
-const API_BASE = 'https://api.frestyle.jp';
 
 test.describe('FreStyle smoke', () => {
   test('SPA がロードされ FreStyle ブランドが見える', async ({ page }) => {
@@ -46,28 +46,4 @@ test.describe('FreStyle smoke', () => {
     expect(html).toContain('upgrade-insecure-requests');
   });
 
-  test('API /api/v2/health は 200 を返す', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/api/v2/health`);
-    expect(res.status()).toBe(200);
-  });
-
-  test('認証必須エンドポイントは Cookie 無で 401 を返す', async ({ request }) => {
-    // 認可ガードの代表として /auth/me / /notes / /profile/me / /notifications を確認する
-    // （/ai-chat/sessions は機能廃止で口ごと消えたため外した — いまは 404 が正）。
-    for (const path of [
-      '/api/v2/auth/me',
-      '/api/v2/notes',
-      '/api/v2/profile/me',
-      '/api/v2/notifications',
-    ]) {
-      const res = await request.get(`${API_BASE}${path}`);
-      expect.soft(res.status(), `${path} should be 401`).toBe(401);
-    }
-  });
-
-  test('SockJS フォールバック路は廃止済（404 / 401）', async ({ request }) => {
-    // PR #1557 で sockJSInfo handler を廃止したので /info 系は 404 になる。
-    const ws = await request.get(`${API_BASE}/api/v2/ws/ai-chat/info`);
-    expect([401, 404]).toContain(ws.status());
-  });
 });

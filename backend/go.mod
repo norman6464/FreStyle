@@ -5,7 +5,6 @@ go 1.26.1
 require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.21
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.61.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.4
 	github.com/gin-gonic/gin v1.12.0

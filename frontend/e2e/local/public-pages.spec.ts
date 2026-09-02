@@ -23,7 +23,7 @@ test.describe('トップ（/）', () => {
 
     await expect(page).toHaveURL(/\/login/);
     // ログイン画面が実際に描画されている（URL だけ変わって白紙、を除く）。
-    await expect(page.getByRole('form', { name: 'ログインフォーム' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'ログインする' })).toBeVisible();
   });
 
   test('ログイン済みならどこへも送られずホームがそのまま出る', async ({ page }) => {

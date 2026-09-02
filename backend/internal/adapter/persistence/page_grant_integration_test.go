@@ -4,10 +4,8 @@ package persistence_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
@@ -26,14 +24,13 @@ import (
 // 専用に見える」というずれになる。経路ごとに別の答えを返すのが、この実装で最も起こり
 // やすい壊れ方。
 
-// grantPage はページに既定の役割を 1 行張る。
+// grantPage はページに既定の役割を 1 行張る（grantSpace のページ版）。
 //
 // SQL を直に書かず repository を通すのは、読みの検証が書き経路と同じ道を通るようにするため。
 // 直に入れると、書き経路が壊れていても読みのテストだけは緑のままになる。
-func grantPage(t *testing.T, db *sql.DB, workspaceID, pageID, principalID string, role domain.GrantRole) {
+func (f kbPermFixture) grantPage(ctx context.Context, t *testing.T, pageID, principalID string, role domain.GrantRole) {
 	t.Helper()
-	_, err := persistence.NewKnowledgeBasePermissionRepository(db).
-		UpsertPageGrant(context.Background(), workspaceID, pageID, principalID, role)
+	_, err := f.perm.UpsertPageGrant(ctx, f.ws, pageID, principalID, role)
 	require.NoError(t, err)
 }
 
@@ -49,7 +46,7 @@ func TestPageGrant_付与した本人だけに既定の役割が足される_Int
 	// 付与の前は、所属しているだけでは何もできない（grant が無ければ強さ 0）。
 	require.False(t, f.permFor(ctx, t, page, f.alice).CanView, "付与前は見えない")
 
-	grantPage(t, sqlDB, f.ws, page, alice.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, page, alice.ID, domain.GrantRoleEditor)
 
 	got := f.permFor(ctx, t, page, f.alice)
 	assert.True(t, got.CanView, "付与した本人は見える")
@@ -72,7 +69,7 @@ func TestPageGrant_祖先に張ると子孫へ降りる_Integration(t *testing.T
 	alice := f.principalFor(ctx, t, f.alice)
 
 	// 親にだけ張る。
-	grantPage(t, sqlDB, f.ws, parent, alice.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, parent, alice.ID, domain.GrantRoleEditor)
 
 	for _, c := range []struct {
 		name string
@@ -96,7 +93,7 @@ func TestPageGrant_子に張っても親へは上がらない_Integration(t *tes
 	child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent, "子").ID
 	alice := f.principalFor(ctx, t, f.alice)
 
-	grantPage(t, sqlDB, f.ws, child, alice.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, child, alice.ID, domain.GrantRoleEditor)
 
 	assert.True(t, f.permFor(ctx, t, child, f.alice).CanEdit, "張った子は編集できる")
 	assert.False(t, f.permFor(ctx, t, parent, f.alice).CanView,
@@ -113,14 +110,14 @@ func TestPageGrant_強い方が採られる_Integration(t *testing.T) {
 
 	// スペースに viewer、ページに editor。強い方（editor）が採られる。
 	f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
-	grantPage(t, sqlDB, f.ws, page, alice.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, page, alice.ID, domain.GrantRoleEditor)
 
 	got := f.permFor(ctx, t, page, f.alice)
 	assert.True(t, got.CanEdit, "ページの editor が採られる")
 
 	// 逆向き（スペースが強い）でも、弱い付与が降格させないことを見る。
 	f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleAdmin)
-	grantPage(t, sqlDB, f.ws, page, alice.ID, domain.GrantRoleViewer)
+	f.grantPage(ctx, t, page, alice.ID, domain.GrantRoleViewer)
 	assert.True(t, f.permFor(ctx, t, page, f.alice).CanEdit,
 		"ページに viewer を張ってもスペースの admin は下がらない（付与は足し算だけ）")
 }
@@ -133,7 +130,7 @@ func TestPageGrant_例外は付与に勝つ_Integration(t *testing.T) {
 	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象").ID
 	alice := f.principalFor(ctx, t, f.alice)
 
-	grantPage(t, sqlDB, f.ws, page, alice.ID, domain.GrantRoleAdmin)
+	f.grantPage(ctx, t, page, alice.ID, domain.GrantRoleAdmin)
 	require.True(t, f.permFor(ctx, t, page, f.alice).CanView, "前提: 付与で見えている")
 
 	// 同じページに deny を張る。例外は既定より強い。
@@ -154,7 +151,7 @@ func TestPageGrant_一覧と1ページの解決が一致する_Integration(t *te
 	outside := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象外").ID
 	alice := f.principalFor(ctx, t, f.alice)
 
-	grantPage(t, sqlDB, f.ws, parent, alice.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, parent, alice.ID, domain.GrantRoleEditor)
 
 	// 一覧（1 クエリでスペース全体の事実を集める経路）。
 	listed := f.viewablePageIDs(ctx, t, f.spaceA, f.alice)
@@ -190,7 +187,7 @@ func TestPageGrant_スペース全員宛ての付与が全経路で一致する_
 	f.principalFor(ctx, t, f.alice)
 	everyone := f.everyoneOf(ctx, t, f.spaceA)
 
-	grantPage(t, sqlDB, f.ws, page, everyone.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, page, everyone.ID, domain.GrantRoleEditor)
 
 	// 1 ページの解決では見える。
 	require.True(t, f.permFor(ctx, t, page, f.alice).CanView, "前提: 直接開けば見える")
@@ -302,7 +299,7 @@ func TestPageGrant_書き経路_テナントと参照の整合_Integration(t *te
 
 	t.Run("ページを消すと張った行も消える", func(t *testing.T) {
 		doomed := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "消す").ID
-		grantPage(t, sqlDB, f.ws, doomed, alice.ID, domain.GrantRoleEditor)
+		f.grantPage(ctx, t, doomed, alice.ID, domain.GrantRoleEditor)
 
 		_, err := sqlDB.Exec(`DELETE FROM pages WHERE workspace_id = $1 AND id = $2`, f.ws, doomed)
 		require.NoError(t, err)
@@ -313,7 +310,7 @@ func TestPageGrant_書き経路_テナントと参照の整合_Integration(t *te
 	})
 
 	t.Run("主体を消すと張った行も消える", func(t *testing.T) {
-		grantPage(t, sqlDB, f.ws, page, alice.ID, domain.GrantRoleEditor)
+		f.grantPage(ctx, t, page, alice.ID, domain.GrantRoleEditor)
 		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, alice.ID))
 
 		rows, err := f.perm.ListPageGrants(ctx, f.ws, page)
@@ -331,7 +328,7 @@ func TestPageGrant_一覧はその段に張った行だけを返す_Integration(
 	child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent, "子").ID
 	alice := f.principalFor(ctx, t, f.alice)
 
-	grantPage(t, sqlDB, f.ws, parent, alice.ID, domain.GrantRoleEditor)
+	f.grantPage(ctx, t, parent, alice.ID, domain.GrantRoleEditor)
 
 	// 解決は祖先まで辿るので、子でも編集できる。
 	require.True(t, f.permFor(ctx, t, child, f.alice).CanEdit, "前提: 親の付与が子へ降りている")

@@ -349,7 +349,7 @@ func TestKnowledgeBasePageManageFacts_Integration(t *testing.T) {
 		parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親").ID
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent, "子").ID
 		alice := f.principalFor(ctx, t, f.alice)
-		grantPage(t, sqlDB, f.ws, child, alice.ID, domain.GrantRoleAdmin)
+		f.grantPage(ctx, t, child, alice.ID, domain.GrantRoleAdmin)
 
 		assert.True(t, canManage(t, f, child, f.alice), "張ったページは管理できる")
 		assert.False(t, canManage(t, f, parent, f.alice), "親へは上がらない")

@@ -109,6 +109,58 @@ fi
 # devMode を立てているのは、手元が http で、Zitadel が既定では
 # https 以外の redirect_uri を拒むため。**本番では絶対に立てない。**
 
+# ---- ログインのふるまい（Notion に寄せる） ----
+#
+# Notion の認証は「メールで入る」が中心で、パスワードは主役ではない。
+# 具体的には次の 5 つ。ここで作れるのは 1・2・3・5 で、4（招待）はアプリ側の口。
+#
+#   1. メールアドレスだけでログインできる（コード / パスキー）
+#   2. Google などのソーシャルログイン
+#   3. ワークスペース（＝ Zitadel の組織）に属する ID
+#   4. 招待でメンバーになる
+#   5. 段階的に強くできる（2 要素）
+#
+# ignoreUnknownUsernames を立てるのが要点のひとつ。立てないと、存在しない
+# メールアドレスに対してだけ違う応答が返り、**そのアドレスが登録済みかどうかを
+# 外から確かめられる**（総当たりでメンバーを割り出せる）。Notion も存在の有無で
+# 応答を変えない。
+#
+# disableLoginWithPhone は、電話番号でのログインを塞ぐ。研修プラットフォームで
+# 電話番号を持つ理由が無く、持たない情報は漏れない。
+LOGIN_POLICY='{
+  "allowUsernamePassword": true,
+  "allowRegister": true,
+  "allowExternalIdp": true,
+  "forceMfa": false,
+  "passwordlessType": "PASSWORDLESS_TYPE_ALLOWED",
+  "hidePasswordReset": false,
+  "ignoreUnknownUsernames": true,
+  "disableLoginWithPhone": true,
+  "disableLoginWithEmail": false,
+  "secondFactors": ["SECOND_FACTOR_TYPE_OTP", "SECOND_FACTOR_TYPE_U2F"],
+  "multiFactors": ["MULTI_FACTOR_TYPE_U2F_WITH_VERIFICATION"]
+}'
+
+# 組織にポリシーが無ければ作る（無いあいだはインスタンスの既定を継承している）。
+# 既にあれば PUT で更新する。
+#
+# 成否を本文の "details" の有無で見てはいけない — **エラー応答にも details が入る**ので、
+# 409（already exists）を成功と読み違える（実際に踏んだ）。HTTP の状態コードで判定する。
+POLICY_STATUS="$(
+  curl -sS -o /dev/null -w '%{http_code}' -X POST "${ZITADEL_URL}/management/v1/policies/login" \
+    -H "Authorization: Bearer ${PAT}" -H 'Content-Type: application/json' -d "$LOGIN_POLICY"
+)"
+case "$POLICY_STATUS" in
+  200|201)
+    echo "ログインポリシーを作った（組織独自）" ;;
+  409)
+    api PUT /management/v1/policies/login "$LOGIN_POLICY" > /dev/null
+    echo "ログインポリシーを更新した（既にあった）" ;;
+  *)
+    echo "ログインポリシーを設定できない（HTTP ${POLICY_STATUS}）" >&2
+    exit 1 ;;
+esac
+
 cat <<ENV
 
 # ---- .env へ貼る ----
@@ -121,4 +173,7 @@ OIDC_AUTHORIZE_URI=${ZITADEL_URL}/oauth/v2/authorize
 OIDC_TOKEN_URI=${ZITADEL_URL}/oauth/v2/token
 OIDC_CLIENT_ID=${CLIENT_ID}
 OIDC_REDIRECT_URI=${REDIRECT_URI}
+
+# ログイン画面   ${ZITADEL_URL}/ui/v2/login
+# コンソール     ${ZITADEL_URL}/ui/console
 ENV

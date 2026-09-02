@@ -43,17 +43,24 @@ const WRITE_FAILED = '権限を変えられませんでした。もう一度お�
  * # 応答は「いま見ているコース宛て」だけを受け取る
  *
  * 飛んでいる要求より先に別のコースへ移ったり、パネルを閉じたりする。着地してよいかは
- * **要求を始めたときのコース ID** で決める。番号を数えるだけでは足りない — 書き込みの
- * あとの引き直しは書き込みを始めた時点の宛先へ向かうので、その間に移ると旧コースを
- * 引き直して新しいコースの結果を捨てることになる（ノート側で実際に踏んだ）。
+ * **宛先（コース ID）と要求の連番の両方**で決める。片方だけでは足りない:
+ *
+ *   - 宛先だけ: 同じコースへの 2 本目（書き込みのあとの引き直し）が飛んでいる最中に
+ *     1 本目が着地すると、古い一覧で上書きされる
+ *   - 連番だけ: 書き込みのあとの引き直しは書き込みを始めた時点の宛先へ向かうので、
+ *     その間に別のコースへ移ると、旧コースを引き直して新しいコースの結果を捨てる
  */
 export function useCourseShare(courseId: number | undefined) {
   const [state, setState] = useState<CourseShareState>(EMPTY);
 
   // いま見ている宛先。応答が着地してよいかをこれで判定する。
   const active = useRef<number | undefined>(undefined);
+  // 要求の連番。**宛先だけでは足りない。** 同じコースへの 2 本目（書き込みのあとの
+  // 引き直し）が飛んでいる最中に 1 本目が着地すると、古い一覧で上書きされる。
+  const seq = useRef(0);
 
   const load = useCallback(async (target: number) => {
+    const request = ++seq.current;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       // 2 本は独立しているので同時に投げる（順に待つと開くたびに待ち時間が倍になる）。
@@ -61,7 +68,7 @@ export function useCourseShare(courseId: number | undefined) {
         CourseRepository.listGrants(target),
         CourseRepository.listGrantablePrincipals(target),
       ]);
-      if (active.current !== target) return;
+      if (active.current !== target || seq.current !== request) return;
       const granted = new Set(grants.map((grant) => grant.principalId));
       setState({
         rows: joinRows(grants, principals),
@@ -71,7 +78,7 @@ export function useCourseShare(courseId: number | undefined) {
         saving: false,
       });
     } catch {
-      if (active.current !== target) return;
+      if (active.current !== target || seq.current !== request) return;
       setState({ ...EMPTY, error: LOAD_FAILED });
     }
   }, []);
@@ -79,7 +86,9 @@ export function useCourseShare(courseId: number | undefined) {
   useEffect(() => {
     active.current = courseId;
     if (courseId === undefined) {
-      // 閉じた・コースが決まっていない。飛んでいる応答はここで宛先を失うので着地しない。
+      // 閉じた・コースが決まっていない。連番を進めて、飛んでいる応答を無効にする
+      // （同じコースをすぐ開き直しても、前回の応答は着地しない）。
+      seq.current += 1;
       setState(EMPTY);
       return;
     }

@@ -1251,69 +1251,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * コース 詳細
-         * @description 指定 id の コース を 返す。 公開 済み は ワークスペース の 一員 なら 誰 でも 読める。 読め ない 相手 に は、 存在 し ない 場合 と 同じ 404 を 返す (応答 の 差 から 実在 を 読ま せ ない)。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description コース ID */
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithPermission"];
-                    };
-                };
-                /** @description id 不正 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 操作 権限 なし */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description コース が ない */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
+        get?: never;
         /**
          * コース 更新
          * @description その コース を 編集 できる 人 だけ。 編集 の 可否 は 対象 ごと の 付与 が 決める (アプリ の ロール は 見 ない)。 読め ない 相手 に は 404、 読める が 権限 が 足り ない 場合 は 403。
@@ -7618,31 +7556,6 @@ export interface components {
             recentMembers?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem"][];
             /** @description TraineeCount は在籍 trainee 数(論理削除済みを除く)。 */
             traineeCount?: number;
-        };
-        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithPermission": {
-            /** @description CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。 */
-            canEdit?: boolean;
-            /** @description CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。 */
-            canManage?: boolean;
-            category?: string;
-            createdAt?: string;
-            createdByUserId?: number;
-            description?: string;
-            id?: number;
-            isPublished?: boolean;
-            /**
-             * @description Language は主に扱う言語・技術（例: "go" / "docker" / "terraform"。空 = 言語が主題でない）。
-             *     演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
-             */
-            language?: string;
-            sortOrder?: number;
-            title?: string;
-            updatedAt?: string;
-            /**
-             * @description WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため
-             *     通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。
-             */
-            workspaceId?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             /**

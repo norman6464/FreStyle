@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -52,13 +53,28 @@ func (h *CourseHandler) List(c *gin.Context) {
 // @Tags         courses
 // @Produce      json
 // @Param        id  path      int  true  "コース ID"
-// @Success      200  {object}  usecase.CourseWithPermission
+// @Success      200  {object}  courseDetailResponse
 // @Failure      400  {object}  errorResponse  "id 不正"
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      403  {object}  errorResponse  "操作 権限 なし"
 // @Failure      404  {object}  errorResponse  "コース が ない"
 // @Router       /courses/{id} [get]
 // @Security     CookieAuth
+// courseDetailResponse はコース詳細の返却形。
+//
+// usecase の型をそのまま返さないのは、内部の型を変えたときに HTTP の契約が
+// 黙って変わらないようにするため。載せる項目はここで明示する。
+type courseDetailResponse struct {
+	domain.Course
+	// CanEdit は書き換えられるか（編集 UI を出すかの判定に使う）。
+	//
+	// 画面がアプリのロールで判断しないよう、可否はサーバーが答える
+	// （ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。
+	CanEdit bool `json:"canEdit"`
+	// CanManage は権限そのものを変えられるか（共有ボタンを出すかの判定に使う）。
+	CanManage bool `json:"canManage"`
+}
+
 func (h *CourseHandler) Get(c *gin.Context) {
 	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
 	if !ok {
@@ -74,7 +90,11 @@ func (h *CourseHandler) Get(c *gin.Context) {
 		respondEntityErr(c, err, "コースが見つかりません", "コースの取得に失敗しました")
 		return
 	}
-	c.JSON(http.StatusOK, course)
+	c.JSON(http.StatusOK, courseDetailResponse{
+		Course:    course.Course,
+		CanEdit:   course.CanEdit,
+		CanManage: course.CanManage,
+	})
 }
 
 // LastViewed は current user がコース内で最後に閲覧した章の閲覧記録を返す。

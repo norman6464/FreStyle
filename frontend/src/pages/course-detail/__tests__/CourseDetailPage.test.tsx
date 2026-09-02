@@ -198,7 +198,8 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('編集できる人には自動選択も閲覧記録もされない', async () => {
     // 付与を持つ人（canEdit=true）。ロールではなくサーバーの答えで決まる。
-    mockGetCourse.mockResolvedValue({ ...course(), canEdit: true, canManage: true });
+    // canManage は false。ここで true にすると、対象コードが canManage を見ていても通る。
+    mockGetCourse.mockResolvedValue({ ...course(), canEdit: true, canManage: false });
     renderPage('trainee');
     await waitFor(() => expect(mockListMaterials).toHaveBeenCalled());
     // 章メニューはモバイル drawer とデスクトップパネルの 2 箇所に描画される。

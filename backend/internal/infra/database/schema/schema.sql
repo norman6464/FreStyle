@@ -1582,3 +1582,54 @@ DO $$ BEGIN
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE;
     END IF;
 END $$;
+
+-- ── コース / 教材の権限（対象ごとの編集）──
+--
+-- 既定は「コース → 章」の 2 段で届き、最も強いものが実効になる。ノートと同じ合成規則だが、
+-- **ワークスペースの grant は届かない**。あれはノートの木に対する既定で、教材は別の入れ物。
+-- 届かせると、いまノートの editor である人が教材の編集権まで一度に得てしまう
+-- （実際に本番でその状態の人が居る）。
+--
+-- 唯一の例外がワークスペースの admin で、配下すべてを管理できる。そうしないと、
+-- 付与された人が居なくなった教材の権限を誰も変えられなくなる（ノート側で最後の admin を
+-- 守っているのと同じ理由）。この 1 つだけが例外であることは domain 側の解決に書いてある。
+--
+-- 読むことには付与を要求しない。公開済みの教材はワークスペースの一員なら誰でも読める
+-- （学ぶための場なので、読む側に権限を持たせない）。下書きだけが編集できる人に限られる。
+
+CREATE TABLE IF NOT EXISTS course_grants (
+    workspace_id uuid NOT NULL,
+    course_id    bigint NOT NULL,
+    principal_id uuid NOT NULL,
+    "role"       varchar(16) NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT course_grants_pkey PRIMARY KEY (workspace_id, course_id, principal_id),
+    -- 複合にすることで「同じワークスペースのコース」しか指せない（テナント跨ぎの付与を塞ぐ）。
+    CONSTRAINT fk_course_grants_course FOREIGN KEY (workspace_id, course_id)
+        REFERENCES courses (workspace_id, id) ON DELETE CASCADE,
+    CONSTRAINT fk_course_grants_principal FOREIGN KEY (workspace_id, principal_id)
+        REFERENCES principals (workspace_id, id) ON DELETE CASCADE,
+    CONSTRAINT ck_course_grants_role CHECK ("role" IN ('admin', 'editor', 'commenter', 'viewer'))
+);
+CREATE INDEX IF NOT EXISTS idx_course_grants_principal ON course_grants (workspace_id, principal_id);
+
+-- 章 1 つだけに効く既定の権限（「この教材だけ編集してよい」）。
+-- コースの付与より弱い役割をここに張っても下がらない（合成は最も強いものを採る）。
+CREATE TABLE IF NOT EXISTS chapter_grants (
+    workspace_id uuid NOT NULL,
+    chapter_id   bigint NOT NULL,
+    principal_id uuid NOT NULL,
+    "role"       varchar(16) NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chapter_grants_pkey PRIMARY KEY (workspace_id, chapter_id, principal_id),
+    CONSTRAINT fk_chapter_grants_chapter FOREIGN KEY (workspace_id, chapter_id)
+        REFERENCES course_chapters (workspace_id, id) ON DELETE CASCADE,
+    CONSTRAINT fk_chapter_grants_principal FOREIGN KEY (workspace_id, principal_id)
+        REFERENCES principals (workspace_id, id) ON DELETE CASCADE,
+    CONSTRAINT ck_chapter_grants_role CHECK ("role" IN ('admin', 'editor', 'commenter', 'viewer'))
+);
+CREATE INDEX IF NOT EXISTS idx_chapter_grants_principal ON chapter_grants (workspace_id, principal_id);

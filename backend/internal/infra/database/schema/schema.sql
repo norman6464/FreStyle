@@ -1529,3 +1529,56 @@ CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);
+
+-- ── コースと章の骨格を締める（対象ごとに権限を張るための足場）──
+--
+-- コース・教材の編集可否を「対象ごと」に決めるには、権限の行から対象を
+-- **テナントごと**指せる必要がある。ノート側（page_grants）と同じ形にするので、
+-- 参照される側に (workspace_id, id) の一意制約が要る。
+--
+-- id は既に主キーなので、この一意制約が新しく防ぐ重複は無い。**要るのは複合外部キーの
+-- 参照先として**で、これが無いと権限の行から「同じワークスペースのコース」を指せず、
+-- テナントを跨いだ付与を DB で塞げない（アプリの検査だけが頼りになる）。
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'uq_courses_workspace_id' AND conrelid = 'courses'::regclass
+    ) THEN
+        ALTER TABLE courses ADD CONSTRAINT uq_courses_workspace_id UNIQUE (workspace_id, id);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'uq_course_chapters_workspace_id' AND conrelid = 'course_chapters'::regclass
+    ) THEN
+        ALTER TABLE course_chapters
+            ADD CONSTRAINT uq_course_chapters_workspace_id UNIQUE (workspace_id, id);
+    END IF;
+END $$;
+
+-- 章は必ず実在するコースにぶら下がる。
+--
+-- ORM が作っていた頃からこの FK は無く、コースを消しても章を残せる状態だった
+-- （消す側のコードが明示的に消していただけで、DB は何も守っていない）。対象ごとの権限を
+-- 張ると、親の居ない章に権限だけが残り、誰の目にも触れないまま生き続ける。
+--
+-- **複合（workspace_id を含む）にはしない。** workspace_id はまだ NULL を許すので、
+-- 複合にすると NULL の行では検査そのものが飛ぶ（MATCH SIMPLE の既定）。course_id は
+-- NOT NULL なので、単純な FK なら全行で必ず効く。テナントの一致は上の一意制約と、
+-- 権限側から張る複合 FK が受け持つ。
+--
+-- workspace_id を NOT NULL にしていないのは、教材の投入 SQL（別リポで生成する）が
+-- この列を書いているかをここから確かめられないため。確かめてから別途締める。
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'fk_course_chapters_course' AND conrelid = 'course_chapters'::regclass
+    ) THEN
+        ALTER TABLE course_chapters
+            ADD CONSTRAINT fk_course_chapters_course
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE;
+    END IF;
+END $$;

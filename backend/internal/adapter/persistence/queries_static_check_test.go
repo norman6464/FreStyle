@@ -24,14 +24,12 @@ import (
 //	ため、vet では原理的に書けない。書けないものを無理に近似すると、正当なクエリを
 //	弾くか、危ないクエリを見逃すかのどちらかになる。
 //
-// なぜ cmd/ の linter ではなくテストなのか:
+// なぜテストなのか:
 //
-//	cmd 配下の archlint / naminglint / apispec-lint / slicelint はいずれもリポジトリ全体の
-//	Go ソースを AST で見る道具で、リポジトリのルートから走らせる。こちらが見るのは
-//	persistence パッケージ 1 つに閉じた SQL ファイルなので、パッケージに同居させたほうが
-//	場所として素直で、`go test ./...`（CI と make verify が既に通す）にそのまま乗る。
-//	同じパッケージに sqlcgen_prepared_statements_test.go という先例もある。
-//	加えてテストなら、違反する SQL の見本を fixture として常設でき、「本当に弾けるのか」を
+//	ここが見るのは persistence パッケージ 1 つに閉じた SQL ファイルなので、パッケージに
+//	同居させたほうが場所として素直で、`go test ./...`（CI と make verify が既に通す）に
+//	そのまま乗る。同じパッケージに sqlcgen_prepared_statements_test.go という先例もある。
+//	テストなら、違反する SQL の見本を fixture として常設でき、「本当に弾けるのか」を
 //	毎回機械が確かめてくれる（検査そのものが壊れたときに気づける）。
 
 const (

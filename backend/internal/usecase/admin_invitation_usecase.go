@@ -15,8 +15,6 @@ import (
 // ListAdminInvitationsUseCase は招待一覧を取得する。
 //
 // 横断（ListAll）とワークスペース単位（ListByWorkspaceID）の 2 系統を公開する集約 read usecase
-//
-//naminglint:allow 横断 ListAll・ワークスペース単位 ListByWorkspaceID
 type ListAdminInvitationsUseCase struct {
 	repo repository.AdminInvitationRepository
 }

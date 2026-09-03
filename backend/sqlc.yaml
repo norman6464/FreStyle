@@ -121,14 +121,10 @@ sql:
         # 新規ユーザー・新規コース・未提出の演習など「使い始めの動線」を直撃する。
         # 実際に staging で観測され、そのあと機械化された経緯がある。
         #
-        # ★ この不変条件は二段で守っている。片方だけ外すと穴が開く ★
-        #   1. ここ（emit_empty_slices: true） … sqlc 生成物が空スライスを返す
-        #   2. cmd/slicelint                   … 生成物を使う手書きの repository が
-        #                                        nil を返していないかを CI で検査する
-        # JSON まで届くには両方を通る必要があるので、どちらか一方だけでは守れない。
-        # 1 を false にすると生成物が nil を返し始め、2 は手書き側しか見ていないので気づけない。
-        # 2 を消すと repository の詰め替えで nil に戻る書き方が復活する。
-        # 外すときは必ずもう片方も一緒に見直すこと（cmd/slicelint/main.go にも同じ注意書きがある）。
+        # これは sqlc 生成物側の保証であり、手書きの repository が独自に nil を
+        # 返す書き方（早期 return 等）まではここでは検査しない。以前は cmd/slicelint が
+        # CI でそちら側も検査していたが撤去した。手書き側で nil を返さないことは
+        # レビューで担保する。
         emit_empty_slices: true
         emit_json_tags: false
         emit_interface: false

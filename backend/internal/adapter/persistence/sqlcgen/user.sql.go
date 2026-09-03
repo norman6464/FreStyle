@@ -98,7 +98,6 @@ func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int32, erro
 }
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
-
 SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id

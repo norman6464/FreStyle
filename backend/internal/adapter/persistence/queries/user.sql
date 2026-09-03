@@ -1,14 +1,4 @@
--- role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。
--- OIDC subject の突き合わせは user_oidc_identities のみで行う。
---
--- password_hash を読むのは GetActiveUserByEmail だけ
--- （一覧・認証解決の経路で bcrypt ハッシュをアプリメモリに載せない）。
-
 -- name: GetUserByCognitoSub :one
--- OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
--- 正は user_oidc_identities の subject。
--- provider の値が 'cognito' のままなのは歴史的な理由で、いま使っている発行者を
--- 指してはいない（domain.OidcProviderCognito のコメント参照）。
 SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id

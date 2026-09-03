@@ -3,9 +3,17 @@ import PublicHeader from '@/shared/ui/PublicHeader';
 import Button from '@/shared/ui/Button';
 import SNSSignInButton from '@/shared/ui/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
-import { buildAuthorizeUrl } from '@/features/auth';
+import { AuthUnavailableNotice, useOidcLogin } from '@/features/auth';
 
+/**
+ * アカウント作成画面。
+ *
+ * ログイン画面と同じく、発行者へ送るだけ。登録画面へ直行させるために
+ * screenHint に 'signup' を渡す。
+ */
 export default function SignupPage() {
+  const login = useOidcLogin();
+
   return (
     <AuthLayout title="アカウントを作成" header={<PublicHeader />}>
       <p className="mb-6 text-center text-sm text-[var(--color-text-muted)]">
@@ -14,13 +22,15 @@ export default function SignupPage() {
         あなた専用のワークスペースが自動で用意されます。
       </p>
 
+      {!login.available && <AuthUnavailableNotice missing={login.missing} />}
+
       <Button
         variant="primary"
         fullWidth
         type="button"
-        onClick={async () => {
-          window.location.href = await buildAuthorizeUrl(undefined, 'signup');
-        }}
+        loading={login.available && login.loading}
+        disabled={!login.available}
+        onClick={() => login.available && login.start(undefined, 'signup')}
       >
         メールで始める
       </Button>
@@ -36,9 +46,8 @@ export default function SignupPage() {
 
       <SNSSignInButton
         provider="google"
-        onClick={async () => {
-          window.location.href = await buildAuthorizeUrl('Google', 'signup');
-        }}
+        disabled={!login.available}
+        onClick={() => login.available && login.start('Google', 'signup')}
       />
 
       <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">

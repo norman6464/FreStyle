@@ -13,6 +13,12 @@ on:
         description: '本番デプロイ確認用に "deploy" と入力してください'
         required: true
         type: string
+      auth_mode:
+        description: 'ログインを止めたまま出すなら unconfigured。既定は configured（設定が欠けていたら止まる）'
+        required: false
+        default: configured
+        type: choice
+        options: [configured, unconfigured]
   push:
     tags:
       - 'release/v*'
@@ -71,7 +77,6 @@ jobs:
       VITE_API_BASE_URL: https://api.frestyle.jp
       VITE_OIDC_REDIRECT_URI: https://frestyle.jp/login/callback
       VITE_OIDC_AUTHORIZE_URI: ${{ secrets.VITE_OIDC_AUTHORIZE_URI }}
-      VITE_OIDC_END_SESSION_URI: ${{ secrets.VITE_OIDC_END_SESSION_URI }}
       VITE_OIDC_CLIENT_ID: ${{ secrets.VITE_OIDC_CLIENT_ID }}
       # openid だけだと id_token に名前もメールも載らず、offline_access が無いと
       # 更新用のトークンがそもそも発行されない。
@@ -80,20 +85,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # 認可の設定が空のままビルドすると、**動くように見えて誰もログインできない**
-      # 成果物が本番へ出る（認可 URL の組み立てが実行時に失敗する）。
-      # 出す前にここで止める。END_SESSION は空でも動く設計なので必須にしない。
-      - name: 認可の設定が揃っているか確かめる
-        run: |
-          missing=""
-          for k in VITE_OIDC_AUTHORIZE_URI VITE_OIDC_CLIENT_ID VITE_OIDC_REDIRECT_URI; do
-            eval "v=\$$k"
-            [ -n "$v" ] || missing="$missing $k"
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::認可の設定が空です:$missing — 本番の発行者を決めて Secrets を設定してください"
-            exit 1
-          fi
+      # 認可の設定と宣言（auth_mode）が噛み合っているかを確かめる。
+      # 分岐の中身は .github/scripts/check-auth-config.sh にあり、4 通りの
+      # 組み合わせを ci-frontend.yml が毎回試している（ここに直接書くと、
+      # 書いた時に 1 度手で試して終わりになる）。
+      #
+      # tag push は inputs を持てないので auth_mode は既定の configured になる。
+      # つまりタグで出すときは必ず設定が要る（黙って停止版が出ることはない）。
+      - name: 認可の設定と宣言が噛み合っているか確かめる
+        env:
+          AUTH_MODE: ${{ inputs.auth_mode || 'configured' }}
+          SITE_ORIGIN: https://frestyle.jp
+        # build job は working-directory が ./frontend なので絶対パスで指す。
+        run: "${{ github.workspace }}/.github/scripts/check-auth-config.sh"
 
       # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
       # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。
@@ -186,7 +190,36 @@ jobs:
           done
 
       - name: Invalidate CloudFront cache
+        id: invalidate
         run: |
-          aws cloudfront create-invalidation \
+          id=$(aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*"
+            --paths "/*" --query 'Invalidation.Id' --output text)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      # 無効化は打っただけでは終わっていない。完了を待たずに次へ進むと、
+      # 直後の確認がエッジの古い応答を見て「通った」ことになる。
+      - name: 無効化の完了を待つ
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id "${{ steps.invalidate.outputs.id }}"
+
+      # **バケットではなく、配信された実物を見る。**
+      # S3 を読み戻しても「エッジが何を返すか」は 1 ミリも分からない。
+      # バケットは正しいのにエッジが古い HTML を返している、という一番切り分けに
+      # くい壊れ方は、この差でしか捕まらない。
+      - name: 配信された実物を確かめる
+        run: |
+          url="https://frestyle.jp/"
+          code=$(curl -sS -o /tmp/index.html -w '%{http_code}' --max-time 30 "$url")
+          if [ "$code" != "200" ]; then
+            echo "::error::$url が $code を返しました"
+            exit 1
+          fi
+          # SPA の入口として最低限これが無いと、何も描画されない。
+          if ! grep -q 'id="root"' /tmp/index.html; then
+            echo "::error::配信された HTML に描画先が見つかりません"
+            exit 1
+          fi
+          echo "配信を確認しました（$url → $code）"

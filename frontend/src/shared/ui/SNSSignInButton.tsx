@@ -3,9 +3,10 @@ export type SnsProvider = 'google' | 'facebook' | 'x';
 interface SNSSignInButtonProps {
   provider: SnsProvider;
   onClick: () => void;
+  disabled?: boolean;
 }
 
-export default function SNSSignInButton({ provider, onClick }: SNSSignInButtonProps) {
+export default function SNSSignInButton({ provider, onClick, disabled }: SNSSignInButtonProps) {
   const providerIcons: Record<SnsProvider, string> = {
     google: 'https://developers.google.com/identity/images/g-logo.png',
     facebook:
@@ -21,8 +22,10 @@ export default function SNSSignInButton({ provider, onClick }: SNSSignInButtonPr
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="w-full border border-surface-3 rounded-lg py-2.5 px-4 flex items-center justify-center space-x-3 hover:bg-surface-2 transition-colors duration-150 mb-3"
+      disabled={disabled}
+      className="w-full border border-surface-3 rounded-lg py-2.5 px-4 flex items-center justify-center space-x-3 hover:bg-surface-2 transition-colors duration-150 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <img src={providerIcons[provider]} alt={provider} className="w-5 h-5" />
       <span className="text-sm font-medium text-[var(--color-text-secondary)]">

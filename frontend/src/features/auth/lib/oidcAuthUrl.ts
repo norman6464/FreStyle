@@ -13,6 +13,8 @@
  *   トークンに交換できないようにする。
  */
 
+import type { ConfiguredAuth } from './authConfig';
+
 const STORAGE_KEY = 'oidc.authFlow';
 
 export type AuthFlowState = {
@@ -21,31 +23,22 @@ export type AuthFlowState = {
   codeVerifier: string;
 };
 
-/** 認可 URL の組み立てに使う設定。ビルド時に焼き込まれる。 */
-function config() {
-  const env = import.meta.env;
-  return {
-    authorizeUri: env.VITE_OIDC_AUTHORIZE_URI,
-    clientId: env.VITE_OIDC_CLIENT_ID,
-    redirectUri: env.VITE_OIDC_REDIRECT_URI,
-    // 空白区切り。ここに profile / email が無いと id_token に名前もメールも載らず、
-    // offline_access が無いと更新用のトークンがそもそも発行されない。
-    scope: env.VITE_OIDC_SCOPE || 'openid profile email offline_access',
-    endSessionUri: env.VITE_OIDC_END_SESSION_URI,
-  };
-}
-
 /**
  * 認可 URL を作り、戻りで使う値を sessionStorage に置く。
+ *
+ * 設定は**引数で受け取る**。環境から自分で読むと、欠けているときに
+ * `new URL(undefined)` で落ちるコードが型検査を通ってしまう。
+ * `ConfiguredAuth` しか受け取らないので、設定が揃っていない状態で
+ * ここを呼ぶコードは書けない（`readAuthConfig` の合併で絞られる）。
  *
  * provider を渡すと特定の IdP（例: Google）へ直行する。
  * screenHint に 'signup' を渡すと登録画面へ直行する。
  */
 export async function buildAuthorizeUrl(
+  cfg: ConfiguredAuth,
   provider?: string,
   screenHint?: 'signup' | 'signin',
 ): Promise<string> {
-  const cfg = config();
   const flow: AuthFlowState = {
     state: randomString(32),
     nonce: randomString(32),
@@ -89,11 +82,6 @@ export function consumeAuthFlowState(): AuthFlowState | null {
   } catch {
     return null;
   }
-}
-
-/** 発行者側のセッションも終わらせる URL（設定が無ければ null）。 */
-export function getEndSessionUrl(): string | null {
-  return config().endSessionUri || null;
 }
 
 /**

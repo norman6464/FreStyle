@@ -89,9 +89,23 @@ jobs:
           VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
           VITE_OIDC_CLIENT_ID: ci-dummy
           VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
-          VITE_OIDC_END_SESSION_URI: https://example.invalid/oidc/v1/end_session
           VITE_OIDC_SCOPE: openid profile email offline_access
         run: pnpm run build
+
+      # **認可の設定が無くてもビルドが通ること**を毎回確かめる。
+      # ここが通らなくなったら、発行者が無いあいだフロントを出せない状態に戻っている。
+      - name: 認可の設定が無くてもビルドできる
+        env:
+          VITE_API_BASE_URL: https://example.invalid
+        run: pnpm run build
+
+      # CD の門番（.github/scripts/check-auth-config.sh）が、宣言と実態の
+      # 食い違いを本当に捕まえるかを毎回試す。
+      #
+      # シェルの分岐は、書いた時に 1 度手で試して終わりになりやすい。
+      # **通ることだけでなく、落ちるべきものが落ちること**まで見る。
+      - name: 門番が正しく通し・正しく止めることを確かめる
+        run: "${{ github.workspace }}/.github/scripts/test-check-auth-config.sh"
 
   # 未使用ファイル / 未使用依存 / 未宣言(phantom)依存を knip で検出する。
   # 必須チェック(Vitest + Build)とは独立した job にし、デッドコードの可視化に徹する。
@@ -198,7 +212,6 @@ jobs:
           VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
           VITE_OIDC_CLIENT_ID: ci-dummy
           VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
-          VITE_OIDC_END_SESSION_URI: https://example.invalid/oidc/v1/end_session
           VITE_OIDC_SCOPE: openid profile email offline_access
         run: pnpm run build
 

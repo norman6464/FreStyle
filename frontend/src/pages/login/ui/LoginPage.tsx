@@ -3,6 +3,7 @@ import PublicHeader from '@/shared/ui/PublicHeader';
 import Button from '@/shared/ui/Button';
 import SNSSignInButton from '@/shared/ui/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
+import { AuthUnavailableNotice } from '@/features/auth';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useLoginPage } from '../model/useLoginPage';
 
@@ -14,9 +15,14 @@ import { useLoginPage } from '../model/useLoginPage';
  * 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
  *
  * ここは「発行者へ送る」ことだけをする。
+ *
+ * 設定が揃っていないときは `login.available` が false になり、`start` が
+ * 存在しない。押せるボタンを描く経路が型として無いので、「押しても何も
+ * 起きない」状態は書こうとしても型検査で落ちる。
  */
 export default function LoginPage() {
-  const { flashMessage, errorMessage, loading, startLogin } = useLoginPage();
+  const { flashMessage, login } = useLoginPage();
+  const loading = login.available && login.loading;
 
   return (
     <AuthLayout title="ログイン" header={<PublicHeader />}>
@@ -30,21 +36,24 @@ export default function LoginPage() {
         </p>
       )}
 
-      {errorMessage && (
+      {login.available && login.errorMessage && (
         <p
           role="alert"
           className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
         >
-          {errorMessage}
+          {login.errorMessage}
         </p>
       )}
+
+      {!login.available && <AuthUnavailableNotice missing={login.missing} />}
 
       <Button
         variant="primary"
         fullWidth
         type="button"
         loading={loading}
-        onClick={() => startLogin()}
+        disabled={!login.available}
+        onClick={() => login.available && login.start()}
       >
         {loading ? 'ログイン画面へ移動しています...' : 'ログインする'}
       </Button>
@@ -58,7 +67,11 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <SNSSignInButton provider="google" onClick={() => startLogin('Google')} />
+      <SNSSignInButton
+        provider="google"
+        disabled={!login.available}
+        onClick={() => login.available && login.start('Google')}
+      />
 
       <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
         招待された方は招待メールのリンクからログインできます。

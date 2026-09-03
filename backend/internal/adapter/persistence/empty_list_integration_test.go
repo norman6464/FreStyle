@@ -107,12 +107,6 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name: "最近見た章",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewUserChapterViewRepository(db).ListRecentByUser(ctx, noSuchID, 10)
-			},
-		},
-		{
 			name: "ワークスペースの在籍ユーザー一覧",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				return persistence.NewUserRepository(db).ListByWorkspaceID(ctx, noSuchWorkspaceID)

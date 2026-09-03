@@ -48,18 +48,16 @@ entities/<slice>/
 FSD 公式が entities 層に限って認めている例外。**参照される側**が「誰に何を見せるか」を
 明示する。
 
-現在の唯一の例: `entities/course/@x/user.ts`
-
-`UserDashboard`（`entities/user`）は「最近見た章」を持つため `UserChapterView`
-（`entities/course`）を参照する。データ構造上の依存で、どちらかに寄せると
-「章の型を user が定義する」か「ダッシュボードを course が知る」かの不自然さが出る。
+現在このリポジトリに `@x` の実例は無い（唯一の例だった `entities/course/@x/user.ts`
+は、それを使っていたダッシュボード機能の撤去に伴い削除済み）。境界 lint の例外だけは
+仕組みとして残っており、必要になれば同じ形で書ける:
 
 ```ts
-// entities/course/@x/user.ts — user にだけ公開する
-export type { UserChapterView } from '../model/types';
+// entities/<公開する側>/@x/<参照する側>.ts — 参照する側にだけ公開する
+export type { SomeType } from '../model/types';
 
-// entities/user/model/types.ts — @x 経由でのみ参照
-import type { UserChapterView } from '@/entities/course/@x/user';
+// entities/<参照する側>/model/types.ts — @x 経由でのみ参照
+import type { SomeType } from '@/entities/<公開する側>/@x/<参照する側>';
 ```
 
 **増えたら Slice の切り方を疑う。** `@x` が増えるのは「その 2 つは実は 1 つの
@@ -74,7 +72,6 @@ gitignore 記法では「親ディレクトリが除外されていると子を�
 | 対象 | 置き場所 | 理由 |
 |---|---|---|
 | `TeachingMaterial`（教材＝章） | `entities/course` | コースの章であり単独では存在しない。別 Slice にすると `courseRepository` が型を参照した時点でクロス import になる |
-| `UserDashboard` | `entities/user` | 独立した業務エンティティではなく「そのユーザーの学習集計」という read model。`entities/dashboard` を作ると実体のない Slice が増える |
 | `MarkdownView` / `CodeBlock` | **shared/ui** | AI チャットと演習の両方が使う汎用レンダラ。ai-chat に置くと exercise からのクロス import になる |
 | `LanguageBadge` / `LanguageIcon` | **shared/ui** | コースと演習の両方が使う。同上 |
 | `MessageInput` | **features**（Phase 6 予定） | 「メッセージを送る」というユーザー操作であって entity の表示ではない |

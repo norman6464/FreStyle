@@ -194,12 +194,6 @@ export const LESSON_PROGRESS = {
   incomplete: (id: number | string) => `${API_V2}/lesson-progress/${id}`,
 } as const;
 
-/** ダッシュボード（streak / 活動カレンダー / 章閲覧履歴）*/
-export const DASHBOARD = {
-  /** GET /api/v2/me/dashboard — ログインユーザーの学習サマリー */
-  get: `${API_V2}/me/dashboard`,
-} as const;
-
 /** 章閲覧記録（フロントが教材ページを開いた瞬間に POST する）*/
 export const CHAPTER_VIEW = {
   /** POST /api/v2/teaching-materials/:id/view */

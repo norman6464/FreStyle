@@ -91,7 +91,7 @@ export interface UserLessonProgress {
   createdAt: string;
 }
 
-/** 章閲覧記録（`GET /api/v2/me/dashboard` の recentChapterViews 要素）。 */
+/** 章閲覧記録（コース詳細のレジューム表示用。`GET .../courses/:id/last-viewed` が返す）。 */
 export interface UserChapterView {
   userId: number;
   teachingMaterialId: number;

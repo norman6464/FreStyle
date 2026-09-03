@@ -38,8 +38,7 @@ type CompanyLearningSummaryOutput struct {
 }
 
 // GetCompanyLearningSummaryUseCase は company_admin のホーム向けに自社 trainee の学習状況を集計する。
-// 日付境界は既存ダッシュボード(GetUserDashboardUseCase)と同じ UTC。
-// ロールの認可は handler 層(isAdminActor)で行い、ここでは actor の所属会社だけを見る。
+// 日付境界は UTC。ロールの認可は handler 層(isAdminActor)で行い、ここでは actor の所属会社だけを見る。
 type GetCompanyLearningSummaryUseCase struct {
 	activities repository.CompanyLearningActivitySummarizer
 }

@@ -212,12 +212,6 @@ func (m *mockChapterViewRepo) UpsertView(ctx context.Context, userID, materialID
 	return m.Called(ctx, userID, materialID, courseID).Error(0)
 }
 
-func (m *mockChapterViewRepo) ListRecentByUser(ctx context.Context, userID uint64, limit int) ([]domain.UserChapterView, error) {
-	args := m.Called(ctx, userID, limit)
-	rows, _ := args.Get(0).([]domain.UserChapterView)
-	return rows, args.Error(1)
-}
-
 func (m *mockChapterViewRepo) GetLastViewedByUserAndCourse(ctx context.Context, userID, courseID uint64) (*domain.UserChapterView, error) {
 	args := m.Called(ctx, userID, courseID)
 	v, _ := args.Get(0).(*domain.UserChapterView)

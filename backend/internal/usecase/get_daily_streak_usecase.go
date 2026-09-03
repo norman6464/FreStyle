@@ -6,12 +6,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // GetDailyStreakUseCase は user_daily_activities から連続学習日数の統計を算出する。
-// 設定画面のプロフィール統計 (GET /daily-goals/streak) 用。判定条件（学習あり =
-// いずれかのカウンタが 1 以上）と現在の連続日数はダッシュボードの computeStreak と同一。
+// 設定画面のプロフィール統計 (GET /daily-goals/streak) 用。
 type GetDailyStreakUseCase struct {
 	activity repository.UserDailyActivityRepository
 }
@@ -42,7 +42,7 @@ func (u *GetDailyStreakUseCase) Execute(ctx context.Context, userID uint64) (*Ge
 		return nil, err
 	}
 
-	// 学習ありの日を日単位で集める（判定条件は computeStreak と同じ）。
+	// 学習ありの日を日単位で集める（判定条件は computeStreak（下記）と同じ）。
 	daySet := make(map[string]time.Time, len(activities))
 	for _, a := range activities {
 		if a.ExerciseCount+a.LessonCount+a.NoteCount > 0 {
@@ -73,4 +73,24 @@ func (u *GetDailyStreakUseCase) Execute(ctx context.Context, userID uint64) (*Ge
 		LongestStreak:     longest,
 		TotalAchievedDays: len(days),
 	}, nil
+}
+
+// computeStreak は今日を起点に、活動が途切れるまで遡って連続学習日数を数える。
+// 学習あり = ExerciseCount / LessonCount / NoteCount のいずれかが 1 以上。
+func computeStreak(activities []domain.UserDailyActivity, now time.Time) int {
+	actMap := make(map[string]bool, len(activities))
+	for _, a := range activities {
+		if a.ExerciseCount+a.LessonCount+a.NoteCount > 0 {
+			actMap[a.ActivityDate.UTC().Format("2006-01-02")] = true
+		}
+	}
+	streak := 0
+	today := now.UTC().Truncate(24 * time.Hour)
+	for d := today; ; d = d.AddDate(0, 0, -1) {
+		if !actMap[d.Format("2006-01-02")] {
+			break
+		}
+		streak++
+	}
+	return streak
 }

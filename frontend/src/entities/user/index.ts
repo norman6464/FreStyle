@@ -12,16 +12,9 @@ export type { UpdateProfileRequest } from './api/profileRepository';
 export { default as ProfileStatsRepository } from './api/profileStatsRepository';
 export type { ProfileStats } from './api/profileStatsRepository';
 export { default as ImageUploadRepository } from './api/imageUploadRepository';
-export { default as DashboardRepository } from './api/dashboardRepository';
+export { default as ChapterViewRepository } from './api/chapterViewRepository';
 
-export type {
-  Profile,
-  User,
-  AuthState,
-  UserRole,
-  UserDailyActivity,
-  UserDashboard,
-} from './model/types';
+export type { Profile, User, AuthState, UserRole } from './model/types';
 
 export { default as ProfileStatsSection } from './ui/ProfileStatsSection';
 

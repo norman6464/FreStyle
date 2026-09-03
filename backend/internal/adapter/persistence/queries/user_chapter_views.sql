@@ -14,15 +14,6 @@ ON CONFLICT (user_id, chapter_id) DO UPDATE SET
   last_viewed_at = now(),
   view_count     = user_chapter_views.view_count + 1;
 
--- name: ListRecentUserChapterViewsByUser :many
--- 最後に閲覧した章を新しい順で最大 limit 件返す（「続きから」カード用）。
--- last_viewed_at は一意でないため、user 固定内で PK の一部 chapter_id をタイブレークに置く。
-SELECT user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count
-FROM user_chapter_views
-WHERE user_id = sqlc.arg(user_id)
-ORDER BY last_viewed_at DESC, chapter_id DESC
-LIMIT sqlc.arg(row_limit);
-
 -- name: GetLastViewedUserChapterViewByCourse :one
 -- (user, course) の閲覧記録から last_viewed_at 最大の 1 件を返す（コース詳細のレジューム用）。
 -- 同時刻の章が複数あっても返る 1 件がぶれないよう chapter_id をタイブレークに置く。

@@ -38,51 +38,6 @@ func (q *Queries) GetLastViewedUserChapterViewByCourse(ctx context.Context, arg 
 	return i, err
 }
 
-const listRecentUserChapterViewsByUser = `-- name: ListRecentUserChapterViewsByUser :many
-SELECT user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count
-FROM user_chapter_views
-WHERE user_id = $1
-ORDER BY last_viewed_at DESC, chapter_id DESC
-LIMIT $2
-`
-
-type ListRecentUserChapterViewsByUserParams struct {
-	UserID   int64
-	RowLimit int32
-}
-
-// 最後に閲覧した章を新しい順で最大 limit 件返す（「続きから」カード用）。
-// last_viewed_at は一意でないため、user 固定内で PK の一部 chapter_id をタイブレークに置く。
-func (q *Queries) ListRecentUserChapterViewsByUser(ctx context.Context, arg ListRecentUserChapterViewsByUserParams) ([]UserChapterView, error) {
-	rows, err := q.db.QueryContext(ctx, listRecentUserChapterViewsByUser, arg.UserID, arg.RowLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []UserChapterView{}
-	for rows.Next() {
-		var i UserChapterView
-		if err := rows.Scan(
-			&i.UserID,
-			&i.ChapterID,
-			&i.CourseID,
-			&i.FirstViewedAt,
-			&i.LastViewedAt,
-			&i.ViewCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const upsertUserChapterView = `-- name: UpsertUserChapterView :exec
 
 INSERT INTO user_chapter_views

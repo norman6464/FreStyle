@@ -7,7 +7,7 @@ import CourseDetailPage from '../ui/CourseDetailPage';
 import authReducer from '@/entities/user/model/authSlice';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 import { CourseRepository, LessonProgressRepository, TeachingMaterialRepository } from '@/entities/course';
-import { DashboardRepository } from '@/entities/user';
+import { ChapterViewRepository } from '@/entities/user';
 import type { Course } from '@/entities/course';
 
 // 深いパスで mock する（barrel を読むとカバレッジの分母が膨らむ）。
@@ -32,8 +32,8 @@ vi.mock('@/entities/course/api/lessonProgressRepository', () => ({
   default: { list: vi.fn(), complete: vi.fn(), incomplete: vi.fn() },
 }));
 
-vi.mock('@/entities/user/api/dashboardRepository', () => ({
-  default: { get: vi.fn(), recordChapterView: vi.fn() },
+vi.mock('@/entities/user/api/chapterViewRepository', () => ({
+  default: { recordChapterView: vi.fn() },
 }));
 
 const getCourse = vi.mocked(CourseRepository.get);
@@ -82,7 +82,7 @@ beforeEach(() => {
   vi.mocked(CourseRepository.lastViewed).mockResolvedValue(null);
   vi.mocked(TeachingMaterialRepository.get).mockResolvedValue(null as never);
   vi.mocked(LessonProgressRepository.list).mockResolvedValue([]);
-  vi.mocked(DashboardRepository.recordChapterView).mockResolvedValue(undefined as never);
+  vi.mocked(ChapterViewRepository.recordChapterView).mockResolvedValue(undefined as never);
   listGrants.mockResolvedValue([]);
   listPrincipals.mockResolvedValue([]);
 });

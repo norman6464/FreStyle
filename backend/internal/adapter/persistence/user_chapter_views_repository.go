@@ -58,29 +58,6 @@ func (r *userChapterViewRepository) UpsertView(
 	})
 }
 
-func (r *userChapterViewRepository) ListRecentByUser(
-	ctx context.Context,
-	userID uint64,
-	limit int,
-) ([]domain.UserChapterView, error) {
-	uid, ok := toInt64ID(userID)
-	if !ok {
-		return []domain.UserChapterView{}, nil // 存在し得ない user_id = 0 件
-	}
-	rows, err := sqlcgen.New(r.db).ListRecentUserChapterViewsByUser(ctx, sqlcgen.ListRecentUserChapterViewsByUserParams{
-		UserID:   uid,
-		RowLimit: int32(limit),
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]domain.UserChapterView, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toDomainUserChapterView(row))
-	}
-	return out, nil
-}
-
 // GetLastViewedByUserAndCourse は (user, course) の閲覧記録から last_viewed_at 最大の 1 件を返す。
 // 履歴なしはエラーではなく (nil, nil)(「初めて開くコース」は正常系のため)。
 func (r *userChapterViewRepository) GetLastViewedByUserAndCourse(

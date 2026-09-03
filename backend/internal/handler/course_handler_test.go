@@ -72,10 +72,6 @@ type fakeChapterViewRepoH struct {
 
 func (f *fakeChapterViewRepoH) UpsertView(context.Context, uint64, uint64, uint64) error { return nil }
 
-func (f *fakeChapterViewRepoH) ListRecentByUser(context.Context, uint64, int) ([]domain.UserChapterView, error) {
-	return nil, nil
-}
-
 func (f *fakeChapterViewRepoH) GetLastViewedByUserAndCourse(context.Context, uint64, uint64) (*domain.UserChapterView, error) {
 	return f.lastViewed, nil
 }

@@ -5,26 +5,13 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
 import authReducer, { setAuthData } from '@/entities/user/model/authSlice';
-import { useUserDashboard } from '../model/useUserDashboard';
 import { useWorkspaceLearningSummary } from '../model/useWorkspaceLearningSummary';
-import type { UserDashboard } from '@/entities/user';
 import type { WorkspaceLearningSummary } from '@/entities/member';
 import { createMockStorage } from '@/test/mockStorage';
 
-vi.mock('../model/useUserDashboard');
 vi.mock('../model/useWorkspaceLearningSummary');
 
-const mockUseUserDashboard = vi.mocked(useUserDashboard);
 const mockUseWorkspaceLearningSummary = vi.mocked(useWorkspaceLearningSummary);
-
-const sampleDashboard: UserDashboard = {
-  streak: 2,
-  totalExercises: 5,
-  totalCorrect: 4,
-  totalLessons: 6,
-  recentActivity: [],
-  recentChapterViews: [],
-};
 
 const sampleSummary: WorkspaceLearningSummary = {
   traineeCount: 4,
@@ -55,8 +42,7 @@ function renderMenu(role: string | null) {
 describe('MenuPage', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createMockStorage());
-    // 既定はどちらのサイドバー hook も「無効(取得なし)」相当。各テストで上書きする。
-    mockUseUserDashboard.mockReturnValue({ dashboard: null, loading: false, error: null });
+    // 既定は「無効(取得なし)」相当。各テストで上書きする。
     mockUseWorkspaceLearningSummary.mockReturnValue({ summary: null, loading: false, error: null });
   });
 
@@ -65,28 +51,15 @@ describe('MenuPage', () => {
     vi.clearAllMocks();
   });
 
-  it('統計ロード中はメニューカードを出さず（スケルトン待ち）', () => {
-    mockUseUserDashboard.mockReturnValue({ dashboard: null, loading: true, error: null });
+  it('trainee は統計取得を行わず即時にメニューカードを表示する', () => {
     renderMenu('trainee');
 
-    // ウェルカム見出しは即時表示される
     expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
-    // メニューカード（コース）はロード完了まで出さない
-    expect(screen.queryByText('コース')).not.toBeInTheDocument();
-  });
-
-  it('統計ロード完了後にメニューカードと統計を同時表示する', () => {
-    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
-    renderMenu('trainee');
-
-    // メニューカードと統計（連続学習）が両方出ている
     expect(screen.getByText('コース')).toBeInTheDocument();
     expect(screen.getByText('コード演習')).toBeInTheDocument();
-    expect(screen.getByText('連続学習')).toBeInTheDocument();
   });
 
   it('コース/演習カードに学べる技術ロゴ(Devicon)が出る (FRESTYLE-179)', () => {
-    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
     const { container } = renderMenu('trainee');
     // LanguageIcon は /lang/<key>.svg を img で描画する。コース(git 等)・演習(go 等)のロゴが出る。
     expect(container.querySelector('img[src="/lang/git.svg"]')).not.toBeNull();
@@ -96,13 +69,10 @@ describe('MenuPage', () => {
   });
 
   it('super_admin は統計を取得せず即時に管理メニューを表示する', () => {
-    mockUseUserDashboard.mockReturnValue({ dashboard: null, loading: false, error: null });
     renderMenu('super_admin');
 
     expect(screen.getByRole('heading', { name: '管理メニュー', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('招待管理')).toBeInTheDocument();
-    // 学習統計は出さない
-    expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
   });
 
   it('company_admin は学習・ツール・管理セクションを表示する', () => {
@@ -131,18 +101,6 @@ describe('MenuPage', () => {
 
     expect(screen.queryByText('コース')).not.toBeInTheDocument();
     expect(screen.queryByText('メンバーの学習状況')).not.toBeInTheDocument();
-  });
-
-  it('統計取得に失敗してもメニューは表示し、サイドバー統計は出さない', () => {
-    mockUseUserDashboard.mockReturnValue({
-      dashboard: null,
-      loading: false,
-      error: 'ダッシュボードの取得に失敗しました',
-    });
-    renderMenu('trainee');
-
-    expect(screen.getByText('コース')).toBeInTheDocument();
-    expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
   });
 
   // role が null のときは「未認証」と「未確定」を区別できない。確定前に描画すると

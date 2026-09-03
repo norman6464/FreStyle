@@ -1,7 +1,15 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 #
 # FreStyle の CodeRabbit レビュー設定。
+# 方針: トーンは「若手に教える丁寧な日本語」を保ちつつ、指摘は妥協しない (profile: assertive)。
+# path_instructions で CLAUDE.md の規約 (クリーンアーキテクチャ / FSD 境界 / 契約整合 /
+# テスト必須 / セキュリティ / 他社プロダクト名の不使用) を CodeRabbit に守らせる。
 language: "ja-JP"
+tone_instructions: >-
+  丁寧な日本語で、若手エンジニアに教えるように背景と理由まで説明してください。
+  ただし指摘の妥協はしないこと。規約違反・バグ・セキュリティ・契約の不一致は、
+  たとえ小さくても必ず具体的なファイル:行と修正案を添えて指摘してください。
+  「LGTM」で流さず、根拠のある改善提案を優先します。
 
 reviews:
   # assertive: より厳格で網羅的なレビュー。chill より多くの潜在問題を指摘する。

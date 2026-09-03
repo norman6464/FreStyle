@@ -213,16 +213,49 @@ jobs:
       # バケットは正しいのにエッジが古い HTML を返している、という一番切り分けに
       # くい壊れ方は、この差でしか捕まらない。
       - name: 配信された実物を確かめる
+        env:
+          AUTH_MODE: ${{ inputs.auth_mode || 'configured' }}
         run: |
           url="https://frestyle.jp/"
           code=$(curl -sS -o /tmp/index.html -w '%{http_code}' --max-time 30 "$url")
           if [ "$code" != "200" ]; then
-            echo "::error::$url が $code を返しました"
+            echo "::error::${url} が ${code} を返しました"
             exit 1
           fi
+
           # SPA の入口として最低限これが無いと、何も描画されない。
           if ! grep -q 'id="root"' /tmp/index.html; then
             echo "::error::配信された HTML に描画先が見つかりません"
             exit 1
           fi
-          echo "配信を確認しました（$url → $code）"
+
+          # **200 が返ることは「今出したものが配られている」ことを意味しない。**
+          # エッジが古い HTML を返していても 200 で、描画先も入っている。
+          # いま出した成果物の資産名（内容ハッシュ付き）を、配信された HTML が
+          # 指しているかまで見る。1 つでも欠けていれば、届いているのは前の版。
+          missing_assets=""
+          for asset in $(grep -o 'assets/[A-Za-z0-9._-]*\.js' dist/index.html | sort -u); do
+            grep -q "${asset}" /tmp/index.html || missing_assets="${missing_assets} ${asset}"
+          done
+          if [ -n "${missing_assets}" ]; then
+            echo "::error::配信された HTML が今回の資産を指していません（欠け:${missing_assets}）。エッジに古い版が残っています"
+            exit 1
+          fi
+
+          # 入口が指す JS を 1 本引いて、実際に取得できることまで確かめる。
+          # HTML だけ新しくて資産が配られていない、という壊れ方を捕まえる。
+          entry=$(grep -o 'assets/[A-Za-z0-9._-]*\.js' /tmp/index.html | head -1)
+          entry_code=$(curl -sS -o /tmp/entry.js -w '%{http_code}' --max-time 30 "https://frestyle.jp/${entry}")
+          if [ "${entry_code}" != "200" ]; then
+            echo "::error::${entry} が ${entry_code} を返しました"
+            exit 1
+          fi
+
+          echo "配信を確認しました（${url} → ${code} / ${entry} → ${entry_code}）"
+          {
+            echo "### 配信の確認"
+            echo "- \`${url}\` → ${code}"
+            echo "- 今回の資産をすべて指している"
+            echo "- \`${entry}\` → ${entry_code}"
+            echo "- ログイン: $([ "${AUTH_MODE}" = "unconfigured" ] && echo "停止" || echo "有効")"
+          } >> "$GITHUB_STEP_SUMMARY"

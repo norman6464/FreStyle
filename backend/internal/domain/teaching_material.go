@@ -2,9 +2,6 @@ package domain
 
 import "time"
 
-// TeachingMaterial はコースを構成する「章」。必ず 1 つの Course に所属する（course 1 : N chapter）。
-// テーブルは course_chapters（FRESTYLE-184 で teaching_materials から改名）。
-//
 // 本文はリッチテキスト（tiptap の ProseMirror JSON）の doc(jsonb) が正本。
 // コース内の並び順は sort_order 列（同値時 ID 昇順）。
 type TeachingMaterial struct {

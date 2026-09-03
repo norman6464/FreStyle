@@ -117,11 +117,11 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 	now := time.Now()
 	createdAt := doc.CreatedAt
 	if createdAt.IsZero() {
-		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+		createdAt = now
 	}
 	updatedAt := doc.UpdatedAt
 	if updatedAt.IsZero() {
-		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+		updatedAt = now
 	}
 	row, err := sqlcgen.New(r.db).InsertRichDocument(ctx, sqlcgen.InsertRichDocumentParams{
 		ID:            id,

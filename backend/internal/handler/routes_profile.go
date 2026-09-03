@@ -40,9 +40,6 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.GET("/users/:userId/stats", statsHandler.Get)
 }
 
-// newProfileImagePresignerOrFallback は本番では real な presigner、NOTE_IMAGES_BUCKET 未設定や
-// 初期化失敗時は stub にフォールバックする。
-// 表示 URL は配信ドメインを含めないルート相対パスなので CDN ベースは渡さない（FRESTYLE-234）。
 func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImagePresigner {
 	bucket := deps.cfg.S3.NoteImagesBucket
 	if bucket == "" {

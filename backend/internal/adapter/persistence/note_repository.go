@@ -78,11 +78,11 @@ func (r *noteRepository) Create(ctx context.Context, n *domain.Note) error {
 	now := time.Now()
 	createdAt := n.CreatedAt
 	if createdAt.IsZero() {
-		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+		createdAt = now
 	}
 	updatedAt := n.UpdatedAt
 	if updatedAt.IsZero() {
-		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+		updatedAt = now
 	}
 	row, err := sqlcgen.New(r.db).InsertNote(ctx, sqlcgen.InsertNoteParams{
 		UserID:    uid,
@@ -128,7 +128,7 @@ func (r *noteRepository) Update(ctx context.Context, n *domain.Note) error {
 	if err != nil {
 		return err
 	}
-	n.UpdatedAt = updatedAt // GORM Save 相当の書き戻し
+	n.UpdatedAt = updatedAt
 	return nil
 }
 
@@ -141,13 +141,6 @@ func (r *noteRepository) Update(ctx context.Context, n *domain.Note) error {
 //	返すのは、この経路には上位での存在確認が無く、呼び出し側が「自分のメモを 1 件消した」と
 //	「何も起きなかった」を区別できないから。0 行を成功として返すと、削除が効いていないのに
 //	画面からは行が消え、次に開いたときだけ復活して見える。
-//
-// 存在オラクルとの関係（FRESTYLE-367 / 376 で塞いだ穴を開け直さないこと）:
-//
-//	WHERE に user_id が入っているので「他人の note」も「存在しない id」もどちらも 0 行 =
-//	同じ domain.ErrNotFound になり、handler は同じ 404・同じ本文を返す。応答が分かれるのは
-//	「自分の note を実際に消せたか」だけなので、他人の note の実在は依然として漏れない。
-//	Update も同じ畳み方をしており、更新と削除で結末が揃う。
 func (r *noteRepository) Delete(ctx context.Context, userID, id uint64) error {
 	id64, ok := toInt64ID(id)
 	if !ok {

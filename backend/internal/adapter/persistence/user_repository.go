@@ -163,8 +163,6 @@ func (r *userRepository) ListByRole(ctx context.Context, role domain.RoleName) (
 func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error) {
 	wid, ok := toNullUUID(workspaceID)
 	if !ok {
-		// 不正 / 空の ID は該当なしと同じ扱い。nil を返すと JSON が null になり
-		// フロントの map が落ちるため空スライスにする（FRESTYLE-77）。
 		return make([]domain.User, 0), nil
 	}
 	q := r.queries()

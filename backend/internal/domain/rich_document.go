@@ -24,7 +24,7 @@ func (k DocumentKind) Valid() bool {
 // RichDocument は tiptap の JSON を正本として保持するリッチテキスト文書。
 // doc は ProseMirror ドキュメント（tiptap の getJSON() 結果）を jsonb でそのまま持つ。
 type RichDocument struct {
-	// ID は推測不能な UUID（Notion 風の URL）。作成時に repository が採番する。
+	// ID は推測不能な UUID。作成時に repository が採番する。
 	ID string `json:"id"`
 	// OwnerID は作成者。users.id への FK（制約は schema.sql の fk_rich_documents_owner が張る）。
 	OwnerID uint64 `json:"ownerId"`

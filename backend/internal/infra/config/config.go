@@ -152,7 +152,6 @@ func Load() (*Config, error) {
 			FromAddress: os.Getenv("MAIL_FROM_ADDRESS"),
 		},
 	}
-	// DATABASE_URL か DB_HOST の少なくとも一方は必須。
 	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
 		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}

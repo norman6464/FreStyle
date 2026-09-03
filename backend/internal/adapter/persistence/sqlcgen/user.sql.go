@@ -122,17 +122,6 @@ type GetUserByCognitoSubRow struct {
 	RoleName    string
 }
 
-// users の読み出し（FRESTYLE-311 正規化完了）。旧カラム users.role / users.cognito_sub は
-// 撤去済み（migrations/0021）のため参照しない。
-// role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。
-// OIDC subject の突き合わせは user_oidc_identities のみで行う。
-//
-// password_hash を読むのは GetActiveUserByEmail だけ
-// （一覧・認証解決の経路で bcrypt ハッシュをアプリメモリに載せない）。
-// OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
-// 正は user_oidc_identities の subject。
-// provider の値が 'cognito' のままなのは歴史的な理由で、いま使っている発行者を
-// 指してはいない（domain.OidcProviderCognito のコメント参照）。
 func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetUserByCognitoSubRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserByCognitoSub, subject)
 	var i GetUserByCognitoSubRow

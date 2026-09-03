@@ -27,7 +27,7 @@ func (r *notificationRepository) Create(ctx context.Context, n *domain.Notificat
 	}
 	createdAt := n.CreatedAt
 	if createdAt.IsZero() {
-		createdAt = time.Now() // GORM autoCreateTime 相当（ゼロのときだけ now）
+		createdAt = time.Now()
 	}
 	row, err := sqlcgen.New(r.db).InsertNotification(ctx, sqlcgen.InsertNotificationParams{
 		UserID:    uid,
@@ -103,18 +103,6 @@ func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64
 }
 
 // MarkRead は id と user_id の両方で絞って 1 件を既読化する。
-// 0 行更新（他人の通知 / 存在しない id）は domain.ErrNotFound を返す。
-//
-// 0 行更新を成功にしてはいけない理由:
-//
-//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと handler は
-//	204 を返し、呼び出し側は既読化できたと判断する。実際には何も書かれていないので、
-//	一覧を読み直すと未読のまま戻る（「押したのに既読にならない」の原因が握り潰される）。
-//
-// 存在オラクルとの関係:
-//
-//	WHERE に user_id が入っているので「他人の通知」も「存在しない id」もどちらも 0 行 =
-//	同じ domain.ErrNotFound になり、handler は同じ 404・同じ本文を返す。
 func (r *notificationRepository) MarkRead(ctx context.Context, userID, id uint64) error {
 	uid, ok := toInt64ID(userID)
 	if !ok {

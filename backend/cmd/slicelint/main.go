@@ -1,10 +1,5 @@
 // Command slicelint は persistence 層の「一覧を返すメソッドが 0 件で nil を返す」書き方を検出する。
 //
-// nil スライスは encoding/json で null になり、handler がそのまま返すとフロントの
-// map / filter / for-of が TypeError で落ちる。データがまだ無い新規ユーザー・新規コース・
-// 未提出演習など、使い始めの動線を直撃する（FRESTYLE-70 で staging 実機で観測、
-// FRESTYLE-77 で 14 メソッドの残存が判明）。
-//
 // この linter は単独では不変条件を守れない。sqlc の emit_empty_slices と二段構えになっている。
 //
 //  1. backend/sqlc.yaml の emit_empty_slices: true … sqlc 生成物（sqlcgen）の :many が

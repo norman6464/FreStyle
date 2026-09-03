@@ -37,11 +37,8 @@ func (p *noteImagePresigner) Generate(ctx context.Context, userID uint64, conten
 		return nil, err
 	}
 	return &domain.NoteImageUploadURL{
-		URL: url,
-		Key: key,
-		// 配信ドメインを含めない（FRESTYLE-234）。画像はアプリと同一オリジンで配信され、
-		// ブラウザが現在のドメインを補って解決するため、この形ならドメインを変えても
-		// 保存済みデータを書き換えずに済む。
+		URL:       url,
+		Key:       key,
 		PublicURL: "/" + key,
 		ExpiresIn: int(ttl.Seconds()),
 	}, nil

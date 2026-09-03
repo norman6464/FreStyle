@@ -6,8 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// allowedOrigins は CORS で許可するオリジン。
-// 旧ドメイン normanblog.com は撤去済み(FRESTYLE-226)。
 var allowedOrigins = map[string]struct{}{
 	"https://frestyle.jp":                                             {},
 	"http://localhost:5173":                                           {},

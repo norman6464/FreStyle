@@ -83,8 +83,6 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 }
 
 type updateProfileReq struct {
-	// Name はフロントの送信キー displayName で受ける (name では常に空になり
-	// users.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。
 	Name      string `json:"displayName"`
 	Bio       string `json:"bio"`
 	AvatarURL string `json:"avatarUrl"`

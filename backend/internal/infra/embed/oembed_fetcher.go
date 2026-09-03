@@ -201,8 +201,6 @@ func extractTitleTag(html string) string {
 	return ""
 }
 
-// ---- in-memory LRU ----
-
 type cacheEntry struct {
 	card    *Card
 	expires time.Time

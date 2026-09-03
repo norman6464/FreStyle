@@ -22,7 +22,6 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps) {
 	// 1 箇所書き忘れただけで穴になるため多層防御を敷く。
 	g := parent.Group("", middleware.RequireAdmin())
 
-	// 従業員管理（自社の従業員一覧・有効/無効・論理削除）。
 	memberRepo := persistence.NewUserRepository(deps.db)
 	memberHandler := NewAdminMemberHandler(
 		usecase.NewListCompanyMembersUseCase(memberRepo),
@@ -37,7 +36,6 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps) {
 	g.PATCH("/admin/members/:userId/active", memberHandler.SetActive)
 	g.DELETE("/admin/members/:userId", memberHandler.Delete)
 
-	// AdminInvitation — SES マジックリンク方式（UUID token 発行 + SES でメール送信）。
 	adminInvRepo := persistence.NewAdminInvitationRepository(deps.db)
 
 	var sender usecase.MagicLinkSender

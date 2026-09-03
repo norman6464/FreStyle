@@ -1,5 +1,3 @@
--- users の読み出し（FRESTYLE-311 正規化完了）。旧カラム users.role / users.cognito_sub は
--- 撤去済み（migrations/0021）のため参照しない。
 -- role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。
 -- OIDC subject の突き合わせは user_oidc_identities のみで行う。
 --

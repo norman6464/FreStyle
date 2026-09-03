@@ -61,7 +61,7 @@ func main() {
 		fatal("database connect failed", err)
 	}
 
-	// スキーマの正本は infra/database/schema/*.sql（起動時に冪等な明示 DDL として流す）。
+	// infra/database/schema/*.sql
 	if err := database.Migrate(context.Background(), sqlDB); err != nil {
 		fatal("migrate failed", err)
 	}
@@ -78,7 +78,6 @@ func main() {
 		fatal("oidc verifier init failed", err)
 	}
 
-	// アプリケーションのクエリは sqlc 生成コード（*sql.DB）で実行する。
 	r := handler.NewRouter(sqlDB, cfg, verifier)
 	addr := ":" + cfg.ServerPort
 	slog.Info("FreStyle Go backend listening", slog.String("addr", addr), slog.String("env", cfg.AppEnv))

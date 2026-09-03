@@ -320,14 +320,6 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		WorkspaceID: workspaceID,
 	}
 
-	// users 行と OIDC identity（正規化後のログイン突き合わせの正）を単一トランザクションで作る。
-	// 旧カラム users.cognito_sub の撤去（FRESTYLE-311 PR3）で「ユーザーと識別子が同一 INSERT で
-	// atomic に書かれる」性質が失われるため、identity 作成を user 作成と不可分にして
-	// 識別子を持たない孤児ユーザー（ログイン不能）が生まれないようにする。
-	//
-	// 招待を経ない bootstrap 経路だけは「super_admin が 0 人」の判定も同じトランザクションに
-	// 入れる。判定と作成が別トランザクションだと、同時に来た 2 本がどちらも「0 人」を見て
-	// どちらも作れてしまい、「最初の 1 人ができた瞬間に閉じる」という不変条件が破れる。
 	if bootstrap {
 		created, createErr := u.users.CreateFirstSuperAdminWithOidcIdentity(
 			ctx, user, domain.OidcProviderCognito, sub,

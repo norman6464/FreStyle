@@ -98,11 +98,11 @@ func insertCourseWith(ctx context.Context, q *sqlcgen.Queries, c *domain.Course)
 	now := time.Now()
 	createdAt := c.CreatedAt
 	if createdAt.IsZero() {
-		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+		createdAt = now
 	}
 	updatedAt := c.UpdatedAt
 	if updatedAt.IsZero() {
-		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+		updatedAt = now
 	}
 	row, err := q.InsertCourse(ctx, sqlcgen.InsertCourseParams{
 		WorkspaceID:     wid,
@@ -163,16 +163,7 @@ func (r *courseRepository) CreateWithOwnerGrant(ctx context.Context, c *domain.C
 
 // Update はコースの 4 列を書き換える。対象行が無ければ domain.ErrNotFound を返す。
 //
-// 0 行更新を成功にしてはいけない理由:
-//
-//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと usecase は
-//	「更新できた」と判断し、handler は 200 + 更新後のつもりの JSON を返す。利用者の画面には
-//	保存済みと表示されるのに DB には何も書かれていない、という取り違えが起きる。
-//	行が無いことは「保存できた」ではなく「対象が無い」なので 404 として伝える。
-//
-// UpdateCourse は :one（RETURNING updated_at）なので、0 行更新は sql.ErrNoRows として返る。
-// 呼び出し側（CourseUseCase.Update）は GetByID で存在と権限を先に確かめているため、
-// 実際にここへ落ちるのは「確認と更新のあいだにコースが消えた」競合のときだけ。
+
 func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
 	id64, ok := toInt64ID(c.ID)
 	if !ok {
@@ -192,20 +183,13 @@ func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
 	if err != nil {
 		return err
 	}
-	c.UpdatedAt = updatedAt // GORM Save 相当の書き戻し
+	c.UpdatedAt = updatedAt
 	return nil
 }
 
 // Delete はコースを物理削除する。対象行が無ければ domain.ErrNotFound を返す。
 //
-// DELETE でも 0 行を成功にしない理由:
-//
-//	「消えている」という事後条件だけを見れば 0 行削除も満たしている。それでもここで
-//	not-found を返すのは、コース削除が CourseUseCase.Delete の中で
-//	「配下教材の削除 → コース本体の削除」という 2 手に分かれているため。
-//	本体が 1 行も消えなかったのに成功を返すと、教材だけ消してコースが残る状態
-//	（= 空のコースが一覧に残る）を、呼び出し側が検知できないまま 204 で返してしまう。
-//	usecase は GetByID で存在を先に確かめているので、ここに落ちるのは競合のときだけ。
+
 func (r *courseRepository) Delete(ctx context.Context, id uint64) error {
 	id64, ok := toInt64ID(id)
 	if !ok {

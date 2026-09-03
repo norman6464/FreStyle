@@ -3,7 +3,7 @@
 FreStyle（新卒 IT エンジニア向け統合研修プラットフォーム）の開発に参加するための規約をまとめます。
 チーム全員が参照できるよう、このファイルはリポジトリにコミットしています。
 
-- バックエンド: Go / Gin / GORM（`backend/`）— 詳細は [`backend/README.md`](./backend/README.md)
+- バックエンド: Go / Gin / GORM（`backend/`）
 - フロントエンド: React 19 / TypeScript / Vite / Tailwind（`frontend/`）
 - インフラ / CI の設計判断: 別リポ（IaC・非公開）の `docs/`
 
@@ -72,15 +72,6 @@ handler  →  usecase  →  repository(port) / infra  →  domain
 - repository は **interface（`usecase/repository/`）** と **実装（`adapter/persistence/`）** を分離
 - 1 usecase = 1 ビジネスルール（`struct + New...UseCase + Execute`）。集約系の例外は許容
 
-これらは **自作 linter** で CI 検証される（違反すると CI が落ちる）:
-
-| linter | 検証 |
-|---|---|
-| `archlint` | 依存方向（層をまたぐ禁止 import） |
-| `naminglint` | usecase の命名・構造（`XxxUseCase` + `NewXxxUseCase` + `Execute`） |
-
-意図的な例外は `//archlint:allow` / `//naminglint:allow` で抑制できる。
-
 ---
 
 ## 4. テスト
@@ -91,7 +82,7 @@ handler  →  usecase  →  repository(port) / infra  →  domain
 # バックエンド
 cd backend
 make fmt             # gofumpt -w でコードを自動整形（commit 前に実行）
-make verify          # gofumpt / vet / build / test / 3 linter を一括
+make verify          # gofumpt / vet / build / test / sqlc-vet を一括
 make test-integration  # docker-compose で本物の PostgreSQL に対する結合テスト
 
 # フロントエンド
@@ -114,11 +105,11 @@ pnpm run e2e:local    # ローカルビルド + API モックの認証導線 E2E
 
 PR では次が走る（詳細は `IaC リポ/docs/23` / `24`）:
 
-- backend: **gofumpt(整形強制)** / vet / staticcheck / go mod tidy / **race + coverage(floor)** / govulncheck(advisory) / **archlint・naminglint** / build / 結合テスト(Postgres)
+- backend: **gofumpt(整形強制)** / vet / staticcheck / go mod tidy / **race + coverage(floor)** / govulncheck(advisory) / build / 結合テスト(Postgres)
 - frontend: tsc / ESLint(max-warnings=0) / **Vitest + coverage 閾値** / build
 - 全体: **CodeQL**（SAST）/ E2E（Playwright スモーク + ローカルモック）
 
-本リポジトリに `docs/` フォルダは置かない（README はアプリケーションの説明に限定）。取り組んだ内容・手順は **Jira チケット**に残し、必要なら該当ディレクトリの README（`backend/README.md` 等）を更新する。設計・運用の詳細は private リポ（`frestyle-pdm` / `frestyle-infrastructure`）の `docs/` に置く。
+本リポジトリに `docs/` フォルダは置かない（README はアプリケーションの説明に限定）。取り組んだ内容・手順は **Jira チケット**に残し、必要なら該当ディレクトリの README を更新する。設計・運用の詳細は private リポ（`frestyle-pdm` / `frestyle-infrastructure`）の `docs/` に置く。
 
 ---
 

@@ -14,8 +14,6 @@ import (
 //
 // **可否は対象ごとの付与だけが決める。** アプリのロール（company_admin など）は見ない。
 // 判定は CheckMaterialPermissionUseCase を通し、規則は domain が持つ。
-//
-//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく Get/Create 等で公開する
 type TeachingMaterialUseCase struct {
 	repo    repository.TeachingMaterialRepository
 	courses repository.CourseRepository

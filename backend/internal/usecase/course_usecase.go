@@ -14,8 +14,6 @@ import (
 // **可否は対象ごとの付与だけが決める。** アプリのロール（company_admin など）は見ない。
 // Delete は配下教材も cascade 削除。一覧は進捗集計を伴うため
 // ListCoursesWithProgressUseCase が担う。
-//
-//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく Get/Create 等で公開する
 type CourseUseCase struct {
 	courses    repository.CourseRepository
 	materials  repository.TeachingMaterialRepository

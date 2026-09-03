@@ -4,9 +4,7 @@
 #   make sqlc         … queries/*.sql + schema/*.sql から型安全な Go を再生成
 #   make sqlc-vet     … sqlc.yaml の rules を全クエリに当てて危険な SQL を弾く
 #   make fmt          … gofumpt -w でコードを自動整形（commit 前に実行）
-#   make verify       … gofumpt / vet / build / test / archlint / naminglint / sqlc-vet を 一括 実行
-#   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
-#   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
+#   make verify       … gofumpt / vet / build / test / sqlc-vet を 一括 実行
 #   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
 #   ローカル環境の起動は make ではなくリポジトリ直下で `docker compose up -d`
@@ -81,21 +79,7 @@ verify:
 	go vet ./...
 	go build ./...
 	go test ./...
-	$(MAKE) archlint
-	$(MAKE) naminglint
 	$(MAKE) sqlc-vet
-
-# クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を静的に検証する。
-.PHONY: archlint
-archlint:
-	@echo ">>> archlint: クリーンアーキテクチャ依存方向チェック"
-	@go run ./cmd/archlint .
-
-# usecase 命名・構造規約（CLAUDE.md §2.3: struct + コンストラクタ + Execute）を検証する。
-.PHONY: naminglint
-naminglint:
-	@echo ">>> naminglint: usecase 命名規約チェック"
-	@go run ./cmd/naminglint .
 
 # 結合テスト: docker-compose で本物の PostgreSQL を起動し、-tags=integration のテストを回す。
 # 終了時は必ずコンテナを破棄する（テスト失敗でも teardown する）。

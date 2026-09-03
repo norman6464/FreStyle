@@ -5964,7 +5964,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "language": {
-                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
                     "type": "string"
                 },
                 "sortOrder": {
@@ -5977,7 +5976,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -6153,7 +6151,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "publicUrl": {
-                    "description": "PublicURL はアップロード後に img / Markdown から参照する表示用パス。\n配信ドメインは含めない（FRESTYLE-234。ドメイン変更で保存済みデータが壊れないように）。",
                     "type": "string"
                 },
                 "url": {
@@ -6297,7 +6294,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "teachingMaterialId": {
-                    "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                     "type": "integer"
                 },
                 "userId": {
@@ -6321,7 +6317,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "lessonCount": {
-                    "description": "LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。\nJSON キーは互換のため lessonCount のまま。",
                     "type": "integer"
                 },
                 "noteCount": {
@@ -6348,7 +6343,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "teachingMaterialId": {
-                    "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                     "type": "integer"
                 },
                 "userId": {
@@ -6439,18 +6433,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "canEdit": {
-                    "description": "CanEdit は書き換えられるか。一覧から編集の入口を出すかの判定に使う。\n\n画面がアプリのロールで判断しないよう、可否はここでサーバーが答える\n（ロールで出すと「ボタンは出るのに保存が弾かれる」状態になる）。",
                     "type": "boolean"
                 },
                 "canManage": {
-                    "description": "CanManage は権限そのものを変えられるか。",
                     "type": "boolean"
                 },
                 "category": {
                     "type": "string"
                 },
                 "completedCount": {
-                    "description": "CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。",
                     "type": "integer"
                 },
                 "createdAt": {
@@ -6469,11 +6460,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "language": {
-                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
                     "type": "string"
                 },
                 "materialCount": {
-                    "description": "MaterialCount はコース内の章数。下書きを数に含めるのは、そのコースを編集できる場合だけ。",
                     "type": "integer"
                 },
                 "sortOrder": {
@@ -6486,7 +6475,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -6753,7 +6741,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "language": {
-                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
                     "type": "string"
                 },
                 "sortOrder": {
@@ -6766,7 +6753,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspaceId": {
-                    "description": "WorkspaceID は所属ワークスペースへの参照。移行期に足した列のため\n通常は必ず埋まっているが、User と同じ理由で NULL を許容する型にする。",
                     "type": "string"
                 }
             }
@@ -7891,7 +7877,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "displayName": {
-                    "description": "Name はフロントの送信キー displayName で受ける (name では常に空になり\nusers.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。",
                     "type": "string"
                 },
                 "iconUrl": {

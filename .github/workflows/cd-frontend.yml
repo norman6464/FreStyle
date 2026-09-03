@@ -86,9 +86,9 @@ jobs:
       - uses: actions/checkout@v6
 
       # 認可の設定と宣言（auth_mode）が噛み合っているかを確かめる。
-      # 分岐の中身は .github/scripts/check-auth-config.sh にあり、4 通りの
-      # 組み合わせを ci-frontend.yml が毎回試している（ここに直接書くと、
-      # 書いた時に 1 度手で試して終わりになる）。
+      # 分岐の中身は .github/scripts/check-auth-config.sh にあり、正例・負例
+      # 7 通りを ci-frontend.yml が毎回試している（ここに直接書くと、書いた時に
+      # 1 度手で試して終わりになる）。
       #
       # tag push は inputs を持てないので auth_mode は既定の configured になる。
       # つまりタグで出すときは必ず設定が要る（黙って停止版が出ることはない）。
@@ -199,6 +199,9 @@ jobs:
 
       # 無効化は打っただけでは終わっていない。完了を待たずに次へ進むと、
       # 直後の確認がエッジの古い応答を見て「通った」ことになる。
+      #
+      # この待ちには cloudfront:GetInvalidation が要る（CreateInvalidation だけでは
+      # 足りない）。デプロイロールの権限は private リポの Terraform 側が持つ。
       - name: 無効化の完了を待つ
         run: |
           aws cloudfront wait invalidation-completed \

@@ -6,6 +6,7 @@
       "Read",
       "Grep",
       "Glob",
+      "Bash(cd:*)",
       "Bash(go build:*)",
       "Bash(go test:*)",
       "Bash(go vet:*)",

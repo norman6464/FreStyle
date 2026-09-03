@@ -81,11 +81,8 @@ app > pages > widgets > features > entities > shared
 
 ---
 
-## 8. Claude Code への指示
-- 新しいユースケースは**必ず usecase struct を新規作成
+## Claude Code への指示
 - 新しい画面は **`src/shared/ui/` の再利用コンポーネント**を最大限活用
-- ビジネスロジックを handler に書かない
-- PR を作ったら CodeRabbit レビューを待つ。自動マージしない。ただしセッション内で一度でもレートリミットに達したら、以降はセルフレビューの上でマージまで進めて良い（§4.2 特例条件に従う）
 - `main` へ直接コミット・push しない
 - `xxxRequest` / `xxxResponse` は handler のファイル内で local 定義。機密フィールドは domain 側の `json:"-"` で隠す
 - **チケット・docs には実在確認した事実のみを書く**（ファイルの存在・コードの挙動・PR のマージ状態を検証してから書く。検証できないことは書かない）

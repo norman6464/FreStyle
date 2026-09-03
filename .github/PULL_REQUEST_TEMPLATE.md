@@ -27,7 +27,6 @@ PR タイトル・本文は日本語で。タイトルは Prefix を付ける（
 
 - [ ] タイトルに Prefix（`feat` / `fix` / `refactor` / `docs` / `test` / `chore` 等）を付けた
 - [ ] 新規・変更コードに単体テストを追加した（backend: `go test` / frontend: Vitest）
-- [ ] backend を変更した場合 `make verify`（gofmt / vet / build / test / 3 linter）が通る
-- [ ] handler / swaggo 注釈を変えた場合 `make openapi` を実行し `docs/` を commit した
+- [ ] backend を変更した場合 `make verify`（gofmt / vet / build / test / 2 linter）が通る
 - [ ] 仕様・手順を変えた場合は `docs/`（または該当 README）を更新した
 - [ ] `main` への直接コミットではなく、PR 経由である

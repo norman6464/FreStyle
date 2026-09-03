@@ -55,17 +55,6 @@ func NewAuthHandler(
 
 // Me は現在ログイン中のユーザー情報（+ 派生 isAdmin / roles）を返す。
 // isAdmin は発行者の役割に管理者が含まれるか、DB role が super_admin / company_admin なら true。
-//
-//	@Summary      current user 情報 取得
-//	@Description  Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin 等) を 返す。
-//	@Tags         auth
-//	@Produce      json
-//	@Success      200  {object}  meResponse
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      404  {object}  errorResponse  "DB に user が ない (発行者 側 だけ 存在)"
-//	@Failure      500  {object}  errorResponse  "DB / repository 取得 失敗"
-//	@Router       /auth/me [get]
-//	@Security     CookieAuth
 func (h *AuthHandler) Me(c *gin.Context) {
 	sub, ok := c.Get(middleware.ContextKeySubject)
 	if !ok {
@@ -123,13 +112,6 @@ type logoutResponse struct {
 // Cookie を消すだけでは、発行者の側にはログイン済みのセッションが残る。同じ端末で
 // もう一度ログインを始めると、ログイン画面すら出ずにそのまま入り直せてしまう。
 // 共用端末では、前の人のアカウントに次の人が入れることになる。
-//
-//	@Summary      ログアウト
-//	@Description  HttpOnly Cookie の access / refresh token を 消去 し、 発行者 側 の セッション 終了 URL を 返す。
-//	@Tags         auth
-//	@Produce      json
-//	@Success      200  {object}  logoutResponse
-//	@Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	middleware.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, logoutResponse{
@@ -151,23 +133,6 @@ type callbackReq struct {
 
 // Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
 // 招待が無くても新規ユーザーを自己サインアップとして作成する（招待は役割・所属先の指定としてだけ働く）。
-//
-//	@Summary      ログイン (認可 コード → token 交換)
-//	@Description  発行者 の ログイン 画面 から の callback。 authorization code を PKCE の code_verifier つき で access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 id_token は 署名 と nonce を 検証 する。
-//	@Tags         auth
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      callbackReq  true  "code / codeVerifier / nonce (invitationToken は任意)"
-//	@Success      200   {object}  messageResponse
-//	@Failure      400   {object}  errorResponse  "code 欠落 等"
-//	@Failure      401   {object}  errorResponse  "token 交換 失敗 / id_token 検証 失敗"
-//	@Failure      403   {object}  errorResponse  "最初の運営管理者作成の競合負け"
-//	@Failure      409   {object}  errorResponse  "同じ email での同時サインアップ競合"
-//	@Failure      500   {object}  errorResponse  "発行者 未 設定 等 の 内部 エラー"
-//	@Failure      502   {object}  errorResponse  "発行者 到達 不可"
-//	@Failure      429   {object}  errorResponse  "レート制限超過"
-//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
-//	@Router       /auth/login [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
 	var req callbackReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -231,17 +196,6 @@ func (h *AuthHandler) respondUpsertOutcome(c *gin.Context, logPrefix string, tok
 }
 
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
-//
-//	@Summary      アクセス トークン リフレッシュ
-//	@Description  refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 発行者 が refresh_token を 回転 させた 場合 は 新しい 値 で Cookie も 更新 する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
-//	@Tags         auth
-//	@Produce      json
-//	@Success      200  {object}  messageResponse
-//	@Failure      401  {object}  errorResponse  "refresh_token 欠落 / 無効"
-//	@Failure      502  {object}  errorResponse  "発行者 到達 不可"
-//	@Failure      429   {object}  errorResponse  "レート制限超過"
-//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
-//	@Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	rt, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || rt == "" {

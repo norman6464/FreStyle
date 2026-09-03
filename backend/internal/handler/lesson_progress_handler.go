@@ -31,16 +31,6 @@ type markLessonCompleteRequest struct {
 }
 
 // List は current user の完了済みレッスン一覧を返す。
-//
-//	@Summary      自分の学習進捗（完了レッスン一覧）
-//	@Description  current user が完了した教材（レッスン）の一覧を返す。進捗バー / 完了チェック表示用。userId は受け取らない（current user 固定）。
-//	@Tags         lesson-progress
-//	@Produce      json
-//	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /lesson-progress [get]
-//	@Security     CookieAuth
 func (h *LessonProgressHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -56,21 +46,6 @@ func (h *LessonProgressHandler) List(c *gin.Context) {
 }
 
 // Complete は教材を完了として記録する（冪等）。
-//
-//	@Summary      レッスンを完了にする
-//	@Description  current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。自社かつ閲覧可能な教材のみ完了にできる。
-//	@Tags         lesson-progress
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      markLessonCompleteRequest  true  "完了する教材 ID"
-//	@Success      204   "成功（本文なし）"
-//	@Failure      400   {object}  errorResponse  "不正な body"
-//	@Failure      401   {object}  errorResponse  "未認証"
-//	@Failure      403   {object}  errorResponse  "他社 / 閲覧不可な教材"
-//	@Failure      404   {object}  errorResponse  "教材が存在しない"
-//	@Failure      500   {object}  errorResponse  "DB 失敗"
-//	@Router       /lesson-progress [post]
-//	@Security     CookieAuth
 func (h *LessonProgressHandler) Complete(c *gin.Context) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
@@ -103,18 +78,6 @@ func (h *LessonProgressHandler) Complete(c *gin.Context) {
 }
 
 // Incomplete は完了記録を取り消す。
-//
-//	@Summary      レッスンの完了を取り消す
-//	@Description  current user の当該教材の完了記録を取り消す（未記録でも 204）。
-//	@Tags         lesson-progress
-//	@Produce      json
-//	@Param        teachingMaterialId  path  int  true  "教材 ID"
-//	@Success      204   "成功（本文なし）"
-//	@Failure      400   {object}  errorResponse  "不正な ID"
-//	@Failure      401   {object}  errorResponse  "未認証"
-//	@Failure      500   {object}  errorResponse  "DB 失敗"
-//	@Router       /lesson-progress/{teachingMaterialId} [delete]
-//	@Security     CookieAuth
 func (h *LessonProgressHandler) Incomplete(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

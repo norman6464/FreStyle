@@ -96,16 +96,6 @@ func toKbSpaceResponse(s *domain.Space) kbSpaceResponse {
 }
 
 // List は自分が所属するワークスペースの一覧を返す。
-//
-//	@Summary      ノート の 所属 ワークスペース 一覧
-//	@Description  ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ノート API が URL に 使う slug を 知る ため の 入口。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Success      200  {array}   kbWorkspaceResponse
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -144,22 +134,6 @@ type kbCreateWorkspaceRequest struct {
 }
 
 // Create はワークスペースを作り、作成者をその admin にする。
-//
-//	@Summary      ノート の ワークスペース 作成
-//	@Description  ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      kbCreateWorkspaceRequest  true  "作成 内容 (name 必須。 slug は 空 なら 自動 採番)"
-//	@Success      201   {object}  kbWorkspaceResponse
-//	@Failure      400   {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401   {object}  errorResponse  "未 認証"
-//	@Failure      409   {object}  errorResponse  "slug が 使用 済み"
-//	@Failure      429   {object}  errorResponse  "レート制限超過"
-//	@Header       429   {string}  Retry-After    "再試行までの秒数 (例: 60)"
-//	@Failure      500   {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -208,18 +182,6 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 //
 // サイドバーはスペースごとに木を取るので、この一覧はスペースだけでよい。ページまで
 // 抱き合わせると、開いていないスペースの中身まで毎回引くことになる。
-//
-//	@Summary      ノート の スペース 一覧
-//	@Description  ワークスペース 配下 の スペース の うち、 呼び出し 元 が 中身 を 閲覧 できる もの だけ を key 順 で 返す。 閲覧 権限 の 無い スペース は 1 件 も 含ま ない (key や name その もの が 情報 に なる ため)。 1 件 も 見え なく て も 空 配列 を 返し、 スペース の 実在 は 撃ち分け ない。 ページ は 含ま ない (木 は スペース ごと に GET /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages で 取る)。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
-//	@Success      200            {array}   kbSpaceResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -262,19 +224,6 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 //
 // 配下のスペース・ページ・本文・所属・権限・共有リンクがすべて消える（FK の CASCADE）。
 // ユーザー（users）は消えない — ノートの片付けで人を消さない。
-//
-//	@Summary      ノート の ワークスペース 削除
-//	@Description  ワークスペース を 配下 ごと 消す。 その ワークスペース の admin だけ が 消せる。 配下 の スペース / ページ / 本文 / 所属 / 権限 / 共有 リンク が すべて 消える (元 に 戻せ ない)。 **会社 に 紐づく ワークスペース は 誰 に も 消せ ない** (会社 全員 の ノート が 入る うえ、 消し て も 起動 時 の バックフィル が 作り直す ため)。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Success      204            "削除 成功 (本文 なし)"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "ワークスペース の admin で は ない、 または 会社 の ワークスペース"
-//	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug} [delete]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) Delete(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -312,23 +261,6 @@ type kbCreateSpaceRequest struct {
 }
 
 // CreateSpace はワークスペース配下にスペースを作る（ワークスペースの admin が要る）。
-//
-//	@Summary      ノート の スペース 作成
-//	@Description  ワークスペース 配下 に スペース を 作る。 チーム スペース (visibility=workspace、 省略 時) は ワークスペース 全体 で admin の 者 だけ が 作れる。 プライベート (visibility=private) は メンバー なら 誰 でも 作れ、 作成 者 だけ に 見える (ワークスペース 既定 の grant が 届か ず、 作成 時 に 作成 者 へ space_grant(admin) を 張る)。 プライベート で は key を 指定 でき ない (必ず 自動 採番。 key の 衝突 応答 から 他人 の プライベート スペース の 実在 が 読め ない よう に する ため)。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は 省略 でき、 空 なら サーバー が 自動 採番 する。 指定 する 場合 は ワークスペース 内 で 一意。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string                true  "ワークスペース の slug"
-//	@Param        body           body      kbCreateSpaceRequest  true  "作成 内容 (name 必須。 key は 空 なら 自動 採番)"
-//	@Success      201            {object}  kbSpaceResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "ワークスペース の admin で は ない"
-//	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
-//	@Failure      409            {object}  errorResponse  "key が 使用 済み"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -389,23 +321,6 @@ type kbRenameSpaceRequest struct {
 }
 
 // RenameSpace はスペースの表示名を変える（key は変えない）。
-//
-//	@Summary      ノート の スペース 改名
-//	@Description  表示名 だけ を 変更 する。 key は URL・権限 の 参照 に 使う ため 不変。 スペース の 管理 権限 が 要る。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string                true  "ワークスペース の slug"
-//	@Param        spaceId        path      string                true  "スペース ID (UUID)"
-//	@Param        body           body      kbRenameSpaceRequest  true  "新しい 表示名"
-//	@Success      200            {object}  kbSpaceResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces/{spaceId} [patch]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -450,20 +365,6 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 }
 
 // SearchPages はワークスペース全体を題名で検索する（閲覧できるページだけが返る）。
-//
-//	@Summary      ノート の ページ 題名 検索
-//	@Description  ワークスペース 全体 から 題名 の 部分 一致 で 検索 する。 返る の は 閲覧 できる 現役 ページ のみ。 並び は 題名 順。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path      string  true   "ワークスペース の slug"
-//	@Param        q              query     string  true   "題名 の 部分 一致 (1〜100 文字)"
-//	@Param        limit          query     int     false  "最大 件数 (既定 20 / 上限 50)"
-//	@Success      200            {array}   kbPageResponse
-//	@Failure      400            {object}  errorResponse  "q が 空 か 長 すぎる"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/search [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

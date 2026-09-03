@@ -1,22 +1,3 @@
-// FreStyle backend (Go / Gin / sqlc).
-//
-// @title           FreStyle Backend API
-// @version         2.0
-// @description     新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。
-// @description     Clean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。
-// @termsOfService  https://frestyle.jp/terms
-//
-// @contact.name    FreStyle Engineering
-// @contact.url     https://frestyle.jp
-//
-// @BasePath        /api/v2
-//
-// host / schemes は spec に焼き込まない（ローカルの「Try it out」が本番を叩かないようにするため）。
-//
-// @securityDefinitions.apikey  CookieAuth
-// @in                          header
-// @name                        Cookie
-// @description                 Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。
 package main
 
 import (
@@ -25,7 +6,6 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/norman6464/FreStyle/backend/docs" // swag init で生成される OpenAPI spec
 	"github.com/norman6464/FreStyle/backend/internal/handler"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"

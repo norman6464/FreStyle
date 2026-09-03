@@ -157,23 +157,6 @@ func (h *KnowledgeBaseGrantHandler) requireNotLastWorkspaceAdmin(
 }
 
 // GrantWorkspaceRole はワークスペース全体での既定の役割を主体に与える。
-//
-//	@Summary      ノート の ワークスペース 権限 付与
-//	@Description  ワークスペース 全体 で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 全 スペース に 効く。 呼べる の は ワークスペース の admin だけ。 権限 が 無い 場合 と 対象 (ワークスペース / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。 admin を 外す 向き の 変更 で、 ユーザー の admin が 1 人 も 残ら なく なる とき は 409。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string              true  "ワークスペース の slug"
-//	@Param        principalId    path      string              true  "主体 ID (UUID)"
-//	@Param        body           body      kbGrantRoleRequest  true  "役割 (admin / editor / commenter / viewer)"
-//	@Success      200            {object}  kbWorkspaceGrantResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      409            {object}  errorResponse  "最後 の admin を 外す 操作"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/grants/{principalId} [put]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) GrantWorkspaceRole(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -212,20 +195,6 @@ func (h *KnowledgeBaseGrantHandler) GrantWorkspaceRole(c *gin.Context) {
 }
 
 // RevokeWorkspaceRole はワークスペース全体での既定の役割を剥がす（冪等）。
-//
-//	@Summary      ノート の ワークスペース 権限 取り消し
-//	@Description  ワークスペース 全体 で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は ワークスペース の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。 ユーザー の admin が 1 人 も 残ら なく なる とき は 409 で 断る (誰 も 権限 を 変え られ ない ワークスペース は API から 復旧 でき ない ため)。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        principalId    path  string  true  "主体 ID (UUID)"
-//	@Success      204            "取り消し 済み"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      409            {object}  errorResponse  "最後 の admin を 外す 操作"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/grants/{principalId} [delete]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) RevokeWorkspaceRole(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -252,23 +221,6 @@ func (h *KnowledgeBaseGrantHandler) RevokeWorkspaceRole(c *gin.Context) {
 }
 
 // GrantSpaceRole はスペースでの既定の役割を主体に与える。
-//
-//	@Summary      ノート の スペース 権限 付与
-//	@Description  スペース で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ。 スペース 単位 の grant で ワークスペース の admin が 降格 する こと は ない (最も 強い 役割 を 採る)。 権限 が 無い 場合 と 対象 (スペース / 主体) が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string              true  "ワークスペース の slug"
-//	@Param        spaceId        path      string              true  "スペース ID (UUID)"
-//	@Param        principalId    path      string              true  "主体 ID (UUID)"
-//	@Param        body           body      kbGrantRoleRequest  true  "役割 (admin / editor / commenter / viewer)"
-//	@Success      200            {object}  kbSpaceGrantResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId} [put]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) GrantSpaceRole(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -301,20 +253,6 @@ func (h *KnowledgeBaseGrantHandler) GrantSpaceRole(c *gin.Context) {
 }
 
 // RevokeSpaceRole はスペースでの既定の役割を剥がす（冪等）。
-//
-//	@Summary      ノート の スペース 権限 取り消し
-//	@Description  スペース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        spaceId        path  string  true  "スペース ID (UUID)"
-//	@Param        principalId    path  string  true  "主体 ID (UUID)"
-//	@Success      204            "取り消し 済み"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/grants/{principalId} [delete]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) RevokeSpaceRole(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -336,23 +274,6 @@ func (h *KnowledgeBaseGrantHandler) RevokeSpaceRole(c *gin.Context) {
 }
 
 // GrantPageRole はページでの既定の役割を主体に与える。
-//
-//	@Summary      ノート の ページ 権限 付与
-//	@Description  ページ で の 既定 の 役割 を 主体 に 与える (同じ 主体 に は 1 行 だけ)。 既定 の 3 段目 で、 この ページ と その 子孫 に 効く。 合成 は 上 の 2 段 と 同じ で、 複数 の 経路 から 届い た 役割 の うち 最も 強い もの が 実効 に なる ため、 **ここ で 誰か を 弱める こと は でき ない** (上位 で editor を 得 て いる 相手 に viewer を 張っ て も editor の まま)。 弱める 手段 は どの 層 に も 無い ので、 狭め たい 内容 は private の スペース へ 置く。 呼べる の は その ページ の admin (スペース / ワークスペース から 届い て いる 場合 を 含む) だけ。 権限 が 無い 場合 と 対象 (ページ / 主体) が 存在 し ない 場合 は、 実在 を 漏らさ ない よう 同じ 404 を 返す。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string              true  "ワークスペース の slug"
-//	@Param        pageId         path      string              true  "ページ ID (UUID)"
-//	@Param        principalId    path      string              true  "主体 ID (UUID)"
-//	@Param        body           body      kbGrantRoleRequest  true  "役割 (admin / editor / commenter / viewer)"
-//	@Success      200            {object}  kbPageGrantResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId} [put]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) GrantPageRole(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -385,20 +306,6 @@ func (h *KnowledgeBaseGrantHandler) GrantPageRole(c *gin.Context) {
 }
 
 // RevokePageRole はページでの既定の役割を剥がす（冪等）。
-//
-//	@Summary      ノート の ページ 権限 取り消し
-//	@Description  ページ で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 ワークスペース / スペース / 祖先 の ページ から 届い て いる 役割 は そのまま 残る (「この ページ だけ 見せ ない」 は 書け ない — 狭め たい 内容 は private の スペース へ 置く)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        pageId         path  string  true  "ページ ID (UUID)"
-//	@Param        principalId    path  string  true  "主体 ID (UUID)"
-//	@Success      204            "取り消し 済み"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants/{principalId} [delete]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) RevokePageRole(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -420,19 +327,6 @@ func (h *KnowledgeBaseGrantHandler) RevokePageRole(c *gin.Context) {
 }
 
 // ListPageGrants はそのページ自身に張られた既定の役割の一覧を返す。
-//
-//	@Summary      ノート の ページ 権限 一覧
-//	@Description  その ページ 自身 に 張ら れ た 既定 の 役割 を 返す (祖先 から 降り て くる 分 は 含ま ない)。 **「この ページ を 見 られる 人 の 一覧」 で は ない** — ワークスペース / スペース の grant で 届い て いる 相手 も、 祖先 の ページ に 張ら れ た grant で 届い て いる 相手 も 含ま れ ない。 空 で 返っ て き て も 「誰 も 見 られ ない」 で は なく 「この 段 で は 何 も 足し て い ない」 の 意味。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        pageId         path  string  true  "ページ ID (UUID)"
-//	@Success      200            {array}   kbPageGrantResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/grants [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) ListPageGrants(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -466,19 +360,6 @@ type kbGrantablePrincipalResponse struct {
 }
 
 // ListGrantablePrincipals はそのページに権限を張れる相手を表示名つきで返す。
-//
-//	@Summary      ノート の 権限 を 張れる 相手 の 一覧
-//	@Description  その ページ に 権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 リンク の 来訪者 を 表す 主体 (share_link) は 含ま ない — あれ は リンク の 発行 時 に 自動 で 作ら れる もの で、 人 が 選ん で 役割 を 与える 相手 で は ない。 名前 が 引け なかっ た 行 も 空文字 の まま 返す (一覧 から 黙っ て 消す と、 その 相手 に 張っ た 権限 が 画面 に 残っ た まま 選べ なく なる)。 呼べる の は その ページ の admin だけ で、 権限 が 無い 場合 と 対象 が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        pageId         path  string  true  "ページ ID (UUID)"
-//	@Success      200            {array}   kbGrantablePrincipalResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/principals [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseGrantHandler) ListGrantablePrincipals(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

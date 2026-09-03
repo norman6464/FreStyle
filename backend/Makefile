@@ -1,13 +1,11 @@
 # FreStyle backend - 開発 / 検証 用 Makefile
 #
 # 主要 target:
-#   make openapi      … swag init で OpenAPI spec を 再 生成 (docs/swagger.{json,yaml})
 #   make sqlc         … queries/*.sql + schema/*.sql から型安全な Go を再生成
 #   make sqlc-vet     … sqlc.yaml の rules を全クエリに当てて危険な SQL を弾く
 #   make fmt          … gofumpt -w でコードを自動整形（commit 前に実行）
-#   make verify       … gofumpt / vet / build / test / archlint / apispec-lint / naminglint / sqlc-vet を 一括 実行
+#   make verify       … gofumpt / vet / build / test / archlint / naminglint / sqlc-vet を 一括 実行
 #   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
-#   make apispec-lint … Gin ルート ↔ swaggo @Router 注釈 の 整合 (CLAUDE.md §2.7) を 検証
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
 #   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
@@ -18,19 +16,12 @@
 #   make local-slow   … pg_stat_statements から遅いクエリ上位 20 件を表示
 #   make local-reset  … ローカル DB を volume ごと破棄してまっさらにする
 #
-# swag CLI が PATH に なければ `go install github.com/swaggo/swag/cmd/swag@v1.16.4` を 自動 実行 する。
-# バージョン を 固定 する のは spec 差分 が CLI バージョン で 変わる の を 防ぐ ため。
-
-SWAG_VERSION := v1.16.4
-
 # go install は GOBIN > GOPATH/bin の 優先 順位 で 配置 する。
 # どちら で も 拾える よう に GOBIN が セット されて いれば そちら を 優先 する。
 GO_INSTALL_DIR := $(shell go env GOBIN)
 ifeq ($(GO_INSTALL_DIR),)
 GO_INSTALL_DIR := $(shell go env GOPATH)/bin
 endif
-SWAG := $(GO_INSTALL_DIR)/swag
-
 SQLC_VERSION := v1.31.1
 SQLC := $(GO_INSTALL_DIR)/sqlc
 
@@ -57,15 +48,6 @@ sqlc-vet:
 	fi
 	@echo ">>> sqlc vet"
 	@$(SQLC) vet
-
-.PHONY: openapi
-openapi:
-	@if [ ! -x "$(SWAG)" ]; then \
-	  echo ">>> installing swag CLI ($(SWAG_VERSION))..."; \
-	  go install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION); \
-	fi
-	@echo ">>> regenerating OpenAPI spec at docs/"
-	@$(SWAG) init --generalInfo cmd/server/main.go --output docs --parseDependency --parseInternal
 
 GOFUMPT_VERSION := v0.10.0
 GOFUMPT := $(GO_INSTALL_DIR)/gofumpt
@@ -100,7 +82,6 @@ verify:
 	go build ./...
 	go test ./...
 	$(MAKE) archlint
-	$(MAKE) apispec-lint
 	$(MAKE) naminglint
 	$(MAKE) sqlc-vet
 
@@ -109,12 +90,6 @@ verify:
 archlint:
 	@echo ">>> archlint: クリーンアーキテクチャ依存方向チェック"
 	@go run ./cmd/archlint .
-
-# Gin ルート ↔ swaggo @Router 注釈の整合（CLAUDE.md §2.7）を検証する。
-.PHONY: apispec-lint
-apispec-lint:
-	@echo ">>> apispec-lint: ルート ↔ swaggo 注釈チェック"
-	@go run ./cmd/apispec-lint .
 
 # usecase 命名・構造規約（CLAUDE.md §2.3: struct + コンストラクタ + Execute）を検証する。
 .PHONY: naminglint

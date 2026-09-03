@@ -20,7 +20,7 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH}
 RUN go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
 # --- Runtime stage ---
-# distroless/static: 静的 Go バイナリのみを載せる（イメージ ~60MB）。go/php ランタイムは含めない。
+# distroless/static: 静的 Go バイナリのみを載せる（イメージ ~60MB）。
 # 学習者コードのサンドボックス実行は code-runner サイドカーへ HTTP 委譲する想定で、
 # 本番 ECS は CODE_RUNNER_URL=http://127.0.0.1:9000 を注入する（**distroless backend は
 # CODE_RUNNER_URL 必須**＝in-process 実行はできない。ローカルは `go run ./cmd/server` を使う）。

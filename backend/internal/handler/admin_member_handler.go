@@ -61,17 +61,6 @@ func isAdminActor(actor *domain.User) bool {
 }
 
 // List は自社の従業員一覧を返す。
-//
-//	@Summary      従業員一覧
-//	@Description  自社（company_admin の所属会社）の従業員一覧を返す。company_admin / super_admin のみ。
-//	@Tags         admin
-//	@Produce      json
-//	@Success      200  {array}   memberResponse
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      403  {object}  errorResponse  "管理者以外"
-//	@Failure      500  {object}  errorResponse  "内部エラー"
-//	@Router       /admin/members [get]
-//	@Security     CookieAuth
 func (h *AdminMemberHandler) List(c *gin.Context) {
 	actor := middleware.CurrentUserFromContext(c)
 	if !isAdminActor(actor) {
@@ -91,17 +80,6 @@ func (h *AdminMemberHandler) List(c *gin.Context) {
 }
 
 // LearningSummary は自社 trainee の学習状況サマリーを返す(company_admin のホーム用)。
-//
-//	@Summary      自社メンバーの学習状況サマリー
-//	@Description  在籍 trainee 数・今日/直近 7 日に学習した人数・直近アクティブメンバー(最大 5 名)を返す。company_admin / super_admin のみ。会社未所属は空サマリー。
-//	@Tags         admin
-//	@Produce      json
-//	@Success      200  {object}  usecase.CompanyLearningSummaryOutput
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      403  {object}  errorResponse  "管理者以外"
-//	@Failure      500  {object}  errorResponse  "内部エラー"
-//	@Router       /admin/members/learning-summary [get]
-//	@Security     CookieAuth
 func (h *AdminMemberHandler) LearningSummary(c *gin.Context) {
 	actor := middleware.CurrentUserFromContext(c)
 	if !isAdminActor(actor) {
@@ -136,22 +114,6 @@ type setMemberActiveRequest struct {
 }
 
 // SetActive は従業員アカウントの有効/無効を切り替える（停止/再開）。
-//
-//	@Summary      従業員アカウントの有効/無効を切り替え
-//	@Description  無効化すると、その従業員はログイン/利用不可になる（middleware で弾く）。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。
-//	@Tags         admin
-//	@Accept       json
-//	@Produce      json
-//	@Param        userId  path  string  true  "従業員の数値 ID"
-//	@Param        body    body  setMemberActiveRequest  true  "active=false で無効化"
-//	@Success      204
-//	@Failure      400  {object}  errorResponse  "不正な ID / body / 自分自身"
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      403  {object}  errorResponse  "管理者以外 / 別会社の従業員"
-//	@Failure      404  {object}  errorResponse  "従業員が存在しない"
-//	@Failure      500  {object}  errorResponse  "内部エラー"
-//	@Router       /admin/members/{userId}/active [patch]
-//	@Security     CookieAuth
 func (h *AdminMemberHandler) SetActive(c *gin.Context) {
 	actor := middleware.CurrentUserFromContext(c)
 	if !isAdminActor(actor) {
@@ -177,20 +139,6 @@ func (h *AdminMemberHandler) SetActive(c *gin.Context) {
 }
 
 // Delete は従業員を論理削除する（deleted_at = NOW()）。
-//
-//	@Summary      従業員を論理削除
-//	@Description  従業員を一覧から退会させる（論理削除）。以後ログイン/利用不可。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。
-//	@Tags         admin
-//	@Produce      json
-//	@Param        userId  path  string  true  "従業員の数値 ID"
-//	@Success      204
-//	@Failure      400  {object}  errorResponse  "不正な ID / 自分自身"
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      403  {object}  errorResponse  "管理者以外 / 別会社の従業員"
-//	@Failure      404  {object}  errorResponse  "従業員が存在しない"
-//	@Failure      500  {object}  errorResponse  "内部エラー"
-//	@Router       /admin/members/{userId} [delete]
-//	@Security     CookieAuth
 func (h *AdminMemberHandler) Delete(c *gin.Context) {
 	actor := middleware.CurrentUserFromContext(c)
 	if !isAdminActor(actor) {

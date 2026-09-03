@@ -25,17 +25,6 @@ type codeExecuteRequest struct {
 	Language string `json:"language"`
 }
 
-// @Summary      コード サンドボックス 実行
-// @Description  trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript / java / ruby / c / cpp。
-// @Tags         code-execution
-// @Accept       json
-// @Produce      json
-// @Param        body  body      codeExecuteRequest  true  "コード + 言語"
-// @Success      200   {object}  domain.CodeExecutionResult
-// @Failure      400   {object}  errorResponse  "バリデーション or 実行 失敗"
-// @Failure      401   {object}  errorResponse  "未 認証"
-// @Router       /code/execute [post]
-// @Security     CookieAuth
 func (h *CodeExecuteHandler) Execute(c *gin.Context) {
 	var req codeExecuteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -67,17 +56,6 @@ type codeWarmupResponse struct {
 	Ready bool `json:"ready"`
 }
 
-// @Summary      実行環境 ウォームアップ
-// @Description  コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript/java/ruby/c/cpp は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
-// @Tags         code-execution
-// @Accept       json
-// @Produce      json
-// @Param        body  body      codeWarmupRequest  true  "言語"
-// @Success      200   {object}  codeWarmupResponse
-// @Failure      400   {object}  errorResponse  "バリデーション 失敗"
-// @Failure      401   {object}  errorResponse  "未 認証"
-// @Router       /code/warmup [post]
-// @Security     CookieAuth
 func (h *CodeExecuteHandler) Warmup(c *gin.Context) {
 	var req codeWarmupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

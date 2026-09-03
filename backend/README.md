@@ -61,21 +61,6 @@ make archlint        # = go run ./cmd/archlint .
 - 意図的に例外を通したいときは、import 行末に `//archlint:allow <理由>`、ファイル全体なら先頭コメントに `//archlint:ignore-file <理由>` を付ける。
 - ルールを追加・変更したら `cmd/archlint/main.go` の `rules` を編集し、`cmd/archlint/main_test.go` にケースを足す。
 
-### apispec-lint — ルート ↔ swaggo 注釈の整合検証（strict path 照合）
-
-CLAUDE.md §2.7「新しい HTTP endpoint には handler メソッドの直前に swaggo annotation を必ず書く」を機械化した自作 linter（`go/ast` のみ）。ルートと `@Router` 宣言の **HTTP method + path を完全一致で照合**し、注釈漏れ・path 相違・method 相違を CI で弾く。
-
-```bash
-make apispec-lint    # = go run ./cmd/apispec-lint .
-```
-
-- `internal/handler` の `g.GET("/path", ..., h.Method)` 形式のルート登録を AST で抽出する（最後の引数が handler）。
-- レシーバ付き func の doc コメントの `@Router /path [method]` 宣言を `(method, path)` として全ファイル横断で収集する（1 メソッドが複数 `@Router` を持つ場合は複数宣言）。
-- gin の `:id` / `*filepath` を swaggo の `{id}` / `{filepath}` に正規化し、ルートと一致する `@Router` 宣言が無ければ `path:line` で報告し exit 1。
-- SSE / WebSocket / multipart など OpenAPI で表現しない endpoint や、フロント互換の別 path / 別 method エイリアスは、ルート登録行の行末に `//apispec:allow <理由>`、ファイル全体なら先頭コメントに `//apispec:ignore-file <理由>` で抑制する。
-
-> 生成 spec そのものの正しさ（schema 等）は `make openapi` の drift check（CI）が担い、apispec-lint は「ルートに対応する @Router 宣言が正しい method/path で存在するか」を担う。両者は補完関係。
-
 ### naminglint — usecase 命名・構造規約の検証
 
 CLAUDE.md §2.3「1 usecase = struct + コンストラクタ + Execute メソッド」を機械化した自作 linter（`go/ast` のみ）。対象は `internal/usecase` 直下（`repository` サブパッケージは除外）。
@@ -133,10 +118,9 @@ docker build -t frestyle-backend:latest .
 go vet ./...
 go test ./...        # 単体テスト（DB 不要）
 make archlint      # クリーンアーキテクチャ依存方向チェック
-make apispec-lint  # ルート ↔ swaggo @Router 注釈チェック（strict path 照合）
 make naminglint    # usecase 命名・構造規約チェック
 make fmt           # gofumpt -w でコードを自動整形（commit 前に実行）
-make verify        # gofumpt / vet / build / test / 3 linter を一括実行
+make verify        # gofumpt / vet / build / test / 2 linter を一括実行
 ```
 
 ### 結合テスト（本物の PostgreSQL）

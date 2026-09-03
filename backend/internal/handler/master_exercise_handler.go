@@ -42,15 +42,6 @@ type exerciseLanguageSummaryResponse struct {
 }
 
 // Summary は公開済み演習を言語ごとに集計して返す（コード学習の言語選択カード用）。
-//
-//	@Summary      演習の 言語別 集計 (問題数 + 正解済み 件数)
-//	@Description  公開済み の 運営 マスタ 演習問題 を 言語 ごとに 集計 して 返す。 solved は current user が 正解済み の 問題数 (未 ログイン は 0)。 言語 選択 カード の 進捗 表示 に 使う。
-//	@Tags         exercises
-//	@Produce      json
-//	@Success      200  {array}   exerciseLanguageSummaryResponse
-//	@Failure      500  {object}  errorResponse  "集計 失敗"
-//	@Router       /exercises/summary [get]
-//	@Security     CookieAuth
 func (h *MasterExerciseHandler) Summary(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 
@@ -102,18 +93,6 @@ const (
 // List は演習問題一覧をスクロール型ページネーションで返す。
 // limit（デフォルト 20・最大 100）と offset（デフォルト 0）で取得範囲を指定する。
 // hasNext が true のとき次ページが存在する。
-//
-//	@Summary      演習問題 一覧 (status + stats + ページネーション付き)
-//	@Description  運営 マスタ 演習問題 を 取得。 query language で 絞り込み。 limit/offset で ページネーション。 current user の 提出 状況 と 全 user 集計 を 返す。
-//	@Tags         exercises
-//	@Produce      json
-//	@Param        language  query     string  false  "言語 フィルタ (例: php, go, bash, git)"
-//	@Param        limit     query     int     false  "1 ページの 件数 (デフォルト 20、最大 100)"
-//	@Param        offset    query     int     false  "取得 開始 位置 (デフォルト 0)"
-//	@Success      200       {object}  exercisePageResponse
-//	@Failure      500       {object}  errorResponse  "DB / 集計 失敗"
-//	@Router       /exercises [get]
-//	@Security     CookieAuth
 func (h *MasterExerciseHandler) List(c *gin.Context) {
 	language := c.Query("language")
 	uid := middleware.CurrentUserIDOrZero(c)
@@ -183,18 +162,6 @@ func min(a, b int) int {
 
 // GetBySlug は入出力例を含む詳細を返す。
 // NotFound だけ 404、それ以外の DB エラーは 500 にして本物の障害を「該当なし」と誤検知させない。
-//
-//	@Summary      演習問題 詳細 (slug)
-//	@Description  指定 slug の 演習 問題 + 入 出力 例 一覧 を 返す。 詳細 画面 用。
-//	@Tags         exercises
-//	@Produce      json
-//	@Param        slug  path      string  true  "問題 slug (例: php-1)"
-//	@Success      200   {object}  usecase.GetMasterExerciseDetailOutput
-//	@Failure      400   {object}  errorResponse  "slug 欠落"
-//	@Failure      404   {object}  errorResponse  "問題 が 見つから ない"
-//	@Failure      500   {object}  errorResponse  "DB / 集計 失敗"
-//	@Router       /exercises/{slug} [get]
-//	@Security     CookieAuth
 func (h *MasterExerciseHandler) GetBySlug(c *gin.Context) {
 	slug := c.Param("slug")
 	if slug == "" {

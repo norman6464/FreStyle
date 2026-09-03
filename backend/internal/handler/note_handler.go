@@ -37,16 +37,6 @@ func NewNoteHandler(
 }
 
 // List は current user の note 一覧を返す（userId は受け取らない、IDOR 対策）。
-//
-//	@Summary      自分 の ノート 一覧
-//	@Description  current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。
-//	@Tags         notes
-//	@Produce      json
-//	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Note
-//	@Failure      400  {object}  errorResponse  "DB 取得 失敗"
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Router       /notes [get]
-//	@Security     CookieAuth
 func (h *NoteHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -69,18 +59,6 @@ type noteCreateReq struct {
 }
 
 // Create は current user 名義で note を作る。userId は受け取らず固定する。
-//
-//	@Summary      ノート 作成
-//	@Description  current user 名義 で 新規 note を 作る。 userId は body で 指定 でき ない (current user 固定)。
-//	@Tags         notes
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      noteCreateReq  true  "作成 内容 (title 必須)"
-//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Note
-//	@Failure      400   {object}  errorResponse  "バリデーション エラー or DB 失敗"
-//	@Failure      401   {object}  errorResponse  "未 認証"
-//	@Router       /notes [post]
-//	@Security     CookieAuth
 func (h *NoteHandler) Create(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -116,22 +94,6 @@ type noteUpdateReq struct {
 // 畳んで返すので、handler はその 1 本の分岐で 404 + noteNotFoundMsg を返す。
 // 分岐が 1 つしか無いこと自体が「ステータスも本文も一致する」ことの担保になる
 // （403 と 404 のように分けて書くと、片方を直し忘れた瞬間に存在オラクルが復活する）。
-//
-//	@Summary      ノート 更新
-//	@Description  指定 note を 更新。 更新 できる の は current user 所有 の note だけ。
-//	@Description  他人 の note と 存在 し ない note は 撃ち 分け ず、 どちら も 同じ 404 (同一 本文) を 返す。
-//	@Description  応答 の 差 で ID の 実在 を 数え 上げ られる (存在 オラクル) の を 防ぐ ため。
-//	@Tags         notes
-//	@Accept       json
-//	@Produce      json
-//	@Param        id    path      int            true  "ノート ID"
-//	@Param        body  body      noteUpdateReq  true  "更新 内容"
-//	@Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Note
-//	@Failure      400   {object}  errorResponse  "バリデーション or DB 失敗"
-//	@Failure      401   {object}  errorResponse  "未 認証"
-//	@Failure      404   {object}  errorResponse  "他人 の note or 存在 し ない note (区別 し ない)"
-//	@Router       /notes/{id} [put]
-//	@Security     CookieAuth
 func (h *NoteHandler) Update(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -173,19 +135,6 @@ func (h *NoteHandler) Update(c *gin.Context) {
 //	どちらも 0 行 = 同じ domain.ErrNotFound になり、ここから返る応答は
 //	ステータス（404）も本文（noteNotFoundMsg）もバイト単位で同一になる。
 //	応答が分かれるのは「自分の note を実際に消せたか」だけで、他人の note の実在は漏れない。
-//
-//	@Summary      ノート 削除
-//	@Description  current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。
-//	@Description  他人 の note と 存在 し ない note に は 同じ 404 (同じ 本文) を 返し、 応答 から ID の 実在 が 分から ない よう に する。
-//	@Tags         notes
-//	@Produce      json
-//	@Param        id  path  int  true  "ノート ID"
-//	@Success      204  "成功 (本文 なし)"
-//	@Failure      400  {object}  errorResponse  "DB 失敗"
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      404  {object}  errorResponse  "自分 の note が 無い (他人 の note・存在 し ない id も 同じ 応答)"
-//	@Router       /notes/{id} [delete]
-//	@Security     CookieAuth
 func (h *NoteHandler) Delete(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

@@ -161,7 +161,7 @@ func toKbPageTreeResponse(nodes []*usecase.PageTreeNode, hidden, parentArchived 
 // kbPageDocResponse はページのメタ情報と本文（ProseMirror doc）の組。
 type kbPageDocResponse struct {
 	Page kbPageResponse  `json:"page"`
-	Doc  json.RawMessage `json:"doc" swaggertype:"object"`
+	Doc  json.RawMessage `json:"doc"`
 }
 
 // respondKnowledgeBaseErr は usecase / repository のセンチネルを HTTP ステータスへ対応づける。
@@ -335,20 +335,6 @@ func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 }
 
 // Tree はスペース配下の、そのユーザーが閲覧できるページを木構造で返す。
-//
-//	@Summary      ノート の ページ ツリー
-//	@Description  スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 の pages)。 hasHiddenChildren は その 段 の 直下 に 閲覧 でき ない ページ が 在る か で、 枚数 も 題名 も 返さ ない。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
-//	@Param        spaceId        path      string  true  "スペース ID (UUID)"
-//	@Param        archived       query     bool    false "true で アーカイブ 済み の 一覧 に 切り替える"
-//	@Success      200            {object}  kbPageTreeRootResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "ワークスペース が 無い か 未 所属"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -407,24 +393,6 @@ type kbCreatePageRequest struct {
 }
 
 // Create は親ページの下に新しいページを作る（親の編集権限が要る）。
-//
-//	@Summary      ノート の ページ 作成
-//	@Description  parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース の 判定 は ページ 付与 を 見 ない ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string               true  "ワークスペース の slug"
-//	@Param        spaceId        path      string               true  "スペース ID (UUID)"
-//	@Param        body           body      kbCreatePageRequest  true  "作成 内容 (parentId/title 必須)"
-//	@Success      201            {object}  kbPageResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "親 を 編集 する 権限 が 無い"
-//	@Failure      404            {object}  errorResponse  "スペース / 親 が 無い か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "親 が アーカイブ 済み"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -467,19 +435,6 @@ func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 }
 
 // Get はページ 1 件と本文を返す（閲覧権限が要る）。
-//
-//	@Summary      ノート の ページ 取得
-//	@Description  ページ の メタ 情報 と 本文 (ProseMirror doc) を 返す。 閲覧 権限 が 無い ページ は 存在 し ない ページ と 同じ 404。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
-//	@Param        pageId         path      string  true  "ページ ID (UUID)"
-//	@Success      200            {object}  kbPageDocResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId} [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -519,24 +474,6 @@ type kbRenamePageRequest struct {
 }
 
 // Rename はページのタイトルを変える（編集権限が要る）。
-//
-//	@Summary      ノート の ページ 改名
-//	@Description  タイトル だけ を 変更 する。 編集 権限 が 要る。 アーカイブ 済み ページ は 変更 でき ない (409)。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string               true  "ワークスペース の slug"
-//	@Param        pageId         path      string               true  "ページ ID (UUID)"
-//	@Param        body           body      kbRenamePageRequest  true  "新しい タイトル"
-//	@Success      200            {object}  kbPageResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "アーカイブ 済み"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId} [patch]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Rename(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -586,24 +523,6 @@ type kbMovePageRequest struct {
 }
 
 // Move はページ（と子孫）を別の親の下へ移す。動かすページと移動先の親の両方に編集権限が要る。
-//
-//	@Summary      ノート の ページ 移動
-//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 さらに 動かす ページ の 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も 書き換え ない)。 移動 は サブツリー ごと 動く の で、 操作 者 から 見え ない 子孫 の 祖先 まで 変わり、 そこ から 継承 さ れる 権限 が 本人 の 知ら ない うち に 変わる ため。 アーカイブ / 復帰 と 同じ 判定 に 揃え て ある。 parentId を 省く と、 動かす ページ が いま いる スペース の 直下 (ルート) へ 戻す。 スペース を またぐ 移動 は この 口 で は 扱わ ない。 動かす サブツリー に 「スペース 全員」 宛て の ページ 付与 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_grant_voided) で 断る (移動 先 で は 評価 さ れ なく なる ため)。 付与 を 先 に 整理 し て から 移す。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string             true  "ワークスペース の slug"
-//	@Param        pageId         path      string             true  "ページ ID (UUID)"
-//	@Param        body           body      kbMovePageRequest  true  "移動 先 の 親 と 位置 (parentId を 省く と スペース 直下)"
-//	@Success      200            {object}  kbPageResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー / スペース 不一致"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "アーカイブ 済み / 循環 / スペース 全員 宛て の ページ 付与 が 失効 する 移動"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/move [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -727,19 +646,6 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 }
 
 // Archive はページと子孫をまとめてアーカイブする（編集権限が要る）。
-//
-//	@Summary      ノート の ページ アーカイブ
-//	@Description  ページ と その 子孫 を まとめて ツリー から 隠す。 対象 の ページ だけ で なく 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も し ない)。 これ は 意図 し た 設計 で、 同じ ページ を 直接 改名 する 場合 と 判定 を 揃える ため。 既に アーカイブ 済み なら 何 も し ない (冪等)。
-//	@Tags         knowledge-base
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        pageId         path  string  true  "ページ ID (UUID)"
-//	@Success      204            "アーカイブ 成功 (本文 なし)"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/archive [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -765,20 +671,6 @@ func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 }
 
 // Delete はページを子孫ごと物理削除する（戻せない）。
-//
-//	@Summary      ノート の ページ 削除
-//	@Description  ページ を 子孫 ごと 物理 削除 する。 アーカイブ と 違い 戻せ ない。 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        pageId         path  string  true  "ページ ID (UUID)"
-//	@Success      204  "削除 済み"
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      403  {object}  errorResponse  "配下 に 編集 でき ない ページ が ある"
-//	@Failure      404  {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId} [delete]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Delete(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -810,21 +702,6 @@ func (h *KnowledgeBasePageHandler) Delete(c *gin.Context) {
 }
 
 // Unarchive はアーカイブしたページを現役へ戻す（編集権限が要る）。
-//
-//	@Summary      ノート の ページ 復帰
-//	@Description  アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 アーカイブ と 同じ く 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
-//	@Param        pageId         path      string  true  "ページ ID (UUID)"
-//	@Success      200            {object}  kbPageResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "親 が アーカイブ 中"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/unarchive [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) Unarchive(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -849,28 +726,10 @@ func (h *KnowledgeBasePageHandler) Unarchive(c *gin.Context) {
 }
 
 type kbReplaceContentRequest struct {
-	Doc json.RawMessage `json:"doc" binding:"required" swaggertype:"object"`
+	Doc json.RawMessage `json:"doc" binding:"required"`
 }
 
 // ReplaceContent はページ本文を丸ごと置き換える（編集権限が要る）。
-//
-//	@Summary      ノート の ページ 本文 置き換え
-//	@Description  ページ の 本文 (ProseMirror doc) を 丸ごと 置き換える。 編集 権限 が 要る。 保存 さ れる の は 行 スキーマ から 組み立て 直し た 正規 形 で、 レスポンス は その 正規 形 を 返す。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string                   true  "ワークスペース の slug"
-//	@Param        pageId         path      string                   true  "ページ ID (UUID)"
-//	@Param        body           body      kbReplaceContentRequest  true  "本文 (ProseMirror doc)"
-//	@Success      200            {object}  kbPageContentResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー / doc が 壊れ て いる"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い"
-//	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "アーカイブ 済み"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/content [put]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) ReplaceContent(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -900,7 +759,7 @@ func (h *KnowledgeBasePageHandler) ReplaceContent(c *gin.Context) {
 
 // kbPageContentResponse は本文置き換えの結果（保存された正規形と、その焼き直し時刻）。
 type kbPageContentResponse struct {
-	Doc     json.RawMessage `json:"doc" swaggertype:"object"`
+	Doc     json.RawMessage `json:"doc"`
 	BuiltAt time.Time       `json:"builtAt"`
 }
 
@@ -917,7 +776,7 @@ type kbResolvedPageResponse struct {
 	WorkspaceSlug string          `json:"workspaceSlug" example:"w-3f2a9c"`
 	WorkspaceName string          `json:"workspaceName" example:"開発チーム"`
 	Page          kbPageResponse  `json:"page"`
-	Doc           json.RawMessage `json:"doc" swaggertype:"object"`
+	Doc           json.RawMessage `json:"doc"`
 	CanEdit       bool            `json:"canEdit"`
 	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
 	// 届いている役割が admin かどうかだけで決まる。
@@ -926,18 +785,6 @@ type kbResolvedPageResponse struct {
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
-//
-//	@Summary      ノート の ページ 解決 (ID のみ)
-//	@Description  ページ ID だけ で ページ と 所属 ワークスペース を 解決 する。 閲覧 できない・存在 しない は 同じ 404。応答 の workspaceSlug を 以降 の API に 使う。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        pageId  path      string  true  "ページ ID (UUID)"
-//	@Success      200     {object}  kbResolvedPageResponse
-//	@Failure      401     {object}  errorResponse  "未 認証"
-//	@Failure      404     {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      500     {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/pages/{pageId} [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

@@ -56,18 +56,6 @@ func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 }
 
 // Get は指定 user のプロフィールを返す。
-//
-//	@Summary      プロフィール 取得
-//	@Description  指定 user (or current user) の name / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。
-//	@Tags         profile
-//	@Produce      json
-//	@Param        userId  path      string  true   "数字 ID または 'me'"
-//	@Success      200     {object}  domain.ProfileView
-//	@Failure      400     {object}  errorResponse  "view 構築 失敗 (profile / users 取得 の 内部 エラー 等)"
-//	@Failure      401     {object}  errorResponse  "未 認証"
-//	@Failure      403     {object}  errorResponse  "他 user の userId 指定"
-//	@Router       /profile/{userId} [get]
-//	@Security     CookieAuth
 func (h *ProfileHandler) Get(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {
@@ -91,21 +79,6 @@ type updateProfileReq struct {
 }
 
 // Update は current user のプロフィールを更新する。
-//
-//	@Summary      プロフィール 更新
-//	@Description  current user の displayName / bio / avatarUrl / status を 更新 する。 他 user は 403。
-//	@Tags         profile
-//	@Accept       json
-//	@Produce      json
-//	@Param        userId  path      string            true  "数字 ID または 'me'"
-//	@Param        body    body      updateProfileReq  true  "更新 内容 (任意 フィールド の み)"
-//	@Success      200     {object}  domain.ProfileView
-//	@Failure      400     {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401     {object}  errorResponse  "未 認証"
-//	@Failure      403     {object}  errorResponse  "他 user 指定"
-//	@Failure      404     {object}  errorResponse  "対象 user が 存在 し ない"
-//	@Router       /profile/{userId} [put]
-//	@Security     CookieAuth
 func (h *ProfileHandler) Update(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {

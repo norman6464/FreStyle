@@ -36,12 +36,9 @@ reviews:
       - "main"
 
   # ロックファイル・ベンダリング資産はレビュー対象から外し、人の書いたコードに集中させる。
-  # 生成 OpenAPI (frontend/src/generated) は除外しない。契約ドリフト (displayName↔name・
-  # 未登録パス) の照合に CodeRabbit がこの契約ファイルを参照する必要があるため (下の指示 (6) 参照)。
   path_filters:
     - "!**/*.lock"
     - "!**/pnpm-lock.yaml"
-    - "!backend/docs/**"
     - "!frontend/public/lang/**"
     - "!**/*.min.js"
     - "!**/*.svg"
@@ -54,8 +51,7 @@ reviews:
         (2) *gin.Context や net/http の型を usecase の引数に渡していないか。
         (3) request / response 構造体は handler ファイル内 local 定義で、binding タグでバリデーションしているか。
         (4) 機密フィールド (パスワード hash / token / BlobData 等) が response に露出していないか (domain 側 json:"-" で除外)。
-        (5) 新規 / 変更した HTTP endpoint に swaggo annotation (@Summary/@Router 等、認証必須なら @Security CookieAuth) があるか。無ければ指摘し make openapi の実行も促す。
-        (6) 【最重要・再発防止】response / request の json タグのキー名が、フロントの手書き repository (frontend/src/**/api/*.ts) が送受信するキーや生成 OpenAPI (frontend/src/generated) と一致しているか。displayName↔name のような不一致、フロントが叩くパスと router 登録パスの不一致 (未登録=404) を必ず指摘する。過去に FRESTYLE-198/204/205/206 で本番障害になった箇所。
+        (5) 【最重要・再発防止】response / request の json タグのキー名が、フロントの手書き repository (frontend/src/**/api/*.ts) が送受信するキーと一致しているか。displayName↔name のような不一致、フロントが叩くパスと router 登録パスの不一致 (未登録=404) を必ず指摘する。過去に FRESTYLE-198/204/205/206 で本番障害になった箇所。
     - path: "backend/internal/usecase/**"
       instructions: >-
         usecase 層。(1) 1 usecase = 1 struct + Execute の単一責任か (複数操作を詰め込んでいたら分割を提案)。
@@ -78,7 +74,7 @@ reviews:
         (2) 各 Slice は Public API (index.ts) 経由で使い、Slice 内部の深いパスを外から import していないか。
         (3) 1 ファイル 1 コンポーネント。1 ファイルに複数コンポーネントが同居していたら分割を提案 (FRESTYLE-208/210 の方針)。
         (4) 単一画面専用のものが features に置かれていないか (page の model/ui に置く)。
-        (5) 手書き repository (entities/*/api) のパス・送受信キーが backend の json タグ / 生成 OpenAPI と一致しているか。
+        (5) 手書き repository (entities/*/api) のパス・送受信キーが backend の json タグと一致しているか。
         契約ドリフト (displayName↔name、未登録パスへの fetch=404、送っていない必須フィールド) を厳しく指摘する。
         (6) 省略名 (s/e/i/m/mid/ok 等) は読み手に分かる名前へ改名を提案。
     - path: "frontend/src/**/__tests__/**"

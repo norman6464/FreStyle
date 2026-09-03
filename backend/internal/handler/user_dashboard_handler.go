@@ -18,16 +18,6 @@ func NewUserDashboardHandler(d *usecase.GetUserDashboardUseCase) *UserDashboardH
 }
 
 // Get はログイン中ユーザーのダッシュボードデータ（streak / 活動カレンダー / 「続きから」）を返す。
-//
-//	@Summary      ダッシュボード データ 取得
-//	@Description  過去 90 日間の日次活動サマリー・連続学習日数・直近の閲覧章を返す。 カレンダーヒートマップ や 「続きから」 カード の 描画 に 使う。
-//	@Tags         dashboard
-//	@Produce      json
-//	@Success      200  {object}  usecase.GetUserDashboardOutput
-//	@Failure      401  {object}  errorResponse  "未認証"
-//	@Failure      500  {object}  errorResponse  "集計失敗"
-//	@Router       /me/dashboard [get]
-//	@Security     CookieAuth
 func (h *UserDashboardHandler) Get(c *gin.Context) {
 	userID := middleware.CurrentUserIDOrZero(c)
 	if userID == 0 {

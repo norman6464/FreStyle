@@ -10,8 +10,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	swaggerfiles "github.com/swaggo/files"
-	ginswagger "github.com/swaggo/gin-swagger"
 )
 
 // routeDeps はドメインごとの register*Routes 関数に渡す共通依存。
@@ -49,9 +47,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	}
 
 	v2 := r.Group("/api/v2")
-
-	// Swagger UI。ALB が /api/v2/* のみ backend に流すため v2 group 内で配信する（認証不要）。
-	v2.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
 
 	registerHealthRoutes(v2, deps)
 	registerInvitationPublicRoutes(v2, deps)

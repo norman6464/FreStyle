@@ -156,19 +156,6 @@ type kbVerifyShareLinkRequest struct {
 }
 
 // ListShareLinks はページに発行済みの共有リンクを返す（失効済みも含む）。
-//
-//	@Summary      ノート の 共有 リンク 一覧
-//	@Description  ページ に 発行 済み の 共有 リンク を 失効 済み も 含め て 返す。 トークン は 発行 時 の 1 回 しか 返ら ない の で、 ここ に は 出 ない (DB に も SHA-256 しか 無い)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
-//	@Param        pageId         path      string  true  "ページ ID (UUID)"
-//	@Success      200            {array}   kbShareLinkResponse
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links [get]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseShareLinkHandler) ListShareLinks(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -194,22 +181,6 @@ func (h *KnowledgeBaseShareLinkHandler) ListShareLinks(c *gin.Context) {
 }
 
 // IssueShareLink はページの公開 URL を発行する。
-//
-//	@Summary      ノート の 共有 リンク 発行
-//	@Description  ページ と その 子孫 を ログイン 不要 で 開ける URL を 発行 する。 応答 の token は 平文 で、 返る の は この 1 回 だけ (DB に は SHA-256 しか 残ら ない)。 失う と 再 発行 に なる。 パスワード を 付ける と 開く 際 に 必要 に なる (値 は 応答 に も ログ に も 出 ない)。 呼べる の は その ページ が 属する スペース の admin (ワークスペース の admin を 含む) だけ で、 権限 が 無い 場合 と ページ が 存在 し ない 場合 は 同じ 404。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        workspaceSlug  path      string                   true  "ワークスペース の slug"
-//	@Param        pageId         path      string                   true  "ページ ID (UUID)"
-//	@Param        body           body      kbIssueShareLinkRequest  true  "発行 内容 (capability 必須 / password / expiresAt は 任意)"
-//	@Success      201            {object}  kbIssuedShareLinkResponse
-//	@Failure      400            {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links [post]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseShareLinkHandler) IssueShareLink(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -244,20 +215,6 @@ func (h *KnowledgeBaseShareLinkHandler) IssueShareLink(c *gin.Context) {
 }
 
 // RevokeShareLink は共有リンクを失効させる（冪等）。
-//
-//	@Summary      ノート の 共有 リンク 失効
-//	@Description  共有 リンク を 失効 さ せる。 行 は 消さ ず revoked_at を 立てる の で、 誰 が いつ 止め た か は 残る。 既に 失効 済み なら 何 も せ ず 成功 する (冪等)。 URL の ページ に 属さ ない リンク ID を 渡し た 場合 は 権限 が 無い の と 同じ 404 (ページ の 権限 で 判断 する 以上、 別 の スペース の リンク を この 口 から 止め られ て は なら ない)。 呼べる の は その ページ が 属する スペース の admin だけ。
-//	@Tags         knowledge-base
-//	@Produce      json
-//	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
-//	@Param        pageId         path  string  true  "ページ ID (UUID)"
-//	@Param        shareLinkId    path  string  true  "共有 リンク ID (UUID)"
-//	@Success      204            "失効 済み"
-//	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      404            {object}  errorResponse  "権限 が 無い か 対象 が 無い"
-//	@Failure      500            {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/share-links/{shareLinkId} [delete]
-//	@Security     CookieAuth
 func (h *KnowledgeBaseShareLinkHandler) RevokeShareLink(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -303,22 +260,6 @@ func (h *KnowledgeBaseShareLinkHandler) RevokeShareLink(c *gin.Context) {
 }
 
 // VerifyShareLink は共有 URL のトークン（とパスワード）を検証する。**認証は要らない。**
-//
-//	@Summary      ノート の 共有 リンク 検証
-//	@Description  受け取っ た 共有 リンク の トークン (と パスワード) を 検証 し、 開ける なら 対象 ページ と できる こと を 返す。 リンク を 受け取っ た 人 は ログイン し て い ない の で、 この 経路 だけ は 認証 を 要求 し ない。 トークン は URL で は なく ボディ で 受ける (URL に 載せる と アクセス ログ や Referer に 平文 で 残る ため)。 応答 に トークン は 含め ない。 総当たり と パスワード 推測 を 抑える ため、 リンク 1 本 あたり の 試行 回数 に 上限 が ある (要求 元 の IP を 変え て も 頭打ち に なる)。
-//	@Tags         knowledge-base
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      kbVerifyShareLinkRequest  true  "トークン と (必要 なら) パスワード"
-//	@Success      200   {object}  kbVerifiedShareLinkResponse
-//	@Failure      400   {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401   {object}  errorResponse  "パスワード が 必要 / 一致 し ない"
-//	@Failure      404   {object}  errorResponse  "その トークン の リンク は 無い"
-//	@Failure      410   {object}  errorResponse  "失効 済み / 期限 切れ"
-//	@Failure      429   {object}  errorResponse  "レート制限超過"
-//	@Header       429   {string}  Retry-After    "再試行までの秒数 (例: 60)"
-//	@Failure      500   {object}  errorResponse  "DB 失敗"
-//	@Router       /kb/share-links/verify [post]
 func (h *KnowledgeBaseShareLinkHandler) VerifyShareLink(c *gin.Context) {
 	limitKnowledgeBaseBody(c)
 	var req kbVerifyShareLinkRequest

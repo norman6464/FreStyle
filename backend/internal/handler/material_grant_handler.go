@@ -103,19 +103,6 @@ func respondMaterialGrantErr(c *gin.Context, err error) {
 }
 
 // ListCourseGrants はコース自身に張られた付与を返す。
-//
-//	@Summary      コース の 権限 一覧
-//	@Description  その コース 自身 に 張ら れ た 付与 を 返す。 **「この コース を 編集 できる 人 の 一覧」 で は ない** — ワークスペース の admin は 含ま れ ず、 空 で も 「誰 も 編集 でき ない」 の 意味 に なら ない。 呼べる の は その コース を 管理 できる 人 だけ で、 読め ない 相手 に は 404、 読める が 管理 でき ない 場合 は 403。
-//	@Tags         courses
-//	@Produce      json
-//	@Param        id   path      int  true  "コース ID"
-//	@Success      200  {array}   materialGrantResponse
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      403  {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404  {object}  errorResponse  "コース が 無い か 読め ない"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /courses/{id}/grants [get]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) ListCourseGrants(c *gin.Context) {
 	actor, courseID, ok := materialGrantActor(c, "id")
 	if !ok {
@@ -139,23 +126,6 @@ func (h *MaterialGrantHandler) ListCourseGrants(c *gin.Context) {
 }
 
 // GrantCourseRole はコースでの既定の役割を主体に与える。
-//
-//	@Summary      コース の 権限 付与
-//	@Description  コース で の 既定 の 役割 を 与える (同じ 主体 に は 1 行 だけ な の で 上書き)。 配下 の 章 に も 効く。 合成 は 「最も 強い もの を 採る」 な の で、 **ここ に 弱い 役割 を 張っ て も 上位 で 得 て いる 役割 は 下がら ない**。 呼べる の は その コース を 管理 できる 人 だけ。
-//	@Tags         courses
-//	@Accept       json
-//	@Produce      json
-//	@Param        id           path      int                        true  "コース ID"
-//	@Param        principalId  path      string                     true  "主体 ID (UUID)"
-//	@Param        body         body      materialGrantRoleRequest   true  "役割 (admin / editor / commenter / viewer)"
-//	@Success      200          {object}  materialGrantResponse
-//	@Failure      400          {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401          {object}  errorResponse  "未 認証"
-//	@Failure      403          {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404          {object}  errorResponse  "コース か 主体 が 無い"
-//	@Failure      500          {object}  errorResponse  "DB 失敗"
-//	@Router       /courses/{id}/grants/{principalId} [put]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) GrantCourseRole(c *gin.Context) {
 	actor, courseID, ok := materialGrantActor(c, "id")
 	if !ok {
@@ -181,20 +151,6 @@ func (h *MaterialGrantHandler) GrantCourseRole(c *gin.Context) {
 }
 
 // RevokeCourseRole はコースでの既定の役割を剥がす（冪等）。
-//
-//	@Summary      コース の 権限 取り消し
-//	@Description  コース で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 呼べる の は その コース を 管理 できる 人 だけ。
-//	@Tags         courses
-//	@Produce      json
-//	@Param        id           path  int     true  "コース ID"
-//	@Param        principalId  path  string  true  "主体 ID (UUID)"
-//	@Success      204          "取り消し 済み"
-//	@Failure      401          {object}  errorResponse  "未 認証"
-//	@Failure      403          {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404          {object}  errorResponse  "コース が 無い か 読め ない"
-//	@Failure      500          {object}  errorResponse  "DB 失敗"
-//	@Router       /courses/{id}/grants/{principalId} [delete]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) RevokeCourseRole(c *gin.Context) {
 	actor, courseID, ok := materialGrantActor(c, "id")
 	if !ok {
@@ -210,19 +166,6 @@ func (h *MaterialGrantHandler) RevokeCourseRole(c *gin.Context) {
 }
 
 // ListGrantablePrincipals はコースに権限を張れる相手を表示名つきで返す。
-//
-//	@Summary      教材 の 権限 を 張れる 相手 の 一覧
-//	@Description  権限 を 張れる 相手 (ユーザー / グループ / スペース の 全員) を 表示 名 つき で 返す。 共有 の 画面 で 相手 を 選ぶ ため の 口。 中身 は ワークスペース 全体 だ が、 **呼べる か は コース 単位 で 決まる** — ワークスペース の admin に 絞る と、 コース に admin を 張ら れ た 人 が 相手 を 選べ なく なる。 名前 が 引け なかっ た 行 も 空文字 の まま 返す。
-//	@Tags         courses
-//	@Produce      json
-//	@Param        id   path      int  true  "コース ID"
-//	@Success      200  {array}   materialPrincipalResponse
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      403  {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404  {object}  errorResponse  "コース が 無い か 読め ない"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /courses/{id}/principals [get]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) ListGrantablePrincipals(c *gin.Context) {
 	actor, courseID, ok := materialGrantActor(c, "id")
 	if !ok {
@@ -243,19 +186,6 @@ func (h *MaterialGrantHandler) ListGrantablePrincipals(c *gin.Context) {
 }
 
 // ListChapterGrants は章自身に張られた付与を返す。
-//
-//	@Summary      教材 の 権限 一覧
-//	@Description  その 教材 (章) 自身 に 張ら れ た 付与 を 返す。 **コース から 降り て くる 分 は 含ま ない** の で、 空 で も 「誰 も 編集 でき ない」 の 意味 に なら ない。 呼べる の は その 教材 を 管理 できる 人 だけ。
-//	@Tags         teaching-materials
-//	@Produce      json
-//	@Param        id   path      int  true  "教材 ID"
-//	@Success      200  {array}   materialGrantResponse
-//	@Failure      401  {object}  errorResponse  "未 認証"
-//	@Failure      403  {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404  {object}  errorResponse  "教材 が 無い か 読め ない"
-//	@Failure      500  {object}  errorResponse  "DB 失敗"
-//	@Router       /teaching-materials/{id}/grants [get]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) ListChapterGrants(c *gin.Context) {
 	actor, chapterID, ok := materialGrantActor(c, "id")
 	if !ok {
@@ -279,23 +209,6 @@ func (h *MaterialGrantHandler) ListChapterGrants(c *gin.Context) {
 }
 
 // GrantChapterRole は章 1 つでの既定の役割を主体に与える。
-//
-//	@Summary      教材 の 権限 付与
-//	@Description  その 教材 (章) だけ に 効く 既定 の 役割 を 与える。 コース の 付与 より 弱い 役割 を ここ に 張っ て も 下がら ない (合成 は 最も 強い もの を 採る)。 呼べる の は その 教材 を 管理 できる 人 だけ。
-//	@Tags         teaching-materials
-//	@Accept       json
-//	@Produce      json
-//	@Param        id           path      int                       true  "教材 ID"
-//	@Param        principalId  path      string                    true  "主体 ID (UUID)"
-//	@Param        body         body      materialGrantRoleRequest  true  "役割 (admin / editor / commenter / viewer)"
-//	@Success      200          {object}  materialGrantResponse
-//	@Failure      400          {object}  errorResponse  "バリデーション エラー"
-//	@Failure      401          {object}  errorResponse  "未 認証"
-//	@Failure      403          {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404          {object}  errorResponse  "教材 か 主体 が 無い"
-//	@Failure      500          {object}  errorResponse  "DB 失敗"
-//	@Router       /teaching-materials/{id}/grants/{principalId} [put]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) GrantChapterRole(c *gin.Context) {
 	actor, chapterID, ok := materialGrantActor(c, "id")
 	if !ok {
@@ -321,20 +234,6 @@ func (h *MaterialGrantHandler) GrantChapterRole(c *gin.Context) {
 }
 
 // RevokeChapterRole は章での既定の役割を剥がす（冪等）。
-//
-//	@Summary      教材 の 権限 取り消し
-//	@Description  その 教材 (章) で の 既定 の 役割 を 剥がす。 元 から 無い 相手 に 対し て も 成功 する (冪等)。 消える の は この 段 で 足し た 分 だけ で、 コース から 降り て いる 役割 は そのまま 残る。
-//	@Tags         teaching-materials
-//	@Produce      json
-//	@Param        id           path  int     true  "教材 ID"
-//	@Param        principalId  path  string  true  "主体 ID (UUID)"
-//	@Success      204          "取り消し 済み"
-//	@Failure      401          {object}  errorResponse  "未 認証"
-//	@Failure      403          {object}  errorResponse  "管理 権限 が 無い"
-//	@Failure      404          {object}  errorResponse  "教材 が 無い か 読め ない"
-//	@Failure      500          {object}  errorResponse  "DB 失敗"
-//	@Router       /teaching-materials/{id}/grants/{principalId} [delete]
-//	@Security     CookieAuth
 func (h *MaterialGrantHandler) RevokeChapterRole(c *gin.Context) {
 	actor, chapterID, ok := materialGrantActor(c, "id")
 	if !ok {

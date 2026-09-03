@@ -26,18 +26,6 @@ func NewAdminInvitationHandler(
 }
 
 // List は招待一覧を返す。SuperAdmin は横断、CompanyAdmin は自分の所属のみ、それ以外は 403。
-//
-//	@Summary      招待 一覧 (admin)
-//	@Description  pending な 招待 を 返す。 SuperAdmin は 全 ワークスペース 横断、 CompanyAdmin は 自分 の 所属 のみ。 trainee 等 は 403。
-//	@Tags         admin
-//	@Produce      json
-//	@Success      200        {array}   github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation
-//	@Failure      400        {object}  errorResponse  "ワークスペース指定の一覧取得 失敗 (現状 実装 で 400 を 返す パス あり)"
-//	@Failure      401        {object}  errorResponse  "未 認証"
-//	@Failure      403        {object}  errorResponse  "trainee / company 未 設定 等"
-//	@Failure      500        {object}  errorResponse  "DB 失敗 (ListAll 経路)"
-//	@Router       /admin/invitations [get]
-//	@Security     CookieAuth
 func (h *AdminInvitationHandler) List(c *gin.Context) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
@@ -87,20 +75,6 @@ type createAdminInvReq struct {
 
 // Create は招待を作成する。招待先は actor 自身の所属ワークスペースに固定され、招待できるのは trainee のみ。
 // この境界は backend で確実に守り、UI を経由しない呼び出しでも越権招待を防ぐ。
-//
-//	@Summary      招待 作成
-//	@Description  招待を作成する。受諾リンクをメールで送る。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。
-//	@Tags         admin
-//	@Accept       json
-//	@Produce      json
-//	@Param        body  body      createAdminInvReq  true  "招待 内容 (招待先 は actor の 所属 ワークスペース に 固定 さ れる)"
-//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation  "作成された招待行"
-//	@Failure      400   {object}  errorResponse  "バリデーション / 未知の method / 一時パスワード方式が未構成"
-//	@Failure      401   {object}  errorResponse  "未 認証"
-//	@Failure      403   {object}  errorResponse  "ロール 違反"
-//	@Failure      409   {object}  errorResponse  "一時パスワード方式で対象 email が既に存在"
-//	@Router       /admin/invitations [post]
-//	@Security     CookieAuth
 func (h *AdminInvitationHandler) Create(c *gin.Context) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
@@ -148,19 +122,6 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, got)
 }
 
-// @Summary      招待 取り消し
-// @Description  指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
-// @Description  super_admin は 全社、 company_admin は 自社 の 招待 のみ 取消 できる。
-// @Tags         admin
-// @Produce      json
-// @Param        id  path  int  true  "招待 ID"
-// @Success      204  "成功 (本文 なし)"
-// @Failure      400  {object}  errorResponse  "不正 な ID / DB 失敗"
-// @Failure      401  {object}  errorResponse  "未 認証"
-// @Failure      403  {object}  errorResponse  "管理者 以外"
-// @Failure      404  {object}  errorResponse  "招待 が 存在 し ない (他社 の 招待 を 含む)"
-// @Router       /admin/invitations/{id} [delete]
-// @Security     CookieAuth
 func (h *AdminInvitationHandler) Cancel(c *gin.Context) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {

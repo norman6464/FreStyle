@@ -71,17 +71,15 @@ handler  →  usecase  →  repository(port) / infra  →  domain
 - domain は他層に依存しない（標準ライブラリ + GORM tag のみ）
 - repository は **interface（`usecase/repository/`）** と **実装（`adapter/persistence/`）** を分離
 - 1 usecase = 1 ビジネスルール（`struct + New...UseCase + Execute`）。集約系の例外は許容
-- 新 endpoint は handler メソッド直前に **swaggo annotation** を書き、`make openapi` で `docs/` を更新
 
 これらは **自作 linter** で CI 検証される（違反すると CI が落ちる）:
 
 | linter | 検証 |
 |---|---|
 | `archlint` | 依存方向（層をまたぐ禁止 import） |
-| `apispec-lint` | Gin ルート ↔ swaggo `@Router`（method + path 一致） |
 | `naminglint` | usecase の命名・構造（`XxxUseCase` + `NewXxxUseCase` + `Execute`） |
 
-意図的な例外は `//archlint:allow` / `//apispec:allow` / `//naminglint:allow` で抑制できる。
+意図的な例外は `//archlint:allow` / `//naminglint:allow` で抑制できる。
 
 ---
 
@@ -116,7 +114,7 @@ pnpm run e2e:local    # ローカルビルド + API モックの認証導線 E2E
 
 PR では次が走る（詳細は `IaC リポ/docs/23` / `24`）:
 
-- backend: **gofumpt(整形強制)** / vet / staticcheck / go mod tidy / **race + coverage(floor)** / govulncheck(advisory) / **OpenAPI drift** / **archlint・apispec-lint・naminglint** / build / 結合テスト(Postgres)
+- backend: **gofumpt(整形強制)** / vet / staticcheck / go mod tidy / **race + coverage(floor)** / govulncheck(advisory) / **archlint・naminglint** / build / 結合テスト(Postgres)
 - frontend: tsc / ESLint(max-warnings=0) / **Vitest + coverage 閾値** / build
 - 全体: **CodeQL**（SAST）/ E2E（Playwright スモーク + ローカルモック）
 

@@ -140,7 +140,6 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 		Name:            req.Name,
 	}
 
-	// 招待はマジックリンク方式のみ。
 	got, err := h.create.Execute(c.Request.Context(), in)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -71,7 +71,6 @@ func isPgBouncerDSN(dsn string) bool {
 		return false
 	}
 
-	// key=value 形式は host= キーだけを厳密に取る。
 	for _, kv := range strings.Fields(trimmed) {
 		eq := strings.IndexByte(kv, '=')
 		if eq <= 0 {

@@ -162,11 +162,11 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 	now := time.Now()
 	createdAt := m.CreatedAt
 	if createdAt.IsZero() {
-		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+		createdAt = now
 	}
 	updatedAt := m.UpdatedAt
 	if updatedAt.IsZero() {
-		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+		updatedAt = now
 	}
 	row, err := sqlcgen.New(r.db).InsertChapter(ctx, sqlcgen.InsertChapterParams{
 		WorkspaceID:     workspaceID,
@@ -214,7 +214,7 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 		}
 		return err
 	}
-	m.UpdatedAt = updatedAt // GORM Save 相当の書き戻し
+	m.UpdatedAt = updatedAt
 	return nil
 }
 

@@ -1,7 +1,3 @@
-// Command apispec-lint は Gin に登録されたルートと swaggo 注釈の整合を検証する。
-// CLAUDE.md §2.7「handler メソッドの直前に swaggo annotation を必ず書く」を機械化し、
-// ルートを生やしたのに @Router 注釈を書き忘れた endpoint を CI で弾く。
-//
 // 仕組み（strict path 照合）:
 //   - internal/handler の全 .go を go/ast で解析
 //   - `g.GET("/path", ..., h.Method)` 形式のルート登録から (HTTP method, path) を抽出
@@ -42,8 +38,8 @@ var httpMethods = map[string]bool{
 
 // route は 1 件のルート登録。
 type route struct {
-	method     string // GET / POST ...
-	path       string // "/company-applications"
+	method     string
+	path       string
 	handler    string // ルートが指す handler メソッド名（"Create" 等）
 	line       int
 	suppressed bool // //apispec:allow が付いていれば true
@@ -180,7 +176,6 @@ func parseRouterLine(text string) (method, path string, ok bool) {
 		return "", "", false
 	}
 	path = fields[0]
-	// 末尾の `[get]` から method を取り出す。
 	m := fields[len(fields)-1]
 	if !strings.HasPrefix(m, "[") || !strings.HasSuffix(m, "]") {
 		return "", "", false

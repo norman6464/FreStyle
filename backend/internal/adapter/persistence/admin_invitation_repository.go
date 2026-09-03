@@ -157,7 +157,7 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 	inv.Email = domain.NormalizeEmail(inv.Email)
 	createdAt := inv.CreatedAt
 	if createdAt.IsZero() {
-		createdAt = time.Now() // GORM autoCreateTime 相当（ゼロのときだけ now）
+		createdAt = time.Now()
 	}
 	var token sql.NullString
 	if inv.Token != nil {

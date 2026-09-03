@@ -26,7 +26,6 @@ func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.PUT("/notes/:id", noteHandler.Update)
 	g.DELETE("/notes/:id", noteHandler.Delete)
 
-	// Note 画像の S3 presigned upload。
 	noteImageHandler := NewNoteImageHandler(
 		usecase.NewIssueNoteImageUploadURLUseCase(newNoteImagePresignerOrFallback(deps)),
 	)

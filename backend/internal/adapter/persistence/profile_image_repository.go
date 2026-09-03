@@ -40,10 +40,6 @@ func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fil
 	}
 	return &domain.ProfileImageUploadURL{
 		UploadURL: url,
-		// 配信ドメインを含めない（FRESTYLE-234）。画像はアプリと同一オリジンで配信され、
-		// ブラウザが現在のドメインを補って解決するため、この形ならドメインを変えても
-		// 保存済みデータを書き換えずに済む。絶対 URL で保存していた頃は、ドメイン移行の
-		// たびに過去の画像が全て参照不能になっていた（FRESTYLE-232 で実害）。
 		ImageURL:  "/" + key,
 		Key:       key,
 		ExpiresIn: int(ttl.Seconds()),

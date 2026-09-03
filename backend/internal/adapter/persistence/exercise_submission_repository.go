@@ -60,7 +60,7 @@ func (r *exerciseSubmissionRepository) Create(ctx context.Context, submission *d
 	if err != nil {
 		return err
 	}
-	submission.ID = uint64(id) // GORM Create 相当の採番書き戻し
+	submission.ID = uint64(id)
 	return nil
 }
 

@@ -9,11 +9,6 @@ import (
 )
 
 // GetUserDashboardUseCase はパーソナライズダッシュボードに必要な集計データを返す。
-//
-// 返す情報:
-//   - streak        : 今日を起点とした連続学習日数（user_daily_activities ベース）
-//   - recentActivity: 過去 90 日分の日次サマリー（カレンダーヒートマップ用）
-//   - chapterViews  : 直近に開いた章 5 件（「続きから」カード用）
 type GetUserDashboardUseCase struct {
 	activity     repository.UserDailyActivityRepository
 	chapterViews repository.UserChapterViewRepository
@@ -26,7 +21,6 @@ func NewGetUserDashboardUseCase(
 	return &GetUserDashboardUseCase{activity: a, chapterViews: cv}
 }
 
-// GetUserDashboardOutput はダッシュボード API のレスポンス型。
 type GetUserDashboardOutput struct {
 	Streak             int                        `json:"streak"`
 	TotalExercises     int                        `json:"totalExercises"`
@@ -38,7 +32,6 @@ type GetUserDashboardOutput struct {
 
 func (u *GetUserDashboardUseCase) Execute(ctx context.Context, userID uint64) (*GetUserDashboardOutput, error) {
 	now := time.Now().UTC()
-	// 過去 90 日分を取得してカレンダー表示と streak 計算を両立する。
 	from := now.AddDate(0, 0, -89).Truncate(24 * time.Hour)
 
 	activities, err := u.activity.ListByUser(ctx, userID, from, now)
@@ -64,10 +57,7 @@ func (u *GetUserDashboardUseCase) Execute(ctx context.Context, userID uint64) (*
 	return out, nil
 }
 
-// computeStreak は今日から遡って何日連続で学習したかを返す。
-// 学習あり = ExerciseCount + LessonCount + NoteCount のいずれかが 1 以上の日。
 func computeStreak(activities []domain.UserDailyActivity, now time.Time) int {
-	// date → activity のマップを作る。
 	actMap := make(map[string]bool, len(activities))
 	for _, a := range activities {
 		if a.ExerciseCount+a.LessonCount+a.NoteCount > 0 {

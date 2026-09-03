@@ -10,8 +10,6 @@ type UserDailyActivity struct {
 	ActivityDate  time.Time `json:"activityDate"`
 	ExerciseCount int       `json:"exerciseCount"`
 	CorrectCount  int       `json:"correctCount"`
-	// LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。
-	// JSON キーは互換のため lessonCount のまま。
-	LessonCount int `json:"lessonCount"`
-	NoteCount   int `json:"noteCount"`
+	LessonCount   int       `json:"lessonCount"`
+	NoteCount     int       `json:"noteCount"`
 }

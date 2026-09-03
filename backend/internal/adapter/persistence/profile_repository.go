@@ -54,6 +54,6 @@ func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error
 	if err != nil {
 		return err
 	}
-	p.UpdatedAt = updatedAt // GORM Save 相当の書き戻し
+	p.UpdatedAt = updatedAt
 	return nil
 }

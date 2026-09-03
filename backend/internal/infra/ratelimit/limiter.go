@@ -55,7 +55,6 @@ func (l *Limiter) Allow(key string) bool {
 		b = &bucket{tokens: l.burst, last: now}
 		l.buckets[key] = b
 	}
-	// 経過時間ぶんトークンを補充する。
 	b.tokens += now.Sub(b.last).Seconds() * l.rate
 	if b.tokens > l.burst {
 		b.tokens = l.burst

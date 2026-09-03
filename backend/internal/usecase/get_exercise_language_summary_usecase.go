@@ -6,8 +6,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// GetExerciseLanguageSummaryUseCase は公開済み演習を言語ごとに集計するユースケース。
-// コード学習の言語選択カード（問題数 + 完了数）に使う（FRESTYLE-152）。
 type GetExerciseLanguageSummaryUseCase struct {
 	exercises repository.MasterExerciseRepository
 }

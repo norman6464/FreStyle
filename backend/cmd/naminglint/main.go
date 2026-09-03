@@ -170,13 +170,11 @@ func analyzeFile(fset *token.FileSet, f *ast.File, path string) (structs []ucStr
 			}
 		case *ast.FuncDecl:
 			if d.Recv == nil {
-				// 関数: New コンストラクタを集める。
 				if strings.HasPrefix(d.Name.Name, "New") {
 					constructors = append(constructors, d.Name.Name)
 				}
 				continue
 			}
-			// メソッド: Execute を持つレシーバ型名を集める。
 			if d.Name.Name == "Execute" {
 				if name := receiverTypeName(d.Recv); name != "" {
 					executeRecv = append(executeRecv, name)

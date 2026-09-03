@@ -26,7 +26,6 @@ func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	cvh := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(chapterViewRepo, materialRepo, permUC))
 	g.POST("/teaching-materials/:id/view", cvh.RecordView)
 
-	// 教材 1 つだけに効く権限（「この教材だけ編集してよい」）。
 	gh := newMaterialGrantHandler(deps, permUC, persistence.NewKnowledgeBasePermissionRepository(deps.db))
 	g.GET("/teaching-materials/:id/grants", gh.ListChapterGrants)
 	g.PUT("/teaching-materials/:id/grants/:principalId", gh.GrantChapterRole)

@@ -1,15 +1,4 @@
-# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-#
-# FreStyle の CodeRabbit レビュー設定。
-# 方針: トーンは「若手に教える丁寧な日本語」を保ちつつ、指摘は妥協しない (profile: assertive)。
-# path_instructions で CLAUDE.md の規約 (クリーンアーキテクチャ / FSD 境界 / 契約整合 /
-# テスト必須 / セキュリティ / 他社プロダクト名の不使用) を CodeRabbit に守らせる。
 language: "ja-JP"
-tone_instructions: >-
-  丁寧な日本語で、若手エンジニアに教えるように背景と理由まで説明してください。
-  ただし指摘の妥協はしないこと。規約違反・バグ・セキュリティ・契約の不一致は、
-  たとえ小さくても必ず具体的なファイル:行と修正案を添えて指摘してください。
-  「LGTM」で流さず、根拠のある改善提案を優先します。
 
 reviews:
   # assertive: より厳格で網羅的なレビュー。chill より多くの潜在問題を指摘する。
@@ -68,15 +57,7 @@ reviews:
     - path: "frontend/src/**"
       instructions: >-
         Feature-Sliced Design (app > pages > widgets > features > entities > shared)。
-        (1) import は下向きの一方通行のみ。上位・同層 Slice への import は指摘する。
-        ただし app ↔ shared の相互 import は公式の例外として許可 (typed Redux hooks が RootState を
-        参照するため)。shared/lib/store が app の RootState/store を参照する等は指摘しないこと。
-        (2) 各 Slice は Public API (index.ts) 経由で使い、Slice 内部の深いパスを外から import していないか。
-        (3) 1 ファイル 1 コンポーネント。1 ファイルに複数コンポーネントが同居していたら分割を提案 (FRESTYLE-208/210 の方針)。
-        (4) 単一画面専用のものが features に置かれていないか (page の model/ui に置く)。
-        (5) 手書き repository (entities/*/api) のパス・送受信キーが backend の json タグと一致しているか。
-        契約ドリフト (displayName↔name、未登録パスへの fetch=404、送っていない必須フィールド) を厳しく指摘する。
-        (6) 省略名 (s/e/i/m/mid/ok 等) は読み手に分かる名前へ改名を提案。
+        
     - path: "frontend/src/**/__tests__/**"
       instructions: >-
         フロントのテスト。render + getByRole でアクセシビリティ込みで検証しているか。

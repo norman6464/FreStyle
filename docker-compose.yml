@@ -2,7 +2,6 @@ name: frestyle-local
 
 services:
   db:
-    # 本番(Supabase)と同系統に揃える。Docker Hub のレート制限を避けて ECR Public から取る。
     image: public.ecr.aws/docker/library/postgres:17.6-alpine
     container_name: frestyle-local-db
     restart: unless-stopped
@@ -10,7 +9,6 @@ services:
       POSTGRES_USER: ${LOCAL_DB_USER:-frestyle}
       POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-frestyle}
       POSTGRES_DB: ${LOCAL_DB_NAME:-frestyle}
-      # 日本語データを扱うため初期 DB の照合順序を明示する。
       POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
     ports:
       - '${LOCAL_DB_PORT:-5432}:5432'
@@ -18,17 +16,6 @@ services:
       - db_data:/var/lib/postgresql/data
       # 起動時に一度だけ流す初期化 SQL(空の DB のときのみ実行される)。
       - ./backend/scripts/local-db-init:/docker-entrypoint-initdb.d:ro
-    # 性能検証で実行計画を見るため pg_stat_statements を有効にする。
-    command:
-      - postgres
-      - -c
-      - shared_preload_libraries=pg_stat_statements
-      - -c
-      - pg_stat_statements.track=all
-      # 手元の Mac は本番より潤沢なので、既定値のままだと本番より楽なプランが出る。
-      # 実行計画を比較したいときはここを本番相当に寄せる(既定は開発しやすさ優先)。
-      - -c
-      - shared_buffers=${LOCAL_DB_SHARED_BUFFERS:-128MB}
     healthcheck:
       test:
         ['CMD-SHELL', 'pg_isready -U ${LOCAL_DB_USER:-frestyle} -d ${LOCAL_DB_NAME:-frestyle}']
@@ -36,14 +23,6 @@ services:
       timeout: 3s
       retries: 30
 
-  mail:
-    # 招待メールの SMTP 送信を手元で確認する。実メールは外部へ飛ばない。
-    image: axllent/mailpit:v1.30
-    container_name: frestyle-local-mail
-    restart: unless-stopped
-    ports:
-      - '1025:1025' # SMTP (backend からの送信先)
-      - '8025:8025' # Web UI (受信メールの閲覧)
 
   backend:
     # 本番と同じ Dockerfile(distroless)でビルドする。ローカルだけ別物にすると
@@ -66,16 +45,9 @@ services:
       # 演習のコード実行は code-runner(profile full)へ委譲する。distroless の backend 本体は
       # php / java / node 等を持たないため in-process 実行はできない。
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
-      # ローカル専用のパスワードログイン(DB の bcrypt 検証)。Cognito 不要で
-      # seed ユーザー(seed1@example.test / password 等)でログインできる。
-      # 有効化は「LOCAL_PASSWORD_AUTH=1 かつ 明示的な APP_ENV=local」の両方が必要(FRESTYLE-311)。
-      # APP_ENV を明示注入することで、APP_ENV を設定しない staging 等では有効化しない。
-      # 署名鍵はプロセス毎ランダム(固定鍵の偽造は不可)。
       APP_ENV: ${APP_ENV:-local}
       LOCAL_PASSWORD_AUTH: ${LOCAL_PASSWORD_AUTH:-1}
     ports:
-      # ホストで make run したいときは LOCAL_BACKEND_PORT を変えるか、
-      # docker compose stop backend でコンテナ側を止める(同じ 8080 は二重に使えない)。
       - '${LOCAL_BACKEND_PORT:-8080}:8080'
     depends_on:
       db:

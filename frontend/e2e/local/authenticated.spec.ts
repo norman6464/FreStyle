@@ -30,22 +30,6 @@ async function mockAuthenticated(
       body: JSON.stringify({ isAdmin: role !== 'trainee', role }),
     })
   );
-  // 学習サマリーは配列ではなくオブジェクト。既定の [] のままだと trainee のホームが
-  // 中の配列を undefined として触って落ち、ErrorBoundary に差し替わる。
-  await page.route('**/api/v2/me/dashboard', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        streak: 0,
-        totalExercises: 0,
-        totalCorrect: 0,
-        totalLessons: 0,
-        recentActivity: [],
-        recentChapterViews: [],
-      }),
-    })
-  );
   for (const [pattern, body] of Object.entries(overrides)) {
     await page.route(pattern, (route) =>
       route.fulfill({

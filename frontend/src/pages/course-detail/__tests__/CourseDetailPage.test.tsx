@@ -9,7 +9,7 @@ import authReducer from '@/entities/user/model/authSlice';
 import { CourseRepository } from '@/entities/course';
 import { TeachingMaterialRepository } from '@/entities/course';
 import { LessonProgressRepository } from '@/entities/course';
-import { DashboardRepository } from '@/entities/user';
+import { ChapterViewRepository } from '@/entities/user';
 import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '@/entities/course';
 import type { RichDocContent } from '@/shared/ui/RichTextEditor';
 
@@ -39,9 +39,8 @@ vi.mock('@/entities/course/api/lessonProgressRepository', () => ({
   },
 }));
 
-vi.mock('@/entities/user/api/dashboardRepository', () => ({
+vi.mock('@/entities/user/api/chapterViewRepository', () => ({
   default: {
-    get: vi.fn(),
     recordChapterView: vi.fn(),
   },
 }));
@@ -53,7 +52,7 @@ const mockLastViewed = vi.mocked(CourseRepository.lastViewed);
 const mockGetMaterial = vi.mocked(TeachingMaterialRepository.get);
 const mockProgressList = vi.mocked(LessonProgressRepository.list);
 const mockComplete = vi.mocked(LessonProgressRepository.complete);
-const mockRecordView = vi.mocked(DashboardRepository.recordChapterView);
+const mockRecordView = vi.mocked(ChapterViewRepository.recordChapterView);
 
 function course(): Course {
   return {

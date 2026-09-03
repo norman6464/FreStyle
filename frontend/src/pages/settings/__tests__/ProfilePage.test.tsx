@@ -17,20 +17,6 @@ vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({ showToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
 }));
 
-vi.mock('@/entities/user/api/profileStatsRepository', () => ({
-  default: {
-    fetchStats: vi.fn().mockResolvedValue({
-      totalSessions: 10,
-      averageScore: 75.0,
-      currentStreak: 3,
-      longestStreak: 7,
-      totalAchievedDays: 20,
-      followerCount: 5,
-      followingCount: 8,
-    }),
-  },
-}));
-
 const mockedRepo = vi.mocked(ProfileRepository);
 
 describe('ProfilePage', () => {
@@ -169,17 +155,6 @@ describe('ProfilePage', () => {
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('学習中')).toBeInTheDocument();
-    });
-  });
-
-  it('学習統計セクションが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
-
-    render(<ProfilePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('学習統計')).toBeInTheDocument();
-      expect(screen.getByText('10回')).toBeInTheDocument();
     });
   });
 });

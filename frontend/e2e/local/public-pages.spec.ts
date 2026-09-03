@@ -37,22 +37,6 @@ test.describe('トップ（/）', () => {
         body: JSON.stringify({ isAdmin: false, role: 'trainee' }),
       })
     );
-    // 学習サマリーは配列ではなくオブジェクト。[] のままだとホームが落ちる。
-    await page.route('**/api/v2/me/dashboard', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          streak: 0,
-          totalExercises: 0,
-          totalCorrect: 0,
-          totalLessons: 0,
-          recentActivity: [],
-          recentChapterViews: [],
-        }),
-      })
-    );
-
     await page.goto('/');
 
     // ホームが実際に描画されるまで待つ。URL だけを見ると、MenuPage の遅延ロードが

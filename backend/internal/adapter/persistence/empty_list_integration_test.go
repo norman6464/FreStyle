@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -96,20 +95,6 @@ func listCases() []listCase {
 			truncate: []string{"master_exercises"},
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				return persistence.NewMasterExerciseRepository(db).SummaryByLanguage(ctx, noSuchID)
-			},
-		},
-		{
-			name: "日次の学習活動",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-				return persistence.NewUserDailyActivityRepository(db).
-					ListByUser(ctx, noSuchID, from, from.AddDate(0, 3, 0))
-			},
-		},
-		{
-			name: "最近見た章",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewUserChapterViewRepository(db).ListRecentByUser(ctx, noSuchID, 10)
 			},
 		},
 		{

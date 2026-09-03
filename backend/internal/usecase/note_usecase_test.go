@@ -17,10 +17,6 @@ func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ 
 	return nil
 }
 
-func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time) ([]domain.UserDailyActivity, error) {
-	return nil, nil
-}
-
 type stubNoteRepo struct {
 	rows          []domain.Note
 	one           *domain.Note

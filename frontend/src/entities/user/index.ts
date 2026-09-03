@@ -9,21 +9,10 @@ export { default as AuthRepository } from './api/authRepository';
 export type { UserInfo } from './api/authRepository';
 export { default as ProfileRepository } from './api/profileRepository';
 export type { UpdateProfileRequest } from './api/profileRepository';
-export { default as ProfileStatsRepository } from './api/profileStatsRepository';
-export type { ProfileStats } from './api/profileStatsRepository';
 export { default as ImageUploadRepository } from './api/imageUploadRepository';
-export { default as DashboardRepository } from './api/dashboardRepository';
+export { default as ChapterViewRepository } from './api/chapterViewRepository';
 
-export type {
-  Profile,
-  User,
-  AuthState,
-  UserRole,
-  UserDailyActivity,
-  UserDashboard,
-} from './model/types';
-
-export { default as ProfileStatsSection } from './ui/ProfileStatsSection';
+export type { Profile, User, AuthState, UserRole } from './model/types';
 
 // 認証状態の Redux slice。reducer は app 側の configureStore が組み立てる。
 export { default as authReducer } from './model/authSlice';

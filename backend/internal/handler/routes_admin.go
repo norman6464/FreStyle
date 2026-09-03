@@ -27,11 +27,8 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps) {
 		usecase.NewListCompanyMembersUseCase(memberRepo),
 		usecase.NewSetMemberActiveUseCase(memberRepo),
 		usecase.NewSoftDeleteMemberUseCase(memberRepo),
-		usecase.NewGetCompanyLearningSummaryUseCase(persistence.NewCompanyLearningActivityRepository(deps.db)),
 	)
 	g.GET("/admin/members", memberHandler.List)
-	// company_admin のホーム用: 自社メンバーの学習状況サマリー。
-	g.GET("/admin/members/learning-summary", memberHandler.LearningSummary)
 	// 従業員アカウントの有効/無効（停止）と論理削除（super_admin は全社 / company_admin は自社）。
 	g.PATCH("/admin/members/:userId/active", memberHandler.SetActive)
 	g.DELETE("/admin/members/:userId", memberHandler.Delete)

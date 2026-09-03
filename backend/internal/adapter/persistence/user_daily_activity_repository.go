@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -19,18 +18,6 @@ type userDailyActivityRepository struct {
 // NewUserDailyActivityRepository は UserDailyActivityRepository の実装を返す。
 func NewUserDailyActivityRepository(db *sql.DB) repository.UserDailyActivityRepository {
 	return &userDailyActivityRepository{db: db}
-}
-
-func toDomainUserDailyActivity(row sqlcgen.UserDailyActivity) domain.UserDailyActivity {
-	return domain.UserDailyActivity{
-		UserID:        uint64(row.UserID),
-		ActivityDate:  row.ActivityDate,
-		ExerciseCount: int(row.ExerciseCount),
-		CorrectCount:  int(row.CorrectCount),
-		// LessonCount は列 chapter_count に対応する（JSON は互換のため lessonCount）。
-		LessonCount: int(row.ChapterCount),
-		NoteCount:   int(row.NoteCount),
-	}
 }
 
 // Increment は user_daily_activities を upsert し各カウンタを delta 分だけ加算する。
@@ -56,30 +43,4 @@ func (r *userDailyActivityRepository) Increment(
 		ChapterCount:  int32(delta.LessonCount),
 		NoteCount:     int32(delta.NoteCount),
 	})
-}
-
-func (r *userDailyActivityRepository) ListByUser(
-	ctx context.Context,
-	userID uint64,
-	from, to time.Time,
-) ([]domain.UserDailyActivity, error) {
-	uid, ok := toInt64ID(userID)
-	if !ok {
-		return []domain.UserDailyActivity{}, nil // 存在し得ない user_id = 0 件
-	}
-	fromDate := from.UTC().Truncate(24 * time.Hour)
-	toDate := to.UTC().Truncate(24 * time.Hour)
-	rows, err := sqlcgen.New(r.db).ListUserDailyActivitiesByUser(ctx, sqlcgen.ListUserDailyActivitiesByUserParams{
-		UserID:   uid,
-		FromDate: fromDate,
-		ToDate:   toDate,
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]domain.UserDailyActivity, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toDomainUserDailyActivity(row))
-	}
-	return out, nil
 }

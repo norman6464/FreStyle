@@ -1,11 +1,6 @@
 /**
  * ユーザー（user）entity のドメイン型。
- *
- * UserDashboard / UserDailyActivity は独立した業務エンティティではなく
- * 「そのユーザーの学習集計」という read model なのでここに含める。
  */
-
-import type { UserChapterView } from '@/entities/course/@x/user';
 
 /**
  * Profile は Go backend `domain.ProfileView` と 1:1 で対応する。
@@ -47,26 +42,6 @@ export interface AuthState {
    * 未認証 / 未確定は null。
    */
   role: string | null;
-}
-
-/** 日次学習活動サマリー（`GET /api/v2/me/dashboard` の recentActivity 要素）。 */
-export interface UserDailyActivity {
-  userId: number;
-  activityDate: string; // ISO 8601 date e.g. "2026-06-19T00:00:00Z"
-  exerciseCount: number;
-  correctCount: number;
-  lessonCount: number;
-  noteCount: number;
-}
-
-/** `GET /api/v2/me/dashboard` のレスポンス全体。 */
-export interface UserDashboard {
-  streak: number;
-  totalExercises: number;
-  totalCorrect: number;
-  totalLessons: number;
-  recentActivity: UserDailyActivity[];
-  recentChapterViews: UserChapterView[];
 }
 
 /**

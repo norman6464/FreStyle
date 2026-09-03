@@ -13,26 +13,23 @@ import (
 )
 
 // AdminMemberHandler は company_admin / super_admin が従業員一覧と、各従業員の AI 利用可否・
-// アカウントの有効/無効・論理削除・学習状況サマリーを扱う。
+// アカウントの有効/無効・論理削除を扱う。
 type AdminMemberHandler struct {
-	list            *usecase.ListCompanyMembersUseCase
-	setActive       *usecase.SetMemberActiveUseCase
-	softDelete      *usecase.SoftDeleteMemberUseCase
-	learningSummary *usecase.GetCompanyLearningSummaryUseCase
+	list       *usecase.ListCompanyMembersUseCase
+	setActive  *usecase.SetMemberActiveUseCase
+	softDelete *usecase.SoftDeleteMemberUseCase
 }
 
-// NewAdminMemberHandler は一覧 / 有効無効 / 論理削除 / 学習サマリー usecase を注入して handler を返す。
+// NewAdminMemberHandler は一覧 / 有効無効 / 論理削除 usecase を注入して handler を返す。
 func NewAdminMemberHandler(
 	list *usecase.ListCompanyMembersUseCase,
 	setActive *usecase.SetMemberActiveUseCase,
 	softDelete *usecase.SoftDeleteMemberUseCase,
-	learningSummary *usecase.GetCompanyLearningSummaryUseCase,
 ) *AdminMemberHandler {
 	return &AdminMemberHandler{
-		list:            list,
-		setActive:       setActive,
-		softDelete:      softDelete,
-		learningSummary: learningSummary,
+		list:       list,
+		setActive:  setActive,
+		softDelete: softDelete,
 	}
 }
 
@@ -77,21 +74,6 @@ func (h *AdminMemberHandler) List(c *gin.Context) {
 		out = append(out, toMemberResponse(m))
 	}
 	c.JSON(http.StatusOK, out)
-}
-
-// LearningSummary は自社 trainee の学習状況サマリーを返す(company_admin のホーム用)。
-func (h *AdminMemberHandler) LearningSummary(c *gin.Context) {
-	actor := middleware.CurrentUserFromContext(c)
-	if !isAdminActor(actor) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	summary, err := h.learningSummary.Execute(c.Request.Context(), actor)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-		return
-	}
-	c.JSON(http.StatusOK, summary)
 }
 
 // memberOpErrorStatus は従業員の停止/削除 usecase のエラーを HTTP ステータスにマップする。

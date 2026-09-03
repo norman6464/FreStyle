@@ -10,27 +10,16 @@ import {
   BookOpenIcon,
 } from '@heroicons/react/24/outline';
 
-import { useUserDashboard } from '../model/useUserDashboard';
-import { useWorkspaceLearningSummary } from '../model/useWorkspaceLearningSummary';
-import DashboardStats from './DashboardStats';
-import WorkspaceLearningPanel from './WorkspaceLearningPanel';
 import FeatureSection from './FeatureSection';
 import FeatureCard from './FeatureCard';
 import MenuSkeleton from './MenuSkeleton';
-import StatsSkeleton from './StatsSkeleton';
 
 /**
- * ホーム画面（ダッシュボード）。
+ * ホーム画面。
  *
  * ロール別にカードセットを出し分け:
  *   - super_admin   : 管理系のみ
  *   - company_admin : 管理 + 学習機能（AI はテナント設定に関わらず常時表示）
- *
- * 表示タイミング:
- *   学習者向けはメニューカードとパーソナライズ統計（右サイドバー）を **同時に** 出す。
- *   統計 API のロード中はメニューを先出しせずスケルトンで待ち、レイアウトシフトと
- *   「メニューだけ先に出てサイドバーが後から差し込まれる」ちらつきを防ぐ。
- *   super_admin は統計を持たないので即時表示。
  *
  *   role が null の間はどのロールとしても描画しない（FRESTYLE-233）。null は「未認証」と
  *   「未確定」の両方を表すため、確定前に描画すると全ての判定が false になり、既定として
@@ -40,19 +29,9 @@ export default function MenuPage() {
   const role = useAppSelector((state) => state.auth.role);
   const isSuperAdmin = role === 'super_admin';
   const isTrainee = role === 'trainee';
-  const isCompanyAdmin = role === 'company_admin';
   const roleUnresolved = role === null;
 
-  // サイドバーの中身はロールで出し分ける:
-  //   trainee = 自分の学習統計 / company_admin = 自社メンバーの学習状況 / super_admin = なし。
-  // company_admin は学習者ではないため自分用の /me/dashboard は取得しない。
-  const { dashboard, loading: dashboardLoading } = useUserDashboard({ enabled: isTrainee });
-  const { summary, loading: summaryLoading } = useWorkspaceLearningSummary({ enabled: isCompanyAdmin });
-
-  // 学習者/管理者向けはサイドバーのロード完了まで本体を出さず、両カラムを同時に出す。
-  const waitingForStats = (isTrainee && dashboardLoading) || (isCompanyAdmin && summaryLoading);
-
-  // ロール未確定のうちは見出しもサイドバーもロールに依存するため、ページ全体を
+  // ロール未確定のうちは見出しもロールに依存するため、ページ全体を
   // 読み込み表示にする。ここで役割別の要素を出すと、確定後に差し替わってちらつく。
   if (roleUnresolved) {
     return (
@@ -86,9 +65,7 @@ export default function MenuPage() {
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* ── 左メインコンテンツ ── */}
         <div className="flex-1 min-w-0 space-y-8 w-full">
-          {waitingForStats ? (
-            <MenuSkeleton />
-          ) : isSuperAdmin ? (
+          {isSuperAdmin ? (
             <FeatureSection title="管理機能">
               <FeatureCard
                 to="/admin/invitations"
@@ -151,20 +128,6 @@ export default function MenuPage() {
             </>
           )}
         </div>
-
-        {/* ── 右サイドバー ── trainee = 自分の学習統計 / company_admin = メンバーの学習状況 /
-            super_admin = 非表示 (FRESTYLE-103) */}
-        {!isSuperAdmin && (
-          <div className="w-full lg:w-72 shrink-0">
-            {waitingForStats ? (
-              <StatsSkeleton />
-            ) : isTrainee ? (
-              dashboard && <DashboardStats dashboard={dashboard} />
-            ) : (
-              summary && <WorkspaceLearningPanel summary={summary} />
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

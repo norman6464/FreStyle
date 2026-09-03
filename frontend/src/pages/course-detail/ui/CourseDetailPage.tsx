@@ -12,7 +12,7 @@ import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
-import { DashboardRepository } from '@/entities/user';
+import { ChapterViewRepository } from '@/entities/user';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
 import { useAutoHideOnScroll } from '@/shared/lib/hooks/useAutoHideOnScroll';
 import { useHeaderVisibility } from '@/widgets/app-shell';
@@ -116,7 +116,7 @@ export default function CourseDetailPage() {
   // レジュームとダッシュボード「続きから」の基盤データになる。
   useEffect(() => {
     if (canManage || selectedId == null) return;
-    DashboardRepository.recordChapterView(selectedId);
+    ChapterViewRepository.recordChapterView(selectedId);
   }, [canManage, selectedId]);
 
   // 進捗トラッキングは学習者（trainee）向け。 教材を管理するロールでは API を叩かない。

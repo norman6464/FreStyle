@@ -310,20 +310,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 				 VALUES (7, $1, 10, $2, $2, 1)`, i, tie)
 			require.NoError(t, err)
 		}
-		rows, err := repo.ListRecentByUser(ctx, 7, 10)
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.TeachingMaterialID)
-		}
-		require.Equal(t, []uint64{4, 3, 2, 1}, ids)
-
-		// LIMIT が同着をまたいでも「どの 1 件か」が固定される。
-		top, err := repo.ListRecentByUser(ctx, 7, 1)
-		require.NoError(t, err)
-		require.Len(t, top, 1)
-		require.Equal(t, uint64(4), top[0].TeachingMaterialID)
-
 		last, err := repo.GetLastViewedByUserAndCourse(ctx, 7, 10)
 		require.NoError(t, err)
 		require.NotNil(t, last)

@@ -282,7 +282,7 @@ export default function HelpPage() {
                 続かない / 気が乗らない
               </summary>
               <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                1 日 1 回・5 分でも構いません。ホームの「日次目標」「ストリークカレンダー」が継続をサポートします。週 3 回を 4 週間続けると効果を実感しやすいです。
+                1 日 1 回・5 分でも構いません。週 3 回を 4 週間続けると効果を実感しやすいです。
               </p>
             </details>
           </li>

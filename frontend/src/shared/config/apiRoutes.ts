@@ -82,15 +82,8 @@ export const NOTIFICATIONS = {
   readAll: `${API_V2}/notifications/read-all`,
 } as const;
 
-/** 設定（リマインダー・日次目標・週次チャレンジ） */
+/** 設定（リマインダー・週次チャレンジ） */
 export const REMINDER = `${API_V2}/reminder` as const;
-
-export const DAILY_GOALS = {
-  today: `${API_V2}/daily-goals/today`,
-  target: `${API_V2}/daily-goals/target`,
-  increment: `${API_V2}/daily-goals/increment`,
-  streak: `${API_V2}/daily-goals/streak`,
-} as const;
 
 export const WEEKLY_CHALLENGE = {
   current: `${API_V2}/weekly-challenge`,
@@ -100,8 +93,6 @@ export const WEEKLY_CHALLENGE = {
 /** 管理者ダッシュボード（会社 / 招待 / シナリオ） */
 export const ADMIN = {
   members: `${API_V2}/admin/members`,
-  /** GET /api/v2/admin/members/learning-summary — 自社メンバーの学習状況サマリー（company_admin のホーム用）*/
-  membersLearningSummary: `${API_V2}/admin/members/learning-summary`,
   /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
   memberActive: (userId: number | string) => `${API_V2}/admin/members/${userId}/active`,
   /** DELETE /api/v2/admin/members/:userId — 従業員の論理削除 */

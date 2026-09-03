@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -14,8 +13,4 @@ type nopActivityRepo struct{}
 
 func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
 	return nil
-}
-
-func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time) ([]domain.UserDailyActivity, error) {
-	return nil, nil
 }

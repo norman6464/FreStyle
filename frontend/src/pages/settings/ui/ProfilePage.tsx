@@ -5,16 +5,13 @@ import Button from '@/shared/ui/Button';
 import FormMessage from '@/shared/ui/FormMessage';
 import Avatar from '@/shared/ui/Avatar';
 import Loading from '@/shared/ui/Loading';
-import { ProfileStatsSection } from '@/entities/user';
 import { useProfileEdit } from '../model/useProfileEdit';
 import { useProfileImageUpload } from '../model/useProfileImageUpload';
-import { useProfileStats } from '../model/useProfileStats';
 import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {
   const { form, message, setMessage, loading, submitting, updateField, handleUpdate } = useProfileEdit();
   const { upload, uploading } = useProfileImageUpload();
-  const { stats, loading: statsLoading } = useProfileStats();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,9 +105,6 @@ export default function ProfilePage() {
           </Button>
         </form>
       </div>
-
-      {/* セクション2: 学習統計 */}
-      <ProfileStatsSection stats={stats} loading={statsLoading} />
     </div>
   );
 }

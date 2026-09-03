@@ -5,22 +5,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
 import authReducer, { setAuthData } from '@/entities/user/model/authSlice';
-import { useWorkspaceLearningSummary } from '../model/useWorkspaceLearningSummary';
-import type { WorkspaceLearningSummary } from '@/entities/member';
 import { createMockStorage } from '@/test/mockStorage';
-
-vi.mock('../model/useWorkspaceLearningSummary');
-
-const mockUseWorkspaceLearningSummary = vi.mocked(useWorkspaceLearningSummary);
-
-const sampleSummary: WorkspaceLearningSummary = {
-  traineeCount: 4,
-  activeToday: 1,
-  activeThisWeek: 2,
-  recentMembers: [
-    { userId: 11, name: '山田 太郎', lastActiveDate: '2026-07-09', recentActivityCount: 3 },
-  ],
-};
 
 function renderMenu(role: string | null) {
   const store = configureStore({
@@ -42,8 +27,6 @@ function renderMenu(role: string | null) {
 describe('MenuPage', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createMockStorage());
-    // 既定は「無効(取得なし)」相当。各テストで上書きする。
-    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: null, loading: false, error: null });
   });
 
   afterEach(() => {
@@ -76,31 +59,11 @@ describe('MenuPage', () => {
   });
 
   it('company_admin は学習・ツール・管理セクションを表示する', () => {
-    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
     renderMenu('company_admin');
 
     expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('コース')).toBeInTheDocument();
     expect(screen.getByText('従業員一覧')).toBeInTheDocument();
-  });
-
-  it('company_admin のサイドバーは自分の統計ではなくメンバーの学習状況を表示する (FRESTYLE-103)', () => {
-    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
-    renderMenu('company_admin');
-
-    expect(screen.getByText('メンバーの学習状況')).toBeInTheDocument();
-    expect(screen.getByText('在籍メンバー')).toBeInTheDocument();
-    expect(screen.getByText('山田 太郎')).toBeInTheDocument();
-    // 自分の学習統計(連続学習)は出さない。
-    expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
-  });
-
-  it('company_admin はサマリーロード中スケルトン待ちになる', () => {
-    mockUseWorkspaceLearningSummary.mockReturnValue({ summary: null, loading: true, error: null });
-    renderMenu('company_admin');
-
-    expect(screen.queryByText('コース')).not.toBeInTheDocument();
-    expect(screen.queryByText('メンバーの学習状況')).not.toBeInTheDocument();
   });
 
   // role が null のときは「未認証」と「未確定」を区別できない。確定前に描画すると

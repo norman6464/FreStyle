@@ -58,7 +58,6 @@ type authzRequest struct {
 func adminAuthzRequests() []authzRequest {
 	return []authzRequest{
 		{http.MethodGet, "/admin/members", ""},
-		{http.MethodGet, "/admin/members/learning-summary", ""},
 		{http.MethodPatch, "/admin/members/99999/active", `{"active":false}`},
 		{http.MethodDelete, "/admin/members/99999", ""},
 		{http.MethodGet, "/admin/invitations", ""},
@@ -165,7 +164,7 @@ func TestAdminEndpointAuthzMatrix_Integration(t *testing.T) {
 			case blocked:
 				// 入口の RequireAdmin が落とすので、どの経路にも届かない。
 				want[k] = forbidden
-			case req.path == "/admin/members" || req.path == "/admin/members/learning-summary":
+			case req.path == "/admin/members":
 				// 一覧は所属で絞るだけなので、未所属でも 200 + 空で返る。
 				want[k] = ok
 			case req.path == "/admin/invitations" && req.method == http.MethodGet:

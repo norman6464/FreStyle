@@ -218,18 +218,6 @@ func (m *mockChapterViewRepo) GetLastViewedByUserAndCourse(ctx context.Context, 
 	return v, args.Error(1)
 }
 
-// --- mock: CompanyLearningActivitySummarizer ---
-
-type mockLearningSummarizer struct{ mock.Mock }
-
-var _ repository.CompanyLearningActivitySummarizer = (*mockLearningSummarizer)(nil)
-
-func (m *mockLearningSummarizer) ListMemberActivitiesByWorkspace(ctx context.Context, workspaceID string, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
-	args := m.Called(ctx, workspaceID, fromDate)
-	rows, _ := args.Get(0).([]repository.MemberLearningActivity)
-	return rows, args.Error(1)
-}
-
 // --- mock: UserDailyActivityRepository ---
 
 type mockDailyActivityRepo struct{ mock.Mock }
@@ -238,12 +226,6 @@ var _ repository.UserDailyActivityRepository = (*mockDailyActivityRepo)(nil)
 
 func (m *mockDailyActivityRepo) Increment(ctx context.Context, userID uint64, date time.Time, inc repository.UserDailyActivityIncrement) error {
 	return m.Called(ctx, userID, date, inc).Error(0)
-}
-
-func (m *mockDailyActivityRepo) ListByUser(ctx context.Context, userID uint64, from, to time.Time) ([]domain.UserDailyActivity, error) {
-	args := m.Called(ctx, userID, from, to)
-	rows, _ := args.Get(0).([]domain.UserDailyActivity)
-	return rows, args.Error(1)
 }
 
 // --- mock: RichDocumentRepository ---

@@ -30,6 +30,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/infra/logging"
+	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
 )
 
 // fatal は致命的エラーを構造化ログで出して終了する（log.Fatalf の slog 版）。
@@ -65,8 +66,20 @@ func main() {
 		fatal("migrate failed", err)
 	}
 
+	// トークンの検証器はここで組み立てる。設定が足りなければ起動を止める。
+	// router の中で組み立ててエラーを飲み込むと、検証していないまま動く環境ができる。
+	verifier, err := oidc.NewVerifier(oidc.Config{
+		Issuer:    cfg.OIDC.Issuer,
+		JWKSURI:   cfg.OIDC.JWKSURI,
+		ClientID:  cfg.OIDC.ClientID,
+		Audiences: cfg.OIDC.Audiences,
+	})
+	if err != nil {
+		fatal("oidc verifier init failed", err)
+	}
+
 	// アプリケーションのクエリは sqlc 生成コード（*sql.DB）で実行する。
-	r := handler.NewRouter(sqlDB, cfg)
+	r := handler.NewRouter(sqlDB, cfg, verifier)
 	addr := ":" + cfg.ServerPort
 	slog.Info("FreStyle Go backend listening", slog.String("addr", addr), slog.String("env", cfg.AppEnv))
 	if err := r.Run(addr); err != nil {

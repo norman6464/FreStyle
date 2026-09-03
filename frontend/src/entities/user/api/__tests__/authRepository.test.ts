@@ -11,67 +11,61 @@ describe('AuthRepository', () => {
     vi.clearAllMocks();
   });
 
-  it('login: ログインできる', async () => {
-    const mockUser = { id: 1, email: 'test@example.com', name: 'テスト', sub: 'sub-123' };
-    mockedApiClient.post.mockResolvedValue({ data: mockUser });
+  it('callback: PKCE の検証値と nonce を送る', async () => {
+    mockedApiClient.post.mockResolvedValue({ data: { message: 'ログインしました。' } });
 
-    const result = await authRepository.login({ email: 'test@example.com', password: 'password123' });
+    const result = await authRepository.callback({
+      code: 'auth-code-123',
+      codeVerifier: 'verifier-abc',
+      nonce: 'nonce-xyz',
+    });
 
-    // 401(認証情報の誤り)でログイン画面へ強制遷移させないため skipAuthRedirect を付ける
+    // 検証値を送らないと、公開クライアントでは交換そのものが通らない。
+    // nonce はバックエンドが id_token の中身と突き合わせる。
     expect(mockedApiClient.post).toHaveBeenCalledWith(
-      '/api/v2/auth/cognito/login',
-      { email: 'test@example.com', password: 'password123' },
+      '/api/v2/auth/login',
+      { code: 'auth-code-123', codeVerifier: 'verifier-abc', nonce: 'nonce-xyz' },
       { skipAuthRedirect: true },
     );
-    expect(result).toEqual(mockUser);
+    expect(result).toEqual({ message: 'ログインしました。' });
   });
 
-  it('callback: OAuthコールバックを処理できる', async () => {
-    const mockData = { user: { id: 1, name: 'テスト' } };
-    mockedApiClient.post.mockResolvedValue({ data: mockData });
+  it('callback: 招待トークンがあれば載せる', async () => {
+    mockedApiClient.post.mockResolvedValue({ data: { message: 'ok' } });
 
-    const result = await authRepository.callback('auth-code-123');
+    await authRepository.callback({
+      code: 'c',
+      codeVerifier: 'v',
+      nonce: 'n',
+      invitationToken: 'inv-1',
+    });
 
     expect(mockedApiClient.post).toHaveBeenCalledWith(
       '/api/v2/auth/login',
-      { code: 'auth-code-123' },
+      { code: 'c', codeVerifier: 'v', nonce: 'n', invitationToken: 'inv-1' },
       { skipAuthRedirect: true },
     );
-    expect(result).toEqual(mockData);
   });
 
-  it('forgotPassword: パスワード再設定リクエストを送信できる', async () => {
-    mockedApiClient.post.mockResolvedValue({ data: { message: '確認コードを送信しました' } });
+  it('callback: 招待トークンが無ければ載せない', async () => {
+    mockedApiClient.post.mockResolvedValue({ data: { message: 'ok' } });
 
-    const result = await authRepository.forgotPassword({ email: 'test@example.com' });
+    await authRepository.callback({ code: 'c', codeVerifier: 'v', nonce: 'n', invitationToken: null });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/forgot-password', { email: 'test@example.com' });
-    expect(result).toEqual({ message: '確認コードを送信しました' });
+    const body = mockedApiClient.post.mock.calls[0][1] as Record<string, unknown>;
+    expect(body).not.toHaveProperty('invitationToken');
   });
 
-  it('confirmForgotPassword: パスワード再設定確認ができる', async () => {
-    mockedApiClient.post.mockResolvedValue({ data: { message: 'パスワードをリセットしました' } });
-
-    const result = await authRepository.confirmForgotPassword({
-      email: 'test@example.com',
-      confirmationCode: '123456',
-      newPassword: 'newPassword123',
+  it('logout: 発行者側のセッション終了先を受け取る', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: { message: 'ログアウトしました。', endSessionUrl: 'https://issuer.test/logout' },
     });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/confirm-forgot-password', {
-      email: 'test@example.com',
-      confirmationCode: '123456',
-      newPassword: 'newPassword123',
-    });
-    expect(result).toEqual({ message: 'パスワードをリセットしました' });
-  });
-
-  it('logout: ログアウトできる', async () => {
-    mockedApiClient.post.mockResolvedValue({});
-
-    await authRepository.logout();
+    const result = await authRepository.logout();
 
     expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/logout');
+    // Cookie を消すだけでは発行者側のセッションが残り、同じ端末で入り直せてしまう。
+    expect(result.endSessionUrl).toBe('https://issuer.test/logout');
   });
 
   it('getCurrentUser: 現在のユーザー情報を取得できる', async () => {

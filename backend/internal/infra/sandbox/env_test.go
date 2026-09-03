@@ -15,6 +15,11 @@ func Test_機密env判定(t *testing.T) {
 		"DATABASE_URL",
 		"DB_PASSWORD",
 		"COGNITO_CLIENT_SECRET",
+		// 認証の設定は演習コードに見せない。CLIENT_SECRET は "SECRET" を含むので
+		// もともと弾かれるが、ISSUER のように含まないものは接頭辞でしか止まらない。
+		"OIDC_CLIENT_SECRET",
+		"OIDC_ISSUER",
+		"OIDC_CLIENT_ID",
 		"SES_FROM_ADDRESS",
 		"BEDROCK_MODEL_ID",
 		"CODE_RUNNER_URL",
@@ -41,6 +46,11 @@ func Test_サンドボックスenv_機密を除去し無害は残す(t *testing.
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
 	t.Setenv("DATABASE_URL", "postgresql://user:pw@host/db")
 	t.Setenv("COGNITO_CLIENT_SECRET", "super-secret")
+	// **立てないと確かめたことにならない。** 環境に無い変数は、遮断が壊れていても
+	// 出力に現れないので検査が素通りする。
+	t.Setenv("OIDC_CLIENT_SECRET", "oidc-super-secret")
+	t.Setenv("OIDC_ISSUER", "https://issuer.example")
+	t.Setenv("OIDC_CLIENT_ID", "oidc-client-id")
 	t.Setenv("SANDBOX_TEST_BENIGN", "ok")
 
 	env := sandboxEnv("EXTRA=1")
@@ -50,7 +60,14 @@ func Test_サンドボックスenv_機密を除去し無害は残す(t *testing.
 		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
 		"DATABASE_URL",
 		"COGNITO_CLIENT_SECRET",
+		// 認証の設定は演習コードに見せない。CLIENT_SECRET は "SECRET" を含むので
+		// もともと弾かれるが、ISSUER のように含まないものは接頭辞でしか止まらない。
+		"OIDC_CLIENT_SECRET",
+		"OIDC_ISSUER",
+		"OIDC_CLIENT_ID",
 		"super-secret",
+		"oidc-super-secret",
+		"https://issuer.example",
 	} {
 		if strings.Contains(joined, leaked) {
 			t.Errorf("sandbox env must not contain %q", leaked)

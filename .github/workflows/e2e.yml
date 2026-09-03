@@ -93,7 +93,7 @@ jobs:
           retention-days: 7
 
   # ローカルビルド + API モックによる「認証付き導線・主要画面」E2E。
-  # 本番 Cognito / DB に触れず、/api/v2/** を Playwright route でモックして検証する。
+  # 本番の発行者 / DB に触れず、/api/v2/** を Playwright route でモックして検証する。
   local-mocked:
     name: Playwright Local (mocked API)
     runs-on: ubuntu-latest
@@ -133,11 +133,11 @@ jobs:
       - name: Build (same-origin / API モック前提)
         env:
           VITE_API_BASE_URL: ''
-          VITE_COGNITO_DOMAIN: https://example.invalid
-          VITE_CLIENT_ID: ci-dummy
-          VITE_REDIRECT_URI: https://example.invalid/callback
-          VITE_RESPONSE_TYPE: code
-          VITE_SCOPE: openid
+          VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
+          VITE_OIDC_CLIENT_ID: ci-dummy
+          VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
+          VITE_OIDC_END_SESSION_URI: https://example.invalid/oidc/v1/end_session
+          VITE_OIDC_SCOPE: openid profile email offline_access
         run: pnpm run build
 
       - name: Run local mocked E2E

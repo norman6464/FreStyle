@@ -20,6 +20,13 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('@/entities/user/api/authRepository');
 
+// 認可を始めたときにブラウザが置く値。実装（features/auth/lib/oidcAuthUrl）と同じ鍵を使う。
+const FLOW = { state: 'test-state', nonce: 'test-nonce', codeVerifier: 'test-verifier' };
+
+function seedAuthFlow() {
+  sessionStorage.setItem('oidc.authFlow', JSON.stringify(FLOW));
+}
+
 function renderWithRoute(search: string) {
   const store = configureStore({ reducer: { auth: authReducer } });
   const view = render(
@@ -38,6 +45,8 @@ describe('LoginCallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('alert', vi.fn());
+    sessionStorage.clear();
+    seedAuthFlow();
     // 既定は「認可コード交換に成功し、/auth/me も引ける」状態。
     vi.mocked(authRepository.probeCurrentUser).mockResolvedValue({
       id: 1,
@@ -49,7 +58,7 @@ describe('LoginCallback', () => {
   it('ローディング表示がされる', () => {
     vi.mocked(authRepository.callback).mockResolvedValue({});
 
-    renderWithRoute('?code=test-code');
+    renderWithRoute('?code=test-code&state=test-state');
 
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.getByText('ログイン中...')).toBeInTheDocument();
@@ -74,11 +83,17 @@ describe('LoginCallback', () => {
   it('認証成功時にホームページへリダイレクトする', async () => {
     vi.mocked(authRepository.callback).mockResolvedValue({ user: { id: 1, name: 'テスト' } });
 
-    renderWithRoute('?code=valid-code');
+    renderWithRoute('?code=valid-code&state=test-state');
 
     await waitFor(() => {
-      // 第 2 引数 invitationToken は sessionStorage に何も無いとき null。
-      expect(authRepository.callback).toHaveBeenCalledWith('valid-code', null);
+      // 認可を始めたときに置いた検証値と nonce を添えて交換する。
+      // invitationToken は招待経由でないとき null。
+      expect(authRepository.callback).toHaveBeenCalledWith({
+        code: 'valid-code',
+        codeVerifier: FLOW.codeVerifier,
+        nonce: FLOW.nonce,
+        invitationToken: null,
+      });
       expect(mockNavigate).toHaveBeenCalledWith('/');
     });
   });
@@ -86,7 +101,7 @@ describe('LoginCallback', () => {
   it('認証失敗時にトースト付きでログインページへリダイレクトする', async () => {
     vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
 
-    renderWithRoute('?code=invalid-code');
+    renderWithRoute('?code=invalid-code&state=test-state');
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証に失敗しました' } });
@@ -99,7 +114,7 @@ describe('LoginCallback', () => {
     it('遷移前に /auth/me を引いてロールを反映する', async () => {
       vi.mocked(authRepository.callback).mockResolvedValue({});
 
-      const { store } = renderWithRoute('?code=valid-code');
+      const { store } = renderWithRoute('?code=valid-code&state=test-state');
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith('/');
@@ -112,7 +127,7 @@ describe('LoginCallback', () => {
     it('ロールが反映されてから遷移する（順序）', async () => {
       vi.mocked(authRepository.callback).mockResolvedValue({});
       let roleAtNavigate: string | null = 'まだ呼ばれていない';
-      const { store } = renderWithRoute('?code=valid-code');
+      const { store } = renderWithRoute('?code=valid-code&state=test-state');
       mockNavigate.mockImplementation(() => {
         roleAtNavigate = store.getState().auth.role;
       });
@@ -131,7 +146,7 @@ describe('LoginCallback', () => {
         role: 'trainee',
       });
 
-      const { store } = renderWithRoute('?code=valid-code');
+      const { store } = renderWithRoute('?code=valid-code&state=test-state');
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith('/');
@@ -148,7 +163,7 @@ describe('LoginCallback', () => {
       vi.mocked(authRepository.callback).mockResolvedValue({});
       vi.mocked(authRepository.probeCurrentUser).mockRejectedValue(new Error('一時的な通信エラー'));
 
-      renderWithRoute('?code=valid-code');
+      renderWithRoute('?code=valid-code&state=test-state');
 
       await waitFor(() => {
         expect(replace).toHaveBeenCalledWith('/');

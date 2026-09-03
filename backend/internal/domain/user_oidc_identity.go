@@ -2,20 +2,26 @@ package domain
 
 import "time"
 
-// UserOidcIdentity は OIDC プロバイダ由来のユーザー識別子（Cognito の sub 等）。
-// 認証プロバイダの都合を users 本体から分離するための正規化テーブル（FRESTYLE-311）。
-// 1 ユーザーはプロバイダごとに 1 identity（uq_user_oidc_user_provider）、
-// 同一プロバイダ内で subject は一意（uq_user_oidc_provider_subject）。
+// UserOidcIdentity は OIDC の発行者が付けたユーザー識別子。
+// 認証の都合を users 本体から分離するための正規化テーブル。
+// 1 ユーザーは発行者ごとに 1 identity（uq_user_oidc_user_provider）、
+// 同一発行者内で subject は一意（uq_user_oidc_provider_subject）。
 type UserOidcIdentity struct {
 	ID     uint64 `json:"id"`
 	UserID uint64 `json:"userId"`
-	// Provider は発行元（現状 'cognito' のみ）。将来の複数 IdP を見越して列で持つ。
+	// Provider は発行者を区別する鍵。複数の発行者を並べられるよう列で持つ。
 	Provider string `json:"provider"`
-	// Subject はプロバイダが発行する不変のユーザー識別子（Cognito の sub）。
+	// Subject は発行者が付ける不変のユーザー識別子（トークンの sub）。
 	Subject   string    `json:"subject"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// OidcProviderCognito は現在唯一の OIDC プロバイダ名。
+// OidcProviderCognito は user_oidc_identities.provider に入れる鍵。
+//
+// **値が "cognito" のままなのは歴史的な理由で、いま使っている発行者を指してはいない。**
+// これは DB に保存済みの値なので、変えると既存行の書き換え（データ移行）になる。
+// 発行者を Zitadel へ替えたときに一緒に変えなかったのは、移行のタイミングと
+// 本番データの扱いが別の判断だから。名前を先に変えて値だけ残すと、
+// 「どちらが正か」が読めなくなるので、両方まとめて直すまでこのままにする。
 const OidcProviderCognito = "cognito"

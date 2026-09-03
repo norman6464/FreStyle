@@ -34,37 +34,43 @@ describe('useAuth', () => {
     vi.clearAllMocks();
   });
 
-  it('login: ログイン成功時にtrueを返す', async () => {
-    const mockUser = { id: 1, email: 'test@example.com', name: 'テスト', sub: 'sub-123' };
-    mockedRepo.login.mockResolvedValue(mockUser);
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = false;
-    await act(async () => {
-      success = await result.current.login({ email: 'test@example.com', password: 'password' });
+  // 発行者側のセッション終了先が返ってきたら、そちらへ飛ぶ。
+  // 手元の Cookie を消すだけだと発行者にログイン済みが残り、同じ端末で入り直せてしまう。
+  it('logout: 発行者のセッション終了先が返れば そちらへ遷移する', async () => {
+    mockedRepo.logout.mockResolvedValue({
+      message: 'ログアウトしました。',
+      endSessionUrl: 'https://issuer.test/oidc/v1/end_session',
+    });
+    const original = window.location;
+    // location.href への代入を観測する（jsdom は実際の遷移をしない）。
+    const assigned: string[] = [];
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...original,
+        set href(v: string) {
+          assigned.push(v);
+        },
+        get href() {
+          return assigned[assigned.length - 1] ?? '';
+        },
+      },
     });
 
-    expect(success).toBe(true);
-    expect(result.current.isAuthenticated).toBe(true);
-  });
-
-  it('login: ログイン失敗時にfalseとerrorを返す', async () => {
-    mockedRepo.login.mockRejectedValue(new Error('認証失敗'));
-
     const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = true;
     await act(async () => {
-      success = await result.current.login({ email: 'test@example.com', password: 'wrong' });
+      await result.current.logout();
     });
 
-    expect(success).toBe(false);
-    expect(result.current.error).toBe('ログインに失敗しました。');
+    Object.defineProperty(window, 'location', { configurable: true, value: original });
+
+    expect(assigned).toContain('https://issuer.test/oidc/v1/end_session');
+    // 発行者へ飛ばすので、SPA 内の /login へは送らない（二重遷移になる）。
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login');
   });
 
   it('logout: ログアウト成功時にログインページに遷移する', async () => {
-    mockedRepo.logout.mockResolvedValue(undefined);
+    mockedRepo.logout.mockResolvedValue({ message: 'ログアウトしました。' });
 
     const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 

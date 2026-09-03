@@ -18,7 +18,7 @@ const (
 // 併せて、所属ワークスペースが停止されている場合はその全員を弾く（即時に利用不可）。
 func CurrentUser(users repository.UserRepository, workspaces repository.WorkspaceActivationReader) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		raw, ok := c.Get(ContextKeyCognitoSub)
+		raw, ok := c.Get(ContextKeySubject)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return

@@ -18,8 +18,6 @@ import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReloa
 const LoginPage = lazyWithReload(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })), 'LoginPage');
 const SignupPage = lazyWithReload(() => import('@/pages/signup').then((m) => ({ default: m.SignupPage })), 'SignupPage');
 const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then((m) => ({ default: m.LoginCallback })), 'LoginCallback');
-const ForgotPasswordPage = lazyWithReload(() => import('@/pages/forgot-password').then((m) => ({ default: m.ForgotPasswordPage })), 'ForgotPasswordPage');
-const ConfirmForgotPasswordPage = lazyWithReload(() => import('@/pages/confirm-forgot-password').then((m) => ({ default: m.ConfirmForgotPasswordPage })), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('@/pages/accept-invitation').then((m) => ({ default: m.AcceptInvitationPage })), 'AcceptInvitationPage');
 
 // 認証必要ページ
@@ -76,11 +74,6 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route
-        path="/confirm-forgot-password"
-        element={<ConfirmForgotPasswordPage />}
-      />
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
       {/* inkwell UI カタログ（見た目確認用・認証不要） */}
@@ -103,7 +96,7 @@ export default function App() {
         <Route path="/profile/me" element={<SettingsPage />} />
         {/*
           ノート（workspaces → spaces → pages の木）。旧「ナレッジ」を統合した現在の正
-          （FRESTYLE-393）。ページの URL は /p/{pageId} だけで、テナントを URL に出さない。
+          。ページの URL は /p/{pageId} だけで、テナントを URL に出さない。
         */}
         <Route path="/notes" element={<NotePage />} />
         <Route path="/p/:pageId" element={<NotePage />} />

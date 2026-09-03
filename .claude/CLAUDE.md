@@ -12,14 +12,55 @@
 
 - **プロジェクト名**: FreStyle — 新卒 IT エンジニア向け統合研修プラットフォーム（B2B SaaS）
 - **本番URL**: https://frestyle.jp
-- **バックエンド**: Go 1.x / Gin / sqlc（`backend/`、ECS Fargate）
+- **バックエンド**: Go 1.x / Gin / sqlc（`backend/`）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6（Supabase / Transaction pooler、2026-05 に RDS から移行）。データアクセスは **sqlc**（SQL から型付き Go を生成）。**GORM は撤去済み**（依存にも無い）
-- **認証**: AWS Cognito（OIDC + JWT HttpOnly Cookie、招待マジックリンク方式）
-- **チャット通信**: SSE on ECS（非同期キュー（SQS）は学習レポートの撤去にともない廃止）
+- **認証**: OpenID Connect（手元は Zitadel をコンテナで動かす）。認可コードフロー + PKCE、
+  トークンは HttpOnly Cookie。招待はマジックリンク方式。
+  **メールとパスワードをアプリのフォームで受ける口は持たない** — パスワードを受け取るのは
+  発行者のログイン画面の役目で、アプリが受け取ると二要素・ロックアウト・パスワードの強さと
+  いった発行者側の守りを素通りする経路を自分で開くことになる
 - **IaC**: Terraform（private リポ `frestyle-infrastructure` で管理）
 
 ---
+
+## 1-bis. 認証の決めごと（触る前に読む）
+
+**設定が欠けていたら起動を止める。** 認証は「揃っているか、いないか」のどちらかにする。
+以前は「JWKS が無く `APP_ENV` が local なら署名検証をしない」逃げ道があった。`APP_ENV` は
+未設定でも既定値 `local` に解決されるので、環境変数を注入し忘れた環境がそのまま
+「署名を検証しないまま動く」状態になり得た。落ちる側に倒せば必ず気づくが、通す側に倒すと
+誰も気づかない。**「ローカルだから」で緩める分岐を新しく作らない。**
+
+**issuer を推測しない。** `OIDC_ISSUER` として明示的に設定する。以前は JWKS の URL から
+`/.well-known/jwks.json` を削って作っていた。特定の発行者の URL の形に依存した推測なので、
+鍵の置き場所が別の形の発行者（例えば `/oauth/v2/keys`）に向けると、削るものが無くて
+issuer が JWKS の URL のままになり、`iss` の照合が必ず外れる。症状は「全員 401」。
+
+**`aud` を必ず照合する。** 1 つの発行者が複数のアプリにトークンを出すとき、`iss` と署名だけでは
+「どのアプリ宛か」を区別できない。照合しないと、同じ発行者にぶら下がる別のアプリ
+（管理コンソールを含む）で受け取ったトークンを、そのままこのアプリの Cookie に入れて使える。
+`azp` があるときは、それがこのアプリの client_id であることも要求する。
+
+**署名を確かめずにトークンを読まない。** `id_token` も `access_token` も、中身を使う前に
+`infra/oidc.Verifier` を通す。とくに役割の昇格は最も強い権限の入口なので、
+検証していない値で動かしてはいけない。
+
+**更新で回転した `refresh_token` を必ず Cookie に書き戻す。** 発行者によっては交換のたびに
+`refresh_token` 自体が入れ替わる。書き戻さないと 2 回目の更新で必ず失敗し、多くの実装は
+使い回しを窃取の兆候としてトークン系列ごと失効させるので、全員がログイン画面へ飛ぶ。
+
+**state / nonce / PKCE は 3 つで 1 組。** 作る側（`features/auth/lib/oidcAuthUrl`）と
+確かめる側（コールバックとバックエンド）を対にして書く。片方だけ実装すると、
+実装した気になったまま守りが効かない。
+
+- `state`: 戻ってきた応答が自分の始めた認可の応答かを、ブラウザが確かめる
+- `nonce`: 同じことを `id_token` の中身で、バックエンドが確かめる
+- `code_verifier`: 認可コードが盗まれても、それだけでは交換できないようにする
+
+**役割の在り処は発行者ごとに違う。** クレーム名は `OIDC_ROLES_CLAIM` で指す。値の形は
+配列・文字列・「役割名を鍵にした表」のどれでも来るので `oidc.RolesFromClaim` で読む。
+配列だと決めつけると、表で来た瞬間に役割が空になり、**弾かれるのではなく静かに権限が消える**。
 
 ## 2. クリーンアーキテクチャ規約（最重要）
 
@@ -38,12 +79,12 @@ handler → usecase → repository / infra → domain
 
 | 層 | パッケージ | 責務 |
 |---|---|---|
-| handler | `backend/internal/handler` | HTTP / SSE 受付、middleware から認証情報取得、usecase 呼び出し、JSON 返却。ビジネスロジック禁止 |
+| handler | `backend/internal/handler` | HTTP 受付、middleware から認証情報取得、usecase 呼び出し、JSON 返却。ビジネスロジック禁止 |
 | middleware | `backend/internal/handler/middleware` | JWT 認証、CORS、current user 注入、CSRF 等の横断的処理 |
 | usecase | `backend/internal/usecase` | 1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
 | repository (port) | `backend/internal/usecase/repository` | usecase が依存する repository interface の定義 |
 | persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / S3 等の repository 実装 |
-| infra | `backend/internal/infra/{bedrock,s3,ses,cognito,database,...}` | 外部サービス連携（AWS SDK ラッパ）、DB 接続、設定読み込み |
+| infra | `backend/internal/infra/{oidc,s3,ses,database,sandbox,...}` | 外部サービス連携（AWS SDK ラッパ）、DB 接続、設定読み込み |
 | domain | `backend/internal/domain` | エンティティ + ビジネス定数。JSON tag のみ直書き（永続化の都合は持ち込まない）。他層を import しない |
 
 ### 2.3 1 構造体 1 責務（usecase）
@@ -98,7 +139,7 @@ app > pages > widgets > features > entities > shared
 - 共通 response 型（`errorResponse` / `messageResponse` 等）は `backend/internal/handler/openapi_types.go` に定義済
 - `@Router` の path に `/api/v2` を含めない（`@BasePath` で自動 prefix）
 - handler を追加 / 変更する PR では**必ず `make openapi`** を走らせ `backend/docs/`（生成物）の差分も commit する
-- SSE / multipart 等 OpenAPI で完全表現できないものはシンプルな POST として表現し `@Description` で補足
+- multipart 等 OpenAPI で完全表現できないものはシンプルな POST として表現し `@Description` で補足
 
 ---
 
@@ -126,7 +167,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - handler: `[ドメイン]Handler`、メソッドは `(h *XxxHandler) Action(c *gin.Context)`
 - domain: 名詞（`User` 等）。JSON tag のみ直書き（表名や列名は sqlc の生成物と repository が持つ）
 - request / response: handler 内 local 定義の `xxxRequest` / `xxxResponse`
-- infra: パッケージ名は領域別（`bedrock` / `s3` / `ses` / `cognito` / `database`）
+- infra: パッケージ名は領域別（`oidc` / `s3` / `ses` / `database`）
 - フロントエンド コンポーネント: PascalCase、1 ファイル 1 コンポーネント
 
 ### 3.3 テスト
@@ -209,9 +250,9 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 
 ## 5. デプロイ
 
-- **バックエンド**: `gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy`（ECR build/push + ECS force-update）。ヘルスチェックは本番 API ドメインの `GET /api/v2/health`（CloudFront 配下の SPA パスに叩くと一律 200 になり誤認する）
+- **バックエンド**: 本番の実行環境は撤去済み（ECS ごと畳んだ）。将来はオンプレの Kubernetes に置く
 - **フロントエンド**: `gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy`
-- **DB マイグレーション**: スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅰ. 中核` / `-- Ⅱ. ノートの骨格` / `-- Ⅲ. ノートの権限` / `-- Ⅳ. テナント橋渡し` の節印で区切った 1 ファイル）で、ECS 起動時にこの埋め込み DDL をそのまま流す。**同じファイルが sqlc の型付け入力**でもあるので、定義が二重化しない（変更したら `make sqlc`）
+- **DB マイグレーション**: スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅰ. 中核` / `-- Ⅱ. ノートの骨格` / `-- Ⅲ. ノートの権限` / `-- Ⅳ. テナント橋渡し` の節印で区切った 1 ファイル）で、起動時にこの埋め込み DDL をそのまま流す。**同じファイルが sqlc の型付け入力**でもあるので、定義が二重化しない（変更したら `make sqlc`）
   - **列の追加・変更もこのファイルに書く。** `CREATE ... IF NOT EXISTS` と、カタログを見て足りないときだけ `ALTER` する `DO` ブロックで冪等にする（実例: `spaces.visibility` の追加）。**`ALTER TABLE` を素で書かない** — 列が既に在って何もしない場合でも先に ACCESS EXCLUSIVE ロックを取り、毎回の起動でその表を止めるため
   - **`backend/migrations/` は置かない**（2026-08 に撤去）。GORM を使っていた頃の置き場で、AutoMigrate では表せない差分を別ファイルに逃がすためのものだった。GORM を撤去して DDL が正本になった今、置き場を 2 つ持つ理由が無い（どちらが正か分からなくなる）
   - 1 回きりのデータ移行（既存行の書き換え）は起動時 DDL には向かない。SQL を private リポ `frestyle-infrastructure` 側で管理して流す。**流す前に §5.1 の手順でローカルの実 PostgreSQL で検証する**
@@ -277,7 +318,7 @@ docker compose -f docker-compose.integration.yml down -v
 **手順が自然に噛み合う。** psql で書いて確かめる → 固まったクエリを `queries/*.sql` へ置く → `make sqlc` で型を起こす。この順なら、生成の段階で型の食い違いが出ない（先に実データで通っているため）。逆順（先に Go を書いて後で確かめる）だと、生成し直すたびに手戻りする。
 
 要するに **sqlc は「書いたものがスキーマと合っているか」を、psql は「書いたものが正しいか」を受け持つ**。両方を通して初めて本番へ出せる。
-- **ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）のスキーマ**。実スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅱ. ノートの骨格` と `-- Ⅲ. ノートの権限` の節。`CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は ORM の構造体タグでは表現できず、書けたとしても定義が二重化するため（この設計が GORM 撤去の理由の 1 つでもある）。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
+- **ノート（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）のスキーマ**。実スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅱ. ノートの骨格` と `-- Ⅲ. ノートの権限` の節。`CREATE ... IF NOT EXISTS` だけで冪等）で、起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は ORM の構造体タグでは表現できず、書けたとしても定義が二重化するため（この設計が GORM 撤去の理由の 1 つでもある）。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
   - 権限側は `users` へ FK を張るので、適用順は 中核 → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）
   - **実効権限の規則は `domain.ResolvePagePermission` だけが持つ**。SQL が返すのは事実（既定の役割・経路上の制限の集計）だけで、優先規則を SQL 側へ写経しない

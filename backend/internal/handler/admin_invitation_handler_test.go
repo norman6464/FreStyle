@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -69,7 +68,6 @@ func invWorkspaceID(n uint64) string {
 func newTestHandler(repo *fakeAdminInvRepo, currentUser *domain.User) (*AdminInvitationHandler, *gin.Engine) {
 	h := NewAdminInvitationHandler(
 		usecase.NewListAdminInvitationsUseCase(repo),
-		nil,
 		nil,
 		nil,
 	)
@@ -192,32 +190,11 @@ func (r *fakeAdminInvRepoWithCreate) Create(_ context.Context, inv *domain.Admin
 
 // newTestCreateHandler は Create handler 用 harness。usecase は本物 +
 // 上の fake repo を inject。sender 等は nil でフォールバックモード。
+// newTestCreateHandler は Create handler 用 harness。usecase は本物を使う。
 func newTestCreateHandler(repo *fakeAdminInvRepoWithCreate, currentUser *domain.User) *gin.Engine {
-	return newTestCreateHandlerWithTemp(repo, currentUser, nil)
-}
-
-// fakeTempPasswordCreator は TemporaryPasswordCreator のテスト用スタブ。
-type fakeTempPasswordCreator struct {
-	pw       string
-	err      error
-	gotEmail string
-	gotName  string
-}
-
-func (f *fakeTempPasswordCreator) CreateWithTemporaryPassword(_ context.Context, email, name string) (string, error) {
-	f.gotEmail, f.gotName = email, name
-	return f.pw, f.err
-}
-
-func newTestCreateHandlerWithTemp(repo *fakeAdminInvRepoWithCreate, currentUser *domain.User, creator usecase.TemporaryPasswordCreator) *gin.Engine {
-	var tempUC *usecase.CreateTemporaryPasswordInvitationUseCase
-	if creator != nil {
-		tempUC = usecase.NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
-	}
 	h := NewAdminInvitationHandler(
 		usecase.NewListAdminInvitationsUseCase(repo),
 		usecase.NewCreateAdminInvitationUseCase(repo, nil, nil, nil),
-		tempUC,
 		usecase.NewCancelAdminInvitationUseCase(repo),
 	)
 	r := gin.New()
@@ -326,89 +303,6 @@ func Test_招待ハンドラ_作成_未認証(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d", w.Code)
-	}
-}
-
-func Test_招待ハンドラ_初期パスワード方式_成功で一時パスワードを返す(t *testing.T) {
-	repo := &fakeAdminInvRepoWithCreate{}
-	wid := invWorkspaceID(42)
-	creator := &fakeTempPasswordCreator{pw: "Temp-Pass-9!"}
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, creator)
-
-	w := postJSON(t, r, `{"email":"np@b","role":"trainee","method":"temporary_password"}`)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
-	}
-	var got struct {
-		Invitation        *domain.AdminInvitation `json:"invitation"`
-		TemporaryPassword string                  `json:"temporaryPassword"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatalf("応答が期待の JSON 形ではない: %v body = %s", err, w.Body.String())
-	}
-	if got.TemporaryPassword != "Temp-Pass-9!" {
-		t.Errorf("temporaryPassword = %q", got.TemporaryPassword)
-	}
-	if got.Invitation == nil {
-		t.Error("invitation が欠落している")
-	}
-	if creator.gotEmail != "np@b" {
-		t.Errorf("creator got email %q", creator.gotEmail)
-	}
-	// 招待行も pending で作られる（ログイン時の招待ゲート用）。
-	if repo.lastCreate == nil || repo.lastCreate.Role != domain.RoleTrainee ||
-		repo.lastCreate.WorkspaceID == nil || *repo.lastCreate.WorkspaceID != wid {
-		t.Errorf("invitation row not created correctly: %+v", repo.lastCreate)
-	}
-}
-
-func Test_招待ハンドラ_初期パスワード方式_未構成なら400(t *testing.T) {
-	repo := &fakeAdminInvRepoWithCreate{}
-	wid := invWorkspaceID(42)
-	// creator=nil → tempCreate usecase が nil → 未構成。usecase の ErrUnavailable と同じ 400。
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, nil)
-
-	w := postJSON(t, r, `{"email":"np@b","role":"trainee","method":"temporary_password"}`)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "temporary_password_not_configured") {
-		t.Errorf("body = %s", w.Body.String())
-	}
-}
-
-func Test_招待ハンドラ_初期パスワード方式_既存ユーザーは409(t *testing.T) {
-	repo := &fakeAdminInvRepoWithCreate{}
-	wid := invWorkspaceID(42)
-	creator := &fakeTempPasswordCreator{err: cognito.ErrUserAlreadyExists}
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, creator)
-
-	w := postJSON(t, r, `{"email":"dup@b","role":"trainee","method":"temporary_password"}`)
-
-	if w.Code != http.StatusConflict {
-		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "user_already_exists") {
-		t.Errorf("body = %s", w.Body.String())
-	}
-}
-
-func Test_招待ハンドラ_初期パスワード方式もSoDを守る(t *testing.T) {
-	repo := &fakeAdminInvRepoWithCreate{}
-	wid := invWorkspaceID(42)
-	creator := &fakeTempPasswordCreator{pw: "x"}
-	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, WorkspaceID: &wid}, creator)
-
-	// ワークスペース管理者が管理者を初期パスワードで招待 → 方式に関わらず 403。
-	w := postJSON(t, r, `{"email":"a@b","role":"company_admin","method":"temporary_password"}`)
-
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
-	}
-	if creator.gotEmail != "" {
-		t.Error("SoD 違反なのに Cognito ユーザーが作られた")
 	}
 }
 

@@ -64,17 +64,36 @@ jobs:
 
     env:
       # 公開 URL(公開 JS に焼き込まれる値)は Secret にする必要がないため直接記載する。
-      # frestyle.jp 移行(FRESTYLE-225)で Secrets 更新に依存しない構成に変更。
+      #
+      # NOTE: 認証は Zitadel（OIDC）へ移したが、**本番の発行者はまだ立てていない**。
+      # ここの Secrets（発行者のホストとクライアント ID）を用意するまで、
+      # 本番のフロントを出してもログインは通らない。出す前に発行者を先に決めること。
       VITE_API_BASE_URL: https://api.frestyle.jp
-      VITE_REDIRECT_URI: https://frestyle.jp/login/callback
-      # ログイン画面(Cognito ホスト UI)のホスト。auth.normanblog.com から移設(FRESTYLE-226)。
-      VITE_COGNITO_DOMAIN: auth.frestyle.jp
-      VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
-      VITE_RESPONSE_TYPE: ${{ secrets.VITE_RESPONSE_TYPE }}
-      VITE_SCOPE: ${{ secrets.VITE_SCOPE }}
+      VITE_OIDC_REDIRECT_URI: https://frestyle.jp/login/callback
+      VITE_OIDC_AUTHORIZE_URI: ${{ secrets.VITE_OIDC_AUTHORIZE_URI }}
+      VITE_OIDC_END_SESSION_URI: ${{ secrets.VITE_OIDC_END_SESSION_URI }}
+      VITE_OIDC_CLIENT_ID: ${{ secrets.VITE_OIDC_CLIENT_ID }}
+      # openid だけだと id_token に名前もメールも載らず、offline_access が無いと
+      # 更新用のトークンがそもそも発行されない。
+      VITE_OIDC_SCOPE: openid profile email offline_access
 
     steps:
       - uses: actions/checkout@v6
+
+      # 認可の設定が空のままビルドすると、**動くように見えて誰もログインできない**
+      # 成果物が本番へ出る（認可 URL の組み立てが実行時に失敗する）。
+      # 出す前にここで止める。END_SESSION は空でも動く設計なので必須にしない。
+      - name: 認可の設定が揃っているか確かめる
+        run: |
+          missing=""
+          for k in VITE_OIDC_AUTHORIZE_URI VITE_OIDC_CLIENT_ID VITE_OIDC_REDIRECT_URI; do
+            eval "v=\$$k"
+            [ -n "$v" ] || missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::認可の設定が空です:$missing — 本番の発行者を決めて Secrets を設定してください"
+            exit 1
+          fi
 
       # pnpm は packageManager フィールドの版で入れる（端末・CI・Docker で同じ解決にする）。
       # setup-node のキャッシュ復元より前に置くこと（pnpm が無いと cache: 'pnpm' が失敗する）。

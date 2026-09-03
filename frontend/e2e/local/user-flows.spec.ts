@@ -154,7 +154,7 @@ test.describe('演習フロー', () => {
 });
 
 test.describe('ログイン画面', () => {
-  test('未認証で /login を開くとメール/パスワードのログインフォームが表示される', async ({ page }) => {
+  test('未認証で /login を開くと発行者へ送るボタンが出る', async ({ page }) => {
     // すべての API を 401 にして未認証状態にする。
     await page.route('**/api/v2/**', (route) =>
       route.fulfill({
@@ -167,11 +167,27 @@ test.describe('ログイン画面', () => {
     await page.goto('/login');
 
     await expect(page).toHaveURL(/\/login/);
-    // メール/パスワードフォーム + Google(Hosted UI) の 2 経路。
-    await expect(page.getByRole('form', { name: 'ログインフォーム' })).toBeVisible();
-    await expect(page.getByLabel('メールアドレス')).toBeVisible();
-    // 「パスワードを表示」トグルボタンと衝突するので完全一致で入力欄だけを取る。
-    await expect(page.getByLabel('パスワード', { exact: true })).toBeVisible();
+    // 発行者のログイン画面へ送るボタンと、IdP 直行の 2 経路。
+    await expect(page.getByRole('button', { name: 'ログインする' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Google/ })).toBeVisible();
+  });
+
+  // パスワードを受け取るのは発行者のログイン画面の役目。アプリが受け取ると、
+  // 二要素・ロックアウト・パスワードの強さといった発行者側の守りを
+  // 素通りする経路を自分で開くことになる。
+  test('ログイン画面にメールとパスワードの入力欄が無い', async ({ page }) => {
+    await page.route('**/api/v2/**', (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: '{"error":"unauthorized"}',
+      })
+    );
+
+    await page.goto('/login');
+
+    await expect(page.getByRole('button', { name: 'ログインする' })).toBeVisible();
+    await expect(page.getByLabel('メールアドレス')).toHaveCount(0);
+    await expect(page.getByLabel('パスワード', { exact: true })).toHaveCount(0);
   });
 });

@@ -1,17 +1,13 @@
 package handler
 
 import (
-	"context"
 	"database/sql"
-	"errors"
-	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/infra/localauth"
+	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	swaggerfiles "github.com/swaggo/files"
@@ -23,10 +19,16 @@ type routeDeps struct {
 	db       *sql.DB
 	cfg      *config.Config
 	userRepo repository.UserRepository
+	// verifier は access_token / id_token の署名とクレームを検証する。
+	// handler も使う（id_token を署名未検証で読まないため）。
+	verifier *oidc.Verifier
 }
 
 // NewRouter は API ルーティングを組み立てる。
-func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
+//
+// verifier は呼び出し側（cmd/server）が組み立てて渡す。ここで組み立てて
+// エラーを飲み込むと、設定が足りない状態のまま起動してしまう。
+func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	// 構造化アクセスログ(slog/JSON)。request_id 採番 + status 別レベルで出力する。
@@ -43,6 +45,7 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 		db:       db,
 		cfg:      cfg,
 		userRepo: persistence.NewUserRepository(db),
+		verifier: verifier,
 	}
 
 	v2 := r.Group("/api/v2")
@@ -58,7 +61,7 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
 	authed := v2.Group("")
-	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
+	authed.Use(middleware.JWTAuth(buildJWTVerify(verifier), cfg.OIDC.AdminRoleClaim))
 	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewKnowledgeBaseRepository(deps.db)))
 
 	registerAuthAuthedRoutes(authed, authHandler)
@@ -79,46 +82,16 @@ func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 }
 
 // buildJWTVerify は JWTAuth に渡す access_token 検証関数を組み立てる。
-//   - JWKS URI 設定あり: cognito.Verifier で JWKS 署名検証する（本番の正規経路）
-//   - JWKS 未設定 & local: 署名未検証の decode にフォールバック（Cognito 無しのローカル開発用）
-//   - JWKS 未設定 & 非 local: fail closed（全リクエストを拒否し、未検証で本番が動くのを防ぐ）
-func buildJWTVerify(cfg *config.Config) middleware.VerifyFunc {
-	base := buildBaseJWTVerify(cfg)
-	// ローカル専用パスワードログイン（infra/localauth）が有効なときは、その発行トークンを
-	// HMAC 署名検証つきで受け付け、それ以外（実 Cognito のトークン等）は通常経路へ落とす。
-	// cfg.LocalPasswordAuth は JWKS 未設定 + 明示 APP_ENV=local を含む解決済み判定なので、
-	// 実 Cognito（JWKS 設定済み）環境ではこの分岐に入らない（fail closed・FRESTYLE-311）。
-	if cfg.LocalPasswordAuth {
-		return func(ctx context.Context, token string) (map[string]any, error) {
-			claims, err := localauth.VerifyToken(token)
-			if err == nil {
-				return claims, nil
-			}
-			if !errors.Is(err, localauth.ErrNotLocalToken) {
-				return nil, err // localauth 発行だが失効等 → 通常経路には回さない
-			}
-			return base(ctx, token)
-		}
-	}
-	return base
-}
-
-// buildBaseJWTVerify は従来どおりの検証経路（JWKS / local 署名スキップ / fail closed）を返す。
-func buildBaseJWTVerify(cfg *config.Config) middleware.VerifyFunc {
-	if cfg.Cognito.JwkSetURI != "" {
-		v := cognito.NewVerifier(cfg.Cognito.JwkSetURI)
-		return v.Verify
-	}
-	if cfg.AppEnv == "local" {
-		log.Printf("WARN: COGNITO_JWK_SET_URI 未設定 — ローカル開発のため JWT 署名検証をスキップします（本番では設定必須）")
-		return func(_ context.Context, token string) (map[string]any, error) {
-			return middleware.DecodeClaims(token)
-		}
-	}
-	log.Printf("ERROR: COGNITO_JWK_SET_URI 未設定 — 署名検証できないため認証付きリクエストを全拒否します")
-	return func(_ context.Context, _ string) (map[string]any, error) {
-		return nil, errors.New("jwt verifier not configured")
-	}
+//
+// **分岐は無い。** 検証器は 1 つで、設定が足りなければ config.Load が起動を止める。
+//
+// 以前はここに「JWKS が無く APP_ENV が local なら署名検証をしない」経路と、
+// ローカル専用のパスワードログインが発行するトークンを受ける経路があった。
+// どちらも Cognito を通さずに手元を動かすためのもので、Cognito をやめた今は
+// 用が無い。逃げ道を残すと、設定を書き忘れた環境が「認証が効いているように
+// 見えて実は素通し」という一番気づけない壊れ方をする。
+func buildJWTVerify(v *oidc.Verifier) middleware.VerifyFunc {
+	return v.Verify
 }
 
 // registerHealthRoutes は認証不要のヘルスチェック (/api/v2/health) を登録する。

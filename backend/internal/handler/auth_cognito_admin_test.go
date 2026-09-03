@@ -55,13 +55,14 @@ func newMeCtx(sub string, groups []string) (*gin.Context, *httptest.ResponseReco
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v2/auth/me", nil)
-	c.Set(middleware.ContextKeyCognitoSub, sub)
-	c.Set(middleware.ContextKeyCognitoGroups, groups)
+	c.Set(middleware.ContextKeySubject, sub)
+	c.Set(middleware.ContextKeyRoles, groups)
 	return c, rec
 }
 
-func newMeHandler(users *fakeUserRepo) *AuthHandler {
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+func newMeHandler(t *testing.T, users *fakeUserRepo) *AuthHandler {
+	t.Helper()
+	h := newTestAuthHandler(t, newTestIdP(t), users, &fakeInvitationRepo{})
 	h.getCurrentUser = usecase.NewGetCurrentUserUseCase(users)
 	return h
 }
@@ -69,13 +70,14 @@ func newMeHandler(users *fakeUserRepo) *AuthHandler {
 // Cognito の admin グループに属しているだけでは招待統制を迂回できない。自己サインアップ
 // 自体は許可されるが、super_admin へは昇格しない。
 func Test_IDトークンからユーザー登録_Cognito_adminでも招待なしの新規はSuperAdminへ昇格しない(t *testing.T) {
+	idp := newTestIdP(t)
 	users := &fakeUserRepo{}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
 
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "new-admin",
-		"email":          "attacker@example.com",
-		"cognito:groups": []string{"admin"},
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub":          "new-admin",
+		"email":        "attacker@example.com",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	if !upsertAllowed(h, newGinCtx(), idToken, "") {
@@ -91,13 +93,14 @@ func Test_IDトークンからユーザー登録_Cognito_adminでも招待なし
 
 // ブートストラップ用に指定した 1 アドレスだけは、招待なしで最初の運営管理者になれる。
 func Test_IDトークンからユーザー登録_ブートストラップアドレスは招待なしで作成(t *testing.T) {
+	idp := newTestIdP(t)
 	users := &fakeUserRepo{}
-	h := newTestAuthHandlerWithBootstrap(users, &fakeInvitationRepo{}, "ops@example.com")
+	h := newTestAuthHandlerWithBootstrap(t, idp, users, &fakeInvitationRepo{}, "ops@example.com")
 
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "first-admin",
-		"email":          "ops@example.com",
-		"cognito:groups": []string{"admin"},
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub":          "first-admin",
+		"email":        "ops@example.com",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	if !upsertAllowed(h, newGinCtx(), idToken, "") {
@@ -114,13 +117,14 @@ func Test_IDトークンからユーザー登録_ブートストラップアド�
 // ブートストラップは「最初の 1 人」限定。運営管理者が既に居れば効かず、自己サインアップは
 // 通っても super_admin へは昇格しない。
 func Test_IDトークンからユーザー登録_ブートストラップは運営管理者在籍時に閉じる(t *testing.T) {
+	idp := newTestIdP(t)
 	users := &fakeUserRepo{superAdmins: []domain.User{{ID: 1, Role: domain.RoleSuperAdmin}}}
-	h := newTestAuthHandlerWithBootstrap(users, &fakeInvitationRepo{}, "ops@example.com")
+	h := newTestAuthHandlerWithBootstrap(t, idp, users, &fakeInvitationRepo{}, "ops@example.com")
 
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "second-admin",
-		"email":          "ops@example.com",
-		"cognito:groups": []string{"admin"},
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub":          "second-admin",
+		"email":        "ops@example.com",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	if !upsertAllowed(h, newGinCtx(), idToken, "") {
@@ -136,6 +140,7 @@ func Test_IDトークンからユーザー登録_ブートストラップは運�
 
 // 招待があれば従来どおり作成できる（ブートストラップ未設定でも影響しない）。
 func Test_IDトークンからユーザー登録_招待があるCognito_adminは従来どおり作成(t *testing.T) {
+	idp := newTestIdP(t)
 	invitedWorkspaceID := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
@@ -143,12 +148,12 @@ func Test_IDトークンからユーザー登録_招待があるCognito_adminは
 			"ops@example.com": {ID: 3, Role: domain.RoleCompanyAdmin, WorkspaceID: &invitedWorkspaceID},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
+	h := newTestAuthHandler(t, idp, users, invs)
 
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "invited-admin",
-		"email":          "ops@example.com",
-		"cognito:groups": []string{"admin"},
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub":          "invited-admin",
+		"email":        "ops@example.com",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	if !upsertAllowed(h, newGinCtx(), idToken, "") {
@@ -162,12 +167,13 @@ func Test_IDトークンからユーザー登録_招待があるCognito_adminは
 // 招待なしの自己サインアップは握り潰さずログに残す（誰がどのアドレスで作られたかを
 // 運用が追えるようにする）。
 func Test_IDトークンからユーザー登録_招待なしのサインアップをログに残す(t *testing.T) {
+	idp := newTestIdP(t)
 	users := &fakeUserRepo{}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "new-admin",
-		"email":          "attacker@example.com",
-		"cognito:groups": []string{"admin"},
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub":          "new-admin",
+		"email":        "attacker@example.com",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	logs := captureSlogLines(t, func() {
@@ -190,7 +196,7 @@ func Test_現在ユーザー取得_Cognito_adminをSuperAdminへ同期(t *testin
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", []string{"admin"})
 
 	h.Me(c)
@@ -210,7 +216,7 @@ func Test_現在ユーザー取得_昇格後のroleをレスポンスに反映�
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", []string{"admin"})
 
 	h.Me(c)
@@ -238,7 +244,7 @@ func Test_現在ユーザー取得_昇格に失敗したらroleは元のまま(t
 		},
 		updateRoleErr: errors.New(`unknown role "super_admin"`),
 	}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", []string{"admin"})
 
 	h.Me(c)
@@ -265,7 +271,7 @@ func Test_現在ユーザー取得_ロール同期の失敗をログに残す(t 
 		},
 		updateRoleErr: updateErr,
 	}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", []string{"admin"})
 
 	logs := captureSlogLines(t, func() { h.Me(c) })
@@ -273,12 +279,12 @@ func Test_現在ユーザー取得_ロール同期の失敗をログに残す(t 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	got := findLog(logs, "cognito admin role sync failed")
+	got := findLog(logs, "idp admin role sync failed")
 	if got == nil {
 		t.Fatalf("同期失敗のログが出ていない: %+v", logs)
 	}
-	if got["cognitoSub"] != "u1" {
-		t.Errorf("cognitoSub = %v, want u1", got["cognitoSub"])
+	if got["subject"] != "u1" {
+		t.Errorf("subject = %v, want u1", got["subject"])
 	}
 	if errText, _ := got["err"].(string); !strings.Contains(errText, updateErr.Error()) {
 		t.Errorf("err = %v, want 原因を含む", got["err"])
@@ -290,7 +296,7 @@ func Test_現在ユーザー取得_非管理者はロールを触らない(t *te
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", []string{"other"})
 
 	h.Me(c)
@@ -309,7 +315,7 @@ func Test_現在ユーザー取得_所属していればworkspaceIdを含む(t *
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee, WorkspaceID: &wsID},
 	}}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", nil)
 
 	h.Me(c)
@@ -334,7 +340,7 @@ func Test_現在ユーザー取得_未所属はworkspaceIdを省略する(t *tes
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleSuperAdmin},
 	}}
-	h := newMeHandler(users)
+	h := newMeHandler(t, users)
 	c, rec := newMeCtx("u1", nil)
 
 	h.Me(c)
@@ -355,13 +361,14 @@ func Test_現在ユーザー取得_未所属はworkspaceIdを省略する(t *tes
 
 // access_token 経路（id_token に groups が無い federated ユーザー）でも同期する。
 func Test_アクセストークンからロール同期_SuperAdminへ昇格(t *testing.T) {
+	idp := newTestIdP(t)
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"fed-1": {ID: 8, Email: "f@example.com", Role: domain.RoleTrainee},
 	}}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
-	token := makeIDToken(t, map[string]any{
-		"sub":            "fed-1",
-		"cognito:groups": []string{"admin"},
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
+	token := makeIDToken(t, idp, map[string]any{
+		"sub":          "fed-1",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	h.syncRoleFromAccessToken(newGinCtx(), token)
@@ -373,17 +380,18 @@ func Test_アクセストークンからロール同期_SuperAdminへ昇格(t *t
 
 // DB 障害と「ユーザーが居ない」を同じ無反応に畳まない。障害はログに残す。
 func Test_アクセストークンからロール同期_検索失敗をログに残す(t *testing.T) {
+	idp := newTestIdP(t)
 	findErr := errors.New("db down")
 	users := &fakeUserRepo{findErr: findErr}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
-	token := makeIDToken(t, map[string]any{
-		"sub":            "fed-1",
-		"cognito:groups": []string{"admin"},
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
+	token := makeIDToken(t, idp, map[string]any{
+		"sub":          "fed-1",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 
 	logs := captureSlogLines(t, func() { h.syncRoleFromAccessToken(newGinCtx(), token) })
 
-	got := findLog(logs, "cognito admin role sync failed")
+	got := findLog(logs, "idp admin role sync failed")
 	if got == nil {
 		t.Fatalf("検索失敗のログが出ていない: %+v", logs)
 	}

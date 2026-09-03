@@ -1,140 +1,49 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useFormField } from '@/shared/lib/hooks/useFormField';
-import { AuthRepository as authRepository } from '@/entities/user';
-import { getApiError } from '@/shared/lib/classifyApiError';
-import { setAuthHint } from '@/shared/lib/authHint';
-
-interface LoginMessage {
-  type: 'success' | 'error';
-  text: string;
-}
-
-// 一時パスワード初回ログインの新パスワード設定フェーズの状態。
-// null のとき通常のメール/パスワードフォームを表示する。
-interface NewPasswordPhase {
-  email: string;
-  session: string;
-}
+import { buildAuthorizeUrl } from '@/features/auth';
+import { classifyApiError } from '@/shared/lib/classifyApiError';
 
 /**
  * LoginPage 用フック。
  *
- * メール / パスワードフォームの状態管理とログイン処理を担う。ログインは Cognito の
- * USER_PASSWORD_AUTH（backend `/auth/cognito/login`）で行う。Google は Hosted UI へ直行する。
- * 成功時は HttpOnly Cookie が発行されるので、フル再読み込みで AuthInitializer に
- * `/auth/me` を引かせて role / isAdmin を確定させる（SPA 内 navigate では再取得されないため）。
+ * やることは 1 つだけ — 発行者のログイン画面へ送る。認可 URL を作るときに
+ * state / nonce / PKCE の検証値を作って手元に置く（features/auth/lib/oidcAuthUrl）。
  *
- * 一時パスワードでの初回ログイン（FRESTYLE-313）は backend が NEW_PASSWORD_REQUIRED を返す。
- * その場合は新パスワード設定フェーズに切り替え、本人に新パスワードを決めてもらう。
+ * メールとパスワードのフォームは持たない。アプリが受け取ると、二要素・ロックアウト・
+ * パスワードの強さといった発行者側の守りを素通りする経路を自分で開くことになる。
  */
 export function useLoginPage() {
-  const { form, handleChange } = useFormField({ email: '', password: '' });
-  const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // 新パスワード設定フェーズ。null なら通常ログインフォーム。
-  const [newPasswordPhase, setNewPasswordPhase] = useState<NewPasswordPhase | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
-
   const location = useLocation();
-  const flashMessage = (location.state as { message?: string })?.message || '';
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const finishLogin = () => {
-    // 配信側でトップを振り分けるための目印（FRESTYLE-231）
-    setAuthHint();
-    window.location.assign('/');
-  };
+  // 遷移元から渡される通知。鍵が 2 つあるのは呼び出し元が揃っていないため
+  // （コールバックは toast、ログアウト等は message で渡してくる）。片方だけ読むと、
+  // もう片方の経路の案内が黙って消える。
+  const navState = location.state as { toast?: string; message?: string } | null;
+  const flashMessage = navState?.toast ?? navState?.message ?? null;
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // 二重押しの見張り。state と検証値は呼ぶたびに作り直して sessionStorage を
+  // 上書きするので、同時に 2 回走らせると、先に飛んだ方の戻りで state が合わなくなる
+  // （利用者から見ると「押しただけでログインに失敗する」）。
+  // setLoading は次の描画までしか効かないので、描画に依らない印で止める。
+  const starting = useRef(false);
+
+  const startLogin = useCallback(async (provider?: string) => {
+    if (starting.current) return;
+    starting.current = true;
     setLoading(true);
-    setLoginMessage(null);
-
+    setErrorMessage(null);
     try {
-      const outcome = await authRepository.loginWithChallenge({
-        email: form.email,
-        password: form.password,
-      });
-      if (outcome.kind === 'new_password_required') {
-        // 一時パスワードでの初回ログイン。新パスワード設定フェーズへ。
-        setNewPasswordPhase({ email: form.email, session: outcome.session });
-        setLoginMessage({
-          type: 'success',
-          text: '初回ログインです。新しいパスワードを設定してください。',
-        });
-        setLoading(false);
-        return;
-      }
-      finishLogin();
+      // 認可 URL の組み立てには要約（code_challenge）の計算が入るので待つ。
+      // 待たずに遷移すると、検証値を置く前にページが消えて次に進めなくなる。
+      window.location.href = await buildAuthorizeUrl(provider);
     } catch (err) {
-      // 招待なしの新規ユーザーは backend が 403 invitation_required を返す。専用文言を出す。
-      const { status, serverMessage } = getApiError(err);
-      if (status === 403) {
-        setLoginMessage({
-          type: 'error',
-          text: serverMessage || 'FreStyle のご利用には管理者からの招待が必要です。',
-        });
-      } else {
-        setLoginMessage({
-          type: 'error',
-          text: 'メールアドレスまたはパスワードが正しくありません。',
-        });
-      }
+      starting.current = false;
       setLoading(false);
+      setErrorMessage(classifyApiError(err, 'ログイン画面へ移動できませんでした。'));
     }
-  };
+  }, []);
 
-  const handleNewPassword = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!newPasswordPhase) return;
-    if (newPassword !== newPasswordConfirm) {
-      setLoginMessage({ type: 'error', text: 'パスワードが一致しません。' });
-      return;
-    }
-    setLoading(true);
-    setLoginMessage(null);
-
-    try {
-      await authRepository.submitNewPassword({
-        email: newPasswordPhase.email,
-        session: newPasswordPhase.session,
-        newPassword,
-      });
-      finishLogin();
-    } catch (err) {
-      const { status } = getApiError(err);
-      if (status === 401) {
-        // session 失効。最初からやり直してもらう。
-        setNewPasswordPhase(null);
-        setLoginMessage({
-          type: 'error',
-          text: 'セッションの有効期限が切れました。もう一度ログインからやり直してください。',
-        });
-      } else {
-        setLoginMessage({
-          type: 'error',
-          text: 'パスワードの条件を満たしていません。より長く複雑なパスワードを設定してください。',
-        });
-      }
-      setLoading(false);
-    }
-  };
-
-  return {
-    form,
-    loginMessage,
-    flashMessage,
-    loading,
-    handleLogin,
-    handleChange,
-    // 新パスワード設定フェーズ
-    newPasswordPhase,
-    newPassword,
-    newPasswordConfirm,
-    setNewPassword,
-    setNewPasswordConfirm,
-    handleNewPassword,
-  };
+  return { flashMessage, errorMessage, loading, startLogin };
 }

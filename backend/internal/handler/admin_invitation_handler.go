@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -13,19 +12,17 @@ import (
 )
 
 type AdminInvitationHandler struct {
-	list       *usecase.ListAdminInvitationsUseCase
-	create     *usecase.CreateAdminInvitationUseCase
-	tempCreate *usecase.CreateTemporaryPasswordInvitationUseCase
-	cancel     *usecase.CancelAdminInvitationUseCase
+	list   *usecase.ListAdminInvitationsUseCase
+	create *usecase.CreateAdminInvitationUseCase
+	cancel *usecase.CancelAdminInvitationUseCase
 }
 
 func NewAdminInvitationHandler(
 	l *usecase.ListAdminInvitationsUseCase,
 	c *usecase.CreateAdminInvitationUseCase,
-	t *usecase.CreateTemporaryPasswordInvitationUseCase,
 	x *usecase.CancelAdminInvitationUseCase,
 ) *AdminInvitationHandler {
-	return &AdminInvitationHandler{list: l, create: c, tempCreate: t, cancel: x}
+	return &AdminInvitationHandler{list: l, create: c, cancel: x}
 }
 
 // List は招待一覧を返す。SuperAdmin は横断、CompanyAdmin は自分の所属のみ、それ以外は 403。
@@ -79,32 +76,25 @@ type createAdminInvReq struct {
 	Email string          `json:"email" binding:"required"`
 	Role  domain.RoleName `json:"role" binding:"required"`
 	Name  string          `json:"name"`
-	// Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
-	// "temporary_password"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。
-	// 未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。
-	Method string `json:"method" binding:"omitempty,oneof=magic_link temporary_password"`
+	// Method は招待方式。いまは "magic_link"（受諾リンクをメールで送る）だけ。
+	// 未知の値は binding で 400 にする（黙って別の方式にフォールバックさせない）。
+	//
+	// 初期パスワード方式は撤去した。発行者側にユーザーを作って一時パスワードを配る
+	// 仕組みで、特定の発行者の管理 API に直結していた。ログインが発行者の画面に
+	// 移った今、アプリが人のパスワードを決めて渡す経路そのものを持たない。
+	Method string `json:"method" binding:"omitempty,oneof=magic_link"`
 }
-
-// tempPasswordInvitationResponse は temporary_password 方式のレスポンス。
-// temporaryPassword は 1 度だけ提示され、保存・再取得はできない（FRESTYLE-313）。
-type tempPasswordInvitationResponse struct {
-	Invitation        *domain.AdminInvitation `json:"invitation"`
-	TemporaryPassword string                  `json:"temporaryPassword"`
-}
-
-// 招待方式の値（temporary_password のみコードで分岐。magic_link は binding の既定/明示両対応）。
-const invMethodTempPass = "temporary_password"
 
 // Create は招待を作成する。招待先は actor 自身の所属ワークスペースに固定され、招待できるのは trainee のみ。
 // この境界は backend で確実に守り、UI を経由しない呼び出しでも越権招待を防ぐ。
 //
 //	@Summary      招待 作成
-//	@Description  招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。
+//	@Description  招待を作成する。受諾リンクをメールで送る。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待 できる の は trainee のみ。
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
 //	@Param        body  body      createAdminInvReq  true  "招待 内容 (招待先 は actor の 所属 ワークスペース に 固定 さ れる)"
-//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation  "magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される"
+//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation  "作成された招待行"
 //	@Failure      400   {object}  errorResponse  "バリデーション / 未知の method / 一時パスワード方式が未構成"
 //	@Failure      401   {object}  errorResponse  "未 認証"
 //	@Failure      403   {object}  errorResponse  "ロール 違反"
@@ -150,50 +140,13 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 		Name:            req.Name,
 	}
 
-	if req.Method == invMethodTempPass {
-		h.createWithTemporaryPassword(c, in)
-		return
-	}
-
-	// 既定はマジックリンク方式。
+	// 招待はマジックリンク方式のみ。
 	got, err := h.create.Execute(c.Request.Context(), in)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, got)
-}
-
-// createWithTemporaryPassword は初期パスワード方式の招待を作り、一時パスワードを 1 度だけ返す。
-// 一時パスワードはレスポンスにのみ含め、保存・ログ出力しない（FRESTYLE-313）。
-func (h *AdminInvitationHandler) createWithTemporaryPassword(c *gin.Context, in usecase.CreateAdminInvitationInput) {
-	if h.tempCreate == nil {
-		// usecase の ErrTemporaryPasswordUnavailable と同じく 400 に統一（未構成 = 提供していない方式）。
-		c.JSON(http.StatusBadRequest, gin.H{"error": "temporary_password_not_configured"})
-		return
-	}
-	out, err := h.tempCreate.Execute(c.Request.Context(), in)
-	if err != nil {
-		switch {
-		case errors.Is(err, usecase.ErrTemporaryPasswordUnavailable):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "temporary_password_not_configured"})
-		case errors.Is(err, usecase.ErrInvitationUserAlreadyExists):
-			c.JSON(http.StatusConflict, gin.H{
-				"error":   "user_already_exists",
-				"message": "この email のユーザーは既に存在します。パスワードの再発行は別途行ってください。",
-			})
-		default:
-			// Cognito のスロットリング / IAM 権限不足 / DB 障害等はサーバ側障害。
-			// 5xx で監視に拾わせ、AWS の内部メッセージ（pool id 等）を応答に出さない。
-			log.Printf("createWithTemporaryPassword: unexpected error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-		}
-		return
-	}
-	c.JSON(http.StatusCreated, tempPasswordInvitationResponse{
-		Invitation:        out.Invitation,
-		TemporaryPassword: out.TemporaryPassword,
-	})
 }
 
 // @Summary      招待 取り消し

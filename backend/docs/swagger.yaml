@@ -508,6 +508,26 @@ definitions:
       totalSubmissions:
         type: integer
     type: object
+  internal_handler.callbackReq:
+    properties:
+      code:
+        type: string
+      codeVerifier:
+        description: |-
+          CodeVerifier は PKCE の検証値。認可を始めたブラウザが作って手元に置いた乱数で、
+          発行者がこれと認可要求に載った要約を突き合わせる。
+        type: string
+      invitationToken:
+        description: InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。
+        type: string
+      nonce:
+        description: Nonce は認可を始めたブラウザが作った値。id_token の中身と一致することを確かめる。
+        type: string
+    required:
+    - code
+    - codeVerifier
+    - nonce
+    type: object
   internal_handler.chapterDetailResponse:
     properties:
       courseId:
@@ -562,16 +582,6 @@ definitions:
     properties:
       ready:
         type: boolean
-    type: object
-  internal_handler.cognitoCallbackReq:
-    properties:
-      code:
-        type: string
-      invitationToken:
-        description: InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。
-        type: string
-    required:
-    - code
     type: object
   internal_handler.courseDetailResponse:
     properties:
@@ -650,12 +660,14 @@ definitions:
         type: string
       method:
         description: |-
-          Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
-          "temporary_password"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。
-          未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。
+          Method は招待方式。いまは "magic_link"（受諾リンクをメールで送る）だけ。
+          未知の値は binding で 400 にする（黙って別の方式にフォールバックさせない）。
+
+          初期パスワード方式は撤去した。発行者側にユーザーを作って一時パスワードを配る
+          仕組みで、特定の発行者の管理 API に直結していた。ログインが発行者の画面に
+          移った今、アプリが人のパスワードを決めて渡す経路そのものを持たない。
         enum:
         - magic_link
-        - temporary_password
         type: string
       name:
         type: string
@@ -1211,6 +1223,14 @@ definitions:
         example: acme
         type: string
     type: object
+  internal_handler.logoutResponse:
+    properties:
+      endSessionUrl:
+        description: EndSessionURL は発行者側のセッションも終わらせるための遷移先（設定が無ければ空）。
+        type: string
+      message:
+        type: string
+    type: object
   internal_handler.markLessonCompleteRequest:
     properties:
       teachingMaterialId:
@@ -1330,20 +1350,6 @@ definitions:
         example: ログインしました。
         type: string
     type: object
-  internal_handler.newPasswordReq:
-    properties:
-      email:
-        format: email
-        type: string
-      newPassword:
-        type: string
-      session:
-        type: string
-    required:
-    - email
-    - newPassword
-    - session
-    type: object
   internal_handler.noteCreateReq:
     properties:
       content:
@@ -1369,17 +1375,6 @@ definitions:
         type: string
     required:
     - title
-    type: object
-  internal_handler.passwordLoginReq:
-    properties:
-      email:
-        format: email
-        type: string
-      password:
-        type: string
-    required:
-    - email
-    - password
     type: object
   internal_handler.setMemberActiveRequest:
     properties:
@@ -1495,9 +1490,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: 招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password
-        は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ
-        れ、 招待 できる の は trainee のみ。
+      description: 招待を作成する。受諾リンクをメールで送る。招待先は 常に actor 自身 の 所属 ワークスペース に 固定 さ れ、 招待
+        できる の は trainee のみ。
       parameters:
       - description: 招待 内容 (招待先 は actor の 所属 ワークスペース に 固定 さ れる)
         in: body
@@ -1509,8 +1503,7 @@ paths:
       - application/json
       responses:
         "201":
-          description: magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword}
-            を返し temporaryPassword は 1 度だけ提示される
+          description: 作成された招待行
           schema:
             $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
         "400":
@@ -1715,120 +1708,20 @@ paths:
       summary: 自社メンバーの学習状況サマリー
       tags:
       - admin
-  /auth/cognito/login:
-    post:
-      consumes:
-      - application/json
-      description: email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access
-        / refresh token を HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito
-        admin group だけでは昇格しない）。
-      parameters:
-      - description: メール / パスワード
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.passwordLoginReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_handler.messageResponse'
-        "400":
-          description: 入力 不正 (email 形式 / password 欠落)
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 資格 情報 誤り
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 最初の運営管理者作成の競合負け
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "409":
-          description: 同じ email での同時サインアップ競合
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "429":
-          description: レート制限超過
-          headers:
-            Retry-After:
-              description: '再試行までの秒数 (例: 60)'
-              type: string
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: 内部 エラー (Cognito 未 設定 / DB 失敗 等)
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "502":
-          description: Cognito 到達 不可
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      summary: ログイン (メール / パスワード)
-      tags:
-      - auth
-  /auth/cognito/new-password:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ
-        新パスワードで応答する。成功で認証 Cookie を発行する。
-      parameters:
-      - description: email / session / 新パスワード
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.newPasswordReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 設定してログイン
-          schema:
-            $ref: '#/definitions/internal_handler.messageResponse'
-        "400":
-          description: 入力エラー / パスワードポリシー違反
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: session 失効等
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 最初の運営管理者作成の競合負け
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "409":
-          description: 同じ email での同時サインアップ競合
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "429":
-          description: レート制限超過
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      summary: 初回パスワード設定（一時パスワードログイン）
-      tags:
-      - auth
   /auth/login:
     post:
       consumes:
       - application/json
-      description: Cognito Hosted UI から の callback。 authorization code を access /
-        refresh / id token に 交換 し HttpOnly Cookie で 返す。 招待が無くても新規 user を自己サインアップとして作成する（Cognito
-        admin group だけでは昇格しない）。
+      description: 発行者 の ログイン 画面 から の callback。 authorization code を PKCE の code_verifier
+        つき で access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 id_token は 署名
+        と nonce を 検証 する。
       parameters:
-      - description: Cognito callback (code 必須、 invitationToken 任意)
+      - description: code / codeVerifier / nonce (invitationToken は任意)
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.cognitoCallbackReq'
+          $ref: '#/definitions/internal_handler.callbackReq'
       produces:
       - application/json
       responses:
@@ -1841,7 +1734,7 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "401":
-          description: token 交換 失敗
+          description: token 交換 失敗 / id_token 検証 失敗
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "403":
@@ -1861,11 +1754,11 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
-          description: Cognito 未 設定 等 の 内部 エラー
+          description: 発行者 未 設定 等 の 内部 エラー
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "502":
-          description: Cognito 到達 不可
+          description: 発行者 到達 不可
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
       summary: ログイン (認可 コード → token 交換)
@@ -1873,15 +1766,15 @@ paths:
       - auth
   /auth/logout:
     post:
-      description: HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション
-        は 別途 hosted UI で 切る。
+      description: HttpOnly Cookie の access / refresh token を 消去 し、 発行者 側 の セッション
+        終了 URL を 返す。
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handler.messageResponse'
+            $ref: '#/definitions/internal_handler.logoutResponse'
       summary: ログアウト
       tags:
       - auth
@@ -1901,7 +1794,7 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "404":
-          description: DB に user が ない (Cognito 側 だけ 存在)
+          description: DB に user が ない (発行者 側 だけ 存在)
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
@@ -1916,7 +1809,8 @@ paths:
   /auth/refresh:
     post:
       description: refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に
-        セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+        セット する。 発行者 が refresh_token を 回転 させた 場合 は 新しい 値 で Cookie も 更新 する。 失敗 (refresh
+        切れ 等) は 401 で Cookie クリア。
       produces:
       - application/json
       responses:
@@ -1937,7 +1831,7 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "502":
-          description: Cognito 到達 不可
+          description: 発行者 到達 不可
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
       summary: アクセス トークン リフレッシュ

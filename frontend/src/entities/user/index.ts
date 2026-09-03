@@ -6,11 +6,6 @@
  */
 
 export { default as AuthRepository } from './api/authRepository';
-export type { LoginRequest } from './api/authRepository';
-export type { LoginOutcome } from './api/authRepository';
-export type { NewPasswordRequest } from './api/authRepository';
-export type { ForgotPasswordRequest } from './api/authRepository';
-export type { ConfirmForgotPasswordRequest } from './api/authRepository';
 export type { UserInfo } from './api/authRepository';
 export { default as ProfileRepository } from './api/profileRepository';
 export type { UpdateProfileRequest } from './api/profileRepository';

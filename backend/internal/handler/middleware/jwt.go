@@ -2,33 +2,28 @@ package middleware
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"net/http"
-	"slices"
-	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
 )
 
 // VerifyFunc は access_token を検証して claims を返す関数。
-// 本番は infra/cognito.Verifier.Verify（JWKS 署名検証）を注入する。
+// 本番は infra/oidc.Verifier.Verify（JWKS 署名検証）を注入する。
 type VerifyFunc func(ctx context.Context, token string) (map[string]any, error)
 
 const (
-	ContextKeyCognitoSub    = "cognitoSub"
-	ContextKeyEmail         = "email"
-	ContextKeyCognitoGroups = "cognitoGroups"
-	CookieAccessToken       = "access_token"
+	// ContextKeySubject は発行者が付けた本人の識別子（sub）。
+	ContextKeySubject = "subject"
+	// ContextKeyRoles は発行者側の役割の一覧。
+	ContextKeyRoles   = "roles"
+	CookieAccessToken = "access_token"
 )
 
-// AdminGroupName は Cognito User Pool 上の admin グループ名（case-sensitive）。
-const AdminGroupName = "admin"
-
 // JWTAuth は HttpOnly Cookie の access_token を verify で検証する Gin middleware。
-// verify は JWKS 署名検証を行う関数を注入する（偽造トークンを弾く）。
-func JWTAuth(verify VerifyFunc) gin.HandlerFunc {
+//
+// rolesClaim は役割の一覧が入っているクレーム名。発行者ごとに違うので設定から渡す。
+func JWTAuth(verify VerifyFunc, rolesClaim string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(CookieAccessToken)
 		if err != nil || token == "" {
@@ -45,78 +40,21 @@ func JWTAuth(verify VerifyFunc) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing_sub"})
 			return
 		}
-		c.Set(ContextKeyCognitoSub, sub)
-		if email, ok := claims["email"].(string); ok {
-			c.Set(ContextKeyEmail, email)
-		}
-		// cognito:groups は admin 判定に使う。
-		if raw, ok := claims["cognito:groups"]; ok {
-			groups := ToStringSliceFromClaim(raw)
-			c.Set(ContextKeyCognitoGroups, groups)
+		c.Set(ContextKeySubject, sub)
+		if rolesClaim != "" {
+			c.Set(ContextKeyRoles, oidc.RolesFromClaim(claims[rolesClaim]))
 		}
 		c.Next()
 	}
 }
 
-// ToStringSliceFromClaim は claim の cognito:groups を []string に変換する。
-func ToStringSliceFromClaim(v any) []string {
-	arr, ok := v.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(arr))
-	for _, item := range arr {
-		if s, ok := item.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-// CognitoGroupsFromContext は context にセットされた cognito:groups を返す。
+// RolesFromContext は context にセットされた役割の一覧を返す。
 // 未設定 / 不正型の場合は nil。
-func CognitoGroupsFromContext(c *gin.Context) []string {
-	v, ok := c.Get(ContextKeyCognitoGroups)
+func RolesFromContext(c *gin.Context) []string {
+	v, ok := c.Get(ContextKeyRoles)
 	if !ok {
 		return nil
 	}
-	groups, _ := v.([]string)
-	return groups
+	roles, _ := v.([]string)
+	return roles
 }
-
-// IsAdminFromGroups は groups に AdminGroupName が含まれているかを判定する。
-func IsAdminFromGroups(groups []string) bool {
-	return slices.Contains(groups, AdminGroupName)
-}
-
-// DecodeClaims は JWT の payload 部を base64url デコードして claim マップに変換する（署名検証はしない）。
-func DecodeClaims(token string) (map[string]any, error) {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return nil, ErrInvalidJWT
-	}
-	payload, err := base64URLDecode(parts[1])
-	if err != nil {
-		return nil, err
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, err
-	}
-	return claims, nil
-}
-
-// base64URLDecode は JWT で使われる URL-safe base64 (パディング省略) を復元してデコードする。
-func base64URLDecode(s string) ([]byte, error) {
-	switch len(s) % 4 {
-	case 2:
-		s += "=="
-	case 3:
-		s += "="
-	}
-	s = strings.NewReplacer("-", "+", "_", "/").Replace(s)
-	return base64.StdEncoding.DecodeString(s)
-}
-
-// ErrInvalidJWT は token の形式 (3 セグメント) が壊れているときに返る。
-var ErrInvalidJWT = errors.New("middleware: invalid jwt format")

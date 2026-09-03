@@ -2,14 +2,14 @@ package handler
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -172,35 +172,36 @@ func (r *fakeInvitationRepo) UpdateStatus(_ context.Context, id uint64, status s
 	return nil
 }
 
-// makeIDToken は claims を JSON にして JWT 形式（ヘッダ.ペイロード.署名）にエンコードする。
-// 署名は middleware.DecodeClaims が検証しないので空文字でよい。
-func makeIDToken(t *testing.T, claims map[string]any) string {
+// makeIDToken は claims を本物の鍵で署名した id_token にする。
+// 署名を検証する側になったので、テストも実際に署名する（testIdP は oidc_testkit_test.go）。
+func makeIDToken(t *testing.T, idp *testIdP, claims map[string]any) string {
 	t.Helper()
-	payload, err := json.Marshal(claims)
-	if err != nil {
-		t.Fatalf("marshal claims: %v", err)
-	}
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
-	body := base64.RawURLEncoding.EncodeToString(payload)
-	return header + "." + body + "."
+	return idp.sign(t, claims)
 }
 
 // newTestAuthHandler はテスト用 AuthHandler を組み立てる。tokens は使わない。
 // ブートストラップ免除は無効（本番の既定）。
 func newTestAuthHandler(
+	t *testing.T,
+	idp *testIdP,
 	users *fakeUserRepo,
 	invitations *fakeInvitationRepo,
 ) *AuthHandler {
-	return newTestAuthHandlerWithBootstrap(users, invitations, "")
+	return newTestAuthHandlerWithBootstrap(t, idp, users, invitations, "")
 }
 
 // newTestAuthHandlerWithBootstrap はブートストラップ用アドレスを設定したテスト用 AuthHandler を返す。
 func newTestAuthHandlerWithBootstrap(
+	t *testing.T,
+	idp *testIdP,
 	users *fakeUserRepo,
 	invitations *fakeInvitationRepo,
 	bootstrapEmail string,
 ) *AuthHandler {
+	t.Helper()
 	return &AuthHandler{
+		verifier: idp.verifier(t),
+		oidcCfg:  &config.OIDCConfig{AdminRoleClaim: testRolesClaim, AdminRole: "admin"},
 		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
 			users,
 			invitations,
@@ -229,9 +230,10 @@ func Test_IDトークンからユーザー登録_既存ユーザーは常に許�
 	existing := &domain.User{ID: 5, Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing": existing}}
 	invs := &fakeInvitationRepo{}
-	h := newTestAuthHandler(users, invs)
+	idp := newTestIdP(t)
+	h := newTestAuthHandler(t, idp, users, invs)
 
-	idToken := makeIDToken(t, map[string]any{
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub":   "existing",
 		"email": "u@example.com",
 	})
@@ -246,14 +248,15 @@ func Test_IDトークンからユーザー登録_既存ユーザーは常に許�
 }
 
 func Test_IDトークンからユーザー登録_既存ユーザーはCognito_adminで昇格(t *testing.T) {
+	idp := newTestIdP(t)
 	existing := &domain.User{ID: 5, Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing": existing}}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
 
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "existing",
-		"email":          "u@example.com",
-		"cognito:groups": []string{"admin"},
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub":          "existing",
+		"email":        "u@example.com",
+		testRolesClaim: map[string]any{"admin": map[string]any{}},
 	})
 	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
@@ -264,7 +267,8 @@ func Test_IDトークンからユーザー登録_既存ユーザーはCognito_ad
 }
 
 func Test_IDトークンからユーザー登録_不正な形式のトークンを拒否(t *testing.T) {
-	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
+	idp := newTestIdP(t)
+	h := newTestAuthHandler(t, idp, &fakeUserRepo{}, &fakeInvitationRepo{})
 	if upsertAllowed(h, newGinCtx(), "not-a-jwt", "") {
 		t.Fatal("malformed token must be rejected")
 	}
@@ -273,6 +277,7 @@ func Test_IDトークンからユーザー登録_不正な形式のトークン�
 // invitationToken が指定されているとき、email ベースより token ベースが優先されることを確認する。
 // email ベースで見つかる古い invitation よりも、token ベースの新しい invitation を採用する。
 func Test_IDトークンからユーザー登録_招待tokenはメールより優先(t *testing.T) {
+	idp := newTestIdP(t)
 	widByToken := "0198a000-0000-7000-8000-000000000099"
 	widByEmail := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{}
@@ -284,9 +289,9 @@ func Test_IDトークンからユーザー登録_招待tokenはメールより�
 			"magic-token-xyz": {ID: 7, WorkspaceID: &widByToken, Email: "u@example.com", Role: domain.RoleCompanyAdmin, Name: "佐藤"},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
+	h := newTestAuthHandler(t, idp, users, invs)
 
-	idToken := makeIDToken(t, map[string]any{
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub":   "google-user-1",
 		"email": "u@example.com",
 	})
@@ -309,6 +314,7 @@ func Test_IDトークンからユーザー登録_招待tokenはメールより�
 
 // invitationToken が無効でも、email ベースで見つかれば許可する（旧フロー互換）。
 func Test_IDトークンからユーザー登録_無効なtokenはメールにフォールバック(t *testing.T) {
+	idp := newTestIdP(t)
 	wid := "0198a000-0000-7000-8000-000000000001"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
@@ -316,9 +322,9 @@ func Test_IDトークンからユーザー登録_無効なtokenはメールに�
 			"u@example.com": {ID: 1, WorkspaceID: &wid, Email: "u@example.com", Role: domain.RoleTrainee},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
+	h := newTestAuthHandler(t, idp, users, invs)
 
-	idToken := makeIDToken(t, map[string]any{
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub":   "google-user-2",
 		"email": "u@example.com",
 	})
@@ -332,6 +338,7 @@ func Test_IDトークンからユーザー登録_無効なtokenはメールに�
 
 // 既存 super_admin は招待を受けても降格しない。
 func Test_IDトークンからユーザー登録_既存運営管理者は招待で降格しない(t *testing.T) {
+	idp := newTestIdP(t)
 	existing := &domain.User{ID: 1, Email: "ops@example.com", Role: domain.RoleSuperAdmin}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"ops": existing}}
 	wid := "0198a000-0000-7000-8000-000000000001"
@@ -340,8 +347,8 @@ func Test_IDトークンからユーザー登録_既存運営管理者は招待�
 			"t": {ID: 1, WorkspaceID: &wid, Email: "ops@example.com", Role: domain.RoleTrainee},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
-	idToken := makeIDToken(t, map[string]any{"sub": "ops", "email": "ops@example.com"})
+	h := newTestAuthHandler(t, idp, users, invs)
+	idToken := makeIDToken(t, idp, map[string]any{"sub": "ops", "email": "ops@example.com"})
 
 	if !upsertAllowed(h, newGinCtx(), idToken, "t") {
 		t.Fatal("must be allowed")
@@ -353,6 +360,7 @@ func Test_IDトークンからユーザー登録_既存運営管理者は招待�
 
 // 新規ユーザ作成時に id_token の `name` claim が Name に使われる（email にフォールバックしない）。
 func Test_IDトークンからユーザー登録_新規はOIDC名をメールより優先(t *testing.T) {
+	idp := newTestIdP(t)
 	wid := "0198a000-0000-7000-8000-000000000010"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
@@ -364,8 +372,8 @@ func Test_IDトークンからユーザー登録_新規はOIDC名をメールよ
 			},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
-	idToken := makeIDToken(t, map[string]any{
+	h := newTestAuthHandler(t, idp, users, invs)
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub":   "google-1",
 		"email": "taro@example.com",
 		"name":  "山田 太郎",
@@ -384,6 +392,7 @@ func Test_IDトークンからユーザー登録_新規はOIDC名をメールよ
 
 // 招待 displayName が指定されているときは招待値が優先で OIDC name は無視。
 func Test_IDトークンからユーザー登録_新規は招待名がOIDC名に優先(t *testing.T) {
+	idp := newTestIdP(t)
 	wid := "0198a000-0000-7000-8000-000000000010"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
@@ -394,8 +403,8 @@ func Test_IDトークンからユーザー登録_新規は招待名がOIDC名に
 			},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
-	idToken := makeIDToken(t, map[string]any{
+	h := newTestAuthHandler(t, idp, users, invs)
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub": "g-2", "email": "u@example.com", "name": "Google Name",
 	})
 
@@ -409,6 +418,7 @@ func Test_IDトークンからユーザー登録_新規は招待名がOIDC名に
 
 // name claim が無いケースは email にフォールバックする（後方互換）。
 func Test_IDトークンからユーザー登録_新規でOIDC名なしはメールにフォールバック(t *testing.T) {
+	idp := newTestIdP(t)
 	wid := "0198a000-0000-7000-8000-000000000010"
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
@@ -419,8 +429,8 @@ func Test_IDトークンからユーザー登録_新規でOIDC名なしはメー
 			},
 		},
 	}
-	h := newTestAuthHandler(users, invs)
-	idToken := makeIDToken(t, map[string]any{"sub": "g-3", "email": "a@example.com"})
+	h := newTestAuthHandler(t, idp, users, invs)
+	idToken := makeIDToken(t, idp, map[string]any{"sub": "g-3", "email": "a@example.com"})
 
 	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
@@ -432,14 +442,15 @@ func Test_IDトークンからユーザー登録_新規でOIDC名なしはメー
 
 // 既存ユーザの Name が email と一致 + id_token に name → name で上書きされる。
 func Test_IDトークンからユーザー登録_既存ユーザーは表示名をOIDCから補完(t *testing.T) {
+	idp := newTestIdP(t)
 	existing := &domain.User{
 		ID:    5,
 		Email: "old@example.com", Name: "old@example.com",
 		Role: domain.RoleTrainee,
 	}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"exists": existing}}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
-	idToken := makeIDToken(t, map[string]any{
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub": "exists", "email": "old@example.com", "name": "本名 太郎",
 	})
 
@@ -454,14 +465,15 @@ func Test_IDトークンからユーザー登録_既存ユーザーは表示名�
 
 // 既存ユーザが既にプロフィール編集済（Name != email）なら OIDC name で上書きしない。
 func Test_IDトークンからユーザー登録_表示名カスタム済みは補完しない(t *testing.T) {
+	idp := newTestIdP(t)
 	existing := &domain.User{
 		ID:    5,
 		Email: "u@example.com", Name: "ユーザ自身が編集した名前",
 		Role: domain.RoleTrainee,
 	}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"exists": existing}}
-	h := newTestAuthHandler(users, &fakeInvitationRepo{})
-	idToken := makeIDToken(t, map[string]any{
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
+	idToken := makeIDToken(t, idp, map[string]any{
 		"sub": "exists", "email": "u@example.com", "name": "Google Name",
 	})
 
@@ -473,22 +485,83 @@ func Test_IDトークンからユーザー登録_表示名カスタム済みは�
 	}
 }
 
-func Test_IDトークンからユーザー登録_デコード失敗を明示する(t *testing.T) {
-	h := &AuthHandler{}
+func Test_IDトークンからユーザー登録_壊れたトークンを弾く(t *testing.T) {
+	idp := newTestIdP(t)
+	h := newTestAuthHandler(t, idp, &fakeUserRepo{}, &fakeInvitationRepo{})
 
-	user, err := h.upsertUserFromIDToken(
-		newGinCtx(),
-		"invalid-id-token",
-		"",
-	)
+	user, err := h.upsertUserFromIDToken(newGinCtx(), "invalid-id-token", "", "")
 
 	if user != nil {
-		t.Fatal("不正なIDトークンを許可してはいけない")
+		t.Fatal("不正な id_token を許可してはいけない")
 	}
-	if err == nil {
-		t.Fatal("デコードエラーが返されていない")
+	if !errors.Is(err, errIDTokenRejected) {
+		t.Fatalf("id_token の拒否として返っていない: %v", err)
 	}
-	if !strings.Contains(err.Error(), "failed to decode id_token") {
-		t.Fatalf("error = %q", err.Error())
+}
+
+// 署名が正しくても、別の発行者・別の宛先のトークンは通さない。
+// 1 つの発行者が複数のアプリにトークンを出す構成では、ここを見ないと
+// 隣のアプリのトークンがそのまま通る。
+func Test_IDトークンからユーザー登録_宛先違いを弾く(t *testing.T) {
+	idp := newTestIdP(t)
+	h := newTestAuthHandler(t, idp, &fakeUserRepo{}, &fakeInvitationRepo{})
+
+	// aud だけを不正にする。ほかの必須クレームは有効なままにしておく
+	// （そうしないと、aud の検査を外しても別の理由で落ちてテストが通ってしまう）。
+	idToken := idp.signExact(t, map[string]any{
+		"iss":   testIssuer,
+		"aud":   "someone-elses-client",
+		"sub":   "u1",
+		"email": "u@example.com",
+		"iat":   time.Now().Add(-time.Minute).Unix(),
+		"exp":   time.Now().Add(time.Hour).Unix(),
+	})
+
+	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken, "", "")
+	if user != nil {
+		t.Fatal("別のアプリ宛のトークンを許可してはいけない")
+	}
+	if !errors.Is(err, errIDTokenRejected) {
+		t.Fatalf("id_token の拒否として返っていない: %v", err)
+	}
+}
+
+// nonce は「この応答が自分の始めた認可の応答か」を確かめる値。
+// 一致しないものを通すと、攻撃者が自分の認可コードを他人に踏ませる筋道が残る。
+func Test_IDトークンからユーザー登録_nonce不一致を弾く(t *testing.T) {
+	idp := newTestIdP(t)
+	h := newTestAuthHandler(t, idp, &fakeUserRepo{}, &fakeInvitationRepo{})
+
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub": "u1", "email": "u@example.com", "nonce": "attacker-nonce",
+	})
+
+	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken, "victim-nonce", "")
+	if user != nil {
+		t.Fatal("nonce が違うトークンを許可してはいけない")
+	}
+	if !errors.Is(err, errIDTokenRejected) {
+		t.Fatalf("id_token の拒否として返っていない: %v", err)
+	}
+}
+
+// 期待した nonce と一致していれば通る（上のテストが「常に落ちる」だけでないことの裏取り）。
+func Test_IDトークンからユーザー登録_nonce一致なら通る(t *testing.T) {
+	idp := newTestIdP(t)
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
+		"u1": {ID: 1, Email: "u@example.com", Role: domain.RoleTrainee},
+	}}
+	h := newTestAuthHandler(t, idp, users, &fakeInvitationRepo{})
+
+	idToken := makeIDToken(t, idp, map[string]any{
+		"sub": "u1", "email": "u@example.com", "nonce": "same-nonce",
+	})
+
+	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken, "same-nonce", "")
+	if err != nil {
+		t.Fatalf("nonce が一致しているのに落ちた: %v", err)
+	}
+	if user == nil {
+		t.Fatal("ユーザーが返っていない")
 	}
 }

@@ -10,6 +10,11 @@
 #   メール http://localhost:8025   (受信メールの閲覧)
 #   DB    postgres://frestyle:frestyle@localhost:5432/frestyle
 #
+# 認証基盤(Zitadel)は profile auth で一緒に起動する。Cognito の置き換え先で、
+# 将来のオンプレ Kubernetes + PostgreSQL にそのまま載る:
+#   docker compose --profile auth up -d
+#   コンソール http://localhost:8081/ui/console
+#
 # .env が無くても DB だけで起動できる(接続情報は下の既定値が使われる)。
 # Cognito / AWS まで使うときはリポジトリ直下に .env を置く(cp .env.example .env)。
 # .env には「ホストから見た」接続先(localhost)を書く。backend コンテナにも同じ .env を
@@ -86,8 +91,8 @@ services:
     container_name: frestyle-local-backend
     restart: unless-stopped
     env_file:
-      # Cognito / AWS 等の設定はリポジトリ直下の .env から渡す。
-      # 未作成でも DB だけで起動できるよう required: false にしている。
+      # OIDC / AWS 等の設定はリポジトリ直下の .env から渡す。
+      # ここで読んだ値を、下の environment がコンテナ向けに上書きする。
       - path: .env
         required: false
     environment:
@@ -98,13 +103,22 @@ services:
       # 演習のコード実行は code-runner(profile full)へ委譲する。distroless の backend 本体は
       # php / java / node 等を持たないため in-process 実行はできない。
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
-      # ローカル専用のパスワードログイン(DB の bcrypt 検証)。Cognito 不要で
-      # seed ユーザー(seed1@example.test / password 等)でログインできる。
-      # 有効化は「LOCAL_PASSWORD_AUTH=1 かつ 明示的な APP_ENV=local」の両方が必要(FRESTYLE-311)。
-      # APP_ENV を明示注入することで、APP_ENV を設定しない staging 等では有効化しない。
-      # 署名鍵はプロセス毎ランダム(固定鍵の偽造は不可)。
       APP_ENV: ${APP_ENV:-local}
-      LOCAL_PASSWORD_AUTH: ${LOCAL_PASSWORD_AUTH:-1}
+
+      # 認証は Zitadel（OIDC）。**設定が欠けていると backend は起動を止める。**
+      # 以前あった「ローカルなら署名検証をしない」逃げ道は撤去した。
+      #
+      # issuer とトークンの取得先を別々に指せるようにしてあるのが効いている:
+      # issuer はトークンの iss と突き合わせる文字列で、ブラウザが見る URL と同じ。
+      # 一方 backend は同じ名前をコンテナのネットワークから引く（networks.aliases）。
+      # issuer を JWKS の URL から推測していた頃は、この 2 つを分けられなかった。
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://zitadel.localhost:8081}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-http://zitadel.localhost:8081/oauth/v2/keys}
+      OIDC_TOKEN_URI: ${OIDC_TOKEN_URI:-http://zitadel.localhost:8081/oauth/v2/token}
+      OIDC_END_SESSION_URI: ${OIDC_END_SESSION_URI:-http://zitadel.localhost:8081/oidc/v1/end_session}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:5173/login/callback}
+      # クライアント ID は zitadel-setup.sh が出力する値を .env に貼る。
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
     ports:
       # ホストで make run したいときは LOCAL_BACKEND_PORT を変えるか、
       # docker compose stop backend でコンテナ側を止める(同じ 8080 は二重に使えない)。
@@ -129,6 +143,219 @@ services:
     expose:
       - '9000'
 
+  # PAT の置き場の所有者を zitadel(uid 1000) に合わせるだけの使い捨てコンテナ。
+  #
+  # 名前付き volume は root:root で作られ、zitadel は非 root で動くので、
+  # そのままだと PAT を書き出せない。しかもそのとき **初期化は途中まで進んでから
+  # 落ちる**ので、次の起動が「インスタンスはもう在る」で永久に失敗し続ける
+  # （実際に踏んだ。表に出るエラーは AlreadyExists で、真因の permission denied は
+  # 初回のログにしか出ない）。ここで先に揃えて、その分岐を作らない。
+  zitadel-pat-dir:
+    profiles: ['auth']
+    image: public.ecr.aws/docker/library/alpine:3.20
+    container_name: frestyle-local-zitadel-pat-dir
+    command: ['sh', '-c', 'chown -R 1000:1000 /pat']
+    volumes:
+      - zitadel_pat:/pat
+
+  zitadel:
+    # 認証基盤（OIDC プロバイダ）。Cognito の置き換え先で、将来のオンプレ
+    # Kubernetes + PostgreSQL にそのまま載る（AWS に縛られない）。
+    #
+    # profile を付けているのは、Zitadel を立てずに DB だけ触りたい場面があるため。
+    # **アプリを動かすには必須**（認証の設定が無いと backend は起動を止める）:
+    #   docker compose --profile auth up -d
+    #
+    #   コンソール  http://localhost:8081/ui/console
+    #   OIDC 検出   http://localhost:8081/.well-known/openid-configuration
+    #   初期ログイン admin@frestyle.local / Password1!
+    #
+    # start-from-init は「初期化されていなければ初期化してから起動する」。
+    # 2 回目以降は初期化を飛ばすので、そのまま up し直してよい。
+    profiles: ['auth']
+    image: ghcr.io/zitadel/zitadel:v4.17.2
+    container_name: frestyle-local-zitadel
+    restart: unless-stopped
+    command: >
+      start-from-init
+      --masterkey ${ZITADEL_MASTERKEY:-MasterkeyNeedsToHave32Characters}
+    environment:
+      # TLS を張らない設定は **環境変数で渡す**。--tlsMode の CLI フラグだと
+      # サーバは起動するが healthcheck の `zitadel ready` がフラグを読めず、
+      # https で自分を叩いて必ず "not ready" になる（実際に踏んだ）。
+      ZITADEL_TLS_ENABLED: 'false'
+
+      # アプリと同じ PostgreSQL の中に、別データベースとして同居させる。
+      # 別インスタンスを立てないのは、オンプレでも「1 つの PostgreSQL に複数の
+      # データベース」で運用するつもりだから。手元だけ構成を変えない。
+      #
+      # zitadel 用のデータベースとロールは、下の admin 資格で自分で作る
+      # （db の初期化スクリプトは volume が空のときしか走らないため、
+      #   既にデータのある手元でも動くようにこちら側に寄せる）。
+      ZITADEL_DATABASE_POSTGRES_HOST: db
+      ZITADEL_DATABASE_POSTGRES_PORT: '5432'
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${LOCAL_DB_USER:-frestyle}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${LOCAL_DB_PASSWORD:-frestyle}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+
+      # 手元は TLS を張らないので、外向きの URL も http で組ませる。
+      # ここが実際の待ち受けとずれると、発行される issuer と検出文書が食い違い、
+      # トークン検証が「issuer が違う」で必ず落ちる。
+      #
+      # ホスト名を localhost ではなく zitadel.localhost にしてあるのは、
+      # **ブラウザとコンテナの両方から同じ名前で届く必要がある**ため。
+      # localhost だと、backend コンテナの中では自分自身を指してしまい届かない。
+      # Zitadel は Host ヘッダを見てどのインスタンス宛かを決めるので、
+      # 「コンテナからはサービス名で叩く」という逃げ方もできない（名前が変わると届かない）。
+      #
+      # .localhost で終わる名前はブラウザが自動でループバックに向ける（RFC 6761）。
+      # コンテナ側は下の networks.aliases で同じ名前を引けるようにしてある。
+      # ポートも中と外で 8081 に揃える（Host ヘッダにポートが乗るため）。
+      ZITADEL_EXTERNALSECURE: 'false'
+      ZITADEL_EXTERNALDOMAIN: zitadel.localhost
+      ZITADEL_EXTERNALPORT: '8081'
+      ZITADEL_PORT: '8081'
+
+      # Zitadel 自身が出すメール（アドレスの確認・パスワード再設定・招待）の送り先。
+      # 手元の mailpit（http://localhost:8025）へ集める。設定しないと、
+      # 確認メールが必要な導線をローカルで一度も検証できない。
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: 'mail:1025'
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_USER: ''
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_PASSWORD: ''
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: 'false'
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: 'noreply@zitadel.localhost'
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: 'FreStyle (local)'
+
+      # ログイン名にメールアドレスをそのまま使えるようにする。
+      #
+      # 既定では、ログイン名に組織のドメインが付く（zitadel-admin →
+      # zitadel-admin@zitadel.zitadel.localhost）。この形だと、招待メールに
+      # 「このアドレスでログインしてください」と書けない。ログインに使う名前と
+      # 本人のメールアドレスが別物になるためで、しかもアプリ側はメールで
+      # 招待を引き当てるので、ずれていても気づかないまま運用に入ってしまう。
+      #
+      # **ユーザーを作る前に決めること。** 後から変えると既存の名前が全部変わる。
+      ZITADEL_DEFAULTINSTANCE_DOMAINPOLICY_USERLOGINMUSTBEDOMAIN: 'false'
+
+      # 初期管理者。手元専用の固定値で、本番では絶対に使わない。
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: FreStyle
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin@frestyle.local
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: admin@frestyle.local
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: 'true'
+      # 手元専用の初期パスワード。DB の資格（LOCAL_DB_PASSWORD）と同じ扱いで、
+      # .env に書けば差し替えられる。既定値は「手元の localhost にしか効かない」
+      # 前提のもの。**手元より外へ出す構成では必ず .env で上書きする。**
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${LOCAL_ZITADEL_ADMIN_PASSWORD:-Password1!}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: 'false'
+
+      # 機械ユーザーと個人アクセストークン（PAT）を初期化時に作る。
+      # これが無いと、プロジェクトや OIDC クライアントの作成をコンソールで
+      # 手作業する以外に方法が無くなる。**手順が人の記憶に残ると再現できない**ので、
+      # 管理 API を叩ける資格をここで用意して、設定をスクリプトから流せるようにする。
+      # PAT は下の volume（zitadel_pat）へ書き出され、ホストから読める。
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: frestyle-admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: FreStyle Admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_SCOPES: 'openid profile urn:zitadel:iam:org:project:id:zitadel:aud'
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: '2100-01-01T00:00:00Z'
+      ZITADEL_FIRSTINSTANCE_PATPATH: /pat/frestyle-admin.pat
+
+      # 認可の要求をログイン画面へ送る先。v4 では本体と同じホストの /ui/v2/login を
+      # 別コンテナが配信する前提で、その振り分けを前段の zitadel-proxy が行う。
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: 'http://zitadel.localhost:8081/ui/v2/login/login?authRequest='
+      ZITADEL_SAML_DEFAULTLOGINURLV2: 'http://zitadel.localhost:8081/ui/v2/login/login?samlRequest='
+
+    volumes:
+      # 初期化時に発行される PAT の置き場。ホストからは
+      #   docker compose exec zitadel cat /pat/frestyle-admin.pat
+      # で読める。手元専用の資格なので volume に置いたままでよい。
+      - zitadel_pat:/pat
+    # ホストへは公開しない。外向きの入口は前段の zitadel-proxy が持つ
+    # （ブラウザ・ログイン画面・backend の全部が同じ名前で入るようにするため）。
+    expose:
+      - '8081'
+    depends_on:
+      db:
+        condition: service_healthy
+      zitadel-pat-dir:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', '/app/zitadel', 'ready']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # ---- Zitadel のログイン画面 ----
+  #
+  # v4 では、ログイン画面は Zitadel 本体とは別のコンテナで動く（本体は認可の要求を
+  # ここへリダイレクトするだけ）。**オンプレでも同じ 2 コンテナ構成になる**ので、
+  # 手元だけ 1 つにまとめず、実運用と同じ形にしておく。
+  #
+  # 本体の管理 API を叩くので、機械ユーザーの個人アクセストークン（PAT）を渡す。
+  # PAT は本体が初期化時に volume へ書き出したものをそのまま読む。
+  zitadel-login:
+    profiles: ['auth']
+    image: ghcr.io/zitadel/zitadel-login:v4.17.2
+    container_name: frestyle-local-zitadel-login
+    restart: unless-stopped
+    environment:
+      # ブラウザから見える本体の URL。ここが本体の ExternalDomain とずれると、
+      # ログイン画面が本体に届かない / Cookie が付かない。
+      # 前段のプロキシ経由で本体を叩く。ここを zitadel:8081 のような
+      # サービス名にすると Host が変わり、本体が「そのインスタンスは無い」と答える。
+      ZITADEL_API_URL: http://zitadel.localhost:8081
+      # 手元は TLS を張らないので、自己署名の検証も要らない。
+      CUSTOM_REQUEST_HEADERS: ''
+      NEXT_PUBLIC_BASE_PATH: /ui/v2/login
+      # PAT はファイルから読ませる（環境変数に値を置くと ps や inspect で見える）。
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /pat/frestyle-admin.pat
+    volumes:
+      - zitadel_pat:/pat:ro
+    expose:
+      - '3000'
+    depends_on:
+      zitadel:
+        condition: service_healthy
+
+
+  # ---- Zitadel の前段 ----
+  #
+  # 本体とログイン画面を同じホスト名・同じポートの下にまとめる。
+  # Zitadel は Host ヘッダでインスタンスを決めるので、名前が割れると動かない
+  # （詳しくは docker/zitadel-proxy/Caddyfile のコメント）。
+  zitadel-proxy:
+    profiles: ['auth']
+    image: caddy:2.10-alpine
+    container_name: frestyle-local-zitadel-proxy
+    restart: unless-stopped
+    volumes:
+      - ./docker/zitadel-proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      # **8081 は固定。** 変えられるようにしない。
+      #
+      # Zitadel は Host ヘッダ（ポートを含む）でインスタンスを決め、issuer もその値で
+      # 組み立てる。ここだけ変えると、ブラウザは新しいポートで入るのに発行される iss は
+      # 8081 のままになり、検証器は iss を完全一致で見るのでログインした全員が 401 になる。
+      # 変えるなら、本体の ExternalPort・ログイン画面の URL・backend の OIDC_* を
+      # 同時に揃える必要がある。踏める分岐を残すより固定した方が安全。
+      - '8081:8081'
+    networks:
+      default:
+        aliases:
+          # ブラウザ・ログイン画面・backend の全部がこの名前で入る。
+          # .localhost で終わる名前はブラウザが自動でループバックへ向ける（RFC 6761）。
+          - zitadel.localhost
+    depends_on:
+      zitadel:
+        condition: service_healthy
+
+
 volumes:
+  zitadel_pat:
+    name: frestyle-local-zitadel-pat
   db_data:
     name: frestyle-local-db-data

@@ -3,7 +3,7 @@ import PublicHeader from '@/shared/ui/PublicHeader';
 import Button from '@/shared/ui/Button';
 import SNSSignInButton from '@/shared/ui/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
-import { getCognitoAuthUrl } from '@/features/auth';
+import { buildAuthorizeUrl } from '@/features/auth';
 
 export default function SignupPage() {
   return (
@@ -18,8 +18,8 @@ export default function SignupPage() {
         variant="primary"
         fullWidth
         type="button"
-        onClick={() => {
-          window.location.href = getCognitoAuthUrl(undefined, 'signup');
+        onClick={async () => {
+          window.location.href = await buildAuthorizeUrl(undefined, 'signup');
         }}
       >
         メールで始める
@@ -36,8 +36,8 @@ export default function SignupPage() {
 
       <SNSSignInButton
         provider="google"
-        onClick={() => {
-          window.location.href = getCognitoAuthUrl('Google', 'signup');
+        onClick={async () => {
+          window.location.href = await buildAuthorizeUrl('Google', 'signup');
         }}
       />
 

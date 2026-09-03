@@ -78,7 +78,7 @@ func runCurrentUser(t *testing.T, users *stubUsers, workspaces *stubWorkspaces) 
 	t.Helper()
 	got := currentUserResult{rec: httptest.NewRecorder()}
 	r := gin.New()
-	r.Use(func(c *gin.Context) { c.Set(ContextKeyCognitoSub, "sub-123") })
+	r.Use(func(c *gin.Context) { c.Set(ContextKeySubject, "sub-123") })
 	r.Use(CurrentUser(users, workspaces))
 	r.GET("/", func(c *gin.Context) {
 		got.reached = true

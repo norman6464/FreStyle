@@ -12,15 +12,22 @@ function renderLoginPage() {
 }
 
 describe('LoginPage', () => {
-  it('メール/パスワードフォームと公開ヘッダーが表示される', () => {
+  it('発行者のログイン画面へ送るボタンだけを置く', () => {
     renderLoginPage();
 
     expect(screen.getByRole('heading', { name: 'ログイン' })).toBeInTheDocument();
-    expect(screen.getByRole('form', { name: 'ログインフォーム' })).toBeInTheDocument();
-    expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
-    expect(screen.getByLabelText('パスワード')).toBeInTheDocument();
-    // フォーム送信ボタン（ヘッダーの「ログイン」はリンクなので button では一意になる）。
-    expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ログインする' })).toBeInTheDocument();
+  });
+
+  // パスワードを受け取るのは発行者のログイン画面の役目。アプリが受け取ると、
+  // 二要素・ロックアウト・パスワードの強さといった発行者側の守りを素通りする
+  // 経路を自分で開くことになる。
+  it('メールとパスワードの入力欄を置かない', () => {
+    renderLoginPage();
+
+    expect(screen.queryByLabelText('メールアドレス')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('パスワード')).not.toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: 'ログインフォーム' })).not.toBeInTheDocument();
   });
 
   it('Google ログイン導線がある', () => {

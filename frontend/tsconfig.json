@@ -23,9 +23,10 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Paths */
-    "baseUrl": "src",
+    /* baseUrl は TS 7.0 で廃止予定のため使わない。baseUrl 無しの paths は tsconfig.json 自身の
+       ディレクトリ（frontend/）を基準に解決される。 */
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", "vite-env.d.ts"],

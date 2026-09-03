@@ -56,6 +56,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # 本番の ECS は撤去済み。手動実行でもタグ push でも、ここで必ず止まる。
+  # guard は workflow_dispatch でしか走らないので、タグ push の経路を塞ぐには
+  # 条件を持たない別の job が要る。
+  target:
+    name: 出し先があるか確かめる
+    runs-on: ubuntu-latest
+    steps:
+      - name: ECS の実行環境が現存するか
+        run: |
+          # 復活させたら、リポジトリ変数 BACKEND_DEPLOY_TARGET にクラスタ名を入れて
+          # ここを通す（env の CLUSTER と一致させること）。
+          if [ -z "${{ vars.BACKEND_DEPLOY_TARGET }}" ]; then
+            echo "::error::本番のバックエンド実行環境（ECS）は撤去済みです。出し先が無いまま進むと、存在しないサービスへ向けて image を push することになります。復活させたら BACKEND_DEPLOY_TARGET を設定してください。"
+            exit 1
+          fi
+
   guard:
     name: Confirm input (workflow_dispatch only)
     runs-on: ubuntu-latest
@@ -72,8 +88,8 @@ jobs:
     name: Build & Push Image
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [guard]
-    if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
+    needs: [target, guard]
+    if: always() && needs.target.result == 'success' && (github.event_name == 'push' || needs.guard.result == 'success')
     permissions:
       id-token: write
       contents: read

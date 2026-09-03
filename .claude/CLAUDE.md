@@ -250,18 +250,18 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 
 ## 5. デプロイ
 
-- **バックエンド**: 本番の実行環境は撤去済み（ECS ごと畳んだ）。将来はオンプレの Kubernetes に置く
+- **バックエンド**: 本番の実行環境は撤去済み（ECS ごと畳んだ）。将来はオンプレの Kubernetes に置く。`cd-backend.yml` は出し先の存在を確かめる job で必ず止まる（復活させたらリポジトリ変数 `BACKEND_DEPLOY_TARGET` を設定して通す）
 - **フロントエンド**: 本番の配信（S3 + CloudFront）は残してある。出し方は §5.0
 - **DB マイグレーション**: スキーマの正本は `backend/internal/infra/database/schema/schema.sql`（`-- Ⅰ. 中核` / `-- Ⅱ. ノートの骨格` / `-- Ⅲ. ノートの権限` / `-- Ⅳ. テナント橋渡し` の節印で区切った 1 ファイル）で、起動時にこの埋め込み DDL をそのまま流す。**同じファイルが sqlc の型付け入力**でもあるので、定義が二重化しない（変更したら `make sqlc`）
   - **列の追加・変更もこのファイルに書く。** `CREATE ... IF NOT EXISTS` と、カタログを見て足りないときだけ `ALTER` する `DO` ブロックで冪等にする（実例: `spaces.visibility` の追加）。**`ALTER TABLE` を素で書かない** — 列が既に在って何もしない場合でも先に ACCESS EXCLUSIVE ロックを取り、毎回の起動でその表を止めるため
   - **`backend/migrations/` は置かない**（2026-08 に撤去）。GORM を使っていた頃の置き場で、AutoMigrate では表せない差分を別ファイルに逃がすためのものだった。GORM を撤去して DDL が正本になった今、置き場を 2 つ持つ理由が無い（どちらが正か分からなくなる）
   - 1 回きりのデータ移行（既存行の書き換え）は起動時 DDL には向かない。SQL を private リポ `frestyle-infrastructure` 側で管理して流す。**流す前に §5.1 の手順でローカルの実 PostgreSQL で検証する**
 
-### 5.0 いま本番へ出せるのはフロントエンドだけ
+### 5.0 本番のデプロイ対象はフロントエンドだけ（ただし今は実行できない）
 
 **本番の実行体はフロントエンド（S3 + CloudFront）だけ。** バックエンドの実行環境（ECS）は撤去済みで、出す先そのものが無い。
 
-```
+```bash
 gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy
 ```
 

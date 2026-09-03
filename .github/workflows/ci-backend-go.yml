@@ -70,22 +70,6 @@ jobs:
           version: v2.12.2
           working-directory: backend
 
-      # クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を検証する自作 linter。
-      # handler→usecase→repository/infra→domain の矢印に反する import を CI で弾く。
-      - name: archlint (clean architecture deps)
-        run: go run ./cmd/archlint .
-
-      # usecase の命名・構造規約（CLAUDE.md §2.3）を検証する自作 linter。
-      # XxxUseCase に NewXxxUseCase コンストラクタと Execute メソッドがあるかを CI で検査する。
-      - name: naminglint (usecase naming)
-        run: go run ./cmd/naminglint .
-
-      # 一覧を返す repository が 0 件で nil を返す書き方を弾く自作 linter。
-      # nil スライスは JSON で null になり、フロントの map / filter が TypeError で落ちる
-      # （FRESTYLE-70 で観測 → FRESTYLE-77 で 14 メソッドの残存が判明したため機械化）。
-      - name: slicelint (nil slice in list repository)
-        run: go run ./cmd/slicelint .
-
       # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
       # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。

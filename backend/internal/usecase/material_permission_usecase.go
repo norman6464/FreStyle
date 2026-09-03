@@ -15,8 +15,6 @@ import (
 //
 // 判定規則そのものは domain.ResolveMaterialPermission が持つ。ここがやるのは
 // 事実を引いて規則へ渡すことだけで、規則をこちらへ写さない。
-//
-//naminglint:allow コースと章の 2 つを問うので Execute 単一メソッドではなく Course/Chapter で公開する
 type CheckMaterialPermissionUseCase struct {
 	repo repository.MaterialPermissionRepository
 }

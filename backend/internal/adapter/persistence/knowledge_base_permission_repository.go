@@ -1083,7 +1083,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceSpaceScopeFacts(
 	wsID, ok := kbParseID(workspaceID)
 	if !ok {
 		// 解釈できないワークスペース ID は 1 行にも一致しない。0 件と同じ空スライスを返す
-		// （nil を返さないのは JSON で null にしないため。cmd/slicelint が検査している）。
+		// （nil を返さないのは JSON で null にしないため）。
 		return []repository.SpaceWithScopeFacts{}, nil
 	}
 	// bigint に収まらない userID はどの主体にも一致しない ＝ 役割を 1 つも持たない。

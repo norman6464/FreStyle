@@ -11,7 +11,6 @@ import (
 )
 
 // GetDailyStreakUseCase は user_daily_activities から連続学習日数の統計を算出する。
-// 設定画面のプロフィール統計 (GET /daily-goals/streak) 用。
 type GetDailyStreakUseCase struct {
 	activity repository.UserDailyActivityRepository
 }

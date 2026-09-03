@@ -1,7 +1,10 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { AUTH } from '@/shared/config/apiRoutes';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// 空文字なら同一オリジンの相対パスになる。**undefined のままにしない** —
+// 下のリフレッシュは文字列に埋め込むので、undefined だと
+// `undefined/api/v2/auth/refresh` という宛先へ飛ぶ（404 が返るだけなので気付きにくい）。
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 /**
  * Axiosインスタンス

@@ -136,7 +136,6 @@ jobs:
           VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
           VITE_OIDC_CLIENT_ID: ci-dummy
           VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
-          VITE_OIDC_END_SESSION_URI: https://example.invalid/oidc/v1/end_session
           VITE_OIDC_SCOPE: openid profile email offline_access
         run: pnpm run build
 

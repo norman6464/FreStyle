@@ -29,7 +29,6 @@ ARG VITE_API_BASE_URL=""
 ARG VITE_OIDC_AUTHORIZE_URI=""
 ARG VITE_OIDC_CLIENT_ID=""
 ARG VITE_OIDC_REDIRECT_URI=""
-ARG VITE_OIDC_END_SESSION_URI=""
 # 既定に profile / email / offline_access を含める。
 # openid だけだと、発行者は id_token に名前もメールも載せず、
 # offline_access が無ければ更新用のトークンをそもそも発行しない
@@ -40,7 +39,6 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_OIDC_AUTHORIZE_URI=$VITE_OIDC_AUTHORIZE_URI \
     VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID \
     VITE_OIDC_REDIRECT_URI=$VITE_OIDC_REDIRECT_URI \
-    VITE_OIDC_END_SESSION_URI=$VITE_OIDC_END_SESSION_URI \
     VITE_OIDC_SCOPE=$VITE_OIDC_SCOPE
 
 # 認可の設定が空のままイメージを作らせない。空でビルドすると、起動はするのに

@@ -288,7 +288,6 @@ OIDC_CLIENT_SECRET=
 VITE_OIDC_AUTHORIZE_URI=${ZITADEL_URL}/oauth/v2/authorize
 VITE_OIDC_CLIENT_ID=${CLIENT_ID}
 VITE_OIDC_REDIRECT_URI=${REDIRECT_URI}
-VITE_OIDC_END_SESSION_URI=${ZITADEL_URL}/oidc/v1/end_session
 # offline_access が無いと更新用のトークンが発行されず、
 # アクセストークンが切れた瞬間に全員ログイン画面へ飛ぶ。
 VITE_OIDC_SCOPE=openid profile email offline_access

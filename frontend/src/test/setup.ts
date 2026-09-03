@@ -1,5 +1,19 @@
 import '@testing-library/jest-dom';
 import axios from 'axios';
+import { vi } from 'vitest';
+
+// 認可の設定の既定を**明示する**。
+//
+// vitest は Vite の仕組みで `frontend/.env` を暗黙に読む。手元には .env があり
+// CI には無いので、明示しないと同じテストが手元と CI で違う設定で走る
+// （実際、手元では一部だけ入っていて「設定なし」と判定されていた）。
+//
+// 既定を「揃っている」側に置くのは、ほとんどのテストが通常の画面を見たいため。
+// 設定が欠けた状態を見たいテストは、そのテストの中で stubEnv して外す。
+vi.stubEnv('VITE_OIDC_AUTHORIZE_URI', 'https://issuer.test/oauth/v2/authorize');
+vi.stubEnv('VITE_OIDC_CLIENT_ID', 'test-client-id');
+vi.stubEnv('VITE_OIDC_REDIRECT_URI', 'http://localhost:3000/login/callback');
+vi.stubEnv('VITE_OIDC_SCOPE', 'openid profile email offline_access');
 
 // jsdom は Element.prototype.scrollTo を実装していないため、
 // scrollTo を呼び出すコンポーネント（EmojiPicker など）のテストで unhandled error を起こす。

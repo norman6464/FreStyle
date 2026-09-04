@@ -87,26 +87,15 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	}
 	log.Println("migrate: knowledge base schema done")
 
-	// テナント統合（companies → workspaces）。列と FK は schema.sql（節Ⅳ・Ⅴ）で済んでいるので、
-	// ここからは値の移送と旧列の撤去を順に行う。**この 3 つの順序は崩さないこと**
-	// （理由は tenant_bridge.go 冒頭）:
-	//
-	//   1. 会社に対応する workspaces 行を作り、companies.workspace_id を埋める
-	//   2. company_id から各表の workspace_id へ値を写す（company_id がまだ在るうちに）
-	//   3. company_id 列を落とす
-	//
-	// 2 を飛ばして 3 を実行すると対応関係が失われ、既存の行がすべて所属不明になる。
-	log.Println("migrate: tenant bridge start")
+	// 会社→ワークスペースの同期。列・FK は schema.sql（節Ⅰ）で完結しており、company_id から
+	// workspace_id への一回きりの移送（旧 Expand → Migrate → Contract の後半 2 段）は既に
+	// 完了して撤去済み。残るのは「会社を作ったら対応するワークスペースを必ず 1 つ用意する」
+	// という恒常的な同期だけ（詳細は tenant_bridge.go 冒頭）。
+	log.Println("migrate: workspace backfill start")
 	if err := BackfillWorkspacesFromCompanies(ctx, db); err != nil {
 		return err
 	}
-	if err := MigrateWorkspaceIDsFromCompanyID(ctx, db); err != nil {
-		return err
-	}
-	if err := DropCompanyIDColumns(ctx, db); err != nil {
-		return err
-	}
-	log.Println("migrate: tenant bridge done")
+	log.Println("migrate: workspace backfill done")
 	return nil
 }
 

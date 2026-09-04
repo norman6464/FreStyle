@@ -12,8 +12,8 @@
 -- ## 並び順を崩さないこと
 --
 -- 上から順に流すことを前提に書いてある。外部キーの参照先は必ず自分より上にある。
---   Ⅰ 中核    … users / roles / companies / courses / exercises …
---   Ⅱ ノートの骨格 … workspaces / spaces / pages / blocks / page_paths / page_snapshots
+--   Ⅰ 中核    … users / roles / workspaces / companies / courses / exercises …
+--   Ⅱ ノートの骨格 … spaces / pages / blocks / page_paths / page_snapshots
 --   Ⅲ ノートの権限 … principals / grants / share_links
 --                    （Ⅰ の users へ FK を張るので Ⅰ より後でなければならない）
 --
@@ -48,24 +48,20 @@
 -- ノート（schema/knowledge_base.sql / knowledge_base_permissions.sql）が先に採っている形に揃えてある。
 --
 -- 適用順序（infra/database/migrate.go の Migrate が守る）:
---   このファイル → seed / バックフィル / 明示制約（ApplyXxxConstraints）→ ノート → 権限モデル
---   → テナント橋渡し（companies.workspace_id / users.workspace_id）。
---   権限モデルは users を、テナント橋渡しは workspaces を参照するため順序は崩せない。
+--   このファイル（中核 + workspaces）→ seed → ノート骨格 → 権限モデル → コース権限。
+--   権限モデルは users / workspaces を、コース権限は principals を参照するため順序は崩せない。
 --
 -- 冪等性: CREATE TABLE / CREATE INDEX はすべて IF NOT EXISTS。何度流しても安全に通る。
---   ただし CREATE TABLE IF NOT EXISTS は既に在るテーブルへ列を足さない。既存 DB の列追加・型変更・
---   NOT NULL 化は migrations/000X_*.sql（明示 SQL）で行う。ここは「新しく作る DB の姿」の定義。
+--   ただし CREATE TABLE IF NOT EXISTS は既に在るテーブルへ列を足さない。既存 DB への列追加・
+--   制約追加は、このファイル内で DO ブロック（IF NOT EXISTS 判定つき ALTER）にして冪等に行う。
 --
 -- ここに置かないもの:
---   - ノート（骨格 workspaces / spaces / pages / blocks / page_paths / page_snapshots、
+--   - ノート（骨格 spaces / pages / blocks / page_paths / page_snapshots、
 --     権限モデル principals / principal_members / workspace_grants / space_grants /
---     share_links）→ schema/knowledge_base*.sql が正本。
+--     share_links）→ schema/knowledge_base*.sql が正本。workspaces はテナント境界として
+--     companies / courses 等の中核テーブルからも参照されるため、このファイル側に置く。
 --   - FK / CHECK / 部分 UNIQUE のうち、既存データの修復を伴うもの（users の正規化まわり）
---     → migrate.go の ApplyUserNormalizationConstraints が、バックフィルの後に張る。
---   - テナント橋渡し列（companies.workspace_id / users.workspace_id）
---     → tenant_bridge.go が ALTER TABLE ADD COLUMN IF NOT EXISTS で足す（既存 DB にも届く経路）。
---       ALTER は必ず列を末尾に付けるので、下の CREATE TABLE でも該当テーブルの最後に書いてある
---       （並びがずれると SELECT * の詰め替えが位置ずれで壊れる）。
+--     → このファイル自身の DO ブロックが、バックフィルの後に張る。
 --
 -- 型と NULL 可否の方針:
 --   created_at / updated_at はアプリが必ず値を入れるため NOT NULL とする（sqlc が sql.NullTime では
@@ -99,7 +95,7 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_name ON roles (name);
 
 -- OIDC プロバイダ由来のユーザー識別子（Cognito の sub を users から分離）。
--- FK / CHECK は ApplyUserNormalizationConstraints が張る（既存データの修復を伴うため）。
+-- FK / CHECK はこのファイル自身の DO ブロックが張る（既存データの修復を伴うため）。
 CREATE TABLE IF NOT EXISTS user_oidc_identities (
     id         bigserial PRIMARY KEY,
     user_id    bigint NOT NULL,
@@ -117,7 +113,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_provider_subject
 -- role_id は roles マスタへの参照（正規化後の正）。DEFAULT 3 = trainee は、ローリングデプロイ中の
 -- 旧コード（role_id を書かない INSERT）を NOT NULL 違反で壊さないための安全弁。
 -- アクティブ行の email 部分 UNIQUE（uq_users_email_active）は
--- ApplyUserNormalizationConstraints が、正規形へのバックフィル後に張る。
+-- このファイル自身の DO ブロックが、正規形へのバックフィル後に張る。
 CREATE TABLE IF NOT EXISTS users (
     id            bigserial PRIMARY KEY,
     email         text NOT NULL DEFAULT '',
@@ -128,10 +124,52 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    timestamptz NOT NULL,
     updated_at    timestamptz NOT NULL,
     deleted_at    timestamptz,
-    -- workspace_id は tenant_bridge.go が末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- 所属の正本（company_id は撤去済み）。
+    -- 所属の正本（company_id は撤去済み）。FK（fk_users_workspace）は workspaces の
+    -- CREATE TABLE より後でなければ張れない（workspaces.personal_owner_user_id が
+    -- users を参照するため、users を先に作る）ので、直後に DO ブロックで追加する。
     workspace_id  uuid
 );
+
+-- ワークスペース: テナント境界。ノート（spaces 以下）と、companies 由来の業務データ
+-- （courses / course_chapters / company_exercises / invitations / rich_documents）が
+-- どちらもこの表を指す。users の直後に置くのは personal_owner_user_id が users を参照するため。
+-- companies 以降の中核テーブルより前に置くのは、それらが workspace_id で参照するため。
+CREATE TABLE IF NOT EXISTS workspaces (
+    id         uuid PRIMARY KEY,
+    -- slug は URL に出る短い識別子。テナント内ではなくグローバルに一意。
+    slug       varchar(64) NOT NULL,
+    name       varchar(200) NOT NULL,
+    is_active  boolean NOT NULL DEFAULT true,
+    -- 個人サインアップで自動作成した、その人専用のワークスペース。1 人 1 つ
+    -- （uq_workspaces_personal_owner）。作った人を物理削除しても中身は消さない
+    -- （持ち主のいない箱として残り、招かれた他のメンバーはそのまま使い続けられる）。
+    personal_owner_user_id bigint,
+    -- GORM の autoCreateTime / autoUpdateTime は使わないため、DB 側の既定値で必ず埋まるようにする。
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_workspaces_slug UNIQUE (slug),
+    -- URL に出る識別子は空文字禁止・長さ上限（アプリ側検証と二重の壁）。
+    CONSTRAINT ck_workspaces_slug_len CHECK (char_length(slug) BETWEEN 1 AND 64),
+    CONSTRAINT fk_workspaces_personal_owner FOREIGN KEY (personal_owner_user_id)
+        REFERENCES users (id) ON DELETE SET NULL
+);
+-- 1 人につき個人ワークスペースは 1 つ。サインアップの再送・並行実行でも 2 つ目が作れない
+-- （check-then-act をアプリに書かずに済む。ON CONFLICT の推論先にもなる）。partial index なので
+-- テーブル制約としては書けず、CREATE UNIQUE INDEX の形にする。
+CREATE UNIQUE INDEX IF NOT EXISTS uq_workspaces_personal_owner
+    ON workspaces (personal_owner_user_id) WHERE personal_owner_user_id IS NOT NULL;
+
+-- users.workspace_id → workspaces.id。users は workspaces より前に定義されている
+-- （workspaces.personal_owner_user_id が users を参照するため）ので、この FK だけは
+-- インラインで書けない。中核テーブルの中で唯一この 1 本だけが DO ブロックのまま残る。
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_workspace' AND conrelid = 'users'::regclass) THEN
+        ALTER TABLE users
+            ADD CONSTRAINT fk_users_workspace
+            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
+    END IF;
+END $$;
 
 -- 学習メモ。
 CREATE TABLE IF NOT EXISTS notes (
@@ -174,10 +212,16 @@ CREATE TABLE IF NOT EXISTS companies (
     is_active                    boolean NOT NULL DEFAULT true,
     created_at                   timestamptz NOT NULL,
     updated_at                   timestamptz NOT NULL,
-    -- 対応する workspaces 行への橋渡し。tenant_bridge.go が末尾に足す列なので必ず最後に書く。
-    -- テナントの正本を workspaces へ移す移行期間だけの列で、companies を畳むときに列ごと消える。
-    workspace_id                 uuid
+    -- 対応する workspaces 行への橋渡し。テナントの正本を workspaces へ移す移行期間だけの列で、
+    -- companies を畳むときに列ごと消える。
+    workspace_id                 uuid,
+
+    CONSTRAINT fk_companies_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
 );
+-- 会社とワークスペースは 1:1。2 つの会社が同じワークスペースを指す状態を作らせない。
+-- partial index なのでテーブル制約としては書けない。
+CREATE UNIQUE INDEX IF NOT EXISTS uq_companies_workspace_id
+    ON companies (workspace_id) WHERE workspace_id IS NOT NULL;
 
 -- 教材コース。
 CREATE TABLE IF NOT EXISTS courses (
@@ -191,10 +235,15 @@ CREATE TABLE IF NOT EXISTS courses (
     is_published       boolean NOT NULL DEFAULT false,
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL,
-    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
     -- 所属の正本（company_id は撤去済み）。
-    workspace_id       uuid
+    workspace_id       uuid,
+
+    CONSTRAINT fk_courses_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id),
+    -- コースの権限（course_grants）から「同じワークスペースのコース」を複合 FK で指すための
+    -- 足場。id は既に PK なので、この一意制約が新しく防ぐ重複は無い。
+    CONSTRAINT uq_courses_workspace_id UNIQUE (workspace_id, id)
 );
+CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
 
 -- 運営 / 管理者の重要操作の監査記録。
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -221,12 +270,13 @@ CREATE TABLE IF NOT EXISTS invitations (
     token        varchar(64),
     expires_at   timestamptz NOT NULL,
     created_at   timestamptz NOT NULL,
-    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
-    -- invitations は company_id をまだ所属の正本として読み書きしており、この列は写し
-    -- （撤去は後続のチケット）。毎起動の移送がレガシー行の workspace_id を埋め続ける。
-    workspace_id uuid
+    -- 所属の正本（company_id は撤去済み）。
+    workspace_id uuid,
+
+    CONSTRAINT fk_invitations_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
+CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);
 
 -- 運営が用意した練習問題マスタ。
 -- sort_order は migration 0011 が ALTER ADD COLUMN で integer として作った列（本番の実列も integer）。
@@ -269,12 +319,14 @@ CREATE TABLE IF NOT EXISTS company_exercises (
     created_at      timestamptz NOT NULL,
     updated_at      timestamptz NOT NULL,
     deleted_at      timestamptz,
-    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
     -- 所属の正本（company_id は撤去済み）。
-    workspace_id    uuid
+    workspace_id    uuid,
+
+    CONSTRAINT fk_company_exercises_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
 );
 CREATE INDEX IF NOT EXISTS idx_company_exercises_language ON company_exercises (language);
 CREATE INDEX IF NOT EXISTS idx_company_exercises_deleted_at ON company_exercises (deleted_at);
+CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
 
 -- コード演習の提出履歴（append-only）。stdout / stderr は未取得のとき NULL。
 CREATE TABLE IF NOT EXISTS exercise_submissions (
@@ -331,10 +383,10 @@ CREATE TABLE IF NOT EXISTS rich_documents (
     created_at     timestamptz NOT NULL,
     updated_at     timestamptz NOT NULL,
     deleted_at     timestamptz,
-    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
     -- 所属の正本（company_id は撤去済み）。未所属の文書もあるため nullable。
     workspace_id   uuid,
     CONSTRAINT fk_rich_documents_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_rich_documents_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id),
     CONSTRAINT ck_rich_documents_doc CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc'),
     CONSTRAINT ck_rich_documents_title_len CHECK (char_length(title) <= 200)
 );
@@ -384,11 +436,22 @@ CREATE TABLE IF NOT EXISTS course_chapters (
     is_published       boolean NOT NULL DEFAULT false,
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL,
-    -- workspace_id は節Ⅳが末尾に足す列。実列の並びと合わせるため必ず最後に書く。
     -- 所属の正本（company_id は撤去済み）。
-    workspace_id       uuid
+    workspace_id       uuid,
+
+    CONSTRAINT fk_course_chapters_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id),
+    -- 章の権限（chapter_grants）から「同じワークスペースの章」を複合 FK で指すための足場。
+    CONSTRAINT uq_course_chapters_workspace_id UNIQUE (workspace_id, id),
+    -- 章は必ず実在するコースにぶら下がる。**複合（workspace_id を含む）にはしない。**
+    -- workspace_id はまだ NULL を許すので、複合にすると NULL の行では検査そのものが飛ぶ
+    -- （MATCH SIMPLE の既定）。course_id は NOT NULL なので、単純な FK なら全行で必ず効く。
+    -- テナントの一致は上の uq_course_chapters_workspace_id と、権限側から張る複合 FK が受け持つ。
+    -- workspace_id を NOT NULL にしていないのは、教材の投入 SQL（別リポで生成する）がこの列を
+    -- 書いているかをここから確かめられないため。確かめてから別途締める。
+    CONSTRAINT fk_course_chapters_course FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
+CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
 
 -- 本番に欠けている NOT NULL と既定値を、定義（このファイルの上のほう）に合わせて埋める。
 --
@@ -661,10 +724,12 @@ DO $$ BEGIN
 END $$;
 
 -- =====================================================================
--- Ⅱ. ノートの骨格（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
+-- Ⅱ. ノートの骨格（spaces / pages / blocks / page_paths / page_snapshots）
 -- =====================================================================
 
--- ノート（workspaces / spaces / pages / blocks / page_paths / page_snapshots）の DDL。
+-- ノート（spaces / pages / blocks / page_paths / page_snapshots）の DDL。
+-- workspaces（テナント境界）自体は中核テーブルの一部として節Ⅰに定義済み
+-- （companies / courses 等の中核テーブルからも参照されるため）。
 --
 -- このファイルが実スキーマの正本であり、同時に sqlc の型付け入力でもある
 -- （backend/sqlc.yaml の schema に登録済み。列を足したら `make sqlc` で生成物を作り直す）。
@@ -694,28 +759,6 @@ END $$;
 --
 --   (2) 並び順は分数インデックス（internal/pkg/fracindex）が採番する文字列キー。
 --       同じ親の中で position が重複しないことを部分 UNIQUE で守り、既定値は置かない（採番はアプリ側）。
-
--- ワークスペース: ノートのテナント境界。
-CREATE TABLE IF NOT EXISTS workspaces (
-    id         uuid PRIMARY KEY,
-    -- slug は URL に出る短い識別子。テナント内ではなくグローバルに一意。
-    slug       varchar(64) NOT NULL,
-    name       varchar(200) NOT NULL,
-    is_active  boolean NOT NULL DEFAULT true,
-    -- 個人サインアップで自動作成した、その人専用のワークスペース。1 人 1 つ
-    -- （uq_workspaces_personal_owner）。列と制約は workspace_ownership_schema.go が
-    -- ALTER TABLE ADD COLUMN IF NOT EXISTS で足す（本番の既存 workspaces へ列を
-    -- 届ける経路がそれしか無いため）。CREATE TABLE 側にも書くのは、まっさらな DB では
-    -- ここで最初から作られるようにするため。
-    personal_owner_user_id bigint,
-    -- GORM の autoCreateTime / autoUpdateTime は使わないため、DB 側の既定値で必ず埋まるようにする。
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-
-    CONSTRAINT uq_workspaces_slug UNIQUE (slug),
-    -- URL に出る識別子は空文字禁止・長さ上限（アプリ側検証と二重の壁）。
-    CONSTRAINT ck_workspaces_slug_len CHECK (char_length(slug) BETWEEN 1 AND 64)
-);
 
 -- スペース: ワークスペース内のページの束（部門・プロジェクト単位の入れ物）。
 CREATE TABLE IF NOT EXISTS spaces (
@@ -1255,257 +1298,16 @@ CREATE INDEX IF NOT EXISTS idx_share_links_page ON share_links (workspace_id, pa
 CREATE INDEX IF NOT EXISTS idx_share_links_created_by ON share_links (created_by_user_id);
 
 -- =====================================================================
--- Ⅳ. テナント橋渡し（companies.workspace_id / users.workspace_id）と
---     個人ワークスペースの所有者（workspaces.personal_owner_user_id）
+-- Ⅳ. コース / 教材の権限（course_grants / chapter_grants）
 -- =====================================================================
 --
--- companies / users は Ⅰ（中核）が作る表だが、workspaces を参照する列なので
--- workspaces（Ⅱ）より後に置く。CREATE TABLE ではなく ALTER TABLE ADD COLUMN
--- IF NOT EXISTS で足すのは、CREATE TABLE IF NOT EXISTS が既存の表へ列を追加しない
--- ため（本番に届く経路がこれしかない）。カタログを見て未作成のときだけ ALTER する
--- のは、素の ALTER TABLE が列が既に在ってスキップする場合でも先に
--- AccessExclusiveLock を取り、トランザクションが終わるまで手放さないため
--- （列が出揃っている通常の起動で companies / users / workspaces を掴まないようにする）。
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'companies' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE companies ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'users' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE users ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
--- 会社とワークスペースは 1:1。移行中に 2 つの会社が同じワークスペースを指す状態を作らない。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_companies_workspace_id') THEN
-        CREATE UNIQUE INDEX uq_companies_workspace_id ON companies (workspace_id) WHERE workspace_id IS NOT NULL;
-    END IF;
-END $$;
-
--- 存在しないワークスペースを指せないようにする（company_id には FK が無く、同じ轍を踏まない）。
--- 参照されている workspaces の行は消せない（既定の NO ACTION）。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_companies_workspace' AND conrelid = 'companies'::regclass) THEN
-        ALTER TABLE companies
-            ADD CONSTRAINT fk_companies_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_workspace' AND conrelid = 'users'::regclass) THEN
-        ALTER TABLE users
-            ADD CONSTRAINT fk_users_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
--- 個人サインアップで自動作成した、その人専用のワークスペースの持ち主。
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'workspaces' AND column_name = 'personal_owner_user_id'
-    ) THEN
-        ALTER TABLE workspaces ADD COLUMN personal_owner_user_id bigint;
-    END IF;
-END $$;
-
--- 作った人を物理削除しても中身は消さない。持ち主のいない箱として残り、招かれた他の
--- メンバーはそのまま使い続けられる。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_workspaces_personal_owner' AND conrelid = 'workspaces'::regclass) THEN
-        ALTER TABLE workspaces
-            ADD CONSTRAINT fk_workspaces_personal_owner
-            FOREIGN KEY (personal_owner_user_id) REFERENCES users (id) ON DELETE SET NULL;
-    END IF;
-END $$;
-
--- 1 人につき個人ワークスペースは 1 つ。サインアップの再送・並行実行でも 2 つ目が作れない
--- （check-then-act をアプリに書かずに済む。ON CONFLICT の推論先にもなる）。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_workspaces_personal_owner') THEN
-        CREATE UNIQUE INDEX uq_workspaces_personal_owner
-            ON workspaces (personal_owner_user_id) WHERE personal_owner_user_id IS NOT NULL;
-    END IF;
-END $$;
-
--- =====================================================================
--- Ⅴ. テナント統合（courses / course_chapters / company_exercises /
---     invitations / rich_documents への workspace_id 列追加）
--- =====================================================================
+-- companies.workspace_id / users.workspace_id、courses / course_chapters /
+-- company_exercises / invitations / rich_documents の workspace_id 列と FK、
+-- workspaces.personal_owner_user_id は、いずれも節Ⅰ（中核）の CREATE TABLE に
+-- インラインで定義済み（唯一 fk_users_workspace だけは workspaces の CREATE TABLE
+-- 直後の DO ブロック、節Ⅰ内にある）。この節に残るのは、principals（節Ⅲ）を参照する
+-- ため節Ⅰには置けない course_grants / chapter_grants だけ。
 --
--- workspace_id が唯一の所属参照（company_id は全表から撤去済み）。列を足して FK を張る。
--- FK は workspace_id 側にだけ張る（companies で既に採った方針と同じ）。
--- 新規に作る DB では上の CREATE TABLE で最初から workspace_id を持つため、この節は
--- 既存 DB（起動時点でまだ列が無い環境）へ届かせるための ALTER TABLE ADD COLUMN
--- IF NOT EXISTS 経路。
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'courses' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE courses ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_courses_workspace' AND conrelid = 'courses'::regclass) THEN
-        ALTER TABLE courses
-            ADD CONSTRAINT fk_courses_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'course_chapters' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE course_chapters ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_course_chapters_workspace' AND conrelid = 'course_chapters'::regclass) THEN
-        ALTER TABLE course_chapters
-            ADD CONSTRAINT fk_course_chapters_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'company_exercises' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE company_exercises ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_company_exercises_workspace' AND conrelid = 'company_exercises'::regclass) THEN
-        ALTER TABLE company_exercises
-            ADD CONSTRAINT fk_company_exercises_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'invitations' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE invitations ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_invitations_workspace' AND conrelid = 'invitations'::regclass) THEN
-        ALTER TABLE invitations
-            ADD CONSTRAINT fk_invitations_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
--- rich_documents は他の 4 テーブルと違い未所属のドキュメントがあるため、
--- workspace_id は NULL を許容する。列追加・FK の作法自体は他と同じ。
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'rich_documents' AND column_name = 'workspace_id'
-    ) THEN
-        ALTER TABLE rich_documents ADD COLUMN workspace_id uuid;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_workspace' AND conrelid = 'rich_documents'::regclass) THEN
-        ALTER TABLE rich_documents
-            ADD CONSTRAINT fk_rich_documents_workspace
-            FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
-    END IF;
-END $$;
-
--- workspace_id の索引は列を足したあとに作る。節Ⅰ（CREATE TABLE 群）へ置くと、既存 DB では
--- まだ列が無い時点で CREATE INDEX が走って落ちる（IF NOT EXISTS は索引の有無しか見ず、
--- 列の不在は防げない）。
-CREATE INDEX IF NOT EXISTS idx_courses_workspace_id ON courses (workspace_id);
-CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
-CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
-CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);
-
--- ── コースと章の骨格を締める（対象ごとに権限を張るための足場）──
---
--- コース・教材の編集可否を「対象ごと」に決めるには、権限の行から対象を
--- **テナントごと**指せる必要がある。ノート側（page_grants）と同じ形にするので、
--- 参照される側に (workspace_id, id) の一意制約が要る。
---
--- id は既に主キーなので、この一意制約が新しく防ぐ重複は無い。**要るのは複合外部キーの
--- 参照先として**で、これが無いと権限の行から「同じワークスペースのコース」を指せず、
--- テナントを跨いだ付与を DB で塞げない（アプリの検査だけが頼りになる）。
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-         WHERE conname = 'uq_courses_workspace_id' AND conrelid = 'courses'::regclass
-    ) THEN
-        ALTER TABLE courses ADD CONSTRAINT uq_courses_workspace_id UNIQUE (workspace_id, id);
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-         WHERE conname = 'uq_course_chapters_workspace_id' AND conrelid = 'course_chapters'::regclass
-    ) THEN
-        ALTER TABLE course_chapters
-            ADD CONSTRAINT uq_course_chapters_workspace_id UNIQUE (workspace_id, id);
-    END IF;
-END $$;
-
--- 章は必ず実在するコースにぶら下がる。
---
--- ORM が作っていた頃からこの FK は無く、コースを消しても章を残せる状態だった
--- （消す側のコードが明示的に消していただけで、DB は何も守っていない）。対象ごとの権限を
--- 張ると、親の居ない章に権限だけが残り、誰の目にも触れないまま生き続ける。
---
--- **複合（workspace_id を含む）にはしない。** workspace_id はまだ NULL を許すので、
--- 複合にすると NULL の行では検査そのものが飛ぶ（MATCH SIMPLE の既定）。course_id は
--- NOT NULL なので、単純な FK なら全行で必ず効く。テナントの一致は上の一意制約と、
--- 権限側から張る複合 FK が受け持つ。
---
--- workspace_id を NOT NULL にしていないのは、教材の投入 SQL（別リポで生成する）が
--- この列を書いているかをここから確かめられないため。確かめてから別途締める。
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-         WHERE conname = 'fk_course_chapters_course' AND conrelid = 'course_chapters'::regclass
-    ) THEN
-        ALTER TABLE course_chapters
-            ADD CONSTRAINT fk_course_chapters_course
-            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE;
-    END IF;
-END $$;
-
 -- ── コース / 教材の権限（対象ごとの編集）──
 --
 -- 既定は「コース → 章」の 2 段で届き、最も強いものが実効になる。ノートと同じ合成規則だが、

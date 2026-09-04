@@ -7,12 +7,8 @@ import { test, expect, type Page } from '@playwright/test';
  * （一覧 → 詳細で中身が描画される）を検証する。本番 Cognito / DB には触れない。
  */
 
-// 指定 role の認証済みユーザーとして /api/v2/** をモックする（authenticated.spec と同方針）。
-async function mockAuthed(
-  page: Page,
-  overrides: Record<string, unknown> = {},
-  role: 'trainee' | 'company_admin' | 'super_admin' = 'trainee'
-) {
+// 認証済みユーザーとして /api/v2/** をモックする（authenticated.spec と同方針）。
+async function mockAuthed(page: Page, overrides: Record<string, unknown> = {}) {
   await page.route('**/api/v2/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   );
@@ -20,7 +16,7 @@ async function mockAuthed(
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ isAdmin: role !== 'trainee', role }),
+      body: JSON.stringify({ id: 1, email: 'e2e@example.com', name: 'E2E ユーザー' }),
     })
   );
   for (const [pattern, body] of Object.entries(overrides)) {

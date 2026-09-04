@@ -34,7 +34,7 @@ test.describe('トップ（/）', () => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ isAdmin: false, role: 'trainee' }),
+        body: JSON.stringify({ id: 1, email: 'e2e@example.com', name: 'E2E ユーザー' }),
       })
     );
     await page.goto('/');

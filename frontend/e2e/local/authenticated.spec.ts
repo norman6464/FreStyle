@@ -8,26 +8,22 @@ import { test, expect, type Page } from '@playwright/test';
  *
  * 認証は `GET /auth/me` のレスポンスで制御する:
  *   - 401 を返す → 未認証扱い → /login へリダイレクト
- *   - 200 + { role } を返す → 認証済み → AppShell + ページ描画
+ *   - 200 → 認証済み → AppShell + ページ描画
  */
 
-// 指定 role の認証済みユーザーとして /api/v2/** をモックする。
+// 認証済みユーザーとして /api/v2/** をモックする。
 // 個別エンドポイントを上書きできるよう overrides を受け取る。
-async function mockAuthenticated(
-  page: Page,
-  overrides: Record<string, unknown> = {},
-  role: 'trainee' | 'company_admin' | 'super_admin' = 'trainee'
-) {
+async function mockAuthenticated(page: Page, overrides: Record<string, unknown> = {}) {
   // 既定: 未指定の API は空配列で 200（リスト/オブジェクトどちらの消費側も undefined 安全）。
   await page.route('**/api/v2/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   );
-  // 認証確認: 指定 role で認証済みにする。
+  // 認証確認: 認証済みにする（role は撤去済みでレスポンスに含まれない）。
   await page.route('**/api/v2/auth/me', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ isAdmin: role !== 'trainee', role }),
+      body: JSON.stringify({ id: 1, email: 'e2e@example.com', name: 'E2E ユーザー' }),
     })
   );
   for (const [pattern, body] of Object.entries(overrides)) {
@@ -98,7 +94,7 @@ test.describe('主要画面（認証済み）', () => {
   });
 });
 
-test.describe('認証済み導線（trainee）', () => {
+test.describe('認証済み導線（ログイン後の主要画面）', () => {
   test('ノート画面はログインに飛ばされず描画される', async ({ page }) => {
     await mockAuthenticated(page);
     await page.goto('/notes');
@@ -118,32 +114,6 @@ test.describe('認証済み導線（trainee）', () => {
     await page.goto('/reports');
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page).toHaveURL(/\/reports/);
-  });
-});
-
-test.describe('認証済み導線（super_admin）', () => {
-  test('super_admin が招待管理を開ける', async ({ page }) => {
-    await mockAuthenticated(page, {}, 'super_admin');
-    await page.goto('/admin/invitations');
-    await expect(page).not.toHaveURL(/\/login/);
-    await expect(page).toHaveURL(/\/admin\/invitations/);
-  });
-
-  test('super_admin が trainee 向けパス（/code-editor）を開くとホームへリダイレクトされる', async ({
-    page,
-  }) => {
-    // Protected: role === 'super_admin' かつ trainee 向けパス → ホーム（/）。
-    await mockAuthenticated(page, {}, 'super_admin');
-    await page.goto('/code-editor');
-    await expect(page).toHaveURL('/');
-  });
-
-  test('super_admin でも /notes は開ける（旧ナレッジを統合した共有の面）', async ({ page }) => {
-    // 運用の手順や決めごとを書き残すのは、むしろ管理する側の仕事になる。
-    await mockAuthenticated(page, {}, 'super_admin');
-    await page.goto('/notes');
-    await expect(page).toHaveURL(/\/notes/);
-    await expect(page).not.toHaveURL(/\/admin\/companies/);
   });
 });
 

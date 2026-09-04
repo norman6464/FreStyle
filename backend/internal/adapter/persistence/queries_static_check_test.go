@@ -56,8 +56,11 @@ var ownershipColumns = map[string]string{
 }
 
 var (
-	queryNameRe   = regexp.MustCompile(`(?m)^--[ \t]*name:[ \t]*([A-Za-z0-9_]+)`)
-	createTableRe = regexp.MustCompile(`(?is)create\s+table\s+(?:if\s+not\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?\s*\(`)
+	queryNameRe = regexp.MustCompile(`(?m)^--[ \t]*name:[ \t]*([A-Za-z0-9_]+)`)
+	// スキーマ正本（Atlas 生成の schema.gen.sql）は "public"."table_name" のようにスキーマ修飾＋
+	// ダブルクォート付きで出力する（手書きの queries/*.sql は素の table_name のまま）。
+	// 修飾子は読み飛ばし、最後の識別子（表名そのもの）だけを capture group 1 に残す。
+	createTableRe = regexp.MustCompile(`(?is)create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?[a-z_][a-z0-9_]*"?\.)?"?([a-z_][a-z0-9_]*)"?\s*\(`)
 	insertIntoRe  = regexp.MustCompile(`(?is)\binsert\s+into\s+"?([a-z_][a-z0-9_]*)"?`)
 	onConflictRe  = regexp.MustCompile(`(?is)\bon\s+conflict\b`)
 	doActionRe    = regexp.MustCompile(`(?is)\bdo\s+(update|nothing)\b`)

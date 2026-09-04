@@ -23,7 +23,7 @@ import (
 const defaultTestDSN = "postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable"
 
 // integrationLockKey は結合テストを直列化する advisory lock のキー。
-// マイグレーション用（database.migrateAdvisoryLockKey）とは別の値にする。
+// 他の advisory lock（usecase/repository の bootstrapSuperAdminLockKey 等）とは別の値にする。
 const integrationLockKey int64 = 907_353_401
 
 // OpenTestDB は結合テスト用 DB に接続し、起動時と同じ明示 DDL でスキーマを構築して
@@ -86,18 +86,8 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	}
 
 	serializeIntegration(t, sqlDB)
-
-	// 中核テーブル（users / courses / … と FK / CHECK / 部分 UNIQUE）は
-	// 起動時（database.Migrate）と同じ明示 DDL（schema.sql Ⅰ）で作る。
-	// users.role は列そのもの（ck_users_role）で、投入が要る参照先マスタは持たない。
-	if err := database.ApplyCoreSchema(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplyCoreSchema 失敗: %v", err)
-	}
-	// ノート（workspaces / spaces / pages / blocks / …）も同じ明示 DDL（schema.sql Ⅱ〜Ⅳ）を流す。
-	// バックフィルは呼ばない（テストが自分でデータを用意する。起動相当の再実行は
-	// バックフィル自身の結合テストが直接呼んで確かめる）。
-	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
-		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
+	if err := database.ApplySchema(t.Context(), sqlDB); err != nil {
+		t.Fatalf("ApplySchema 失敗: %v", err)
 	}
 	return sqlDB
 }

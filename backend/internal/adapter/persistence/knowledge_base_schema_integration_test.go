@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
@@ -509,14 +508,8 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		require.True(t, exists, "3 段目の付与の表が見つかりません")
 	})
 
-	// DDL は起動のたびに流れる。何度適用しても落ちず、制約が 1 本も欠けないことを固定する
-	// （CREATE ... IF NOT EXISTS だけで冪等にしており、DO ブロックによる張り替えは持ち込まない）。
-	// スキーマそのものを見るので、この DB を使う他のサブテストの後（最後）に置く。
-	t.Run("DDL を繰り返し適用しても落ちない", func(t *testing.T) {
+	t.Run("制約が 1 本も欠けていない", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, kbTables...)
-		// OpenTestDB で 1 回適用済みなので、ここで 2 回足して計 3 回。
-		require.NoError(t, database.ApplyKnowledgeBaseSchema(t.Context(), db))
-		require.NoError(t, database.ApplyKnowledgeBaseSchema(t.Context(), db))
 
 		// position 列のコレーションが C のままであること（剥がれると並びが狂う）。
 		for _, table := range []string{"pages", "blocks"} {

@@ -14,7 +14,6 @@ services:
       - '${LOCAL_DB_PORT:-5432}:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
-      # 起動時に一度だけ流す初期化 SQL(空の DB のときのみ実行される)。
       - ./backend/scripts/local-db-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
@@ -25,25 +24,18 @@ services:
 
 
   backend:
-    # 本番と同じ Dockerfile(distroless)でビルドする。ローカルだけ別物にすると
-    # 「手元では動くのに本番で動かない」を作り込むため、成果物は本番と揃える。
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: frestyle-local-backend
     restart: unless-stopped
     env_file:
-      # Cognito / AWS 等の設定はリポジトリ直下の .env から渡す。
-      # 未作成でも DB だけで起動できるよう required: false にしている。
       - path: .env
         required: false
     environment:
-      # コンテナから見た DB / メールの宛先はサービス名になる(.env の localhost を上書き)。
       DATABASE_URL: postgres://${LOCAL_DB_USER:-frestyle}:${LOCAL_DB_PASSWORD:-frestyle}@db:5432/${LOCAL_DB_NAME:-frestyle}?sslmode=disable
       MAIL_SMTP_HOST: mail
       MAIL_SMTP_PORT: '1025'
-      # 演習のコード実行は code-runner(profile full)へ委譲する。distroless の backend 本体は
-      # php / java / node 等を持たないため in-process 実行はできない。
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
       APP_ENV: ${APP_ENV:-local}
       LOCAL_PASSWORD_AUTH: ${LOCAL_PASSWORD_AUTH:-1}
@@ -56,9 +48,6 @@ services:
     # 起動確認は `curl http://localhost:8080/api/v2/health` で行う。
 
   code-runner:
-    # 学習者コードのサンドボックス実行(本番 ECS のサイドカーと同じもの)。
-    # JDK / PostgreSQL / Node を同梱するためイメージが大きく初回ビルドが数分かかる。
-    # 演習機能を手元で触るときだけ profile full で起動する。
     profiles: ['full']
     build:
       context: ./backend

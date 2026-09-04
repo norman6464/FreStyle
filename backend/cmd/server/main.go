@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"os"
 
@@ -39,11 +38,6 @@ func main() {
 	sqlDB, err := database.NewPostgres(cfg)
 	if err != nil {
 		fatal("database connect failed", err)
-	}
-
-	// infra/database/schema/*.sql
-	if err := database.Migrate(context.Background(), sqlDB); err != nil {
-		fatal("migrate failed", err)
 	}
 
 	// トークンの検証器はここで組み立てる。設定が足りなければ起動を止める。

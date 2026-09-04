@@ -4,11 +4,11 @@ package persistence_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 // 旧カラム（users.role / users.cognito_sub）撤去（migrations/0021）後の world を対象にする:
 //   - CreateWithOidcIdentity が users 行と identity を単一トランザクションで作る（片方だけ残らない）
 //   - role はロール名そのものを持つ列（かつては roles マスタ表への FK だった。撤去の経緯は
-//     schema/schema.sql の users を参照）。値の正しさは ck_users_role が守る
+//     schema/schema.hcl の users を参照）。値の正しさは ck_users_role が守る
 //   - FindByCognitoSub は user_oidc_identities 経由でのみ解決する
 //   - FK / CHECK / 部分 UNIQUE / CASCADE などの DB 制約
 func TestUserNormalization_Integration(t *testing.T) {
@@ -29,6 +29,20 @@ func TestUserNormalization_Integration(t *testing.T) {
 	truncate := func(t *testing.T) {
 		t.Helper()
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
+	}
+
+	// recreateUniqueEmailActiveIndex は uq_users_email_active を schema.hcl と同じ定義で張り直す。
+	// 索引を意図的に落とすテスト（重複が index 未作成環境を再現する）専用の後始末で、
+	// database.ApplySchema は「まだ何も無い空の DB」専用（IF NOT EXISTS を持たない）なので
+	// ここでは使えない。
+	recreateUniqueEmailActiveIndex := func(t *testing.T, db *sql.DB) {
+		t.Helper()
+		_, err := db.Exec(
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_active
+			   ON users (lower(btrim(email, E'\t\n\x0B\f\r ')))
+			 WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''`,
+		)
+		require.NoError(t, err)
 	}
 
 	t.Run("CreateWithOidcIdentity は role をそのまま保存し identity も作る", func(t *testing.T) {
@@ -108,25 +122,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 		u := &domain.User{Email: "n5@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "norm-5"))
 		require.ErrorContains(t, repo.UpdateRole(ctx, u.ID, "no_such_role"), "unknown role")
-	})
-
-	t.Run("正規化のバックフィルは起動のたびに冪等に流せる（既存行を壊さない）", func(t *testing.T) {
-		truncate(t)
-		u := &domain.User{Email: "bf@example.com", Role: domain.RoleCompanyAdmin}
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "bf-1"))
-
-		// 何度流しても role / identity を壊さない。
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
-
-		got, err := repo.FindByID(ctx, u.ID)
-		require.NoError(t, err)
-		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
-		var idCount int64
-		require.NoError(t, sqlDB.QueryRow(
-			`SELECT count(*) FROM user_oidc_identities WHERE user_id = $1`, u.ID,
-		).Scan(&idCount))
-		require.Equal(t, int64(1), idCount)
 	})
 
 	t.Run("DB 制約: 未知の role の INSERT は CHECK で拒否される", func(t *testing.T) {
@@ -250,54 +245,12 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, u2.ID, got.ID)
 	})
 
-	t.Run("バックフィルは論理削除ユーザーの残置 identity を掃除する", func(t *testing.T) {
-		truncate(t)
-		u := &domain.User{Email: "dead@example.com", Role: domain.RoleTrainee}
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "dead-1"))
-
-		// identity を残したまま論理削除の状態を作る（SoftDelete は identity も消すため、ここでは
-		// deleted_at だけを直接立てて「掃除対象の残置 identity」を再現する）。
-		_, err := sqlDB.Exec(`UPDATE users SET deleted_at = NOW() WHERE id = $1`, u.ID)
-		require.NoError(t, err)
-
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
-
-		var count int64
-		require.NoError(t, sqlDB.QueryRow(
-			`SELECT count(*) FROM user_oidc_identities WHERE user_id = $1`, u.ID,
-		).Scan(&count))
-		require.Equal(t, int64(0), count)
-	})
-
 	t.Run("空 email はアクティブ行でも複数共存できる（部分 UNIQUE の対象外）", func(t *testing.T) {
 		truncate(t)
 		e1 := &domain.User{Email: "", Role: domain.RoleTrainee}
 		e2 := &domain.User{Email: "", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, e1, domain.OidcProviderCognito, "nomail-1"))
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, e2, domain.OidcProviderCognito, "nomail-2"))
-	})
-
-	t.Run("スキーマ DDL を再適用しても NOT_NULL と DEFAULT が剥がれない", func(t *testing.T) {
-		// 回帰テスト: 起動のたびに流れる DDL が既存列を作り直したり緩めたりすると、
-		// ローリングデプロイ中に安全弁（role の NOT NULL / DEFAULT）が消える。
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
-
-		var isNullable string
-		var columnDefault *string
-		require.NoError(t, sqlDB.QueryRow(
-			`SELECT is_nullable, column_default FROM information_schema.columns
-			 WHERE table_name = 'users' AND column_name = 'role'`,
-		).Scan(&isNullable, &columnDefault))
-		require.Equal(t, "NO", isNullable, "role の NOT NULL が DDL 再適用で剥がれた")
-		require.NotNil(t, columnDefault, "role の DEFAULT が DDL 再適用で剥がれた")
-		require.Contains(t, *columnDefault, "trainee")
-
-		var emailNullable string
-		require.NoError(t, sqlDB.QueryRow(
-			`SELECT is_nullable FROM information_schema.columns
-			 WHERE table_name = 'users' AND column_name = 'email'`,
-		).Scan(&emailNullable))
-		require.Equal(t, "NO", emailNullable, "email の NOT NULL が DDL 再適用で剥がれた")
 	})
 
 	t.Run("FindActiveByEmail はハッシュ込みで 1 件返し、無効・削除行は除外する", func(t *testing.T) {
@@ -325,7 +278,10 @@ func TestUserNormalization_Integration(t *testing.T) {
 		_, err := sqlDB.Exec(`DROP INDEX IF EXISTS uq_users_email_active`)
 		require.NoError(t, err)
 		defer func() {
-			require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
+			// このサブテストが残す重複行を消してから張り直す（重複が残ったままだと
+			// CREATE UNIQUE INDEX 自体が失敗する。宣言的スキーマは黙って作らず失敗を選ぶ）。
+			truncate(t)
+			recreateUniqueEmailActiveIndex(t, sqlDB)
 		}()
 
 		for _, sub := range []string{"dup-a", "dup-b"} {
@@ -343,7 +299,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("DB 制約: 大小文字だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
 		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
+		recreateUniqueEmailActiveIndex(t, sqlDB)
 		u1 := &domain.User{Email: "case@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u1, domain.OidcProviderCognito, "case-1"))
 

@@ -3,16 +3,18 @@
 # 方針（データアクセスの生 SQL 化）:
 #   - 生成コードは database/sql モード。アプリ全体で 1 つの *sql.DB を DBTX として渡し、
 #     接続プールを共有する（別 pool を持たない）。
-#   - 下の schema 欄に並ぶ 3 ファイルは、いずれも実スキーマの正本そのもの。
-#     起動時に infra/database の Apply*Schema が go:embed した本文をそのまま流し、
-#     sqlc はその同じファイルから型を起こす。宣言と実体が同じ 1 ファイルなので、
-#     片方だけ直してずれることが原理的に起きない。
+#   - 下の schema 欄のファイルは Atlas の宣言的スキーマ（internal/infra/database/schema/schema.hcl）
+#     から機械生成した DDL。正本は schema.hcl で、schema.gen.sql はそこから
+#     `make schema-gen` が作る DO NOT EDIT な副産物（CI が drift を検査する）。
+#     起動時に infra/database の ApplySchema が go:embed した本文をそのまま流し、
+#     sqlc も同じファイルから型を起こすので、宣言と実体がずれない。
 #
-#       schema/schema.sql  … 中核（Ⅰ）+ ノートの骨格（Ⅱ）+ ノートの権限（Ⅲ）
+#       schema/schema.gen.sql  … 全テーブル（中核 + ノートの骨格 + ノートの権限 + 教材の権限）
 #
-#     ファイル内の並び順（Ⅰ → Ⅱ → Ⅲ）は FK の依存で決まっており崩せない。
-#     適用そのものは Ⅰ と Ⅱ+Ⅲ の 2 回に分かれる（あいだに seed とバックフィルが挟まる。
-#     理由は infra/database/migrate.go の Migrate と schema/schema.sql の冒頭）。
+#     Atlas は宣言のみ（履歴ファイルを持たない）。既存 DB（本番）への適用は
+#     `make schema-apply` が schema.hcl を正本にした Atlas の宣言的 apply で行う。
+#     schema.gen.sql は CREATE 文だけで DO ブロック・IF NOT EXISTS を持たないため、
+#     「まだ何も無い空の DB」（結合テスト・ローカルの初回起動）にしか使わない。
 #
 # 生成: backend/ で `make sqlc`
 # 検査: backend/ で `make sqlc-vet`（このファイル末尾の rules を全クエリに当てる。CI でも走る）
@@ -41,7 +43,7 @@ version: "2"
 sql:
   - engine: "postgresql"
     schema:
-      - "internal/infra/database/schema/schema.sql"
+      - "internal/infra/database/schema/schema.gen.sql"
     queries: "internal/adapter/persistence/queries"
 
     # このブロックのクエリすべてに当てる vet ルール。実体はファイル末尾の rules: に定義する。

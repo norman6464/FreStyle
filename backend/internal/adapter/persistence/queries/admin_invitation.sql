@@ -51,9 +51,8 @@ LIMIT 1;
 -- （GORM autoCreateTime 相当。ゼロなら now を入れる）。updated_at 列は持たない。
 -- token は未設定を NULL にして UNIQUE を避けるため nullable。
 --
--- workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
--- 招待先の会社は SuperAdmin が任意の company id で指定できるため、usecase が
--- CompanyRepository.FindByID で対応する workspace_id を解決してから渡す。
+-- workspace_id は呼び出し側（usecase）が解決した値をそのまま書く。ここではサブクエリ参照
+-- しない（招待先は domain.WorkspaceRef として渡ってくる）。
 INSERT INTO invitations
   (workspace_id, email, role, name, status, token, expires_at, created_at)
 VALUES (sqlc.narg(workspace_id), sqlc.arg(email), sqlc.arg(role), sqlc.arg(name), sqlc.arg(status), sqlc.narg(token), sqlc.arg(expires_at), sqlc.arg(created_at))

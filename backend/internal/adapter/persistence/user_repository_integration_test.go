@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -21,10 +22,10 @@ func TestUserRepository_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("CreateWithOidcIdentity → FindByCognitoSub / FindByID で round-trip（workspace_id 含む）", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"user_oidc_identities"}, tenantBridgeTables...)...)
-		insertCompany(t, sqlDB, 42, "会社 42", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		wid := companyWorkspaceID(t, sqlDB, 42).UUID.String()
+		testsupport.TruncateAll(t, sqlDB, append([]string{"user_oidc_identities"}, workspaceWriteTables...)...)
+		ws := uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws, "ワークスペース 42", true)
+		wid := ws.String()
 
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "u@example.com", Name: "山田",

@@ -23,8 +23,7 @@ import (
 // TestMigrate_Integration は空の DB へ Migrate を 2 回続けて流し、適用順・冪等性を固定する。
 //
 // 1 回目はまっさらな schema から始めるので、段の順序を入れ替えると
-// 後段が前段の作ったテーブルを見つけられずエラーになる
-// （権限モデルは users を、テナント橋渡しは workspaces を参照する）。
+// 後段が前段の作ったテーブルを見つけられずエラーになる（権限モデルは users を参照する）。
 // 2 回目は既に全部揃った状態からの再実行で、こちらが本番の通常起動に相当する。
 func TestMigrate_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
@@ -36,13 +35,21 @@ func TestMigrate_Integration(t *testing.T) {
 
 	t.Run("中核テーブルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
-			"roles", "users", "user_oidc_identities", "companies",
+			"roles", "users", "user_oidc_identities",
 			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
-			"company_exercises", "exercise_submissions", "notes",
+			"exercise_submissions", "notes",
 			"notifications", "invitations", "audit_events",
 			"rich_documents",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
+		}
+	})
+
+	t.Run("退役済みのテナント移行期テーブルは作られない", func(t *testing.T) {
+		// companies / company_applications / company_exercises はテナントの正本が
+		// workspaces へ完全移行済みのレガシー（本項の撤去 PR で退役）。
+		for _, table := range []string{"companies", "company_applications", "company_exercises"} {
+			require.False(t, tableExists(t, db, table), "退役済みのテーブル %s が残っている", table)
 		}
 	})
 
@@ -74,13 +81,10 @@ func TestMigrate_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("テナント橋渡しの列と FK が張られている", func(t *testing.T) {
-		// ここが通るのは、ノート（workspaces）より後にテナント橋渡しを流したときだけ。
-		require.True(t, columnExists(t, db, "companies", "workspace_id"))
+	t.Run("workspace_id 列と FK が張られている", func(t *testing.T) {
+		// ここが通るのは、ノート（workspaces）より後に節Ⅰの DO ブロックを流したときだけ。
 		require.True(t, columnExists(t, db, "users", "workspace_id"))
-		require.True(t, constraintExists(t, db, "companies", "fk_companies_workspace"))
 		require.True(t, constraintExists(t, db, "users", "fk_users_workspace"))
-		require.True(t, indexExists(t, db, "uq_companies_workspace_id"))
 	})
 
 	t.Run("バックフィル後の制約が張られている", func(t *testing.T) {
@@ -94,73 +98,12 @@ func TestMigrate_Integration(t *testing.T) {
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
 	})
 
-	t.Run("Migrate は roles マスタだけ投入し companies は seed しない", func(t *testing.T) {
+	t.Run("Migrate は roles マスタを投入する", func(t *testing.T) {
 		// roles は users.role_id の FK 先なので、新規環境でも初回から使えるよう投入する
-		// （SeedRoles は ON CONFLICT DO NOTHING で冪等）。companies は固定参照データではなく
-		// 実データなので引き続き投入しない。
-		var roles, companies int64
+		// （SeedRoles は ON CONFLICT DO NOTHING で冪等）。
+		var roles int64
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM roles`).Scan(&roles))
-		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM companies`).Scan(&companies))
 		require.EqualValues(t, 3, roles)
-		require.EqualValues(t, 0, companies)
-	})
-
-	t.Run("会社があれば、ワークスペースへのバックフィルが 1 回だけ効く", func(t *testing.T) {
-		var companyID int64
-		require.NoError(t, db.QueryRowContext(
-			ctx,
-			`INSERT INTO companies (name, created_at, updated_at) VALUES ('検証用の会社', NOW(), NOW()) RETURNING id`,
-		).Scan(&companyID))
-		require.NoError(t, database.Migrate(ctx, db))
-
-		var workspaces int64
-		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM workspaces`).Scan(&workspaces))
-		require.EqualValues(t, 1, workspaces)
-
-		var slug string
-		require.NoError(t, db.QueryRowContext(
-			ctx,
-			`SELECT w.slug FROM workspaces w JOIN companies c ON c.workspace_id = w.id WHERE c.id = $1`, companyID,
-		).Scan(&slug))
-		require.Regexp(t, `^ws-[0-9a-f]{32}$`, slug)
-
-		require.NoError(t, database.Migrate(ctx, db), "2 回目")
-		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM workspaces`).Scan(&workspaces))
-		require.EqualValues(t, 1, workspaces, "2 回流してもワークスペースは増えない")
-	})
-
-	t.Run("ワークスペースの停止は起動で巻き戻らない", func(t *testing.T) {
-		// 停止の正本は workspaces.is_active に移った。会社側から毎起動写していると、
-		// 停止したワークスペースが次の起動で会社の値（有効）に戻り、停止そのものが
-		// 効かなくなる。会社を有効のまま残してワークスペースだけ止め、Migrate を
-		// 流し直しても止まったままであることを見る。
-		var companyID int64
-		require.NoError(t, db.QueryRowContext(
-			ctx,
-			`INSERT INTO companies (name, is_active, created_at, updated_at)
-			 VALUES ('停止の検証用', true, NOW(), NOW()) RETURNING id`,
-		).Scan(&companyID))
-		require.NoError(t, database.Migrate(ctx, db), "ワークスペースを作らせる")
-
-		res, err := db.ExecContext(
-			ctx,
-			`UPDATE workspaces w SET is_active = false
-			 FROM companies c WHERE c.workspace_id = w.id AND c.id = $1`, companyID,
-		)
-		require.NoError(t, err)
-		affected, err := res.RowsAffected()
-		require.NoError(t, err)
-		require.EqualValues(t, 1, affected, "停止対象のワークスペースが 1 つ見つかること")
-
-		require.NoError(t, database.Migrate(ctx, db), "停止後の再起動")
-
-		var active bool
-		require.NoError(t, db.QueryRowContext(
-			ctx,
-			`SELECT w.is_active FROM workspaces w JOIN companies c ON c.workspace_id = w.id WHERE c.id = $1`,
-			companyID,
-		).Scan(&active))
-		require.False(t, active, "起動のたびに会社の値で上書きされてはならない")
 	})
 }
 

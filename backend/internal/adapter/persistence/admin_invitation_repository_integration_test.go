@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -22,14 +23,14 @@ func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, workspaceWriteTables...)...)
 
 	// 所属参照（workspace_id）は workspaces への FK なので、実在するワークスペースを用意する。
-	insertCompany(t, sqlDB, 1, "会社 A", true)
-	insertCompany(t, sqlDB, 2, "会社 B", true)
-	runStartupBackfill(ctx, t, sqlDB)
-	ws1 := companyWorkspaceID(t, sqlDB, 1).UUID.String()
-	ws2 := companyWorkspaceID(t, sqlDB, 2).UUID.String()
+	w1, w2 := uuid.New(), uuid.New()
+	insertWorkspaceWithActive(t, sqlDB, w1, "ワークスペース A", true)
+	insertWorkspaceWithActive(t, sqlDB, w2, "ワークスペース B", true)
+	ws1 := w1.String()
+	ws2 := w2.String()
 
 	future := time.Now().UTC().Add(time.Hour)
 	past := time.Now().UTC().Add(-time.Hour)
@@ -146,16 +147,11 @@ func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, workspaceWriteTables...)...)
 
-	insertCompany(t, sqlDB, 1, "会社 A", true)
-	insertCompany(t, sqlDB, 2, "会社 B", true)
-	runStartupBackfill(ctx, t, sqlDB)
-	ws1 := companyWorkspaceID(t, sqlDB, 1)
-	ws2 := companyWorkspaceID(t, sqlDB, 2)
-	require.True(t, ws1.Valid)
-	require.True(t, ws2.Valid)
-	require.NotEqual(t, ws1.UUID, ws2.UUID)
+	ws1, ws2 := uuid.New(), uuid.New()
+	insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+	insertWorkspaceWithActive(t, sqlDB, ws2, "ワークスペース B", true)
 
 	mk := func(workspaceID string, email string) *domain.AdminInvitation {
 		return &domain.AdminInvitation{
@@ -163,14 +159,14 @@ func TestAdminInvitationRepository_ListByWorkspaceID_Integration(t *testing.T) {
 			Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
 		}
 	}
-	require.NoError(t, repo.Create(ctx, mk(ws1.UUID.String(), "pending-a@example.com")))
-	require.NoError(t, repo.Create(ctx, mk(ws2.UUID.String(), "other-workspace@example.com")))
+	require.NoError(t, repo.Create(ctx, mk(ws1.String(), "pending-a@example.com")))
+	require.NoError(t, repo.Create(ctx, mk(ws2.String(), "other-workspace@example.com")))
 
-	accepted := mk(ws1.UUID.String(), "accepted-a@example.com")
+	accepted := mk(ws1.String(), "accepted-a@example.com")
 	require.NoError(t, repo.Create(ctx, accepted))
 	require.NoError(t, repo.UpdateStatus(ctx, accepted.ID, domain.InvitationStatusAccepted))
 
-	got, err := repo.ListByWorkspaceID(ctx, ws1.UUID.String())
+	got, err := repo.ListByWorkspaceID(ctx, ws1.String())
 	require.NoError(t, err)
 	require.Len(t, got, 1, "他ワークスペースの招待・pending 以外は混ざらない")
 	require.Equal(t, "pending-a@example.com", got[0].Email)
@@ -190,14 +186,12 @@ func TestAdminInvitationRepository_FindByID_WorkspaceID_Integration(t *testing.T
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
+	testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, workspaceWriteTables...)...)
 
-	insertCompany(t, sqlDB, 1, "会社 A", true)
-	runStartupBackfill(ctx, t, sqlDB)
-	ws1 := companyWorkspaceID(t, sqlDB, 1)
-	require.True(t, ws1.Valid)
+	ws1 := uuid.New()
+	insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
 
-	ws1Str := ws1.UUID.String()
+	ws1Str := ws1.String()
 	inv := &domain.AdminInvitation{
 		WorkspaceID: &ws1Str, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
 		Name: "n", Status: domain.InvitationStatusPending, ExpiresAt: time.Now().UTC().Add(time.Hour),
@@ -208,7 +202,7 @@ func TestAdminInvitationRepository_FindByID_WorkspaceID_Integration(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	require.NotNil(t, got.WorkspaceID)
-	require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
+	require.Equal(t, ws1Str, *got.WorkspaceID)
 
 	// 所属が入っていない行（運営が作った未割り当ての招待など）を直接挿入する。
 	// domain 側は nil のまま返すこと。

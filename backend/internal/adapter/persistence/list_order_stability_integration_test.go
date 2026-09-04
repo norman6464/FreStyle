@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -271,10 +272,9 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 	})
 
 	t.Run("invitations: created_at 同着は id 降順（一覧・単一取得とも）", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, tenantBridgeTables...)...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1).UUID
+		testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, workspaceWriteTables...)...)
+		ws1 := uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
 		repo := persistence.NewAdminInvitationRepository(sqlDB)
 		for i := uint64(1); i <= 4; i++ {
 			_, err := sqlDB.ExecContext(ctx,

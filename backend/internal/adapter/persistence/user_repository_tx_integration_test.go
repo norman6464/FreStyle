@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -24,7 +25,7 @@ import (
 const bootstrapSuperAdminLockKeyForTest int64 = 7_419_063
 
 // userTxTables は users まわりの書き込み経路が触るテーブル。
-var userTxTables = []string{"users", "user_oidc_identities", "companies", "workspaces"}
+var userTxTables = []string{"users", "user_oidc_identities", "workspaces"}
 
 // userUpdatedAt はユーザーの updated_at を DB から直接読む。
 func userUpdatedAt(t *testing.T, db *sql.DB, id uint64) time.Time {
@@ -191,17 +192,16 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 
 	t.Run("所属ワークスペースを渡せばそのまま書かれる", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
+		ws1 := uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
 
-		ws1Str := ws1.UUID.String()
+		ws1Str := ws1.String()
 		u := &domain.User{Email: "boot-ws@example.com", Name: "運営", Role: domain.RoleSuperAdmin, WorkspaceID: &ws1Str}
 		created, err := repo.CreateFirstSuperAdminWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "boot-ws")
 		require.NoError(t, err)
 		require.True(t, created)
 
-		require.Equal(t, ws1, tableWorkspaceID(t, sqlDB, "users", u.ID))
+		require.Equal(t, uuid.NullUUID{UUID: ws1, Valid: true}, tableWorkspaceID(t, sqlDB, "users", u.ID))
 	})
 }
 

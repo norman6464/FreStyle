@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -28,17 +29,18 @@ func TestCourseRepository_Integration(t *testing.T) {
 		}
 	}
 
+	// 2 番目のサブテストが同じワークスペースを使い回すため外側スコープに置く
+	// （そちらは courses しか TRUNCATE しない）。
+	var ws1 uuid.UUID
+
 	t.Run("ListByWorkspaceID はワークスペースで絞り published フィルタ + sort_order 昇順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"courses"}, tenantBridgeTables...)...)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		insertCompany(t, sqlDB, 2, "会社 B", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
-		require.True(t, ws1.Valid)
-		ws1Str := ws1.UUID.String()
-		ws2 := companyWorkspaceID(t, sqlDB, 2)
-		require.True(t, ws2.Valid)
-		ws2Str := ws2.UUID.String()
+		testsupport.TruncateAll(t, sqlDB, append([]string{"courses"}, workspaceWriteTables...)...)
+		ws1 = uuid.New()
+		ws2 := uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+		insertWorkspaceWithActive(t, sqlDB, ws2, "ワークスペース B", true)
+		ws1Str := ws1.String()
+		ws2Str := ws2.String()
 
 		// Create は呼び出し側（usecase）が解決した workspace_id をそのまま書く。
 		require.NoError(t, repo.Create(ctx, mk(&ws1Str, "published", true, 20)))
@@ -61,9 +63,7 @@ func TestCourseRepository_Integration(t *testing.T) {
 
 	t.Run("Create→GetByID→Update→Delete の一連", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "courses")
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
-		require.True(t, ws1.Valid)
-		ws1Str := ws1.UUID.String()
+		ws1Str := ws1.String()
 
 		c := mk(&ws1Str, "lifecycle", true, 1)
 		require.NoError(t, repo.Create(ctx, c))
@@ -74,7 +74,7 @@ func TestCourseRepository_Integration(t *testing.T) {
 		require.Equal(t, "lifecycle", got.Title)
 		// GetByID が workspace_id も返すこと（canReadCourse の対象側比較が使う値）。
 		require.NotNil(t, got.WorkspaceID)
-		require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
+		require.Equal(t, ws1.String(), *got.WorkspaceID)
 
 		got.Title = "updated"
 		require.NoError(t, repo.Update(ctx, got))
@@ -95,12 +95,12 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, append([]string{"courses"}, tenantBridgeTables...)...)
-	insertCompany(t, sqlDB, 1, "会社 A", true)
-	insertCompany(t, sqlDB, 2, "会社 B", true)
-	runStartupBackfill(ctx, t, sqlDB)
-	ws1Str := companyWorkspaceID(t, sqlDB, 1).UUID.String()
-	ws2Str := companyWorkspaceID(t, sqlDB, 2).UUID.String()
+	testsupport.TruncateAll(t, sqlDB, append([]string{"courses"}, workspaceWriteTables...)...)
+	ws1, ws2 := uuid.New(), uuid.New()
+	insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+	insertWorkspaceWithActive(t, sqlDB, ws2, "ワークスペース B", true)
+	ws1Str := ws1.String()
+	ws2Str := ws2.String()
 
 	orig := &domain.Course{
 		WorkspaceID: &ws1Str, CreatedByUserID: 42,

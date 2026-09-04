@@ -130,24 +130,6 @@ CREATE TABLE "public"."exercise_submissions" (
 );
 -- Create index "idx_submissions_user_at" to table: "exercise_submissions"
 CREATE INDEX "idx_submissions_user_at" ON "public"."exercise_submissions" ("user_id", "submitted_at" DESC);
--- Create "invitations" table
-CREATE TABLE "public"."invitations" (
-  "id" bigserial NOT NULL,
-  "email" text NOT NULL DEFAULT '',
-  "role" text NOT NULL DEFAULT '',
-  "name" text NOT NULL DEFAULT '',
-  "status" text NOT NULL DEFAULT '',
-  "token" character varying(64) NULL,
-  "expires_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL,
-  "workspace_id" uuid NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_invitations_status" CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'canceled'::text]))
-);
--- Create index "idx_invitations_token" to table: "invitations"
-CREATE UNIQUE INDEX "idx_invitations_token" ON "public"."invitations" ("token");
--- Create index "idx_invitations_workspace_id" to table: "invitations"
-CREATE INDEX "idx_invitations_workspace_id" ON "public"."invitations" ("workspace_id");
 -- Create "master_exercise_examples" table
 CREATE TABLE "public"."master_exercise_examples" (
   "id" bigserial NOT NULL,
@@ -480,14 +462,12 @@ CREATE TABLE "public"."users" (
   "email" text NOT NULL DEFAULT '',
   "password_hash" text NULL,
   "name" text NOT NULL DEFAULT '',
-  "role" text NOT NULL DEFAULT 'trainee',
   "is_active" boolean NOT NULL DEFAULT true,
   "created_at" timestamptz NOT NULL,
   "updated_at" timestamptz NOT NULL,
   "deleted_at" timestamptz NULL,
   "workspace_id" uuid NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_users_role" CHECK (role = ANY (ARRAY['super_admin'::text, 'company_admin'::text, 'trainee'::text]))
+  PRIMARY KEY ("id")
 );
 -- Create index "uq_users_email_active" to table: "users"
 CREATE UNIQUE INDEX "uq_users_email_active" ON "public"."users" ((lower(btrim(email, '	
@@ -528,8 +508,6 @@ ALTER TABLE "public"."course_chapters" ADD CONSTRAINT "fk_course_chapters_course
 ALTER TABLE "public"."course_grants" ADD CONSTRAINT "fk_course_grants_course" FOREIGN KEY ("workspace_id", "course_id") REFERENCES "public"."courses" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_course_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "courses" table
 ALTER TABLE "public"."courses" ADD CONSTRAINT "fk_courses_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Modify "invitations" table
-ALTER TABLE "public"."invitations" ADD CONSTRAINT "fk_invitations_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "page_grants" table
 ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_paths" table

@@ -34,20 +34,6 @@ type listCase struct {
 func listCases() []listCase {
 	return []listCase{
 		{
-			name: "招待一覧（全体）",
-			// domain.AdminInvitation の TableName() は "invitations"（型名と一致しない）。
-			truncate: []string{"invitations"},
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewAdminInvitationRepository(db).ListAll(ctx)
-			},
-		},
-		{
-			name: "招待一覧（ワークスペース別）",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewAdminInvitationRepository(db).ListByWorkspaceID(ctx, noSuchWorkspaceID)
-			},
-		},
-		{
 			name: "演習の提出履歴",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				return persistence.NewExerciseSubmissionRepository(db).

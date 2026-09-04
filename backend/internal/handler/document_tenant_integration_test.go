@@ -65,7 +65,7 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 		return &id
 	}
 	mkUser := func(sub, email string, workspaceID *string) *domain.User {
-		u := &domain.User{Email: email, Role: domain.RoleTrainee, WorkspaceID: workspaceID, IsActive: true}
+		u := &domain.User{Email: email, WorkspaceID: workspaceID, IsActive: true}
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
 		// 本番の current user 解決（毎回 DB から引く）と同じ状態にするため、作成後に読み直す。
 		got, err := userRepo.FindByID(ctx, u.ID)

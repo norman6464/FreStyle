@@ -30,7 +30,7 @@ func TestApplySchema_Integration(t *testing.T) {
 			"users", "user_oidc_identities",
 			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
 			"exercise_submissions", "notes",
-			"notifications", "invitations", "audit_events",
+			"notifications", "audit_events",
 			"rich_documents",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
@@ -38,9 +38,7 @@ func TestApplySchema_Integration(t *testing.T) {
 	})
 
 	t.Run("roles マスタは作られない", func(t *testing.T) {
-		// ロールは 3 つで固定され、名前も値も domain.RoleName に直接書いてある
-		// （実体は「表」ではなく「コンパイル時の定数」だった）。users.role が値を直接持つ
-		// ようになったので、参照先マスタは撤去した。
+		// アプリ全体のロール（かつての users.role）は撤去済み。参照先マスタも作らない。
 		require.False(t, tableExists(t, db, "roles"), "roles テーブルが残っている")
 	})
 
@@ -80,7 +78,6 @@ func TestApplySchema_Integration(t *testing.T) {
 	})
 
 	t.Run("役割・識別子まわりの制約が張られている", func(t *testing.T) {
-		require.True(t, constraintExists(t, db, "users", "ck_users_role"))
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "fk_user_oidc_identities_user"))
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "ck_user_oidc_identities_not_empty"))
 		require.True(t, constraintExists(t, db, "rich_documents", "fk_rich_documents_owner"))

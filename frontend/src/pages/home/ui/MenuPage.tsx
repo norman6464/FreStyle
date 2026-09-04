@@ -1,132 +1,65 @@
-import { useAppSelector } from '@/shared/lib/store';
-
 import {
-  ChatBubbleBottomCenterTextIcon,
   CodeBracketIcon,
   DocumentTextIcon,
-  DocumentChartBarIcon,
-  BuildingOffice2Icon,
-  EnvelopeIcon,
   BookOpenIcon,
 } from '@heroicons/react/24/outline';
 
 import FeatureSection from './FeatureSection';
 import FeatureCard from './FeatureCard';
-import MenuSkeleton from './MenuSkeleton';
 
 /**
  * ホーム画面。
  *
- * ロール別にカードセットを出し分け:
- *   - super_admin   : 管理系のみ
- *   - company_admin : 管理 + 学習機能（AI はテナント設定に関わらず常時表示）
- *
- *   role が null の間はどのロールとしても描画しない（FRESTYLE-233）。null は「未認証」と
- *   「未確定」の両方を表すため、確定前に描画すると全ての判定が false になり、既定として
- *   学習者向けが出てしまう。管理者のログイン直後に学習者画面が一瞬映る原因だった。
+ * 全ユーザーに同じレイアウトを出す（コース・コード演習・ノート）。
  */
 export default function MenuPage() {
-  const role = useAppSelector((state) => state.auth.role);
-  const isSuperAdmin = role === 'super_admin';
-  const isTrainee = role === 'trainee';
-  const roleUnresolved = role === null;
-
-  // ロール未確定のうちは見出しもロールに依存するため、ページ全体を
-  // 読み込み表示にする。ここで役割別の要素を出すと、確定後に差し替わってちらつく。
-  if (roleUnresolved) {
-    return (
-      <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto" aria-busy="true">
-        {/* スケルトンは装飾（aria-hidden）なので、待機中であることは live region で伝える。 */}
-        <span role="status" className="sr-only">
-          読み込み中
-        </span>
-        <MenuSkeleton />
-      </div>
-    );
-  }
-
   return (
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto">
       {/* ウェルカムセクション（データ非依存・即時表示） */}
       <section className="mb-8">
         <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-1">
-          {isSuperAdmin ? '運営管理者ダッシュボード' : isTrainee ? '学習ダッシュボード' : '管理者ダッシュボード'}
+          ダッシュボード
         </p>
         <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
-          {isSuperAdmin ? '管理メニュー' : 'FreStyle へようこそ'}
+          FreStyle へようこそ
         </h1>
         <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-          {isSuperAdmin
-            ? '企業管理・招待などの運営操作を行えます。'
-            : 'コースや演習で学習を進め、AI チャットで疑問を解決しましょう。'}
+          コースや演習で学習を進め、AI チャットで疑問を解決しましょう。
         </p>
       </section>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* ── 左メインコンテンツ ── */}
         <div className="flex-1 min-w-0 space-y-8 w-full">
-          {isSuperAdmin ? (
-            <FeatureSection title="管理機能">
-              <FeatureCard
-                to="/admin/invitations"
-                icon={EnvelopeIcon}
-                title="招待管理"
-                description="企業管理者への招待を作成・管理できます。"
-                color="blue"
-              />
-            </FeatureSection>
-          ) : (
-            <>
-              <FeatureSection title="学習">
-                <FeatureCard
-                  to="/courses"
-                  icon={BookOpenIcon}
-                  title="コース"
-                  description="体系的なカリキュラムで段階的に学べます。"
-                  color="emerald"
-                  badge="おすすめ"
-                  techLogos={['git', 'go', 'docker', 'php']}
-                />
-                <FeatureCard
-                  to="/code-editor"
-                  icon={CodeBracketIcon}
-                  title="コード演習"
-                  description="実際にコードを書いて手を動かしながら学べます。"
-                  color="emerald"
-                  techLogos={['go', 'php', 'javascript', 'typescript']}
-                />
-              </FeatureSection>
+          <FeatureSection title="学習">
+            <FeatureCard
+              to="/courses"
+              icon={BookOpenIcon}
+              title="コース"
+              description="体系的なカリキュラムで段階的に学べます。"
+              color="emerald"
+              badge="おすすめ"
+              techLogos={['git', 'go', 'docker', 'php']}
+            />
+            <FeatureCard
+              to="/code-editor"
+              icon={CodeBracketIcon}
+              title="コード演習"
+              description="実際にコードを書いて手を動かしながら学べます。"
+              color="emerald"
+              techLogos={['go', 'php', 'javascript', 'typescript']}
+            />
+          </FeatureSection>
 
-              <FeatureSection title="ツール">
-                <FeatureCard
-                  to="/notes"
-                  icon={DocumentTextIcon}
-                  title="ノート"
-                  description="学習メモを書き留め、いつでも振り返れます。"
-                  color="taupe"
-                />
-                              </FeatureSection>
-
-              {role === 'company_admin' && (
-                <FeatureSection title="管理">
-                  <FeatureCard
-                    to="/admin/members"
-                    icon={BuildingOffice2Icon}
-                    title="従業員一覧"
-                    description="所属メンバーの学習状況を確認できます。"
-                    color="blue"
-                  />
-                  <FeatureCard
-                    to="/admin/invitations"
-                    icon={EnvelopeIcon}
-                    title="招待管理"
-                    description="メンバーへの招待を作成・管理できます。"
-                    color="blue"
-                  />
-                </FeatureSection>
-              )}
-            </>
-          )}
+          <FeatureSection title="ツール">
+            <FeatureCard
+              to="/notes"
+              icon={DocumentTextIcon}
+              title="ノート"
+              description="学習メモを書き留め、いつでも振り返れます。"
+              color="taupe"
+            />
+          </FeatureSection>
         </div>
       </div>
     </div>

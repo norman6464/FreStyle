@@ -102,10 +102,10 @@ func newCourseHandlerWith(
 // courseWorkspaceID は actor と対象コースを同じワークスペースに置くためのテスト用 ID。
 const courseWorkspaceID = "0198a000-0000-7000-8000-0000000000c1"
 
-// superAdminCo は workspace_id 付きの super_admin（course handler の actorWorkspaceFromContext 用）。
+// superAdminCo は workspace_id 付きの actor（course handler の actorWorkspaceFromContext 用）。
 func superAdminCo() *domain.User {
 	wid := courseWorkspaceID
-	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, WorkspaceID: &wid}
+	return &domain.User{ID: 1, WorkspaceID: &wid}
 }
 
 // courseInWorkspace は actor と同じワークスペースに属するコースを組み立てる。

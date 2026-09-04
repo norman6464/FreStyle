@@ -25,17 +25,11 @@ schema "public" {
 # 中核（users / courses / exercises …）
 # =====================================================================
 
-# 利用者。deleted_at は実際に NULL になり得る。workspace_id は運営管理者等の未所属で NULL。
+# 利用者。deleted_at は実際に NULL になり得る。workspace_id は未所属で NULL。
 #
-# role はロール名そのものを持つ（かつては roles マスタ表への FK だった）。
-#   ロールは 3 つで固定され、名前も ID も Go 側の定数（domain.RoleName）に直接書いてある。
-#   つまり実体は「表」ではなく「コンパイル時の定数」で、それを表にしていたために
-#   roles に 3 行入っていない DB ではユーザーを 1 人も作れないという依存が生まれていた
-#   （FK の参照先が無いため）。参照先ごと畳んで列に持たせ、値の正しさは CHECK で守る。
-#   ロールを増やすときは ck_users_role と domain.RoleName の両方を直すこと。
-#
-# DEFAULT 'trainee' は、role を書かない INSERT を NOT NULL 違反で壊さないための安全弁。
-# 既定を「いちばん弱い権限」にしておくのは、書き漏らしが権限の昇格にならないようにするため。
+# アプリ全体のロール（かつての users.role）は撤去済み。権限は per-workspace の
+# grant（workspace_grants / space_grants / page_grants / course_grants / chapter_grants、
+# domain.GrantRole）だけで表現する。
 #
 # workspace_id → workspaces.id は、users と workspaces が互いを参照する真の循環依存
 # （workspaces.personal_owner_user_id が users を参照する）。Atlas は FK をまとめて
@@ -61,11 +55,6 @@ table "users" {
     null    = false
     type    = text
     default = ""
-  }
-  column "role" {
-    null    = false
-    type    = text
-    default = "trainee"
   }
   column "is_active" {
     null    = false
@@ -112,9 +101,6 @@ table "users" {
       expr = "lower(btrim(email, '\t\n\u000b\u000c\r '::text))"
     }
     where = "((deleted_at IS NULL) AND (btrim(email, '\t\n\u000b\u000c\r '::text) <> ''::text))"
-  }
-  check "ck_users_role" {
-    expr = "role = ANY (ARRAY['super_admin'::text, 'company_admin'::text, 'trainee'::text])"
   }
 }
 
@@ -169,7 +155,7 @@ table "user_oidc_identities" {
 }
 
 # ワークスペース: テナント境界。ノート（spaces 以下）と、業務データ
-# （courses / course_chapters / invitations / rich_documents）がどちらもこの表を指す。
+# （courses / course_chapters / rich_documents）がどちらもこの表を指す。
 table "workspaces" {
   schema = schema.public
   column "id" {
@@ -471,73 +457,6 @@ table "audit_events" {
   }
   index "idx_audit_events_created_at" {
     columns = [column.created_at]
-  }
-}
-
-# 招待（マジックリンク）。token は未設定を NULL にして一意制約を避けるため nullable。
-# updated_at は持たない。
-table "invitations" {
-  schema = schema.public
-  column "id" {
-    null = false
-    type = bigserial
-  }
-  column "email" {
-    null    = false
-    type    = text
-    default = ""
-  }
-  column "role" {
-    null    = false
-    type    = text
-    default = ""
-  }
-  column "name" {
-    null    = false
-    type    = text
-    default = ""
-  }
-  column "status" {
-    null    = false
-    type    = text
-    default = ""
-  }
-  column "token" {
-    null = true
-    type = character_varying(64)
-  }
-  column "expires_at" {
-    null = false
-    type = timestamptz
-  }
-  column "created_at" {
-    null = false
-    type = timestamptz
-  }
-  # 所属の正本（company_id は撤去済み）。
-  column "workspace_id" {
-    null = true
-    type = uuid
-  }
-  primary_key {
-    columns = [column.id]
-  }
-  foreign_key "fk_invitations_workspace" {
-    columns     = [column.workspace_id]
-    ref_columns = [table.workspaces.column.id]
-    on_update   = NO_ACTION
-    on_delete   = NO_ACTION
-  }
-  index "idx_invitations_token" {
-    unique  = true
-    columns = [column.token]
-  }
-  index "idx_invitations_workspace_id" {
-    columns = [column.workspace_id]
-  }
-  # Go 側では pending/accepted/canceled の 3 値だけを書く。
-  check "ck_invitations_status" {
-    expr = "status = ANY (ARRAY['pending'::text, 'accepted'::text, 'canceled'::text])"
   }
 }
 

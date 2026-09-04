@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useAppSelector } from '@/shared/lib/store';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { PlusIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import EmptyState from '@/shared/ui/EmptyState';
@@ -20,12 +19,9 @@ import CategoryIcon from './CategoryIcon';
  *
  * 入口は CourseCategorySelectPage（`/courses`）で、そこで選んだ 1 領域のコースだけを
  * カードグリッドで出す。以前は全領域を 1 画面に縦積みしていた。
- * company_admin / super_admin は作成 / 編集 / 削除でき、作成時はこの領域を初期選択にする。
+ * 作成 / 編集 / 削除は誰でもでき、作成時はこの領域を初期選択にする。
  */
 export default function CoursesListPage() {
-  const role = useAppSelector((s) => s.auth.role);
-  const canManage = role === 'company_admin' || role === 'super_admin';
-
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { category: categoryParam } = useParams<{ category: string }>();
@@ -87,15 +83,13 @@ export default function CoursesListPage() {
             </p>
           </div>
         </div>
-        {canManage && (
-          <button
-            onClick={() => setEditTarget('new')}
-            className="bg-brand-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
-          >
-            <PlusIcon className="w-4 h-4" />
-            新しいコース
-          </button>
-        )}
+        <button
+          onClick={() => setEditTarget('new')}
+          className="bg-brand-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
+        >
+          <PlusIcon className="w-4 h-4" />
+          新しいコース
+        </button>
       </header>
 
       <div className="relative max-w-md">
@@ -117,18 +111,8 @@ export default function CoursesListPage() {
         <EmptyState
           icon={FaviconIcon}
           title={searchQuery ? '該当するコースがありません' : 'この領域のコースはまだありません'}
-          description={
-            searchQuery
-              ? '検索条件を変えてみてください'
-              : canManage
-                ? 'この領域に最初のコースを作成しましょう'
-                : '管理者がコースを公開すると、 ここに表示されます'
-          }
-          action={
-            canManage && !searchQuery
-              ? { label: '新しいコース', onClick: () => setEditTarget('new') }
-              : undefined
-          }
+          description={searchQuery ? '検索条件を変えてみてください' : 'この領域に最初のコースを作成しましょう'}
+          action={!searchQuery ? { label: '新しいコース', onClick: () => setEditTarget('new') } : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -136,7 +120,6 @@ export default function CoursesListPage() {
             <CourseCard
               key={c.id}
               course={c}
-              canManage={canManage}
               onOpen={() => navigate(`/courses/${c.id}`)}
               onEdit={() => setEditTarget(c)}
               onDelete={() => setDeleteTargetId(c.id)}

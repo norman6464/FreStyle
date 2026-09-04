@@ -4,169 +4,67 @@ package usecase_test
 
 import (
 	"context"
-	"errors"
 	"testing"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
-type updateThenFailInvitationStatusUpdater struct {
-	inner repository.InvitationStatusUpdater
-	err   error
-}
-
-func (u *updateThenFailInvitationStatusUpdater) UpdateStatus(
-	ctx context.Context,
-	id uint64,
-	status string,
-) error {
-	if err := u.inner.UpdateStatus(ctx, id, status); err != nil {
-		return err
-	}
-
-	return u.err
-}
-
-type failingInvitationTransactionRunner struct {
-	inner repository.UserInvitationTransactionRunner
-	err   error
-}
-
-func (r *failingInvitationTransactionRunner) WithinTransaction(
-	ctx context.Context,
-	fn func(
-		users repository.UserWithOidcIdentityCreator,
-		invitations repository.InvitationStatusUpdater,
-	) error,
-) error {
-	return r.inner.WithinTransaction(
-		ctx,
-		func(
-			users repository.UserWithOidcIdentityCreator,
-			invitations repository.InvitationStatusUpdater,
-		) error {
-			return fn(
-				users,
-				&updateThenFailInvitationStatusUpdater{
-					inner: invitations,
-					err:   r.err,
-				},
-			)
-		},
-	)
-}
-
-func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
+// TestUpsertUserFromIDToken_Integration は自己サインアップ（新規作成・既存ユーザーの
+// identity セルフヒール）が実 PostgreSQL 上で users 行と user_oidc_identities を
+// 不可分に作ることを固定する。
+func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	t.Cleanup(func() {
-		testsupport.TruncateAll(t, db, "users", "invitations")
-	})
-
-	t.Run("ユーザー作成と招待受諾をまとめてコミットする", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "users", "invitations")
+	t.Run("新規ユーザーは users 行と identity を対で作る", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
 
 		users := persistence.NewUserRepository(db)
-		invitations := persistence.NewAdminInvitationRepository(db)
-		runner := persistence.NewUserInvitationTransactionRunner(db)
+		uc := usecase.NewUpsertUserFromIDTokenUseCase(users)
 
-		invitation := &domain.AdminInvitation{
-			Email:     "commit@example.com",
-			Name:      "Commit User",
-			Role:      domain.RoleTrainee,
-			Status:    domain.InvitationStatusPending,
-			ExpiresAt: time.Now().UTC().Add(time.Hour),
-		}
-		require.NoError(t, invitations.Create(ctx, invitation))
-
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(
-			users,
-			invitations,
-			"",
-			runner,
-		)
-
-		user, err := uc.Execute(
-			ctx,
-			usecase.UpsertUserFromIDTokenInput{
-				CognitoSub: "commit-sub",
-				Email:      invitation.Email,
-			},
-		)
-
+		user, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+			CognitoSub: "new-sub",
+			Email:      "new@example.com",
+			Name:       "新規ユーザー",
+		})
 		require.NoError(t, err)
 		require.NotNil(t, user)
 
-		created, err := users.FindByCognitoSub(ctx, "commit-sub")
+		created, err := users.FindByCognitoSub(ctx, "new-sub")
 		require.NoError(t, err)
 		require.NotNil(t, created)
-
-		accepted, err := invitations.FindByID(ctx, invitation.ID)
-		require.NoError(t, err)
-		require.NotNil(t, accepted)
-		require.Equal(
-			t,
-			domain.InvitationStatusAccepted,
-			accepted.Status,
-		)
+		require.Equal(t, "new@example.com", created.Email)
+		require.Equal(t, "新規ユーザー", created.Name)
 	})
 
-	t.Run("招待更新失敗時にユーザー作成もロールバックする", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "users", "invitations")
+	t.Run("既存ユーザーはidentityをセルフヒールし表示名を補完する", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
 
 		users := persistence.NewUserRepository(db)
-		invitations := persistence.NewAdminInvitationRepository(db)
-		updateErr := errors.New("forced invitation update failure")
-		runner := &failingInvitationTransactionRunner{
-			inner: persistence.NewUserInvitationTransactionRunner(db),
-			err:   updateErr,
-		}
+		uc := usecase.NewUpsertUserFromIDTokenUseCase(users)
 
-		invitation := &domain.AdminInvitation{
-			Email:     "rollback@example.com",
-			Name:      "Rollback User",
-			Role:      domain.RoleTrainee,
-			Status:    domain.InvitationStatusPending,
-			ExpiresAt: time.Now().UTC().Add(time.Hour),
-		}
-		require.NoError(t, invitations.Create(ctx, invitation))
-
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(
-			users,
-			invitations,
-			"",
-			runner,
-		)
-
-		user, err := uc.Execute(
-			ctx,
-			usecase.UpsertUserFromIDTokenInput{
-				CognitoSub: "rollback-sub",
-				Email:      invitation.Email,
-			},
-		)
-
-		require.Nil(t, user)
-		require.ErrorIs(t, err, updateErr)
-
-		created, err := users.FindByCognitoSub(ctx, "rollback-sub")
+		// 1 回目でユーザーを作る（Name は email と同じ = 未編集）。
+		_, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+			CognitoSub: "existing-sub",
+			Email:      "existing@example.com",
+		})
 		require.NoError(t, err)
-		require.Nil(t, created)
 
-		pending, err := invitations.FindByID(ctx, invitation.ID)
+		// 2 回目、name claim 付きで再度ログイン。
+		user, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+			CognitoSub: "existing-sub",
+			Email:      "existing@example.com",
+			Name:       "後から付いた名前",
+		})
 		require.NoError(t, err)
-		require.NotNil(t, pending)
-		require.Equal(
-			t,
-			domain.InvitationStatusPending,
-			pending.Status,
-		)
+		require.NotNil(t, user)
+
+		got, err := users.FindByCognitoSub(ctx, "existing-sub")
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, "後から付いた名前", got.Name, "未編集（Name==Email）なら OIDC name で補完される")
 	})
 }

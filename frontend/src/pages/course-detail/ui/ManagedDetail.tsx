@@ -4,9 +4,10 @@ import { RichTextEditor } from '@/shared/ui/RichTextEditor';
 import type { useTeachingMaterialEditor } from '../model/useTeachingMaterialEditor';
 
 /**
- * 管理ロール(company_admin / super_admin)向けの教材編集ビュー。
+ * 編集権限（canEdit）を持つユーザー向けの教材編集ビュー。
  * リッチ本文（doc）を tiptap エディタで編集する（doc が null の新規章は空 doc から始まる）。
- * 上部に「trainee に公開」トグルを置く。
+ * 上部に「trainee に公開」トグルを置く（これは学習者への公開可否というコース内容の
+ * 話で、users.role とは無関係）。
  */
 export default function ManagedDetail({
   editor,

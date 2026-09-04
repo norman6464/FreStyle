@@ -23,10 +23,7 @@ export interface UserInfo {
   name?: string;
   sub?: string;
   groups?: string[];
-  isAdmin?: boolean;
-  /** バックエンド users テーブルの role: super_admin / company_admin / trainee */
-  role?: string;
-  /** /auth/me が返す表示名（招待時に displayName として登録された値） */
+  /** /auth/me が返す表示名 */
   displayName?: string;
   /** 所属ワークスペースの UUID。未所属の運営ユーザーでは返らない。 */
   workspaceId?: string;
@@ -39,27 +36,17 @@ class AuthRepository {
    * codeVerifier と nonce は、認可を始めたときにこのブラウザが作って手元に置いた値
    * （features/auth/lib/oidcAuthUrl）。バックエンドはこれを使って
    * 「この応答が、この人が始めた認可の応答か」を確かめる。
-   *
-   * invitationToken は招待マジックリンク経由のサインアップで sessionStorage から
-   * 引き渡される UUID。指定がある場合 backend は email より優先して照合する。
    */
   async callback(params: {
     code: string;
     codeVerifier: string;
     nonce: string;
-    invitationToken?: string | null;
   }): Promise<{ message: string }> {
-    const body: {
-      code: string;
-      codeVerifier: string;
-      nonce: string;
-      invitationToken?: string;
-    } = {
+    const body = {
       code: params.code,
       codeVerifier: params.codeVerifier,
       nonce: params.nonce,
     };
-    if (params.invitationToken) body.invitationToken = params.invitationToken;
     // 交換失敗(401)も正常な応答として呼び出し側で扱う（ログイン画面へ戻して案内するため）。
     const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
     const response = await apiClient.post(AUTH.callback, body, config);

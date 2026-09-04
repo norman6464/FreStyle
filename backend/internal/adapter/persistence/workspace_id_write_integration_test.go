@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
@@ -53,10 +52,10 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 
 		repo := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "a@example.com", Name: "A", Role: domain.RoleTrainee, WorkspaceID: &ws1Str,
+			Email: "a@example.com", Name: "A", WorkspaceID: &ws1Str,
 		}, domain.OidcProviderCognito, "sub-a"))
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "b@example.com", Name: "B", Role: domain.RoleTrainee, WorkspaceID: &ws2Str,
+			Email: "b@example.com", Name: "B", WorkspaceID: &ws2Str,
 		}, domain.OidcProviderCognito, "sub-b"))
 
 		userA, err := repo.FindByCognitoSub(ctx, "sub-a")
@@ -75,7 +74,7 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, workspaceWriteTables...)
 		repo := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "root@example.com", Name: "運営", Role: domain.RoleSuperAdmin,
+			Email: "root@example.com", Name: "運営",
 		}, domain.OidcProviderCognito, "sub-root"))
 
 		got, err := repo.FindByCognitoSub(ctx, "sub-root")
@@ -93,7 +92,7 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 
 		repo := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "move@example.com", Name: "異動", Role: domain.RoleTrainee, WorkspaceID: &ws1Str,
+			Email: "move@example.com", Name: "異動", WorkspaceID: &ws1Str,
 		}, domain.OidcProviderCognito, "sub-move"))
 		got, err := repo.FindByCognitoSub(ctx, "sub-move")
 		require.NoError(t, err)
@@ -115,7 +114,7 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 
 		repo := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "leave@example.com", Name: "退所", Role: domain.RoleTrainee, WorkspaceID: &ws1Str,
+			Email: "leave@example.com", Name: "退所", WorkspaceID: &ws1Str,
 		}, domain.OidcProviderCognito, "sub-leave"))
 		got, err := repo.FindByCognitoSub(ctx, "sub-leave")
 		require.NoError(t, err)
@@ -131,7 +130,7 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 
 // businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。
 var businessTablesWithWorkspace = []string{
-	"courses", "course_chapters", "invitations", "rich_documents",
+	"courses", "course_chapters", "rich_documents",
 }
 
 // businessTableTruncateTables はこの節のテストが TRUNCATE する対象。
@@ -167,7 +166,7 @@ func TestBusinessTableWorkspaceWrite_Integration(t *testing.T) {
 
 		users := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "author@example.com", Name: "作成者", Role: domain.RoleCompanyAdmin, WorkspaceID: &ws1Str,
+			Email: "author@example.com", Name: "作成者", WorkspaceID: &ws1Str,
 		}, domain.OidcProviderCognito, "sub-author"))
 		author, err := users.FindByCognitoSub(ctx, "sub-author")
 		require.NoError(t, err)
@@ -182,14 +181,6 @@ func TestBusinessTableWorkspaceWrite_Integration(t *testing.T) {
 		require.NoError(t, materials.Create(ctx, chapter))
 		require.Equal(t, uuid.NullUUID{UUID: ws2, Valid: true}, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter は渡された workspace_id を書く")
 
-		invitations := persistence.NewAdminInvitationRepository(sqlDB)
-		inv := &domain.AdminInvitation{
-			WorkspaceID: &ws2Str, Email: "invitee@example.com", Role: domain.RoleTrainee,
-			Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(24 * time.Hour),
-		}
-		require.NoError(t, invitations.Create(ctx, inv))
-		require.Equal(t, uuid.NullUUID{UUID: ws2, Valid: true}, tableWorkspaceID(t, sqlDB, "invitations", inv.ID), "InsertInvitation は渡された workspace_id を書く")
-
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{
 			OwnerID: author.ID, WorkspaceID: &ws2Str, Kind: domain.DocumentKindNote,
@@ -203,7 +194,7 @@ func TestBusinessTableWorkspaceWrite_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, businessTableTruncateTables...)
 		users := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, users.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "root@example.com", Name: "運営", Role: domain.RoleSuperAdmin,
+			Email: "root@example.com", Name: "運営",
 		}, domain.OidcProviderCognito, "sub-root"))
 		root, err := users.FindByCognitoSub(ctx, "sub-root")
 		require.NoError(t, err)

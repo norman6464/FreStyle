@@ -4,9 +4,6 @@ import type { Course, CourseWithProgress } from '@/entities/course';
 
 /**
  * useCourses — コース一覧 + 検索 + CRUD の状態管理。
- *
- * trainee は published のみ、 company_admin / super_admin は draft 含む全件を取得する
- * （フィルタは backend 側）。
  */
 export function useCourses() {
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);

@@ -49,7 +49,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	v2 := r.Group("/api/v2")
 
 	registerHealthRoutes(v2, deps)
-	registerInvitationPublicRoutes(v2, deps)
 	// 共有リンクの検証だけは未認証。リンクを受け取った相手はログインしていない
 	// （認可はトークンとパスワードそのものが担う）。
 	registerKnowledgeBasePublicRoutes(v2, deps)
@@ -64,7 +63,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	registerNoteRoutes(authed, deps)
 	registerDocumentRoutes(authed, deps)
 	registerSocialRoutes(authed, deps)
-	registerAdminRoutes(authed, deps)
 	registerEmbedRoutes(authed)
 	registerExerciseRoutes(authed, deps)
 	registerCourseRoutes(authed, deps)

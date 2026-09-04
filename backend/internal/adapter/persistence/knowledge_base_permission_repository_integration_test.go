@@ -39,8 +39,8 @@ func createUser(t *testing.T, db *sql.DB, namePrefix string) uint64 {
 	require.NoError(t, err)
 	var id uint64
 	require.NoError(t, db.QueryRow(
-		`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
-		 VALUES ($1, $2, 'trainee', true, now(), now()) RETURNING id`,
+		`INSERT INTO users (email, name, is_active, created_at, updated_at)
+		 VALUES ($1, $2, true, now(), now()) RETURNING id`,
 		namePrefix+"+"+newID()+"@example.test", namePrefix,
 	).Scan(&id))
 	return id

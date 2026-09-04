@@ -23,7 +23,7 @@ func NewTeachingMaterialHandler(uc *usecase.TeachingMaterialUseCase) *TeachingMa
 
 // ListByCourse はコース配下の教材を返す（path の :id はコース ID）。
 func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -41,7 +41,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 }
 
 func (h *TeachingMaterialHandler) Get(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -89,7 +89,7 @@ type updateChapterDocRequest struct {
 
 // UpdateDoc は章のリッチ本文を楽観ロックで保存する。
 func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -141,7 +141,7 @@ type teachingMaterialUpdateRequest struct {
 }
 
 func (h *TeachingMaterialHandler) Create(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -165,7 +165,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 }
 
 func (h *TeachingMaterialHandler) Update(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -194,7 +194,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 }
 
 func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}

@@ -42,10 +42,10 @@ function makeCourse(overrides: Partial<CourseWithProgress> = {}): CourseWithProg
 
 // CoursesListPage は /courses/category/:category にマウントされる。
 // slug の領域だけに絞って表示するので、テストは対象コースと同じ slug で描画する。
-function renderPage(role = 'trainee', slug = 'database') {
+function renderPage(slug = 'database') {
   const store = configureStore({
     reducer: { auth: authReducer },
-    preloadedState: { auth: { role } as never },
+    preloadedState: { auth: { isAuthenticated: true, loading: false } },
   });
   return render(
     <Provider store={store}>
@@ -67,7 +67,7 @@ describe('CoursesListPage 領域スコープ (FRESTYLE-177)', () => {
 
   it('URL の領域名を見出しに出し、その領域のコースを表示する', async () => {
     mockList.mockResolvedValue([makeCourse({ category: 'database' })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: 'データベース', level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /コース一覧に戻る/ })).toHaveAttribute('href', '/courses');
@@ -78,14 +78,14 @@ describe('CoursesListPage 領域スコープ (FRESTYLE-177)', () => {
       makeCourse({ id: 1, title: 'PostgreSQL 徹底入門', category: 'database' }),
       makeCourse({ id: 2, title: 'Terraform 入門', category: 'infra' }),
     ]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.queryByText('Terraform 入門')).not.toBeInTheDocument();
   });
 
   it('uncategorized は「未分類」見出しで未分類コースを表示する', async () => {
     mockList.mockResolvedValue([makeCourse({ category: '' })]);
-    renderPage('trainee', 'uncategorized');
+    renderPage('uncategorized');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: '未分類', level: 1 })).toBeInTheDocument();
   });
@@ -95,7 +95,7 @@ describe('CoursesListPage 領域スコープ (FRESTYLE-177)', () => {
       makeCourse({ id: 1, title: 'PostgreSQL 徹底入門', category: 'database' }),
       makeCourse({ id: 2, title: 'MySQL 入門', category: 'database' }),
     ]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('MySQL 入門')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('コースを検索'), { target: { value: 'mysql' } });
     expect(screen.queryByText('PostgreSQL 徹底入門')).not.toBeInTheDocument();
@@ -104,7 +104,7 @@ describe('CoursesListPage 領域スコープ (FRESTYLE-177)', () => {
 
   it('検索で 0 件になったら該当なしの EmptyState を出す', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, title: 'PostgreSQL 徹底入門', category: 'database' })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('コースを検索'), { target: { value: 'terraform' } });
     expect(screen.getByText('該当するコースがありません')).toBeInTheDocument();
@@ -116,22 +116,15 @@ describe('CoursesListPage CRUD フロー', () => {
     vi.clearAllMocks();
   });
 
-  it('trainee には「新しいコース」ボタンを表示しない', async () => {
-    mockList.mockResolvedValue([makeCourse()]);
-    renderPage('trainee', 'database');
-    await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: /新しいコース/ })).not.toBeInTheDocument();
-  });
-
   it('取得失敗時はエラーメッセージを表示する', async () => {
     mockList.mockRejectedValue(new Error('network'));
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('コースの取得に失敗しました')).toBeInTheDocument());
   });
 
-  it('管理者の作成フォームにカテゴリ選択（未分類 + 全カテゴリ）が表示される', async () => {
+  it('作成フォームにカテゴリ選択（未分類 + 全カテゴリ）が表示される', async () => {
     mockList.mockResolvedValue([]);
-    renderPage('company_admin', 'database');
+    renderPage('database');
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /新しいコース/ }).length).toBeGreaterThan(0),
     );
@@ -143,9 +136,9 @@ describe('CoursesListPage CRUD フロー', () => {
     }
   });
 
-  it('管理者の作成フォームは現在の領域を初期選択にする', async () => {
+  it('作成フォームは現在の領域を初期選択にする', async () => {
     mockList.mockResolvedValue([]);
-    renderPage('company_admin', 'security');
+    renderPage('security');
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /新しいコース/ }).length).toBeGreaterThan(0),
     );
@@ -154,9 +147,9 @@ describe('CoursesListPage CRUD フロー', () => {
     expect(select.value).toBe('security');
   });
 
-  it('管理者の作成フォームに言語選択（未設定 + 言語一覧）が表示される', async () => {
+  it('作成フォームに言語選択（未設定 + 言語一覧）が表示される', async () => {
     mockList.mockResolvedValue([]);
-    renderPage('company_admin', 'database');
+    renderPage('database');
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /新しいコース/ }).length).toBeGreaterThan(0),
     );
@@ -172,7 +165,7 @@ describe('CoursesListPage CRUD フロー', () => {
     const mockCreate = vi.mocked(CourseRepository.create);
     mockList.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeCourse({ id: 99, title: '新コース', category: 'security' }));
-    renderPage('company_admin', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getAllByRole('button', { name: /新しいコース/ }).length).toBeGreaterThan(0));
     fireEvent.click(screen.getAllByRole('button', { name: /新しいコース/ })[0]);
 
@@ -199,7 +192,7 @@ describe('CoursesListPage CRUD フロー', () => {
     const mockUpdate = vi.mocked(CourseRepository.update);
     mockList.mockResolvedValue([makeCourse({ id: 5, category: 'database', language: 'postgresql' })]);
     mockUpdate.mockResolvedValue(makeCourse({ id: 5, category: 'infra', language: 'terraform' }));
-    renderPage('company_admin', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'コースを編集' }));
@@ -222,7 +215,7 @@ describe('CoursesListPage CRUD フロー', () => {
     const mockRemove = vi.mocked(CourseRepository.remove);
     mockList.mockResolvedValue([makeCourse({ id: 7 })]);
     mockRemove.mockResolvedValue(undefined);
-    renderPage('company_admin', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'コースを削除' }));
@@ -257,51 +250,37 @@ describe('CoursesListPage カード進捗表示 (FRESTYLE-98)', () => {
     vi.clearAllMocks();
   });
 
-  it('受講者のカードに完了章数/全章数・残り章数と進捗バーが表示される', async () => {
+  it('カードに完了章数/全章数・残り章数と進捗バーが表示される', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 2 })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('2/8（25%・残り 6 章）')).toBeInTheDocument());
     expect(screen.getByRole('progressbar', { name: '学習の進捗' })).toHaveAttribute('aria-valuenow', '25');
   });
 
   it('完了記録が無いコースは 0/N と表示される', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 0 })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('0/8（0%・残り 8 章）')).toBeInTheDocument());
-  });
-
-  it('管理ロールには進捗バーを表示しない', async () => {
-    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 3 })]);
-    renderPage('company_admin', 'database');
-    await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
   it('章が 0 件のコースには進捗バーを出さない', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 0 })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
   it('全章完了は「すべて完了」+ 完了バッジ + 完了デザインで表示される (FRESTYLE-114)', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 5, completedCount: 5 })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('すべて完了（5 章）')).toBeInTheDocument());
     expect(screen.getByText('完了')).toBeInTheDocument();
   });
 
   it('未完了のコースには完了バッジを出さない', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 5, completedCount: 4 })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('4/5（80%・残り 1 章）')).toBeInTheDocument());
-    expect(screen.queryByText('完了')).not.toBeInTheDocument();
-  });
-
-  it('管理ロールには完了バッジを出さない（進捗は受講者個人のもの）', async () => {
-    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 5, completedCount: 5 })]);
-    renderPage('company_admin', 'database');
-    await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.queryByText('完了')).not.toBeInTheDocument();
   });
 });
@@ -313,14 +292,14 @@ describe('CoursesListPage 言語バッジ (FRESTYLE-114)', () => {
 
   it('language が設定されたコースは言語バッジを表示する', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, language: 'go', title: 'Go 言語徹底攻略', category: 'backend' })]);
-    renderPage('trainee', 'backend');
+    renderPage('backend');
     await waitFor(() => expect(screen.getByText('Go 言語徹底攻略')).toBeInTheDocument());
     expect(screen.getByText('Go')).toBeInTheDocument();
   });
 
   it('language が空のコースはバッジを出さない', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, language: '' })]);
-    renderPage('trainee', 'database');
+    renderPage('database');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.queryByText('Go')).not.toBeInTheDocument();
   });

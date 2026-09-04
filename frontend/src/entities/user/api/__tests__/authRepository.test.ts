@@ -30,32 +30,6 @@ describe('AuthRepository', () => {
     expect(result).toEqual({ message: 'ログインしました。' });
   });
 
-  it('callback: 招待トークンがあれば載せる', async () => {
-    mockedApiClient.post.mockResolvedValue({ data: { message: 'ok' } });
-
-    await authRepository.callback({
-      code: 'c',
-      codeVerifier: 'v',
-      nonce: 'n',
-      invitationToken: 'inv-1',
-    });
-
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
-      '/api/v2/auth/login',
-      { code: 'c', codeVerifier: 'v', nonce: 'n', invitationToken: 'inv-1' },
-      { skipAuthRedirect: true },
-    );
-  });
-
-  it('callback: 招待トークンが無ければ載せない', async () => {
-    mockedApiClient.post.mockResolvedValue({ data: { message: 'ok' } });
-
-    await authRepository.callback({ code: 'c', codeVerifier: 'v', nonce: 'n', invitationToken: null });
-
-    const body = mockedApiClient.post.mock.calls[0][1] as Record<string, unknown>;
-    expect(body).not.toHaveProperty('invitationToken');
-  });
-
   it('logout: 発行者側のセッション終了先を受け取る', async () => {
     mockedApiClient.post.mockResolvedValue({
       data: { message: 'ログアウトしました。', endSessionUrl: 'https://issuer.test/logout' },

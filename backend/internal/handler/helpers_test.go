@@ -15,28 +15,27 @@ import (
 func init() { gin.SetMode(gin.TestMode) }
 
 func TestActorWorkspaceFromContext(t *testing.T) {
-	t.Run("認証済み user から id/所属ワークスペース/role を取り出す", func(t *testing.T) {
+	t.Run("認証済み user から id/所属ワークスペースを取り出す", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		workspaceID := "ws-7"
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 42, WorkspaceID: &workspaceID, Role: domain.RoleCompanyAdmin})
+		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 42, WorkspaceID: &workspaceID})
 
-		uid, workspace, role, ok := actorWorkspaceFromContext(c)
+		uid, workspace, ok := actorWorkspaceFromContext(c)
 
 		assert.True(t, ok)
 		assert.Equal(t, uint64(42), uid)
 		gotID, affiliated := workspace.WorkspaceID()
 		assert.True(t, affiliated)
 		assert.Equal(t, "ws-7", gotID)
-		assert.Equal(t, domain.RoleCompanyAdmin, role)
 	})
 
 	t.Run("ワークスペース未所属(nil)なら未所属の WorkspaceRef", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, WorkspaceID: nil, Role: domain.RoleSuperAdmin})
+		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, WorkspaceID: nil})
 
-		_, workspace, _, ok := actorWorkspaceFromContext(c)
+		_, workspace, ok := actorWorkspaceFromContext(c)
 
 		assert.True(t, ok)
 		_, affiliated := workspace.WorkspaceID()
@@ -47,7 +46,7 @@ func TestActorWorkspaceFromContext(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		_, _, _, ok := actorWorkspaceFromContext(c)
+		_, _, ok := actorWorkspaceFromContext(c)
 
 		assert.False(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, w.Code)

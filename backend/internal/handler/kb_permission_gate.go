@@ -29,18 +29,17 @@ import (
 // 必ず requireWorkspaceAdmin / requireSpaceAdmin / requirePageAdmin のいずれかを
 // 最初に通すこと。
 //
-// # なぜ super_admin を特別扱いしないのか
+// # なぜ特権ロールを特別扱いしないのか
 //
-// ノートの役割（domain.GrantRole の admin / editor / commenter / viewer）は、
-// アプリ全体のロール（domain.RoleName の super_admin / company_admin / trainee）とは
-// 別物で、統合もしない（domain/grant.go のコメント）。あちらは「アプリ全体で何ができるか」を
-// 1 人 1 つ持つグローバルなロール、こちらは「この入れ物で何ができるか」を入れ物ごとに持つ。
+// ノートの役割（domain.GrantRole の admin / editor / commenter / viewer）は
+// per-workspace の grant だけで閉じており、アプリ全体のグローバルなロール概念は
+// 存在しない（domain/grant.go のコメント）。「この入れ物で何ができるか」を
+// 入れ物ごとに持つ、それだけがこのアプリの権限モデル。
 //
 // 「特権ロールなら全部できる」という分岐をここに 1 つでも足すと、権限の出どころが
-// principals / grants と アプリのロールの 2 系統になり、ワークスペースの admin が
+// principals / grants とそれ以外の 2 系統になり、ワークスペースの admin が
 // 知らないところで自分のテナントを読み書きされる（しかも grant を全部見ても
-// その事実が説明できない）。したがってこの gate が見るのは grant だけで、
-// middleware.CurrentUser が context に載せるロールは一切参照しない。
+// その事実が説明できない）。したがってこの gate が見るのは grant だけである。
 //
 // # なぜ拒否をすべて 404 not_found で揃えるのか（存在オラクル対策）
 //

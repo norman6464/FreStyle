@@ -89,7 +89,7 @@ func (e *materialGrantEnv) as(t *testing.T, userID uint64, affiliated bool) *gin
 	r := gin.New()
 	g := r.Group("/api/v2")
 	g.Use(func(c *gin.Context) {
-		user := &domain.User{ID: userID, Role: domain.RoleTrainee}
+		user := &domain.User{ID: userID}
 		if affiliated {
 			ws := e.ws
 			user.WorkspaceID = &ws

@@ -37,11 +37,10 @@ func NewMarkLessonCompletedUseCase(
 	return &MarkLessonCompletedUseCase{progress: p, materials: m, activity: activity, perm: perm}
 }
 
-// MarkLessonCompletedInput は完了記録の入力。 actor の workspace / role で可視性を検証する。
+// MarkLessonCompletedInput は完了記録の入力。 actor の workspace で可視性を検証する。
 type MarkLessonCompletedInput struct {
 	UserID             uint64
 	ActorWorkspace     domain.WorkspaceRef
-	ActorRole          domain.RoleName
 	TeachingMaterialID uint64
 }
 

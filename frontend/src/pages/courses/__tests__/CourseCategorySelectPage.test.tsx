@@ -33,10 +33,10 @@ function makeCourse(overrides: Partial<CourseWithProgress> = {}): CourseWithProg
   };
 }
 
-function renderPage(role = 'trainee') {
+function renderPage() {
   const store = configureStore({
     reducer: { auth: authReducer },
-    preloadedState: { auth: { role } as never },
+    preloadedState: { auth: { isAuthenticated: true, loading: false } },
   });
   return render(
     <Provider store={store}>
@@ -60,7 +60,7 @@ describe('CourseCategorySelectPage (FRESTYLE-177)', () => {
       makeCourse({ id: 2, category: 'database' }),
       makeCourse({ id: 3, category: 'infra' }),
     ]);
-    renderPage('trainee');
+    renderPage();
 
     const dbLink = await screen.findByRole('link', { name: /データベース のコース一覧へ/ });
     expect(dbLink).toHaveAttribute('href', '/courses/category/database');
@@ -75,17 +75,17 @@ describe('CourseCategorySelectPage (FRESTYLE-177)', () => {
 
   it('未分類コースは uncategorized カードに集約する', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, category: '' })]);
-    renderPage('trainee');
+    renderPage();
     const link = await screen.findByRole('link', { name: /未分類 のコース一覧へ/ });
     expect(link).toHaveAttribute('href', '/courses/category/uncategorized');
   });
 
-  it('受講者にはその領域の学習進捗（章単位の集計）を出す', async () => {
+  it('その領域の学習進捗（章単位の集計）を出す', async () => {
     mockList.mockResolvedValue([
       makeCourse({ id: 1, category: 'database', materialCount: 4, completedCount: 1 }),
       makeCourse({ id: 2, category: 'database', materialCount: 4, completedCount: 2 }),
     ]);
-    renderPage('trainee');
+    renderPage();
     await screen.findByRole('link', { name: /データベース のコース一覧へ/ });
     // 合計 3/8 章完了
     expect(screen.getByText('3/8 章完了')).toBeInTheDocument();
@@ -95,39 +95,23 @@ describe('CourseCategorySelectPage (FRESTYLE-177)', () => {
     );
   });
 
-  it('管理ロールには進捗を出さない（進捗は受講者個人のもの）', async () => {
-    mockList.mockResolvedValue([
-      makeCourse({ id: 1, category: 'database', materialCount: 4, completedCount: 2 }),
-    ]);
-    renderPage('company_admin');
-    await screen.findByRole('link', { name: /データベース のコース一覧へ/ });
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-  });
-
-  it('管理ロールは「新しいコース」ボタンから作成フォームを開ける', async () => {
+  it('「新しいコース」ボタンから作成フォームを開ける', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, category: 'database' })]);
-    renderPage('company_admin');
+    renderPage();
     const btn = await screen.findByRole('button', { name: /新しいコース/ });
     fireEvent.click(btn);
     expect(screen.getByRole('combobox', { name: /カテゴリ（学習領域）/ })).toBeInTheDocument();
   });
 
-  it('trainee には「新しいコース」ボタンを出さない', async () => {
-    mockList.mockResolvedValue([makeCourse({ id: 1, category: 'database' })]);
-    renderPage('trainee');
-    await screen.findByRole('link', { name: /データベース のコース一覧へ/ });
-    expect(screen.queryByRole('button', { name: /新しいコース/ })).not.toBeInTheDocument();
-  });
-
   it('コースが無いときは EmptyState を出す', async () => {
     mockList.mockResolvedValue([]);
-    renderPage('trainee');
+    renderPage();
     await waitFor(() => expect(screen.getByText('コースがありません')).toBeInTheDocument());
   });
 
   it('API が null を返してもクラッシュせず EmptyState を出す (FRESTYLE-70)', async () => {
     mockList.mockResolvedValue(null as unknown as CourseWithProgress[]);
-    renderPage('trainee');
+    renderPage();
     await waitFor(() => expect(screen.getByText('コースがありません')).toBeInTheDocument());
   });
 });

@@ -4,8 +4,9 @@ import { LessonProgressRepository } from '@/entities/course';
 /**
  * useLessonProgress — current user の教材（レッスン）完了状態を管理する。
  *
- * `enabled=false`（教材を管理する company_admin / super_admin など、 学習者ではないロール）の
- * ときは API を叩かず空集合を保つ。 完了トグルは楽観的更新し、 失敗時は元の状態へロールバックする。
+ * `enabled=false`（編集ビュー(ManagedDetail)を開いているときなど、 進捗表示が意味を
+ * 持たない場面）のときは API を叩かず空集合を保つ。 完了トグルは楽観的更新し、
+ * 失敗時は元の状態へロールバックする。
  */
 export function useLessonProgress(enabled: boolean) {
   const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());

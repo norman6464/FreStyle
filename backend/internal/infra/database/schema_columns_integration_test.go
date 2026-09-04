@@ -26,7 +26,6 @@ func TestCoreSchema_列の型が本番の実列と一致する_Integration(t *te
 		maxLen int64 // varchar(n) の n。0 なら長さを持たない型
 		why    string
 	}{
-		{"users", "role", "text", 0, "role はロール名そのものを持つ列（かつては roles マスタ表への FK だった）"},
 		// migration 0011 が ALTER ADD COLUMN で作った列。AutoMigrate は fresh DB に bigint を作っていた。
 		{"master_exercises", "sort_order", "integer", 0, "本番の master_exercises.sort_order は integer"},
 	}

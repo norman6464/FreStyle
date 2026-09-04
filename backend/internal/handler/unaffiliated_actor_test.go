@@ -2,13 +2,10 @@ package handler
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -24,9 +21,9 @@ import (
 // otherWorkspaceID は未所属 actor から見た「自分のものではないワークスペース」。
 const otherWorkspaceID = "0198a000-0000-7000-8000-0000000000f1"
 
-// unaffiliatedSuperAdmin はどのワークスペースにも属さない super_admin。
+// unaffiliatedSuperAdmin はどのワークスペースにも属さない actor。
 func unaffiliatedSuperAdmin() *domain.User {
-	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, WorkspaceID: nil}
+	return &domain.User{ID: 1, WorkspaceID: nil}
 }
 
 // courseInOtherWorkspace は otherWorkspaceID に属するコースを組み立てる。
@@ -138,44 +135,4 @@ func Test_未所属actor_コースの経路は何も通らない(t *testing.T) {
 			t.Fatalf("want 404, got %d", w.Code)
 		}
 	})
-}
-
-func Test_未所属actor_招待取り消しは運営管理者として通る(t *testing.T) {
-	invWorkspace := otherWorkspaceID
-	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, WorkspaceID: &invWorkspace}}}
-	h := NewAdminInvitationHandler(nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
-
-	r := gin.New()
-	r.DELETE("/admin/invitations/:id", func(c *gin.Context) {
-		c.Set(middleware.ContextKeyCurrentUser, unaffiliatedSuperAdmin())
-		h.Cancel(c)
-	})
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/admin/invitations/7", nil))
-
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("want 204, got %d, body=%s", w.Code, w.Body.String())
-	}
-}
-
-func Test_未所属actor_招待取り消しはワークスペース管理者だと404(t *testing.T) {
-	// company_admin は自ワークスペースの招待しか取り消せない。未所属ならどの招待とも
-	// 一致しないため、存在を漏らさない 404 になる。
-	invWorkspace := otherWorkspaceID
-	repo := &fakeAdminInvRepo{all: []domain.AdminInvitation{{ID: 7, WorkspaceID: &invWorkspace}}}
-	h := NewAdminInvitationHandler(nil, nil, usecase.NewCancelAdminInvitationUseCase(repo))
-
-	r := gin.New()
-	r.DELETE("/admin/invitations/:id", func(c *gin.Context) {
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 2, Role: domain.RoleCompanyAdmin, WorkspaceID: nil})
-		h.Cancel(c)
-	})
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/admin/invitations/7", nil))
-
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d, body=%s", w.Code, w.Body.String())
-	}
 }

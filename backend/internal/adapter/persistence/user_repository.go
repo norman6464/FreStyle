@@ -43,7 +43,7 @@ func (r *userRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Querie
 	return tx.Commit()
 }
 
-// userRow は user 系クエリが返す共通の行形（users 全列。role は列そのもの）。
+// userRow は user 系クエリが返す共通の行形（users 全列）。
 // 各クエリの生成 Row 型はフィールド構成が同一なので、この型へ変換して 1 つの詰め替えに集約する。
 type userRow = sqlcgen.GetUserByIDRow
 
@@ -55,7 +55,6 @@ func toDomainUser(row userRow) *domain.User {
 		ID:        uint64(row.ID),
 		Email:     row.Email,
 		Name:      row.Name,
-		Role:      domain.RoleName(row.Role),
 		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
@@ -101,9 +100,9 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	row := rows[0]
 	u := toDomainUser(userRow{
 		ID: row.ID, Email: row.Email, Name: row.Name,
-		WorkspaceID: row.WorkspaceID, Role: row.Role,
-		IsActive:  row.IsActive,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
+		WorkspaceID: row.WorkspaceID,
+		IsActive:    row.IsActive,
+		CreatedAt:   row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 	})
 	if row.PasswordHash.Valid {
 		v := row.PasswordHash.String
@@ -144,19 +143,6 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	return toDomainUser(row), nil
 }
 
-func (r *userRepository) ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error) {
-	q := r.queries()
-	rows, err := q.ListUsersByRole(ctx, string(role))
-	if err != nil {
-		return nil, err
-	}
-	users := make([]domain.User, 0, len(rows))
-	for _, row := range rows {
-		users = append(users, *toDomainUser(userRow(row)))
-	}
-	return users, nil
-}
-
 func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error) {
 	wid, ok := toNullUUID(workspaceID)
 	if !ok {
@@ -177,9 +163,6 @@ func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID stri
 // insertUserTx は users 行を 1 件作り、採番結果を user へ書き戻す。
 // created_at / updated_at に DB 既定値は無いのでここで値を決める（ゼロのときだけ now）。
 func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) error {
-	if !user.Role.Valid() {
-		return fmt.Errorf("unknown role %q", user.Role)
-	}
 	now := time.Now()
 	createdAt := user.CreatedAt
 	if createdAt.IsZero() {
@@ -192,7 +175,6 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	params := sqlcgen.InsertUserParams{
 		Email:     user.Email,
 		Name:      user.Name,
-		Role:      string(user.Role),
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
@@ -233,7 +215,6 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			PasswordHash: params.PasswordHash,
 			Name:         params.Name,
 			WorkspaceID:  params.WorkspaceID,
-			Role:         params.Role,
 			CreatedAt:    params.CreatedAt,
 			UpdatedAt:    params.UpdatedAt,
 			DeletedAt:    params.DeletedAt,
@@ -277,56 +258,6 @@ func createWithOidcIdentity(
 		return err
 	}
 	return ensureOidcIdentityTx(ctx, q, user.ID, provider, subject)
-}
-
-// bootstrapSuperAdminLockKey は「最初の運営管理者を作る」経路を直列化する advisory lock のキー。
-// 他の advisory lock（testsupport.integrationLockKey 等）とは別の値にする。
-const bootstrapSuperAdminLockKey int64 = 7_419_063
-
-// CreateFirstSuperAdminWithOidcIdentity は super_admin が 1 人も居ないときに限りユーザーを作る。
-//
-// 「0 人であること」を確かめてから作るまでのあいだに別のトランザクションが 1 人目を作れば、
-// 招待を経ないこの経路が 2 人目・3 人目にも開いたままになる。判定を呼び出し側に置くと
-// READ COMMITTED では互いの未コミット行が見えず、同時に来た 2 本がどちらも「0 人」を見る。
-// そこで判定と INSERT を同じトランザクションに入れ、さらに advisory lock で経路自体を
-// 直列化する（ロックはコミットで解放され、次の 1 本は必ず確定済みの 1 人目を見る）。
-// email の一意索引に頼らないのは、索引が守るのは「同じアドレス」であって
-// 「super_admin が 1 人」ではないため（別アドレスなら索引は素通りする）。
-func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
-	ctx context.Context, user *domain.User, provider, subject string,
-) (bool, error) {
-	if user.Role != domain.RoleSuperAdmin {
-		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
-	}
-	created := false
-	err := r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
-		// ロックは必ずこのトランザクション（qtx）で取る。pg_advisory_xact_lock は
-		// トランザクションスコープなので、別の接続で発行すると取った直後に解放され、
-		// 「0 人か確かめて作る」のあいだを誰も守らなくなる。
-		// pgbouncer（transaction pooler）前提のため、セッションロックは使えない。
-		if err := qtx.AcquireBootstrapSuperAdminLock(ctx, bootstrapSuperAdminLockKey); err != nil {
-			return err
-		}
-		existing, err := qtx.CountActiveSuperAdmins(ctx, string(domain.RoleSuperAdmin))
-		if err != nil {
-			return err
-		}
-		if existing > 0 {
-			return nil // created = false のまま。免除は既に閉じている。
-		}
-		if err := insertUserTx(ctx, qtx, user); err != nil {
-			return err
-		}
-		if err := ensureOidcIdentityTx(ctx, qtx, user.ID, provider, subject); err != nil {
-			return err
-		}
-		created = true
-		return nil
-	})
-	if err != nil {
-		return false, err
-	}
-	return created, nil
 }
 
 // EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
@@ -435,29 +366,7 @@ func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name str
 	return nil
 }
 
-// UpdateRole は役割だけを更新する。対象が存在しなければ domain.ErrNotFound を返す。
-// 昇格が 1 行も当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれるため、
-// ここは特に 0 件を握り潰してはいけない。
-func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {
-	id64, ok := toInt64ID(userID)
-	if !ok {
-		return domain.ErrNotFound // 存在し得ない id = not found
-	}
-	if !role.Valid() {
-		return fmt.Errorf("unknown role %q", role)
-	}
-	q := r.queries()
-	affected, err := q.UpdateUserRole(ctx, sqlcgen.UpdateUserRoleParams{ID: id64, Role: string(role)})
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return domain.ErrNotFound
-	}
-	return nil
-}
-
-// UpdateWorkspaceID は所属ワークスペースを付け替える（招待の受諾で呼ばれる）。
+// UpdateWorkspaceID は所属ワークスペースを付け替える。
 // workspaceID は呼び出し側が既に解決した値をそのまま渡す（サブクエリで引き直さない）。
 func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {
 	id64, ok := toInt64ID(userID)

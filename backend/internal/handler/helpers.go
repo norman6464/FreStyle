@@ -13,17 +13,17 @@ import (
 )
 
 // actorWorkspaceFromContext は middleware が注入した current user から
-// (userID, workspace, role) を取り出す。未認証なら 401 を書き込んで ok=false を返すので、
+// (userID, workspace) を取り出す。未認証なら 401 を書き込んで ok=false を返すので、
 // 呼び出し側は ok を見て早期 return する。各 handler が同じ「user 取得 + 401」を書かずに
 // 済むための共通小道具。workspace は未所属(workspace_id = NULL)を表せる
 // domain.WorkspaceRef で、空文字には潰さない。
-func actorWorkspaceFromContext(c *gin.Context) (userID uint64, workspace domain.WorkspaceRef, role domain.RoleName, ok bool) {
+func actorWorkspaceFromContext(c *gin.Context) (userID uint64, workspace domain.WorkspaceRef, ok bool) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return 0, domain.NoWorkspace(), "", false
+		return 0, domain.NoWorkspace(), false
 	}
-	return user.ID, user.WorkspaceRef(), user.Role, true
+	return user.ID, user.WorkspaceRef(), true
 }
 
 // respondEntityErr は usecase が返したエラーを HTTP ステータスへ振り分ける共通処理。

@@ -139,7 +139,7 @@ func respondRichDocErr(c *gin.Context, err error) {
 
 // List は current user 名義の文書一覧を返す（owner スコープ・doc 本体は含まない軽量サマリ）。
 func (h *DocumentHandler) List(c *gin.Context) {
-	uid, workspace, _, ok := actorWorkspaceFromContext(c)
+	uid, workspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -198,7 +198,7 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 
 // Get は文書を 1 件返す。所有者、または同一ワークスペースの公開文書のみ（他ワークスペース・非公開は存在を漏らさず 404）。
 func (h *DocumentHandler) Get(c *gin.Context) {
-	uid, workspace, _, ok := actorWorkspaceFromContext(c)
+	uid, workspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}

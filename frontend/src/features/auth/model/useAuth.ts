@@ -68,12 +68,7 @@ export const useAuth = () => {
     try {
       const userInfo = await AuthRepository.getCurrentUser();
       setUser(userInfo);
-      dispatch(
-        setAuthData({
-          isAdmin: !!userInfo.isAdmin,
-          role: userInfo.role,
-        }),
-      );
+      dispatch(setAuthData());
       return userInfo;
     } catch (err) {
       setError(classifyApiError(err, 'ユーザー情報の取得に失敗しました。'));

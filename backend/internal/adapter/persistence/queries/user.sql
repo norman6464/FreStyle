@@ -1,5 +1,5 @@
 -- name: GetUserByCognitoSub :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.deleted_at IS NULL
   AND u.id IN (
@@ -9,20 +9,13 @@ WHERE u.deleted_at IS NULL
 
 -- name: GetUserByID :one
 -- 内部 ID で 1 ユーザーを引く（論理削除は除外）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.id = $1 AND u.deleted_at IS NULL;
 
--- name: ListUsersByRole :many
--- role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
-FROM users u
-WHERE u.role = $1 AND u.deleted_at IS NULL
-ORDER BY u.id ASC;
-
 -- name: ListUsersByWorkspaceID :many
--- ワークスペース単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
-SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
+-- ワークスペース単位のユーザー一覧（論理削除は除外）。
+SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC;
@@ -38,7 +31,7 @@ ORDER BY u.id ASC;
 -- 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
 -- ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
 -- 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash
+SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash
 FROM users u
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::text, E'\t\n\x0B\f\r '))
   AND btrim(u.email, E'\t\n\x0B\f\r ') <> '' AND u.deleted_at IS NULL AND u.is_active;
@@ -49,20 +42,6 @@ WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::tex
 SELECT subject FROM user_oidc_identities
 WHERE user_id = $1 AND provider = 'cognito';
 
--- name: AcquireBootstrapSuperAdminLock :exec
--- 「最初の運営管理者を作る」経路を直列化するロックを取る。
---
--- トランザクションスコープのロック（pg_advisory_xact_lock）なので、必ず判定と INSERT と
--- 同じトランザクション（Queries.WithTx）で発行すること。別接続で取ると、ロックが取れた
--- 直後に解放され「0 人か確かめて作る」の間を守れない。pgbouncer（transaction pooler）が
--- 接続を貸し借りする本番でセッションロックが使えないのも同じ理由。
-SELECT pg_advisory_xact_lock(sqlc.arg(lock_key)::bigint);
-
--- name: CountActiveSuperAdmins :one
--- 論理削除されていない運営管理者の人数。免除経路（招待なしの作成）が既に閉じているかの判定に使う。
-SELECT count(*) FROM users u
-WHERE u.role = $1 AND u.deleted_at IS NULL;
-
 -- name: InsertUser :one
 -- ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
 -- 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
@@ -70,11 +49,11 @@ WHERE u.role = $1 AND u.deleted_at IS NULL;
 --
 -- workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 INSERT INTO users (
-  email, password_hash, name, workspace_id, role,
+  email, password_hash, name, workspace_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, $5, true, $6, $7, $8
+  $1, $2, $3, $4, true, $5, $6, $7
 )
 RETURNING id, created_at, updated_at;
 
@@ -82,11 +61,11 @@ RETURNING id, created_at, updated_at;
 -- id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
 -- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 INSERT INTO users (
-  id, email, password_hash, name, workspace_id, role,
+  id, email, password_hash, name, workspace_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, $5, $6, true, $7, $8, $9
+  $1, $2, $3, $4, $5, true, $6, $7, $8
 )
 RETURNING id, created_at, updated_at;
 
@@ -114,17 +93,9 @@ UPDATE users SET is_active = $2, updated_at = now() WHERE id = $1;
 -- 氏名だけを更新する。0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 UPDATE users SET name = $2, updated_at = now() WHERE id = $1;
 
--- name: UpdateUserRole :execrows
--- 役割だけを更新する（誰がどの役割になれるかの判定は usecase 側の仕事）。
--- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。昇格が 1 行も
--- 当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれる。
--- 未知のロール名は ck_users_role が弾く（黙って別ロールへ倒さない）。
-UPDATE users SET role = $2, updated_at = now() WHERE id = $1;
-
 -- name: UpdateUserWorkspaceID :execrows
--- 所属ワークスペースを付け替える（招待の受諾で呼ばれる）。呼び出し側（招待受諾）が
--- 招待行の workspace_id を既に持っているため、それをそのまま書く。ワークスペースが
--- 無い会社もあり得るため nullable。
+-- 所属ワークスペースを付け替える。呼び出し側が既に解決した workspace_id をそのまま書く。
+-- ワークスペースが無いユーザーもあり得るため nullable。
 -- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
 UPDATE users SET
   workspace_id = sqlc.narg(workspace_id)

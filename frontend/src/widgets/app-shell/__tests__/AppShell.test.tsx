@@ -7,16 +7,16 @@ import authReducer from '@/entities/user/model/authSlice';
 import AppShell from '../ui/AppShell';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 
-function createTestStore(role: string | null = null) {
+function createTestStore() {
   return configureStore({
     reducer: { auth: authReducer },
-    preloadedState: { auth: { isAuthenticated: true, loading: false, role } },
+    preloadedState: { auth: { isAuthenticated: true, loading: false } },
   });
 }
 
-function renderAppShell({ initialEntry = '/', role = null as string | null } = {}) {
+function renderAppShell({ initialEntry = '/' } = {}) {
   return render(
-    <Provider store={createTestStore(role)}>
+    <Provider store={createTestStore()}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <Routes>
@@ -62,10 +62,11 @@ describe('AppShell', () => {
     expect(screen.getByPlaceholderText('コマンドを検索...')).toBeInTheDocument();
   });
 
-  // FRESTYLE-122: 受講者の教材閲覧はヘッダーごとスクロールするドキュメントスクロール構造になる
+  // FRESTYLE-122: 教材閲覧はヘッダーごとスクロールするドキュメントスクロール構造になる。
+  // コース管理はロールで区別しなくなったため、/courses/:id は誰が開いても同じレイアウト。
   describe('ドキュメントスクロール（FRESTYLE-122）', () => {
-    it('受講者の /courses/:id ではヘッダーと main がスクロールコンテナに入る', () => {
-      const { container } = renderAppShell({ initialEntry: '/courses/2', role: 'trainee' });
+    it('/courses/:id ではヘッダーと main がスクロールコンテナに入る', () => {
+      const { container } = renderAppShell({ initialEntry: '/courses/2' });
       const scroller = container.querySelector('[data-app-scroll]');
       expect(scroller).not.toBeNull();
       // ヘッダー(banner)と main が同じスクロールコンテナの中にある = 一緒に流れる
@@ -74,13 +75,8 @@ describe('AppShell', () => {
       expect(screen.getByText('コース詳細コンテンツ')).toBeInTheDocument();
     });
 
-    it('管理者の /courses/:id は従来レイアウト（コンテナなし）', () => {
-      const { container } = renderAppShell({ initialEntry: '/courses/2', role: 'company_admin' });
-      expect(container.querySelector('[data-app-scroll]')).toBeNull();
-    });
-
     it('教材閲覧以外のルートは従来レイアウト（コンテナなし）', () => {
-      const { container } = renderAppShell({ initialEntry: '/', role: 'trainee' });
+      const { container } = renderAppShell({ initialEntry: '/' });
       expect(container.querySelector('[data-app-scroll]')).toBeNull();
     });
   });

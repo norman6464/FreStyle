@@ -7,6 +7,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setRequiredEnv は Load() が要求する最低限の設定を積む。
+// 認証の設定が欠けていると Load は起動を止めるので、他の項目を見るテストでも必ず要る。
+func setRequiredEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("DATABASE_URL", "postgres://x/y")
+	t.Setenv("OIDC_ISSUER", "https://issuer.test")
+	t.Setenv("OIDC_JWKS_URI", "https://issuer.test/oauth/v2/keys")
+	t.Setenv("OIDC_TOKEN_URI", "https://issuer.test/oauth/v2/token")
+	t.Setenv("OIDC_CLIENT_ID", "client-id")
+	t.Setenv("OIDC_REDIRECT_URI", "http://localhost:5173/login/callback")
+}
+
 // 認証の設定が欠けているときは起動を止める。
 //
 // 以前は「JWKS が無く、かつ APP_ENV が local なら署名検証をしない」という逃げ道があった。

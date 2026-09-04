@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAppSelector } from '@/shared/lib/store';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { Outlet, useLocation } from 'react-router-dom';
 
@@ -12,18 +11,17 @@ import CommandPalette from './CommandPalette';
 export default function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { pathname } = useLocation();
-  const role = useAppSelector((s) => s.auth.role);
   // ヘッダーの自動隠し（ノート本文の下スクロール等）。ページ側が setHeaderHidden で切り替える。
   const headerVisibility = useHeaderVisibilityState();
 
   // 認証必須ページ（AppShell 配下）はログイン前提なので検索インデックス対象外にする。
   useDocumentMeta({ robots: 'noindex, nofollow' });
 
-  // 受講者の教材閲覧(/courses/:id)はヘッダーごとスクロールで画面外に流す(FRESTYLE-122)。
-  // チャット / ノート / コース編集などのパネル型ページは main の固定高さに依存しているため、
-  // このルート + 受講者のときだけスクロールコンテナをヘッダーの外側に広げる。
-  const canManage = role === 'company_admin' || role === 'super_admin';
-  const documentScroll = /^\/courses\/\d+\/?$/.test(pathname) && !canManage;
+  // 教材閲覧(/courses/:id)はヘッダーごとスクロールで画面外に流す(FRESTYLE-122)。
+  // コース管理はロールで区別しなくなった（誰でも編集できる）ため、以前のように
+  // 「管理者なら固定レイアウト」と出し分ける材料が無い。このルートを開く人の大半は
+  // 読む用途なので、既定は読書向けのドキュメントスクロールに倒す。
+  const documentScroll = /^\/courses\/\d+\/?$/.test(pathname);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

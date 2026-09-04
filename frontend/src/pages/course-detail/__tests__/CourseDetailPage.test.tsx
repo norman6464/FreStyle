@@ -124,13 +124,12 @@ function view(teachingMaterialId: number): UserChapterView {
  *
  * **編集できるかはロールでは決まらない。** サーバーが返す canEdit / canManage で決まるので、
  * 管理者として見たいテストは course() の側を差し替える（renderPage の引数では変わらない）。
- * ロールはまだ store に置かれているが、この画面はもう見ていない。
  */
-function renderPage(role = 'trainee') {
+function renderPage() {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { role } as never,
+      auth: { isAuthenticated: true, loading: false },
     },
   });
   return render(
@@ -160,7 +159,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
   });
 
   it('受講者が開くと最後に閲覧した章が自動表示され、閲覧が記録される', async () => {
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
     );
@@ -169,7 +168,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
   });
 
   it('完了トグルはメタ行と本文末尾の 2 箇所に表示される', async () => {
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: '完了にする' })).toHaveLength(2),
     );
@@ -179,7 +178,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
   });
 
   it('メタ行の完了トグルをクリックすると完了 API を呼ぶ', async () => {
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: '完了にする' })).toHaveLength(2),
     );
@@ -189,7 +188,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('閲覧履歴が無い場合は先頭の章が表示される', async () => {
     mockLastViewed.mockResolvedValue(null);
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: '章 11' })).toBeInTheDocument(),
     );
@@ -199,7 +198,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
     // 付与を持つ人（canEdit=true）。ロールではなくサーバーの答えで決まる。
     // canManage は false。ここで true にすると、対象コードが canManage を見ていても通る。
     mockGetCourse.mockResolvedValue({ ...course(), canEdit: true, canManage: false });
-    renderPage('trainee');
+    renderPage();
     await waitFor(() => expect(mockListMaterials).toHaveBeenCalled());
     // 章メニューはモバイル drawer とデスクトップパネルの 2 箇所に描画される。
     await waitFor(() => expect(screen.getAllByText('章 11').length).toBeGreaterThan(0));
@@ -211,7 +210,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('「次の章へ」で次の教材に切り替わり、閲覧も記録される', async () => {
     mockLastViewed.mockResolvedValue(view(11));
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: '章 11' })).toBeInTheDocument(),
     );
@@ -224,7 +223,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('最終章の末尾に「次のコースへ」が表示され、クリックで次のコースへ遷移する (FRESTYLE-102)', async () => {
     // lastViewed = 章 12(最終章)。次の章が無いので「次のコースへ」が出る。
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
     );
@@ -240,7 +239,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('最終章以外では「次の章へ」が出て「次のコースへ」は出ない', async () => {
     mockLastViewed.mockResolvedValue(view(11));
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: '章 11' })).toBeInTheDocument(),
     );
@@ -250,7 +249,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('並び順で最後のコースでは最終章でも「次のコースへ」を出さない', async () => {
     mockCourseList.mockResolvedValue([listedCourse(4, 'Linux'), listedCourse(5, 'Git 入門')]);
-    renderPage('trainee'); // lastViewed = 章 12(最終章)
+    renderPage(); // lastViewed = 章 12(最終章)
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
     );
@@ -260,13 +259,13 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
 
   it('本文の取得に失敗したらエラーメッセージを表示する', async () => {
     mockGetMaterial.mockRejectedValue(new Error('network'));
-    renderPage('trainee');
+    renderPage();
     await waitFor(() => expect(screen.getByText('教材の取得に失敗しました')).toBeInTheDocument());
   });
 
   it('コースの取得に失敗したらエラー表示になる', async () => {
     mockGetCourse.mockRejectedValue(new Error('network'));
-    renderPage('trainee');
+    renderPage();
     await waitFor(() =>
       expect(screen.getByText('コースの取得に失敗しました')).toBeInTheDocument(),
     );
@@ -285,7 +284,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
         createdAt: '2026-07-08T00:00:00Z',
       },
     ]);
-    renderPage('trainee'); // lastViewed = 章 12
+    renderPage(); // lastViewed = 章 12
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: '完了済み' }).length).toBeGreaterThan(0),
     );
@@ -315,7 +314,7 @@ describe('CourseDetailPage 左パネルの章一覧 (FRESTYLE-341)', () => {
   });
 
   it('受講者ビューでも左パネル(コース名・章数つき)に章一覧が表示される', async () => {
-    renderPage('trainee');
+    renderPage();
     // SecondaryPanel のタイトルがコース名。章はリスト項目として並ぶ。
     await waitFor(() => expect(screen.getAllByText('Git 入門').length).toBeGreaterThan(0));
     const items = await screen.findAllByRole('button', { name: /章 11/ });
@@ -329,14 +328,14 @@ describe('CourseDetailPage 左パネルの章一覧 (FRESTYLE-341)', () => {
   });
 
   it('章一覧の章をクリックすると本文が切り替わる', async () => {
-    renderPage('trainee');
+    renderPage();
     const targets = await screen.findAllByRole('button', { name: /章 12/ });
     fireEvent.click(targets[0]);
     await waitFor(() => expect(mockGetMaterial).toHaveBeenCalledWith(12));
   });
 
   it('完了済みの章にはチェックアイコン、未完了の章には番号が出る', async () => {
-    renderPage('trainee');
+    renderPage();
     await screen.findAllByRole('button', { name: /章 12/ });
     // 11 は完了(チェック)、12 は未完了(番号 2)。デスクトップ + モバイルドロワーで二重描画されるため
     // 「1 つ以上」を確認する。
@@ -363,7 +362,7 @@ describe('CourseDetailPage 本文内の画像 (FRESTYLE-125)', () => {
   });
 
   it('画像はリンクで包まれない（クリックで別タブに原寸が開かない）', async () => {
-    renderPage('trainee');
+    renderPage();
     const img = await screen.findByRole('img', { name: '構成図' });
     expect(img.closest('a')).toBeNull();
     // tiptap の描画(ProseMirror)内に出る。
@@ -400,28 +399,28 @@ describe('CourseDetailPage 画像のモーダル拡大表示 (FRESTYLE-191)', ()
   }
 
   it('画像クリックでモーダルが開き、拡大画像と alt が引き継がれる', async () => {
-    renderPage('trainee');
+    renderPage();
     await openImageModal();
     // モーダル内にも同じ src の img が出る（本文内 + モーダルで 2 枚）
     expect(screen.getAllByRole('img', { name: '構成図' })).toHaveLength(2);
   });
 
   it('閉じるボタンで閉じられる', async () => {
-    renderPage('trainee');
+    renderPage();
     await openImageModal();
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('Esc キーで閉じられる', async () => {
-    renderPage('trainee');
+    renderPage();
     await openImageModal();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('背景クリックで閉じるが、拡大画像自体のクリックでは閉じない', async () => {
-    renderPage('trainee');
+    renderPage();
     await openImageModal();
     const dialog = screen.getByRole('dialog', { name: '構成図' });
     // 画像クリック → 閉じない（誤タップ防止）
@@ -447,7 +446,7 @@ describe('CourseDetailPage タイトルのカード外配置 (FRESTYLE-131)', ()
 
   it('タイトル h1 は本文カラムの先頭にフラットに置かれる (FRESTYLE-340)', async () => {
     mockGetMaterial.mockImplementation(async (id: number) => material(id, textDoc('本文テキスト')));
-    renderPage('trainee');
+    renderPage();
     const heading = await screen.findByRole('heading', { level: 1, name: '章 11' });
     // ノートと同じ「枠のないインライン文書」。カード(article)には入れない(FRESTYLE-340 で
     // FRESTYLE-178 のカードレイアウトを撤回)。
@@ -465,7 +464,7 @@ describe('CourseDetailPage タイトルのカード外配置 (FRESTYLE-131)', ()
         ],
       }),
     );
-    renderPage('trainee');
+    renderPage();
     await screen.findByText('本文テキストです。');
     // 「章 11」という heading はヘッダーの1つだけ(本文側の重複 h1 は stripLeadingDocTitle で除去済み)。
     expect(screen.getAllByRole('heading', { name: '章 11' })).toHaveLength(1);

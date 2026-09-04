@@ -60,8 +60,8 @@ func setupDecoy(ctx context.Context, t *testing.T, sqlDB *sql.DB) decoyFixture {
 	f := setupKBPermission(t, sqlDB)
 
 	_, err := sqlDB.Exec(
-		`INSERT INTO users (id, email, name, role, is_active, created_at, updated_at)
-		 VALUES ($1, $2, 'decoy', 'trainee', true, now(), now())`,
+		`INSERT INTO users (id, email, name, is_active, created_at, updated_at)
+		 VALUES ($1, $2, 'decoy', true, now(), now())`,
 		decoyUserID, "decoy+"+newID()+"@example.test",
 	)
 	require.NoError(t, err)

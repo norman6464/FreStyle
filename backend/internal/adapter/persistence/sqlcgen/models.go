@@ -95,18 +95,6 @@ type ExerciseSubmission struct {
 	SubmittedAt   time.Time
 }
 
-type Invitation struct {
-	ID          int64
-	Email       string
-	Role        string
-	Name        string
-	Status      string
-	Token       sql.NullString
-	ExpiresAt   time.Time
-	CreatedAt   time.Time
-	WorkspaceID uuid.NullUUID
-}
-
 type MasterExercise struct {
 	ID             int64
 	Slug           string
@@ -291,7 +279,6 @@ type User struct {
 	Email        string
 	PasswordHash sql.NullString
 	Name         string
-	Role         string
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

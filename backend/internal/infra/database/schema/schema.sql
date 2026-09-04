@@ -205,15 +205,6 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id);
 
--- companies / company_applications / company_exercises は、テナントの正本を companies から
--- workspaces へ移した移行期間だけのレガシーテーブル（FRESTYLE-408）。移行は完了済みで、
--- これらを参照する FK・読み書きするアプリコードはもう無い（company_applications は
--- 当時から schema.sql で作ったことすらない GORM 期の遺物）。
---
--- 起動のたびに DROP を試みるのは、既存 DB に残っている行を新規デプロイと同時に片付ける
--- ため。IF EXISTS で判定してから落とすので、既に無い環境では毎起動ノーコストで通り抜ける。
-DROP TABLE IF EXISTS company_applications;
-DROP TABLE IF EXISTS companies;
 
 -- 教材コース。
 CREATE TABLE IF NOT EXISTS courses (

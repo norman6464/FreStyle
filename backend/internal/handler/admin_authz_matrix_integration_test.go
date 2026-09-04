@@ -213,7 +213,7 @@ func TestAdminEndpointAuthzMatrix_Integration(t *testing.T) {
 }
 
 // insertAuthzUser は検証用のユーザーを 1 人作る。workspaceID が空なら未所属。
-func insertAuthzUser(t *testing.T, db *sql.DB, email, workspaceID string, roleID int) uint64 {
+func insertAuthzUser(t *testing.T, db *sql.DB, email, workspaceID, role string) uint64 {
 	t.Helper()
 	var ws any
 	if workspaceID != "" {
@@ -221,9 +221,9 @@ func insertAuthzUser(t *testing.T, db *sql.DB, email, workspaceID string, roleID
 	}
 	var id uint64
 	if err := db.QueryRow(
-		`INSERT INTO users (email, name, workspace_id, role_id, is_active, created_at, updated_at)
+		`INSERT INTO users (email, name, workspace_id, role, is_active, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, true, now(), now()) RETURNING id`,
-		email, email, ws, roleID,
+		email, email, ws, role,
 	).Scan(&id); err != nil {
 		t.Fatalf("ユーザー作成に失敗: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestAdminMemberManagementCrossTenant_Integration(t *testing.T) {
 	wsA := insertAuthzWorkspace(t, db, "authz-a")
 	wsB := insertAuthzWorkspace(t, db, "authz-b")
 
-	const roleCompanyAdmin, roleTrainee = 2, 3
+	const roleCompanyAdmin, roleTrainee = "company_admin", "trainee"
 	adminA := insertAuthzUser(t, db, "admin-a@example.test", wsA, roleCompanyAdmin)
 	victimB := insertAuthzUser(t, db, "victim-b@example.test", wsB, roleTrainee)
 

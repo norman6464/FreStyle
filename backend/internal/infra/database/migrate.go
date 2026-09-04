@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
 // migrateAdvisoryLockKey は起動時マイグレーションを直列化する advisory lock のキー。
@@ -36,21 +35,9 @@ const (
 	lockNotAvailableCode = "55P03"
 )
 
-// Executor は *sql.DB と *sql.Tx が共通で満たす実行インターフェース。
-// 起動時は 1 つのトランザクションへまとめて流し、結合テストは接続プールへ直接流すため、
-// seed / バックフィル / 制約適用はどちらでも呼べるようにこの形で受ける。
-type Executor interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
 // Migrate は起動時にスキーマを適用する。schema/schema.sql（中核 → ノート → 権限の順に
 // 並ぶ）が正本で、バックフィル・制約もその中の DO ブロックとして埋め込まれている。
 // RESET_DB=true のときは public schema を完全 wipe してから再構築する（一回限りの初期構築用）。
-//
-// roles マスタは users.role_id が参照する FK 先なので投入まで行う（SeedRoles は
-// ON CONFLICT DO NOTHING で冪等・既存行は書き換えない）。新規環境・DR 復元で
-// 真っさらな DB に対して起動しても、ユーザー作成・招待受諾が初回から通る。
 func Migrate(ctx context.Context, db *sql.DB) error {
 	// スキーマの作り直しは他タスクの DDL 適用と重なると壊れるため、後段と同じ advisory lock で
 	// 直列化する。ロックを取らずに DROP すると、先行タスクが CREATE 中のオブジェクトを
@@ -72,11 +59,6 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	log.Println("migrate: core schema done")
-	if err := withMigrateTx(ctx, db, "ロールマスタの投入", func(tx *sql.Tx) error {
-		return SeedRoles(ctx, tx)
-	}); err != nil {
-		return err
-	}
 	// 演習データ(PHP / Go / Docker / Linux / Git など)は問題文・期待出力を公開リポに露出させない
 	// ため本体には埋め込まず、非公開の教材リポ(frestyle-teaching-materials/exercises/<lang>/*.md)を
 	// 唯一の正本とし、seed.py が生成する UPSERT SQL を Supabase に流して投入する。
@@ -173,27 +155,4 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-// SeedRoles はロールマスタを投入する（固定 ID・冪等）。起動時の Migrate が呼ぶ他、
-// 結合テストのスキーマ構築（testsupport.OpenTestDB）も明示的に呼ぶ。
-// 既存行は書き換えない（運用で説明文を直しても呼び直すたびに戻さない）。
-func SeedRoles(ctx context.Context, db Executor) error {
-	seeds := []domain.Role{
-		{ID: domain.RoleIDSuperAdmin, Name: domain.RoleSuperAdmin, Description: "運営管理者"},
-		{ID: domain.RoleIDCompanyAdmin, Name: domain.RoleCompanyAdmin, Description: "企業管理者"},
-		{ID: domain.RoleIDTrainee, Name: domain.RoleTrainee, Description: "受講者"},
-	}
-	for _, r := range seeds {
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO roles (id, name, description, created_at, updated_at)
-			 VALUES ($1, $2, $3, NOW(), NOW())
-			 ON CONFLICT (id) DO NOTHING`,
-			r.ID, string(r.Name), r.Description,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -35,7 +35,7 @@ func TestMigrate_Integration(t *testing.T) {
 
 	t.Run("中核テーブルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
-			"roles", "users", "user_oidc_identities",
+			"users", "user_oidc_identities",
 			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
 			"exercise_submissions", "notes",
 			"notifications", "invitations", "audit_events",
@@ -43,6 +43,13 @@ func TestMigrate_Integration(t *testing.T) {
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
 		}
+	})
+
+	t.Run("roles マスタは作られない", func(t *testing.T) {
+		// ロールは 3 つで固定され、名前も値も domain.RoleName に直接書いてある
+		// （実体は「表」ではなく「コンパイル時の定数」だった）。users.role が値を直接持つ
+		// ようになったので、参照先マスタは撤去した。
+		require.False(t, tableExists(t, db, "roles"), "roles テーブルが残っている")
 	})
 
 	t.Run("退役済みのテナント移行期テーブルは作られない", func(t *testing.T) {
@@ -88,22 +95,13 @@ func TestMigrate_Integration(t *testing.T) {
 	})
 
 	t.Run("バックフィル後の制約が張られている", func(t *testing.T) {
-		require.True(t, constraintExists(t, db, "roles", "ck_roles_name_not_empty"))
-		require.True(t, constraintExists(t, db, "users", "fk_users_role"))
+		require.True(t, constraintExists(t, db, "users", "ck_users_role"))
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "fk_user_oidc_identities_user"))
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "ck_user_oidc_identities_not_empty"))
 		require.True(t, constraintExists(t, db, "rich_documents", "fk_rich_documents_owner"))
 		require.True(t, constraintExists(t, db, "rich_documents", "ck_rich_documents_doc"))
 		require.True(t, constraintExists(t, db, "rich_documents", "ck_rich_documents_title_len"))
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
-	})
-
-	t.Run("Migrate は roles マスタを投入する", func(t *testing.T) {
-		// roles は users.role_id の FK 先なので、新規環境でも初回から使えるよう投入する
-		// （SeedRoles は ON CONFLICT DO NOTHING で冪等）。
-		var roles int64
-		require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM roles`).Scan(&roles))
-		require.EqualValues(t, 3, roles)
 	})
 }
 

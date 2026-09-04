@@ -43,12 +43,11 @@ func (r *userRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Querie
 	return tx.Commit()
 }
 
-// userRow は user 系クエリが返す共通の行形（users 全列 + JOIN で解決した role_name）。
+// userRow は user 系クエリが返す共通の行形（users 全列。role は列そのもの）。
 // 各クエリの生成 Row 型はフィールド構成が同一なので、この型へ変換して 1 つの詰め替えに集約する。
 type userRow = sqlcgen.GetUserByIDRow
 
 // toDomainUser は sqlc 生成モデル → domain への詰め替え。
-// Role はロールマスタ（roles）を JOIN して解決した role_name。
 // id 系は DB が bigint(int64) で domain が uint64。値は採番シーケンス由来で常に非負・int64 範囲内のため
 // 変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
 func toDomainUser(row userRow) *domain.User {
@@ -56,12 +55,11 @@ func toDomainUser(row userRow) *domain.User {
 		ID:        uint64(row.ID),
 		Email:     row.Email,
 		Name:      row.Name,
-		Role:      domain.RoleName(row.RoleName),
+		Role:      domain.RoleName(row.Role),
 		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
-	u.RoleID = row.RoleID
 	if row.WorkspaceID.Valid {
 		wid := row.WorkspaceID.UUID.String()
 		u.WorkspaceID = &wid
@@ -103,10 +101,9 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	row := rows[0]
 	u := toDomainUser(userRow{
 		ID: row.ID, Email: row.Email, Name: row.Name,
-		WorkspaceID: row.WorkspaceID, RoleID: row.RoleID,
+		WorkspaceID: row.WorkspaceID, Role: row.Role,
 		IsActive:  row.IsActive,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
-		RoleName: row.RoleName,
 	})
 	if row.PasswordHash.Valid {
 		v := row.PasswordHash.String
@@ -177,21 +174,12 @@ func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID stri
 	return users, nil
 }
 
-// resolveRoleID はロール名を roles.id に解決する。未知の名前はエラー（黙って別ロールにしない）。
-func resolveRoleID(ctx context.Context, q *sqlcgen.Queries, roleName domain.RoleName) (int32, error) {
-	id, err := q.GetRoleIDByName(ctx, string(roleName))
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, fmt.Errorf("unknown role %q", roleName)
-	}
-	if err != nil {
-		return 0, err
-	}
-	return id, nil
-}
-
 // insertUserTx は users 行を 1 件作り、採番結果を user へ書き戻す。
 // created_at / updated_at に DB 既定値は無いのでここで値を決める（ゼロのときだけ now）。
 func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) error {
+	if !user.Role.Valid() {
+		return fmt.Errorf("unknown role %q", user.Role)
+	}
 	now := time.Now()
 	createdAt := user.CreatedAt
 	if createdAt.IsZero() {
@@ -204,7 +192,7 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	params := sqlcgen.InsertUserParams{
 		Email:     user.Email,
 		Name:      user.Name,
-		RoleID:    user.RoleID,
+		Role:      string(user.Role),
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
@@ -245,7 +233,7 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			PasswordHash: params.PasswordHash,
 			Name:         params.Name,
 			WorkspaceID:  params.WorkspaceID,
-			RoleID:       params.RoleID,
+			Role:         params.Role,
 			CreatedAt:    params.CreatedAt,
 			UpdatedAt:    params.UpdatedAt,
 			DeletedAt:    params.DeletedAt,
@@ -285,11 +273,6 @@ func createWithOidcIdentity(
 	provider string,
 	subject string,
 ) error {
-	roleID, err := resolveRoleID(ctx, q, user.Role)
-	if err != nil {
-		return err
-	}
-	user.RoleID = roleID
 	if err := insertUserTx(ctx, q, user); err != nil {
 		return err
 	}
@@ -315,15 +298,8 @@ func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
 	if user.Role != domain.RoleSuperAdmin {
 		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
 	}
-	q := r.queries()
-	roleID, err := resolveRoleID(ctx, q, user.Role)
-	if err != nil {
-		return false, err
-	}
-	user.RoleID = roleID
-
 	created := false
-	err = r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
+	err := r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
 		// ロックは必ずこのトランザクション（qtx）で取る。pg_advisory_xact_lock は
 		// トランザクションスコープなので、別の接続で発行すると取った直後に解放され、
 		// 「0 人か確かめて作る」のあいだを誰も守らなくなる。
@@ -467,12 +443,11 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q := r.queries()
-	roleID, err := resolveRoleID(ctx, q, role)
-	if err != nil {
-		return err
+	if !role.Valid() {
+		return fmt.Errorf("unknown role %q", role)
 	}
-	affected, err := q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: roleID})
+	q := r.queries()
+	affected, err := q.UpdateUserRole(ctx, sqlcgen.UpdateUserRoleParams{ID: id64, Role: string(role)})
 	if err != nil {
 		return err
 	}

@@ -70,8 +70,8 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("FindActiveByEmail は前後空白付きの既存行を正規形で引く", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES ('  Pad@Example.com'||chr(9), 'pad', 3, true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+			 VALUES ('  Pad@Example.com'||chr(9), 'pad', 'trainee', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 
@@ -86,8 +86,8 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		truncate(t)
 		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES ('  space@example.com  ', 'space', 3, true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+			 VALUES ('  space@example.com  ', 'space', 'trainee', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 
@@ -104,8 +104,8 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("正規化のバックフィルは既存行の email を正規形へ畳む", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES ('  Fold@Example.com  ', 'fold', 3, true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+			 VALUES ('  Fold@Example.com  ', 'fold', 'trainee', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 
@@ -129,9 +129,9 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 			require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		}()
 		_, err = sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES (' clash@example.com ', 'a', 3, true, NOW(), NOW()),
-			        ('Clash@Example.com', 'b', 3, true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+			 VALUES (' clash@example.com ', 'a', 'trainee', true, NOW(), NOW()),
+			        ('Clash@Example.com', 'b', 'trainee', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 

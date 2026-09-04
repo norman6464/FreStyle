@@ -748,7 +748,7 @@ func kbSuperAdminRouter(f kbFixture, uid uint64) *gin.Engine {
 	g.Use(func(c *gin.Context) {
 		c.Set(middleware.ContextKeyCurrentUserID, uid)
 		c.Set(middleware.ContextKeyCurrentUser, &domain.User{
-			ID: uid, Role: domain.RoleSuperAdmin, RoleID: domain.RoleIDSuperAdmin,
+			ID: uid, Role: domain.RoleSuperAdmin,
 		})
 		c.Next()
 	})

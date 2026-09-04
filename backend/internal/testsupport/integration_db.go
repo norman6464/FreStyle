@@ -87,15 +87,11 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 
 	serializeIntegration(t, sqlDB)
 
-	// 中核テーブル（users / roles / courses / … と FK / CHECK / 部分 UNIQUE）は
+	// 中核テーブル（users / courses / … と FK / CHECK / 部分 UNIQUE）は
 	// 起動時（database.Migrate）と同じ明示 DDL（schema.sql Ⅰ）で作る。
+	// users.role は列そのもの（ck_users_role）で、投入が要る参照先マスタは持たない。
 	if err := database.ApplyCoreSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyCoreSchema 失敗: %v", err)
-	}
-	// users.role_id の解決（Create の resolveRoleID）が roles マスタを前提にするため、
-	// 起動時（database.Migrate）と同じくロールを投入しておく。
-	if err := database.SeedRoles(t.Context(), sqlDB); err != nil {
-		t.Fatalf("SeedRoles 失敗: %v", err)
 	}
 	// ノート（workspaces / spaces / pages / blocks / …）も同じ明示 DDL（schema.sql Ⅱ〜Ⅳ）を流す。
 	// バックフィルは呼ばない（テストが自分でデータを用意する。起動相当の再実行は

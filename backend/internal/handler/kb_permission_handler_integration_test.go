@@ -646,7 +646,7 @@ func kbSuperAdminEnvRouter(e *kbPermEnv, userID uint64) *gin.Engine {
 	g.Use(func(c *gin.Context) {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Set(middleware.ContextKeyCurrentUser, &domain.User{
-			ID: userID, Role: domain.RoleSuperAdmin, RoleID: domain.RoleIDSuperAdmin,
+			ID: userID, Role: domain.RoleSuperAdmin,
 		})
 		c.Next()
 	})

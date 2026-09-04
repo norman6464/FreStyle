@@ -30,13 +30,12 @@ func (q *Queries) AcquireBootstrapSuperAdminLock(ctx context.Context, lockKey in
 
 const countActiveSuperAdmins = `-- name: CountActiveSuperAdmins :one
 SELECT count(*) FROM users u
-JOIN roles r ON r.id = u.role_id
-WHERE r.name = $1 AND u.deleted_at IS NULL
+WHERE u.role = $1 AND u.deleted_at IS NULL
 `
 
 // 論理削除されていない運営管理者の人数。免除経路（招待なしの作成）が既に閉じているかの判定に使う。
-func (q *Queries) CountActiveSuperAdmins(ctx context.Context, name string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countActiveSuperAdmins, name)
+func (q *Queries) CountActiveSuperAdmins(ctx context.Context, role string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveSuperAdmins, role)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -84,23 +83,9 @@ func (q *Queries) GetOidcIdentityOwner(ctx context.Context, arg GetOidcIdentityO
 	return user_id, err
 }
 
-const getRoleIDByName = `-- name: GetRoleIDByName :one
-SELECT id FROM roles WHERE name = $1
-`
-
-// ロール名を roles.id に解決する。未知の名前は 0 件で返り、呼び出し側がエラーにする
-// （黙って別ロールへ倒さない）。
-func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int32, error) {
-	row := q.db.QueryRowContext(ctx, getRoleIDByName, name)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
-}
-
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
   AND u.id IN (
     SELECT oi.user_id FROM user_oidc_identities oi
@@ -113,12 +98,11 @@ type GetUserByCognitoSubRow struct {
 	Email       string
 	Name        string
 	WorkspaceID uuid.NullUUID
-	RoleID      int32
+	Role        string
 	IsActive    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime
-	RoleName    string
 }
 
 func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetUserByCognitoSubRow, error) {
@@ -129,20 +113,18 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 		&i.Email,
 		&i.Name,
 		&i.WorkspaceID,
-		&i.RoleID,
+		&i.Role,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.RoleName,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
 `
 
@@ -151,12 +133,11 @@ type GetUserByIDRow struct {
 	Email       string
 	Name        string
 	WorkspaceID uuid.NullUUID
-	RoleID      int32
+	Role        string
 	IsActive    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime
-	RoleName    string
 }
 
 // 内部 ID で 1 ユーザーを引く（論理削除は除外）。
@@ -168,12 +149,11 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.Email,
 		&i.Name,
 		&i.WorkspaceID,
-		&i.RoleID,
+		&i.Role,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.RoleName,
 	)
 	return i, err
 }
@@ -202,7 +182,7 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, password_hash, name, workspace_id, role_id,
+  email, password_hash, name, workspace_id, role,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
@@ -216,7 +196,7 @@ type InsertUserParams struct {
 	PasswordHash sql.NullString
 	Name         string
 	WorkspaceID  uuid.NullUUID
-	RoleID       int32
+	Role         string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    sql.NullTime
@@ -239,7 +219,7 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 		arg.PasswordHash,
 		arg.Name,
 		arg.WorkspaceID,
-		arg.RoleID,
+		arg.Role,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.DeletedAt,
@@ -251,7 +231,7 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, password_hash, name, workspace_id, role_id,
+  id, email, password_hash, name, workspace_id, role,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
@@ -266,7 +246,7 @@ type InsertUserWithIDParams struct {
 	PasswordHash sql.NullString
 	Name         string
 	WorkspaceID  uuid.NullUUID
-	RoleID       int32
+	Role         string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    sql.NullTime
@@ -287,7 +267,7 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 		arg.PasswordHash,
 		arg.Name,
 		arg.WorkspaceID,
-		arg.RoleID,
+		arg.Role,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.DeletedAt,
@@ -298,9 +278,8 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 }
 
 const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
-SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash
 FROM users u
-LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B\f\r '))
   AND btrim(u.email, E'\t\n\x0B\f\r ') <> '' AND u.deleted_at IS NULL AND u.is_active
 `
@@ -310,13 +289,12 @@ type ListActiveUsersByEmailRow struct {
 	Email        string
 	Name         string
 	WorkspaceID  uuid.NullUUID
-	RoleID       int32
+	Role         string
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    sql.NullTime
 	PasswordHash sql.NullString
-	RoleName     string
 }
 
 // email で有効ユーザーを引く（論理削除・無効化は除外）。ローカルのパスワードログイン専用で、
@@ -343,13 +321,12 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 			&i.Email,
 			&i.Name,
 			&i.WorkspaceID,
-			&i.RoleID,
+			&i.Role,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
 			&i.PasswordHash,
-			&i.RoleName,
 		); err != nil {
 			return nil, err
 		}
@@ -365,10 +342,9 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-LEFT JOIN roles r ON r.id = u.role_id
-WHERE r.name = $1 AND u.deleted_at IS NULL
+WHERE u.role = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC
 `
 
@@ -377,17 +353,16 @@ type ListUsersByRoleRow struct {
 	Email       string
 	Name        string
 	WorkspaceID uuid.NullUUID
-	RoleID      int32
+	Role        string
 	IsActive    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime
-	RoleName    string
 }
 
 // role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsersByRoleRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersByRole, name)
+func (q *Queries) ListUsersByRole(ctx context.Context, role string) ([]ListUsersByRoleRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersByRole, role)
 	if err != nil {
 		return nil, err
 	}
@@ -400,12 +375,11 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 			&i.Email,
 			&i.Name,
 			&i.WorkspaceID,
-			&i.RoleID,
+			&i.Role,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.RoleName,
 		); err != nil {
 			return nil, err
 		}
@@ -421,9 +395,8 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 }
 
 const listUsersByWorkspaceID = `-- name: ListUsersByWorkspaceID :many
-SELECT u.id, u.email, u.name, u.workspace_id, u.role_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.workspace_id, u.role, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC
 `
@@ -433,12 +406,11 @@ type ListUsersByWorkspaceIDRow struct {
 	Email       string
 	Name        string
 	WorkspaceID uuid.NullUUID
-	RoleID      int32
+	Role        string
 	IsActive    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime
-	RoleName    string
 }
 
 // ワークスペース単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
@@ -456,12 +428,11 @@ func (q *Queries) ListUsersByWorkspaceID(ctx context.Context, workspaceID uuid.N
 			&i.Email,
 			&i.Name,
 			&i.WorkspaceID,
-			&i.RoleID,
+			&i.Role,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.RoleName,
 		); err != nil {
 			return nil, err
 		}
@@ -526,20 +497,21 @@ func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) 
 	return result.RowsAffected()
 }
 
-const updateUserRoleID = `-- name: UpdateUserRoleID :execrows
-UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1
+const updateUserRole = `-- name: UpdateUserRole :execrows
+UPDATE users SET role = $2, updated_at = now() WHERE id = $1
 `
 
-type UpdateUserRoleIDParams struct {
-	ID     int64
-	RoleID int32
+type UpdateUserRoleParams struct {
+	ID   int64
+	Role string
 }
 
 // 役割だけを更新する（誰がどの役割になれるかの判定は usecase 側の仕事）。
 // 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。昇格が 1 行も
 // 当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれる。
-func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserRoleID, arg.ID, arg.RoleID)
+// 未知のロール名は ck_users_role が弾く（黙って別ロールへ倒さない）。
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserRole, arg.ID, arg.Role)
 	if err != nil {
 		return 0, err
 	}

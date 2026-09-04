@@ -63,8 +63,14 @@ ensure-atlas:
 .PHONY: schema-gen
 schema-gen: ensure-atlas
 	@echo ">>> atlas schema inspect ($(SCHEMA_HCL) -> $(SCHEMA_GEN_SQL), $(LOCAL_DB_INIT_SQL))"
-	@"$(ATLAS)" schema inspect --url "file://$(SCHEMA_HCL)" --dev-url "$(ATLAS_DEV_URL)" --format '{{ sql . }}' > "$(SCHEMA_GEN_SQL)"
-	@cp "$(SCHEMA_GEN_SQL)" "$(LOCAL_DB_INIT_SQL)"
+	@tmp="$$(mktemp)"; \
+	if ! "$(ATLAS)" schema inspect --url "file://$(SCHEMA_HCL)" --dev-url "$(ATLAS_DEV_URL)" --format '{{ sql . }}' > "$$tmp"; then \
+	  rm -f "$$tmp"; \
+	  exit 1; \
+	fi; \
+	cp "$$tmp" "$(SCHEMA_GEN_SQL)"; \
+	cp "$$tmp" "$(LOCAL_DB_INIT_SQL)"; \
+	rm -f "$$tmp"
 
 # schema.hcl を TARGET の実 DB に当てたときの差分を表示するだけ（何も変更しない）。
 # 本番へ当てる前に必ずこれで計画を読み、DROP が意図どおりかを確認すること。

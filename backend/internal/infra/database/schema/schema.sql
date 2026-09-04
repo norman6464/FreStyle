@@ -12,7 +12,7 @@
 -- ## 並び順を崩さないこと
 --
 -- 上から順に流すことを前提に書いてある。外部キーの参照先は必ず自分より上にある。
---   Ⅰ 中核    … users / roles / workspaces / companies / courses / exercises …
+--   Ⅰ 中核    … users / roles / workspaces / courses / exercises …
 --   Ⅱ ノートの骨格 … spaces / pages / blocks / page_paths / page_snapshots
 --   Ⅲ ノートの権限 … principals / grants / share_links
 --                    （Ⅰ の users へ FK を張るので Ⅰ より後でなければならない）
@@ -33,7 +33,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- Ⅰ. 中核（users / roles / companies / courses / exercises …）
+-- Ⅰ. 中核（users / roles / courses / exercises …）
 -- =====================================================================
 
 -- アプリケーション中核テーブルの DDL（実スキーマの正本）。
@@ -59,7 +59,7 @@
 --   - ノート（骨格 spaces / pages / blocks / page_paths / page_snapshots、
 --     権限モデル principals / principal_members / workspace_grants / space_grants /
 --     share_links）→ schema/knowledge_base*.sql が正本。workspaces はテナント境界として
---     companies / courses 等の中核テーブルからも参照されるため、このファイル側に置く。
+--     courses 等の中核テーブルからも参照されるため、このファイル側に置く。
 --   - FK / CHECK / 部分 UNIQUE のうち、既存データの修復を伴うもの（users の正規化まわり）
 --     → このファイル自身の DO ブロックが、バックフィルの後に張る。
 --
@@ -130,10 +130,10 @@ CREATE TABLE IF NOT EXISTS users (
     workspace_id  uuid
 );
 
--- ワークスペース: テナント境界。ノート（spaces 以下）と、companies 由来の業務データ
--- （courses / course_chapters / company_exercises / invitations / rich_documents）が
--- どちらもこの表を指す。users の直後に置くのは personal_owner_user_id が users を参照するため。
--- companies 以降の中核テーブルより前に置くのは、それらが workspace_id で参照するため。
+-- ワークスペース: テナント境界。ノート（spaces 以下）と、業務データ
+-- （courses / course_chapters / invitations / rich_documents）がどちらもこの表を指す。
+-- users の直後に置くのは personal_owner_user_id が users を参照するため。
+-- 業務テーブルより前に置くのは、それらが workspace_id で参照するため。
 CREATE TABLE IF NOT EXISTS workspaces (
     id         uuid PRIMARY KEY,
     -- slug は URL に出る短い識別子。テナント内ではなくグローバルに一意。
@@ -205,23 +205,6 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id);
 
--- 企業（現行のテナント）。
-CREATE TABLE IF NOT EXISTS companies (
-    id                           bigserial PRIMARY KEY,
-    name                         text NOT NULL,
-    is_active                    boolean NOT NULL DEFAULT true,
-    created_at                   timestamptz NOT NULL,
-    updated_at                   timestamptz NOT NULL,
-    -- 対応する workspaces 行への橋渡し。テナントの正本を workspaces へ移す移行期間だけの列で、
-    -- companies を畳むときに列ごと消える。
-    workspace_id                 uuid,
-
-    CONSTRAINT fk_companies_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
-);
--- 会社とワークスペースは 1:1。2 つの会社が同じワークスペースを指す状態を作らせない。
--- partial index なのでテーブル制約としては書けない。
-CREATE UNIQUE INDEX IF NOT EXISTS uq_companies_workspace_id
-    ON companies (workspace_id) WHERE workspace_id IS NOT NULL;
 
 -- 教材コース。
 CREATE TABLE IF NOT EXISTS courses (
@@ -303,30 +286,9 @@ CREATE TABLE IF NOT EXISTS master_exercises (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_master_exercises_slug ON master_exercises (slug);
 CREATE INDEX IF NOT EXISTS idx_master_exercises_language ON master_exercises (language);
 
--- 会社独自の演習（論理削除あり）。
-CREATE TABLE IF NOT EXISTS company_exercises (
-    id              bigserial PRIMARY KEY,
-    language        varchar(32) NOT NULL,
-    title           varchar(200) NOT NULL,
-    description     text NOT NULL,
-    starter_code    text NOT NULL,
-    hint_text       text,
-    expected_output text,
-    difficulty      smallint NOT NULL DEFAULT 1,
-    is_published    boolean NOT NULL DEFAULT false,
-    chapter_id      bigint,
-    created_by      bigint NOT NULL,
-    created_at      timestamptz NOT NULL,
-    updated_at      timestamptz NOT NULL,
-    deleted_at      timestamptz,
-    -- 所属の正本（company_id は撤去済み）。
-    workspace_id    uuid,
-
-    CONSTRAINT fk_company_exercises_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
-);
-CREATE INDEX IF NOT EXISTS idx_company_exercises_language ON company_exercises (language);
-CREATE INDEX IF NOT EXISTS idx_company_exercises_deleted_at ON company_exercises (deleted_at);
-CREATE INDEX IF NOT EXISTS idx_company_exercises_workspace_id ON company_exercises (workspace_id);
+-- company_exercises（会社独自の演習）は上の companies と同じレガシー撤去の対象。
+-- アプリから書く経路は元々無かった（repository も sqlc のクエリも無い）。
+DROP TABLE IF EXISTS company_exercises;
 
 -- コード演習の提出履歴（append-only）。stdout / stderr は未取得のとき NULL。
 CREATE TABLE IF NOT EXISTS exercise_submissions (
@@ -477,7 +439,6 @@ BEGIN
             ('audit_events', 'action', $$''::character varying$$),
             ('audit_events', 'actor_email', $$''::character varying$$),
             ('audit_events', 'actor_role', $$''::character varying$$),
-            ('company_applications', 'message', $$''::text$$),
             ('invitations', 'email', $$''::text$$),
             ('invitations', 'name', $$''::text$$),
             ('invitations', 'role', $$''::text$$),
@@ -523,13 +484,6 @@ BEGIN
             ('audit_events', 'actor_role', $$''::character varying$$),
             ('audit_events', 'created_at', $$now()$$),
             ('audit_events', 'target_id', $$0$$),
-            ('companies', 'created_at', $$now()$$),
-            ('companies', 'updated_at', $$now()$$),
-            ('company_applications', 'created_at', $$now()$$),
-            ('company_applications', 'message', $$''::text$$),
-            ('company_applications', 'updated_at', $$now()$$),
-            ('company_exercises', 'created_at', $$now()$$),
-            ('company_exercises', 'updated_at', $$now()$$),
             ('course_chapters', 'course_id', $$0$$),
             ('course_chapters', 'created_at', $$now()$$),
             ('course_chapters', 'updated_at', $$now()$$),
@@ -729,7 +683,7 @@ END $$;
 
 -- ノート（spaces / pages / blocks / page_paths / page_snapshots）の DDL。
 -- workspaces（テナント境界）自体は中核テーブルの一部として節Ⅰに定義済み
--- （companies / courses 等の中核テーブルからも参照されるため）。
+-- （courses 等の中核テーブルからも参照されるため）。
 --
 -- このファイルが実スキーマの正本であり、同時に sqlc の型付け入力でもある
 -- （backend/sqlc.yaml の schema に登録済み。列を足したら `make sqlc` で生成物を作り直す）。
@@ -1301,9 +1255,8 @@ CREATE INDEX IF NOT EXISTS idx_share_links_created_by ON share_links (created_by
 -- Ⅳ. コース / 教材の権限（course_grants / chapter_grants）
 -- =====================================================================
 --
--- companies.workspace_id / users.workspace_id、courses / course_chapters /
--- company_exercises / invitations / rich_documents の workspace_id 列と FK、
--- workspaces.personal_owner_user_id は、いずれも節Ⅰ（中核）の CREATE TABLE に
+-- users.workspace_id、courses / course_chapters / invitations / rich_documents の
+-- workspace_id 列と FK、workspaces.personal_owner_user_id は、いずれも節Ⅰ（中核）の CREATE TABLE に
 -- インラインで定義済み（唯一 fk_users_workspace だけは workspaces の CREATE TABLE
 -- 直後の DO ブロック、節Ⅰ内にある）。この節に残るのは、principals（節Ⅲ）を参照する
 -- ため節Ⅰには置けない course_grants / chapter_grants だけ。

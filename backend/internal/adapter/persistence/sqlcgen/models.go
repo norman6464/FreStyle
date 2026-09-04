@@ -44,33 +44,6 @@ type ChapterGrant struct {
 	UpdatedAt   time.Time
 }
 
-type Company struct {
-	ID          int64
-	Name        string
-	IsActive    bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	WorkspaceID uuid.NullUUID
-}
-
-type CompanyExercise struct {
-	ID             int64
-	Language       string
-	Title          string
-	Description    string
-	StarterCode    string
-	HintText       sql.NullString
-	ExpectedOutput sql.NullString
-	Difficulty     int16
-	IsPublished    bool
-	ChapterID      sql.NullInt64
-	CreatedBy      int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      sql.NullTime
-	WorkspaceID    uuid.NullUUID
-}
-
 type Course struct {
 	ID              int64
 	CreatedByUserID int64

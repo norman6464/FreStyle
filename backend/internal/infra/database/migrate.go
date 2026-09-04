@@ -44,10 +44,9 @@ type Executor interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// Migrate は起動時にスキーマを適用する。schema/schema.sql（中核 → ノート → 権限 →
-// テナント橋渡しの順に並ぶ）が正本で、バックフィル・制約もその中の DO ブロックとして
-// 埋め込まれている。RESET_DB=true のときは public schema を完全 wipe してから再構築する
-// （一回限りの初期構築用）。
+// Migrate は起動時にスキーマを適用する。schema/schema.sql（中核 → ノート → 権限の順に
+// 並ぶ）が正本で、バックフィル・制約もその中の DO ブロックとして埋め込まれている。
+// RESET_DB=true のときは public schema を完全 wipe してから再構築する（一回限りの初期構築用）。
 //
 // roles マスタは users.role_id が参照する FK 先なので投入まで行う（SeedRoles は
 // ON CONFLICT DO NOTHING で冪等・既存行は書き換えない）。新規環境・DR 復元で
@@ -86,16 +85,6 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	log.Println("migrate: knowledge base schema done")
-
-	// 会社→ワークスペースの同期。列・FK は schema.sql（節Ⅰ）で完結しており、company_id から
-	// workspace_id への一回きりの移送（旧 Expand → Migrate → Contract の後半 2 段）は既に
-	// 完了して撤去済み。残るのは「会社を作ったら対応するワークスペースを必ず 1 つ用意する」
-	// という恒常的な同期だけ（詳細は tenant_bridge.go 冒頭）。
-	log.Println("migrate: workspace backfill start")
-	if err := BackfillWorkspacesFromCompanies(ctx, db); err != nil {
-		return err
-	}
-	log.Println("migrate: workspace backfill done")
 	return nil
 }
 

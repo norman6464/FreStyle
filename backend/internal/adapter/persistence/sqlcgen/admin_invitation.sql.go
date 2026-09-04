@@ -137,9 +137,8 @@ type InsertInvitationRow struct {
 // （GORM autoCreateTime 相当。ゼロなら now を入れる）。updated_at 列は持たない。
 // token は未設定を NULL にして UNIQUE を避けるため nullable。
 //
-// workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
-// 招待先の会社は SuperAdmin が任意の company id で指定できるため、usecase が
-// CompanyRepository.FindByID で対応する workspace_id を解決してから渡す。
+// workspace_id は呼び出し側（usecase）が解決した値をそのまま書く。ここではサブクエリ参照
+// しない（招待先は domain.WorkspaceRef として渡ってくる）。
 func (q *Queries) InsertInvitation(ctx context.Context, arg InsertInvitationParams) (InsertInvitationRow, error) {
 	row := q.db.QueryRowContext(ctx, insertInvitation,
 		arg.WorkspaceID,

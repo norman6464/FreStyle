@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -29,17 +30,13 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 		}
 	}
 
-	testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+	testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, workspaceWriteTables...)...)
 	ensureCourses(t, sqlDB, nil, 10, 20, 30)
-	insertCompany(t, sqlDB, 1, "会社 A", true)
-	insertCompany(t, sqlDB, 2, "会社 B", true)
-	runStartupBackfill(ctx, t, sqlDB)
-	ws1 := companyWorkspaceID(t, sqlDB, 1)
-	require.True(t, ws1.Valid)
-	ws1Str := ws1.UUID.String()
-	ws2 := companyWorkspaceID(t, sqlDB, 2)
-	require.True(t, ws2.Valid)
-	ws2Str := ws2.UUID.String()
+	ws1, ws2 := uuid.New(), uuid.New()
+	insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+	insertWorkspaceWithActive(t, sqlDB, ws2, "ワークスペース B", true)
+	ws1Str := ws1.String()
+	ws2Str := ws2.String()
 
 	// Create は呼び出し側（usecase）が解決した workspace_id をそのまま書く。
 	// ワークスペース A: course 10 に published 2 + draft 1、course 20 に published 1
@@ -51,13 +48,13 @@ func TestTeachingMaterialRepository_CountByCourseForWorkspace_Integration(t *tes
 	require.NoError(t, repo.Create(ctx, mk(&ws2Str, 30, "other-workspace", true)))
 
 	t.Run("published のみ (trainee 相当)", func(t *testing.T) {
-		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), false)
+		counts, err := repo.CountByCourseForWorkspace(ctx, ws1Str, false)
 		require.NoError(t, err)
 		require.Equal(t, map[uint64]int{10: 2, 20: 1}, counts)
 	})
 
 	t.Run("下書き込み (admin 相当)", func(t *testing.T) {
-		counts, err := repo.CountByCourseForWorkspace(ctx, ws1.UUID.String(), true)
+		counts, err := repo.CountByCourseForWorkspace(ctx, ws1Str, true)
 		require.NoError(t, err)
 		require.Equal(t, map[uint64]int{10: 3, 20: 1}, counts)
 	})
@@ -166,13 +163,11 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("GetByID は本文 doc・workspace_id を含めて返し、未存在は domain.ErrNotFound", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, workspaceWriteTables...)...)
 		ensureCourses(t, sqlDB, nil, 10, 20, 30)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
-		require.True(t, ws1.Valid)
-		ws1Str := ws1.UUID.String()
+		ws1 := uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+		ws1Str := ws1.String()
 
 		m := mk(10, "章", 1, true)
 		m.WorkspaceID = &ws1Str
@@ -183,7 +178,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.NoError(t, err)
 		// UpdateDocWithRevision の戻り値にも workspace_id が含まれること。
 		require.NotNil(t, updated.WorkspaceID)
-		require.Equal(t, ws1.UUID.String(), *updated.WorkspaceID)
+		require.Equal(t, ws1Str, *updated.WorkspaceID)
 
 		got, err := repo.GetByID(ctx, m.ID)
 		require.NoError(t, err)
@@ -192,7 +187,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Contains(t, *got.Doc, "paragraph")
 		// GetByID が workspace_id も返すこと（canRead の対象側比較が使う値）。
 		require.NotNil(t, got.WorkspaceID)
-		require.Equal(t, ws1.UUID.String(), *got.WorkspaceID)
+		require.Equal(t, ws1Str, *got.WorkspaceID)
 
 		_, err = repo.GetByID(ctx, 999999)
 		require.ErrorIs(t, err, domain.ErrNotFound)
@@ -230,13 +225,11 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByCourse は workspace_id も含めて返す", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, workspaceWriteTables...)...)
 		ensureCourses(t, sqlDB, nil, 10, 20, 30)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1 := companyWorkspaceID(t, sqlDB, 1)
-		require.True(t, ws1.Valid)
-		ws1Str := ws1.UUID.String()
+		ws1 := uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+		ws1Str := ws1.String()
 
 		m := mk(10, "章", 1, true)
 		m.WorkspaceID = &ws1Str
@@ -246,17 +239,17 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, byCourse, 1)
 		require.NotNil(t, byCourse[0].WorkspaceID)
-		require.Equal(t, ws1.UUID.String(), *byCourse[0].WorkspaceID)
+		require.Equal(t, ws1Str, *byCourse[0].WorkspaceID)
 	})
 
 	t.Run("Update は title/sort_order/is_published を書き・不変列を保ち・updated_at を進める", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, tenantBridgeTables...)...)
+		testsupport.TruncateAll(t, sqlDB, append([]string{"course_chapters"}, workspaceWriteTables...)...)
 		ensureCourses(t, sqlDB, nil, 10, 20, 30)
-		insertCompany(t, sqlDB, 1, "会社 A", true)
-		insertCompany(t, sqlDB, 2, "会社 B", true)
-		runStartupBackfill(ctx, t, sqlDB)
-		ws1Str := companyWorkspaceID(t, sqlDB, 1).UUID.String()
-		ws2Str := companyWorkspaceID(t, sqlDB, 2).UUID.String()
+		ws1, ws2 := uuid.New(), uuid.New()
+		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
+		insertWorkspaceWithActive(t, sqlDB, ws2, "ワークスペース B", true)
+		ws1Str := ws1.String()
+		ws2Str := ws2.String()
 
 		m := mk(10, "旧", 1, false)
 		m.WorkspaceID = &ws1Str

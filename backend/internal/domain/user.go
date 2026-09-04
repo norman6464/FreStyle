@@ -13,14 +13,9 @@ type User struct {
 	Name         string  `json:"name"`
 	// WorkspaceID は所属ワークスペースへの参照。未所属（運営管理者等）は NULL。
 	WorkspaceID *string `json:"workspaceId,omitempty"`
-	// Role はロール名（roles.name）。DB には列を持たない導出値で、読み出し時は repository が
-	// roles を JOIN して role_id から解決し、書き込み時は RoleID へ変換して保存する。
+	// Role はロール名。users.role 列そのもので、名前と ID を突き合わせる変換は挟まらない
+	// （かつては roles マスタ表への FK だったが撤去した。理由は schema/schema.sql の users を参照）。
 	Role RoleName `json:"role"`
-	// RoleID は roles マスタへの参照（正規化後の正）。repository が Role 名から解決して設定する。
-	// 列の NOT NULL / DEFAULT 3（= RoleIDTrainee）は schema/core.sql が持つ。
-	// この既定値は、ローリングデプロイ中の旧コード（role_id を書かない INSERT）を
-	// NOT NULL 違反で壊さないための安全弁で、起動時バックフィルが role 文字列と同期する。
-	RoleID int32 `json:"-"`
 	// IsActive はユーザーアカウントの有効/無効。false（無効）にすると、このユーザーは
 	// ログイン/利用不可になる（middleware で弾く）。super_admin / company_admin が個別に停止できる。
 	IsActive  bool       `json:"isActive"`

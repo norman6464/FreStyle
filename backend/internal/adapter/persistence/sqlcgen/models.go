@@ -237,14 +237,6 @@ type RichDocument struct {
 	WorkspaceID   uuid.NullUUID
 }
 
-type Role struct {
-	ID          int32
-	Name        string
-	Description string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
 type ScoreCard struct {
 	ID                 int64
 	UserID             sql.NullInt64
@@ -299,7 +291,7 @@ type User struct {
 	Email        string
 	PasswordHash sql.NullString
 	Name         string
-	RoleID       int32
+	Role         string
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

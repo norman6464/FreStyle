@@ -1,4 +1,4 @@
--- Ⅰ. 中核（users / roles / courses / exercises …）
+-- Ⅰ. 中核（users / courses / exercises …）
 -- CREATE 文以外の記載禁止
 -- 演習の入力例 / 期待出力例。(exercise_id, order_index) は同一問題内で一意。
 CREATE TABLE IF NOT EXISTS master_exercise_examples (
@@ -13,23 +13,19 @@ CREATE TABLE IF NOT EXISTS master_exercise_examples (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_examples_exercise_order
     ON master_exercise_examples (exercise_id, order_index);
 
--- ロールマスタ。name はアプリのビジネス定数（super_admin 等）と一致する。
--- id は固定採番（1: super_admin / 2: company_admin / 3: trainee）で、採番列にしない。
--- 型は integer（本番の実列も integer）。
-CREATE TABLE IF NOT EXISTS roles (
-    id          integer PRIMARY KEY,
-    name        text NOT NULL,
-    description text NOT NULL DEFAULT '',
-    created_at  timestamptz NOT NULL,
-    updated_at  timestamptz NOT NULL,
-
-    CONSTRAINT ck_roles_name_not_empty CHECK (name <> '')
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_name ON roles (name);
-
 -- 利用者。deleted_at は実際に NULL になり得る。workspace_id は運営管理者等の未所属で NULL。
--- role_id は roles マスタへの参照（正規化後の正）。DEFAULT 3 = trainee は、ローリングデプロイ中の
--- 旧コード（role_id を書かない INSERT）を NOT NULL 違反で壊さないための安全弁。
+--
+-- role はロール名そのものを持つ（かつては roles マスタ表への FK だった。撤去の経緯を残す）。
+--   ロールは 3 つで固定され、名前も ID も Go 側の定数（domain.RoleName）に直接書いてある。
+--   つまり実体は「表」ではなく「コンパイル時の定数」で、それを表にしていたために
+--   **roles に 3 行入っていない DB ではユーザーを 1 人も作れない**という依存が生まれていた
+--   （FK の参照先が無いため）。スキーマがデータの存在に依存するのは順序が逆なので、
+--   参照先ごと畳んで列に持たせ、値の正しさは CHECK で守る形にした。
+--   ロールを増やすときは CHECK と domain.RoleName の両方を直すこと（片方だけでは通らない）。
+--
+-- DEFAULT 'trainee' は、role を書かない INSERT を NOT NULL 違反で壊さないための安全弁。
+-- 既定を「いちばん弱い権限」にしておくのは、書き漏らしが権限の昇格にならないようにするため。
+--
 -- アクティブ行の email 部分 UNIQUE（uq_users_email_active）は下の DO ブロックが、
 -- 正規形へのバックフィル後に張る（重複データがあれば警告に留める実行時ロジックを伴うため、
 -- CREATE のインライン制約では表せない唯一の例外の 1 つ）。
@@ -38,7 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
     email         text NOT NULL DEFAULT '',
     password_hash text,
     name          text NOT NULL DEFAULT '',
-    role_id       integer NOT NULL DEFAULT 3,
+    role          text NOT NULL DEFAULT 'trainee',
     is_active     boolean NOT NULL DEFAULT true,
     created_at    timestamptz NOT NULL,
     updated_at    timestamptz NOT NULL,
@@ -49,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- （users と workspaces が互いを参照する真の循環依存で、インライン化できない唯一の例外）。
     workspace_id  uuid,
 
-    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles (id)
+    CONSTRAINT ck_users_role CHECK (role IN ('super_admin', 'company_admin', 'trainee'))
 );
 
 -- OIDC プロバイダ由来のユーザー識別子（Cognito の sub を users から分離）。

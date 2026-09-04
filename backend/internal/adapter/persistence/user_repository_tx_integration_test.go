@@ -40,8 +40,8 @@ func countActiveSuperAdmins(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
 	var n int64
 	require.NoError(t, db.QueryRow(
-		`SELECT count(*) FROM users u JOIN roles r ON r.id = u.role_id
-		 WHERE r.name = $1 AND u.deleted_at IS NULL`, string(domain.RoleSuperAdmin),
+		`SELECT count(*) FROM users u
+		 WHERE u.role = $1 AND u.deleted_at IS NULL`, string(domain.RoleSuperAdmin),
 	).Scan(&n))
 	return n
 }
@@ -295,7 +295,6 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		got, err = repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
 		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
-		require.Equal(t, domain.RoleIDCompanyAdmin, got.RoleID)
 		require.Equal(t, "新しい名前", got.Name, "name は触らない")
 		require.True(t, got.IsActive, "is_active は触らない")
 	})

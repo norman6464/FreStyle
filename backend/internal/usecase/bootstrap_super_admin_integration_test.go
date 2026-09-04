@@ -91,8 +91,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 
 		created := queryStrings(t, sqlDB,
 			`SELECT u.email FROM users u
-			 JOIN roles r ON r.id = u.role_id
-			 WHERE r.name = 'super_admin' AND u.deleted_at IS NULL
+			 WHERE u.role = 'super_admin' AND u.deleted_at IS NULL
 			 ORDER BY u.id`)
 		// 不変条件の検証は assert（1 回落ちても後続の round を最後まで回して全体像を出す）。
 		assert.LessOrEqualf(t, len(created), 1,

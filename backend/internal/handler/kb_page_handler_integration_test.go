@@ -148,8 +148,8 @@ func kbInsertUser(t *testing.T, db *sql.DB, name string) uint64 {
 	t.Helper()
 	var id uint64
 	require.NoError(t, db.QueryRow(
-		`INSERT INTO users (id, email, name, role_id, is_active, created_at, updated_at)
-		 VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM users), $1, $2, 3, true, now(), now())
+		`INSERT INTO users (id, email, name, role, is_active, created_at, updated_at)
+		 VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM users), $1, $2, 'trainee', true, now(), now())
 		 RETURNING id`,
 		name+"+"+kbNewUUID()+"@example.test", name,
 	).Scan(&id))

@@ -17,7 +17,8 @@ import (
 // TestUserNormalization_Integration は users 正規化（FRESTYLE-311）の契約を実 Postgres で固定する。
 // 旧カラム（users.role / users.cognito_sub）撤去（migrations/0021）後の world を対象にする:
 //   - CreateWithOidcIdentity が users 行と identity を単一トランザクションで作る（片方だけ残らない）
-//   - role 名は roles.id へ解決して role_id に書き、読み出しは roles を JOIN して name を返す
+//   - role はロール名そのものを持つ列（かつては roles マスタ表への FK だった。撤去の経緯は
+//     schema/schema.sql の users を参照）。値の正しさは ck_users_role が守る
 //   - FindByCognitoSub は user_oidc_identities 経由でのみ解決する
 //   - FK / CHECK / 部分 UNIQUE / CASCADE などの DB 制約
 func TestUserNormalization_Integration(t *testing.T) {
@@ -30,7 +31,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
 	}
 
-	t.Run("CreateWithOidcIdentity は role 名を role_id に解決し identity も作る", func(t *testing.T) {
+	t.Run("CreateWithOidcIdentity は role をそのまま保存し identity も作る", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "n1@example.com", Name: "n1", Role: domain.RoleCompanyAdmin}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "norm-1"))
@@ -39,7 +40,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
-		require.Equal(t, domain.RoleIDCompanyAdmin, got.RoleID)
 
 		// identity が対で作られている。
 		var count int64
@@ -58,7 +58,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 			repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "norm-x"),
 			"unknown role",
 		)
-		// role 解決はトランザクション前に失敗するので users 行は作られない。
+		// role の妥当性は INSERT を発行する前（insertUserTx）で弾くので users 行は作られない。
 		var count int64
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM users`).Scan(&count))
 		require.Equal(t, int64(0), count)
@@ -91,7 +91,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, int64(1), count)
 	})
 
-	t.Run("UpdateRole は role_id を更新する", func(t *testing.T) {
+	t.Run("UpdateRole は role 列を更新する", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "n4@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "norm-4"))
@@ -101,7 +101,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
 		require.Equal(t, domain.RoleSuperAdmin, got.Role)
-		require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID)
 	})
 
 	t.Run("UpdateRole は未知の role 名を拒否する", func(t *testing.T) {
@@ -116,13 +115,13 @@ func TestUserNormalization_Integration(t *testing.T) {
 		u := &domain.User{Email: "bf@example.com", Role: domain.RoleCompanyAdmin}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "bf-1"))
 
-		// 何度流しても role_id / identity を壊さない（role_id を旧 role 基準で巻き戻さない）。
+		// 何度流しても role / identity を壊さない。
 		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
-		require.Equal(t, domain.RoleIDCompanyAdmin, got.RoleID)
+		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
 		var idCount int64
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT count(*) FROM user_oidc_identities WHERE user_id = $1`, u.ID,
@@ -130,13 +129,13 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, int64(1), idCount)
 	})
 
-	t.Run("DB 制約: 存在しない role_id の INSERT は FK で拒否される", func(t *testing.T) {
+	t.Run("DB 制約: 未知の role の INSERT は CHECK で拒否される", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES ('fkx@example.com', 'x', 999, true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+			 VALUES ('fkx@example.com', 'x', 'no_such_role', true, NOW(), NOW())`,
 		)
-		require.ErrorContains(t, err, "fk_users_role")
+		require.ErrorContains(t, err, "ck_users_role")
 	})
 
 	t.Run("DB 制約: 存在しない user_id の identity は FK で拒否される", func(t *testing.T) {
@@ -203,9 +202,9 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, int64(0), count)
 	})
 
-	t.Run("DB 制約: role_id は NOT NULL（省略時は DEFAULT trainee が入る）", func(t *testing.T) {
+	t.Run("DB 制約: role は NOT NULL（省略時は DEFAULT trainee が入る）", func(t *testing.T) {
 		truncate(t)
-		// role_id を省略した INSERT → DEFAULT trainee で通る（NOT NULL + DEFAULT の回帰）。
+		// role を省略した INSERT → DEFAULT trainee で通る（NOT NULL + DEFAULT の回帰）。
 		_, err := sqlDB.Exec(
 			`INSERT INTO users (email, name, is_active, created_at, updated_at)
 			 VALUES ('def@example.com', 'd', true, NOW(), NOW())`,
@@ -214,8 +213,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 		got, err := repo.FindActiveByEmail(ctx, "def@example.com")
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		require.Equal(t, domain.RoleIDTrainee, got.RoleID)
-		// 読み出しは roles を JOIN するので role 名も trainee で返る。
 		require.Equal(t, domain.RoleTrainee, got.Role)
 	})
 
@@ -282,18 +279,18 @@ func TestUserNormalization_Integration(t *testing.T) {
 
 	t.Run("スキーマ DDL を再適用しても NOT_NULL と DEFAULT が剥がれない", func(t *testing.T) {
 		// 回帰テスト: 起動のたびに流れる DDL が既存列を作り直したり緩めたりすると、
-		// ローリングデプロイ中に安全弁（role_id の NOT NULL / DEFAULT）が消える。
+		// ローリングデプロイ中に安全弁（role の NOT NULL / DEFAULT）が消える。
 		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		var isNullable string
 		var columnDefault *string
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT is_nullable, column_default FROM information_schema.columns
-			 WHERE table_name = 'users' AND column_name = 'role_id'`,
+			 WHERE table_name = 'users' AND column_name = 'role'`,
 		).Scan(&isNullable, &columnDefault))
-		require.Equal(t, "NO", isNullable, "role_id の NOT NULL が DDL 再適用で剥がれた")
-		require.NotNil(t, columnDefault, "role_id の DEFAULT が DDL 再適用で剥がれた")
-		require.Contains(t, *columnDefault, "3")
+		require.Equal(t, "NO", isNullable, "role の NOT NULL が DDL 再適用で剥がれた")
+		require.NotNil(t, columnDefault, "role の DEFAULT が DDL 再適用で剥がれた")
+		require.Contains(t, *columnDefault, "trainee")
 
 		var emailNullable string
 		require.NoError(t, sqlDB.QueryRow(
@@ -364,8 +361,8 @@ func TestUserNormalization_Integration(t *testing.T) {
 		truncate(t)
 		// 正規化前の既存行を再現するため、アプリを通さず直接 INSERT する。
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES ('Legacy@Example.com', 'legacy', 3, true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+			 VALUES ('Legacy@Example.com', 'legacy', 'trainee', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 

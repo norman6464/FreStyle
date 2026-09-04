@@ -1,4 +1,4 @@
-
+-- Ⅰ. 中核（users / roles / courses / exercises …）
 -- CREATE 文以外の記載禁止
 -- 演習の入力例 / 期待出力例。(exercise_id, order_index) は同一問題内で一意。
 CREATE TABLE IF NOT EXISTS master_exercise_examples (

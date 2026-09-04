@@ -619,17 +619,12 @@ END $$;
 -- 再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする。キーは email その
 -- ものではなく上の UPDATE と同じ正規形 lower(btrim(email, ...))。既存データに（畳んでも解決
 -- できない）重複がある場合は作成せず警告に留める（起動を落とさず、修正は運用判断に委ねる）。
+--
+-- 旧定義（btrim 抜き）の索引を検知して張り替える分岐は撤去済み。本番の索引は既に
+-- btrim 版であることを確認済み（Supabase CLI で indexdef を直接確認）で、それ以外に
+-- 持続する環境は無い（ローカル / CI は毎回まっさらな DB から始まる）ため、以後どの
+-- 環境でも旧索引を検知することはない。
 DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active'
-          AND indexdef NOT LIKE '%btrim%'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM users
-        WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''
-        GROUP BY lower(btrim(email, E'\t\n\x0B\f\r ')) HAVING count(*) > 1
-    ) THEN
-        DROP INDEX uq_users_email_active;
-    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active') THEN
         IF EXISTS (
             SELECT 1 FROM users

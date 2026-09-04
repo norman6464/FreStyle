@@ -700,8 +700,8 @@ func seedPermissionRows(t *testing.T, db *sql.DB, workspaceID, spaceID, pageID s
 	t.Helper()
 	var userID uint64
 	require.NoError(t, db.QueryRow(
-		`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
-		 VALUES ($1, 'truncate', 'trainee', true, now(), now()) RETURNING id`,
+		`INSERT INTO users (email, name, is_active, created_at, updated_at)
+		 VALUES ($1, 'truncate', true, now(), now()) RETURNING id`,
 		"truncate+"+newID()+"@example.test",
 	).Scan(&userID))
 

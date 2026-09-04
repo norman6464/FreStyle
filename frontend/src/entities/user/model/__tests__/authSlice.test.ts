@@ -9,11 +9,9 @@ describe('authSlice', () => {
   const initialState = {
     isAuthenticated: false,
     loading: true,
-    isAdmin: false,
-    role: null,
   };
 
-  it('初期状態はisAuthenticated=false, loading=true, isAdmin=false, role=null', () => {
+  it('初期状態はisAuthenticated=false, loading=true', () => {
     const state = authReducer(undefined, { type: 'unknown' });
     expect(state).toEqual(initialState);
   });
@@ -22,46 +20,16 @@ describe('authSlice', () => {
     const state = authReducer(initialState, setAuthData());
     expect(state.isAuthenticated).toBe(true);
     expect(state.loading).toBe(false);
-    expect(state.isAdmin).toBe(false);
   });
-
-  it('setAuthDataでpayload.isAdmin=trueを渡すとisAdminがtrueになる', () => {
-    const state = authReducer(initialState, setAuthData({ isAdmin: true }));
-    expect(state.isAdmin).toBe(true);
-  });
-
-  it('setAuthDataでpayload未指定の場合は既存のisAdminを保持する', () => {
-    const adminState = {
-      isAuthenticated: true,
-      loading: false,
-      isAdmin: true,
-      role: 'super_admin',
-    };
-    const state = authReducer(adminState, setAuthData());
-    expect(state.isAdmin).toBe(true);
-    expect(state.role).toBe('super_admin');
-  });
-
-  it('setAuthDataでpayload.roleを渡すとroleが反映される', () => {
-    const state = authReducer(initialState, setAuthData({ role: 'super_admin' }));
-    expect(state.role).toBe('super_admin');
-  });
-
-
-
 
   it('clearAuthで全フィールドが初期値にリセットされる', () => {
     const authenticatedState = {
       isAuthenticated: true,
       loading: false,
-      isAdmin: true,
-      role: 'super_admin',
     };
     const state = authReducer(authenticatedState, clearAuth());
     expect(state.isAuthenticated).toBe(false);
     expect(state.loading).toBe(false);
-    expect(state.isAdmin).toBe(false);
-    expect(state.role).toBeNull();
   });
 
   it('finishLoadingでloading=falseになりisAuthenticatedは変わらない', () => {

@@ -12,24 +12,22 @@ import type { CourseWithProgress } from '@/entities/course';
  * CourseCard — コース 1 件のカード。領域一覧ページ（CoursesListPage）で使う。
  *
  * 「色＝学習領域」の連想（FRESTYLE-67）でカードは左の色帯で領域を表す。
- * 受講者視点で全章完了したコースは緑アクセントで一目で分かるようにする（FRESTYLE-114）。
+ * 全章完了したコースは緑アクセントで一目で分かるようにする（FRESTYLE-114）。
+ * 作成・編集・削除は誰でもできる（コース管理はロールで区別しない）。
  */
 export default function CourseCard({
   course,
-  canManage,
   onOpen,
   onEdit,
   onDelete,
 }: {
   course: CourseWithProgress;
-  canManage: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const category = findCourseCategory(course.category);
-  const isCompleted =
-    !canManage && course.materialCount > 0 && course.completedCount >= course.materialCount;
+  const isCompleted = course.materialCount > 0 && course.completedCount >= course.materialCount;
   return (
     <div
       role="button"
@@ -59,30 +57,28 @@ export default function CourseCard({
             完了
           </span>
         )}
-        {canManage && (
-          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="p-1 rounded hover:bg-surface-3 text-[var(--color-text-muted)]"
-              aria-label="コースを編集"
-            >
-              <PencilSquareIcon className="w-4 h-4" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="p-1 rounded hover:bg-red-900/30 text-[var(--color-text-muted)] hover:text-red-400"
-              aria-label="コースを削除"
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="p-1 rounded hover:bg-surface-3 text-[var(--color-text-muted)]"
+            aria-label="コースを編集"
+          >
+            <PencilSquareIcon className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1 rounded hover:bg-red-900/30 text-[var(--color-text-muted)] hover:text-red-400"
+            aria-label="コースを削除"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       <p className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mb-3">
         {course.language && <LanguageBadge language={course.language} />}
@@ -93,7 +89,7 @@ export default function CourseCard({
       <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 min-h-[3.6em]">
         {course.description || 'コース説明が未設定です'}
       </p>
-      {!canManage && course.materialCount > 0 && (
+      {course.materialCount > 0 && (
         <div className="mt-3">
           <CourseProgressBar completed={course.completedCount} total={course.materialCount} />
         </div>

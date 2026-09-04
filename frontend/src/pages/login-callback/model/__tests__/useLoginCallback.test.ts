@@ -17,8 +17,6 @@ vi.mock('@/shared/lib/store', () => ({
 vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     callback: vi.fn(),
-    // 遷移前にロールを確定させるため callback 成功後に呼ばれる。
-    probeCurrentUser: vi.fn(),
   },
 }));
 
@@ -43,11 +41,6 @@ describe('useLoginCallback', () => {
     vi.clearAllMocks();
     mockSearchParams = '';
     mockFlow = { ...FLOW };
-    vi.mocked(authRepository.probeCurrentUser).mockResolvedValue({
-      id: 1,
-      isAdmin: false,
-      role: 'trainee',
-    } as never);
   });
 
   it('state が一致すれば、検証値と nonce を添えて交換する', async () => {
@@ -62,7 +55,6 @@ describe('useLoginCallback', () => {
       code: 'test-code',
       codeVerifier: 'my-verifier',
       nonce: 'my-nonce',
-      invitationToken: null,
     });
   });
 
@@ -107,7 +99,7 @@ describe('useLoginCallback', () => {
     });
   });
 
-  it('交換に成功したらロールを確定させてホームへ遷移する', async () => {
+  it('交換に成功したら認証状態を確定させてホームへ遷移する', async () => {
     mockSearchParams = 'code=test-code&state=my-state';
     vi.mocked(authRepository.callback).mockResolvedValue({} as never);
 

@@ -31,7 +31,7 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	// FK（owner_id → users.id）を満たすため作成者を用意する。
 	mkOwner := func(t *testing.T, sub, email string) uint64 {
 		t.Helper()
-		u := &domain.User{Email: email, Role: domain.RoleTrainee}
+		u := &domain.User{Email: email}
 		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
 		return u.ID
 	}

@@ -25,7 +25,7 @@ func NewCourseHandler(
 }
 
 func (h *CourseHandler) List(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -55,7 +55,7 @@ type courseDetailResponse struct {
 }
 
 func (h *CourseHandler) Get(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -78,7 +78,7 @@ func (h *CourseHandler) Get(c *gin.Context) {
 
 // LastViewed は current user がコース内で最後に閲覧した章の閲覧記録を返す。
 func (h *CourseHandler) LastViewed(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -116,7 +116,7 @@ type courseRequest struct {
 }
 
 func (h *CourseHandler) Create(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -142,7 +142,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 }
 
 func (h *CourseHandler) Update(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}
@@ -174,7 +174,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 }
 
 func (h *CourseHandler) Delete(c *gin.Context) {
-	uid, actorWorkspace, _, ok := actorWorkspaceFromContext(c)
+	uid, actorWorkspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return
 	}

@@ -10,9 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -737,41 +735,6 @@ func Test_ノート権限API_弱い付与を足しても管理の口は閉じな
 	require.Len(t, rows, 1)
 	assert.Equal(t, f.callerPrincipalID, rows[0]["principalId"])
 	assert.Equal(t, "viewer", rows[0]["role"])
-}
-
-// kbSuperAdminRouter は current user に super_admin を持たせたルータを組む
-// （本番と同じ registerKnowledgeBaseRoutesWith を通す）。
-func kbSuperAdminRouter(f kbFixture, uid uint64) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	g := r.Group("/api/v2")
-	g.Use(func(c *gin.Context) {
-		c.Set(middleware.ContextKeyCurrentUserID, uid)
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{
-			ID: uid, Role: domain.RoleSuperAdmin,
-		})
-		c.Next()
-	})
-	registerKnowledgeBaseRoutesWith(g, f.pages, f.perms, f.provisioner, f.users)
-	return r
-}
-
-// アプリ内ロール（super_admin）を持っていても権限操作は通らないことを固定する。
-// ノートの権限は grant だけで決まり、「特権ロールなら全部できる」という
-// 抜け道を持たない（domain/grant.go・kb_permission_gate.go）。
-func Test_ノート権限API_アプリ内のsuperadminでも通らない(t *testing.T) {
-	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleViewer))
-	router := kbSuperAdminRouter(f.kbFixture, kbUserID)
-
-	req := httptest.NewRequest(http.MethodPut,
-		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/grants/"+f.targetPrincipalID,
-		strings.NewReader(`{"role":"admin"}`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.JSONEq(t, kbDenied, w.Body.String())
 }
 
 func Test_ノート権限API_fakeは非メンバーに既定の役割を届かせない(t *testing.T) {

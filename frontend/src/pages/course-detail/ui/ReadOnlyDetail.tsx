@@ -7,7 +7,7 @@ import ImageLightbox from './ImageLightbox';
 import { formatDate } from '../lib/formatDate';
 
 /**
- * trainee 向けの教材閲覧ビュー。
+ * 編集権限（canEdit）を持たないユーザー向けの教材閲覧ビュー。
  *
  * レイアウトはノートと同じ「枠のないインライン文書」（max-w-3xl 中央カラム + 内部スクロール。
  * FRESTYLE-340）。目次・章一覧は左の SecondaryPanel（CourseDetailPage 側）に集約した

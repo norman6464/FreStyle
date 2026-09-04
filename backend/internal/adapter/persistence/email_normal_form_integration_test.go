@@ -5,7 +5,6 @@ package persistence_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -14,19 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// emailNormalExprSQL は users の一意索引・検索・招待の照会が使う正規形の式。
+// emailNormalExprSQL は users の一意索引・検索が使う正規形の式。
 // domain.NormalizeEmail の SQL 版で、落とす空白は domain.EmailTrimCutset と同じ集合。
 const emailNormalExprSQL = `SELECT lower(btrim($1::text, E'\t\n\x0B\f\r '))`
 
 func TestEmailNormalForm_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(sqlDB)
-	invRepo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
 
 	truncate := func(t *testing.T) {
 		t.Helper()
-		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities", "invitations")
+		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
 	}
 
 	// Go と SQL が同じ入力を同じ値へ畳むこと。片方だけを直したときにここが落ちる。
@@ -61,8 +59,8 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("FindActiveByEmail は前後空白付きの既存行を正規形で引く", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
-			 VALUES ('  Pad@Example.com'||chr(9), 'pad', 'trainee', true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, is_active, created_at, updated_at)
+			 VALUES ('  Pad@Example.com'||chr(9), 'pad', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 
@@ -76,54 +74,16 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("DB 制約: 前後空白だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, role, is_active, created_at, updated_at)
-			 VALUES ('  space@example.com  ', 'space', 'trainee', true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, is_active, created_at, updated_at)
+			 VALUES ('  space@example.com  ', 'space', true, NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 
-		dup := &domain.User{Email: "space@example.com", Role: domain.RoleTrainee}
+		dup := &domain.User{Email: "space@example.com"}
 		require.ErrorIs(
 			t,
 			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "space-1"),
 			repository.ErrEmailTaken,
 		)
-	})
-
-	// 招待の照会も同じ正規形。ログイン時の招待ゲートは正規形の OIDC メールで引くため、
-	// 空白付き・大文字混じりのまま入った pending 行が引けないと、招待した相手が拒否される。
-	t.Run("FindPendingByEmail は前後空白・大文字混じりの既存行を正規形で引く", func(t *testing.T) {
-		truncate(t)
-		_, err := sqlDB.Exec(
-			`INSERT INTO invitations (email, role, name, status, token, expires_at, created_at)
-			 VALUES ('  Invited@Example.com  ', $1, 'inv', $2, 'tok-pad', $3, NOW())`,
-			domain.RoleCompanyAdmin, domain.InvitationStatusPending,
-			time.Now().UTC().Add(time.Hour),
-		)
-		require.NoError(t, err)
-
-		got, err := invRepo.FindPendingByEmail(ctx, "invited@example.com")
-		require.NoError(t, err)
-		require.NotNil(t, got)
-		require.Equal(t, "  Invited@Example.com  ", got.Email)
-	})
-
-	// 保存側も正規形。ここが生のままだと、照会だけ揃えても「どちらの表現で入っているか」が
-	// 行ごとにばらつき、同じアドレスの解釈が 2 つある状態が続く。
-	t.Run("Create は招待の email を正規形で保存する", func(t *testing.T) {
-		truncate(t)
-		token := "tok-normalize"
-		inv := &domain.AdminInvitation{
-			Email:     "  New@Example.com\t",
-			Role:      domain.RoleCompanyAdmin,
-			Name:      "new",
-			Status:    domain.InvitationStatusPending,
-			Token:     &token,
-			ExpiresAt: time.Now().UTC().Add(time.Hour),
-		}
-		require.NoError(t, invRepo.Create(ctx, inv))
-
-		var stored string
-		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM invitations WHERE token = $1`, token).Scan(&stored))
-		require.Equal(t, "new@example.com", stored)
 	})
 }

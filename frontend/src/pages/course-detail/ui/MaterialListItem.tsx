@@ -3,9 +3,9 @@ import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/sol
 import type { TeachingMaterial } from '@/entities/course';
 
 /**
- * 左パネル(教材リスト)の 1 行。クリック / Enter・Space で選択、管理ロールでは削除ボタンを出す。
- * trainee には completed / index で完了チェック・章番号を出す（旧右サイドバーの章一覧から
- * 左パネルへ統合。FRESTYLE-341）。
+ * 左パネル(教材リスト)の 1 行。クリック / Enter・Space で選択、編集権限があれば削除ボタンを出す。
+ * 編集権限を持たないユーザーには completed / index で完了チェック・章番号を出す
+ * （旧右サイドバーの章一覧から左パネルへ統合。FRESTYLE-341）。
  */
 export default function MaterialListItem({
   material,
@@ -19,9 +19,9 @@ export default function MaterialListItem({
   isActive: boolean;
   onSelect: (id: number) => void;
   onDelete?: (id: number) => void;
-  /** trainee 用: 完了済みならチェックアイコンを出す。undefined なら進捗表示なし（管理ロール）。 */
+  /** 完了済みならチェックアイコンを出す。undefined なら進捗表示なし。 */
   completed?: boolean;
-  /** trainee 用: 未完了時に出す章番号（1 始まり）。 */
+  /** 未完了時に出す章番号（1 始まり）。 */
   index?: number;
 }) {
   return (

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -189,7 +188,7 @@ func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
 	ctx := context.Background()
 	testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 
-	owner := &domain.User{Email: "rd-tie@example.com", Role: domain.RoleTrainee}
+	owner := &domain.User{Email: "rd-tie@example.com"}
 	require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, owner, domain.OidcProviderCognito, "rd-tie"))
 
 	// ID は UUIDv7 なので作成順に単調増加する。作成順（昇順）で投入し、期待順は id 降順にする。
@@ -271,34 +270,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 		require.Equal(t, []uint64{4, 3, 2, 1}, noteIDs(rows))
 	})
 
-	t.Run("invitations: created_at 同着は id 降順（一覧・単一取得とも）", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, append([]string{"invitations"}, workspaceWriteTables...)...)
-		ws1 := uuid.New()
-		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
-		repo := persistence.NewAdminInvitationRepository(sqlDB)
-		for i := uint64(1); i <= 4; i++ {
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO invitations
-				   (id, workspace_id, email, role, name, status, token, expires_at, created_at)
-				 VALUES ($1, $6, 'inv@example.com', $2, '', $3, NULL, $4, $5)`,
-				i, domain.RoleTrainee, domain.InvitationStatusPending, tie.Add(24*time.Hour), tie, ws1)
-			require.NoError(t, err)
-		}
-		all, err := repo.ListAll(ctx)
-		require.NoError(t, err)
-		require.Equal(t, []uint64{4, 3, 2, 1}, invitationIDs(all))
-
-		byWorkspace, err := repo.ListByWorkspaceID(ctx, ws1.String())
-		require.NoError(t, err)
-		require.Equal(t, []uint64{4, 3, 2, 1}, invitationIDs(byWorkspace))
-
-		// 同一 email に pending が複数あっても「どれが受理されるか」がぶれない。
-		one, err := repo.FindPendingByEmail(ctx, "inv@example.com")
-		require.NoError(t, err)
-		require.NotNil(t, one)
-		require.Equal(t, uint64(4), one.ID)
-	})
-
 	t.Run("user_chapter_views: last_viewed_at 同着は chapter_id 降順", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "user_chapter_views")
 		repo := persistence.NewUserChapterViewRepository(sqlDB)
@@ -336,14 +307,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 }
 
 func noteIDs(rows []domain.Note) []uint64 {
-	ids := make([]uint64, 0, len(rows))
-	for _, r := range rows {
-		ids = append(ids, r.ID)
-	}
-	return ids
-}
-
-func invitationIDs(rows []domain.AdminInvitation) []uint64 {
 	ids := make([]uint64, 0, len(rows))
 	for _, r := range rows {
 		ids = append(ids, r.ID)

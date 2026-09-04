@@ -148,15 +148,6 @@ func malformedWorkspaceWriteCases() []writeCase {
 	bad := malformedWorkspaceID
 	return []writeCase{
 		{
-			name: "招待の作成（workspace_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewAdminInvitationRepository(db).Create(ctx, &domain.AdminInvitation{
-					WorkspaceID: &bad, Email: "a@example.com", Role: domain.RoleCompanyAdmin,
-					Status: domain.InvitationStatusPending, ExpiresAt: time.Now().Add(time.Hour),
-				})
-			},
-		},
-		{
 			name: "コースの作成（workspace_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewCourseRepository(db).Create(ctx, &domain.Course{

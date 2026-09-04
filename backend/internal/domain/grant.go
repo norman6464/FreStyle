@@ -4,11 +4,9 @@ import "time"
 
 // GrantRole は grant（既定の権限）で与える役割。workspace_grants と space_grants が共有する。
 //
-// 既存アプリの RoleName（super_admin / company_admin / trainee）とは別物で、統合もしない。
-// あちらは「アプリ全体で何ができるか」を 1 人 1 つ持つグローバルなロール、こちらは
-// 「この入れ物（ワークスペース / スペース）で何ができるか」を入れ物ごとに持つ。
-// ノートの権限は principals / grants だけで閉じており、
-// 「特権ロールなら全部見える」という抜け道は解決ロジックに持たせない。
+// 「この入れ物（ワークスペース / スペース）で何ができるか」を入れ物ごとに持つ、
+// グローバルなロールとは独立した権限モデル。ノートの権限は principals / grants だけで
+// 閉じており、「特権ロールなら全部見える」という抜け道は解決ロジックに持たせない。
 type GrantRole string
 
 const (

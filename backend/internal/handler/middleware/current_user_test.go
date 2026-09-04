@@ -20,10 +20,6 @@ func (s *stubUsers) FindByCognitoSub(context.Context, string) (*domain.User, err
 
 func (s *stubUsers) FindByID(context.Context, uint64) (*domain.User, error) { return s.user, nil }
 
-func (s *stubUsers) ListByRole(context.Context, domain.RoleName) ([]domain.User, error) {
-	return nil, nil
-}
-
 func (s *stubUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
 	return nil, nil
 }
@@ -32,17 +28,11 @@ func (s *stubUsers) CreateWithOidcIdentity(context.Context, *domain.User, string
 	return nil
 }
 
-func (s *stubUsers) CreateFirstSuperAdminWithOidcIdentity(
-	context.Context, *domain.User, string, string,
-) (bool, error) {
-	return true, nil
-}
 func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
 func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error)  { return nil, nil }
 
 func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
 func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }
-func (s *stubUsers) UpdateRole(context.Context, uint64, domain.RoleName) error      { return nil }
 func (s *stubUsers) UpdateWorkspaceID(context.Context, uint64, *string) error       { return nil }
 func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error               { return nil }
 func (s *stubUsers) SoftDelete(context.Context, uint64) error                       { return nil }
@@ -92,7 +82,7 @@ func runCurrentUser(t *testing.T, users *stubUsers, workspaces *stubWorkspaces) 
 func strPtr(v string) *string { return &v }
 
 func Test_カレントユーザー_停止中のワークスペースを遮断(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-7")}}
+	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: false}}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -109,7 +99,7 @@ func Test_カレントユーザー_停止中のワークスペースを遮断(t 
 }
 
 func Test_カレントユーザー_有効なワークスペースは許可(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-7")}}
+	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: true}}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -123,7 +113,7 @@ func Test_カレントユーザー_有効なワークスペースは許可(t *te
 }
 
 func Test_カレントユーザー_未所属ユーザーはワークスペースを引かずに許可(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, WorkspaceID: nil}}
+	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: nil}}
 	workspaces := &stubWorkspaces{err: repository.ErrWorkspaceNotFound}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -140,7 +130,7 @@ func Test_カレントユーザー_所属先の行が無ければ遮断(t *testi
 	// users.workspace_id には FK が張ってあるので、所属先の行は必ず存在するはず。
 	// 無いのはデータ不整合であって「停止されていない」ことの証拠ではないので、
 	// 素通りさせずに弾く（素通りにすると FK が外れた瞬間に遮断が効かなくなる）。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, WorkspaceID: strPtr("ws-99")}}
+	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: strPtr("ws-99")}}
 	workspaces := &stubWorkspaces{err: repository.ErrWorkspaceNotFound}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -155,7 +145,7 @@ func Test_カレントユーザー_所属先の行が無ければ遮断(t *testi
 
 func Test_カレントユーザー_無効なユーザーを遮断(t *testing.T) {
 	// IsActive=false のユーザーはワークスペースが有効でも弾く（即時に利用不可）。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: false, WorkspaceID: strPtr("ws-7")}}
+	users := &stubUsers{user: &domain.User{ID: 1, IsActive: false, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: true}}
 
 	got := runCurrentUser(t, users, workspaces)

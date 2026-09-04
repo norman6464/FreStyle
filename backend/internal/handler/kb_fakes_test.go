@@ -1065,22 +1065,12 @@ func (f *kbFakeUsers) FindActiveByEmail(context.Context, string) (*domain.User, 
 
 func (f *kbFakeUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
 
-func (f *kbFakeUsers) ListByRole(context.Context, domain.RoleName) ([]domain.User, error) {
-	return nil, nil
-}
-
 func (f *kbFakeUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
 	return nil, nil
 }
 
 func (f *kbFakeUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
 	return nil
-}
-
-func (f *kbFakeUsers) CreateFirstSuperAdminWithOidcIdentity(
-	context.Context, *domain.User, string, string,
-) (bool, error) {
-	return false, nil
 }
 
 func (f *kbFakeUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
@@ -1090,8 +1080,6 @@ func (f *kbFakeUsers) UpdateActive(context.Context, uint64, bool) error { return
 func (f *kbFakeUsers) SoftDelete(context.Context, uint64) error { return nil }
 
 func (f *kbFakeUsers) UpdateName(context.Context, uint64, string) error { return nil }
-
-func (f *kbFakeUsers) UpdateRole(context.Context, uint64, domain.RoleName) error { return nil }
 
 func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, *string) error { return nil }
 

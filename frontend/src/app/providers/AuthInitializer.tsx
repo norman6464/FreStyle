@@ -18,14 +18,8 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const me = await authRepository.getCurrentUser();
-        dispatch(
-          setAuthData({
-            isAdmin: !!me.isAdmin,
-            role: me.role ?? null,
-            // 未定義(古い backend 等)は true にフォールバックし、誤って AI を隠さない。
-          })
-        );
+        await authRepository.getCurrentUser();
+        dispatch(setAuthData());
         setAuthHint();
       } catch (err) {
         dispatch(clearAuth());

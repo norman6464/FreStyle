@@ -17,22 +17,14 @@ import (
 // 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
-	invitations := persistence.NewAdminInvitationRepository(deps.db)
-	transactionRunner := persistence.NewUserInvitationTransactionRunner(deps.db)
-	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(
-		deps.userRepo,
-		invitations,
-		deps.cfg.BootstrapSuperAdminEmail,
-		transactionRunner,
-	)
+	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(deps.userRepo)
 	ensurePersonalWorkspace := usecase.NewEnsurePersonalWorkspaceUseCase(
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
 	)
-	promoteAdmin := usecase.NewPromoteCognitoAdminRoleUseCase(deps.userRepo)
 
 	authHandler := NewAuthHandler(
-		getCurrentUser, upsertUser, ensurePersonalWorkspace, promoteAdmin,
+		getCurrentUser, upsertUser, ensurePersonalWorkspace,
 		&deps.cfg.OIDC, deps.verifier,
 	)
 

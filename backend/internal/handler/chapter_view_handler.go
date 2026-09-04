@@ -36,7 +36,6 @@ func (h *ChapterViewHandler) RecordView(c *gin.Context) {
 	_ = h.record.Execute(c.Request.Context(), usecase.RecordChapterViewInput{
 		UserID:             user.ID,
 		ActorWorkspace:     user.WorkspaceRef(),
-		ActorRole:          user.Role,
 		TeachingMaterialID: mid,
 	})
 	c.Status(http.StatusNoContent)

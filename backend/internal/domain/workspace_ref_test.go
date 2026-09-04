@@ -43,16 +43,3 @@ func Test_User_WorkspaceRef(t *testing.T) {
 		assert.Equal(t, domain.WorkspaceRefOf("ws-1"), u.WorkspaceRef())
 	})
 }
-
-func Test_AdminInvitation_WorkspaceRef(t *testing.T) {
-	t.Run("workspace_id が nil なら NoWorkspace", func(t *testing.T) {
-		inv := domain.AdminInvitation{WorkspaceID: nil}
-		assert.Equal(t, domain.NoWorkspace(), inv.WorkspaceRef())
-	})
-
-	t.Run("workspace_id があれば WorkspaceRefOf", func(t *testing.T) {
-		wid := "ws-1"
-		inv := domain.AdminInvitation{WorkspaceID: &wid}
-		assert.Equal(t, domain.WorkspaceRefOf("ws-1"), inv.WorkspaceRef())
-	})
-}

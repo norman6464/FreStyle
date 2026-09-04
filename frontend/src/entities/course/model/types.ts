@@ -11,9 +11,6 @@ import type { RichDocContent } from '@/shared/ui/RichTextEditor';
  * Course は教材を束ねる「コース（プロジェクト）」。 backend `domain.Course` と 1:1。
  *
  * 階層: Workspace 1 ── * Course 1 ── * TeachingMaterial
- *
- * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
- * - trainee: 自社の `isPublished=true` コースのみ閲覧可
  */
 export interface Course {
   id: number;
@@ -46,7 +43,7 @@ export interface Course {
  * backend `usecase.CourseWithProgress` と 1:1(Course に章数と完了章数を合成したフラット JSON)。
  */
 export interface CourseWithProgress extends Course {
-  /** コース内の教材(章)数。trainee は published のみ、admin 系は下書き込み。 */
+  /** コース内の教材(章)数。 */
   materialCount: number;
   /** current user が完了した章数(現存する published 章のみ。常に materialCount 以下)。 */
   completedCount: number;
@@ -55,9 +52,6 @@ export interface CourseWithProgress extends Course {
 /**
  * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
  * 必ず 1 つの Course に所属する教材（本文はリッチ本文 doc が正本）。
- *
- * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
- * - trainee: 自社の `isPublished=true` 教材かつ所属コース published のみ閲覧可
  */
 export interface TeachingMaterial {
   id: number;
@@ -79,7 +73,7 @@ export interface TeachingMaterial {
 }
 
 /**
- * UserLessonProgress は trainee 自身の教材（レッスン）完了記録。 backend `domain.UserLessonProgress` と 1:1。
+ * UserLessonProgress は current user 自身の教材（レッスン）完了記録。 backend `domain.UserLessonProgress` と 1:1。
  * current user 固定で、 他人の進捗は取得・操作できない。
  */
 export interface UserLessonProgress {

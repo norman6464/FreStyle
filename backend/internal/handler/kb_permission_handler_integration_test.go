@@ -7,15 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
@@ -635,52 +632,6 @@ func TestKnowledgeBaseShareLinkAPI_Integration(t *testing.T) {
 			env.as(env.admin).do(t, http.MethodDelete,
 				"/api/v2/kb/workspaces/"+env.slug+"/pages/"+env.childPage+"/share-links/"+env.shareLinkID, "").Code)
 	})
-}
-
-// kbSuperAdminEnvRouter は current user に super_admin を持たせたルータを組む
-// （kbEnv.as は ID しか載せないので、アプリ内ロールを持つ相手をここで作る）。
-func kbSuperAdminEnvRouter(e *kbPermEnv, userID uint64) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	g := r.Group("/api/v2")
-	g.Use(func(c *gin.Context) {
-		c.Set(middleware.ContextKeyCurrentUserID, userID)
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{
-			ID: userID, Role: domain.RoleSuperAdmin,
-		})
-		c.Next()
-	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, e.users)
-	return r
-}
-
-// アプリ内ロール（super_admin）を持っていても権限操作は通らないことを実 DB で固定する。
-// ノートの権限は principals / grants だけで閉じており、「特権ロールなら全部できる」
-// という抜け道を持たない（domain/grant.go・kb_permission_gate.go）。
-func TestKnowledgeBasePermissionAPI_SuperAdminHasNoBypass_Integration(t *testing.T) {
-	sqlDB := testsupport.OpenTestDB(t)
-	env := newKbPermEnv(t, sqlDB)
-
-	for _, tc := range []struct {
-		name   string
-		userID uint64
-	}{
-		{name: "ワークスペースのviewer", userID: env.viewer},
-		{name: "非メンバー", userID: env.outsider},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			router := kbSuperAdminEnvRouter(env, tc.userID)
-			req := httptest.NewRequest(http.MethodPut,
-				"/api/v2/kb/workspaces/"+env.slug+"/grants/"+env.targetPrincipal,
-				strings.NewReader(`{"role":"admin"}`))
-			req.Header.Set("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			assert.Equal(t, http.StatusNotFound, w.Code)
-			assert.Equal(t, kbDeniedBody, w.Body.String())
-		})
-	}
 }
 
 // ページに admin を張られた相手が、その枝だけを管理できることを実 PostgreSQL で確かめる。

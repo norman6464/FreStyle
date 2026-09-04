@@ -2,7 +2,6 @@ import { useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import AuthInitializer from './providers/AuthInitializer';
 import Protected from './providers/Protected';
-import RequireRole from './providers/RequireRole';
 import { AppShell } from '@/widgets/app-shell';
 import ErrorBoundary from './providers/ErrorBoundary';
 import Loading from '@/shared/ui/Loading';
@@ -18,7 +17,6 @@ import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReloa
 const LoginPage = lazyWithReload(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })), 'LoginPage');
 const SignupPage = lazyWithReload(() => import('@/pages/signup').then((m) => ({ default: m.SignupPage })), 'SignupPage');
 const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then((m) => ({ default: m.LoginCallback })), 'LoginCallback');
-const AcceptInvitationPage = lazyWithReload(() => import('@/pages/accept-invitation').then((m) => ({ default: m.AcceptInvitationPage })), 'AcceptInvitationPage');
 
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
@@ -26,8 +24,6 @@ const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) =>
 const NotePage = lazyWithReload(() => import('@/pages/note').then((m) => ({ default: m.NotePage })), 'NotePage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
-const AdminInvitationsPage = lazyWithReload(() => import('@/pages/admin-invitations').then((m) => ({ default: m.AdminInvitationsPage })), 'AdminInvitationsPage');
-const AdminMembersPage = lazyWithReload(() => import('@/pages/admin-members').then((m) => ({ default: m.AdminMembersPage })), 'AdminMembersPage');
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
 const ExerciseListPage = lazyWithReload(() => import('@/pages/exercises').then((m) => ({ default: m.ExerciseListPage })), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('@/pages/exercise-detail').then((m) => ({ default: m.ExerciseDetailPage })), 'ExerciseDetailPage');
@@ -74,8 +70,6 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
-      {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
-      <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
       {/* inkwell UI カタログ（見た目確認用・認証不要） */}
       <Route path="/dev/inkwell" element={<InkwellShowcasePage />} />
 
@@ -118,24 +112,6 @@ export default function App() {
         <Route path="/courses/:id" element={<CourseDetailPage />} />
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
         <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
-        {/* Admin 専用。通過条件はここ（RequireRole）に集約する → 満たさなければホームへ。
-            通過条件は従業員一覧 / 招待とも isAdmin のみ。 */}
-        <Route
-          path="/admin/members"
-          element={
-            <RequireRole allow="any" requireAdminFlag>
-              <AdminMembersPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/invitations"
-          element={
-            <RequireRole allow="any" requireAdminFlag>
-              <AdminInvitationsPage />
-            </RequireRole>
-          }
-        />
       </Route>
 
       {/* どのルートにも一致しない URL の受け皿（FRESTYLE-86）。

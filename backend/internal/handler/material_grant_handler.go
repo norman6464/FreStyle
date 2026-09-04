@@ -74,7 +74,7 @@ type materialGrantRoleRequest struct {
 // materialGrantActor は認証情報とパスの ID をまとめて取り出す。
 // 取り出せなければ応答を書いて ok=false を返す。
 func materialGrantActor(c *gin.Context, param string) (usecase.MaterialActor, uint64, bool) {
-	uid, workspace, _, ok := actorWorkspaceFromContext(c)
+	uid, workspace, ok := actorWorkspaceFromContext(c)
 	if !ok {
 		return usecase.MaterialActor{}, 0, false
 	}

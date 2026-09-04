@@ -26,11 +26,10 @@ func NewRecordChapterViewUseCase(
 	return &RecordChapterViewUseCase{chapterViews: cv, materials: m, perm: perm}
 }
 
-// RecordChapterViewInput は章閲覧記録の入力。actor のワークスペース・ロールで可視性を検証する。
+// RecordChapterViewInput は章閲覧記録の入力。actor のワークスペースで可視性を検証する。
 type RecordChapterViewInput struct {
 	UserID             uint64
 	ActorWorkspace     domain.WorkspaceRef
-	ActorRole          domain.RoleName
 	TeachingMaterialID uint64
 }
 

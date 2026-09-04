@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AcademicCapIcon, PlusIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { useAppSelector } from '@/shared/lib/store';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
@@ -20,7 +19,7 @@ interface CategoryBucket {
   slug: string;
   label: string;
   total: number;
-  /** 受講者の進捗集計（章単位）。管理者は使わない。 */
+  /** current user の進捗集計（章単位）。 */
   materials: number;
   completed: number;
 }
@@ -33,8 +32,6 @@ interface CategoryBucket {
  * コースが 1 件でもある領域だけカードを出す（死んだ領域カードを出さない）。
  */
 export default function CourseCategorySelectPage() {
-  const role = useAppSelector((s) => s.auth.role);
-  const canManage = role === 'company_admin' || role === 'super_admin';
   const { showToast } = useToast();
   const { courses, loading, error, create } = useCourses();
   const [creating, setCreating] = useState(false);
@@ -72,15 +69,13 @@ export default function CourseCategorySelectPage() {
             学びたい学習領域を選んでください。各コースを開くと配下の教材を閲覧できます。
           </p>
         </div>
-        {canManage && (
-          <button
-            onClick={() => setCreating(true)}
-            className="bg-brand-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
-          >
-            <PlusIcon className="w-4 h-4" />
-            新しいコース
-          </button>
-        )}
+        <button
+          onClick={() => setCreating(true)}
+          className="bg-brand-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
+        >
+          <PlusIcon className="w-4 h-4" />
+          新しいコース
+        </button>
       </header>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
@@ -91,18 +86,14 @@ export default function CourseCategorySelectPage() {
         <EmptyState
           icon={FaviconIcon}
           title="コースがありません"
-          description={
-            canManage
-              ? '最初のコースを作成しましょう'
-              : '管理者がコースを公開すると、 ここに表示されます'
-          }
-          action={canManage ? { label: '新しいコース', onClick: () => setCreating(true) } : undefined}
+          description="最初のコースを作成しましょう"
+          action={{ label: '新しいコース', onClick: () => setCreating(true) }}
         />
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {buckets.map((b) => (
             <li key={b.slug}>
-              <CategorySelectCard bucket={b} showProgress={!canManage} />
+              <CategorySelectCard bucket={b} />
             </li>
           ))}
         </ul>
@@ -125,17 +116,11 @@ export default function CourseCategorySelectPage() {
   );
 }
 
-function CategorySelectCard({
-  bucket,
-  showProgress,
-}: {
-  bucket: CategoryBucket;
-  showProgress: boolean;
-}) {
+function CategorySelectCard({ bucket }: { bucket: CategoryBucket }) {
   const { def, slug, label, total, materials, completed } = bucket;
   const accent = def ? def.accentClass : 'text-[var(--color-text-muted)]';
   const percent = materials > 0 ? Math.round((completed / materials) * 100) : 0;
-  const allDone = showProgress && materials > 0 && completed >= materials;
+  const allDone = materials > 0 && completed >= materials;
 
   return (
     <Link
@@ -156,8 +141,8 @@ function CategorySelectCard({
         <ChevronRightIcon className="ml-auto w-5 h-5 text-[var(--color-text-muted)] transition-transform group-hover:translate-x-0.5" />
       </div>
 
-      {/* 受講者のみ、その領域全体の学習進捗（章単位の集計）を出す。 */}
-      {showProgress && materials > 0 && (
+      {/* その領域全体の学習進捗（章単位の集計）を出す。 */}
+      {materials > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[var(--color-text-muted)]">

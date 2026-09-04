@@ -15,7 +15,7 @@ func mustNewRequest() *http.Request {
 
 // upsertAllowed は upsertUserFromIDToken が user を解決できたかだけを取り出すテスト補助。
 // 内部エラー(err!=nil)の切り分けは password_login_test.go の handler テストで検証する。
-func upsertAllowed(h *AuthHandler, c *gin.Context, idToken, invitationToken string) bool {
-	user, _ := h.upsertUserFromIDToken(c, idToken, "", invitationToken)
+func upsertAllowed(h *AuthHandler, c *gin.Context, idToken string) bool {
+	user, _ := h.upsertUserFromIDToken(c, idToken, "")
 	return user != nil
 }

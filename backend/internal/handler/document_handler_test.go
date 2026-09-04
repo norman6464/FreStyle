@@ -92,7 +92,7 @@ func newDocRouterWithWorkspace(repo repository.RichDocumentRepository, uid uint6
 		}
 		r.Use(func(c *gin.Context) {
 			c.Set(middleware.ContextKeyCurrentUserID, uid)
-			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, WorkspaceID: wid, Role: domain.RoleTrainee})
+			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, WorkspaceID: wid})
 			c.Next()
 		})
 	}

@@ -59,7 +59,7 @@ function course(overrides: Partial<Course> = {}): Course {
 function renderPage() {
   const store = configureStore({
     reducer: { auth: authReducer },
-    preloadedState: { auth: { role: 'trainee' } as never },
+    preloadedState: { auth: { isAuthenticated: true, loading: false } },
   });
   return render(
     <Provider store={store}>

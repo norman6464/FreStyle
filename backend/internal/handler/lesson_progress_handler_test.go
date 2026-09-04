@@ -112,7 +112,7 @@ func newLessonProgressEngine(o engineOpts) *gin.Engine {
 		r.Use(func(c *gin.Context) {
 			c.Set(middleware.ContextKeyCurrentUserID, uint64(7))
 			c.Set(middleware.ContextKeyCurrentUser, &domain.User{
-				ID: 7, WorkspaceID: workspaceID, Role: domain.RoleTrainee,
+				ID: 7, WorkspaceID: workspaceID,
 			})
 			c.Next()
 		})

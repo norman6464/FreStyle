@@ -1,74 +1,5 @@
--- =====================================================================
--- FreStyle のスキーマ定義（実スキーマの正本）
--- =====================================================================
---
--- このファイルが唯一の正本で、2 つの役割を同時に果たす:
---
---   1. **起動時に流す DDL**。infra/database が go:embed で埋め込み、ECS の起動ごとに
---      冪等に適用する。デプロイ物とスキーマ定義が必ず同じ版になる
---   2. **sqlc の型付け入力**（backend/sqlc.yaml）。同じファイルから Go の型が起きるので、
---      宣言と実体がずれない
---
--- ## 並び順を崩さないこと
---
--- 上から順に流すことを前提に書いてある。外部キーの参照先は必ず自分より上にある。
---   Ⅰ 中核    … users / roles / workspaces / courses / exercises …
---   Ⅱ ノートの骨格 … spaces / pages / blocks / page_paths / page_snapshots
---   Ⅲ ノートの権限 … principals / grants / share_links
---                    （Ⅰ の users へ FK を張るので Ⅰ より後でなければならない）
---
--- ただし**適用そのものは 2 回に分かれる**（Ⅰ と Ⅱ+Ⅲ）。あいだに seed と
--- バックフィルが挟まり、それらは Ⅰ の表を必要とし、Ⅱ+Ⅲ より先に済んでいる必要が
--- あるため。詳しくは infra/database/migrate.go の Migrate を読むこと。
---
--- ## 書き方の約束
---
--- - `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` だけで冪等にする
--- - **既存の表への列追加も、素の `ALTER TABLE` では書かない。** 列が既に在って
---   何もしない場合でも先に ACCESS EXCLUSIVE ロックを取り、毎回の起動でその表を
---   止めてしまう。カタログを見て足りないときだけ `ALTER` する `DO` ブロックにする
---   （実例: Ⅱ の spaces.visibility）
--- - 変更したら `make sqlc` で生成物も更新する
---
--- =====================================================================
 
--- =====================================================================
--- Ⅰ. 中核（users / roles / courses / exercises …）
--- =====================================================================
-
--- アプリケーション中核テーブルの DDL（実スキーマの正本）。
---
--- このファイルは 2 つの役割を 1 つの定義で兼ねる。
---
---   1. 実スキーマ  … 起動時に ApplyCoreSchema（infra/database/core_schema.go）が
---                    go:embed した本文をそのまま流す。デプロイ物とスキーマ定義が必ず同じ版になる。
---   2. sqlc の型付け … sqlc.yaml の schema 欄がこのファイルを直接読む。
---
--- 宣言（sqlc）と実体（DDL）が同じ 1 ファイルなので、片方だけ直してずれることが原理的に起きない。
--- ノート（schema/knowledge_base.sql / knowledge_base_permissions.sql）が先に採っている形に揃えてある。
---
--- 適用順序（infra/database/migrate.go の Migrate が守る）:
---   このファイル（中核 + workspaces）→ seed → ノート骨格 → 権限モデル → コース権限。
---   権限モデルは users / workspaces を、コース権限は principals を参照するため順序は崩せない。
---
--- 冪等性: CREATE TABLE / CREATE INDEX はすべて IF NOT EXISTS。何度流しても安全に通る。
---   ただし CREATE TABLE IF NOT EXISTS は既に在るテーブルへ列を足さない。既存 DB への列追加・
---   制約追加は、このファイル内で DO ブロック（IF NOT EXISTS 判定つき ALTER）にして冪等に行う。
---
--- ここに置かないもの:
---   - ノート（骨格 spaces / pages / blocks / page_paths / page_snapshots、
---     権限モデル principals / principal_members / workspace_grants / space_grants /
---     share_links）→ schema/knowledge_base*.sql が正本。workspaces はテナント境界として
---     courses 等の中核テーブルからも参照されるため、このファイル側に置く。
---   - FK / CHECK / 部分 UNIQUE のうち、既存データの修復を伴うもの（users の正規化まわり）
---     → このファイル自身の DO ブロックが、バックフィルの後に張る。
---
--- 型と NULL 可否の方針:
---   created_at / updated_at はアプリが必ず値を入れるため NOT NULL とする（sqlc が sql.NullTime では
---   なく time.Time を生成し、domain への詰め替えが素直になる）。同じ理由で、アプリが必ず値を入れる
---   文字列・数値も NOT NULL + DEFAULT を付ける。実際に NULL を取り得るもの（未所属の workspace_id、
---   論理削除の deleted_at、任意項目の hint_text など）だけ nullable にする。
-
+-- CREATE 文以外の記載禁止
 -- 演習の入力例 / 期待出力例。(exercise_id, order_index) は同一問題内で一意。
 CREATE TABLE IF NOT EXISTS master_exercise_examples (
     id              bigserial PRIMARY KEY,
@@ -90,30 +21,18 @@ CREATE TABLE IF NOT EXISTS roles (
     name        text NOT NULL,
     description text NOT NULL DEFAULT '',
     created_at  timestamptz NOT NULL,
-    updated_at  timestamptz NOT NULL
+    updated_at  timestamptz NOT NULL,
+
+    CONSTRAINT ck_roles_name_not_empty CHECK (name <> '')
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_name ON roles (name);
-
--- OIDC プロバイダ由来のユーザー識別子（Cognito の sub を users から分離）。
--- FK / CHECK はこのファイル自身の DO ブロックが張る（既存データの修復を伴うため）。
-CREATE TABLE IF NOT EXISTS user_oidc_identities (
-    id         bigserial PRIMARY KEY,
-    user_id    bigint NOT NULL,
-    provider   text NOT NULL DEFAULT 'cognito',
-    subject    text NOT NULL,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_user_provider
-    ON user_oidc_identities (user_id, provider);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_provider_subject
-    ON user_oidc_identities (provider, subject);
 
 -- 利用者。deleted_at は実際に NULL になり得る。workspace_id は運営管理者等の未所属で NULL。
 -- role_id は roles マスタへの参照（正規化後の正）。DEFAULT 3 = trainee は、ローリングデプロイ中の
 -- 旧コード（role_id を書かない INSERT）を NOT NULL 違反で壊さないための安全弁。
--- アクティブ行の email 部分 UNIQUE（uq_users_email_active）は
--- このファイル自身の DO ブロックが、正規形へのバックフィル後に張る。
+-- アクティブ行の email 部分 UNIQUE（uq_users_email_active）は下の DO ブロックが、
+-- 正規形へのバックフィル後に張る（重複データがあれば警告に留める実行時ロジックを伴うため、
+-- CREATE のインライン制約では表せない唯一の例外の 1 つ）。
 CREATE TABLE IF NOT EXISTS users (
     id            bigserial PRIMARY KEY,
     email         text NOT NULL DEFAULT '',
@@ -126,9 +45,31 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at    timestamptz,
     -- 所属の正本（company_id は撤去済み）。FK（fk_users_workspace）は workspaces の
     -- CREATE TABLE より後でなければ張れない（workspaces.personal_owner_user_id が
-    -- users を参照するため、users を先に作る）ので、直後に DO ブロックで追加する。
-    workspace_id  uuid
+    -- users を参照するため、users を先に作る）ので、直後に DO ブロックで追加する
+    -- （users と workspaces が互いを参照する真の循環依存で、インライン化できない唯一の例外）。
+    workspace_id  uuid,
+
+    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles (id)
 );
+
+-- OIDC プロバイダ由来のユーザー識別子（Cognito の sub を users から分離）。
+-- users の直後に置くのは fk_user_oidc_identities_user が users を参照するため。
+CREATE TABLE IF NOT EXISTS user_oidc_identities (
+    id         bigserial PRIMARY KEY,
+    user_id    bigint NOT NULL,
+    provider   text NOT NULL DEFAULT 'cognito',
+    subject    text NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+
+    CONSTRAINT fk_user_oidc_identities_user FOREIGN KEY (user_id)
+        REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT ck_user_oidc_identities_not_empty CHECK (provider <> '' AND subject <> '')
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_user_provider
+    ON user_oidc_identities (user_id, provider);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_oidc_provider_subject
+    ON user_oidc_identities (provider, subject);
 
 -- ワークスペース: テナント境界。ノート（spaces 以下）と、業務データ
 -- （courses / course_chapters / invitations / rich_documents）がどちらもこの表を指す。
@@ -256,7 +197,9 @@ CREATE TABLE IF NOT EXISTS invitations (
     -- 所属の正本（company_id は撤去済み）。
     workspace_id uuid,
 
-    CONSTRAINT fk_invitations_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
+    CONSTRAINT fk_invitations_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id),
+    -- Go 側では pending/accepted/canceled の 3 値だけを書く。
+    CONSTRAINT ck_invitations_status CHECK (status IN ('pending', 'accepted', 'canceled'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON invitations (token);
 CREATE INDEX IF NOT EXISTS idx_invitations_workspace_id ON invitations (workspace_id);
@@ -411,151 +354,6 @@ CREATE TABLE IF NOT EXISTS course_chapters (
 CREATE INDEX IF NOT EXISTS idx_course_chapters_course_id ON course_chapters (course_id);
 CREATE INDEX IF NOT EXISTS idx_course_chapters_workspace_id ON course_chapters (workspace_id);
 
--- 本番に欠けている NOT NULL と既定値を、定義（このファイルの上のほう）に合わせて埋める。
---
--- なぜ要るか: これらの表は ORM が作っていた頃のもので、ORM は既存の列へ後から
--- NOT NULL を付け直さない。DDL を正本にした今も、過去に作られた列だけが緩いままで、
--- 「定義では必須なのに本番では NULL を入れられる」状態が 60 列残っていた。
---
--- 手順は 3 段。**この順序でないと落ちる**:
---   1. 既定値を付ける（以後の INSERT で NULL が入らなくなる）
---   2. 既に入っている NULL を埋める（NOT NULL は 1 行でも NULL があると付けられない）
---   3. NOT NULL を付ける
---
--- 冪等にするため、カタログを見て「まだ足りないときだけ」実行する。
--- 素の ALTER TABLE を毎回流すと、何もしない場合でも ACCESS EXCLUSIVE ロックを取り、
--- 起動のたびにその表を止めてしまう（このファイルの冒頭の約束）。
-DO $fill$
-DECLARE
-    r record;
-BEGIN
-    -- 1. 既定値（宣言にあるのに本番で欠けているものだけ）
-    FOR r IN
-        SELECT * FROM (VALUES
-            ('audit_events', 'action', $$''::character varying$$),
-            ('audit_events', 'actor_email', $$''::character varying$$),
-            ('audit_events', 'actor_role', $$''::character varying$$),
-            ('invitations', 'email', $$''::text$$),
-            ('invitations', 'name', $$''::text$$),
-            ('invitations', 'role', $$''::text$$),
-            ('invitations', 'status', $$''::text$$),
-            ('notes', 'content', $$''::text$$),
-            ('notes', 'is_public', $$false$$),
-            ('notes', 'title', $$''::text$$),
-            ('notifications', 'body', $$''::text$$),
-            ('notifications', 'is_read', $$false$$),
-            ('notifications', 'title', $$''::text$$),
-            ('notifications', 'type', $$''::text$$),
-            ('profiles', 'avatar_url', $$''::text$$),
-            ('profiles', 'bio', $$''::text$$),
-            ('users', 'email', $$''::text$$),
-            ('users', 'name', $$''::text$$),
-            -- workspaces は Ⅱ（ノート）が作る表なので、まっさらな DB では初回この時点でまだ無い。
-            -- 下の EXISTS(table) 側の絞りで対象に上がらず no-op になる
-            -- （Ⅱ の CREATE TABLE 自体が NOT NULL DEFAULT true で作るので、そもそも埋める必要が無い）。
-            -- 本番は workspaces が既に存在するので、次回の起動でここが効く。
-            ('workspaces', 'is_active', $$true$$)
-        ) AS v(tbl, col, expr)
-        WHERE EXISTS (
-            -- 表そのものが無ければここで弾く。無いと NOT EXISTS(列の既定値) は「表が無い」でも
-            -- 真になり、Ⅱ がまだ作っていない workspaces へ初回起動で ALTER をぶつけて落ちる
-            -- （実 PostgreSQL で確認済み）。
-            SELECT 1 FROM information_schema.tables t
-            WHERE t.table_schema = 'public' AND t.table_name = v.tbl
-        ) AND NOT EXISTS (
-            SELECT 1 FROM information_schema.columns ic
-            WHERE ic.table_schema = 'public' AND ic.table_name = v.tbl
-              AND ic.column_name = v.col AND ic.column_default IS NOT NULL
-        )
-    LOOP
-        EXECUTE format('ALTER TABLE %I ALTER COLUMN %I SET DEFAULT %s', r.tbl, r.col, r.expr);
-    END LOOP;
-
-    -- 2. 残っている NULL を埋めてから 3. NOT NULL を付ける
-    FOR r IN
-        SELECT * FROM (VALUES
-            ('audit_events', 'action', $$''::character varying$$),
-            ('audit_events', 'actor_email', $$''::character varying$$),
-            ('audit_events', 'actor_id', $$0$$),
-            ('audit_events', 'actor_role', $$''::character varying$$),
-            ('audit_events', 'created_at', $$now()$$),
-            ('audit_events', 'target_id', $$0$$),
-            ('course_chapters', 'course_id', $$0$$),
-            ('course_chapters', 'created_at', $$now()$$),
-            ('course_chapters', 'updated_at', $$now()$$),
-            ('courses', 'created_at', $$now()$$),
-            ('courses', 'updated_at', $$now()$$),
-            ('invitations', 'created_at', $$now()$$),
-            ('invitations', 'email', $$''::text$$),
-            ('invitations', 'expires_at', $$now()$$),
-            ('invitations', 'name', $$''::text$$),
-            ('invitations', 'role', $$''::text$$),
-            ('invitations', 'status', $$''::text$$),
-            ('master_exercise_examples', 'created_at', $$now()$$),
-            ('master_exercise_examples', 'updated_at', $$now()$$),
-            ('master_exercises', 'created_at', $$now()$$),
-            ('master_exercises', 'updated_at', $$now()$$),
-            ('notes', 'content', $$''::text$$),
-            ('notes', 'created_at', $$now()$$),
-            ('notes', 'is_pinned', $$false$$),
-            ('notes', 'is_public', $$false$$),
-            ('notes', 'title', $$''::text$$),
-            ('notes', 'updated_at', $$now()$$),
-            ('notes', 'user_id', $$0$$),
-            ('notifications', 'body', $$''::text$$),
-            ('notifications', 'created_at', $$now()$$),
-            ('notifications', 'is_read', $$false$$),
-            ('notifications', 'title', $$''::text$$),
-            ('notifications', 'type', $$''::text$$),
-            ('notifications', 'user_id', $$0$$),
-            ('profiles', 'avatar_url', $$''::text$$),
-            ('profiles', 'bio', $$''::text$$),
-            ('profiles', 'status_message', $$''::text$$),
-            ('profiles', 'updated_at', $$now()$$),
-            ('rich_documents', 'created_at', $$now()$$),
-            ('rich_documents', 'updated_at', $$now()$$),
-            ('roles', 'created_at', $$now()$$),
-            ('roles', 'updated_at', $$now()$$),
-            ('user_chapter_progress', 'created_at', $$now()$$),
-            ('user_chapter_views', 'course_id', $$0$$),
-            ('user_chapter_views', 'first_viewed_at', $$now()$$),
-            ('user_chapter_views', 'last_viewed_at', $$now()$$),
-            ('user_oidc_identities', 'created_at', $$now()$$),
-            ('user_oidc_identities', 'updated_at', $$now()$$),
-            ('users', 'created_at', $$now()$$),
-            ('users', 'email', $$''::text$$),
-            ('users', 'name', $$''::text$$),
-            ('users', 'updated_at', $$now()$$),
-            ('workspaces', 'is_active', $$true$$)
-        ) AS v(tbl, col, fill)
-        WHERE EXISTS (
-            SELECT 1 FROM information_schema.columns ic
-            WHERE ic.table_schema = 'public' AND ic.table_name = v.tbl
-              AND ic.column_name = v.col AND ic.is_nullable = 'YES'
-        )
-    LOOP
-        EXECUTE format('UPDATE %I SET %I = %s WHERE %I IS NULL', r.tbl, r.col, r.fill, r.col);
-        EXECUTE format('ALTER TABLE %I ALTER COLUMN %I SET NOT NULL', r.tbl, r.col);
-    END LOOP;
-END
-$fill$;
-
--- invitations.status は Go 側では pending/accepted/canceled の3値だけを書くが、
--- DB 側には制約が無かった。既存データに想定外の値があれば追加せず警告に留める。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_invitations_status') THEN
-        IF EXISTS (
-            SELECT 1 FROM invitations
-            WHERE status NOT IN ('pending', 'accepted', 'canceled')
-        ) THEN
-            RAISE WARNING 'invitations.status に想定外の値があるため ck_invitations_status を作成できません';
-        ELSE
-            ALTER TABLE invitations ADD CONSTRAINT ck_invitations_status
-                CHECK (status IN ('pending', 'accepted', 'canceled'));
-        END IF;
-    END IF;
-END $$;
-
 -- email をアプリと同じ正規形（lower + 前後空白除去）へ畳む。索引の式を正規形にするだけでは、
 -- 生の値のまま残った既存行に対して正規形の一意性を守れない環境が残る。畳むと衝突する行だけは
 -- 触らない（別人かもしれない 2 行を勝手に 1 つのアドレスへ寄せない）。btrim の文字集合は
@@ -584,37 +382,6 @@ UPDATE invitations
 DELETE FROM user_oidc_identities oi USING users u
  WHERE oi.user_id = u.id AND u.deleted_at IS NOT NULL;
 
--- roles.name: 空文字禁止。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_roles_name_not_empty') THEN
-        ALTER TABLE roles ADD CONSTRAINT ck_roles_name_not_empty CHECK (name <> '');
-    END IF;
-END $$;
-
--- users.role_id → roles.id。ロールマスタの行は参照されている限り消せない（RESTRICT 相当）。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_role') THEN
-        ALTER TABLE users ADD CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id);
-    END IF;
-END $$;
-
--- user_oidc_identities.user_id → users.id。ユーザーの物理削除で identity も消す。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_oidc_identities_user') THEN
-        ALTER TABLE user_oidc_identities
-            ADD CONSTRAINT fk_user_oidc_identities_user
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-    END IF;
-END $$;
-
--- identity の provider / subject: 空文字禁止。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_user_oidc_identities_not_empty') THEN
-        ALTER TABLE user_oidc_identities
-            ADD CONSTRAINT ck_user_oidc_identities_not_empty CHECK (provider <> '' AND subject <> '');
-    END IF;
-END $$;
-
 -- users.email: アクティブ行（未論理削除）かつ正規形が非空に限った部分 UNIQUE。論理削除→同メール
 -- 再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする。キーは email その
 -- ものではなく上の UPDATE と同じ正規形 lower(btrim(email, ...))。既存データに（畳んでも解決
@@ -637,34 +404,6 @@ DO $$ BEGIN
                 ON users (lower(btrim(email, E'\t\n\x0B\f\r ')))
                 WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> '';
         END IF;
-    END IF;
-END $$;
-
--- rich_documents: owner_id → users.id。ユーザーの物理削除で文書も消す（論理削除運用なので通常は
--- 発火しない）。存在判定は conrelid（テーブル）でも絞る（制約名は表単位でしか一意でないため）。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_owner' AND conrelid = 'rich_documents'::regclass) THEN
-        ALTER TABLE rich_documents
-            ADD CONSTRAINT fk_rich_documents_owner
-            FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
-    END IF;
-END $$;
-
--- rich_documents.doc は tiptap のドキュメント JSON（object かつ type='doc'）に限る。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_doc' AND conrelid = 'rich_documents'::regclass) THEN
-        ALTER TABLE rich_documents
-            ADD CONSTRAINT ck_rich_documents_doc
-            CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc');
-    END IF;
-END $$;
-
--- rich_documents.title 長の上限（アプリ側検証と二重の壁）。
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_title_len' AND conrelid = 'rich_documents'::regclass) THEN
-        ALTER TABLE rich_documents
-            ADD CONSTRAINT ck_rich_documents_title_len
-            CHECK (char_length(title) <= 200);
     END IF;
 END $$;
 
@@ -731,35 +470,6 @@ CREATE TABLE IF NOT EXISTS spaces (
     CONSTRAINT ck_spaces_key_len CHECK (char_length("key") BETWEEN 1 AND 64),
     CONSTRAINT ck_spaces_visibility CHECK (visibility IN ('workspace', 'private'))
 );
-
--- 既存 DB への visibility 列と CHECK の追加（新規 DB には上の CREATE TABLE が効く）。
---
--- **カタログを見て、足りないときだけ ALTER を出す。** ALTER TABLE は
--- ADD COLUMN IF NOT EXISTS で「列が既に在るから何もしない」場合でも、判定より先に
--- ACCESS EXCLUSIVE ロックを取り、トランザクションが終わるまで手放さない。この DDL は
--- 起動時マイグレーションの 1 トランザクションで流れるので、素で書くと**毎回の起動
--- （毎デプロイ）で spaces への読み書きが後続の DDL が終わるまで止まる**。
--- 同じファイルの CREATE INDEX を「既にある索引は発行しない」形にしているのと同じ理由で、
--- 列が出揃った通常の起動ではロックを 1 つも取らずに通り抜けさせる。
-DO $mig$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = 'spaces' AND column_name = 'visibility'
-    ) THEN
-        -- 既定 'workspace' で埋まるので、追加時点の既存スペースの見え方は変わらない。
-        ALTER TABLE spaces ADD COLUMN visibility varchar(16) NOT NULL DEFAULT 'workspace';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'ck_spaces_visibility' AND conrelid = 'spaces'::regclass
-    ) THEN
-        ALTER TABLE spaces ADD CONSTRAINT ck_spaces_visibility
-            CHECK (visibility IN ('workspace', 'private'));
-    END IF;
-END
-$mig$;
 
 -- ページ: ノートの 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
 CREATE TABLE IF NOT EXISTS pages (

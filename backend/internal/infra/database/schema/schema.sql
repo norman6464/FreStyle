@@ -286,10 +286,6 @@ CREATE TABLE IF NOT EXISTS master_exercises (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_master_exercises_slug ON master_exercises (slug);
 CREATE INDEX IF NOT EXISTS idx_master_exercises_language ON master_exercises (language);
 
--- company_exercises（会社独自の演習）は上の companies と同じレガシー撤去の対象。
--- アプリから書く経路は元々無かった（repository も sqlc のクエリも無い）。
-DROP TABLE IF EXISTS company_exercises;
-
 -- コード演習の提出履歴（append-only）。stdout / stderr は未取得のとき NULL。
 CREATE TABLE IF NOT EXISTS exercise_submissions (
     id             bigserial PRIMARY KEY,

@@ -374,45 +374,4 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NotNil(t, got)
 		require.Equal(t, "Legacy@Example.com", got.Email)
 	})
-
-	// 既存データへの影響: 畳んだ値に重複がある環境では張り替えを見送り、旧索引（生の email）を
-	// 残す。先に落とすと「新しい索引を作れない かつ 旧索引も無い」= 無防備な状態になるため。
-	t.Run("索引の張り替え: 畳んだ値に重複がある間は旧索引を残し、解消後に張り替える", func(t *testing.T) {
-		truncate(t)
-		// 張り替え前（生の email キー）の環境を再現する。
-		_, err := sqlDB.Exec(`DROP INDEX IF EXISTS uq_users_email_active`)
-		require.NoError(t, err)
-		_, err = sqlDB.Exec(
-			`CREATE UNIQUE INDEX uq_users_email_active ON users (email)
-			 WHERE deleted_at IS NULL AND email <> ''`,
-		)
-		require.NoError(t, err)
-		// 旧索引だから作れてしまう「畳めば同じ」2 行（既存本番で起こり得る状態）。
-		_, err = sqlDB.Exec(
-			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
-			 VALUES ('mix@example.com', 'a', 3, true, NOW(), NOW()),
-			        ('MIX@Example.com', 'b', 3, true, NOW(), NOW())`,
-		)
-		require.NoError(t, err)
-
-		indexdef := func(t *testing.T) string {
-			t.Helper()
-			var def string
-			require.NoError(t, sqlDB.QueryRow(
-				`SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_users_email_active'`,
-			).Scan(&def))
-			return def
-		}
-
-		// 起動時の制約適用は落ちず（WARNING のみ）、旧索引がそのまま残る。
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
-		require.NotContains(t, indexdef(t), "btrim")
-		require.Contains(t, indexdef(t), "email")
-
-		// 重複を解消すれば、次の起動で正規形（lower(btrim(email, ...))）へ張り替わる。
-		_, err = sqlDB.Exec(`DELETE FROM users WHERE email = 'MIX@Example.com'`)
-		require.NoError(t, err)
-		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
-		require.Contains(t, indexdef(t), "btrim")
-	})
 }

@@ -1,18 +1,22 @@
 # FreStyle backend - 開発 / 検証 用 Makefile
 #
 # 主要 target:
-#   make sqlc         … queries/*.sql + schema/*.sql から型安全な Go を再生成
-#   make sqlc-vet     … sqlc.yaml の rules を全クエリに当てて危険な SQL を弾く
-#   make fmt          … gofumpt -w でコードを自動整形（commit 前に実行）
-#   make verify       … gofumpt / vet / build / test / sqlc-vet を 一括 実行
+#   make schema-gen    … schema.hcl（正本）から schema.gen.sql（sqlc 入力・DO NOT EDIT）を再生成
+#   make schema-plan    … TARGET=<DSN> の実 DB に schema.hcl を当てたときの差分を表示（dry-run）
+#   make schema-apply   … TARGET=<DSN> の実 DB へ schema.hcl を宣言的に適用する（要確認）
+#   make sqlc          … queries/*.sql + schema.gen.sql から型安全な Go を再生成
+#   make sqlc-vet       … sqlc.yaml の rules を全クエリに当てて危険な SQL を弾く
+#   make fmt            … gofumpt -w でコードを自動整形（commit 前に実行）
+#   make verify         … gofumpt / vet / build / test / sqlc-vet を 一括 実行
 #   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
-#   make run          … go run ./cmd/server で ローカル サーバ 起動
+#   make run            … go run ./cmd/server で ローカル サーバ 起動
 #   ローカル環境の起動は make ではなくリポジトリ直下で `docker compose up -d`
-#   (DB + メールキャッチャー + バックエンドが起動する。詳細は /docker-compose.yml)
-#   make local-seed   … ダミーデータ投入 (SIZE=small|medium|large)
-#   make local-psql   … ローカル DB に psql で接続
-#   make local-slow   … pg_stat_statements から遅いクエリ上位 20 件を表示
-#   make local-reset  … ローカル DB を volume ごと破棄してまっさらにする
+#   (DB + メールキャッチャー + バックエンドが起動する。スキーマは db サービスの
+#   docker-entrypoint-initdb.d が schema.gen.sql を初回起動時だけ流す。詳細は /docker-compose.yml)
+#   make local-seed     … ダミーデータ投入 (SIZE=small|medium|large)
+#   make local-psql     … ローカル DB に psql で接続
+#   make local-slow     … pg_stat_statements から遅いクエリ上位 20 件を表示
+#   make local-reset    … ローカル DB を volume ごと破棄してまっさらにする
 #
 # go install は GOBIN > GOPATH/bin の 優先 順位 で 配置 する。
 # どちら で も 拾える よう に GOBIN が セット されて いれば そちら を 優先 する。
@@ -23,8 +27,68 @@ endif
 SQLC_VERSION := v1.31.1
 SQLC := $(GO_INSTALL_DIR)/sqlc
 
-# sqlc 生成: queries/*.sql + schema.sql → 型安全な Go (internal/adapter/persistence/sqlcgen)。
-# 生成物はコミット対象。クエリ / schema を変更したら必ず `make sqlc` で再生成する。
+# Atlas（ariga.io/atlas）。スキーマの正本 schema.hcl を読み書きする唯一のツール。
+# go install できない（Go モジュールとして配布されていない）ため release.ariga.io から
+# アーキテクチャ別のバイナリを直接取得する。版は固定（-latest は canary で日によって挙動が変わる）。
+ATLAS_VERSION := v1.3.0
+ATLAS := $(GO_INSTALL_DIR)/atlas
+ATLAS_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+ATLAS_ARCH := $(shell uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+SCHEMA_DIR := internal/infra/database/schema
+SCHEMA_HCL := $(SCHEMA_DIR)/schema.hcl
+SCHEMA_GEN_SQL := $(SCHEMA_DIR)/schema.gen.sql
+# ローカル開発の docker-entrypoint-initdb.d 用コピー。docker-entrypoint-initdb.d は
+# ディレクトリ丸ごとのバインドしか受け付けず、schema.gen.sql を単体で追加マウントできない
+# （postgres 公式イメージの仕様）ため、同じ内容をこの実ファイルとしても持つ。
+# schema-gen が両方を同時に書くので、手で同期を取る必要はない。
+LOCAL_DB_INIT_SQL := scripts/local-db-init/02-schema.sql
+# Atlas の dev-database。宣言的 apply の差分計算に使う使い捨ての PostgreSQL
+# （ローカルの Docker で毎回まっさらに立ち上げ、変更を残さない）。
+ATLAS_DEV_URL := docker://postgres/17/dev
+
+.PHONY: ensure-atlas
+ensure-atlas:
+	@if [ ! -x "$(ATLAS)" ] || ! "$(ATLAS)" version 2>/dev/null | grep -q '$(ATLAS_VERSION)'; then \
+	  echo ">>> installing atlas ($(ATLAS_VERSION)) for $(ATLAS_OS)/$(ATLAS_ARCH)..."; \
+	  mkdir -p "$(GO_INSTALL_DIR)"; \
+	  curl -fsSL -o "$(ATLAS)" "https://release.ariga.io/atlas/atlas-$(ATLAS_OS)-$(ATLAS_ARCH)-$(ATLAS_VERSION)"; \
+	  chmod +x "$(ATLAS)"; \
+	fi
+
+# schema.hcl（正本）→ schema.gen.sql（sqlc の入力・結合テストが使う DDL）。
+# 同じ内容を scripts/local-db-init/02-schema.sql（ローカル docker compose の初回起動用）へも書く。
+# schema.gen.sql は「まだ何も無い空の DB」への適用専用（CREATE 文のみ・DO ブロックも
+# IF NOT EXISTS も持たない）。既存 DB への適用は schema-apply（Atlas の宣言的 apply）を使う。
+# CI はこの target を実行し直して git diff で drift（手直し・作り忘れ）をチェックする。
+.PHONY: schema-gen
+schema-gen: ensure-atlas
+	@echo ">>> atlas schema inspect ($(SCHEMA_HCL) -> $(SCHEMA_GEN_SQL), $(LOCAL_DB_INIT_SQL))"
+	@tmp="$$(mktemp)"; \
+	if ! "$(ATLAS)" schema inspect --url "file://$(SCHEMA_HCL)" --dev-url "$(ATLAS_DEV_URL)" --format '{{ sql . }}' > "$$tmp"; then \
+	  rm -f "$$tmp"; \
+	  exit 1; \
+	fi; \
+	cp "$$tmp" "$(SCHEMA_GEN_SQL)"; \
+	cp "$$tmp" "$(LOCAL_DB_INIT_SQL)"; \
+	rm -f "$$tmp"
+
+# schema.hcl を TARGET の実 DB に当てたときの差分を表示するだけ（何も変更しない）。
+# 本番へ当てる前に必ずこれで計画を読み、DROP が意図どおりかを確認すること。
+.PHONY: schema-plan
+schema-plan: ensure-atlas
+	@if [ -z "$(TARGET)" ]; then echo "使い方: make schema-plan TARGET=postgres://..."; exit 1; fi
+	@"$(ATLAS)" schema apply --url "$(TARGET)" --to "file://$(SCHEMA_HCL)" --dev-url "$(ATLAS_DEV_URL)" --dry-run
+
+# schema.hcl を TARGET の実 DB へ宣言的に適用する。Atlas が差分を表示したあと
+# ターミナルで承認を求める（--auto-approve は使い捨て DB 以外では付けない）。
+.PHONY: schema-apply
+schema-apply: ensure-atlas
+	@if [ -z "$(TARGET)" ]; then echo "使い方: make schema-apply TARGET=postgres://..."; exit 1; fi
+	@"$(ATLAS)" schema apply --url "$(TARGET)" --to "file://$(SCHEMA_HCL)" --dev-url "$(ATLAS_DEV_URL)"
+
+# sqlc 生成: queries/*.sql + schema.gen.sql → 型安全な Go (internal/adapter/persistence/sqlcgen)。
+# 生成物はコミット対象。クエリを変更したら必ず `make sqlc` で再生成する
+# （schema.hcl を変更したときは先に `make schema-gen` を通すこと）。
 .PHONY: sqlc
 sqlc:
 	@if [ ! -x "$(SQLC)" ]; then \
@@ -113,13 +177,13 @@ LOCAL_PSQL := sh -c 'exec psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" "$$@"' --
 
 SIZE ?= small
 
-# volume ごと破棄してまっさらにする。スキーマは次回起動時のマイグレーションで再構築される。
+# volume ごと破棄してまっさらにする。スキーマは次回起動時（docker-entrypoint-initdb.d）で再構築される。
 .PHONY: local-reset
 local-reset:
 	docker compose -f $(LOCAL_COMPOSE) down -v
-	@echo "破棄しました。docker compose up -d(起動時にスキーマ適用) → make local-seed で作り直せます。"
+	@echo "破棄しました。docker compose up -d(初回起動時にスキーマ適用) → make local-seed で作り直せます。"
 
-# ダミーデータ投入。スキーマ適用済みが前提(docker compose up の起動時に適用される)。
+# ダミーデータ投入。スキーマ適用済みが前提(docker compose up の初回起動時に適用される)。
 # 規模: SIZE=small(既定) | medium | large
 .PHONY: local-seed
 local-seed:

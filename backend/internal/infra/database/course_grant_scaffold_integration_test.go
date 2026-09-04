@@ -5,7 +5,6 @@ package database_test
 import (
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +23,6 @@ import (
 // 残り、誰の目にも触れないまま生き続ける。
 func TestCourseScaffold_権限を張れる形になっている_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	resetPublicSchema(t, db)
-	require.NoError(t, database.Migrate(t.Context(), db))
 
 	const ws = "00000000-0000-4000-8000-000000000001"
 	// 同じ DB をパッケージ内の他のテストと共有するので、入れた行は必ず片付ける。

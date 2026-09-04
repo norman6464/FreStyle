@@ -6,24 +6,18 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
 
-// TestCoreSchema_列の型が本番の実列と一致する_Integration は、起動 DDL を流した直後の
-// スキーマの列型を固定する。
+// TestCoreSchema_列の型が本番の実列と一致する_Integration は、schema.hcl から生成した DDL を
+// 流した直後のスキーマの列型を固定する。
 //
-// ここに並ぶ列は、宣言（schema/core.sql）と本番の実列がずれていたものを本番側へ合わせた
-// 結果そのもの。型が合っていないと、sqlc の生成型と実列の型が食い違い、
-// 既存 DB への migration も「宣言どおりに直す」形で書けなくなる。
+// ここに並ぶ列は、宣言（schema.hcl）と本番の実列がずれていたものを本番側へ合わせた
+// 結果そのもの。型が合っていないと、sqlc の生成型と実列の型が食い違う。
 // 手で 1 回突き合わせた事実を CI に残すためのテストなので、緩めない。
 func TestCoreSchema_列の型が本番の実列と一致する_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	// CREATE TABLE IF NOT EXISTS は既に在るテーブルの列を作り直さない。
-	// 型を見るには「起動 DDL がまっさらな DB に作った姿」でなければ意味が無いので作り直す。
-	resetPublicSchema(t, db)
-	require.NoError(t, database.Migrate(t.Context(), db))
 
 	tests := []struct {
 		table  string

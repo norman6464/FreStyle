@@ -107,9 +107,28 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # スキーマ正本（internal/infra/database/schema/schema.hcl）から機械生成した
+      # schema.gen.sql / scripts/local-db-init/02-schema.sql が最新かを検証する。
+      # schema.hcl を直接触っても make schema-gen を忘れると、sqlc の入力・結合テスト・
+      # ローカル初回起動のどれもが古い定義のまま取り残される。
+      # Atlas は差分計算のために使い捨ての PostgreSQL（--dev-url docker://postgres/17/dev）を
+      # runner 上の docker デーモンで自分で立てる（ubuntu-latest には標準で入っている）ので、
+      # このジョブが別途 PostgreSQL サービスを用意する必要はない。
+      # Atlas の版は backend/Makefile の ATLAS_VERSION 固定（生成物は版で差分が出るため
+      # ここでは版を書かず Makefile を唯一の出どころにする）。
+      - name: schema drift check (schema.hcl -> schema.gen.sql)
+        run: |
+          make schema-gen
+          if [ -n "$(git status --porcelain -- internal/infra/database/schema/schema.gen.sql scripts/local-db-init/02-schema.sql)" ]; then
+            echo "::error::schema.gen.sql is out of date. Run 'make schema-gen' in backend/ and commit the result."
+            git status --porcelain -- internal/infra/database/schema/schema.gen.sql scripts/local-db-init/02-schema.sql
+            git diff -- internal/infra/database/schema/schema.gen.sql scripts/local-db-init/02-schema.sql
+            exit 1
+          fi
+
       # sqlc 生成物 (internal/adapter/persistence/sqlcgen/) がスキーマ・クエリと一致しているかを
-      # 検証する。schema/*.sql は起動時に流す実 DDL そのものなので、列の型を変えたのに
-      # `make sqlc` を忘れると「実スキーマと Go の型が食い違ったまま」マージされる。
+      # 検証する。schema.gen.sql は起動時（結合テスト・ローカル初回起動）に流す実 DDL そのものなので、
+      # 列の型を変えたのに `make sqlc` を忘れると「実スキーマと Go の型が食い違ったまま」マージされる。
       # sqlc の版は backend/Makefile の SQLC_VERSION 固定（生成物は版で差分が出るため
       # ここでは版を書かず Makefile を唯一の出どころにする）。
       - name: sqlc drift check

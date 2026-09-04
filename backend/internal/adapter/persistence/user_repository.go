@@ -280,7 +280,7 @@ func createWithOidcIdentity(
 }
 
 // bootstrapSuperAdminLockKey は「最初の運営管理者を作る」経路を直列化する advisory lock のキー。
-// 起動時マイグレーション（database.migrateAdvisoryLockKey）とは別の値にする。
+// 他の advisory lock（testsupport.integrationLockKey 等）とは別の値にする。
 const bootstrapSuperAdminLockKey int64 = 7_419_063
 
 // CreateFirstSuperAdminWithOidcIdentity は super_admin が 1 人も居ないときに限りユーザーを作る。

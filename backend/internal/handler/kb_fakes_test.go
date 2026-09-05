@@ -1069,11 +1069,7 @@ func (f *kbFakeUsers) ListByWorkspaceID(context.Context, string) ([]domain.User,
 	return nil, nil
 }
 
-func (f *kbFakeUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
-	return nil
-}
-
-func (f *kbFakeUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
+func (f *kbFakeUsers) Create(context.Context, *domain.User) error { return nil }
 
 func (f *kbFakeUsers) UpdateActive(context.Context, uint64, bool) error { return nil }
 
@@ -1082,6 +1078,17 @@ func (f *kbFakeUsers) SoftDelete(context.Context, uint64) error { return nil }
 func (f *kbFakeUsers) UpdateName(context.Context, uint64, string) error { return nil }
 
 func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, *string) error { return nil }
+
+// fakeTxManager は repository.TxManager のテスト用 no-op 実装。
+// fn(ctx) をそのまま呼ぶだけで、実 DB もトランザクションも介さない。
+// usecase の単体テストで、既存の repository fake/mock をそのまま使い続けるために使う。
+type fakeTxManager struct{}
+
+var _ repository.TxManager = fakeTxManager{}
+
+func (fakeTxManager) DoInTx(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
 
 func (f *kbFakePerms) EnsureUserPrincipal(_ context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	if p := f.userPrincipal(workspaceID, userID); p != nil {

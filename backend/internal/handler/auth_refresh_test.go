@@ -38,7 +38,9 @@ func newRefreshHandler(t *testing.T, idp *testIdP, users *fakeUserRepo, respond 
 		tokens: oidc.NewTokenExchanger(oidc.ExchangerConfig{
 			ClientID: cfg.ClientID, TokenURI: cfg.TokenURI,
 		}),
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users),
+		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
+			users, fakeOidcIdentityRepo{}, fakeTxManager{},
+		),
 	}
 	return h, &calls
 }

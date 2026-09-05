@@ -17,30 +17,16 @@ import (
 // userRepository は [repository.UserRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type userRepository struct {
-	db *sql.DB
+	baseRepository
 }
 
 func NewUserRepository(db *sql.DB) repository.UserRepository {
-	return &userRepository{db: db}
+	return &userRepository{baseRepository{db: db}}
 }
 
-// queries は保持している接続プールで sqlc の Queries を作る（別 pool を持たない）。
-func (r *userRepository) queries() *sqlcgen.Queries {
-	return sqlcgen.New(r.db)
-}
-
-// withTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
-// fn がエラーを返せば（あるいは Commit に失敗すれば）書き込みはすべて巻き戻る。
-func (r *userRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-	if err := fn(sqlcgen.New(r.db).WithTx(tx)); err != nil {
-		return err
-	}
-	return tx.Commit()
+// queries は ctx に乗っているトランザクション（あれば）に束縛した sqlc の Queries を作る。
+func (r *userRepository) queries(ctx context.Context) *sqlcgen.Queries {
+	return sqlcgen.New(r.dbtx(ctx))
 }
 
 // userRow は user 系クエリが返す共通の行形（users 全列）。
@@ -71,7 +57,7 @@ func toDomainUser(row userRow) *domain.User {
 }
 
 func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error) {
-	q := r.queries()
+	q := r.queries(ctx)
 	row, err := q.GetUserByCognitoSub(ctx, sub)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -83,7 +69,7 @@ func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*dom
 }
 
 func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
-	q := r.queries()
+	q := r.queries(ctx)
 	rows, err := q.ListActiveUsersByEmail(ctx, email)
 	if err != nil {
 		return nil, err
@@ -116,7 +102,7 @@ func (r *userRepository) CognitoSubjectByUserID(ctx context.Context, userID uint
 	if !ok {
 		return "", nil
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	subject, err := q.GetCognitoSubjectByUserID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
@@ -132,7 +118,7 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	if !ok {
 		return nil, nil // int64 範囲外 = 存在し得ない id
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	row, err := q.GetUserByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -148,7 +134,7 @@ func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID stri
 	if !ok {
 		return make([]domain.User, 0), nil
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	rows, err := q.ListUsersByWorkspaceID(ctx, wid)
 	if err != nil {
 		return nil, err
@@ -158,6 +144,13 @@ func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID stri
 		users = append(users, *toDomainUser(userRow(row)))
 	}
 	return users, nil
+}
+
+// Create は users 行を 1 件作る。OIDC identity と不可分に作りたい場合は、
+// 呼び出し側（usecase）が TxManager.DoInTx の中で UserOidcIdentityRepository.EnsureIdentity と
+// 併せて呼ぶ（このメソッド自身はトランザクションを開始しない。ctx に乗っていればそれに乗る）。
+func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
+	return insertUserTx(ctx, r.queries(ctx), user)
 }
 
 // insertUserTx は users 行を 1 件作り、採番結果を user へ書き戻す。
@@ -235,79 +228,6 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	return nil
 }
 
-// CreateWithOidcIdentity は users 行と OIDC identity を単一トランザクションで作成する。
-// 正規化後は識別子（identity）を持たないユーザーは存在し得ないため、両者を不可分にする。
-// identity 側が (provider, subject) 競合などで失敗するとトランザクションごと巻き戻り、
-// users 行だけが残る（＝ログイン不能な孤児）状態を作らない。
-func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error {
-	return r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
-		return createWithOidcIdentity(ctx, qtx, user, provider, subject)
-	})
-}
-
-// createWithOidcIdentity は渡された接続またはトランザクション上で
-// users行とOIDC identityを作成する。
-func createWithOidcIdentity(
-	ctx context.Context,
-	q *sqlcgen.Queries,
-	user *domain.User,
-	provider string,
-	subject string,
-) error {
-	if err := insertUserTx(ctx, q, user); err != nil {
-		return err
-	}
-	return ensureOidcIdentityTx(ctx, q, user.ID, provider, subject)
-}
-
-// EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
-// 既存ユーザーへの provider 追加・張り直し（セルフヒール）に使う。
-// subject が別ユーザーに紐付いている場合は黙って成功にせずエラーを返す
-// （無音で放置するとサイレントなログイン不能を作るため）。
-func (r *userRepository) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	q := r.queries()
-	return ensureOidcIdentityTx(ctx, q, userID, provider, subject)
-}
-
-// ensureOidcIdentityTx は identity を冪等に挿入する（q は base 接続でもトランザクションでも良い）。
-// 既存 (provider, subject) が別ユーザー所有ならエラー、自分の所有なら成功にする。
-func ensureOidcIdentityTx(ctx context.Context, q *sqlcgen.Queries, userID uint64, provider, subject string) error {
-	id64, ok := toInt64ID(userID)
-	if !ok {
-		return fmt.Errorf("user id %d が int64 の範囲外です", userID)
-	}
-	inserted, err := q.InsertOidcIdentityIfAbsent(ctx, sqlcgen.InsertOidcIdentityIfAbsentParams{
-		UserID:   id64,
-		Provider: provider,
-		Subject:  subject,
-	})
-	if err != nil {
-		// (user_id, provider) の一意制約違反（同一ユーザーが別 subject を保持）はここでエラーになる。
-		return err
-	}
-	if inserted == 1 {
-		return nil
-	}
-	// 挿入されなかった = (provider, subject) が既に存在する。所有者が自分なら冪等成功。
-	ownerID, err := q.GetOidcIdentityOwner(ctx, sqlcgen.GetOidcIdentityOwnerParams{
-		Provider: provider,
-		Subject:  subject,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ErrNotFound // 直後に消えた（従来の Take と同じシグナル）
-	}
-	if err != nil {
-		return err
-	}
-	if ownerID != id64 {
-		return fmt.Errorf(
-			"oidc identity conflict: provider=%s の subject は既に user %d に紐付いています（要求 user %d）",
-			provider, ownerID, userID,
-		)
-	}
-	return nil
-}
-
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
 // 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。
 func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active bool) error {
@@ -315,7 +235,7 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	affected, err := q.UpdateUserActive(ctx, sqlcgen.UpdateUserActiveParams{ID: id64, IsActive: active})
 	if err != nil {
 		return err
@@ -338,7 +258,7 @@ func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	affected, err := q.SoftDeleteUser(ctx, id64)
 	if err != nil {
 		return err
@@ -355,7 +275,7 @@ func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name str
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	affected, err := q.UpdateUserName(ctx, sqlcgen.UpdateUserNameParams{ID: id64, Name: name})
 	if err != nil {
 		return err
@@ -377,7 +297,7 @@ func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, w
 	if !ok {
 		return fmt.Errorf("workspace_id が不正な形式です: %q", *workspaceID)
 	}
-	q := r.queries()
+	q := r.queries(ctx)
 	affected, err := q.UpdateUserWorkspaceID(ctx, sqlcgen.UpdateUserWorkspaceIDParams{
 		ID:          id64,
 		WorkspaceID: wid,

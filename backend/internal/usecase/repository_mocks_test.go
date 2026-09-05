@@ -37,12 +37,8 @@ func (m *mockUserRepo) ListByWorkspaceID(ctx context.Context, workspaceID string
 	return rows, args.Error(1)
 }
 
-func (m *mockUserRepo) CreateWithOidcIdentity(ctx context.Context, u *domain.User, provider, subject string) error {
-	return m.Called(ctx, u, provider, subject).Error(0)
-}
-
-func (m *mockUserRepo) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	return m.Called(ctx, userID, provider, subject).Error(0)
+func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
+	return m.Called(ctx, u).Error(0)
 }
 
 func (m *mockUserRepo) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {

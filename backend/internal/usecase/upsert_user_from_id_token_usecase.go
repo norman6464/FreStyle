@@ -19,15 +19,21 @@ type UpsertUserFromIDTokenInput struct {
 
 // UpsertUserFromIDTokenUseCase は認証済みユーザーの作成・更新を行う。
 type UpsertUserFromIDTokenUseCase struct {
-	users repository.UserRepository
+	users          repository.UserRepository
+	oidcIdentities repository.UserOidcIdentityRepository
+	txManager      repository.TxManager
 }
 
 // NewUpsertUserFromIDTokenUseCase はUpsertUserFromIDTokenUseCaseを生成する。
 func NewUpsertUserFromIDTokenUseCase(
 	users repository.UserRepository,
+	oidcIdentities repository.UserOidcIdentityRepository,
+	txManager repository.TxManager,
 ) *UpsertUserFromIDTokenUseCase {
 	return &UpsertUserFromIDTokenUseCase{
-		users: users,
+		users:          users,
+		oidcIdentities: oidcIdentities,
+		txManager:      txManager,
 	}
 }
 
@@ -81,7 +87,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		// user_oidc_identities への冪等な保険。FindByCognitoSub は identity を突き合わせ条件に
 		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
 		// おく（失敗してもログイン自体は成立しているため致命扱いにしない）。
-		if err := u.users.EnsureOidcIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
+		if err := u.oidcIdentities.EnsureIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
 			slog.WarnContext(ctx, "ensure oidc identity failed (self-heal, non-fatal)", "userID", existing.ID, "err", err)
 		}
 		return existing, nil
@@ -104,12 +110,15 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		Name:  name,
 	}
 
-	if err := u.users.CreateWithOidcIdentity(
-		ctx,
-		user,
-		domain.OidcProviderCognito,
-		sub,
-	); err != nil {
+	// users 行と OIDC identity は不可分に作る（正規化後は識別子を持たないユーザーは存在し得ない）。
+	// identity 側が競合などで失敗すればトランザクションごと巻き戻り、users 行だけが残る
+	// （＝ログイン不能な孤児）状態を作らない。
+	if err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
+		if err := u.users.Create(ctx, user); err != nil {
+			return err
+		}
+		return u.oidcIdentities.EnsureIdentity(ctx, user.ID, domain.OidcProviderCognito, sub)
+	}); err != nil {
 		if errors.Is(err, repository.ErrEmailTaken) {
 			// 同じ email で同時にサインアップが競合した（同一人物の二重送信など）。
 			// 別の sub で先に確定しているだけなので、呼び出し元が区別できるよう

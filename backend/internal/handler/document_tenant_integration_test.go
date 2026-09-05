@@ -52,6 +52,7 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	testsupport.TruncateAll(t, sqlDB, "rich_documents", "user_oidc_identities", "users", "workspaces")
 
 	userRepo := persistence.NewUserRepository(sqlDB)
+	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
 	docRepo := persistence.NewRichDocumentRepository(sqlDB)
 
 	// テナントの正本は workspaces なので、下ごしらえもそこへ直接 1 行入れる。
@@ -66,7 +67,8 @@ func TestDocumentTenantIsolation_Integration(t *testing.T) {
 	}
 	mkUser := func(sub, email string, workspaceID *string) *domain.User {
 		u := &domain.User{Email: email, WorkspaceID: workspaceID, IsActive: true}
-		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
+		require.NoError(t, userRepo.Create(ctx, u))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, sub))
 		// 本番の current user 解決（毎回 DB から引く）と同じ状態にするため、作成後に読み直す。
 		got, err := userRepo.FindByID(ctx, u.ID)
 		require.NoError(t, err)

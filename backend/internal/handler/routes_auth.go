@@ -17,7 +17,11 @@ import (
 // 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
-	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(deps.userRepo)
+	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(
+		deps.userRepo,
+		persistence.NewUserOidcIdentityRepository(deps.db),
+		persistence.NewTxManager(deps.db),
+	)
 	ensurePersonalWorkspace := usecase.NewEnsurePersonalWorkspaceUseCase(
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),

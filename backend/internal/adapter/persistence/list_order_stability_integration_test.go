@@ -184,12 +184,14 @@ func requireNoDuplicates(t *testing.T, ids []uint64) {
 func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	userRepo := persistence.NewUserRepository(sqlDB)
+	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
 	repo := persistence.NewRichDocumentRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
 
 	owner := &domain.User{Email: "rd-tie@example.com"}
-	require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, owner, domain.OidcProviderCognito, "rd-tie"))
+	require.NoError(t, userRepo.Create(ctx, owner))
+	require.NoError(t, oidcRepo.EnsureIdentity(ctx, owner.ID, domain.OidcProviderCognito, "rd-tie"))
 
 	// ID は UUIDv7 なので作成順に単調増加する。作成順（昇順）で投入し、期待順は id 降順にする。
 	created := make([]string, 0, 5)

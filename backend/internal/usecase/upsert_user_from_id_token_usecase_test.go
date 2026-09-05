@@ -13,19 +13,13 @@ import (
 // upsertUserRepoSpy は UpsertUserFromIDTokenUseCase の呼び出しを記録する UserRepository の spy。
 type upsertUserRepoSpy struct {
 	stubUserRepo
-	created         *domain.User
-	createdProvider string
-	createdSubject  string
+	created *domain.User
 
 	findByCognitoSubCalls int
 	createCalls           int
 	createErr             error
 	nameUpdateCalls       int
 	nameUpdateErr         error
-	ensureIdentityCalls   int
-	ensuredUserID         uint64
-	ensuredProvider       string
-	ensuredSubject        string
 }
 
 func (s *upsertUserRepoSpy) FindByCognitoSub(
@@ -36,10 +30,9 @@ func (s *upsertUserRepoSpy) FindByCognitoSub(
 	return s.stubUserRepo.FindByCognitoSub(ctx, sub)
 }
 
-func (s *upsertUserRepoSpy) CreateWithOidcIdentity(
+func (s *upsertUserRepoSpy) Create(
 	_ context.Context,
 	user *domain.User,
-	provider, subject string,
 ) error {
 	s.createCalls++
 	if s.createErr != nil {
@@ -48,8 +41,6 @@ func (s *upsertUserRepoSpy) CreateWithOidcIdentity(
 
 	copied := *user
 	s.created = &copied
-	s.createdProvider = provider
-	s.createdSubject = subject
 	return nil
 }
 
@@ -62,7 +53,17 @@ func (s *upsertUserRepoSpy) UpdateName(
 	return s.nameUpdateErr
 }
 
-func (s *upsertUserRepoSpy) EnsureOidcIdentity(
+// upsertOidcIdentitySpy は UpsertUserFromIDTokenUseCase の呼び出しを記録する
+// UserOidcIdentityRepository の spy。
+type upsertOidcIdentitySpy struct {
+	ensureIdentityCalls int
+	ensuredUserID       uint64
+	ensuredProvider     string
+	ensuredSubject      string
+	err                 error
+}
+
+func (s *upsertOidcIdentitySpy) EnsureIdentity(
 	_ context.Context,
 	userID uint64,
 	provider, subject string,
@@ -71,13 +72,20 @@ func (s *upsertUserRepoSpy) EnsureOidcIdentity(
 	s.ensuredUserID = userID
 	s.ensuredProvider = provider
 	s.ensuredSubject = subject
-	return nil
+	return s.err
+}
+
+// newUpsertUserUseCase はテスト用の依存（oidc spy は既定・txManager は no-op fake）で
+// UpsertUserFromIDTokenUseCase を組み立てる。
+func newUpsertUserUseCase(users *upsertUserRepoSpy) (*UpsertUserFromIDTokenUseCase, *upsertOidcIdentitySpy) {
+	oidc := &upsertOidcIdentitySpy{}
+	return NewUpsertUserFromIDTokenUseCase(users, oidc, fakeTxManager{}), oidc
 }
 
 // 招待ゲートは撤去済み（個人サインアップ）。新規ユーザーは所属ワークスペース無しで作られる。
 func Test_UpsertUserFromIDToken_新規ユーザーは自己サインアップできる(t *testing.T) {
 	users := &upsertUserRepoSpy{}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -103,7 +111,7 @@ func Test_UpsertUserFromIDToken_新規ユーザーは自己サインアップで
 // 新規ユーザ作成時に id_token の name claim が Name に使われる（email にフォールバックしない）。
 func Test_UpsertUserFromIDToken_新規はOIDC名をメールより優先(t *testing.T) {
 	users := &upsertUserRepoSpy{}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -127,7 +135,7 @@ func Test_UpsertUserFromIDToken_新規はOIDC名をメールより優先(t *test
 // name claim が無いケースは email にフォールバックする。
 func Test_UpsertUserFromIDToken_新規でOIDC名なしはメールにフォールバック(t *testing.T) {
 	users := &upsertUserRepoSpy{}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -150,7 +158,7 @@ func Test_UpsertUserFromIDToken_新規でOIDC名なしはメールにフォー�
 func Test_UpsertUserFromIDToken_ユーザー検索が失敗する(t *testing.T) {
 	userFindErr := errors.New("user lookup failed")
 	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{err: userFindErr}}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -170,7 +178,7 @@ func Test_UpsertUserFromIDToken_ユーザー検索が失敗する(t *testing.T) 
 
 func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing.T) {
 	users := &upsertUserRepoSpy{}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -202,7 +210,7 @@ func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing
 // （呼び出し元の 403/409 の出し分けが前提にする契約）。
 func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrEmailTakenを返す(t *testing.T) {
 	users := &upsertUserRepoSpy{createErr: repository.ErrEmailTaken}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -223,7 +231,7 @@ func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrE
 func Test_UpsertUserFromIDToken_ユーザー作成に失敗する(t *testing.T) {
 	mutationErr := errors.New("create failed")
 	users := &upsertUserRepoSpy{createErr: mutationErr}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -246,7 +254,7 @@ func Test_UpsertUserFromIDToken_ユーザー作成に失敗する(t *testing.T) 
 
 func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *testing.T) {
 	users := &upsertUserRepoSpy{}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, oidc := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -261,22 +269,25 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	if user == nil {
 		t.Fatal("新規ユーザーは許可されるべき")
 	}
-	// 新規ユーザーは users 行と identity を CreateWithOidcIdentity で不可分に作る。
+	// 新規ユーザーは users 行と identity を同じ DoInTx の中で不可分に作る。
 	if users.createCalls != 1 {
-		t.Fatalf("CreateWithOidcIdentity calls = %d, want 1", users.createCalls)
+		t.Fatalf("Create calls = %d, want 1", users.createCalls)
 	}
-	if users.createdProvider != domain.OidcProviderCognito {
-		t.Fatalf("provider = %q, want %q", users.createdProvider, domain.OidcProviderCognito)
+	if oidc.ensureIdentityCalls != 1 {
+		t.Fatalf("EnsureIdentity calls = %d, want 1", oidc.ensureIdentityCalls)
 	}
-	if users.createdSubject != "new-sub-1" {
-		t.Fatalf("subject = %q, want %q", users.createdSubject, "new-sub-1")
+	if oidc.ensuredProvider != domain.OidcProviderCognito {
+		t.Fatalf("provider = %q, want %q", oidc.ensuredProvider, domain.OidcProviderCognito)
+	}
+	if oidc.ensuredSubject != "new-sub-1" {
+		t.Fatalf("subject = %q, want %q", oidc.ensuredSubject, "new-sub-1")
 	}
 }
 
 func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒールする(t *testing.T) {
 	existing := &domain.User{ID: 77, Email: "e@example.com"}
 	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, oidc := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -291,14 +302,14 @@ func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒ�
 	if user == nil {
 		t.Fatal("既存ユーザーは許可されるべき")
 	}
-	if users.ensureIdentityCalls != 1 {
-		t.Fatalf("EnsureOidcIdentity calls = %d, want 1（セルフヒールされていない）", users.ensureIdentityCalls)
+	if oidc.ensureIdentityCalls != 1 {
+		t.Fatalf("EnsureIdentity calls = %d, want 1（セルフヒールされていない）", oidc.ensureIdentityCalls)
 	}
-	if users.ensuredUserID != 77 {
-		t.Fatalf("ensured userID = %d, want 77", users.ensuredUserID)
+	if oidc.ensuredUserID != 77 {
+		t.Fatalf("ensured userID = %d, want 77", oidc.ensuredUserID)
 	}
-	if users.ensuredSubject != "old-sub" {
-		t.Fatalf("subject = %q, want %q", users.ensuredSubject, "old-sub")
+	if oidc.ensuredSubject != "old-sub" {
+		t.Fatalf("subject = %q, want %q", oidc.ensuredSubject, "old-sub")
 	}
 }
 
@@ -306,7 +317,7 @@ func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒ�
 func Test_UpsertUserFromIDToken_既存ユーザーは表示名をOIDCから補完(t *testing.T) {
 	existing := &domain.User{ID: 5, Email: "old@example.com", Name: "old@example.com"}
 	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -331,7 +342,7 @@ func Test_UpsertUserFromIDToken_既存ユーザーは表示名をOIDCから補�
 func Test_UpsertUserFromIDToken_表示名カスタム済みは補完しない(t *testing.T) {
 	existing := &domain.User{ID: 5, Email: "u@example.com", Name: "ユーザ自身が編集した名前"}
 	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -360,7 +371,7 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 		},
 		nameUpdateErr: mutationErr,
 	}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
@@ -386,7 +397,7 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 // byte 一致検索・一意索引と食い違う。
 func Test_UpsertUserFromIDToken_emailは正規形で保存する(t *testing.T) {
 	users := &upsertUserRepoSpy{}
-	uc := NewUpsertUserFromIDTokenUseCase(users)
+	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),

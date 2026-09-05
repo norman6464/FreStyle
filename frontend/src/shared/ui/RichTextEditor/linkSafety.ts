@@ -27,14 +27,14 @@ import type { JSONContent } from '@tiptap/core';
 export const ALLOWED_LINK_PROTOCOLS: readonly string[] = ['http', 'https', 'mailto', 'tel'];
 
 /**
- * ページ間リンク（/p/{ページID}）の形。ノートのページを指す内部リンクで、
+ * ページ間リンク（/kb/{ページID}）の形。ノートのページを指す内部リンクで、
  * 相対パスの中では**この形だけ**を許す。任意の相対パスを開けると、利用者入力から
  * 任意の画面へ踏ませる経路（ログアウトの踏み台や、将来できるかもしれない
  * 副作用つき URL への誘導）になるため、ID は UUID の字面に固定し、
  * クエリ・フラグメント・大文字も認めない。広げる理由が出るまで最小で持つ。
  */
 export const INTERNAL_PAGE_LINK_PATTERN =
-  /^\/p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /^\/kb\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** isInternalPageLinkHref は「同じアプリ内のページを指すリンクか」を判定する述語。 */
 export function isInternalPageLinkHref(href: unknown): boolean {
@@ -112,7 +112,7 @@ export function normalizeLinkInput(rawInput: string): string | null {
   const trimmed = rawInput.trim();
   if (trimmed === '') return null;
   // ページ間リンクは https:// を補う前に判定する。補ってしまうと
-  // `https:///p/{ID}` がホスト名 `p` の外部 URL として読まれ、壊れた絶対 URL が保存される。
+  // `https:///kb/{ID}` がホスト名 `kb` の外部 URL として読まれ、壊れた絶対 URL が保存される。
   if (isInternalPageLinkHref(trimmed)) return sanitizeLinkHref(trimmed);
   if (trimmed.includes(':')) return sanitizeLinkHref(trimmed);
   return sanitizeLinkHref(`https://${trimmed}`);

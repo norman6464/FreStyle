@@ -17,12 +17,12 @@ describe('ノートへの導線', () => {
     expect(paths).not.toContain('/kb');
   });
 
-  it('ページの中（/p/…）にいても選ばれた状態になる', () => {
-    // ページの URL は /notes ではなく /p/{pageId}。系統が 2 つあるので両方で光らせる。
+  it('ページの中（/kb/…）にいても選ばれた状態になる', () => {
+    // ページの URL は /notes ではなく /kb/{pageId}。系統が 2 つあるので両方で光らせる。
     const notes = MAIN_NAV_ITEMS.find((item) => item.id === 'notes');
 
     expect(navActive(notes!, '/notes')).toBe(true);
-    expect(navActive(notes!, '/p/3ca2c0de-0000-0000-0000-000000000000')).toBe(true);
+    expect(navActive(notes!, '/kb/3ca2c0de-0000-0000-0000-000000000000')).toBe(true);
     expect(navActive(notes!, '/courses')).toBe(false);
   });
 

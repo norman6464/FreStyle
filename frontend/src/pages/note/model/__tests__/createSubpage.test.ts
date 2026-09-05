@@ -67,7 +67,7 @@ describe('createSubpage', () => {
       attrs: { pageId: 'child-1', title: '無題' },
     });
     expect(run).toHaveBeenCalled();
-    expect(path).toBe('/p/child-1');
+    expect(path).toBe('/kb/child-1');
   });
 
   it('木へ確定後のページで知らせる（サイドバーが追従できる）', async () => {

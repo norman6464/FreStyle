@@ -160,7 +160,7 @@ export const NOTES_API = {
   /**
    * GET — /api/v2/kb/pages/:pageId
    *
-   * /p/{pageId} の URL からの解決。URL にワークスペースを出さないための口で、
+   * /kb/{pageId} の URL からの解決。URL にワークスペースを出さないための口で、
    * 応答の workspaceSlug を以降の呼び出し（木・保存）に使う。
    */
   resolvePage: (pageId: string) => `${API_V2}/kb/pages/${pageId}`,

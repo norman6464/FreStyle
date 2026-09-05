@@ -104,7 +104,7 @@ const SafeLink = Link.configure({
       // href="" の <a> にすると「押せるのにどこへも行かない要素」が残るため、span で出す。
       return ['span', {}, 0];
     }
-    // ページ間リンク（/p/…）は同じタブで開く。_blank と rel の束は外部サイト向けの防御
+    // ページ間リンク（/kb/…）は同じタブで開く。_blank と rel の束は外部サイト向けの防御
     // （tabnabbing・Referer 漏れ・スパム評価）で、同一アプリ内の遷移には当てはまらない。
     const attributes: Record<string, string> = isInternalPageLinkHref(href)
       ? { href }
@@ -175,7 +175,7 @@ export const PageRef = Node.create({
     // 同一アプリ内の遷移なので _blank や rel の束は付けない（SafeLink の内部リンクと同じ扱い）。
     return [
       'a',
-      { 'data-page-ref': 'true', 'data-page-id': pageId, href: `/p/${pageId}`, class: 'rte-page-ref' },
+      { 'data-page-ref': 'true', 'data-page-id': pageId, href: `/kb/${pageId}`, class: 'rte-page-ref' },
       title,
     ];
   },

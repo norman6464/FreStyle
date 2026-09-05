@@ -11,7 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// registerProfileRoutes は profile / user-stats 関連の REST エンドポイントを登録する。
+// registerProfileRoutes は profile 関連の REST エンドポイントを登録する。
 func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	profileRepo := persistence.NewProfileRepository(deps.db)
 	profileHandler := NewProfileHandler(
@@ -31,13 +31,6 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		),
 	)
 	g.POST("/profile/:userId/image/presigned-url", profileImageHandler.IssueUploadURL)
-
-	// ユーザー統計。2 つの path は互換のため両方提供する。
-	statsHandler := NewUserStatsHandler(
-		usecase.NewGetUserStatsUseCase(persistence.NewUserStatsRepository(deps.db)),
-	)
-	g.GET("/user-stats/:userId", statsHandler.Get) //apispec:allow 互換用エイリアス（正規は GET /users/:userId/stats）
-	g.GET("/users/:userId/stats", statsHandler.Get)
 }
 
 func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImagePresigner {

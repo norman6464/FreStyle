@@ -65,9 +65,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	registerSocialRoutes(authed, deps)
 	registerEmbedRoutes(authed)
 	registerExerciseRoutes(authed, deps)
-	registerCourseRoutes(authed, deps)
-	registerTeachingMaterialRoutes(authed, deps)
-	registerLessonProgressRoutes(authed, deps)
 	registerKnowledgeBaseRoutes(authed, deps)
 	return r
 }

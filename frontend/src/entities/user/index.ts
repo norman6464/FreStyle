@@ -10,7 +10,6 @@ export type { UserInfo } from './api/authRepository';
 export { default as ProfileRepository } from './api/profileRepository';
 export type { UpdateProfileRequest } from './api/profileRepository';
 export { default as ImageUploadRepository } from './api/imageUploadRepository';
-export { default as ChapterViewRepository } from './api/chapterViewRepository';
 
 export type { Profile, User, AuthState } from './model/types';
 

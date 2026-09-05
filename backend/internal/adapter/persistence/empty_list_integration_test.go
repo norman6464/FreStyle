@@ -41,36 +41,6 @@ func listCases() []listCase {
 			},
 		},
 		{
-			name: "章の進捗一覧",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewLessonProgressRepository(db).ListByUser(ctx, noSuchID)
-			},
-		},
-		{
-			name: "コース一覧（権限の事実つき）",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewMaterialPermissionRepository(db).ListCourseFactsForUser(ctx, noSuchWorkspaceID, noSuchID)
-			},
-		},
-		{
-			name: "コースの付与一覧",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewMaterialPermissionRepository(db).ListCourseGrants(ctx, noSuchWorkspaceID, noSuchID)
-			},
-		},
-		{
-			name: "章の付与一覧",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewMaterialPermissionRepository(db).ListChapterGrants(ctx, noSuchWorkspaceID, noSuchID)
-			},
-		},
-		{
-			name: "教材一覧（コース別）",
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewTeachingMaterialRepository(db).ListByCourse(ctx, noSuchID, true)
-			},
-		},
-		{
 			name: "演習一覧（言語別）",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
 				return persistence.NewMasterExerciseRepository(db).ListByLanguage(ctx, "存在しない言語")

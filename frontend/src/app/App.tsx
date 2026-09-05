@@ -27,9 +27,6 @@ const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ defa
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
 const ExerciseListPage = lazyWithReload(() => import('@/pages/exercises').then((m) => ({ default: m.ExerciseListPage })), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('@/pages/exercise-detail').then((m) => ({ default: m.ExerciseDetailPage })), 'ExerciseDetailPage');
-const CourseCategorySelectPage = lazyWithReload(() => import('@/pages/courses').then((m) => ({ default: m.CourseCategorySelectPage })), 'CourseCategorySelectPage');
-const CoursesListPage = lazyWithReload(() => import('@/pages/courses').then((m) => ({ default: m.CoursesListPage })), 'CoursesListPage');
-const CourseDetailPage = lazyWithReload(() => import('@/pages/course-detail').then((m) => ({ default: m.CourseDetailPage })), 'CourseDetailPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
 const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
@@ -105,13 +102,6 @@ export default function App() {
         <Route path="/code-editor" element={<ExerciseLanguageSelectPage />} />
         <Route path="/code-editor/lang/:language" element={<ExerciseListPage />} />
         <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
-        {/* コースは「学習領域の選択 → その領域の一覧 → 詳細」の 3 段(FRESTYLE-177)。
-            /category/:category は 2 セグメントなので 1 セグメントの :id とは衝突しない。 */}
-        <Route path="/courses" element={<CourseCategorySelectPage />} />
-        <Route path="/courses/category/:category" element={<CoursesListPage />} />
-        <Route path="/courses/:id" element={<CourseDetailPage />} />
-        {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
-        <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
       </Route>
 
       {/* どのルートにも一致しない URL の受け皿（FRESTYLE-86）。

@@ -29,14 +29,6 @@ type writeCase struct {
 func outOfRangeWriteCases() []writeCase {
 	return []writeCase{
 		{
-			name: "コースの作成（created_by_user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCourseRepository(db).Create(ctx, &domain.Course{
-					CreatedByUserID: outOfRangeID, Title: "t",
-				})
-			},
-		},
-		{
 			name: "演習提出の作成（user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewExerciseSubmissionRepository(db).Create(ctx, &domain.ExerciseSubmission{
@@ -88,28 +80,6 @@ func outOfRangeWriteCases() []writeCase {
 			},
 		},
 		{
-			name: "章の作成（course_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
-					CourseID: outOfRangeID, CreatedByUserID: 1, Title: "t",
-				})
-			},
-		},
-		{
-			name: "章の作成（created_by_user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
-					CourseID: 1, CreatedByUserID: outOfRangeID, Title: "t",
-				})
-			},
-		},
-		{
-			name: "章の閲覧記録の upsert（user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewUserChapterViewRepository(db).UpsertView(ctx, outOfRangeID, 1, 1)
-			},
-		},
-		{
 			name: "日次活動の加算（user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewUserDailyActivityRepository(db).Increment(
@@ -147,22 +117,6 @@ const malformedWorkspaceID = "not-a-uuid"
 func malformedWorkspaceWriteCases() []writeCase {
 	bad := malformedWorkspaceID
 	return []writeCase{
-		{
-			name: "コースの作成（workspace_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCourseRepository(db).Create(ctx, &domain.Course{
-					WorkspaceID: &bad, CreatedByUserID: 1, Title: "t",
-				})
-			},
-		},
-		{
-			name: "章の作成（workspace_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewTeachingMaterialRepository(db).Create(ctx, &domain.TeachingMaterial{
-					WorkspaceID: &bad, CourseID: 1, CreatedByUserID: 1, Title: "t",
-				})
-			},
-		},
 		{
 			name: "リッチ文書の作成（workspace_id）",
 			call: func(ctx context.Context, db *sql.DB) error {

@@ -28,9 +28,9 @@ func TestApplySchema_Integration(t *testing.T) {
 	t.Run("中核テーブルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
 			"users", "user_oidc_identities",
-			"courses", "course_chapters", "master_exercises", "master_exercise_examples",
+			"master_exercises", "master_exercise_examples",
 			"exercise_submissions", "notes",
-			"notifications", "audit_events",
+			"notifications",
 			"rich_documents",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)

@@ -130,7 +130,7 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 
 // businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。
 var businessTablesWithWorkspace = []string{
-	"courses", "course_chapters", "rich_documents",
+	"rich_documents",
 }
 
 // businessTableTruncateTables はこの節のテストが TRUNCATE する対象。
@@ -170,16 +170,6 @@ func TestBusinessTableWorkspaceWrite_Integration(t *testing.T) {
 		}, domain.OidcProviderCognito, "sub-author"))
 		author, err := users.FindByCognitoSub(ctx, "sub-author")
 		require.NoError(t, err)
-
-		courses := persistence.NewCourseRepository(sqlDB)
-		course := &domain.Course{WorkspaceID: &ws2Str, CreatedByUserID: author.ID, Title: "コース", Language: "go"}
-		require.NoError(t, courses.Create(ctx, course))
-		require.Equal(t, uuid.NullUUID{UUID: ws2, Valid: true}, tableWorkspaceID(t, sqlDB, "courses", course.ID), "InsertCourse は渡された workspace_id を書く")
-
-		materials := persistence.NewTeachingMaterialRepository(sqlDB)
-		chapter := &domain.TeachingMaterial{WorkspaceID: &ws2Str, CourseID: course.ID, CreatedByUserID: author.ID, Title: "第1章"}
-		require.NoError(t, materials.Create(ctx, chapter))
-		require.Equal(t, uuid.NullUUID{UUID: ws2, Valid: true}, tableWorkspaceID(t, sqlDB, "course_chapters", chapter.ID), "InsertChapter は渡された workspace_id を書く")
 
 		richDocs := persistence.NewRichDocumentRepository(sqlDB)
 		doc := &domain.RichDocument{

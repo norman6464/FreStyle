@@ -66,34 +66,6 @@ test.describe('認証ガード', () => {
   });
 });
 
-test.describe('主要画面（認証済み）', () => {
-  test('コース一覧でモックしたコースの学習領域カードが描画される', async ({ page }) => {
-    // /courses は「学習領域の選択カード」になった(FRESTYLE-177)。
-    // モックコースのカテゴリ(database)の領域カードが出ることを確認する。
-    const course = {
-      id: 1,
-      companyId: 1,
-      createdByUserId: 1,
-      title: 'E2E モックコース',
-      description: 'Playwright によるモックコース',
-      category: 'database',
-      language: 'postgresql',
-      sortOrder: 10,
-      isPublished: true,
-      materialCount: 0,
-      completedCount: 0,
-      createdAt: '2026-01-01T00:00:00Z',
-      updatedAt: '2026-01-01T00:00:00Z',
-    };
-    await mockAuthenticated(page, { '**/api/v2/courses': [course] });
-
-    await page.goto('/courses');
-
-    await expect(page).not.toHaveURL(/\/login/);
-    await expect(page.getByRole('link', { name: /データベース のコース一覧へ/ })).toBeVisible();
-  });
-});
-
 test.describe('認証済み導線（ログイン後の主要画面）', () => {
   test('ノート画面はログインに飛ばされず描画される', async ({ page }) => {
     await mockAuthenticated(page);

@@ -23,7 +23,7 @@ const missingID uint64 = 9_000_000_000
 // missingRowTables は下の表で触るテーブル。TRUNCATE で毎回まっさらにしてから叩く
 // （既存行に偶然当たって「0 行ではなかった」ことを見落とさないため）。
 var missingRowTables = []string{
-	"notes", "notifications", "courses", "course_chapters",
+	"notes", "notifications",
 	"users",
 }
 
@@ -55,26 +55,6 @@ func missingRowWriteCases() []missingRowCase {
 			name: "通知の既読化",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewNotificationRepository(db).MarkRead(ctx, 7, missingID)
-			},
-		},
-		{
-			name: "コースの更新",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCourseRepository(db).Update(ctx, &domain.Course{
-					ID: missingID, Title: "t", Description: "d",
-				})
-			},
-		},
-		{
-			name: "コースの削除",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewCourseRepository(db).Delete(ctx, missingID)
-			},
-		},
-		{
-			name: "教材の削除",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewTeachingMaterialRepository(db).Delete(ctx, missingID)
 			},
 		},
 		{
@@ -137,18 +117,9 @@ func TestPersistence_一括操作は0件でも成功のままであること_Int
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, sqlDB, missingRowTables...)
-	testsupport.TruncateAll(t, sqlDB, "user_chapter_progress")
 
 	t.Run("未読が無い user の一括既読化は成功", func(t *testing.T) {
 		require.NoError(t, persistence.NewNotificationRepository(sqlDB).MarkAllRead(ctx, missingID))
-	})
-
-	t.Run("章が無いコースの教材一括削除は成功", func(t *testing.T) {
-		require.NoError(t, persistence.NewTeachingMaterialRepository(sqlDB).DeleteByCourse(ctx, missingID))
-	})
-
-	t.Run("未完了の章の完了取り消しは成功", func(t *testing.T) {
-		require.NoError(t, persistence.NewLessonProgressRepository(sqlDB).MarkIncomplete(ctx, 7, missingID))
 	})
 }
 

@@ -523,7 +523,7 @@ func TestGrantablePrincipals_選べない相手と他テナントを混ぜない
 	page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "共有元").ID
 
 	// 共有リンクを 1 本発行する。来訪者を表す主体（kind='share_link'）が一緒に作られる。
-	link, err := f.perm.CreateShareLink(ctx, repository.ShareLinkWrite{
+	link, err := f.shareLinks.Create(ctx, repository.ShareLinkWrite{
 		WorkspaceID:     f.ws,
 		PageID:          page,
 		Capability:      domain.CapabilityView,

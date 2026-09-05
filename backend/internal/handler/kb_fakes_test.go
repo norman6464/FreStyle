@@ -578,6 +578,11 @@ type kbGrantKey struct {
 
 var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
 
+// kbFakePerms は ShareLinkRepository も兼ねる。principal の採番（f.newPrincipal）と
+// ページの実在確認（f.pages）を共有リンクの発行がそのまま使うため、本番のように
+// 別 struct へ分けるとこの 2 つを二重に持つことになる。
+var _ repository.ShareLinkRepository = (*kbFakePerms)(nil)
+
 func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakePerms {
 	return &kbFakePerms{
 		pages:        pages,
@@ -1338,8 +1343,8 @@ func (f *kbFakePerms) ListPageGrants(_ context.Context, workspaceID, pageID stri
 	return out, nil
 }
 
-// CreateShareLink は共有リンクと、その来訪者を表す主体を一緒に作る（本番は 1 トランザクション）。
-func (f *kbFakePerms) CreateShareLink(_ context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
+// Create は共有リンクと、その来訪者を表す主体を一緒に作る（本番は 1 トランザクション）。
+func (f *kbFakePerms) Create(_ context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
 	page, ok := f.pages.pages[in.PageID]
 	if !ok || page.WorkspaceID != in.WorkspaceID {
 		return nil, repository.ErrPageNotFound
@@ -1366,9 +1371,9 @@ func (f *kbFakePerms) CreateShareLink(_ context.Context, in repository.ShareLink
 	return &c, nil
 }
 
-// RevokeShareLink は行を消さず revoked_at を立てる（誰がいつ止めたかを残すため）。
+// Revoke は行を消さず revoked_at を立てる（誰がいつ止めたかを残すため）。
 // 既に失効済みなら何もしない（冪等）。
-func (f *kbFakePerms) RevokeShareLink(_ context.Context, workspaceID, shareLinkID string) error {
+func (f *kbFakePerms) Revoke(_ context.Context, workspaceID, shareLinkID string) error {
 	link, ok := f.shareLinks[shareLinkID]
 	if !ok || link.WorkspaceID != workspaceID {
 		return repository.ErrShareLinkNotFound
@@ -1380,8 +1385,8 @@ func (f *kbFakePerms) RevokeShareLink(_ context.Context, workspaceID, shareLinkI
 	return nil
 }
 
-// FindShareLinkByTokenHash は期限切れ・失効も含めて返す（判定は usecase 側）。
-func (f *kbFakePerms) FindShareLinkByTokenHash(_ context.Context, tokenHash []byte) (*domain.ShareLink, error) {
+// FindByTokenHash は期限切れ・失効も含めて返す（判定は usecase 側）。
+func (f *kbFakePerms) FindByTokenHash(_ context.Context, tokenHash []byte) (*domain.ShareLink, error) {
 	for _, link := range f.shareLinks {
 		if string(link.TokenHash) == string(tokenHash) {
 			c := *link
@@ -1391,7 +1396,7 @@ func (f *kbFakePerms) FindShareLinkByTokenHash(_ context.Context, tokenHash []by
 	return nil, repository.ErrShareLinkNotFound
 }
 
-func (f *kbFakePerms) ListPageShareLinks(_ context.Context, workspaceID, pageID string) ([]domain.ShareLink, error) {
+func (f *kbFakePerms) ListByPage(_ context.Context, workspaceID, pageID string) ([]domain.ShareLink, error) {
 	out := []domain.ShareLink{}
 	for _, link := range f.shareLinks {
 		if link.WorkspaceID == workspaceID && link.PageID == pageID {

@@ -182,14 +182,14 @@ function docWithLinks(): RichDocContent {
           {
             type: 'text',
             text: '内部リンク',
-            marks: [{ type: 'link', attrs: { href: `/p/${PAGE_UUID}` } }],
+            marks: [{ type: 'link', attrs: { href: `/kb/${PAGE_UUID}` } }],
           },
           { type: 'text', text: ' / ' },
           {
             type: 'text',
             text: '共有URL',
             marks: [
-              { type: 'link', attrs: { href: `${window.location.origin}/p/${PAGE_UUID}` } },
+              { type: 'link', attrs: { href: `${window.location.origin}/kb/${PAGE_UUID}` } },
             ],
           },
           { type: 'text', text: ' / ' },
@@ -214,7 +214,7 @@ describe('リンクのクリック', () => {
 
     fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
 
-    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+    expect(navigateToPage).toHaveBeenCalledWith(`/kb/${PAGE_UUID}`);
   });
 
   it('同一オリジンの絶対 URL（共有 URL の貼り付け）もアプリ内遷移に畳む', async () => {
@@ -226,7 +226,7 @@ describe('リンクのクリック', () => {
 
     fireEvent.click(screen.getByRole('link', { name: '共有URL' }));
 
-    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+    expect(navigateToPage).toHaveBeenCalledWith(`/kb/${PAGE_UUID}`);
   });
 
   it('外部リンクは新しいタブで開く（rel で opener を渡さない）', async () => {
@@ -278,7 +278,7 @@ describe('リンクのクリック', () => {
     fireEvent.click(screen.getByRole('link', { name: '内部リンク' }), { shiftKey: true });
 
     expect(open).not.toHaveBeenCalled();
-    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+    expect(navigateToPage).toHaveBeenCalledWith(`/kb/${PAGE_UUID}`);
     open.mockRestore();
   });
 
@@ -317,7 +317,7 @@ describe('リンクのクリック', () => {
 
     fireEvent.click(screen.getByRole('link', { name: '内部リンク' }));
 
-    expect(navigateToPage).toHaveBeenCalledWith(`/p/${PAGE_UUID}`);
+    expect(navigateToPage).toHaveBeenCalledWith(`/kb/${PAGE_UUID}`);
   });
 });
 

@@ -50,11 +50,11 @@ function NavigationToast() {
   return null;
 }
 
-// LegacyKbPageRedirect は旧 /kb/:slug/pages/:pageId を /p/:pageId へ写す。
+// LegacyKbPageRedirect は旧 /kb/:slug/pages/:pageId を /kb/:pageId へ写す。
 // slug は URL から消えた（テナントはページ ID から解決する）ので捨ててよい。
 function LegacyKbPageRedirect() {
   const { pageId } = useParams<{ pageId: string }>();
-  return <Navigate to={`/p/${pageId ?? ''}`} replace />;
+  return <Navigate to={`/kb/${pageId ?? ''}`} replace />;
 }
 
 export default function App() {
@@ -87,13 +87,14 @@ export default function App() {
         <Route path="/profile/me" element={<SettingsPage />} />
         {/*
           ノート（workspaces → spaces → pages の木）。旧「ナレッジ」を統合した現在の正
-          。ページの URL は /p/{pageId} だけで、テナントを URL に出さない。
+          。ページの URL は /kb/{pageId} だけで、テナントを URL に出さない。
         */}
         <Route path="/notes" element={<NotePage />} />
-        <Route path="/p/:pageId" element={<NotePage />} />
-        {/* 旧 URL の受け皿。/kb 系はブックマーク・共有リンクから来る。 */}
+        <Route path="/kb/:pageId" element={<NotePage />} />
+        {/* 旧 URL の受け皿。ワークスペース単体（/kb/:workspaceSlug）の古いブックマークは、
+            新しい /kb/:pageId と同じ形なので区別できず廃止した。ページ付きの旧 URL
+            （/kb/:slug/pages/:pageId）だけ引き続き写す。 */}
         <Route path="/kb" element={<Navigate to="/notes" replace />} />
-        <Route path="/kb/:workspaceSlug" element={<Navigate to="/notes" replace />} />
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/help" element={<HelpPage />} />

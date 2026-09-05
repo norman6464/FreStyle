@@ -338,7 +338,7 @@ describe('NoteSidebar', () => {
         return null;
       }
       render(
-        <MemoryRouter initialEntries={['/p/stale-page']}>
+        <MemoryRouter initialEntries={['/kb/stale-page']}>
           <EntryPathProbe />
           <NoteSidebar />
         </MemoryRouter>,
@@ -1030,7 +1030,7 @@ describe('NoteSidebar', () => {
   });
 
   it('ワークスペースを切り替えると /notes に戻り、木は切り替え先を指す', async () => {
-    // URL はワークスペースを持たない（ページの URL は /p/{pageId} だけ）。
+    // URL はワークスペースを持たない（ページの URL は /kb/{pageId} だけ）。
     // 開いていたページは前のワークスペースのものなので、本文画面には残さず一覧に戻す。
     hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社'), workspace('beta', 'Beta 社')]);
     let path = '';
@@ -1040,11 +1040,11 @@ describe('NoteSidebar', () => {
     }
 
     render(
-      <MemoryRouter initialEntries={['/p/p1']}>
+      <MemoryRouter initialEntries={['/kb/p1']}>
         <PathProbe />
         <Routes>
           <Route path="/notes" element={<NoteSidebar />} />
-          <Route path="/p/:pageId" element={<NoteSidebar workspaceSlug="acme" />} />
+          <Route path="/kb/:pageId" element={<NoteSidebar workspaceSlug="acme" />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -1147,7 +1147,7 @@ describe('題名で検索（モーダル）', () => {
       expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
     );
     // 閉じるだけでなく、選んだページへ実際に移っている。
-    expect(currentPath).toBe('/p/hit-1');
+    expect(currentPath).toBe('/kb/hit-1');
   });
 
   it('↑↓ で選び Enter で開ける（キーボードだけで完結する）', async () => {
@@ -1169,7 +1169,7 @@ describe('題名で検索（モーダル）', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
     );
-    expect(currentPath).toBe('/p/hit-2');
+    expect(currentPath).toBe('/kb/hit-2');
   });
 
   it('日本語入力の変換キャンセルの Escape ではモーダルを閉じない（打ちかけの検索語を守る）', async () => {
@@ -1475,7 +1475,7 @@ describe('ワークスペース切替ポップアップ', () => {
   it('所属が 1 つでも開け、追加の入口から名前だけで作れる', async () => {
     popPath = '';
     render(
-      <MemoryRouter initialEntries={['/p/p1']}>
+      <MemoryRouter initialEntries={['/kb/p1']}>
         <PopPathProbe />
         <NoteSidebar workspaceSlug="acme" activePageId="p1" />
       </MemoryRouter>,

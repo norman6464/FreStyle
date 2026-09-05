@@ -68,17 +68,6 @@ type MasterExerciseExample struct {
 	UpdatedAt      time.Time
 }
 
-type Note struct {
-	ID        int64
-	UserID    int64
-	Title     string
-	Content   string
-	IsPublic  bool
-	IsPinned  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 type Notification struct {
 	ID        int64
 	UserID    int64
@@ -151,21 +140,6 @@ type Profile struct {
 	AvatarUrl     string
 	StatusMessage string
 	UpdatedAt     time.Time
-}
-
-type RichDocument struct {
-	ID            uuid.UUID
-	OwnerID       int64
-	Kind          string
-	Title         string
-	IsPublic      bool
-	SchemaVersion int64
-	Doc           json.RawMessage
-	Revision      int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	WorkspaceID   uuid.NullUUID
 }
 
 type ShareLink struct {

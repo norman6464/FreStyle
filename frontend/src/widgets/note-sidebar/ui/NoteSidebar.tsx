@@ -86,7 +86,7 @@ export default function NoteSidebar({ workspaceSlug, activePageId }: NoteSidebar
       <NoteWorkspaceSwitcher
         workspaces={workspaces}
         activeSlug={activeSlug}
-        // URL はワークスペースを持たない（/p/{pageId} だけ）。切り替えは画面の状態で、
+        // URL はワークスペースを持たない（/kb/{pageId} だけ）。切り替えは画面の状態で、
         // ページを開けば URL から場所が確定する。
         onSelect={(slug) => {
           selectWorkspace(slug);

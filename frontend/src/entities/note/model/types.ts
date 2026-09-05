@@ -102,7 +102,7 @@ export interface NotePageDoc {
 }
 
 /**
- * /p/{pageId} の解決結果。URL はページ ID しか持たないので、
+ * /kb/{pageId} の解決結果。URL はページ ID しか持たないので、
  * 所属ワークスペースの slug と編集可否をサーバーが一緒に返す。
  */
 export interface NoteResolvedPage {

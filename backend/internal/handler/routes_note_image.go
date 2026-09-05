@@ -11,21 +11,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// registerNoteRoutes は Note CRUD・Note 画像 presigned URL・SessionNote のエンドポイントを登録する。
-func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	noteRepo := persistence.NewNoteRepository(deps.db)
-	activityRepo := persistence.NewUserDailyActivityRepository(deps.db)
-	noteHandler := NewNoteHandler(
-		usecase.NewListNotesByUserIDUseCase(noteRepo),
-		usecase.NewCreateNoteUseCase(noteRepo, activityRepo),
-		usecase.NewUpdateNoteUseCase(noteRepo),
-		usecase.NewDeleteNoteUseCase(noteRepo),
-	)
-	g.GET("/notes", noteHandler.List)
-	g.POST("/notes", noteHandler.Create)
-	g.PUT("/notes/:id", noteHandler.Update)
-	g.DELETE("/notes/:id", noteHandler.Delete)
-
+// registerNoteImageRoutes は Note 画像 presigned URL のエンドポイントを登録する。
+func registerNoteImageRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	noteImageHandler := NewNoteImageHandler(
 		usecase.NewIssueNoteImageUploadURLUseCase(newNoteImagePresignerOrFallback(deps)),
 	)

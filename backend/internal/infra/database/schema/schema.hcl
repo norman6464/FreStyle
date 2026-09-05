@@ -155,7 +155,7 @@ table "user_oidc_identities" {
 }
 
 # ワークスペース: テナント境界。ノート（spaces 以下）と、業務データ
-# （courses / course_chapters / rich_documents）がどちらもこの表を指す。
+# （courses / course_chapters）がどちらもこの表を指す。
 table "workspaces" {
   schema = schema.public
   column "id" {
@@ -215,53 +215,6 @@ table "workspaces" {
   # URL に出る識別子は空文字禁止・長さ上限（アプリ側検証と二重の壁）。
   check "ck_workspaces_slug_len" {
     expr = "(char_length((slug)::text) >= 1) AND (char_length((slug)::text) <= 64)"
-  }
-}
-
-# 学習メモ。
-table "notes" {
-  schema = schema.public
-  column "id" {
-    null = false
-    type = bigserial
-  }
-  column "user_id" {
-    null = false
-    type = bigint
-  }
-  column "title" {
-    null    = false
-    type    = text
-    default = ""
-  }
-  column "content" {
-    null    = false
-    type    = text
-    default = ""
-  }
-  column "is_public" {
-    null    = false
-    type    = boolean
-    default = false
-  }
-  column "is_pinned" {
-    null    = false
-    type    = boolean
-    default = false
-  }
-  column "created_at" {
-    null = false
-    type = timestamptz
-  }
-  column "updated_at" {
-    null = false
-    type = timestamptz
-  }
-  primary_key {
-    columns = [column.id]
-  }
-  index "idx_notes_user_id" {
-    columns = [column.user_id]
   }
 }
 
@@ -525,87 +478,6 @@ table "exercise_submissions" {
       desc   = true
       column = column.submitted_at
     }
-  }
-}
-
-# リッチテキスト文書（tiptap JSON を jsonb で保持）。id はアプリ採番の uuid。
-table "rich_documents" {
-  schema = schema.public
-  column "id" {
-    null = false
-    type = uuid
-  }
-  column "owner_id" {
-    null = false
-    type = bigint
-  }
-  column "kind" {
-    null = false
-    type = text
-  }
-  column "title" {
-    null = false
-    type = text
-  }
-  column "is_public" {
-    null    = false
-    type    = boolean
-    default = false
-  }
-  column "schema_version" {
-    null    = false
-    type    = bigint
-    default = 1
-  }
-  column "doc" {
-    null = false
-    type = jsonb
-  }
-  column "revision" {
-    null    = false
-    type    = bigint
-    default = 1
-  }
-  column "created_at" {
-    null = false
-    type = timestamptz
-  }
-  column "updated_at" {
-    null = false
-    type = timestamptz
-  }
-  column "deleted_at" {
-    null = true
-    type = timestamptz
-  }
-  # 所属の正本（company_id は撤去済み）。未所属の文書もあるため nullable。
-  column "workspace_id" {
-    null = true
-    type = uuid
-  }
-  primary_key {
-    columns = [column.id]
-  }
-  foreign_key "fk_rich_documents_owner" {
-    columns     = [column.owner_id]
-    ref_columns = [table.users.column.id]
-    on_update   = NO_ACTION
-    on_delete   = CASCADE
-  }
-  foreign_key "fk_rich_documents_workspace" {
-    columns     = [column.workspace_id]
-    ref_columns = [table.workspaces.column.id]
-    on_update   = NO_ACTION
-    on_delete   = NO_ACTION
-  }
-  index "idx_rich_documents_owner_id" {
-    columns = [column.owner_id]
-  }
-  check "ck_rich_documents_doc" {
-    expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
-  }
-  check "ck_rich_documents_title_len" {
-    expr = "char_length(title) <= 200"
   }
 }
 
@@ -1077,7 +949,7 @@ table "page_snapshots" {
     on_delete   = CASCADE
   }
   # 壊れた snapshot は読み取りキャッシュとしてそのまま返り、エディタがページを開けなくなるため、
-  # rich_documents.doc と同じ形で入口を塞ぐ。
+  # tiptap の doc 形式（{"type":"doc",...} の jsonb オブジェクト）であることを入口で保証する。
   check "ck_page_snapshots_doc" {
     expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
   }

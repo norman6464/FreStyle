@@ -69,7 +69,7 @@ export default function NoteSearchDialog({ workspaceSlug, spaces, onClose }: Not
   const view = buildSearchView(pages, spaces);
 
   const open = (page: NotePage) => {
-    navigate(`/p/${page.id}`);
+    navigate(`/kb/${page.id}`);
     onClose();
   };
 

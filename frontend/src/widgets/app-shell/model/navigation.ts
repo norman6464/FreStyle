@@ -4,7 +4,7 @@ export interface NavItem {
   label: string;
   to: string;
   matchExact?: boolean;
-  /** 複数の URL 系統が同じ画面に属するとき（例: ノートの /notes と /p）は配列で並べる。 */
+  /** 複数の URL 系統が同じ画面に属するとき（例: ノートの /notes と /kb）は配列で並べる。 */
   matchPrefix?: string | string[];
 }
 
@@ -15,8 +15,8 @@ export interface NavItem {
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'ホーム', to: '/', matchExact: true },
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
-  // ノートは共有される木（旧ナレッジを統合）。ページの URL は /p/{pageId}。
-  { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: ['/notes', '/p'] },
+  // ノートは共有される木（旧ナレッジを統合）。ページの URL は /kb/{pageId}。
+  { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: ['/notes', '/kb'] },
 ];
 
 /**

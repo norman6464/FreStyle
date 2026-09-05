@@ -18,7 +18,7 @@ import { useNoteShare } from '../model/useNoteShare';
 /**
  * NotePage はノートの画面（左にサイドバー、右に本文）。
  *
- * URL は /notes（ページ未選択）と /p/{pageId} の 2 つ。ページの URL はページ ID
+ * URL は /notes（ページ未選択）と /kb/{pageId} の 2 つ。ページの URL はページ ID
  * だけを持ち、所属ワークスペースはサーバーの解決 API が返す（テナントを URL に
  * 出さない）。編集可否も同じ応答で来て、編集できる人には題名も本文もその場で書ける。
  */
@@ -170,7 +170,7 @@ export default function NotePage() {
                   <span key={ancestor.id} className="flex min-w-0 items-center gap-1">
                     <span aria-hidden="true">/</span>
                     <Link
-                      to={`/p/${ancestor.id}`}
+                      to={`/kb/${ancestor.id}`}
                       className="max-w-40 truncate hover:text-[var(--color-text-primary)] hover:underline"
                     >
                       {ancestor.title}

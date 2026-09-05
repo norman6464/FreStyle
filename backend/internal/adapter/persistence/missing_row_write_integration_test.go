@@ -23,7 +23,7 @@ const missingID uint64 = 9_000_000_000
 // missingRowTables は下の表で触るテーブル。TRUNCATE で毎回まっさらにしてから叩く
 // （既存行に偶然当たって「0 行ではなかった」ことを見落とさないため）。
 var missingRowTables = []string{
-	"notes", "notifications",
+	"notifications",
 	"users",
 }
 
@@ -45,12 +45,6 @@ type missingRowCase struct {
 //	取り違えがそのまま外へ出る。ここを domain.ErrNotFound に畳んで 404 に揃える。
 func missingRowWriteCases() []missingRowCase {
 	return []missingRowCase{
-		{
-			name: "ノートの削除",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewNoteRepository(db).Delete(ctx, 7, missingID)
-			},
-		},
 		{
 			name: "通知の既読化",
 			call: func(ctx context.Context, db *sql.DB) error {

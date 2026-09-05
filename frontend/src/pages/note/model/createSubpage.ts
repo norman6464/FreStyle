@@ -50,5 +50,5 @@ export async function createSubpage(
     })
     .run();
   emitNoteTreeEvent({ type: 'page-created', page: child });
-  return `/p/${child.id}`;
+  return `/kb/${child.id}`;
 }

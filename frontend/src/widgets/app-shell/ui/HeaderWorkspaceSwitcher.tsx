@@ -5,7 +5,7 @@ import { useToast } from '@/shared/lib/hooks/useToast';
 /**
  * HeaderWorkspaceSwitcher はヘッダーから所属ワークスペースを切り替える入口。
  *
- * 「いま開いている」状態はページ（/notes・/p/:id）側だけが持っており、ヘッダーとは
+ * 「いま開いている」状態はページ（/notes・/kb/:id）側だけが持っており、ヘッダーとは
  * 共有していない。選んだ先はナビゲーションの state で /notes へ渡し、初期表示だけに使う
  * （以後の切替はサイドバー側の状態が正）。
  */

@@ -42,11 +42,11 @@ function docWithRef(pageId: unknown, title: string | null = '設計メモ'): JSO
 }
 
 describe('ページ参照（pageRef）', () => {
-  it('正しい ID は /p/{id} へのリンクとして描画され、題名が文字になる', () => {
+  it('正しい ID は /kb/{id} へのリンクとして描画され、題名が文字になる', () => {
     const e = makeEditor(docWithRef(uuid));
 
     const html = e.getHTML();
-    expect(html).toContain(`href="/p/${uuid}"`);
+    expect(html).toContain(`href="/kb/${uuid}"`);
     expect(html).toContain('data-page-ref');
     expect(html).toContain('設計メモ');
     // 内部リンクなので _blank / rel の束（外部向けの防御）は付けない。
@@ -72,7 +72,7 @@ describe('ページ参照（pageRef）', () => {
     const e = makeEditor({ type: 'doc', content: [{ type: 'paragraph' }] });
 
     e.view.pasteHTML(
-      `<p><a data-page-ref="true" data-page-id="${uuid}" href="/p/${uuid}">設計メモ</a></p>`,
+      `<p><a data-page-ref="true" data-page-id="${uuid}" href="/kb/${uuid}">設計メモ</a></p>`,
       pasteEvent(),
     );
 
@@ -104,7 +104,7 @@ describe('ページ参照（pageRef）', () => {
 
     const reloaded = makeEditor(saved);
     const html = reloaded.getHTML();
-    expect(html).toContain(`href="/p/${uuid}"`);
+    expect(html).toContain(`href="/kb/${uuid}"`);
     expect(JSON.stringify(reloaded.getJSON())).toContain(`"pageId":"${uuid}"`);
   });
 });

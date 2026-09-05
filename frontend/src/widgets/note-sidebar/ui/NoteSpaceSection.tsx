@@ -92,7 +92,7 @@ export default function NoteSpaceSection({
     try {
       const page = await onCreatePage(space.id, parentId);
       setRenamingPageId(page.id);
-      navigate(`/p/${page.id}`);
+      navigate(`/kb/${page.id}`);
     } catch {
       showToast('error', 'ページを作成できませんでした');
     }

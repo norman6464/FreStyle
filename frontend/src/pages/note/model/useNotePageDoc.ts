@@ -13,7 +13,7 @@ export interface NotePageDocState {
 const SAVE_DEBOUNCE_MS = 800;
 
 /**
- * useNotePageDoc は /p/{pageId} の URL からページを解決し、本文の保存も持つ。
+ * useNotePageDoc は /kb/{pageId} の URL からページを解決し、本文の保存も持つ。
  *
  * URL にはページ ID しか無いので、所属ワークスペース（以降の API に要る slug）と
  * 編集可否はサーバーの解決 API が一緒に返す。404 は「無い」と「見えない」の両方を

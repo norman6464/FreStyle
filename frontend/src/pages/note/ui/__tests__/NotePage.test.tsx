@@ -91,7 +91,7 @@ function fakeEditor() {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/p/p1']}>
+    <MemoryRouter initialEntries={['/kb/p1']}>
       <NotePage />
     </MemoryRouter>,
   );
@@ -140,7 +140,7 @@ describe('NotePage の配線', () => {
     await act(async () => {
       commands![0].run(fakeEditor());
     });
-    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/p/child-1'));
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/kb/child-1'));
 
     // 失敗: 知らせを出し、遷移しない。
     hoisted.navigate.mockClear();
@@ -162,7 +162,7 @@ describe('NotePage の配線', () => {
     // 祖先はリンク（押すとそのページへ）。現在のページはリンクにしない。
     expect(within(nav).getByRole('link', { name: '親ページの親' })).toHaveAttribute(
       'href',
-      '/p/anc-1',
+      '/kb/anc-1',
     );
     expect(within(nav).getByText('親ページ')).toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: '親ページ' })).not.toBeInTheDocument();

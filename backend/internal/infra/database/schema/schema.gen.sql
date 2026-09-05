@@ -86,20 +86,6 @@ CREATE TABLE "public"."master_exercises" (
 CREATE INDEX "idx_master_exercises_language" ON "public"."master_exercises" ("language");
 -- Create index "idx_master_exercises_slug" to table: "master_exercises"
 CREATE UNIQUE INDEX "idx_master_exercises_slug" ON "public"."master_exercises" ("slug");
--- Create "notes" table
-CREATE TABLE "public"."notes" (
-  "id" bigserial NOT NULL,
-  "user_id" bigint NOT NULL,
-  "title" text NOT NULL DEFAULT '',
-  "content" text NOT NULL DEFAULT '',
-  "is_public" boolean NOT NULL DEFAULT false,
-  "is_pinned" boolean NOT NULL DEFAULT false,
-  "created_at" timestamptz NOT NULL,
-  "updated_at" timestamptz NOT NULL,
-  PRIMARY KEY ("id")
-);
--- Create index "idx_notes_user_id" to table: "notes"
-CREATE INDEX "idx_notes_user_id" ON "public"."notes" ("user_id");
 -- Create "notifications" table
 CREATE TABLE "public"."notifications" (
   "id" bigserial NOT NULL,
@@ -234,26 +220,6 @@ CREATE TABLE "public"."profiles" (
   "updated_at" timestamptz NOT NULL,
   PRIMARY KEY ("user_id")
 );
--- Create "rich_documents" table
-CREATE TABLE "public"."rich_documents" (
-  "id" uuid NOT NULL,
-  "owner_id" bigint NOT NULL,
-  "kind" text NOT NULL,
-  "title" text NOT NULL,
-  "is_public" boolean NOT NULL DEFAULT false,
-  "schema_version" bigint NOT NULL DEFAULT 1,
-  "doc" jsonb NOT NULL,
-  "revision" bigint NOT NULL DEFAULT 1,
-  "created_at" timestamptz NOT NULL,
-  "updated_at" timestamptz NOT NULL,
-  "deleted_at" timestamptz NULL,
-  "workspace_id" uuid NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_rich_documents_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
-  CONSTRAINT "ck_rich_documents_title_len" CHECK (char_length(title) <= 200)
-);
--- Create index "idx_rich_documents_owner_id" to table: "rich_documents"
-CREATE INDEX "idx_rich_documents_owner_id" ON "public"."rich_documents" ("owner_id");
 -- Create "share_links" table
 CREATE TABLE "public"."share_links" (
   "id" uuid NOT NULL,
@@ -391,8 +357,6 @@ ALTER TABLE "public"."pages" ADD CONSTRAINT "fk_pages_space" FOREIGN KEY ("works
 ALTER TABLE "public"."principal_members" ADD CONSTRAINT "fk_principal_members_group" FOREIGN KEY ("workspace_id", "group_kind", "group_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principal_members_member" FOREIGN KEY ("workspace_id", "member_kind", "member_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "principals" table
 ALTER TABLE "public"."principals" ADD CONSTRAINT "fk_principals_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "rich_documents" table
-ALTER TABLE "public"."rich_documents" ADD CONSTRAINT "fk_rich_documents_owner" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_rich_documents_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "share_links" table
 ALTER TABLE "public"."share_links" ADD CONSTRAINT "fk_share_links_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_share_links_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_share_links_principal" FOREIGN KEY ("workspace_id", "principal_kind", "page_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "page_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "space_grants" table

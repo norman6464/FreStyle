@@ -197,7 +197,7 @@ export default function NotePageRow({
       ) : (
         <>
           <Link
-            to={`/p/${page.id}`}
+            to={`/kb/${page.id}`}
             // いま開いているページであることは、role ではなくここが表す。
             aria-current={active ? 'page' : undefined}
             className={`flex min-w-0 flex-1 items-center gap-1.5 py-1 text-sm ${

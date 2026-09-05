@@ -47,14 +47,6 @@ func outOfRangeWriteCases() []writeCase {
 			},
 		},
 		{
-			name: "ノートの作成（user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewNoteRepository(db).Create(ctx, &domain.Note{
-					UserID: outOfRangeID, Title: "t", Content: "c",
-				})
-			},
-		},
-		{
 			name: "通知の作成（user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewNotificationRepository(db).Create(ctx, &domain.Notification{
@@ -67,15 +59,6 @@ func outOfRangeWriteCases() []writeCase {
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewProfileRepository(db).Upsert(ctx, &domain.Profile{
 					UserID: outOfRangeID, Bio: "b",
-				})
-			},
-		},
-		{
-			name: "リッチ文書の作成（owner_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewRichDocumentRepository(db).Create(ctx, &domain.RichDocument{
-					OwnerID: outOfRangeID, Kind: domain.DocumentKindNote, Title: "t",
-					Doc: `{"type":"doc","content":[]}`,
 				})
 			},
 		},
@@ -117,15 +100,6 @@ const malformedWorkspaceID = "not-a-uuid"
 func malformedWorkspaceWriteCases() []writeCase {
 	bad := malformedWorkspaceID
 	return []writeCase{
-		{
-			name: "リッチ文書の作成（workspace_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewRichDocumentRepository(db).Create(ctx, &domain.RichDocument{
-					OwnerID: 1, WorkspaceID: &bad, Kind: domain.DocumentKindNote, Title: "t",
-					Doc: `{"type":"doc","content":[]}`,
-				})
-			},
-		},
 		{
 			name: "ユーザーの所属付け替え（workspace_id）",
 			call: func(ctx context.Context, db *sql.DB) error {

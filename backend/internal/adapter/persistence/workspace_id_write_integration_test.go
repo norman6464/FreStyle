@@ -137,17 +137,6 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 	})
 }
 
-// businessTablesWithWorkspace は所属参照として workspace_id を持つ業務テーブル。
-var businessTablesWithWorkspace = []string{
-	"rich_documents",
-}
-
-// businessTableTruncateTables はこの節のテストが TRUNCATE する対象。
-var businessTableTruncateTables = append(
-	append([]string{}, workspaceWriteTables...),
-	businessTablesWithWorkspace...,
-)
-
 // tableWorkspaceID は業務テーブル 1 行の workspace_id を返す。table は本ファイル内の
 // ハードコードされた定数のみを渡す（外部入力を SQL に組み込まない）。
 func tableWorkspaceID(t *testing.T, db *sql.DB, table string, id any) uuid.NullUUID {
@@ -155,55 +144,4 @@ func tableWorkspaceID(t *testing.T, db *sql.DB, table string, id any) uuid.NullU
 	var got uuid.NullUUID
 	require.NoError(t, db.QueryRow(fmt.Sprintf(`SELECT workspace_id FROM %s WHERE id = $1`, table), id).Scan(&got))
 	return got
-}
-
-// TestBusinessTableWorkspaceWrite_Integration は業務テーブルの所属参照（workspace_id）が
-// 呼び出し側から渡された値そのままで書かれることを実 PostgreSQL で固定する。
-// 作成者の所属ワークスペースと異なるワークスペースを渡して見分ける。
-func TestBusinessTableWorkspaceWrite_Integration(t *testing.T) {
-	sqlDB := testsupport.OpenTestDB(t)
-	ctx := context.Background()
-
-	t.Run("新規作成の直後に渡した workspace_id が入る", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, businessTableTruncateTables...)
-		ws1, ws2 := uuid.New(), uuid.New()
-		insertWorkspaceWithActive(t, sqlDB, ws1, "ワークスペース A", true)
-		insertWorkspaceWithActive(t, sqlDB, ws2, "ワークスペース B", true)
-		// 作成者はワークスペース A（ws1）に所属させたうえで、行の所属先には B（ws2）を渡す。
-		// 作成者の所属から引き直していれば ws1 になってしまうので、これで見分けられる。
-		ws1Str, ws2Str := ws1.String(), ws2.String()
-
-		users := persistence.NewUserRepository(sqlDB)
-		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
-			Email: "author@example.com", Name: "作成者", WorkspaceID: &ws1Str,
-		}, domain.OidcProviderCognito, "sub-author")
-		author, err := users.FindByCognitoSub(ctx, "sub-author")
-		require.NoError(t, err)
-
-		richDocs := persistence.NewRichDocumentRepository(sqlDB)
-		doc := &domain.RichDocument{
-			OwnerID: author.ID, WorkspaceID: &ws2Str, Kind: domain.DocumentKindNote,
-			Title: "メモ", Doc: `{"type":"doc","content":[]}`,
-		}
-		require.NoError(t, richDocs.Create(ctx, doc))
-		require.Equal(t, uuid.NullUUID{UUID: ws2, Valid: true}, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID), "InsertRichDocument は渡された workspace_id を書く")
-	})
-
-	t.Run("所属を渡さない rich_documents は workspace_id も NULL のまま", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, businessTableTruncateTables...)
-		users := persistence.NewUserRepository(sqlDB)
-		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
-			Email: "root@example.com", Name: "運営",
-		}, domain.OidcProviderCognito, "sub-root")
-		root, err := users.FindByCognitoSub(ctx, "sub-root")
-		require.NoError(t, err)
-
-		richDocs := persistence.NewRichDocumentRepository(sqlDB)
-		doc := &domain.RichDocument{
-			OwnerID: root.ID, WorkspaceID: nil, Kind: domain.DocumentKindNote,
-			Title: "運営メモ", Doc: `{"type":"doc","content":[]}`,
-		}
-		require.NoError(t, richDocs.Create(ctx, doc))
-		require.False(t, tableWorkspaceID(t, sqlDB, "rich_documents", doc.ID).Valid)
-	})
 }

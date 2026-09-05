@@ -48,7 +48,7 @@ test.describe('認証ガード', () => {
       })
     );
 
-    await page.goto('/courses');
+    await page.goto('/notes');
 
     await expect(page).toHaveURL(/\/login/);
   });

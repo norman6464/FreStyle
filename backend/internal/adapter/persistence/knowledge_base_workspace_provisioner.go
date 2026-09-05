@@ -13,13 +13,30 @@ import (
 // workspaceProvisioner は [repository.WorkspaceProvisioner] の実装。
 // ノートは GORM を通さないので、sqlc 生成コード + 素の *sql.DB で書く。
 type workspaceProvisioner struct {
-	db *sql.DB
-	q  *sqlcgen.Queries
+	baseRepository
 }
 
 // NewWorkspaceProvisioner はワークスペース作成の port を組み立てる。
 func NewWorkspaceProvisioner(db *sql.DB) repository.WorkspaceProvisioner {
-	return &workspaceProvisioner{db: db, q: sqlcgen.New(db)}
+	return &workspaceProvisioner{baseRepository{db: db}}
+}
+
+// runInTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
+// ctx に既に外側の DoInTx が開いたトランザクションがあれば、新規に開始せずそれへ相乗りする
+// （二重に BeginTx するとデッドロックの原因になる。commit/rollback は外側だけが持つ）。
+func (p *workspaceProvisioner) runInTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
+	if tx, ok := getTx(ctx); ok {
+		return fn(sqlcgen.New(tx))
+	}
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	if err := fn(sqlcgen.New(tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (p *workspaceProvisioner) ProvisionWorkspace(
@@ -51,59 +68,56 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 		return nil, err
 	}
 
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-
-	qtx := p.q.WithTx(tx)
-	ws, err := qtx.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
-		ID:                  wsID,
-		Slug:                in.Slug,
-		Name:                in.Name,
-		PersonalOwnerUserID: personalOwnerID,
+	var created domain.Workspace
+	err = p.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		ws, err := qtx.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
+			ID:                  wsID,
+			Slug:                in.Slug,
+			Name:                in.Name,
+			PersonalOwnerUserID: personalOwnerID,
+		})
+		if err != nil {
+			// slug はグローバルに一意（uq_workspaces_slug）。検査してから INSERT するまでの間に
+			// 別の要求が同じ slug を取り得るので、一意制約を唯一の判定にする。
+			// personal_owner_user_id も同じ理由で 1 人 1 つ（uq_workspaces_personal_owner）。
+			// どちらの制約が競合したかで意味が違うため、制約名を見て振り分ける
+			// （slug は本当に使用済み、personal_owner は「もう作られていた」で失敗ではない）。
+			if name, ok := uniqueViolationConstraint(err); ok {
+				switch name {
+				case "uq_workspaces_personal_owner":
+					return repository.ErrPersonalWorkspaceAlreadyExists
+				default:
+					return repository.ErrWorkspaceSlugTaken
+				}
+			}
+			return err
+		}
+		// 作成者をこのワークスペースの主体にする。principals の行があること自体が所属なので、
+		// この 1 行が入らないとワークスペースは誰も入れないまま残る（middleware が全経路で
+		// 所属を確かめ、非メンバーには 404 を返すため、作成者にも見えなくなる）。
+		if _, err := qtx.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
+			ID:          principalID,
+			WorkspaceID: wsID,
+			Kind:        string(domain.PrincipalKindUser),
+			UserID:      sql.NullInt64{Int64: ownerID, Valid: true},
+		}); err != nil {
+			return err
+		}
+		// 所属だけでは何も見えない（役割が 1 つも無ければ実効権限は空）。作成者が自分の
+		// ワークスペースを設定できるよう admin を張る。ここまでが 1 トランザクション。
+		if _, err := qtx.UpsertWorkspaceGrant(ctx, sqlcgen.UpsertWorkspaceGrantParams{
+			WorkspaceID: wsID,
+			PrincipalID: principalID,
+			Role:        string(domain.GrantRoleAdmin),
+		}); err != nil {
+			return err
+		}
+		created = toDomainWorkspace(ws)
+		return nil
 	})
 	if err != nil {
-		// slug はグローバルに一意（uq_workspaces_slug）。検査してから INSERT するまでの間に
-		// 別の要求が同じ slug を取り得るので、一意制約を唯一の判定にする。
-		// personal_owner_user_id も同じ理由で 1 人 1 つ（uq_workspaces_personal_owner）。
-		// どちらの制約が競合したかで意味が違うため、制約名を見て振り分ける
-		// （slug は本当に使用済み、personal_owner は「もう作られていた」で失敗ではない）。
-		if name, ok := uniqueViolationConstraint(err); ok {
-			switch name {
-			case "uq_workspaces_personal_owner":
-				return nil, repository.ErrPersonalWorkspaceAlreadyExists
-			default:
-				return nil, repository.ErrWorkspaceSlugTaken
-			}
-		}
 		return nil, err
 	}
-	// 作成者をこのワークスペースの主体にする。principals の行があること自体が所属なので、
-	// この 1 行が入らないとワークスペースは誰も入れないまま残る（middleware が全経路で
-	// 所属を確かめ、非メンバーには 404 を返すため、作成者にも見えなくなる）。
-	if _, err := qtx.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
-		ID:          principalID,
-		WorkspaceID: wsID,
-		Kind:        string(domain.PrincipalKindUser),
-		UserID:      sql.NullInt64{Int64: ownerID, Valid: true},
-	}); err != nil {
-		return nil, err
-	}
-	// 所属だけでは何も見えない（役割が 1 つも無ければ実効権限は空）。作成者が自分の
-	// ワークスペースを設定できるよう admin を張る。ここまでが 1 トランザクション。
-	if _, err := qtx.UpsertWorkspaceGrant(ctx, sqlcgen.UpsertWorkspaceGrantParams{
-		WorkspaceID: wsID,
-		PrincipalID: principalID,
-		Role:        string(domain.GrantRoleAdmin),
-	}); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	created := toDomainWorkspace(ws)
 	return &created, nil
 }
 
@@ -127,53 +141,50 @@ func (p *workspaceProvisioner) ProvisionPrivateSpace(
 		return nil, err
 	}
 
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-
-	qtx := p.q.WithTx(tx)
-	// 作成者の主体（＝ 所属そのもの）。無ければ非メンバーで、作らせない。
-	principal, err := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
-		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: creatorID, Valid: true},
+	var created domain.Space
+	err = p.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		// 作成者の主体（＝ 所属そのもの）。無ければ非メンバーで、作らせない。
+		principal, err := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+			WorkspaceID: wsID,
+			UserID:      sql.NullInt64{Int64: creatorID, Valid: true},
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return repository.ErrPrincipalNotFound
+			}
+			return err
+		}
+		row, err := qtx.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
+			ID:          spaceID,
+			WorkspaceID: wsID,
+			Key:         in.Key,
+			Name:        in.Name,
+			Visibility:  string(domain.SpaceVisibilityPrivate),
+		})
+		if err != nil {
+			// key の重複は一意制約を唯一の判定にする（CreateSpace と同じ）。
+			if isUniqueViolation(err) {
+				return repository.ErrSpaceKeyTaken
+			}
+			if isForeignKeyViolation(err) {
+				return repository.ErrWorkspaceNotFound
+			}
+			return err
+		}
+		// ワークスペース既定が届かないスペースなので、この grant が作成者の唯一の入口。
+		if _, err := qtx.UpsertSpaceGrant(ctx, sqlcgen.UpsertSpaceGrantParams{
+			WorkspaceID: wsID,
+			SpaceID:     spaceID,
+			PrincipalID: principal.ID,
+			Role:        string(domain.GrantRoleAdmin),
+		}); err != nil {
+			return err
+		}
+		created = toDomainSpace(row)
+		return nil
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, repository.ErrPrincipalNotFound
-		}
 		return nil, err
 	}
-	row, err := qtx.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
-		ID:          spaceID,
-		WorkspaceID: wsID,
-		Key:         in.Key,
-		Name:        in.Name,
-		Visibility:  string(domain.SpaceVisibilityPrivate),
-	})
-	if err != nil {
-		// key の重複は一意制約を唯一の判定にする（CreateSpace と同じ）。
-		if isUniqueViolation(err) {
-			return nil, repository.ErrSpaceKeyTaken
-		}
-		if isForeignKeyViolation(err) {
-			return nil, repository.ErrWorkspaceNotFound
-		}
-		return nil, err
-	}
-	// ワークスペース既定が届かないスペースなので、この grant が作成者の唯一の入口。
-	if _, err := qtx.UpsertSpaceGrant(ctx, sqlcgen.UpsertSpaceGrantParams{
-		WorkspaceID: wsID,
-		SpaceID:     spaceID,
-		PrincipalID: principal.ID,
-		Role:        string(domain.GrantRoleAdmin),
-	}); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	created := toDomainSpace(row)
 	return &created, nil
 }

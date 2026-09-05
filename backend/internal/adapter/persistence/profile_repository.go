@@ -12,10 +12,10 @@ import (
 
 // profileRepository は [repository.ProfileRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
-type profileRepository struct{ db *sql.DB }
+type profileRepository struct{ baseRepository }
 
 func NewProfileRepository(db *sql.DB) repository.ProfileRepository {
-	return &profileRepository{db: db}
+	return &profileRepository{baseRepository{db: db}}
 }
 
 func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*domain.Profile, error) {
@@ -23,7 +23,7 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 	if !ok {
 		return nil, nil // 存在し得ない user_id = 未作成扱い
 	}
-	row, err := sqlcgen.New(r.db).GetProfileByUserID(ctx, uid)
+	row, err := sqlcgen.New(r.dbtx(ctx)).GetProfileByUserID(ctx, uid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil // 未作成は (nil, nil)。usecase が空表示にフォールバックする
 	}
@@ -45,7 +45,7 @@ func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("user_id", p.UserID)
 	}
-	updatedAt, err := sqlcgen.New(r.db).UpsertProfile(ctx, sqlcgen.UpsertProfileParams{
+	updatedAt, err := sqlcgen.New(r.dbtx(ctx)).UpsertProfile(ctx, sqlcgen.UpsertProfileParams{
 		UserID:        uid,
 		Bio:           p.Bio,
 		AvatarUrl:     p.AvatarURL,

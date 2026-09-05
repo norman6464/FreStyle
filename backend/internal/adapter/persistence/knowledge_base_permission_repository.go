@@ -39,13 +39,35 @@ import (
 //     ここで「許可」側の値（役割あり・メンバーである・閲覧できる）を返すと、
 //     存在しないユーザー ID を名乗るだけで権限が湧く＝権限昇格になる。
 type knowledgeBasePermissionRepository struct {
-	db *sql.DB
-	q  *sqlcgen.Queries
+	baseRepository
 }
 
 // NewKnowledgeBasePermissionRepository はノートの権限 repository を組み立てる。
 func NewKnowledgeBasePermissionRepository(db *sql.DB) repository.KnowledgeBasePermissionRepository {
-	return &knowledgeBasePermissionRepository{db: db, q: sqlcgen.New(db)}
+	return &knowledgeBasePermissionRepository{baseRepository{db: db}}
+}
+
+// queries は ctx に乗っているトランザクション（あれば）に束縛した sqlc の Queries を作る。
+func (r *knowledgeBasePermissionRepository) queries(ctx context.Context) *sqlcgen.Queries {
+	return sqlcgen.New(r.dbtx(ctx))
+}
+
+// runInTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
+// ctx に既に外側の DoInTx が開いたトランザクションがあれば、新規に開始せずそれへ相乗りする
+// （二重に BeginTx するとデッドロックの原因になる。commit/rollback は外側だけが持つ）。
+func (r *knowledgeBasePermissionRepository) runInTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
+	if tx, ok := getTx(ctx); ok {
+		return fn(sqlcgen.New(tx))
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	if err := fn(sqlcgen.New(tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func toDomainPrincipal(row sqlcgen.Principal) domain.Principal {
@@ -146,7 +168,7 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 	}
 	// 先に引いてから作る。ユーザーの主体は (workspace_id, user_id) の部分 UNIQUE で 1 つに限られ、
 	// 競合したら INSERT が一意制約で落ちるので、その場合はもう一度引き直して既存を返す。
-	row, err := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+	row, err := r.queries(ctx).GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
@@ -161,7 +183,7 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	created, err := r.q.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
+	created, err := r.queries(ctx).InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Kind:        string(domain.PrincipalKindUser),
@@ -174,7 +196,7 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 			return nil, repository.ErrUserNotFound
 		}
 		// 同時に同じユーザーを追加したときは一意制約で落ちる。既存を返して冪等にする。
-		existing, getErr := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+		existing, getErr := r.queries(ctx).GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 			WorkspaceID: wsID,
 			UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		})
@@ -194,7 +216,7 @@ func (r *knowledgeBasePermissionRepository) EnsureSpaceEveryonePrincipal(ctx con
 	if !ok || !ok2 {
 		return nil, repository.ErrSpaceNotFound
 	}
-	row, err := r.q.GetSpaceEveryonePrincipal(ctx, sqlcgen.GetSpaceEveryonePrincipalParams{
+	row, err := r.queries(ctx).GetSpaceEveryonePrincipal(ctx, sqlcgen.GetSpaceEveryonePrincipalParams{
 		WorkspaceID: wsID,
 		SpaceID:     uuid.NullUUID{UUID: spID, Valid: true},
 	})
@@ -209,14 +231,14 @@ func (r *knowledgeBasePermissionRepository) EnsureSpaceEveryonePrincipal(ctx con
 	if err != nil {
 		return nil, err
 	}
-	created, err := r.q.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
+	created, err := r.queries(ctx).InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Kind:        string(domain.PrincipalKindSpaceAll),
 		SpaceID:     uuid.NullUUID{UUID: spID, Valid: true},
 	})
 	if err != nil {
-		existing, getErr := r.q.GetSpaceEveryonePrincipal(ctx, sqlcgen.GetSpaceEveryonePrincipalParams{
+		existing, getErr := r.queries(ctx).GetSpaceEveryonePrincipal(ctx, sqlcgen.GetSpaceEveryonePrincipalParams{
 			WorkspaceID: wsID,
 			SpaceID:     uuid.NullUUID{UUID: spID, Valid: true},
 		})
@@ -239,7 +261,7 @@ func (r *knowledgeBasePermissionRepository) CreateGroupPrincipal(ctx context.Con
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.q.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
+	row, err := r.queries(ctx).InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Kind:        string(domain.PrincipalKindGroup),
@@ -264,7 +286,7 @@ func (r *knowledgeBasePermissionRepository) FindPrincipal(ctx context.Context, w
 	if !ok || !ok2 {
 		return nil, repository.ErrPrincipalNotFound
 	}
-	row, err := r.q.GetPrincipal(ctx, sqlcgen.GetPrincipalParams{WorkspaceID: wsID, ID: prID})
+	row, err := r.queries(ctx).GetPrincipal(ctx, sqlcgen.GetPrincipalParams{WorkspaceID: wsID, ID: prID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrPrincipalNotFound
 	}
@@ -287,7 +309,7 @@ func (r *knowledgeBasePermissionRepository) FindUserPrincipal(ctx context.Contex
 	if !uok {
 		return nil, repository.ErrPrincipalNotFound
 	}
-	row, err := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+	row, err := r.queries(ctx).GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
@@ -337,7 +359,7 @@ func (r *knowledgeBasePermissionRepository) IsWorkspaceMember(ctx context.Contex
 	if !uok {
 		return false, nil
 	}
-	return r.q.IsWorkspaceMember(ctx, sqlcgen.IsWorkspaceMemberParams{
+	return r.queries(ctx).IsWorkspaceMember(ctx, sqlcgen.IsWorkspaceMemberParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
@@ -350,7 +372,7 @@ func (r *knowledgeBasePermissionRepository) AddGroupMember(ctx context.Context, 
 	if !ok || !ok2 || !ok3 {
 		return repository.ErrPrincipalNotFound
 	}
-	return r.q.InsertPrincipalMember(ctx, sqlcgen.InsertPrincipalMemberParams{
+	return r.queries(ctx).InsertPrincipalMember(ctx, sqlcgen.InsertPrincipalMemberParams{
 		WorkspaceID:       wsID,
 		GroupPrincipalID:  gID,
 		MemberPrincipalID: mID,
@@ -371,7 +393,7 @@ func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Contex
 	if !ok || !ok2 || !ok3 {
 		return nil // 存在し得ない ID = 既に外れている
 	}
-	_, err := r.q.DeletePrincipalMember(ctx, sqlcgen.DeletePrincipalMemberParams{
+	_, err := r.queries(ctx).DeletePrincipalMember(ctx, sqlcgen.DeletePrincipalMemberParams{
 		WorkspaceID:       wsID,
 		GroupPrincipalID:  gID,
 		MemberPrincipalID: mID,
@@ -391,7 +413,7 @@ func (r *knowledgeBasePermissionRepository) GrantWorkspaceRoleIfAbsent(ctx conte
 	if !ok || !ok2 {
 		return repository.ErrPrincipalNotFound
 	}
-	return r.q.InsertWorkspaceGrantIfAbsent(ctx, sqlcgen.InsertWorkspaceGrantIfAbsentParams{
+	return r.queries(ctx).InsertWorkspaceGrantIfAbsent(ctx, sqlcgen.InsertWorkspaceGrantIfAbsentParams{
 		WorkspaceID: wsID,
 		PrincipalID: prID,
 		Role:        string(role),
@@ -410,7 +432,7 @@ func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Con
 		Role:        string(role),
 	}
 	if role == domain.GrantRoleAdmin {
-		row, err := r.q.UpsertWorkspaceGrant(ctx, params)
+		row, err := r.queries(ctx).UpsertWorkspaceGrant(ctx, params)
 		if err != nil {
 			return nil, err
 		}
@@ -482,28 +504,20 @@ func (r *knowledgeBasePermissionRepository) withLastAdminGuard(
 	workspaceID, principalID uuid.UUID,
 	mutate func(qtx *sqlcgen.Queries) error,
 ) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-	qtx := r.q.WithTx(tx)
-
-	guard, err := qtx.LockWorkspaceAdminGrantsForRemoval(ctx, sqlcgen.LockWorkspaceAdminGrantsForRemovalParams{
-		WorkspaceID: workspaceID,
-		PrincipalID: principalID,
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		guard, err := qtx.LockWorkspaceAdminGrantsForRemoval(ctx, sqlcgen.LockWorkspaceAdminGrantsForRemovalParams{
+			WorkspaceID: workspaceID,
+			PrincipalID: principalID,
+		})
+		if err != nil {
+			return err
+		}
+		// 元から admin ではない相手なら、この操作で admin は 1 人も減らない。
+		if guard.TargetIsAdmin && !guard.OtherUserAdminRemains {
+			return repository.ErrLastWorkspaceAdmin
+		}
+		return mutate(qtx)
 	})
-	if err != nil {
-		return err
-	}
-	// 元から admin ではない相手なら、この操作で admin は 1 人も減らない。
-	if guard.TargetIsAdmin && !guard.OtherUserAdminRemains {
-		return repository.ErrLastWorkspaceAdmin
-	}
-	if err := mutate(qtx); err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 
 func (r *knowledgeBasePermissionRepository) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
@@ -511,7 +525,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceGrants(ctx context.Cont
 	if !ok {
 		return []domain.WorkspaceGrant{}, nil
 	}
-	rows, err := r.q.ListWorkspaceGrants(ctx, wsID)
+	rows, err := r.queries(ctx).ListWorkspaceGrants(ctx, wsID)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +543,7 @@ func (r *knowledgeBasePermissionRepository) UpsertSpaceGrant(ctx context.Context
 	if !ok || !ok2 || !ok3 {
 		return nil, repository.ErrPrincipalNotFound
 	}
-	row, err := r.q.UpsertSpaceGrant(ctx, sqlcgen.UpsertSpaceGrantParams{
+	row, err := r.queries(ctx).UpsertSpaceGrant(ctx, sqlcgen.UpsertSpaceGrantParams{
 		WorkspaceID: wsID,
 		SpaceID:     spID,
 		PrincipalID: prID,
@@ -551,7 +565,7 @@ func (r *knowledgeBasePermissionRepository) DeleteSpaceGrant(ctx context.Context
 	if !ok || !ok2 || !ok3 {
 		return nil
 	}
-	_, err := r.q.DeleteSpaceGrant(ctx, sqlcgen.DeleteSpaceGrantParams{
+	_, err := r.queries(ctx).DeleteSpaceGrant(ctx, sqlcgen.DeleteSpaceGrantParams{
 		WorkspaceID: wsID,
 		SpaceID:     spID,
 		PrincipalID: prID,
@@ -565,7 +579,7 @@ func (r *knowledgeBasePermissionRepository) ListSpaceGrants(ctx context.Context,
 	if !ok || !ok2 {
 		return []domain.SpaceGrant{}, nil
 	}
-	rows, err := r.q.ListSpaceGrants(ctx, sqlcgen.ListSpaceGrantsParams{WorkspaceID: wsID, SpaceID: spID})
+	rows, err := r.queries(ctx).ListSpaceGrants(ctx, sqlcgen.ListSpaceGrantsParams{WorkspaceID: wsID, SpaceID: spID})
 	if err != nil {
 		return nil, err
 	}
@@ -581,7 +595,7 @@ func (r *knowledgeBasePermissionRepository) ListGrantablePrincipals(ctx context.
 	if !ok {
 		return []domain.GrantablePrincipal{}, nil
 	}
-	rows, err := r.q.ListGrantablePrincipals(ctx, wsID)
+	rows, err := r.queries(ctx).ListGrantablePrincipals(ctx, wsID)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +617,7 @@ func (r *knowledgeBasePermissionRepository) UpsertPageGrant(ctx context.Context,
 	if !ok || !ok2 || !ok3 {
 		return nil, repository.ErrPrincipalNotFound
 	}
-	row, err := r.q.UpsertPageGrant(ctx, sqlcgen.UpsertPageGrantParams{
+	row, err := r.queries(ctx).UpsertPageGrant(ctx, sqlcgen.UpsertPageGrantParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 		PrincipalID: prID,
@@ -625,7 +639,7 @@ func (r *knowledgeBasePermissionRepository) DeletePageGrant(ctx context.Context,
 	if !ok || !ok2 || !ok3 {
 		return nil
 	}
-	_, err := r.q.DeletePageGrant(ctx, sqlcgen.DeletePageGrantParams{
+	_, err := r.queries(ctx).DeletePageGrant(ctx, sqlcgen.DeletePageGrantParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 		PrincipalID: prID,
@@ -639,7 +653,7 @@ func (r *knowledgeBasePermissionRepository) ListPageGrants(ctx context.Context, 
 	if !ok || !ok2 {
 		return []domain.PageGrant{}, nil
 	}
-	rows, err := r.q.ListPageGrants(ctx, sqlcgen.ListPageGrantsParams{WorkspaceID: wsID, PageID: pgID})
+	rows, err := r.queries(ctx).ListPageGrants(ctx, sqlcgen.ListPageGrantsParams{WorkspaceID: wsID, PageID: pgID})
 	if err != nil {
 		return nil, err
 	}
@@ -674,39 +688,37 @@ func (r *knowledgeBasePermissionRepository) CreateShareLink(ctx context.Context,
 
 	// 主体とリンクは 1 対 1 で、どちらかだけが残ると失効も解決もできない行になる。
 	// 同じトランザクションで両方作る。
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-
-	qtx := r.q.WithTx(tx)
-	if _, err := qtx.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
-		ID:          principalID,
-		WorkspaceID: wsID,
-		Kind:        string(domain.PrincipalKindShareLink),
-		PageID:      uuid.NullUUID{UUID: pgID, Valid: true},
-	}); err != nil {
-		return nil, err
-	}
-	row, err := qtx.InsertShareLink(ctx, sqlcgen.InsertShareLinkParams{
-		ID:              linkID,
-		WorkspaceID:     wsID,
-		PageID:          pgID,
-		PrincipalID:     principalID,
-		Capability:      string(in.Capability),
-		TokenHash:       in.TokenHash,
-		PasswordHash:    nullString(in.PasswordHash),
-		ExpiresAt:       nullTime(in.ExpiresAt),
-		CreatedByUserID: createdBy,
+	var created sqlcgen.ShareLink
+	err = r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		if _, err := qtx.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
+			ID:          principalID,
+			WorkspaceID: wsID,
+			Kind:        string(domain.PrincipalKindShareLink),
+			PageID:      uuid.NullUUID{UUID: pgID, Valid: true},
+		}); err != nil {
+			return err
+		}
+		row, err := qtx.InsertShareLink(ctx, sqlcgen.InsertShareLinkParams{
+			ID:              linkID,
+			WorkspaceID:     wsID,
+			PageID:          pgID,
+			PrincipalID:     principalID,
+			Capability:      string(in.Capability),
+			TokenHash:       in.TokenHash,
+			PasswordHash:    nullString(in.PasswordHash),
+			ExpiresAt:       nullTime(in.ExpiresAt),
+			CreatedByUserID: createdBy,
+		})
+		if err != nil {
+			return err
+		}
+		created = row
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	link := toDomainShareLink(row)
+	link := toDomainShareLink(created)
 	return &link, nil
 }
 
@@ -716,7 +728,7 @@ func (r *knowledgeBasePermissionRepository) RevokeShareLink(ctx context.Context,
 	if !ok || !ok2 {
 		return repository.ErrShareLinkNotFound
 	}
-	n, err := r.q.RevokeShareLink(ctx, sqlcgen.RevokeShareLinkParams{WorkspaceID: wsID, ID: lnID})
+	n, err := r.queries(ctx).RevokeShareLink(ctx, sqlcgen.RevokeShareLinkParams{WorkspaceID: wsID, ID: lnID})
 	if err != nil {
 		return err
 	}
@@ -725,7 +737,7 @@ func (r *knowledgeBasePermissionRepository) RevokeShareLink(ctx context.Context,
 	}
 	// 0 件は「既に失効済み」と「そもそも無い」の両方があり得る。区別して返す
 	// （失効の再実行は冪等に成功させ、存在しない ID は not found にする）。
-	if _, err := r.q.GetShareLink(ctx, sqlcgen.GetShareLinkParams{WorkspaceID: wsID, ID: lnID}); err != nil {
+	if _, err := r.queries(ctx).GetShareLink(ctx, sqlcgen.GetShareLinkParams{WorkspaceID: wsID, ID: lnID}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return repository.ErrShareLinkNotFound
 		}
@@ -735,7 +747,7 @@ func (r *knowledgeBasePermissionRepository) RevokeShareLink(ctx context.Context,
 }
 
 func (r *knowledgeBasePermissionRepository) FindShareLinkByTokenHash(ctx context.Context, tokenHash []byte) (*domain.ShareLink, error) {
-	row, err := r.q.GetShareLinkByTokenHash(ctx, tokenHash)
+	row, err := r.queries(ctx).GetShareLinkByTokenHash(ctx, tokenHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrShareLinkNotFound
 	}
@@ -752,7 +764,7 @@ func (r *knowledgeBasePermissionRepository) ListPageShareLinks(ctx context.Conte
 	if !ok || !ok2 {
 		return []domain.ShareLink{}, nil
 	}
-	rows, err := r.q.ListPageShareLinks(ctx, sqlcgen.ListPageShareLinksParams{WorkspaceID: wsID, PageID: pgID})
+	rows, err := r.queries(ctx).ListPageShareLinks(ctx, sqlcgen.ListPageShareLinksParams{WorkspaceID: wsID, PageID: pgID})
 	if err != nil {
 		return nil, err
 	}
@@ -804,7 +816,7 @@ func (r *knowledgeBasePermissionRepository) pagePermissionFacts(
 	if !ok || !ok2 {
 		return nil, repository.ErrPageNotFound
 	}
-	row, err := r.q.ResolvePagePermissionFacts(ctx, sqlcgen.ResolvePagePermissionFactsParams{
+	row, err := r.queries(ctx).ResolvePagePermissionFacts(ctx, sqlcgen.ResolvePagePermissionFactsParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 		UserID:      userID,
@@ -838,7 +850,7 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 	if !uok {
 		return []repository.PageWithViewFacts{}, nil
 	}
-	rows, err := r.q.ListSpacePageViewFacts(ctx, sqlcgen.ListSpacePageViewFactsParams{
+	rows, err := r.queries(ctx).ListSpacePageViewFacts(ctx, sqlcgen.ListSpacePageViewFactsParams{
 		WorkspaceID: wsID,
 		SpaceID:     spID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
@@ -890,7 +902,7 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 	if !uok {
 		return []repository.PageWithViewFacts{}, nil
 	}
-	rows, err := r.q.SearchWorkspacePageViewFacts(ctx, sqlcgen.SearchWorkspacePageViewFactsParams{
+	rows, err := r.queries(ctx).SearchWorkspacePageViewFacts(ctx, sqlcgen.SearchWorkspacePageViewFactsParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		Needle:      kbEscapeLike(query),
@@ -947,7 +959,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.q.ListWorkspacePageViewFactsByIDs(ctx, sqlcgen.ListWorkspacePageViewFactsByIDsParams{
+	rows, err := r.queries(ctx).ListWorkspacePageViewFactsByIDs(ctx, sqlcgen.ListWorkspacePageViewFactsByIDsParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		PageIds:     encoded,
@@ -989,7 +1001,7 @@ func (r *knowledgeBasePermissionRepository) ListMemberWorkspaces(ctx context.Con
 	if !uok {
 		return []domain.MemberWorkspace{}, nil
 	}
-	rows, err := r.q.ListMemberWorkspaces(ctx, sql.NullInt64{Int64: uid, Valid: true})
+	rows, err := r.queries(ctx).ListMemberWorkspaces(ctx, sql.NullInt64{Int64: uid, Valid: true})
 	if err != nil {
 		return nil, err
 	}
@@ -1023,7 +1035,7 @@ func (r *knowledgeBasePermissionRepository) SpacePermissionFactsForUser(
 	// workspace_grants は配下の全スペースに届くので、確かめずに役割だけを集めると
 	// 存在しないスペースや他テナントのスペースに対しても「自分のワークスペースでの役割」が
 	// そのまま返り、口そのものが緩い側へ倒れる。
-	if _, err := r.q.GetSpace(ctx, sqlcgen.GetSpaceParams{WorkspaceID: wsID, ID: spID}); err != nil {
+	if _, err := r.queries(ctx).GetSpace(ctx, sqlcgen.GetSpaceParams{WorkspaceID: wsID, ID: spID}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repository.ErrSpaceNotFound
 		}
@@ -1041,7 +1053,7 @@ func (r *knowledgeBasePermissionRepository) SpacePermissionFactsForUser(
 	if !uok {
 		return &domain.ScopeFacts{Roles: toGrantRoles(nil)}, nil
 	}
-	roles, err := r.q.ListSpaceScopeGrantRoles(ctx, sqlcgen.ListSpaceScopeGrantRolesParams{
+	roles, err := r.queries(ctx).ListSpaceScopeGrantRoles(ctx, sqlcgen.ListSpaceScopeGrantRolesParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		SpaceID:     uuid.NullUUID{UUID: spID, Valid: true},
@@ -1067,7 +1079,7 @@ func (r *knowledgeBasePermissionRepository) WorkspacePermissionFactsForUser(
 	if !uok {
 		return &domain.ScopeFacts{Roles: toGrantRoles(nil)}, nil
 	}
-	roles, err := r.q.ListWorkspaceScopeGrantRoles(ctx, sqlcgen.ListWorkspaceScopeGrantRolesParams{
+	roles, err := r.queries(ctx).ListWorkspaceScopeGrantRoles(ctx, sqlcgen.ListWorkspaceScopeGrantRolesParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
@@ -1095,7 +1107,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceSpaceScopeFacts(
 	if !uok {
 		return []repository.SpaceWithScopeFacts{}, nil
 	}
-	rows, err := r.q.ListWorkspaceSpaceScopeFacts(ctx, sqlcgen.ListWorkspaceSpaceScopeFactsParams{
+	rows, err := r.queries(ctx).ListWorkspaceSpaceScopeFacts(ctx, sqlcgen.ListWorkspaceSpaceScopeFactsParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 	})
@@ -1160,7 +1172,7 @@ func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx c
 	if !uok {
 		return []repository.PageWithPermissionFacts{}, nil
 	}
-	rows, err := r.q.ListSubtreePagePermissionFacts(ctx, sqlcgen.ListSubtreePagePermissionFactsParams{
+	rows, err := r.queries(ctx).ListSubtreePagePermissionFacts(ctx, sqlcgen.ListSubtreePagePermissionFactsParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},

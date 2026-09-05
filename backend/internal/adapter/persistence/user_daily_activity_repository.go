@@ -12,12 +12,12 @@ import (
 // userDailyActivityRepository は [repository.UserDailyActivityRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type userDailyActivityRepository struct {
-	db *sql.DB
+	baseRepository
 }
 
 // NewUserDailyActivityRepository は UserDailyActivityRepository の実装を返す。
 func NewUserDailyActivityRepository(db *sql.DB) repository.UserDailyActivityRepository {
-	return &userDailyActivityRepository{db: db}
+	return &userDailyActivityRepository{baseRepository{db: db}}
 }
 
 // Increment は user_daily_activities を upsert し各カウンタを delta 分だけ加算する。
@@ -35,7 +35,7 @@ func (r *userDailyActivityRepository) Increment(
 	}
 	// date を DATE 型へ切り詰め（時刻成分を捨てる）。
 	d := date.UTC().Truncate(24 * time.Hour)
-	return sqlcgen.New(r.db).IncrementUserDailyActivity(ctx, sqlcgen.IncrementUserDailyActivityParams{
+	return sqlcgen.New(r.dbtx(ctx)).IncrementUserDailyActivity(ctx, sqlcgen.IncrementUserDailyActivityParams{
 		UserID:        uid,
 		ActivityDate:  d,
 		ExerciseCount: int32(delta.ExerciseCount),

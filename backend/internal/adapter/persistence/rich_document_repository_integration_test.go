@@ -25,6 +25,7 @@ const rdDoc = `{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"c
 func TestRichDocumentRepository_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	userRepo := persistence.NewUserRepository(sqlDB)
+	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
 	repo := persistence.NewRichDocumentRepository(sqlDB)
 	ctx := context.Background()
 
@@ -32,7 +33,8 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 	mkOwner := func(t *testing.T, sub, email string) uint64 {
 		t.Helper()
 		u := &domain.User{Email: email}
-		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
+		require.NoError(t, userRepo.Create(ctx, u))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, sub))
 		return u.ID
 	}
 

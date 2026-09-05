@@ -33,6 +33,7 @@ var kbIntegrationTables = []string{
 type kbEnv struct {
 	pages       repository.KnowledgeBaseRepository
 	permissions repository.KnowledgeBasePermissionRepository
+	shareLinks  repository.ShareLinkRepository
 	provisioner repository.WorkspaceProvisioner
 	users       repository.UserRepository
 	workspaceID string
@@ -48,6 +49,7 @@ func newKbEnv(t *testing.T, sqlDB *sql.DB, slug string) *kbEnv {
 	env := &kbEnv{
 		pages:       persistence.NewKnowledgeBaseRepository(sqlDB),
 		permissions: persistence.NewKnowledgeBasePermissionRepository(sqlDB),
+		shareLinks:  persistence.NewShareLinkRepository(sqlDB),
 		provisioner: persistence.NewWorkspaceProvisioner(sqlDB),
 		users:       persistence.NewUserRepository(sqlDB),
 		slug:        slug,
@@ -66,10 +68,10 @@ func (e *kbEnv) as(userID uint64) *kbEnv {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner, e.users)
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.shareLinks, e.provisioner, e.users)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じ位置関係にしないと「未認証でも通ること」を確かめられない。
-	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), e.pages, e.permissions)
+	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), e.pages, e.permissions, e.shareLinks)
 	clone := *e
 	clone.router = r
 	return &clone

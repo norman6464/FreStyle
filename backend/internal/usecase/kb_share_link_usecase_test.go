@@ -26,9 +26,9 @@ func kbShareLinkFor(token string) *domain.ShareLink {
 }
 
 func Test_共有リンク発行_平文トークンは一度だけ返りDBにはハッシュだけ渡す(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
+	repo := &mockShareLinkRepo{}
 	var got repository.ShareLinkWrite
-	repo.On("CreateShareLink", mock.Anything, mock.Anything).
+	repo.On("Create", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { got = args.Get(1).(repository.ShareLinkWrite) }).
 		Return(&domain.ShareLink{ID: kbShareLink, WorkspaceID: kbWS, PageID: kbPage}, nil)
 	uc := usecase.NewIssueShareLinkUseCase(repo)
@@ -47,9 +47,9 @@ func Test_共有リンク発行_平文トークンは一度だけ返りDBには�
 }
 
 func Test_共有リンク発行_パスワードはbcryptで持つ(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
+	repo := &mockShareLinkRepo{}
 	var got repository.ShareLinkWrite
-	repo.On("CreateShareLink", mock.Anything, mock.Anything).
+	repo.On("Create", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { got = args.Get(1).(repository.ShareLinkWrite) }).
 		Return(&domain.ShareLink{ID: kbShareLink}, nil)
 	uc := usecase.NewIssueShareLinkUseCase(repo)
@@ -65,7 +65,7 @@ func Test_共有リンク発行_パスワードはbcryptで持つ(t *testing.T) 
 }
 
 func Test_共有リンク発行_入力の検証(t *testing.T) {
-	uc := usecase.NewIssueShareLinkUseCase(&mockKBPermissionRepo{})
+	uc := usecase.NewIssueShareLinkUseCase(&mockShareLinkRepo{})
 	ctx := context.Background()
 	past := time.Now().Add(-time.Hour)
 
@@ -87,8 +87,8 @@ func Test_共有リンク発行_入力の検証(t *testing.T) {
 }
 
 func Test_共有リンク検証_トークンが違えば見つからない(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
-	repo.On("FindShareLinkByTokenHash", mock.Anything, mock.Anything).Return(nil, repository.ErrShareLinkNotFound)
+	repo := &mockShareLinkRepo{}
+	repo.On("FindByTokenHash", mock.Anything, mock.Anything).Return(nil, repository.ErrShareLinkNotFound)
 	uc := usecase.NewVerifyShareLinkUseCase(repo)
 
 	_, err := uc.Execute(context.Background(), usecase.VerifyShareLinkInput{Token: "wrong"})
@@ -103,16 +103,16 @@ func Test_共有リンク検証_期限切れと失効を区別する(t *testing.
 
 	expired := kbShareLinkFor("tok")
 	expired.ExpiresAt = &past
-	repoExpired := &mockKBPermissionRepo{}
-	repoExpired.On("FindShareLinkByTokenHash", mock.Anything, mock.Anything).Return(expired, nil)
+	repoExpired := &mockShareLinkRepo{}
+	repoExpired.On("FindByTokenHash", mock.Anything, mock.Anything).Return(expired, nil)
 	_, err := usecase.NewVerifyShareLinkUseCase(repoExpired).
 		Execute(context.Background(), usecase.VerifyShareLinkInput{Token: "tok"})
 	require.ErrorIs(t, err, usecase.ErrShareLinkExpired)
 
 	revoked := kbShareLinkFor("tok")
 	revoked.RevokedAt = &past
-	repoRevoked := &mockKBPermissionRepo{}
-	repoRevoked.On("FindShareLinkByTokenHash", mock.Anything, mock.Anything).Return(revoked, nil)
+	repoRevoked := &mockShareLinkRepo{}
+	repoRevoked.On("FindByTokenHash", mock.Anything, mock.Anything).Return(revoked, nil)
 	_, err = usecase.NewVerifyShareLinkUseCase(repoRevoked).
 		Execute(context.Background(), usecase.VerifyShareLinkInput{Token: "tok"})
 	require.ErrorIs(t, err, usecase.ErrShareLinkRevoked)
@@ -125,8 +125,8 @@ func Test_共有リンク検証_パスワードの照合(t *testing.T) {
 
 	link := kbShareLinkFor("tok")
 	link.PasswordHash = &s
-	repo := &mockKBPermissionRepo{}
-	repo.On("FindShareLinkByTokenHash", mock.Anything, mock.Anything).Return(link, nil)
+	repo := &mockShareLinkRepo{}
+	repo.On("FindByTokenHash", mock.Anything, mock.Anything).Return(link, nil)
 	uc := usecase.NewVerifyShareLinkUseCase(repo)
 	ctx := context.Background()
 
@@ -142,8 +142,8 @@ func Test_共有リンク検証_パスワードの照合(t *testing.T) {
 }
 
 func Test_共有リンク失効_必須項目の検証(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
-	repo.On("RevokeShareLink", mock.Anything, kbWS, kbShareLink).Return(nil)
+	repo := &mockShareLinkRepo{}
+	repo.On("Revoke", mock.Anything, kbWS, kbShareLink).Return(nil)
 	uc := usecase.NewRevokeShareLinkUseCase(repo)
 	ctx := context.Background()
 
@@ -221,8 +221,8 @@ func Test_共有リンク権限_必須項目の検証(t *testing.T) {
 
 func Test_共有リンク一覧_失効済みも含めて返す(t *testing.T) {
 	revoked := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	repo := &mockKBPermissionRepo{}
-	repo.On("ListPageShareLinks", mock.Anything, kbWS, kbPage).
+	repo := &mockShareLinkRepo{}
+	repo.On("ListByPage", mock.Anything, kbWS, kbPage).
 		Return([]domain.ShareLink{
 			{ID: "l1", WorkspaceID: kbWS, PageID: kbPage, Capability: domain.CapabilityView},
 			{ID: "l2", WorkspaceID: kbWS, PageID: kbPage, Capability: domain.CapabilityView, RevokedAt: &revoked},
@@ -237,7 +237,7 @@ func Test_共有リンク一覧_失効済みも含めて返す(t *testing.T) {
 }
 
 func Test_共有リンク一覧_必須項目の検証(t *testing.T) {
-	uc := usecase.NewListPageShareLinksUseCase(&mockKBPermissionRepo{})
+	uc := usecase.NewListPageShareLinksUseCase(&mockShareLinkRepo{})
 	ctx := context.Background()
 
 	_, err := uc.Execute(ctx, usecase.ListPageShareLinksInput{PageID: kbPage})

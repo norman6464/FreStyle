@@ -24,12 +24,9 @@ func (s *stubUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, e
 	return nil, nil
 }
 
-func (s *stubUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
-	return nil
-}
+func (s *stubUsers) Create(context.Context, *domain.User) error { return nil }
 
-func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
-func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error)  { return nil, nil }
+func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error) { return nil, nil }
 
 func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
 func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }

@@ -19,18 +19,21 @@ import (
 func TestUserRepository_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(sqlDB)
+	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
 	ctx := context.Background()
 
-	t.Run("CreateWithOidcIdentity → FindByCognitoSub / FindByID で round-trip（workspace_id 含む）", func(t *testing.T) {
+	t.Run("Create + EnsureIdentity → FindByCognitoSub / FindByID で round-trip（workspace_id 含む）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, append([]string{"user_oidc_identities"}, workspaceWriteTables...)...)
 		ws := uuid.New()
 		insertWorkspaceWithActive(t, sqlDB, ws, "ワークスペース 42", true)
 		wid := ws.String()
 
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
+		u := &domain.User{
 			Email: "u@example.com", Name: "山田",
 			WorkspaceID: &wid,
-		}, domain.OidcProviderCognito, "sub-1"))
+		}
+		require.NoError(t, repo.Create(ctx, u))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, "sub-1"))
 
 		got, err := repo.FindByCognitoSub(ctx, "sub-1")
 		require.NoError(t, err)
@@ -49,9 +52,9 @@ func TestUserRepository_Integration(t *testing.T) {
 
 	t.Run("ワークスペース無しは WorkspaceID が nil", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
-			Email: "a@example.com", Name: "管理者",
-		}, domain.OidcProviderCognito, "admin-1"))
+		u := &domain.User{Email: "a@example.com", Name: "管理者"}
+		require.NoError(t, repo.Create(ctx, u))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, "admin-1"))
 
 		got, err := repo.FindByCognitoSub(ctx, "admin-1")
 		require.NoError(t, err)

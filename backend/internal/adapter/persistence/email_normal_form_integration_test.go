@@ -80,10 +80,6 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		dup := &domain.User{Email: "space@example.com"}
-		require.ErrorIs(
-			t,
-			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "space-1"),
-			repository.ErrEmailTaken,
-		)
+		require.ErrorIs(t, repo.Create(ctx, dup), repository.ErrEmailTaken)
 	})
 }

@@ -39,6 +39,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		g,
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewKnowledgeBasePermissionRepository(deps.db),
+		persistence.NewShareLinkRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
 		persistence.NewUserRepository(deps.db),
 	)
@@ -53,6 +54,7 @@ func registerKnowledgeBasePublicRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		g,
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewKnowledgeBasePermissionRepository(deps.db),
+		persistence.NewShareLinkRepository(deps.db),
 	)
 }
 
@@ -63,6 +65,7 @@ func registerKnowledgeBaseRoutesWith(
 	g *gin.RouterGroup,
 	pages repository.KnowledgeBaseRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
+	shareLinks repository.ShareLinkRepository,
 	provisioner repository.WorkspaceProvisioner,
 	users repository.UserRepository,
 ) {
@@ -138,10 +141,10 @@ func registerKnowledgeBaseRoutesWith(
 	// 上限が無いまま動く）。
 	sh := NewKnowledgeBaseShareLinkHandler(
 		gate,
-		usecase.NewIssueShareLinkUseCase(permissions),
-		usecase.NewRevokeShareLinkUseCase(permissions),
-		usecase.NewListPageShareLinksUseCase(permissions),
-		usecase.NewVerifyShareLinkUseCase(permissions),
+		usecase.NewIssueShareLinkUseCase(shareLinks),
+		usecase.NewRevokeShareLinkUseCase(shareLinks),
+		usecase.NewListPageShareLinksUseCase(shareLinks),
+		usecase.NewVerifyShareLinkUseCase(shareLinks),
 		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
 
@@ -237,6 +240,7 @@ func registerKnowledgeBasePublicRoutesWith(
 	g *gin.RouterGroup,
 	pages repository.KnowledgeBaseRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
+	shareLinks repository.ShareLinkRepository,
 ) {
 	sh := NewKnowledgeBaseShareLinkHandler(
 		newKbPermissionGate(
@@ -244,10 +248,10 @@ func registerKnowledgeBasePublicRoutesWith(
 			usecase.NewCheckSpacePermissionUseCase(permissions),
 			usecase.NewCheckPagePermissionUseCase(permissions),
 		),
-		usecase.NewIssueShareLinkUseCase(permissions),
-		usecase.NewRevokeShareLinkUseCase(permissions),
-		usecase.NewListPageShareLinksUseCase(permissions),
-		usecase.NewVerifyShareLinkUseCase(permissions),
+		usecase.NewIssueShareLinkUseCase(shareLinks),
+		usecase.NewRevokeShareLinkUseCase(shareLinks),
+		usecase.NewListPageShareLinksUseCase(shareLinks),
+		usecase.NewVerifyShareLinkUseCase(shareLinks),
 		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
 	// 上限は 2 段。**本命は handler 側のリンク 1 本あたりの上限**で、こちらの IP 単位は

@@ -30,13 +30,15 @@ func userUpdatedAt(t *testing.T, db *sql.DB, id uint64) time.Time {
 func TestUserRepositoryWrites_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(sqlDB)
+	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
 	ctx := context.Background()
 
 	// newTrainee は研修生を 1 人作って返す。
 	newTrainee := func(t *testing.T, email, sub string) *domain.User {
 		t.Helper()
 		u := &domain.User{Email: email, Name: email}
-		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
+		require.NoError(t, repo.Create(ctx, u))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, sub))
 		require.NotZero(t, u.ID, "作成後は採番された id が書き戻る")
 		require.False(t, u.CreatedAt.IsZero(), "作成後は created_at が書き戻る")
 		require.False(t, u.UpdatedAt.IsZero(), "作成後は updated_at が書き戻る")
@@ -120,7 +122,8 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		b := &domain.User{Email: "m2@example.com", Name: "m2", WorkspaceID: &ws1}
 		other := &domain.User{Email: "m3@example.com", Name: "m3", WorkspaceID: &ws2}
 		for _, u := range []*domain.User{a, b, other} {
-			require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, u.Name))
+			require.NoError(t, repo.Create(ctx, u))
+			require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, u.Name))
 		}
 
 		rows, err := repo.ListByWorkspaceID(ctx, ws1)
@@ -166,10 +169,10 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		other := newTrainee(t, "other@example.com", "other-subject")
 
 		// 自分の subject を張り直しても冪等に成功する。
-		require.NoError(t, repo.EnsureOidcIdentity(ctx, owner.ID, domain.OidcProviderCognito, "shared-subject"))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, owner.ID, domain.OidcProviderCognito, "shared-subject"))
 
 		// 他人が持つ subject を要求したら黙って成功にせずエラー。
-		err := repo.EnsureOidcIdentity(ctx, other.ID, domain.OidcProviderCognito, "shared-subject")
+		err := oidcRepo.EnsureIdentity(ctx, other.ID, domain.OidcProviderCognito, "shared-subject")
 		require.ErrorContains(t, err, "oidc identity conflict")
 
 		// 持ち主は変わっていない。

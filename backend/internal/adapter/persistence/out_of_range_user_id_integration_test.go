@@ -240,7 +240,7 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 		f := setupDecoy(ctx, t, sqlDB)
 		hash := sha256.Sum256([]byte("token-" + newID()))
 
-		_, err := f.perm.CreateShareLink(ctx, repository.ShareLinkWrite{
+		_, err := f.shareLinks.Create(ctx, repository.ShareLinkWrite{
 			WorkspaceID: f.ws, PageID: f.pageID, Capability: domain.CapabilityView,
 			TokenHash: hash[:], CreatedByUserID: wrappedUserID(),
 		})

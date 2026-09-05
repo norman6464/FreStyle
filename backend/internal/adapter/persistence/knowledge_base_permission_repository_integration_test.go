@@ -48,28 +48,30 @@ func createUser(t *testing.T, db *sql.DB, namePrefix string) uint64 {
 
 // kbPermFixture は権限の結合テストで使う共通の下ごしらえ。
 type kbPermFixture struct {
-	db       *sql.DB
-	perm     repository.KnowledgeBasePermissionRepository
-	pages    repository.KnowledgeBaseRepository
-	pageUC   kbUseCases
-	ws       string
-	otherWS  string
-	spaceA   string
-	spaceB   string
-	otherSpc string
-	alice    uint64
-	bob      uint64
-	carol    uint64
+	db         *sql.DB
+	perm       repository.KnowledgeBasePermissionRepository
+	shareLinks repository.ShareLinkRepository
+	pages      repository.KnowledgeBaseRepository
+	pageUC     kbUseCases
+	ws         string
+	otherWS    string
+	spaceA     string
+	spaceB     string
+	otherSpc   string
+	alice      uint64
+	bob        uint64
+	carol      uint64
 }
 
 func setupKBPermission(t *testing.T, sqlDB *sql.DB) kbPermFixture {
 	t.Helper()
 	testsupport.TruncateAll(t, sqlDB, kbTables...)
 	f := kbPermFixture{
-		db:     sqlDB,
-		perm:   persistence.NewKnowledgeBasePermissionRepository(sqlDB),
-		pages:  persistence.NewKnowledgeBaseRepository(sqlDB),
-		pageUC: newKbUseCases(persistence.NewKnowledgeBaseRepository(sqlDB)),
+		db:         sqlDB,
+		perm:       persistence.NewKnowledgeBasePermissionRepository(sqlDB),
+		shareLinks: persistence.NewShareLinkRepository(sqlDB),
+		pages:      persistence.NewKnowledgeBaseRepository(sqlDB),
+		pageUC:     newKbUseCases(persistence.NewKnowledgeBaseRepository(sqlDB)),
 	}
 	f.ws = createWorkspace(t, sqlDB, "perm-main")
 	f.otherWS = createWorkspace(t, sqlDB, "perm-other")
@@ -1219,7 +1221,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		_, err = f.perm.FindUserPrincipal(ctx, bad, f.alice)
 		require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
 		require.ErrorIs(t, f.perm.DeletePrincipal(ctx, bad, bad), repository.ErrPrincipalNotFound)
-		require.ErrorIs(t, f.perm.RevokeShareLink(ctx, bad, bad), repository.ErrShareLinkNotFound)
+		require.ErrorIs(t, f.shareLinks.Revoke(ctx, bad, bad), repository.ErrShareLinkNotFound)
 		_, err = f.perm.PagePermissionFactsForUser(ctx, bad, bad, f.alice)
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
 		_, err = f.perm.PagePermissionFactsForPrincipal(ctx, f.ws, f.spaceA, bad)
@@ -1239,7 +1241,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		pageGrants, err := f.perm.ListPageGrants(ctx, bad, bad)
 		require.NoError(t, err)
 		assert.Empty(t, pageGrants)
-		links, err := f.perm.ListPageShareLinks(ctx, bad, bad)
+		links, err := f.shareLinks.ListByPage(ctx, bad, bad)
 		require.NoError(t, err)
 		assert.Empty(t, links)
 		facts, err := f.perm.ListSpacePageViewFacts(ctx, bad, bad, f.alice, false)
@@ -1263,7 +1265,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
 		_, err = f.perm.UpsertPageGrant(ctx, bad, bad, bad, domain.GrantRoleViewer)
 		require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
-		_, err = f.perm.CreateShareLink(ctx, repository.ShareLinkWrite{WorkspaceID: bad, PageID: bad})
+		_, err = f.shareLinks.Create(ctx, repository.ShareLinkWrite{WorkspaceID: bad, PageID: bad})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
 	})
 
@@ -1308,12 +1310,12 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "子")
 		outside := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象外")
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
 
-		verified, err := usecase.NewVerifyShareLinkUseCase(f.perm).
+		verified, err := usecase.NewVerifyShareLinkUseCase(f.shareLinks).
 			Execute(ctx, usecase.VerifyShareLinkInput{Token: issued.Token})
 		require.NoError(t, err)
 
@@ -1337,7 +1339,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ページ")
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1345,7 +1347,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		// リンクの主体へ admin を張る（本来やるべきではない操作だが、いまは通ってしまう）。
 		f.grantPage(ctx, t, page.ID, issued.Link.PrincipalID, domain.GrantRoleAdmin)
 
-		verified, err := usecase.NewVerifyShareLinkUseCase(f.perm).
+		verified, err := usecase.NewVerifyShareLinkUseCase(f.shareLinks).
 			Execute(ctx, usecase.VerifyShareLinkInput{Token: issued.Token})
 		require.NoError(t, err)
 
@@ -1362,7 +1364,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("平文トークンはDBに残らない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView,
 			Password: "s3cret", CreatedByUserID: f.alice,
 		})
@@ -1385,8 +1387,8 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("期限切れと失効は開けない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issueUC := usecase.NewIssueShareLinkUseCase(f.perm)
-		verifyUC := usecase.NewVerifyShareLinkUseCase(f.perm)
+		issueUC := usecase.NewIssueShareLinkUseCase(f.shareLinks)
+		verifyUC := usecase.NewVerifyShareLinkUseCase(f.shareLinks)
 
 		expiring, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView,
@@ -1406,7 +1408,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
-		revokeUC := usecase.NewRevokeShareLinkUseCase(f.perm)
+		revokeUC := usecase.NewRevokeShareLinkUseCase(f.shareLinks)
 		require.NoError(t, revokeUC.Execute(ctx, usecase.RevokeShareLinkInput{
 			WorkspaceID: f.ws, ShareLinkID: revoking.Link.ID,
 		}))
@@ -1429,7 +1431,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "子")
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1461,7 +1463,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		_, err = f.perm.UpsertSpaceGrant(ctx, f.ws, f.spaceA, everyone.ID, domain.GrantRoleAdmin)
 		require.NoError(t, err)
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1475,7 +1477,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("リンクを消すと主体も消える", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1494,7 +1496,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("ページの共有リンク一覧は失効済みも返す", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issueUC := usecase.NewIssueShareLinkUseCase(f.perm)
+		issueUC := usecase.NewIssueShareLinkUseCase(f.shareLinks)
 		alive, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
@@ -1503,10 +1505,10 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityEdit, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
-		require.NoError(t, usecase.NewRevokeShareLinkUseCase(f.perm).Execute(ctx,
+		require.NoError(t, usecase.NewRevokeShareLinkUseCase(f.shareLinks).Execute(ctx,
 			usecase.RevokeShareLinkInput{WorkspaceID: f.ws, ShareLinkID: dead.Link.ID}))
 
-		links, err := f.perm.ListPageShareLinks(ctx, f.ws, page.ID)
+		links, err := f.shareLinks.ListByPage(ctx, f.ws, page.ID)
 		require.NoError(t, err)
 		require.Len(t, links, 2, "失効済みも含めて返す（誰がいつ止めたかを追えるように）")
 		byID := map[string]domain.ShareLink{}
@@ -1521,7 +1523,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		other := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "別ページ")
-		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1548,7 +1550,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 // トークンの検証から権限解決までを毎回通すので、未認証の来訪者が実際に辿る経路と同じになる。
 func shareLinkPermFunc(ctx context.Context, t *testing.T, f kbPermFixture) func(token, pageID string) domain.PagePermission {
 	t.Helper()
-	verifyUC := usecase.NewVerifyShareLinkUseCase(f.perm)
+	verifyUC := usecase.NewVerifyShareLinkUseCase(f.shareLinks)
 	checkUC := usecase.NewCheckShareLinkPermissionUseCase(f.perm, f.pages)
 	return func(token, pageID string) domain.PagePermission {
 		t.Helper()

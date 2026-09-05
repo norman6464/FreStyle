@@ -37,12 +37,8 @@ func (m *mockUserRepo) ListByWorkspaceID(ctx context.Context, workspaceID string
 	return rows, args.Error(1)
 }
 
-func (m *mockUserRepo) CreateWithOidcIdentity(ctx context.Context, u *domain.User, provider, subject string) error {
-	return m.Called(ctx, u, provider, subject).Error(0)
-}
-
-func (m *mockUserRepo) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	return m.Called(ctx, userID, provider, subject).Error(0)
+func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
+	return m.Called(ctx, u).Error(0)
 }
 
 func (m *mockUserRepo) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -380,28 +376,6 @@ func (m *mockKBPermissionRepo) ListSpaceGrants(ctx context.Context, workspaceID,
 	return rows, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) CreateShareLink(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
-	args := m.Called(ctx, in)
-	l, _ := args.Get(0).(*domain.ShareLink)
-	return l, args.Error(1)
-}
-
-func (m *mockKBPermissionRepo) RevokeShareLink(ctx context.Context, workspaceID, shareLinkID string) error {
-	return m.Called(ctx, workspaceID, shareLinkID).Error(0)
-}
-
-func (m *mockKBPermissionRepo) FindShareLinkByTokenHash(ctx context.Context, tokenHash []byte) (*domain.ShareLink, error) {
-	args := m.Called(ctx, tokenHash)
-	l, _ := args.Get(0).(*domain.ShareLink)
-	return l, args.Error(1)
-}
-
-func (m *mockKBPermissionRepo) ListPageShareLinks(ctx context.Context, workspaceID, pageID string) ([]domain.ShareLink, error) {
-	args := m.Called(ctx, workspaceID, pageID)
-	rows, _ := args.Get(0).([]domain.ShareLink)
-	return rows, args.Error(1)
-}
-
 func (m *mockKBPermissionRepo) PagePermissionFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*domain.PagePermissionFacts, error) {
 	args := m.Called(ctx, workspaceID, pageID, userID)
 	f, _ := args.Get(0).(*domain.PagePermissionFacts)
@@ -445,5 +419,31 @@ func (m *mockKBPermissionRepo) ListWorkspaceSpaceScopeFacts(ctx context.Context,
 func (m *mockKBPermissionRepo) ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]repository.PageWithPermissionFacts, error) {
 	args := m.Called(ctx, workspaceID, pageID, userID)
 	rows, _ := args.Get(0).([]repository.PageWithPermissionFacts)
+	return rows, args.Error(1)
+}
+
+type mockShareLinkRepo struct{ mock.Mock }
+
+var _ repository.ShareLinkRepository = (*mockShareLinkRepo)(nil)
+
+func (m *mockShareLinkRepo) Create(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
+	args := m.Called(ctx, in)
+	l, _ := args.Get(0).(*domain.ShareLink)
+	return l, args.Error(1)
+}
+
+func (m *mockShareLinkRepo) Revoke(ctx context.Context, workspaceID, shareLinkID string) error {
+	return m.Called(ctx, workspaceID, shareLinkID).Error(0)
+}
+
+func (m *mockShareLinkRepo) FindByTokenHash(ctx context.Context, tokenHash []byte) (*domain.ShareLink, error) {
+	args := m.Called(ctx, tokenHash)
+	l, _ := args.Get(0).(*domain.ShareLink)
+	return l, args.Error(1)
+}
+
+func (m *mockShareLinkRepo) ListByPage(ctx context.Context, workspaceID, pageID string) ([]domain.ShareLink, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	rows, _ := args.Get(0).([]domain.ShareLink)
 	return rows, args.Error(1)
 }

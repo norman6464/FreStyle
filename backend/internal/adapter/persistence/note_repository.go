@@ -13,9 +13,11 @@ import (
 
 // noteRepository は [repository.NoteRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
-type noteRepository struct{ db *sql.DB }
+type noteRepository struct{ baseRepository }
 
-func NewNoteRepository(db *sql.DB) repository.NoteRepository { return &noteRepository{db: db} }
+func NewNoteRepository(db *sql.DB) repository.NoteRepository {
+	return &noteRepository{baseRepository{db: db}}
+}
 
 func toDomainNote(row sqlcgen.Note) domain.Note {
 	return domain.Note{
@@ -35,7 +37,7 @@ func (r *noteRepository) ListByUserID(ctx context.Context, userID uint64) ([]dom
 	if !ok {
 		return []domain.Note{}, nil // 存在し得ない user_id = 0 件
 	}
-	rows, err := sqlcgen.New(r.db).ListNotesByUserID(ctx, uid)
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListNotesByUserID(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +60,7 @@ func (r *noteRepository) FindByID(ctx context.Context, userID, id uint64) (*doma
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない user_id = 該当なし
 	}
-	row, err := sqlcgen.New(r.db).GetNoteByID(ctx, sqlcgen.GetNoteByIDParams{ID: id64, UserID: uid})
+	row, err := sqlcgen.New(r.dbtx(ctx)).GetNoteByID(ctx, sqlcgen.GetNoteByIDParams{ID: id64, UserID: uid})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持（他人の note もここに落ちる）
 	}
@@ -84,7 +86,7 @@ func (r *noteRepository) Create(ctx context.Context, n *domain.Note) error {
 	if updatedAt.IsZero() {
 		updatedAt = now
 	}
-	row, err := sqlcgen.New(r.db).InsertNote(ctx, sqlcgen.InsertNoteParams{
+	row, err := sqlcgen.New(r.dbtx(ctx)).InsertNote(ctx, sqlcgen.InsertNoteParams{
 		UserID:    uid,
 		Title:     n.Title,
 		Content:   n.Content,
@@ -114,7 +116,7 @@ func (r *noteRepository) Update(ctx context.Context, n *domain.Note) error {
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない user_id = 対象なし
 	}
-	updatedAt, err := sqlcgen.New(r.db).UpdateNote(ctx, sqlcgen.UpdateNoteParams{
+	updatedAt, err := sqlcgen.New(r.dbtx(ctx)).UpdateNote(ctx, sqlcgen.UpdateNoteParams{
 		ID:       id64,
 		UserID:   uid,
 		Title:    n.Title,
@@ -151,7 +153,7 @@ func (r *noteRepository) Delete(ctx context.Context, userID, id uint64) error {
 		return domain.ErrNotFound // 存在し得ない user_id = 対象なし
 	}
 	// :execrows なので実際に消えた行数が返る（:exec だと 0 行でも成功と区別が付かない）。
-	affected, err := sqlcgen.New(r.db).DeleteNote(ctx, sqlcgen.DeleteNoteParams{
+	affected, err := sqlcgen.New(r.dbtx(ctx)).DeleteNote(ctx, sqlcgen.DeleteNoteParams{
 		ID:     id64,
 		UserID: uid,
 	})

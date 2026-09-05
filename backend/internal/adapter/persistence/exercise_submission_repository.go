@@ -12,11 +12,11 @@ import (
 // exerciseSubmissionRepository は [repository.ExerciseSubmissionRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type exerciseSubmissionRepository struct {
-	db *sql.DB
+	baseRepository
 }
 
 func NewExerciseSubmissionRepository(db *sql.DB) repository.ExerciseSubmissionRepository {
-	return &exerciseSubmissionRepository{db: db}
+	return &exerciseSubmissionRepository{baseRepository{db: db}}
 }
 
 func toDomainExerciseSubmission(row sqlcgen.ExerciseSubmission) domain.ExerciseSubmission {
@@ -45,7 +45,7 @@ func (r *exerciseSubmissionRepository) Create(ctx context.Context, submission *d
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("exercise_id", submission.ExerciseID)
 	}
-	id, err := sqlcgen.New(r.db).InsertExerciseSubmission(ctx, sqlcgen.InsertExerciseSubmissionParams{
+	id, err := sqlcgen.New(r.dbtx(ctx)).InsertExerciseSubmission(ctx, sqlcgen.InsertExerciseSubmissionParams{
 		UserID:        uid,
 		ExerciseKind:  submission.ExerciseKind,
 		ExerciseID:    exID,
@@ -73,7 +73,7 @@ func (r *exerciseSubmissionRepository) ListByUserAndExercise(ctx context.Context
 	if !ok {
 		return []domain.ExerciseSubmission{}, nil
 	}
-	rows, err := sqlcgen.New(r.db).ListSubmissionsByUserAndExercise(ctx, sqlcgen.ListSubmissionsByUserAndExerciseParams{
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListSubmissionsByUserAndExercise(ctx, sqlcgen.ListSubmissionsByUserAndExerciseParams{
 		UserID:       uid,
 		ExerciseID:   exID,
 		ExerciseKind: kind,
@@ -97,7 +97,7 @@ func (r *exerciseSubmissionRepository) HasSolved(ctx context.Context, userID, ex
 	if !ok {
 		return false, nil
 	}
-	return sqlcgen.New(r.db).ExistsCorrectSubmission(ctx, sqlcgen.ExistsCorrectSubmissionParams{
+	return sqlcgen.New(r.dbtx(ctx)).ExistsCorrectSubmission(ctx, sqlcgen.ExistsCorrectSubmissionParams{
 		UserID:       uid,
 		ExerciseID:   exID,
 		ExerciseKind: kind,
@@ -113,7 +113,7 @@ func (r *exerciseSubmissionRepository) HasAttempted(ctx context.Context, userID,
 	if !ok {
 		return false, nil
 	}
-	return sqlcgen.New(r.db).ExistsSubmission(ctx, sqlcgen.ExistsSubmissionParams{
+	return sqlcgen.New(r.dbtx(ctx)).ExistsSubmission(ctx, sqlcgen.ExistsSubmissionParams{
 		UserID:       uid,
 		ExerciseID:   exID,
 		ExerciseKind: kind,

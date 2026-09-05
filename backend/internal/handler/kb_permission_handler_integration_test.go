@@ -99,7 +99,7 @@ func newKbPermEnv(t *testing.T, sqlDB *sql.DB) *kbPermEnv {
 	e.childPage = kbInsertChildPage(t, sqlDB, env.workspaceID, env.spaceID, e.rootPage, e.admin, "a1", "child")
 
 	e.shareToken = kbSharedToken
-	link, err := env.permissions.CreateShareLink(ctx, repository.ShareLinkWrite{
+	link, err := env.shareLinks.Create(ctx, repository.ShareLinkWrite{
 		WorkspaceID:     env.workspaceID,
 		PageID:          e.childPage,
 		Capability:      domain.CapabilityView,
@@ -575,7 +575,7 @@ func TestKnowledgeBaseShareLinkAPI_Integration(t *testing.T) {
 
 		past := time.Now().Add(-time.Hour)
 		expiredToken := "expired-token"
-		_, err := env.permissions.CreateShareLink(t.Context(), repository.ShareLinkWrite{
+		_, err := env.shareLinks.Create(t.Context(), repository.ShareLinkWrite{
 			WorkspaceID:     env.workspaceID,
 			PageID:          env.childPage,
 			Capability:      domain.CapabilityView,

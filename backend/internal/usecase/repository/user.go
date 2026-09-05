@@ -25,13 +25,10 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	// ListByWorkspaceID はワークスペース単位のユーザー一覧を返す。
 	ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error)
-	// CreateWithOidcIdentity は users 行と OIDC identity（provider + subject）を
-	// 単一トランザクションで作成する。正規化後は「識別子を持たないユーザー」は存在し得ない
-	// ため、ユーザー作成は必ず identity 作成と不可分に行う（片方だけ成功する状態を作らない）。
-	CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error
-	// EnsureOidcIdentity は OIDC identity（provider + subject）を無ければ作る（冪等）。
-	// 既存ユーザーのセルフヒール（provider 追加・張り直し）で呼ばれる。
-	EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error
+	// Create は users 行を 1 件作る。OIDC identity と不可分に作りたい場合は、
+	// 呼び出し側（usecase）が TxManager.DoInTx の中で UserOidcIdentityRepository.EnsureIdentity と
+	// 併せて呼ぶ（repository 層はまたがるテーブルのトランザクションを自前で持たない）。
+	Create(ctx context.Context, user *domain.User) error
 	// UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → 利用不可）。
 	UpdateActive(ctx context.Context, userID uint64, active bool) error
 	// SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。認証時にも除外される。

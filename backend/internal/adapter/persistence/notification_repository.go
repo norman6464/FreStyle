@@ -13,10 +13,10 @@ import (
 
 // notificationRepository は [repository.NotificationRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
-type notificationRepository struct{ db *sql.DB }
+type notificationRepository struct{ baseRepository }
 
 func NewNotificationRepository(db *sql.DB) repository.NotificationRepository {
-	return &notificationRepository{db: db}
+	return &notificationRepository{baseRepository{db: db}}
 }
 
 func (r *notificationRepository) Create(ctx context.Context, n *domain.Notification) error {
@@ -29,7 +29,7 @@ func (r *notificationRepository) Create(ctx context.Context, n *domain.Notificat
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
-	row, err := sqlcgen.New(r.db).InsertNotification(ctx, sqlcgen.InsertNotificationParams{
+	row, err := sqlcgen.New(r.dbtx(ctx)).InsertNotification(ctx, sqlcgen.InsertNotificationParams{
 		UserID:    uid,
 		Type:      n.Type,
 		Title:     n.Title,
@@ -75,7 +75,7 @@ func (r *notificationRepository) CreateMany(ctx context.Context, ns []domain.Not
 	if err != nil {
 		return err
 	}
-	return sqlcgen.New(r.db).CreateNotifications(ctx, itemsJSON)
+	return sqlcgen.New(r.dbtx(ctx)).CreateNotifications(ctx, itemsJSON)
 }
 
 func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
@@ -83,7 +83,7 @@ func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64
 	if !ok {
 		return []domain.Notification{}, nil // 存在し得ない user_id = 0 件
 	}
-	rows, err := sqlcgen.New(r.db).ListNotificationsByUserID(ctx, uid)
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListNotificationsByUserID(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (r *notificationRepository) MarkRead(ctx context.Context, userID, id uint64
 		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
 	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 行でも成功と区別が付かない）。
-	affected, err := sqlcgen.New(r.db).MarkNotificationRead(ctx, sqlcgen.MarkNotificationReadParams{
+	affected, err := sqlcgen.New(r.dbtx(ctx)).MarkNotificationRead(ctx, sqlcgen.MarkNotificationReadParams{
 		ID:     nid,
 		UserID: uid,
 	})
@@ -136,7 +136,7 @@ func (r *notificationRepository) MarkAllRead(ctx context.Context, userID uint64)
 	if !ok {
 		return nil // 存在し得ない user_id = 未読 0 件と同じ（一括操作なので 0 件で正常）
 	}
-	return sqlcgen.New(r.db).MarkAllNotificationsRead(ctx, uid)
+	return sqlcgen.New(r.dbtx(ctx)).MarkAllNotificationsRead(ctx, uid)
 }
 
 func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64) (int64, error) {
@@ -144,7 +144,7 @@ func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64)
 	if !ok {
 		return 0, nil
 	}
-	return sqlcgen.New(r.db).CountUnreadNotifications(ctx, uid)
+	return sqlcgen.New(r.dbtx(ctx)).CountUnreadNotifications(ctx, uid)
 }
 
 // stubSnsPublisher は [repository.SnsPublisher] の no-op 実装（本番の SNS 実装は別 PR）。

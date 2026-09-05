@@ -47,10 +47,10 @@ func hashShareLinkToken(token string) []byte {
 // 戻り値の Token は**このときだけ**返る平文（DB にはハッシュしか残らない）。
 // 呼び出し側は URL を組み立てて利用者に渡し、以後は保持しないこと。
 type IssueShareLinkUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
+	repo repository.ShareLinkRepository
 }
 
-func NewIssueShareLinkUseCase(r repository.KnowledgeBasePermissionRepository) *IssueShareLinkUseCase {
+func NewIssueShareLinkUseCase(r repository.ShareLinkRepository) *IssueShareLinkUseCase {
 	return &IssueShareLinkUseCase{repo: r}
 }
 
@@ -108,7 +108,7 @@ func (u *IssueShareLinkUseCase) Execute(ctx context.Context, in IssueShareLinkIn
 		passwordHash = &s
 	}
 
-	link, err := u.repo.CreateShareLink(ctx, repository.ShareLinkWrite{
+	link, err := u.repo.Create(ctx, repository.ShareLinkWrite{
 		WorkspaceID:     in.WorkspaceID,
 		PageID:          in.PageID,
 		Capability:      in.Capability,
@@ -126,10 +126,10 @@ func (u *IssueShareLinkUseCase) Execute(ctx context.Context, in IssueShareLinkIn
 // RevokeShareLinkUseCase は共有リンクを失効させる（冪等）。
 // 行は消さず revoked_at を立てるので、誰がいつ止めたかは残る。
 type RevokeShareLinkUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
+	repo repository.ShareLinkRepository
 }
 
-func NewRevokeShareLinkUseCase(r repository.KnowledgeBasePermissionRepository) *RevokeShareLinkUseCase {
+func NewRevokeShareLinkUseCase(r repository.ShareLinkRepository) *RevokeShareLinkUseCase {
 	return &RevokeShareLinkUseCase{repo: r}
 }
 
@@ -145,17 +145,17 @@ func (u *RevokeShareLinkUseCase) Execute(ctx context.Context, in RevokeShareLink
 	if in.ShareLinkID == "" {
 		return errors.New("shareLinkID is required")
 	}
-	return u.repo.RevokeShareLink(ctx, in.WorkspaceID, in.ShareLinkID)
+	return u.repo.Revoke(ctx, in.WorkspaceID, in.ShareLinkID)
 }
 
 // VerifyShareLinkUseCase は共有 URL のトークン（とパスワード）を検証し、使えるリンクを返す。
 // 返ったリンクの PrincipalID がそのアクセスの主体になり、以後の権限解決は
 // CheckShareLinkPermissionUseCase が行う。
 type VerifyShareLinkUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
+	repo repository.ShareLinkRepository
 }
 
-func NewVerifyShareLinkUseCase(r repository.KnowledgeBasePermissionRepository) *VerifyShareLinkUseCase {
+func NewVerifyShareLinkUseCase(r repository.ShareLinkRepository) *VerifyShareLinkUseCase {
 	return &VerifyShareLinkUseCase{repo: r}
 }
 
@@ -170,7 +170,7 @@ func (u *VerifyShareLinkUseCase) Execute(ctx context.Context, in VerifyShareLink
 	if in.Token == "" {
 		return nil, repository.ErrShareLinkNotFound
 	}
-	link, err := u.repo.FindShareLinkByTokenHash(ctx, hashShareLinkToken(in.Token))
+	link, err := u.repo.FindByTokenHash(ctx, hashShareLinkToken(in.Token))
 	if err != nil {
 		return nil, err
 	}
@@ -254,10 +254,10 @@ func (u *CheckShareLinkPermissionUseCase) Execute(ctx context.Context, in CheckS
 // handler 側も平文トークンを持っていない（保存していない）ので、この一覧から
 // リンクを開く手がかりは出ない。
 type ListPageShareLinksUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
+	repo repository.ShareLinkRepository
 }
 
-func NewListPageShareLinksUseCase(r repository.KnowledgeBasePermissionRepository) *ListPageShareLinksUseCase {
+func NewListPageShareLinksUseCase(r repository.ShareLinkRepository) *ListPageShareLinksUseCase {
 	return &ListPageShareLinksUseCase{repo: r}
 }
 
@@ -273,5 +273,5 @@ func (u *ListPageShareLinksUseCase) Execute(ctx context.Context, in ListPageShar
 	if in.PageID == "" {
 		return nil, errors.New("pageID is required")
 	}
-	return u.repo.ListPageShareLinks(ctx, in.WorkspaceID, in.PageID)
+	return u.repo.ListByPage(ctx, in.WorkspaceID, in.PageID)
 }

@@ -246,7 +246,7 @@ func newKbPermFixture(t *testing.T, uid uint64, role *domain.GrantRole) kbPermFi
 	out.groupPrincipalID = group.ID
 
 	out.shareToken = "token-for-test"
-	link, err := f.perms.CreateShareLink(ctx, repository.ShareLinkWrite{
+	link, err := f.perms.Create(ctx, repository.ShareLinkWrite{
 		WorkspaceID:     kbWorkspaceID,
 		PageID:          kbChildPageID,
 		Capability:      domain.CapabilityView,
@@ -619,7 +619,7 @@ func Test_ノート権限API_共有リンクの上限は別のリンクを巻き
 	// 受け取った人は開ける（鍵がリンクなので、巻き添えが起きるとしたらここ）。
 	f := newKbPermFixture(t, 0, nil)
 	other := "another-token-for-test"
-	_, err := f.perms.CreateShareLink(context.Background(), repository.ShareLinkWrite{
+	_, err := f.perms.Create(context.Background(), repository.ShareLinkWrite{
 		WorkspaceID:     kbWorkspaceID,
 		PageID:          kbChildPageID,
 		Capability:      domain.CapabilityView,

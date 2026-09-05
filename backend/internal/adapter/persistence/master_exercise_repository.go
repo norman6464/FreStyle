@@ -13,11 +13,11 @@ import (
 // masterExerciseRepository は [repository.MasterExerciseRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type masterExerciseRepository struct {
-	db *sql.DB
+	baseRepository
 }
 
 func NewMasterExerciseRepository(db *sql.DB) repository.MasterExerciseRepository {
-	return &masterExerciseRepository{db: db}
+	return &masterExerciseRepository{baseRepository{db: db}}
 }
 
 // nullableChapterID は NULL 可の chapter_id を domain の *uint64 へ写す（未紐付けは nil）。
@@ -56,7 +56,7 @@ func toDomainMasterExercise(row sqlcgen.MasterExercise) domain.MasterExercise {
 
 // ListByLanguage は公開済み問題を返す。language が空文字なら全言語。
 func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error) {
-	rows, err := sqlcgen.New(r.db).ListMasterExercisesByLanguage(ctx, language)
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListMasterExercisesByLanguage(ctx, language)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*dom
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	row, err := sqlcgen.New(r.db).GetMasterExerciseByID(ctx, id64)
+	row, err := sqlcgen.New(r.dbtx(ctx)).GetMasterExerciseByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -86,7 +86,7 @@ func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*dom
 
 // GetBySlug は slug で単一問題を返す。未存在は domain.ErrNotFound（handler が 404 に分岐）。
 func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (*domain.MasterExercise, error) {
-	row, err := sqlcgen.New(r.db).GetMasterExerciseBySlug(ctx, slug)
+	row, err := sqlcgen.New(r.dbtx(ctx)).GetMasterExerciseBySlug(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -105,7 +105,7 @@ func (r *masterExerciseRepository) SummaryByLanguage(ctx context.Context, userID
 	if !ok {
 		uid = 0 // 存在し得ない user_id = どの提出にも一致しない（未ログインと同じ集計）
 	}
-	rows, err := sqlcgen.New(r.db).SummarizeMasterExercisesByLanguage(ctx, sqlcgen.SummarizeMasterExercisesByLanguageParams{
+	rows, err := sqlcgen.New(r.dbtx(ctx)).SummarizeMasterExercisesByLanguage(ctx, sqlcgen.SummarizeMasterExercisesByLanguageParams{
 		ExerciseKind: domain.ExerciseKindMaster,
 		ViewerID:     uid,
 	})
@@ -143,7 +143,7 @@ func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context,
 			offset = int64(in.Offset)
 		}
 	}
-	rows, err := sqlcgen.New(r.db).ListMasterExercisesWithStatusByLanguage(ctx, sqlcgen.ListMasterExercisesWithStatusByLanguageParams{
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListMasterExercisesWithStatusByLanguage(ctx, sqlcgen.ListMasterExercisesWithStatusByLanguageParams{
 		ExerciseKind: domain.ExerciseKindMaster,
 		ViewerID:     uid,
 		Language:     in.Language,

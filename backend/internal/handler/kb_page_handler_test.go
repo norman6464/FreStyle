@@ -86,11 +86,11 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
 	users := newKbFakeUsers()
-	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner, users)
+	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
-	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms)
+	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
 	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, users: users, router: r}
 }
 

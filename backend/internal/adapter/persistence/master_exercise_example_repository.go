@@ -13,11 +13,11 @@ import (
 // masterExerciseExampleRepository は [repository.MasterExerciseExampleRepository] の実装。
 // クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type masterExerciseExampleRepository struct {
-	db *sql.DB
+	baseRepository
 }
 
 func NewMasterExerciseExampleRepository(db *sql.DB) repository.MasterExerciseExampleRepository {
-	return &masterExerciseExampleRepository{db: db}
+	return &masterExerciseExampleRepository{baseRepository{db: db}}
 }
 
 // toDomainExample は sqlc 生成モデル → domain への詰め替え。
@@ -44,7 +44,7 @@ func (r *masterExerciseExampleRepository) ListByExerciseID(ctx context.Context, 
 	if !ok {
 		return []domain.MasterExerciseExample{}, nil // 存在し得ない exercise_id = 0 件
 	}
-	rows, err := sqlcgen.New(r.db).ListMasterExerciseExamplesByExerciseID(ctx, exID)
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListMasterExerciseExamplesByExerciseID(ctx, exID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (r *masterExerciseExampleRepository) ListByExerciseIDs(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlcgen.New(r.db).ListMasterExerciseExamplesByExerciseIDs(ctx, idsJSON)
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListMasterExerciseExamplesByExerciseIDs(ctx, idsJSON)
 	if err != nil {
 		return nil, err
 	}

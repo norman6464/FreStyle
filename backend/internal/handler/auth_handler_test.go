@@ -34,10 +34,6 @@ func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.
 	return nil, nil
 }
 
-func (r *fakeUserRepo) EnsureOidcIdentity(_ context.Context, _ uint64, _, _ string) error {
-	return nil
-}
-
 func (r *fakeUserRepo) FindActiveByEmail(_ context.Context, _ string) (*domain.User, error) {
 	return nil, nil
 }
@@ -50,12 +46,20 @@ func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 	return nil, nil
 }
 
-func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User, _, _ string) error {
+func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
 	u.ID = 7
 	r.created = u
+	return nil
+}
+
+// fakeOidcIdentityRepo は UserOidcIdentityRepository のテスト用 no-op stub。
+// このファイルのテストは identity の中身までは検証しない（Create の成否だけを見る）。
+type fakeOidcIdentityRepo struct{}
+
+func (fakeOidcIdentityRepo) EnsureIdentity(context.Context, uint64, string, string) error {
 	return nil
 }
 
@@ -90,9 +94,11 @@ func newTestAuthHandler(
 ) *AuthHandler {
 	t.Helper()
 	return &AuthHandler{
-		verifier:   idp.verifier(t),
-		oidcCfg:    &config.OIDCConfig{AdminRoleClaim: testRolesClaim, AdminRole: "admin"},
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users),
+		verifier: idp.verifier(t),
+		oidcCfg:  &config.OIDCConfig{AdminRoleClaim: testRolesClaim, AdminRole: "admin"},
+		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
+			users, fakeOidcIdentityRepo{}, fakeTxManager{},
+		),
 	}
 }
 

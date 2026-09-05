@@ -3,17 +3,12 @@ package repository
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
 // ErrPrincipalNotFound は対象の主体が存在しない（または別ワークスペースのもの）ときに返す。
 var ErrPrincipalNotFound = errors.New("principal not found")
-
-// ErrShareLinkNotFound は対象の共有リンクが存在しないときに返す。
-// トークンが違う場合もこれを返す（存在の有無自体を漏らさない）。
-var ErrShareLinkNotFound = errors.New("share link not found")
 
 // ErrUserNotFound は主体を作ろうとしたユーザーが users に存在しないときに返す。
 //
@@ -86,28 +81,9 @@ type SpaceWithScopeFacts struct {
 	Facts domain.ScopeFacts
 }
 
-// ShareLinkWrite は共有リンクの発行に渡す値。
-//
-// ID と PrincipalID を持たないのは、どちらも採番が repository の責務のため
-// （主体の作成と共有リンクの作成は同じトランザクションで行う）。
-type ShareLinkWrite struct {
-	WorkspaceID string
-	PageID      string
-	// Capability はリンク経由でできることの既定。
-	Capability domain.Capability
-	// TokenHash は共有 URL に載るトークンの SHA-256（32 バイト）。平文は渡さない。
-	TokenHash []byte
-	// PasswordHash はパスワードの bcrypt ハッシュ。nil ならパスワード無し。
-	PasswordHash *string
-	// ExpiresAt は有効期限。nil なら無期限。
-	ExpiresAt *time.Time
-	// CreatedByUserID は発行者。
-	CreatedByUserID uint64
-}
-
 // KnowledgeBasePermissionRepository はノートの権限モデル（principals /
-// principal_members / workspace_grants / space_grants / page_grants / share_links）への
-// アクセスを提供する。
+// principal_members / workspace_grants / space_grants / page_grants）への
+// アクセスを提供する（share_links は [ShareLinkRepository] が持つ）。
 //
 // KnowledgeBaseRepository（ページとブロック）と分けているのは、境界が違うため。
 // あちらをひとつの fat interface にまとめている理由は「ページ作成 = pages + page_paths」
@@ -198,18 +174,6 @@ type KnowledgeBasePermissionRepository interface {
 	// grant で届いている相手も含まれない。空で返ってきても「誰も見られない」ではなく
 	// 「この段では何も足していない」の意味（ListPageRestrictions と同じ見方）。
 	ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error)
-
-	// CreateShareLink は共有リンクを発行する。kind='share_link' の主体の採番と作成も
-	// 同じトランザクションで行う（主体だけが残る／リンクだけが残る状態を作らない）。
-	CreateShareLink(ctx context.Context, in ShareLinkWrite) (*domain.ShareLink, error)
-	// RevokeShareLink は共有リンクを失効させる。既に失効済みなら何もしない（冪等）。
-	// 対象が無い・別ワークスペースなら ErrShareLinkNotFound。
-	RevokeShareLink(ctx context.Context, workspaceID, shareLinkID string) error
-	// FindShareLinkByTokenHash はトークンの SHA-256 から共有リンクを引く。
-	// 期限切れ・失効も含めて返す（判定は usecase 側）。無ければ ErrShareLinkNotFound。
-	FindShareLinkByTokenHash(ctx context.Context, tokenHash []byte) (*domain.ShareLink, error)
-	// ListPageShareLinks はページに発行された共有リンクの一覧を返す（失効済みも含む）。
-	ListPageShareLinks(ctx context.Context, workspaceID, pageID string) ([]domain.ShareLink, error)
 
 	// PagePermissionFactsForUser はログイン済みユーザーとして、1 ページの実効権限を決める
 	// 事実を 1 回のクエリで集める。判定は domain.ResolvePagePermission が行う。

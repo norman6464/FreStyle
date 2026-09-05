@@ -21,13 +21,35 @@ import (
 // 複数テーブルにまたがる書き込み（ページ作成・移動・本文置き換え）は BeginTx で
 // この層に閉じたトランザクションにする（usecase に *sql.Tx を漏らさない）。
 type knowledgeBaseRepository struct {
-	db *sql.DB
-	q  *sqlcgen.Queries
+	baseRepository
 }
 
 // NewKnowledgeBaseRepository はノートの repository を組み立てる。
 func NewKnowledgeBaseRepository(db *sql.DB) repository.KnowledgeBaseRepository {
-	return &knowledgeBaseRepository{db: db, q: sqlcgen.New(db)}
+	return &knowledgeBaseRepository{baseRepository{db: db}}
+}
+
+// queries は ctx に乗っているトランザクション（あれば）に束縛した sqlc の Queries を作る。
+func (r *knowledgeBaseRepository) queries(ctx context.Context) *sqlcgen.Queries {
+	return sqlcgen.New(r.dbtx(ctx))
+}
+
+// runInTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
+// ctx に既に外側の DoInTx が開いたトランザクションがあれば、新規に開始せずそれへ相乗りする
+// （二重に BeginTx するとデッドロックの原因になる。commit/rollback は外側だけが持つ）。
+func (r *knowledgeBaseRepository) runInTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
+	if tx, ok := getTx(ctx); ok {
+		return fn(sqlcgen.New(tx))
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	if err := fn(sqlcgen.New(tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // kbParseID は文字列 ID を uuid に変換する。不正な形式は「存在し得ない ID = not found」として
@@ -177,14 +199,14 @@ func (r *knowledgeBaseRepository) DeleteWorkspace(ctx context.Context, workspace
 	if !ok {
 		return repository.ErrWorkspaceNotFound
 	}
-	affected, err := r.q.DeleteWorkspace(ctx, id)
+	affected, err := r.queries(ctx).DeleteWorkspace(ctx, id)
 	if err != nil {
 		return err
 	}
 	if affected > 0 {
 		return nil
 	}
-	if _, err := r.q.GetWorkspaceByID(ctx, id); errors.Is(err, sql.ErrNoRows) {
+	if _, err := r.queries(ctx).GetWorkspaceByID(ctx, id); errors.Is(err, sql.ErrNoRows) {
 		return repository.ErrWorkspaceNotFound
 	} else if err != nil {
 		return err
@@ -197,7 +219,7 @@ func (r *knowledgeBaseRepository) FindWorkspaceByID(ctx context.Context, workspa
 	if !ok {
 		return nil, repository.ErrWorkspaceNotFound
 	}
-	row, err := r.q.GetWorkspaceByID(ctx, id)
+	row, err := r.queries(ctx).GetWorkspaceByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrWorkspaceNotFound
 	}
@@ -213,7 +235,7 @@ func (r *knowledgeBaseRepository) FindPersonalWorkspaceByOwner(ctx context.Conte
 	if !ok {
 		return nil, repository.ErrWorkspaceNotFound
 	}
-	row, err := r.q.GetPersonalWorkspaceByOwner(ctx, sql.NullInt64{Int64: id, Valid: true})
+	row, err := r.queries(ctx).GetPersonalWorkspaceByOwner(ctx, sql.NullInt64{Int64: id, Valid: true})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrWorkspaceNotFound
 	}
@@ -228,7 +250,7 @@ func (r *knowledgeBaseRepository) FindWorkspaceBySlug(ctx context.Context, slug 
 	if slug == "" {
 		return nil, repository.ErrWorkspaceNotFound
 	}
-	row, err := r.q.GetWorkspaceBySlug(ctx, slug)
+	row, err := r.queries(ctx).GetWorkspaceBySlug(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrWorkspaceNotFound
 	}
@@ -245,7 +267,7 @@ func (r *knowledgeBaseRepository) FindPageByIDAcrossWorkspaces(ctx context.Conte
 	if !ok {
 		return nil, repository.ErrPageNotFound
 	}
-	row, err := r.q.GetPageAcrossWorkspaces(ctx, pgID)
+	row, err := r.queries(ctx).GetPageAcrossWorkspaces(ctx, pgID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrPageNotFound
 	}
@@ -262,7 +284,7 @@ func (r *knowledgeBaseRepository) ListAncestorPageIDs(ctx context.Context, works
 	if !ok || !ok2 {
 		return []string{}, nil
 	}
-	rows, err := r.q.ListPageAncestorIDs(ctx, sqlcgen.ListPageAncestorIDsParams{
+	rows, err := r.queries(ctx).ListPageAncestorIDs(ctx, sqlcgen.ListPageAncestorIDsParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 	})
@@ -282,7 +304,7 @@ func (r *knowledgeBaseRepository) DeletePageSubtree(ctx context.Context, workspa
 	if !ok || !ok2 {
 		return repository.ErrPageNotFound
 	}
-	rows, err := r.q.DeletePage(ctx, sqlcgen.DeletePageParams{WorkspaceID: wsID, ID: pgID})
+	rows, err := r.queries(ctx).DeletePage(ctx, sqlcgen.DeletePageParams{WorkspaceID: wsID, ID: pgID})
 	if err != nil {
 		return err
 	}
@@ -298,7 +320,7 @@ func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, sp
 	if !ok || !ok2 {
 		return nil, repository.ErrSpaceNotFound
 	}
-	row, err := r.q.GetSpace(ctx, sqlcgen.GetSpaceParams{WorkspaceID: wsID, ID: spID})
+	row, err := r.queries(ctx).GetSpace(ctx, sqlcgen.GetSpaceParams{WorkspaceID: wsID, ID: spID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrSpaceNotFound
 	}
@@ -317,7 +339,7 @@ func (r *knowledgeBaseRepository) UpdateSpaceName(ctx context.Context, workspace
 	if !ok || !ok2 {
 		return repository.ErrSpaceNotFound
 	}
-	affected, err := r.q.UpdateSpaceName(ctx, sqlcgen.UpdateSpaceNameParams{
+	affected, err := r.queries(ctx).UpdateSpaceName(ctx, sqlcgen.UpdateSpaceNameParams{
 		WorkspaceID: wsID,
 		ID:          spID,
 		Name:        name,
@@ -346,7 +368,7 @@ func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain
 	if visibility == "" {
 		visibility = domain.SpaceVisibilityWorkspace
 	}
-	row, err := r.q.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
+	row, err := r.queries(ctx).InsertSpace(ctx, sqlcgen.InsertSpaceParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Key:         space.Key,
@@ -373,7 +395,7 @@ func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain
 }
 
 func (r *knowledgeBaseRepository) FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error) {
-	return findPageWith(ctx, r.q, workspaceID, pageID)
+	return findPageWith(ctx, r.queries(ctx), workspaceID, pageID)
 }
 
 // findPageWith はトランザクション内外の両方から使うページ取得の実体。
@@ -400,7 +422,7 @@ func (r *knowledgeBaseRepository) ListActivePagesBySpace(ctx context.Context, wo
 	if !ok || !ok2 {
 		return []domain.Page{}, nil
 	}
-	rows, err := r.q.ListActivePagesBySpace(ctx, sqlcgen.ListActivePagesBySpaceParams{WorkspaceID: wsID, SpaceID: spID})
+	rows, err := r.queries(ctx).ListActivePagesBySpace(ctx, sqlcgen.ListActivePagesBySpaceParams{WorkspaceID: wsID, SpaceID: spID})
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +452,7 @@ func (r *knowledgeBaseRepository) SiblingPositionsAround(
 		// （見つからなかったときと同じ扱い。撃ち分けると応答の作られ方が変わる）。
 		return false, "", "", "", nil
 	}
-	row, err := r.q.SiblingPositionsAround(ctx, sqlcgen.SiblingPositionsAroundParams{
+	row, err := r.queries(ctx).SiblingPositionsAround(ctx, sqlcgen.SiblingPositionsAroundParams{
 		WorkspaceID:  wsID,
 		SpaceID:      spID,
 		ParentID:     parent,
@@ -453,7 +475,7 @@ func (r *knowledgeBaseRepository) LastActiveSiblingPosition(ctx context.Context,
 	if !ok || !ok2 || !ok3 {
 		return "", nil
 	}
-	pos, err := r.q.GetLastActiveSiblingPosition(ctx, sqlcgen.GetLastActiveSiblingPositionParams{
+	pos, err := r.queries(ctx).GetLastActiveSiblingPosition(ctx, sqlcgen.GetLastActiveSiblingPositionParams{
 		WorkspaceID: wsID,
 		SpaceID:     spID,
 		ParentID:    parent,
@@ -475,7 +497,7 @@ func (r *knowledgeBaseRepository) HasActiveSiblingPosition(ctx context.Context, 
 	if !ok || !ok2 || !ok3 || !ok4 {
 		return false, nil
 	}
-	return r.q.HasActiveSiblingPosition(ctx, sqlcgen.HasActiveSiblingPositionParams{
+	return r.queries(ctx).HasActiveSiblingPosition(ctx, sqlcgen.HasActiveSiblingPositionParams{
 		WorkspaceID:    wsID,
 		SpaceID:        spID,
 		ParentID:       parent,
@@ -491,7 +513,7 @@ func (r *knowledgeBaseRepository) HasDescendant(ctx context.Context, workspaceID
 	if !ok || !ok2 || !ok3 {
 		return false, nil
 	}
-	return r.q.PageHasDescendant(ctx, sqlcgen.PageHasDescendantParams{
+	return r.queries(ctx).PageHasDescendant(ctx, sqlcgen.PageHasDescendantParams{
 		WorkspaceID: wsID,
 		AncestorID:  pgID,
 		PageID:      cdID,
@@ -519,42 +541,40 @@ func (r *knowledgeBaseRepository) CreatePage(ctx context.Context, page *domain.P
 		return err
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-
-	qtx := r.q.WithTx(tx)
-	row, err := qtx.InsertPage(ctx, sqlcgen.InsertPageParams{
-		ID:              id,
-		WorkspaceID:     wsID,
-		SpaceID:         spID,
-		ParentID:        parent,
-		Position:        page.Position,
-		Title:           page.Title,
-		CreatedByUserID: createdBy,
+	var created sqlcgen.Page
+	err = r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		row, err := qtx.InsertPage(ctx, sqlcgen.InsertPageParams{
+			ID:              id,
+			WorkspaceID:     wsID,
+			SpaceID:         spID,
+			ParentID:        parent,
+			Position:        page.Position,
+			Title:           page.Title,
+			CreatedByUserID: createdBy,
+		})
+		if err != nil {
+			return err
+		}
+		// closure: 自分自身（depth=0）と、親があれば親の祖先集合 +1。
+		if err := qtx.InsertPagePathSelf(ctx, sqlcgen.InsertPagePathSelfParams{WorkspaceID: wsID, PageID: id}); err != nil {
+			return err
+		}
+		if parent.Valid {
+			if err := qtx.InsertPagePathAncestors(ctx, sqlcgen.InsertPagePathAncestorsParams{
+				PageID:      id,
+				WorkspaceID: wsID,
+				ParentID:    parent.UUID,
+			}); err != nil {
+				return err
+			}
+		}
+		created = row
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	// closure: 自分自身（depth=0）と、親があれば親の祖先集合 +1。
-	if err := qtx.InsertPagePathSelf(ctx, sqlcgen.InsertPagePathSelfParams{WorkspaceID: wsID, PageID: id}); err != nil {
-		return err
-	}
-	if parent.Valid {
-		if err := qtx.InsertPagePathAncestors(ctx, sqlcgen.InsertPagePathAncestorsParams{
-			PageID:      id,
-			WorkspaceID: wsID,
-			ParentID:    parent.UUID,
-		}); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	*page = toDomainPage(row)
+	*page = toDomainPage(created)
 	return nil
 }
 
@@ -564,7 +584,7 @@ func (r *knowledgeBaseRepository) UpdatePageTitle(ctx context.Context, workspace
 	if !ok || !ok2 {
 		return nil, repository.ErrPageNotFound
 	}
-	row, err := r.q.UpdatePageTitle(ctx, sqlcgen.UpdatePageTitleParams{WorkspaceID: wsID, ID: pgID, Title: title})
+	row, err := r.queries(ctx).UpdatePageTitle(ctx, sqlcgen.UpdatePageTitleParams{WorkspaceID: wsID, ID: pgID, Title: title})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrPageNotFound
 	}
@@ -584,78 +604,73 @@ func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pag
 		return repository.ErrPageNotFound
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := r.q.WithTx(tx)
-	current, err := findPageWith(ctx, qtx, workspaceID, pageID)
-	if err != nil {
-		return err
-	}
-	if current.SpaceID == newSpaceID {
-		n, err := qtx.MovePageWithinSpace(ctx, sqlcgen.MovePageWithinSpaceParams{
-			NewParentID: parent,
-			NewPosition: newPosition,
-			WorkspaceID: wsID,
-			PageID:      pgID,
-		})
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		current, err := findPageWith(ctx, qtx, workspaceID, pageID)
 		if err != nil {
 			return err
 		}
-		if n == 0 {
-			return repository.ErrPageNotFound
+		if current.SpaceID == newSpaceID {
+			n, err := qtx.MovePageWithinSpace(ctx, sqlcgen.MovePageWithinSpaceParams{
+				NewParentID: parent,
+				NewPosition: newPosition,
+				WorkspaceID: wsID,
+				PageID:      pgID,
+			})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return repository.ErrPageNotFound
+			}
+		} else {
+			// 「そのスペースの全員」宛ての付与はスペースをまたぐと評価されなくなり、行は
+			// 権限設定画面に見えているのに効かない状態になる。同じトランザクションで
+			// 調べて拒否する（先に調べても、移動までのあいだに張られた行を取りこぼす）。
+			voids, err := qtx.SubtreeHasForeignSpaceAllGrant(ctx, sqlcgen.SubtreeHasForeignSpaceAllGrantParams{
+				WorkspaceID: wsID,
+				PageID:      pgID,
+				NewSpaceID:  spID,
+			})
+			if err != nil {
+				return err
+			}
+			if voids {
+				return repository.ErrPageMoveVoidsSpaceGrant
+			}
+			// スペースをまたぐ移動は本人 + 子孫の space_id を 1 文で更新する（クエリ側コメント参照）。
+			n, err := qtx.MovePageSubtreeToSpace(ctx, sqlcgen.MovePageSubtreeToSpaceParams{
+				NewSpaceID:  spID,
+				PageID:      pgID,
+				NewParentID: parent,
+				NewPosition: newPosition,
+				WorkspaceID: wsID,
+			})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return repository.ErrPageNotFound
+			}
 		}
-	} else {
-		// 「そのスペースの全員」宛ての付与はスペースをまたぐと評価されなくなり、行は
-		// 権限設定画面に見えているのに効かない状態になる。同じトランザクションで
-		// 調べて拒否する（先に調べても、移動までのあいだに張られた行を取りこぼす）。
-		voids, err := qtx.SubtreeHasForeignSpaceAllGrant(ctx, sqlcgen.SubtreeHasForeignSpaceAllGrantParams{
-			WorkspaceID: wsID,
-			PageID:      pgID,
-			NewSpaceID:  spID,
-		})
-		if err != nil {
-			return err
-		}
-		if voids {
-			return repository.ErrPageMoveVoidsSpaceGrant
-		}
-		// スペースをまたぐ移動は本人 + 子孫の space_id を 1 文で更新する（クエリ側コメント参照）。
-		n, err := qtx.MovePageSubtreeToSpace(ctx, sqlcgen.MovePageSubtreeToSpaceParams{
-			NewSpaceID:  spID,
-			PageID:      pgID,
-			NewParentID: parent,
-			NewPosition: newPosition,
-			WorkspaceID: wsID,
-		})
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return repository.ErrPageNotFound
-		}
-	}
-	// closure の付け替え: 旧祖先との組を消してから、新しい親の祖先集合との組を張る。
-	// 順序は Detach → Attach 固定（逆にすると Attach で張った行を Detach が消してしまう）。
-	if err := qtx.DetachPageSubtreePaths(ctx, sqlcgen.DetachPageSubtreePathsParams{
-		WorkspaceID: wsID,
-		PageID:      pgID,
-	}); err != nil {
-		return err
-	}
-	if parent.Valid {
-		if err := qtx.AttachPageSubtreePaths(ctx, sqlcgen.AttachPageSubtreePathsParams{
-			NewParentID: parent.UUID,
+		// closure の付け替え: 旧祖先との組を消してから、新しい親の祖先集合との組を張る。
+		// 順序は Detach → Attach 固定（逆にすると Attach で張った行を Detach が消してしまう）。
+		if err := qtx.DetachPageSubtreePaths(ctx, sqlcgen.DetachPageSubtreePathsParams{
 			WorkspaceID: wsID,
 			PageID:      pgID,
 		}); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		if parent.Valid {
+			if err := qtx.AttachPageSubtreePaths(ctx, sqlcgen.AttachPageSubtreePathsParams{
+				NewParentID: parent.UUID,
+				WorkspaceID: wsID,
+				PageID:      pgID,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ArchivePageSubtree は根とその子孫をまとめてアーカイブする。
@@ -677,7 +692,7 @@ func (r *knowledgeBaseRepository) ArchivePageSubtree(ctx context.Context, worksp
 	}
 	// 1 文で完結する（サブツリー全行に同じ now() が入る）ためトランザクション不要。
 	// :execrows なので実際に畳んだ行数が返る（捨てると 0 行でも成功と区別が付かない）。
-	n, err := r.q.ArchivePageSubtree(ctx, sqlcgen.ArchivePageSubtreeParams{WorkspaceID: wsID, AncestorID: pgID})
+	n, err := r.queries(ctx).ArchivePageSubtree(ctx, sqlcgen.ArchivePageSubtreeParams{WorkspaceID: wsID, AncestorID: pgID})
 	if err != nil {
 		return err
 	}
@@ -694,24 +709,32 @@ func (r *knowledgeBaseRepository) UnarchivePageSubtree(ctx context.Context, work
 		return repository.ErrPageNotFound
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := r.q.WithTx(tx)
-	// 現役の兄弟と position が衝突する場合は、まだアーカイブ済み（部分 UNIQUE の対象外）の
-	// うちに根の position を振り直してから現役へ戻す。
-	//
-	// ここも件数を見る。振り直しが 0 行なら根のページが無いということで、そのまま
-	// UnarchivePageSubtree へ進むと「元の position のまま復帰させようとして UNIQUE で落ちる」か
-	// 「何も起きないまま成功を返す」かのどちらかになり、どちらも原因が分からない形で表に出る。
-	if newRootPosition != nil {
-		n, err := qtx.SetPagePosition(ctx, sqlcgen.SetPagePositionParams{
-			WorkspaceID: wsID,
-			ID:          pgID,
-			Position:    *newRootPosition,
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		// 現役の兄弟と position が衝突する場合は、まだアーカイブ済み（部分 UNIQUE の対象外）の
+		// うちに根の position を振り直してから現役へ戻す。
+		//
+		// ここも件数を見る。振り直しが 0 行なら根のページが無いということで、そのまま
+		// UnarchivePageSubtree へ進むと「元の position のまま復帰させようとして UNIQUE で落ちる」か
+		// 「何も起きないまま成功を返す」かのどちらかになり、どちらも原因が分からない形で表に出る。
+		if newRootPosition != nil {
+			n, err := qtx.SetPagePosition(ctx, sqlcgen.SetPagePositionParams{
+				WorkspaceID: wsID,
+				ID:          pgID,
+				Position:    *newRootPosition,
+			})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return repository.ErrPageNotFound
+			}
+		}
+		// 根も含めて戻す文なので、成功したなら必ず 1 行以上に当たる。0 行のまま成功を返すと
+		// handler が 200 を返し、アーカイブされたままのページを復帰済みとして描画してしまう。
+		n, err := qtx.UnarchivePageSubtree(ctx, sqlcgen.UnarchivePageSubtreeParams{
+			WorkspaceID:   wsID,
+			ArchivedSince: sql.NullTime{Time: archivedSince, Valid: true},
+			PageID:        pgID,
 		})
 		if err != nil {
 			return err
@@ -719,21 +742,8 @@ func (r *knowledgeBaseRepository) UnarchivePageSubtree(ctx context.Context, work
 		if n == 0 {
 			return repository.ErrPageNotFound
 		}
-	}
-	// 根も含めて戻す文なので、成功したなら必ず 1 行以上に当たる。0 行のまま成功を返すと
-	// handler が 200 を返し、アーカイブされたままのページを復帰済みとして描画してしまう。
-	n, err := qtx.UnarchivePageSubtree(ctx, sqlcgen.UnarchivePageSubtreeParams{
-		WorkspaceID:   wsID,
-		ArchivedSince: sql.NullTime{Time: archivedSince, Valid: true},
-		PageID:        pgID,
+		return nil
 	})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return repository.ErrPageNotFound
-	}
-	return tx.Commit()
 }
 
 func (r *knowledgeBaseRepository) ListBlocksByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Block, error) {
@@ -742,7 +752,7 @@ func (r *knowledgeBaseRepository) ListBlocksByPage(ctx context.Context, workspac
 	if !ok || !ok2 {
 		return []domain.Block{}, nil
 	}
-	rows, err := r.q.ListBlocksByPage(ctx, sqlcgen.ListBlocksByPageParams{WorkspaceID: wsID, PageID: pgID})
+	rows, err := r.queries(ctx).ListBlocksByPage(ctx, sqlcgen.ListBlocksByPageParams{WorkspaceID: wsID, PageID: pgID})
 	if err != nil {
 		return nil, err
 	}
@@ -760,61 +770,53 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspa
 		return repository.ErrPageNotFound
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := r.q.WithTx(tx)
-	// page_snapshots は workspace_id を持たないため、同一トランザクション内で
-	// ページの所属を必ず検証してから書く（テナント越えの snapshot 書き込みを塞ぐ）。
-	if _, err := findPageWith(ctx, qtx, workspaceID, pageID); err != nil {
-		return err
-	}
-	if err := qtx.DeletePageBlocks(ctx, sqlcgen.DeletePageBlocksParams{WorkspaceID: wsID, PageID: pgID}); err != nil {
-		return err
-	}
-	ids := make([]uuid.UUID, len(blocks))
-	for i, b := range blocks {
-		id, err := kbNewID()
-		if err != nil {
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		// page_snapshots は workspace_id を持たないため、同一トランザクション内で
+		// ページの所属を必ず検証してから書く（テナント越えの snapshot 書き込みを塞ぐ）。
+		if _, err := findPageWith(ctx, qtx, workspaceID, pageID); err != nil {
 			return err
 		}
-		ids[i] = id
-		var parent uuid.NullUUID
-		if b.ParentIndex >= 0 {
-			// 文書順（親が先）が前提。壊れた入力で別ページの行を親にしないよう添字を検証する。
-			if b.ParentIndex >= i {
-				return fmt.Errorf("blocks[%d] の ParentIndex %d が自分より後を指しています", i, b.ParentIndex)
+		if err := qtx.DeletePageBlocks(ctx, sqlcgen.DeletePageBlocksParams{WorkspaceID: wsID, PageID: pgID}); err != nil {
+			return err
+		}
+		ids := make([]uuid.UUID, len(blocks))
+		for i, b := range blocks {
+			id, err := kbNewID()
+			if err != nil {
+				return err
 			}
-			parent = uuid.NullUUID{UUID: ids[b.ParentIndex], Valid: true}
+			ids[i] = id
+			var parent uuid.NullUUID
+			if b.ParentIndex >= 0 {
+				// 文書順（親が先）が前提。壊れた入力で別ページの行を親にしないよう添字を検証する。
+				if b.ParentIndex >= i {
+					return fmt.Errorf("blocks[%d] の ParentIndex %d が自分より後を指しています", i, b.ParentIndex)
+				}
+				parent = uuid.NullUUID{UUID: ids[b.ParentIndex], Valid: true}
+			}
+			var inline *json.RawMessage
+			if b.Inline != nil {
+				raw := json.RawMessage(*b.Inline)
+				inline = &raw
+			}
+			if err := qtx.InsertBlock(ctx, sqlcgen.InsertBlockParams{
+				ID:          id,
+				WorkspaceID: wsID,
+				PageID:      pgID,
+				ParentID:    parent,
+				Position:    b.Position,
+				Type:        string(b.Type),
+				Attrs:       json.RawMessage(b.Attrs),
+				Inline:      inline,
+			}); err != nil {
+				return err
+			}
 		}
-		var inline *json.RawMessage
-		if b.Inline != nil {
-			raw := json.RawMessage(*b.Inline)
-			inline = &raw
-		}
-		if err := qtx.InsertBlock(ctx, sqlcgen.InsertBlockParams{
-			ID:          id,
-			WorkspaceID: wsID,
-			PageID:      pgID,
-			ParentID:    parent,
-			Position:    b.Position,
-			Type:        string(b.Type),
-			Attrs:       json.RawMessage(b.Attrs),
-			Inline:      inline,
-		}); err != nil {
-			return err
-		}
-	}
-	if err := qtx.UpsertPageSnapshot(ctx, sqlcgen.UpsertPageSnapshotParams{
-		PageID: pgID,
-		Doc:    json.RawMessage(snapshotDoc),
-	}); err != nil {
-		return err
-	}
-	return tx.Commit()
+		return qtx.UpsertPageSnapshot(ctx, sqlcgen.UpsertPageSnapshotParams{
+			PageID: pgID,
+			Doc:    json.RawMessage(snapshotDoc),
+		})
+	})
 }
 
 func (r *knowledgeBaseRepository) GetPageSnapshot(ctx context.Context, workspaceID, pageID string) (*domain.PageSnapshot, error) {
@@ -823,7 +825,7 @@ func (r *knowledgeBaseRepository) GetPageSnapshot(ctx context.Context, workspace
 	if !ok || !ok2 {
 		return nil, repository.ErrPageSnapshotNotFound
 	}
-	row, err := r.q.GetPageSnapshot(ctx, sqlcgen.GetPageSnapshotParams{WorkspaceID: wsID, PageID: pgID})
+	row, err := r.queries(ctx).GetPageSnapshot(ctx, sqlcgen.GetPageSnapshotParams{WorkspaceID: wsID, PageID: pgID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrPageSnapshotNotFound
 	}

@@ -23,7 +23,11 @@ func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
 
 		users := persistence.NewUserRepository(db)
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(users)
+		uc := usecase.NewUpsertUserFromIDTokenUseCase(
+			users,
+			persistence.NewUserOidcIdentityRepository(db),
+			persistence.NewTxManager(db),
+		)
 
 		user, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
 			CognitoSub: "new-sub",
@@ -44,7 +48,11 @@ func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
 
 		users := persistence.NewUserRepository(db)
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(users)
+		uc := usecase.NewUpsertUserFromIDTokenUseCase(
+			users,
+			persistence.NewUserOidcIdentityRepository(db),
+			persistence.NewTxManager(db),
+		)
 
 		// 1 回目でユーザーを作る（Name は email と同じ = 未編集）。
 		_, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{

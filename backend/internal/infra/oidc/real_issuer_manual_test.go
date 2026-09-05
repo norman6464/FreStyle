@@ -16,14 +16,12 @@ import (
 // 本物を通すまで分からない。推測で書いた部分が食い違っていると、
 // 単体テストが全部緑のまま本番で全員 401 になる。
 //
-// 走らせ方（Zitadel を立てて認可フローを 1 回通してから）:
+// 走らせ方（手元で使える OIDC 発行者を立てて認可フローを 1 回通してから）:
 //
-//	docker compose --profile auth up -d
-//	./backend/scripts/zitadel-setup.sh
 //	# 認可フローを 1 回通して token を JSON で保存する
 //	OIDC_TOKENS_FILE=/path/to/tokens.json \
-//	OIDC_ISSUER=http://zitadel.localhost:8081 \
-//	OIDC_JWKS_URI=http://zitadel.localhost:8081/oauth/v2/keys \
+//	OIDC_ISSUER=<発行者の issuer URL> \
+//	OIDC_JWKS_URI=<発行者の JWKS URL> \
 //	OIDC_CLIENT_ID=<client id> \
 //	go test -tags=manual ./internal/infra/oidc/ -run 実際の発行者 -v
 //
@@ -89,7 +87,7 @@ func Test_実際の発行者が出したトークンを受け取れる(t *testin
 	// 間違えると弾かれずに「権限が静かに消える」ので、本物で見ておく価値が高い。
 	claimName := os.Getenv("OIDC_ROLES_CLAIM")
 	if claimName == "" {
-		claimName = "urn:zitadel:iam:org:project:roles"
+		claimName = "roles"
 	}
 	roles := RolesFromClaim(claims[claimName])
 	t.Logf("access_token の役割: %v（クレーム名 %s）", roles, claimName)

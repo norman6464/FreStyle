@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const testRolesClaim = "urn:zitadel:iam:org:project:roles"
+const testRolesClaim = "urn:frestyle:test:roles"
 
 // newAuthedEngine は verify を注入した JWTAuth 付きのルータを返す。
 // ハンドラは context に積まれた値をそのまま返すので、middleware が何を渡したかを見られる。

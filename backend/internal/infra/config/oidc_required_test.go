@@ -79,7 +79,7 @@ func Test_設定_揃っていれば読み込める(t *testing.T) {
 	// カンマ区切りは前後の空白を落として読む（打ち間違いで一致しなくなるのを避ける）。
 	assert.Equal(t, []string{"project-1", "client-id"}, cfg.OIDC.Audiences)
 	// 役割の在り処は既定を持つ（発行者を替えるときは設定で差し替える）。
-	assert.Equal(t, "urn:zitadel:iam:org:project:roles", cfg.OIDC.AdminRoleClaim)
+	assert.Equal(t, "roles", cfg.OIDC.AdminRoleClaim)
 	assert.Equal(t, "admin", cfg.OIDC.AdminRole)
 }
 

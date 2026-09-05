@@ -29,9 +29,8 @@ func TestApplySchema_Integration(t *testing.T) {
 		for _, table := range []string{
 			"users", "user_oidc_identities",
 			"master_exercises", "master_exercise_examples",
-			"exercise_submissions", "notes",
+			"exercise_submissions",
 			"notifications",
-			"rich_documents",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
 		}
@@ -80,9 +79,6 @@ func TestApplySchema_Integration(t *testing.T) {
 	t.Run("役割・識別子まわりの制約が張られている", func(t *testing.T) {
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "fk_user_oidc_identities_user"))
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "ck_user_oidc_identities_not_empty"))
-		require.True(t, constraintExists(t, db, "rich_documents", "fk_rich_documents_owner"))
-		require.True(t, constraintExists(t, db, "rich_documents", "ck_rich_documents_doc"))
-		require.True(t, constraintExists(t, db, "rich_documents", "ck_rich_documents_title_len"))
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
 	})
 }

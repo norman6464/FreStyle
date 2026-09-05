@@ -37,7 +37,6 @@ SELECT
   CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN   50 WHEN 'large' THEN   200 END::int  AS n_courses,
   CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN   20 WHEN 'large' THEN    50 END::int  AS chapters_per_course,
   CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN  100 WHEN 'large' THEN   500 END::int  AS submissions_per_user,
-  CASE :'size' WHEN 'small' THEN   5 WHEN 'medium' THEN   20 WHEN 'large' THEN   100 END::int  AS notes_per_user,
   CASE :'size' WHEN 'small' THEN  30 WHEN 'medium' THEN  180 WHEN 'large' THEN   365 END::int  AS activity_days,
   1000000::bigint AS id_base;
 
@@ -53,7 +52,7 @@ BEGIN
 END $$;
 
 -- 規模の値を psql 変数へ取り込む(以降 :n_users のように埋め込んで使う)。
-SELECT n_users, n_courses, chapters_per_course, submissions_per_user, notes_per_user, activity_days
+SELECT n_users, n_courses, chapters_per_course, submissions_per_user, activity_days
   FROM _cfg \gset
 
 \echo '=== seed-local: size =' :'size' '/ users =' :n_users '/ submissions_per_user =' :submissions_per_user
@@ -71,9 +70,6 @@ DELETE FROM user_chapter_progress
 WHERE user_id >= 1000000;
 
 DELETE FROM exercise_submissions
-WHERE user_id >= 1000000;
-
-DELETE FROM notes
 WHERE user_id >= 1000000;
 
 DELETE FROM profiles
@@ -234,21 +230,6 @@ FROM generate_series(1, :n_users) AS u,
      generate_series(1, :submissions_per_user) AS s;
 COMMIT;
 
--- ---- notes ----------------------------------------------------------------
-BEGIN;
-INSERT INTO notes (user_id, title, content, is_public, is_pinned, created_at, updated_at)
-SELECT
-  1000000 + u,
-  'シードノート ' || n,
-  repeat('学習メモのダミー本文。', 20),
-  (random() < 0.2),
-  false,
-  now() - (random() * 365)::int * interval '1 day',
-  now()
-FROM generate_series(1, :n_users) AS u,
-     generate_series(1, :notes_per_user) AS n;
-COMMIT;
-
 -- ---- 学習の進捗 / 閲覧 / 日次集計 -------------------------------------------
 -- ダッシュボードが読む 3 テーブル。各利用者が最初の 3 講座を進めている想定にする。
 \echo '=== 進捗 / 閲覧 / 日次集計を投入中 ...'
@@ -306,7 +287,7 @@ COMMIT;
 -- ANALYZE を忘れるとプランナが古い統計で判断し、実行計画の比較が無意味になる。
 \echo '=== ANALYZE 実行中 ...'
 ANALYZE users, profiles, courses, course_chapters, master_exercises,
-        exercise_submissions, notes, user_chapter_progress, user_chapter_views,
+        exercise_submissions, user_chapter_progress, user_chapter_views,
         user_daily_activities;
 
 -- 規模の受け渡しに使った一時テーブルは、この後の集計に混ざらないよう捨てる。

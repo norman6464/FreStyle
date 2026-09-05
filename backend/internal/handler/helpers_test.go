@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -13,43 +13,22 @@ import (
 
 func init() { gin.SetMode(gin.TestMode) }
 
-func TestActorWorkspaceFromContext(t *testing.T) {
-	t.Run("認証済み user から id/所属ワークスペースを取り出す", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		workspaceID := "ws-7"
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 42, WorkspaceID: &workspaceID})
-
-		uid, workspace, ok := actorWorkspaceFromContext(c)
-
-		assert.True(t, ok)
-		assert.Equal(t, uint64(42), uid)
-		gotID, affiliated := workspace.WorkspaceID()
-		assert.True(t, affiliated)
-		assert.Equal(t, "ws-7", gotID)
-	})
-
-	t.Run("ワークスペース未所属(nil)なら未所属の WorkspaceRef", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, WorkspaceID: nil})
-
-		_, workspace, ok := actorWorkspaceFromContext(c)
-
-		assert.True(t, ok)
-		_, affiliated := workspace.WorkspaceID()
-		assert.False(t, affiliated)
-	})
-
-	t.Run("未認証なら 401 を書き ok=false", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		_, _, ok := actorWorkspaceFromContext(c)
-
-		assert.False(t, ok)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
+// noteCtx は handler の単体テスト（httptest ベース）が共有する gin.Context の組み立て。
+// 元々は note_handler_test.go にあったが、その削除後も note_image_handler_test.go /
+// code_execute_handler_test.go が参照し続けるため、共通の test helper 置き場である
+// このファイルへ移設した。
+func noteCtx(method, body string, uid uint64, idVal string) (*httptest.ResponseRecorder, *gin.Context) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(method, "/", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	if uid != 0 {
+		c.Set(middleware.ContextKeyCurrentUserID, uid)
+	}
+	if idVal != "" {
+		c.Params = gin.Params{{Key: "id", Value: idVal}}
+	}
+	return w, c
 }
 
 func TestUserWorkspaceRef(t *testing.T) {

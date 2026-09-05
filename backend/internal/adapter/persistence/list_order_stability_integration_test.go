@@ -4,10 +4,8 @@ package persistence_test
 
 import (
 	"context"
-	"sort"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -177,106 +175,4 @@ func requireNoDuplicates(t *testing.T, ids []uint64) {
 		require.False(t, dup, "ID %d がページを跨いで重複した", id)
 		seen[id] = struct{}{}
 	}
-}
-
-// TestRichDocumentListOrder_TiedUpdatedAt_Integration は updated_at が同値でも
-// ListByOwner の並びが常に同じになることを検証する。
-func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
-	sqlDB := testsupport.OpenTestDB(t)
-	userRepo := persistence.NewUserRepository(sqlDB)
-	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
-	repo := persistence.NewRichDocumentRepository(sqlDB)
-	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, "rich_documents", "users", "user_oidc_identities")
-
-	owner := &domain.User{Email: "rd-tie@example.com"}
-	require.NoError(t, userRepo.Create(ctx, owner))
-	require.NoError(t, oidcRepo.EnsureIdentity(ctx, owner.ID, domain.OidcProviderCognito, "rd-tie"))
-
-	// ID は UUIDv7 なので作成順に単調増加する。作成順（昇順）で投入し、期待順は id 降順にする。
-	created := make([]string, 0, 5)
-	for i := 0; i < 5; i++ {
-		d := &domain.RichDocument{OwnerID: owner.ID, Kind: domain.DocumentKindNote, Title: "tie", Doc: rdDoc, Revision: 1}
-		require.NoError(t, repo.Create(ctx, d))
-		created = append(created, d.ID)
-	}
-	// updated_at を明示的に同値へ揃えて同着を作る。owner_id で絞り、後続でこのテストの前に
-	// 別の前提データが置かれても無関係な行を書き換えないようにする。
-	_, err := sqlDB.ExecContext(ctx,
-		`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = $1`, owner.ID)
-	require.NoError(t, err)
-
-	want := make([]string, len(created))
-	copy(want, created)
-	sort.Sort(sort.Reverse(sort.StringSlice(want))) // 期待は id 降順
-
-	t.Run("updated_at 同着でも id 降順で解決される", func(t *testing.T) {
-		rows, err := repo.ListByOwner(ctx, owner.ID, "")
-		require.NoError(t, err)
-		ids := make([]string, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, want, ids)
-	})
-
-	t.Run("繰り返し呼んでも並びが変わらない", func(t *testing.T) {
-		var first []string
-		for i := 0; i < 5; i++ {
-			rows, err := repo.ListByOwner(ctx, owner.ID, domain.DocumentKindNote)
-			require.NoError(t, err)
-			ids := make([]string, 0, len(rows))
-			for _, r := range rows {
-				ids = append(ids, r.ID)
-			}
-			if first == nil {
-				first = ids
-				continue
-			}
-			require.Equal(t, first, ids)
-		}
-	})
-
-	t.Run("updated_at が異なる行の並び（仕様）は変わらない", func(t *testing.T) {
-		// 一番古い id の行だけを新しくすると、id 降順に関係なく先頭へ来る。
-		oldest := created[0]
-		_, err := sqlDB.ExecContext(ctx,
-			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-06-01 00:00:00+00' WHERE id = $1`, oldest)
-		require.NoError(t, err)
-
-		rows, err := repo.ListByOwner(ctx, owner.ID, "")
-		require.NoError(t, err)
-		require.Equal(t, oldest, rows[0].ID)
-	})
-}
-
-// TestListOrderTieBreaks_Integration は横断調査で見つかった残りの一覧クエリについて、
-// ソートキー同着時の並びが一意に決まることを検証する。
-func TestListOrderTieBreaks_Integration(t *testing.T) {
-	sqlDB := testsupport.OpenTestDB(t)
-	ctx := context.Background()
-	// 同着を作るための固定時刻（DB / ホストの時計に依存させない）。
-	tie := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	t.Run("notes: updated_at 同着は id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "notes")
-		repo := persistence.NewNoteRepository(sqlDB)
-		for i := uint64(1); i <= 4; i++ { // id 昇順に投入 → 期待は降順
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO notes (id, user_id, title, content, is_public, created_at, updated_at)
-				 VALUES ($1, 7, 'tie', '', false, $2, $2)`, i, tie)
-			require.NoError(t, err)
-		}
-		rows, err := repo.ListByUserID(ctx, 7)
-		require.NoError(t, err)
-		require.Equal(t, []uint64{4, 3, 2, 1}, noteIDs(rows))
-	})
-}
-
-func noteIDs(rows []domain.Note) []uint64 {
-	ids := make([]uint64, 0, len(rows))
-	for _, r := range rows {
-		ids = append(ids, r.ID)
-	}
-	return ids
 }

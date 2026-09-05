@@ -60,8 +60,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 
 	registerAuthAuthedRoutes(authed, authHandler)
 	registerProfileRoutes(authed, deps)
-	registerNoteRoutes(authed, deps)
-	registerDocumentRoutes(authed, deps)
+	registerNoteImageRoutes(authed, deps)
 	registerSocialRoutes(authed, deps)
 	registerEmbedRoutes(authed)
 	registerExerciseRoutes(authed, deps)

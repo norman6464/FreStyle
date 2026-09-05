@@ -22,7 +22,6 @@ function renderAppShell({ initialEntry = '/' } = {}) {
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<div>テストコンテンツ</div>} />
-              <Route path="/courses/:id" element={<div>コース詳細コンテンツ</div>} />
             </Route>
           </Routes>
         </ToastProvider>
@@ -60,24 +59,5 @@ describe('AppShell', () => {
     renderAppShell();
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
     expect(screen.getByPlaceholderText('コマンドを検索...')).toBeInTheDocument();
-  });
-
-  // FRESTYLE-122: 教材閲覧はヘッダーごとスクロールするドキュメントスクロール構造になる。
-  // コース管理はロールで区別しなくなったため、/courses/:id は誰が開いても同じレイアウト。
-  describe('ドキュメントスクロール（FRESTYLE-122）', () => {
-    it('/courses/:id ではヘッダーと main がスクロールコンテナに入る', () => {
-      const { container } = renderAppShell({ initialEntry: '/courses/2' });
-      const scroller = container.querySelector('[data-app-scroll]');
-      expect(scroller).not.toBeNull();
-      // ヘッダー(banner)と main が同じスクロールコンテナの中にある = 一緒に流れる
-      expect(scroller!.querySelector('header, [role="banner"]')).not.toBeNull();
-      expect(scroller!.querySelector('#main-content')).not.toBeNull();
-      expect(screen.getByText('コース詳細コンテンツ')).toBeInTheDocument();
-    });
-
-    it('教材閲覧以外のルートは従来レイアウト（コンテナなし）', () => {
-      const { container } = renderAppShell({ initialEntry: '/' });
-      expect(container.querySelector('[data-app-scroll]')).toBeNull();
-    });
   });
 });

@@ -269,41 +269,6 @@ func TestListOrderTieBreaks_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []uint64{4, 3, 2, 1}, noteIDs(rows))
 	})
-
-	t.Run("user_chapter_views: last_viewed_at 同着は chapter_id 降順", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "user_chapter_views")
-		repo := persistence.NewUserChapterViewRepository(sqlDB)
-		// UpsertView は NOW() で書くので同着を作れない。同値の last_viewed_at を直接投入する。
-		for i := uint64(1); i <= 4; i++ {
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO user_chapter_views
-				   (user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
-				 VALUES (7, $1, 10, $2, $2, 1)`, i, tie)
-			require.NoError(t, err)
-		}
-		last, err := repo.GetLastViewedByUserAndCourse(ctx, 7, 10)
-		require.NoError(t, err)
-		require.NotNil(t, last)
-		require.Equal(t, uint64(4), last.TeachingMaterialID)
-	})
-
-	t.Run("user_chapter_progress: ORDER BY 無しにせず id 昇順で固定する", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, "user_chapter_progress")
-		repo := persistence.NewLessonProgressRepository(sqlDB)
-		for _, id := range []uint64{4, 3, 2, 1} { // id 降順に投入 → 期待は昇順
-			_, err := sqlDB.ExecContext(ctx,
-				`INSERT INTO user_chapter_progress (id, user_id, chapter_id, course_id, completed_at, created_at)
-				 VALUES ($1, 7, $1, 10, $2, $2)`, id, tie)
-			require.NoError(t, err)
-		}
-		rows, err := repo.ListByUser(ctx, 7)
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, []uint64{1, 2, 3, 4}, ids)
-	})
 }
 
 func noteIDs(rows []domain.Note) []uint64 {

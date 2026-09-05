@@ -15,7 +15,6 @@ export interface NavItem {
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'ホーム', to: '/', matchExact: true },
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
-  { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
   // ノートは共有される木（旧ナレッジを統合）。ページの URL は /p/{pageId}。
   { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: ['/notes', '/p'] },
 ];

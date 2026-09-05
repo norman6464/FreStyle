@@ -17,12 +17,6 @@ export default function AppShell() {
   // 認証必須ページ（AppShell 配下）はログイン前提なので検索インデックス対象外にする。
   useDocumentMeta({ robots: 'noindex, nofollow' });
 
-  // 教材閲覧(/courses/:id)はヘッダーごとスクロールで画面外に流す(FRESTYLE-122)。
-  // コース管理はロールで区別しなくなった（誰でも編集できる）ため、以前のように
-  // 「管理者なら固定レイアウト」と出し分ける材料が無い。このルートを開く人の大半は
-  // 読む用途なので、既定は読書向けのドキュメントスクロールに倒す。
-  const documentScroll = /^\/courses\/\d+\/?$/.test(pathname);
-
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
@@ -46,52 +40,31 @@ export default function AppShell() {
     <div className="h-screen flex flex-col bg-surface overflow-hidden">
       <SkipLink targetId="main-content" />
 
-      {documentScroll ? (
-        // ドキュメントスクロール: ヘッダーと main を 1 つのスクロールコンテナに入れ、
-        // スクロールするとヘッダーが本文と一緒に流れる。章切替時の先頭スクロールも
-        // このコンテナ([data-app-scroll])に対して行う。
+      {/* ヘッダーを本文の**上に重ねる**。並べる（縦に積む）と背後に何も無く、
+          半透明 + ぼかしの地が効かない。重ねたぶん本文の先頭に余白を入れて、
+          最初の行がヘッダーの裏に隠れないようにする。 */}
+      <div className="relative flex-1 min-h-0">
+        {/* headerHidden のときは上へスライドして隠れる（本文が全高になる）。 */}
         <div
-          id="app-scroll"
-          data-app-scroll
-          className="flex-1 min-h-0 overflow-y-auto bg-[var(--color-reading-surface)]"
+          className={`absolute inset-x-0 top-0 z-40 transition-transform duration-200 ease-out ${
+            headerVisibility.headerHidden ? '-translate-y-full' : 'translate-y-0'
+          }`}
         >
-          {/* 上部ヘッダー。**本文の上に留める**（sticky）。
-              ヘッダーの地は半透明 + ぼかしなので、下を本文が通って初めてぼけて見える。
-              並べるだけ（通常フロー）だと背後に何も無く、ぼかしは効かない。 */}
-          <div className="sticky top-0 z-40">
-            <Header />
-          </div>
-          <main id="main-content" tabIndex={-1} className="outline-none">
-            <Outlet />
-          </main>
+          <Header />
         </div>
-      ) : (
-        // ヘッダーを本文の**上に重ねる**。並べる（縦に積む）と背後に何も無く、
-        // 半透明 + ぼかしの地が効かない。重ねたぶん本文の先頭に余白を入れて、
-        // 最初の行がヘッダーの裏に隠れないようにする。
-        <div className="relative flex-1 min-h-0">
-          {/* headerHidden のときは上へスライドして隠れる（本文が全高になる）。 */}
-          <div
-            className={`absolute inset-x-0 top-0 z-40 transition-transform duration-200 ease-out ${
-              headerVisibility.headerHidden ? '-translate-y-full' : 'translate-y-0'
-            }`}
-          >
-            <Header />
-          </div>
 
-          {/* メインコンテンツ。h-16 はヘッダーの高さ。隠れているときは余白も畳む。 */}
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className={`h-full overflow-auto outline-none transition-[padding-top] duration-200 ease-out ${
-              headerVisibility.headerHidden ? 'pt-0' : 'pt-16'
-            }`}
-          >
-            <Outlet />
-          </main>
-        </div>
-      )}
-      <ScrollToTop targetId={documentScroll ? 'app-scroll' : 'main-content'} />
+        {/* メインコンテンツ。h-16 はヘッダーの高さ。隠れているときは余白も畳む。 */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={`h-full overflow-auto outline-none transition-[padding-top] duration-200 ease-out ${
+            headerVisibility.headerHidden ? 'pt-0' : 'pt-16'
+          }`}
+        >
+          <Outlet />
+        </main>
+      </div>
+      <ScrollToTop targetId="main-content" />
 
       <CommandPalette
         isOpen={commandPaletteOpen}

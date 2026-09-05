@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,30 +50,6 @@ func TestActorWorkspaceFromContext(t *testing.T) {
 		assert.False(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
-}
-
-func TestRespondEntityErr(t *testing.T) {
-	cases := []struct {
-		name     string
-		err      error
-		wantCode int
-	}{
-		{"レコード未検出は 404", domain.ErrNotFound, http.StatusNotFound},
-		{"forbidden は 403", errors.New("forbidden"), http.StatusForbidden},
-		{"forbidden 詳細付きも 403", errors.New("forbidden: only company_admin or super_admin can create materials"), http.StatusForbidden},
-		{"テナント未所属は 403", errors.New("actor must belong to a workspace"), http.StatusForbidden},
-		{"その他は 500", errors.New("db down"), http.StatusInternalServerError},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
-			respondEntityErr(c, tc.err, "見つかりません", "失敗しました")
-
-			assert.Equal(t, tc.wantCode, w.Code)
-		})
-	}
 }
 
 func TestUserWorkspaceRef(t *testing.T) {

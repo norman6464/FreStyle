@@ -2,23 +2,6 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 -- Set comment to schema: "public"
 COMMENT ON SCHEMA "public" IS 'standard public schema';
--- Create "audit_events" table
-CREATE TABLE "public"."audit_events" (
-  "id" bigserial NOT NULL,
-  "actor_id" bigint NOT NULL,
-  "actor_email" character varying(255) NOT NULL DEFAULT '',
-  "actor_role" character varying(32) NOT NULL DEFAULT '',
-  "action" character varying(160) NOT NULL DEFAULT '',
-  "target_id" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL,
-  PRIMARY KEY ("id")
-);
--- Create index "idx_audit_events_action" to table: "audit_events"
-CREATE INDEX "idx_audit_events_action" ON "public"."audit_events" ("action");
--- Create index "idx_audit_events_actor_id" to table: "audit_events"
-CREATE INDEX "idx_audit_events_actor_id" ON "public"."audit_events" ("actor_id");
--- Create index "idx_audit_events_created_at" to table: "audit_events"
-CREATE INDEX "idx_audit_events_created_at" ON "public"."audit_events" ("created_at");
 -- Create "blocks" table
 CREATE TABLE "public"."blocks" (
   "id" uuid NOT NULL,
@@ -49,71 +32,6 @@ CREATE INDEX "idx_blocks_workspace_id" ON "public"."blocks" ("workspace_id");
 CREATE UNIQUE INDEX "uq_blocks_page_position" ON "public"."blocks" ("page_id", "position") WHERE (parent_id IS NULL);
 -- Create index "uq_blocks_parent_position" to table: "blocks"
 CREATE UNIQUE INDEX "uq_blocks_parent_position" ON "public"."blocks" ("parent_id", "position");
--- Create "chapter_grants" table
-CREATE TABLE "public"."chapter_grants" (
-  "workspace_id" uuid NOT NULL,
-  "chapter_id" bigint NOT NULL,
-  "principal_id" uuid NOT NULL,
-  "role" character varying(16) NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("workspace_id", "chapter_id", "principal_id"),
-  CONSTRAINT "ck_chapter_grants_role" CHECK ((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('commenter'::character varying)::text, ('viewer'::character varying)::text]))
-);
--- Create index "idx_chapter_grants_principal" to table: "chapter_grants"
-CREATE INDEX "idx_chapter_grants_principal" ON "public"."chapter_grants" ("workspace_id", "principal_id");
--- Create "course_chapters" table
-CREATE TABLE "public"."course_chapters" (
-  "id" bigserial NOT NULL,
-  "course_id" bigint NOT NULL,
-  "created_by_user_id" bigint NOT NULL,
-  "title" text NOT NULL DEFAULT '',
-  "doc" jsonb NULL,
-  "revision" bigint NOT NULL DEFAULT 1,
-  "schema_version" bigint NOT NULL DEFAULT 1,
-  "sort_order" bigint NOT NULL DEFAULT 100,
-  "is_published" boolean NOT NULL DEFAULT false,
-  "created_at" timestamptz NOT NULL,
-  "updated_at" timestamptz NOT NULL,
-  "workspace_id" uuid NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_course_chapters_workspace_id" UNIQUE ("workspace_id", "id")
-);
--- Create index "idx_course_chapters_course_id" to table: "course_chapters"
-CREATE INDEX "idx_course_chapters_course_id" ON "public"."course_chapters" ("course_id");
--- Create index "idx_course_chapters_workspace_id" to table: "course_chapters"
-CREATE INDEX "idx_course_chapters_workspace_id" ON "public"."course_chapters" ("workspace_id");
--- Create "course_grants" table
-CREATE TABLE "public"."course_grants" (
-  "workspace_id" uuid NOT NULL,
-  "course_id" bigint NOT NULL,
-  "principal_id" uuid NOT NULL,
-  "role" character varying(16) NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("workspace_id", "course_id", "principal_id"),
-  CONSTRAINT "ck_course_grants_role" CHECK ((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('commenter'::character varying)::text, ('viewer'::character varying)::text]))
-);
--- Create index "idx_course_grants_principal" to table: "course_grants"
-CREATE INDEX "idx_course_grants_principal" ON "public"."course_grants" ("workspace_id", "principal_id");
--- Create "courses" table
-CREATE TABLE "public"."courses" (
-  "id" bigserial NOT NULL,
-  "created_by_user_id" bigint NOT NULL,
-  "title" text NOT NULL DEFAULT '',
-  "description" text NOT NULL DEFAULT '',
-  "category" text NOT NULL DEFAULT '',
-  "language" character varying(50) NOT NULL DEFAULT '',
-  "sort_order" bigint NOT NULL DEFAULT 100,
-  "is_published" boolean NOT NULL DEFAULT false,
-  "created_at" timestamptz NOT NULL,
-  "updated_at" timestamptz NOT NULL,
-  "workspace_id" uuid NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_courses_workspace_id" UNIQUE ("workspace_id", "id")
-);
--- Create index "idx_courses_workspace_id" to table: "courses"
-CREATE INDEX "idx_courses_workspace_id" ON "public"."courses" ("workspace_id");
 -- Create "exercise_submissions" table
 CREATE TABLE "public"."exercise_submissions" (
   "id" bigserial NOT NULL,
@@ -336,21 +254,6 @@ CREATE TABLE "public"."rich_documents" (
 );
 -- Create index "idx_rich_documents_owner_id" to table: "rich_documents"
 CREATE INDEX "idx_rich_documents_owner_id" ON "public"."rich_documents" ("owner_id");
--- Create "score_cards" table
-CREATE TABLE "public"."score_cards" (
-  "id" bigserial NOT NULL,
-  "user_id" bigint NULL,
-  "session_id" bigint NULL,
-  "overall_score" numeric NULL,
-  "logical_score" numeric NULL,
-  "consideration_score" numeric NULL,
-  "summary_score" numeric NULL,
-  "proposal_score" numeric NULL,
-  "listening_score" numeric NULL,
-  "feedback" text NULL,
-  "created_at" timestamptz NULL,
-  PRIMARY KEY ("id")
-);
 -- Create "share_links" table
 CREATE TABLE "public"."share_links" (
   "id" uuid NOT NULL,
@@ -407,30 +310,6 @@ CREATE TABLE "public"."spaces" (
 );
 -- Create index "idx_spaces_workspace_id" to table: "spaces"
 CREATE INDEX "idx_spaces_workspace_id" ON "public"."spaces" ("workspace_id");
--- Create "user_chapter_progress" table
-CREATE TABLE "public"."user_chapter_progress" (
-  "id" bigserial NOT NULL,
-  "user_id" bigint NOT NULL,
-  "chapter_id" bigint NOT NULL,
-  "course_id" bigint NOT NULL,
-  "completed_at" timestamptz NOT NULL,
-  "created_at" timestamptz NOT NULL,
-  PRIMARY KEY ("id")
-);
--- Create index "idx_user_chapter_progress_course_id" to table: "user_chapter_progress"
-CREATE INDEX "idx_user_chapter_progress_course_id" ON "public"."user_chapter_progress" ("course_id");
--- Create index "ux_user_chapter_progress" to table: "user_chapter_progress"
-CREATE UNIQUE INDEX "ux_user_chapter_progress" ON "public"."user_chapter_progress" ("user_id", "chapter_id");
--- Create "user_chapter_views" table
-CREATE TABLE "public"."user_chapter_views" (
-  "user_id" bigint NOT NULL,
-  "chapter_id" bigint NOT NULL,
-  "course_id" bigint NOT NULL,
-  "first_viewed_at" timestamptz NOT NULL,
-  "last_viewed_at" timestamptz NOT NULL,
-  "view_count" integer NOT NULL DEFAULT 1,
-  PRIMARY KEY ("user_id", "chapter_id")
-);
 -- Create "user_daily_activities" table
 CREATE TABLE "public"."user_daily_activities" (
   "user_id" bigint NOT NULL,
@@ -500,14 +379,6 @@ CREATE TABLE "public"."workspaces" (
 CREATE UNIQUE INDEX "uq_workspaces_personal_owner" ON "public"."workspaces" ("personal_owner_user_id") WHERE (personal_owner_user_id IS NOT NULL);
 -- Modify "blocks" table
 ALTER TABLE "public"."blocks" ADD CONSTRAINT "fk_blocks_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "chapter_grants" table
-ALTER TABLE "public"."chapter_grants" ADD CONSTRAINT "fk_chapter_grants_chapter" FOREIGN KEY ("workspace_id", "chapter_id") REFERENCES "public"."course_chapters" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_chapter_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "course_chapters" table
-ALTER TABLE "public"."course_chapters" ADD CONSTRAINT "fk_course_chapters_course" FOREIGN KEY ("course_id") REFERENCES "public"."courses" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_course_chapters_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Modify "course_grants" table
-ALTER TABLE "public"."course_grants" ADD CONSTRAINT "fk_course_grants_course" FOREIGN KEY ("workspace_id", "course_id") REFERENCES "public"."courses" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_course_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "courses" table
-ALTER TABLE "public"."courses" ADD CONSTRAINT "fk_courses_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "page_grants" table
 ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_paths" table

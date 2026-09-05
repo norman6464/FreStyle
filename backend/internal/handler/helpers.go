@@ -1,12 +1,9 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
@@ -24,22 +21,4 @@ func actorWorkspaceFromContext(c *gin.Context) (userID uint64, workspace domain.
 		return 0, domain.NoWorkspace(), false
 	}
 	return user.ID, user.WorkspaceRef(), true
-}
-
-// respondEntityErr は usecase が返したエラーを HTTP ステータスへ振り分ける共通処理。
-// レコード未検出は 404(notFoundMsg)、認可エラー(forbidden* / ワークスペース未所属)は 403、
-// それ以外は 500(fallback) を返す。エンティティ別の文言は notFoundMsg / fallback で渡す。
-func respondEntityErr(c *gin.Context, err error, notFoundMsg, fallback string) {
-	if errors.Is(err, domain.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": notFoundMsg})
-		return
-	}
-	// 教材の拒否はセンチネルで判定する。文字列の前方一致に頼ると、message を
-	// 変えただけで 403 が 500 に化ける（実際 "material forbidden" は前方一致しない）。
-	if errors.Is(err, usecase.ErrMaterialForbidden) ||
-		strings.HasPrefix(err.Error(), "forbidden") || err.Error() == "actor must belong to a workspace" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "操作権限がありません"})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
 }

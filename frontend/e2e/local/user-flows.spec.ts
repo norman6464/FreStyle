@@ -30,41 +30,6 @@ async function mockAuthed(page: Page, overrides: Record<string, unknown> = {}) {
   }
 }
 
-const course = {
-  id: 1,
-  companyId: 1,
-  createdByUserId: 1,
-  title: 'E2E 学習コース',
-  description: 'Playwright によるフロー検証用コース',
-  category: 'database',
-  language: 'postgresql',
-  sortOrder: 10,
-  isPublished: true,
-  materialCount: 1,
-  completedCount: 0,
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
-
-const material = {
-  id: 11,
-  courseId: 1,
-  title: 'E2E 教材タイトル',
-  // 本文はリッチ本文（doc / tiptap JSON）が正本。先頭 h1 はタイトルの二重表示防止で
-  // 本文からは除去される（stripLeadingDocTitle）。
-  doc: {
-    type: 'doc',
-    content: [
-      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'E2E 教材タイトル' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: '本文サンプル。' }] },
-    ],
-  },
-  revision: 1,
-  sortOrder: 10,
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
-
 const exercise = {
   id: 1,
   slug: 'e2e-fizzbuzz',
@@ -86,35 +51,6 @@ const exercise = {
   status: '' as const,
   stats: { totalSubmissions: 0, solvedUsers: 0 },
 };
-
-test.describe('コース学習フロー', () => {
-  test('コース一覧 → カードを開く → 詳細で教材が描画される', async ({ page }) => {
-    await mockAuthed(page, {
-      '**/api/v2/courses': [course],
-      '**/api/v2/courses/1': course,
-      // 一覧はメタデータのみ、 本文は選択時に GET /teaching-materials/:id で取得する。
-      '**/api/v2/courses/1/materials': [material],
-      '**/api/v2/teaching-materials/11': material,
-    });
-
-    // コースは「学習領域の選択 → その領域の一覧 → 詳細」の 3 段(FRESTYLE-177)。
-    await page.goto('/courses');
-    await page.getByRole('link', { name: /データベース のコース一覧へ/ }).click();
-    await expect(page).toHaveURL(/\/courses\/category\/database/);
-    await expect(page.getByText('E2E 学習コース')).toBeVisible();
-
-    // カード（div の onClick で navigate）を開く。
-    await page.getByText('E2E 学習コース').click();
-
-    await expect(page).toHaveURL(/\/courses\/1/);
-    // 詳細はサイドバーに教材一覧があり、選択すると本文が tiptap(ProseMirror)で描画される。
-    await page.getByRole('button', { name: /E2E 教材タイトル/ }).click();
-    // ヘッダの h1 はタイトル。本文内の重複 h1 は除去されるため 1 つだけ。
-    await expect(page.getByRole('heading', { name: 'E2E 教材タイトル', level: 1 })).toBeVisible();
-    // 本文は tiptap の読み取り専用描画(.ProseMirror)に出る。
-    await expect(page.locator('.ProseMirror').getByText('本文サンプル。')).toBeVisible();
-  });
-});
 
 test.describe('演習フロー', () => {
   // コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段（FRESTYLE-152）。

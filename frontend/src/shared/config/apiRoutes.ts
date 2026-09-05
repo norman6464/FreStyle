@@ -129,68 +129,6 @@ export const CODE = {
   warmup: `${API_V2}/code/warmup`,
 } as const;
 
-/** コース（company_admin が作成、 自社 trainee + 同社 admin が閲覧）*/
-export const COURSES = {
-  list: `${API_V2}/courses`,
-  byId: (id: number | string) => `${API_V2}/courses/${id}`,
-  /** GET /api/v2/courses/:id/materials — コース内教材一覧 */
-  materials: (id: number | string) => `${API_V2}/courses/${id}/materials`,
-  /** GET /api/v2/courses/:id/last-viewed — コース内で最後に閲覧した章（履歴なしは 204）*/
-  lastViewed: (id: number | string) => `${API_V2}/courses/${id}/last-viewed`,
-  /**
-   * GET(一覧) — /api/v2/courses/:id/grants
-   *
-   * **返るのはそのコース自身に張った行だけ。** ワークスペースの admin は含まれず、
-   * 空 = 誰も編集できない、ではない。
-   */
-  grants: (id: number | string) => `${API_V2}/courses/${id}/grants`,
-  /** PUT(付与) / DELETE(取り消し) — 同じ 1 行を指す */
-  grant: (id: number | string, principalId: string) =>
-    `${API_V2}/courses/${id}/grants/${principalId}`,
-  /**
-   * GET — /api/v2/courses/:id/principals
-   *
-   * 権限を張れる相手を表示名つきで返す。中身はワークスペース全体だが、
-   * 呼べるかはコース単位で決まる。
-   */
-  principals: (id: number | string) => `${API_V2}/courses/${id}/principals`,
-} as const;
-
-/** 教材 個別 CRUD（コース配下）*/
-export const TEACHING_MATERIALS = {
-  /**
-   * GET(一覧) — /api/v2/teaching-materials/:id/grants
-   *
-   * **返るのはその教材自身に張った行だけ**で、コースから降りてくる分は含まない。
-   * 空 = 誰も編集できない、ではない。
-   */
-  grants: (id: number | string) => `${API_V2}/teaching-materials/${id}/grants`,
-  /** PUT(付与) / DELETE(取り消し) — 同じ 1 行を指す */
-  grant: (id: number | string, principalId: string) =>
-    `${API_V2}/teaching-materials/${id}/grants/${principalId}`,
-  byId: (id: number | string) => `${API_V2}/teaching-materials/${id}`,
-  /** PUT /api/v2/teaching-materials/:id/doc — リッチ本文（tiptap JSON）の楽観ロック保存 */
-  doc: (id: number | string) => `${API_V2}/teaching-materials/${id}/doc`,
-  /** POST /api/v2/teaching-materials — body の courseId 必須 */
-  create: `${API_V2}/teaching-materials`,
-} as const;
-
-/** 学習進捗（trainee 自身の教材完了状態。 current user 固定で userId は受け取らない）*/
-export const LESSON_PROGRESS = {
-  /** GET /api/v2/lesson-progress — 自分の完了レッスン一覧 */
-  list: `${API_V2}/lesson-progress`,
-  /** POST /api/v2/lesson-progress — body の teachingMaterialId を完了として記録 */
-  complete: `${API_V2}/lesson-progress`,
-  /** DELETE /api/v2/lesson-progress/:teachingMaterialId — 完了を取り消す */
-  incomplete: (id: number | string) => `${API_V2}/lesson-progress/${id}`,
-} as const;
-
-/** 章閲覧記録（フロントが教材ページを開いた瞬間に POST する）*/
-export const CHAPTER_VIEW = {
-  /** POST /api/v2/teaching-materials/:id/view */
-  record: (id: number | string) => `${API_V2}/teaching-materials/${id}/view`,
-} as const;
-
 /**
  * ノート（workspaces → spaces → pages の木）。
  *

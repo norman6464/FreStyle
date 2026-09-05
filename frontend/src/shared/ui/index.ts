@@ -43,13 +43,13 @@ export { default as HelpTooltip } from './HelpTooltip';
  * 中身は monaco-editor（数百 KB）で、演習ページだけが
  * `lazyWithReload(() => import('@/shared/ui/CodeEditor'))` で遅延ロードしている。
  * ここで re-export すると `@/shared/ui` を import した全ページが monaco を巻き込み、
- * コード分割が壊れる（実際 CoursesListPage / HelpPage のテストが monaco の
+ * コード分割が壊れる（実際 HelpPage のテストが monaco の
  * document.queryCommandSupported で落ちて発覚した）。深いパスで直接 import すること。
  */
 
 /*
  * 言語バッジ / アイコンは entity ではなく shared に置く。
- * コース（courses.language）と演習（master_exercises.language）の両方が使うため、
+ * 演習（master_exercises.language）の複数ページとホームの FeatureCard の両方が使うため、
  * どちらかの entity に置くと同一レイヤーの Slice 間 import になり FSD 違反になる。
  * 中身も devicon スラッグと Tailwind クラスの対応表で、FreStyle 固有のルールではない。
  */

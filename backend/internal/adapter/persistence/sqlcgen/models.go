@@ -12,16 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type AuditEvent struct {
-	ID         int64
-	ActorID    int64
-	ActorEmail string
-	ActorRole  string
-	Action     string
-	TargetID   int64
-	CreatedAt  time.Time
-}
-
 type Block struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -31,53 +21,6 @@ type Block struct {
 	Type        string
 	Attrs       json.RawMessage
 	Inline      *json.RawMessage
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type ChapterGrant struct {
-	WorkspaceID uuid.UUID
-	ChapterID   int64
-	PrincipalID uuid.UUID
-	Role        string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type Course struct {
-	ID              int64
-	CreatedByUserID int64
-	Title           string
-	Description     string
-	Category        string
-	Language        string
-	SortOrder       int64
-	IsPublished     bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	WorkspaceID     uuid.NullUUID
-}
-
-type CourseChapter struct {
-	ID              int64
-	CourseID        int64
-	CreatedByUserID int64
-	Title           string
-	Doc             *json.RawMessage
-	Revision        int64
-	SchemaVersion   int64
-	SortOrder       int64
-	IsPublished     bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	WorkspaceID     uuid.NullUUID
-}
-
-type CourseGrant struct {
-	WorkspaceID uuid.UUID
-	CourseID    int64
-	PrincipalID uuid.UUID
-	Role        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -225,20 +168,6 @@ type RichDocument struct {
 	WorkspaceID   uuid.NullUUID
 }
 
-type ScoreCard struct {
-	ID                 int64
-	UserID             sql.NullInt64
-	SessionID          sql.NullInt64
-	OverallScore       sql.NullString
-	LogicalScore       sql.NullString
-	ConsiderationScore sql.NullString
-	SummaryScore       sql.NullString
-	ProposalScore      sql.NullString
-	ListeningScore     sql.NullString
-	Feedback           sql.NullString
-	CreatedAt          sql.NullTime
-}
-
 type ShareLink struct {
 	ID              uuid.UUID
 	WorkspaceID     uuid.UUID
@@ -284,24 +213,6 @@ type User struct {
 	UpdatedAt    time.Time
 	DeletedAt    sql.NullTime
 	WorkspaceID  uuid.NullUUID
-}
-
-type UserChapterProgress struct {
-	ID          int64
-	UserID      int64
-	ChapterID   int64
-	CourseID    int64
-	CompletedAt time.Time
-	CreatedAt   time.Time
-}
-
-type UserChapterView struct {
-	UserID        int64
-	ChapterID     int64
-	CourseID      int64
-	FirstViewedAt time.Time
-	LastViewedAt  time.Time
-	ViewCount     int32
 }
 
 type UserDailyActivity struct {

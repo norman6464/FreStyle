@@ -72,135 +72,6 @@ func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID uint64, wor
 	return m.Called(ctx, userID, workspaceID).Error(0)
 }
 
-// --- mock: CourseRepository ---
-
-type mockCourseRepo struct{ mock.Mock }
-
-var _ repository.CourseRepository = (*mockCourseRepo)(nil)
-
-func (m *mockCourseRepo) ListByWorkspaceID(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.Course, error) {
-	args := m.Called(ctx, workspaceID, includeUnpublished)
-	rows, _ := args.Get(0).([]domain.Course)
-	return rows, args.Error(1)
-}
-
-func (m *mockCourseRepo) GetByID(ctx context.Context, id uint64) (*domain.Course, error) {
-	args := m.Called(ctx, id)
-	c, _ := args.Get(0).(*domain.Course)
-	return c, args.Error(1)
-}
-
-func (m *mockCourseRepo) Create(ctx context.Context, c *domain.Course) error {
-	return m.Called(ctx, c).Error(0)
-}
-
-func (m *mockCourseRepo) CreateWithOwnerGrant(ctx context.Context, c *domain.Course, ownerPrincipalID string) error {
-	return m.Called(ctx, c, ownerPrincipalID).Error(0)
-}
-
-func (m *mockCourseRepo) Update(ctx context.Context, c *domain.Course) error {
-	return m.Called(ctx, c).Error(0)
-}
-
-func (m *mockCourseRepo) Delete(ctx context.Context, id uint64) error {
-	return m.Called(ctx, id).Error(0)
-}
-
-// --- mock: TeachingMaterialRepository ---
-
-type mockMaterialRepo struct{ mock.Mock }
-
-var _ repository.TeachingMaterialRepository = (*mockMaterialRepo)(nil)
-
-func (m *mockMaterialRepo) ListByWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-	args := m.Called(ctx, workspaceID, includeUnpublished)
-	rows, _ := args.Get(0).([]domain.TeachingMaterial)
-	return rows, args.Error(1)
-}
-
-func (m *mockMaterialRepo) ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-	args := m.Called(ctx, courseID, includeUnpublished)
-	rows, _ := args.Get(0).([]domain.TeachingMaterial)
-	return rows, args.Error(1)
-}
-
-func (m *mockMaterialRepo) GetByID(ctx context.Context, id uint64) (*domain.TeachingMaterial, error) {
-	args := m.Called(ctx, id)
-	tm, _ := args.Get(0).(*domain.TeachingMaterial)
-	return tm, args.Error(1)
-}
-
-func (m *mockMaterialRepo) CountByCourseForWorkspace(ctx context.Context, workspaceID string, includeUnpublished bool) (map[uint64]int, error) {
-	args := m.Called(ctx, workspaceID, includeUnpublished)
-	counts, _ := args.Get(0).(map[uint64]int)
-	return counts, args.Error(1)
-}
-
-func (m *mockMaterialRepo) Create(ctx context.Context, tm *domain.TeachingMaterial) error {
-	return m.Called(ctx, tm).Error(0)
-}
-
-func (m *mockMaterialRepo) UpdateDocWithRevision(ctx context.Context, id uint64, doc string, expectedRevision int) (*domain.TeachingMaterial, error) {
-	args := m.Called(ctx, id, doc, expectedRevision)
-	tm, _ := args.Get(0).(*domain.TeachingMaterial)
-	return tm, args.Error(1)
-}
-
-func (m *mockMaterialRepo) Update(ctx context.Context, tm *domain.TeachingMaterial) error {
-	return m.Called(ctx, tm).Error(0)
-}
-
-func (m *mockMaterialRepo) Delete(ctx context.Context, id uint64) error {
-	return m.Called(ctx, id).Error(0)
-}
-
-func (m *mockMaterialRepo) DeleteByCourse(ctx context.Context, courseID uint64) error {
-	return m.Called(ctx, courseID).Error(0)
-}
-
-// --- mock: LessonProgressRepository ---
-
-type mockProgressRepo struct{ mock.Mock }
-
-var _ repository.LessonProgressRepository = (*mockProgressRepo)(nil)
-
-func (m *mockProgressRepo) MarkCompleted(ctx context.Context, userID, materialID, courseID uint64) (bool, error) {
-	args := m.Called(ctx, userID, materialID, courseID)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *mockProgressRepo) MarkIncomplete(ctx context.Context, userID, materialID uint64) error {
-	return m.Called(ctx, userID, materialID).Error(0)
-}
-
-func (m *mockProgressRepo) ListByUser(ctx context.Context, userID uint64) ([]domain.UserLessonProgress, error) {
-	args := m.Called(ctx, userID)
-	rows, _ := args.Get(0).([]domain.UserLessonProgress)
-	return rows, args.Error(1)
-}
-
-func (m *mockProgressRepo) CountCompletedByUserGroupedByCourse(ctx context.Context, userID uint64) (map[uint64]int, error) {
-	args := m.Called(ctx, userID)
-	counts, _ := args.Get(0).(map[uint64]int)
-	return counts, args.Error(1)
-}
-
-// --- mock: UserChapterViewRepository ---
-
-type mockChapterViewRepo struct{ mock.Mock }
-
-var _ repository.UserChapterViewRepository = (*mockChapterViewRepo)(nil)
-
-func (m *mockChapterViewRepo) UpsertView(ctx context.Context, userID, materialID, courseID uint64) error {
-	return m.Called(ctx, userID, materialID, courseID).Error(0)
-}
-
-func (m *mockChapterViewRepo) GetLastViewedByUserAndCourse(ctx context.Context, userID, courseID uint64) (*domain.UserChapterView, error) {
-	args := m.Called(ctx, userID, courseID)
-	v, _ := args.Get(0).(*domain.UserChapterView)
-	return v, args.Error(1)
-}
-
 // --- mock: UserDailyActivityRepository ---
 
 type mockDailyActivityRepo struct{ mock.Mock }
@@ -209,6 +80,17 @@ var _ repository.UserDailyActivityRepository = (*mockDailyActivityRepo)(nil)
 
 func (m *mockDailyActivityRepo) Increment(ctx context.Context, userID uint64, date time.Time, inc repository.UserDailyActivityIncrement) error {
 	return m.Called(ctx, userID, date, inc).Error(0)
+}
+
+// nopActivityRepo は UserDailyActivityRepository の何もしない stub。
+// 呼び出しの検証が要らないテスト（活動記録が本題ではないもの）で mockDailyActivityRepo の
+// On(...) 設定を省くために使う。
+type nopActivityRepo struct{}
+
+var _ repository.UserDailyActivityRepository = (*nopActivityRepo)(nil)
+
+func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
+	return nil
 }
 
 // --- mock: RichDocumentRepository ---
@@ -564,62 +446,4 @@ func (m *mockKBPermissionRepo) ListSubtreePagePermissionFacts(ctx context.Contex
 	args := m.Called(ctx, workspaceID, pageID, userID)
 	rows, _ := args.Get(0).([]repository.PageWithPermissionFacts)
 	return rows, args.Error(1)
-}
-
-// mockMaterialPermRepo は教材の権限モデルのモック。
-//
-// **事実だけを返す。** 何ができるかは domain.ResolveMaterialPermission が決めるので、
-// ここで「編集できる」を直接返す口は持たない（持つと、規則を通らない答えをテストが作れる）。
-type mockMaterialPermRepo struct{ mock.Mock }
-
-var _ repository.MaterialPermissionRepository = (*mockMaterialPermRepo)(nil)
-
-func (m *mockMaterialPermRepo) CourseFactsForUser(ctx context.Context, workspaceID string, courseID, userID uint64) (*domain.MaterialFacts, error) {
-	args := m.Called(ctx, workspaceID, courseID, userID)
-	f, _ := args.Get(0).(*domain.MaterialFacts)
-	return f, args.Error(1)
-}
-
-func (m *mockMaterialPermRepo) ChapterFactsForUser(ctx context.Context, workspaceID string, chapterID, userID uint64) (*domain.MaterialFacts, error) {
-	args := m.Called(ctx, workspaceID, chapterID, userID)
-	f, _ := args.Get(0).(*domain.MaterialFacts)
-	return f, args.Error(1)
-}
-
-func (m *mockMaterialPermRepo) ListCourseFactsForUser(ctx context.Context, workspaceID string, userID uint64) ([]repository.CourseWithFacts, error) {
-	args := m.Called(ctx, workspaceID, userID)
-	f, _ := args.Get(0).([]repository.CourseWithFacts)
-	return f, args.Error(1)
-}
-
-func (m *mockMaterialPermRepo) UpsertCourseGrant(ctx context.Context, workspaceID string, courseID uint64, principalID string, role domain.GrantRole) (*domain.CourseGrant, error) {
-	args := m.Called(ctx, workspaceID, courseID, principalID, role)
-	g, _ := args.Get(0).(*domain.CourseGrant)
-	return g, args.Error(1)
-}
-
-func (m *mockMaterialPermRepo) DeleteCourseGrant(ctx context.Context, workspaceID string, courseID uint64, principalID string) error {
-	return m.Called(ctx, workspaceID, courseID, principalID).Error(0)
-}
-
-func (m *mockMaterialPermRepo) ListCourseGrants(ctx context.Context, workspaceID string, courseID uint64) ([]domain.CourseGrant, error) {
-	args := m.Called(ctx, workspaceID, courseID)
-	g, _ := args.Get(0).([]domain.CourseGrant)
-	return g, args.Error(1)
-}
-
-func (m *mockMaterialPermRepo) UpsertChapterGrant(ctx context.Context, workspaceID string, chapterID uint64, principalID string, role domain.GrantRole) (*domain.ChapterGrant, error) {
-	args := m.Called(ctx, workspaceID, chapterID, principalID, role)
-	g, _ := args.Get(0).(*domain.ChapterGrant)
-	return g, args.Error(1)
-}
-
-func (m *mockMaterialPermRepo) DeleteChapterGrant(ctx context.Context, workspaceID string, chapterID uint64, principalID string) error {
-	return m.Called(ctx, workspaceID, chapterID, principalID).Error(0)
-}
-
-func (m *mockMaterialPermRepo) ListChapterGrants(ctx context.Context, workspaceID string, chapterID uint64) ([]domain.ChapterGrant, error) {
-	args := m.Called(ctx, workspaceID, chapterID)
-	g, _ := args.Get(0).([]domain.ChapterGrant)
-	return g, args.Error(1)
 }

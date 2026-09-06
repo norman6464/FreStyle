@@ -27,7 +27,7 @@ handler → usecase → repository / infra → domain
 |---|---|---|
 | handler | `backend/internal/handler` | HTTP 受付、middleware から認証情報取得、usecase 呼び出し、JSON 返却。ビジネスロジック禁止 |
 | middleware | `backend/internal/handler/middleware` | JWT 認証、CORS、current user 注入、CSRF 等の横断的処理 |
-| usecase | `backend/internal/usecase` | 1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
+| usecase | `backend/internal/usecase/<domain>` | ドメイン単位のサブパッケージ（`kb` / `exercise` / `user` / `profile` / `notification` / `richtextimage` / `health`）。1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
 | repository (port) | `backend/internal/usecase/repository` | usecase が依存する repository interface の定義 |
 | persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / S3 等の repository 実装 |
 | infra | `backend/internal/infra/{oidc,s3,ses,database,sandbox,...}` | 外部サービス連携（AWS SDK ラッパ）、DB 接続、設定読み込み |
@@ -37,6 +37,10 @@ handler → usecase → repository / infra → domain
 
 - usecase 1 つにビジネスルール 1 つ。複数操作をまとめない
 - usecase は **struct + `NewXxxUseCase` コンストラクタ + `Execute(ctx, in) (out, error)`** で書く
+- 新しい usecase は `internal/usecase/<domain>/` に置く。直下（`internal/usecase/*.go`）には置かない
+- usecase サブパッケージ同士は import しない（相互依存が要るなら責務の切り方を疑う）。
+  handler 側でパッケージ名（`user` / `exercise` / `kb` 等）と同じ名前のローカル変数を宣言しない
+  （パッケージ参照が隠れてコンパイルエラーになる）
 
 ### 2.4 domain と request / response 型の境界
 

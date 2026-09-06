@@ -22,6 +22,23 @@ services:
       timeout: 3s
       retries: 30
 
+  # ローカル開発用の OSS OIDC 発行者(Dex)。Go 製単一バイナリで DB 不要・数秒で起動する。
+  # storage: type: memory のため `docker compose down` でユーザー / セッションは消えるが、
+  # ユーザーは docker/idp/config.yaml の staticPasswords で毎回同じものが復元される。
+  idp:
+    image: ghcr.io/dexidp/dex:v2.45.1
+    container_name: frestyle-local-idp
+    restart: unless-stopped
+    command: dex serve /etc/dex/config.yaml
+    volumes:
+      - ./docker/idp/config.yaml:/etc/dex/config.yaml:ro
+    ports:
+      # ポート番号(5556)は固定すること。可変にすると
+      # (1) 上でマウントする config.yaml の issuer 文字列、
+      # (2) frontend/.env.example の VITE_OIDC_AUTHORIZE_URI、
+      # (3) backend サービスの OIDC_JWKS_URI / OIDC_TOKEN_URI の既定値
+      # の 3 箇所が同時にずれ、気づかないまま全員 401 になる。変えるなら 3 箇所を揃えて変えること。
+      - '127.0.0.1:5556:5556'
 
   backend:
     build:
@@ -38,12 +55,29 @@ services:
       MAIL_SMTP_PORT: '1025'
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
       APP_ENV: ${APP_ENV:-local}
-      LOCAL_PASSWORD_AUTH: ${LOCAL_PASSWORD_AUTH:-1}
+      # ===== 認証(OpenID Connect) =====
+      # 発行者はローカルの Dex(上の idp サービス)。config.Load() は 5 つとも揃わないと
+      # 起動しない(fail-closed)ため、compose 側で既定値を必ず与える。.env で上書きすれば
+      # 別の発行者(本物の Cognito 等)にも向けられる。
+      #
+      # OIDC_ISSUER はブラウザ(トークンの iss と比較する側)から見た URL なので localhost。
+      # OIDC_JWKS_URI / OIDC_TOKEN_URI は backend コンテナが直接叩く宛先なので、Docker
+      # ネットワーク内のサービス名 `idp` で到達させる(localhost だと backend 自身を指してしまう)。
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:5556/dex}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-http://idp:5556/dex/keys}
+      OIDC_TOKEN_URI: ${OIDC_TOKEN_URI:-http://idp:5556/dex/token}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-frestyle-local}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:5173/login/callback}
+      # Dex の password connector は groups クレームに staticPasswords[].groups を載せる。
+      # 既定の "roles" のままだと運営管理者判定(config.go の AdminRoleClaim)が一致しない。
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-groups}
     ports:
       - '${LOCAL_BACKEND_PORT:-8080}:8080'
     depends_on:
       db:
         condition: service_healthy
+      idp:
+        condition: service_started
     # distroless にはシェルも curl も無いためコンテナ内の healthcheck は書けない。
     # 起動確認は `curl http://localhost:8080/api/v2/health` で行う。
 

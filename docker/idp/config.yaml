@@ -1,0 +1,38 @@
+issuer: http://localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+# ログイン画面を出す既定のログイン方式(HTMLフォーム/JS無し)。
+frontend:
+  theme: light
+
+oauth2:
+  skipApprovalScreen: true
+  pkce:
+    enforce: true
+    codeChallengeMethodsSupported:
+      - S256
+
+enablePasswordDB: true
+
+staticClients:
+  - id: frestyle-local
+    name: FreStyle (local)
+    public: true
+    redirectURIs:
+      - http://localhost:5173/login/callback
+
+staticPasswords:
+  - email: "admin@example.com"
+    # bcrypt('password')。backend/scripts/seed-local.sql の管理者ユーザーと同じ資格情報。
+    # python:3-alpine の bcrypt で実際に生成し直したハッシュ(docker run --rm python:3-alpine
+    # sh -c "pip install bcrypt -q; python3 -c \"import bcrypt; print(bcrypt.hashpw(b'password', bcrypt.gensalt(10)).decode())\"")。
+    hash: "$2b$10$ajnqBS8GAmXdBoT2U3bzO.cXIgWeKGcSBxdZXclgcIqSURnWmqLlK"
+    username: admin
+    userID: seed-sub-admin
+    groups:
+      - admin

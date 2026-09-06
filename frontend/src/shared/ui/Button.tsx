@@ -17,7 +17,8 @@ const VARIANT: Record<ButtonVariant, string> = {
   secondary:
     'border border-[var(--color-border-hover)] bg-surface-1 shadow-sm hover:bg-surface-2 hover:shadow active:bg-surface-3 text-[var(--color-text-secondary)]',
   ghost: 'hover:bg-surface-2 active:bg-surface-3 text-[var(--color-text-secondary)]',
-  danger: 'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white',
+  // primary と同じ理由で 600 から始める（白文字に対し red-500 は 3.76:1 で未達、600 は 4.8:1）。
+  danger: 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white',
 };
 
 const SIZE: Record<ButtonSize, string> = {

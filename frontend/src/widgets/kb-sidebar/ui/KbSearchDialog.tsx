@@ -102,23 +102,26 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
   const optionId = (page: KbPage) => `${listboxId}-${page.id}`;
   const selectedPage = view.flat[selectedIndex];
 
+  // 押されるのは option である li 自身。option の中にボタンを入れない
+  // （支援技術からは「押せるものの中に押せるものがある」壊れた形に見え、どちらを選んだのかが
+  //  決まらない）。フォーカスは入力欄に残したまま、選択中の行は aria-activedescendant で伝える。
   const renderRow = (page: KbPage) => (
-    <li key={page.id} id={optionId(page)} role="option" aria-selected={page.id === selectedPage?.id}>
-      <button
-        type="button"
-        tabIndex={-1}
-        // mousedown での blur によりモーダルが振る舞いを変えないよう、click で開く。
-        onClick={() => open(page)}
-        className={`flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
-          page.id === selectedPage?.id
-            ? 'bg-brand-500/10 font-medium text-[var(--color-text-primary)]'
-            : 'text-[var(--color-text-primary)] hover:bg-surface-2'
-        }`}
-      >
-        <KbPageIcon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-        <span className="truncate">{page.title}</span>
-      </button>
-    </li>
+    <div
+      key={page.id}
+      id={optionId(page)}
+      role="option"
+      aria-selected={page.id === selectedPage?.id}
+      // mousedown での blur によりモーダルが振る舞いを変えないよう、click で開く。
+      onClick={() => open(page)}
+      className={`flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
+        page.id === selectedPage?.id
+          ? 'bg-brand-500/10 font-medium text-[var(--color-text-primary)]'
+          : 'text-[var(--color-text-primary)] hover:bg-surface-2'
+      }`}
+    >
+      <KbPageIcon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+      <span className="truncate">{page.title}</span>
+    </div>
   );
 
   return (
@@ -185,26 +188,39 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
             </p>
           )}
           {status === 'done' && view.flat.length > 0 && (
-            <ul id={listboxId} role="listbox" aria-label="検索結果">
+            /*
+              ul / li ではなく div で組む。
+              スペースごとの塊は group、1 件は option という役割になるが、**li に group は
+              置けない**（li に許される役割ではない）。ul を使う限り「ul の直下は li」
+              「li に group は不可」の両方を同時には満たせないので、一覧の意味は role だけで
+              表し、要素は div にする。
+            */
+            <div id={listboxId} role="listbox" aria-label="検索結果">
               {view.groups.map(({ space, pages: groupPages }) => (
-                <li key={space.id} role="group" aria-label={space.name}>
-                  <h2 className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                <div key={space.id} role="group" aria-label={space.name}>
+                  {/*
+                    見出しは目で見るためだけのもの。読み上げには塊の名前（aria-label）で
+                    同じ文字が既に伝わっており、listbox の中に「選べるもの」以外を置くと
+                    一覧の形も崩れるため、ここは読み上げから外す。
+                  */}
+                  <h2
+                    aria-hidden="true"
+                    className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]"
+                  >
                     {space.name}
                   </h2>
-                  <ul role="presentation" className="space-y-px">
-                    {groupPages.map(renderRow)}
-                  </ul>
-                </li>
+                  {/* group の直下に option を置く。間に素の div を挟むと、
+                      「選べるものが 1 つも入っていない塊」として扱われる。 */}
+                  {groupPages.map(renderRow)}
+                </div>
               ))}
               {view.orphan.length > 0 && (
                 // 見えるスペース一覧に無いスペースのページ。名前が引けないので見出しなし。
-                <li role="group" aria-label="その他のページ">
-                  <ul role="presentation" className="space-y-px">
-                    {view.orphan.map(renderRow)}
-                  </ul>
-                </li>
+                <div role="group" aria-label="その他のページ">
+                  {view.orphan.map(renderRow)}
+                </div>
               )}
-            </ul>
+            </div>
           )}
         </div>
       </div>

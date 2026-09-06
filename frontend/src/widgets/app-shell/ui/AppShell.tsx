@@ -54,9 +54,14 @@ export default function AppShell() {
         </div>
 
         {/* メインコンテンツ。h-16 はヘッダーの高さ。隠れているときは余白も畳む。 */}
+        {/*
+          tabIndex は 0。ここは縦に流れるスクロール領域なので、キーボードだけの人が
+          矢印キーで動かせるよう Tab で到達できる必要がある（-1 だと「本文へスキップ」から
+          飛んだときしか触れず、そのまま Tab を続けると本文を飛び越してしまう）。
+        */}
         <main
           id="main-content"
-          tabIndex={-1}
+          tabIndex={0}
           className={`h-full overflow-auto outline-none transition-[padding-top] duration-200 ease-out ${
             headerVisibility.headerHidden ? 'pt-0' : 'pt-16'
           }`}

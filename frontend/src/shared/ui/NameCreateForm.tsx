@@ -55,7 +55,7 @@ export default function NameCreateForm({ what, onCreate }: NameCreateFormProps) 
       <button
         type="submit"
         disabled={!canSubmit}
-        className="w-full rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+        className="w-full rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-40"
       >
         {saving ? '作成中…' : `${what}を作る`}
       </button>

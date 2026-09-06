@@ -72,27 +72,27 @@ const SlashMenuList = forwardRef<SlashMenuListHandle, SlashMenuListProps>(
     return (
       <ul id={listboxId} role="listbox" aria-label="ブロックの挿入" className="rte-slash-list">
         {items.map((item, index) => (
+          // 操作を受けるのは option である li 自身。中にボタンを入れない
+          // （listbox の option に押せるものを入れ子にすると、支援技術からは「押せるものの
+          //  中に押せるものがある」壊れた形に見え、どちらを選んだのか決まらない）。
+          // フォーカスは本文に残したまま、選択は aria-activedescendant で伝えているので、
+          // この行自体はフォーカスを受け取らなくてよい。
           <li
             key={item.id}
             id={optionId(listboxId, item)}
             role="option"
             aria-selected={index === selectedIndex}
+            className={`rte-slash-item ${index === selectedIndex ? 'is-active' : ''}`}
+            // mousedown での blur によりメニューが先に閉じないようにする。
+            onMouseDown={(mouseEvent) => mouseEvent.preventDefault()}
+            onClick={() => onSelect(item)}
+            onMouseEnter={() => setSelectedIndex(index)}
           >
-            <button
-              type="button"
-              tabIndex={-1}
-              className={`rte-slash-item ${index === selectedIndex ? 'is-active' : ''}`}
-              // mousedown での blur によりメニューが先に閉じないようにする。
-              onMouseDown={(mouseEvent) => mouseEvent.preventDefault()}
-              onClick={() => onSelect(item)}
-              onMouseEnter={() => setSelectedIndex(index)}
-            >
-              <span className="rte-slash-glyph" aria-hidden="true">
-                {item.glyph}
-              </span>
-              <span className="rte-slash-label">{item.label}</span>
-              <span className="rte-slash-trigger">/{item.id.toLowerCase()}</span>
-            </button>
+            <span className="rte-slash-glyph" aria-hidden="true">
+              {item.glyph}
+            </span>
+            <span className="rte-slash-label">{item.label}</span>
+            <span className="rte-slash-trigger">/{item.id.toLowerCase()}</span>
           </li>
         ))}
       </ul>

@@ -23,7 +23,7 @@ const TONE_CLASSES: Record<NonNullable<GuidedHintProps['tone']>, string> = {
 };
 
 const ICON_TONE_CLASSES: Record<NonNullable<GuidedHintProps['tone']>, string> = {
-  info: 'text-taupe-300',
+  info: 'text-taupe-600',
   success: 'text-emerald-300',
   warning: 'text-amber-300',
 };

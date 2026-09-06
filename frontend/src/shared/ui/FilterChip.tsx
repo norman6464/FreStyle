@@ -21,7 +21,7 @@ export default function FilterChip({ label, active, activeClass, onClick }: Filt
       aria-pressed={active}
       className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
         active
-          ? (activeClass ?? 'bg-brand-500/15 text-brand-600 border-brand-500/30')
+          ? (activeClass ?? 'bg-brand-500/15 text-brand-800 border-brand-500/30')
           : 'bg-surface-1 text-[var(--color-text-muted)] border-surface-3 hover:bg-surface-2'
       }`}
     >

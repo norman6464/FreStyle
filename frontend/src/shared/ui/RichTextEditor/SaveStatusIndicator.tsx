@@ -9,9 +9,9 @@ const SAVE_STATUS_CONFIG: Record<
   Exclude<SaveStatus, 'idle'>,
   { label: string; color: string }
 > = {
-  unsaved: { label: '未保存', color: 'text-amber-500' },
+  unsaved: { label: '未保存', color: 'text-amber-700' },
   saving: { label: '保存中...', color: 'text-[var(--color-text-muted)]' },
-  saved: { label: '保存済み', color: 'text-emerald-500' },
+  saved: { label: '保存済み', color: 'text-emerald-700' },
 };
 
 /**

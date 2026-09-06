@@ -1141,7 +1141,8 @@ describe('題名で検索（モーダル）', () => {
     fireEvent.change(input, { target: { value: 'docker' } });
     const option = await screen.findByRole('option', { name: /Docker 手順/ });
 
-    fireEvent.click(within(option).getByRole('button'));
+    // 押すのは option 自身（option の中に押せるものを入れ子にしない形へ改めた）。
+    fireEvent.click(option);
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),

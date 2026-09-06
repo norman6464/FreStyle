@@ -13,7 +13,7 @@ export default function MenuPage() {
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto">
       {/* ウェルカムセクション（データ非依存・即時表示） */}
       <section className="mb-8">
-        <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-1">
+        <p className="text-xs font-semibold text-brand-700 uppercase tracking-widest mb-1">
           ダッシュボード
         </p>
         <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">

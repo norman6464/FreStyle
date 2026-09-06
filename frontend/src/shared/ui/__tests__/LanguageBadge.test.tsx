@@ -7,7 +7,8 @@ describe('LanguageBadge', () => {
     render(<LanguageBadge language="docker" />);
     const badge = screen.getByText('Docker');
     expect(badge.className).toContain('bg-sky-500/25');
-    expect(badge.className).toContain('text-sky-700');
+    // 淡色背景の上では 700 だと 4.5:1 に僅かに届かないため 800 を使う。
+    expect(badge.className).toContain('text-sky-800');
   });
 
   it('言語ごとに異なる色になる（go=cyan / php=indigo / git=orange / bash=slate / javascript=yellow / typescript=blue）', () => {

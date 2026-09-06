@@ -34,7 +34,7 @@ describe('ExecutionResultTable', () => {
     );
     const status = screen.getByText('実行成功・期待する出力と一致');
     expect(status).toBeInTheDocument();
-    expect(status).toHaveClass('text-green-400');
+    expect(status).toHaveClass('text-green-700');
   });
 
   it('exit 0 でも出力が期待と不一致なら緑にせず、琥珀色の断定形「期待する出力と不一致」を表示する', () => {
@@ -47,8 +47,8 @@ describe('ExecutionResultTable', () => {
     );
     const status = screen.getByText(/実行成功（エラーなし）・期待する出力と不一致/);
     expect(status).toBeInTheDocument();
-    expect(status).toHaveClass('text-amber-500');
-    expect(status).not.toHaveClass('text-green-400');
+    expect(status).toHaveClass('text-amber-700');
+    expect(status).not.toHaveClass('text-green-700');
   });
 
   it('不一致のとき、最初に異なる行の行番号と両方の行を表示する', () => {

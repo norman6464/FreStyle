@@ -70,9 +70,10 @@ describe('Button', () => {
       expect(cls).toContain('shadow-sm');
     });
 
-    it('danger: bg-red-500クラスが付く', () => {
+    it('danger: bg-red-600クラスが付く', () => {
       render(<Button variant="danger">テスト</Button>);
-      expect(screen.getByRole('button').className).toContain('bg-red-500');
+      // 白文字を載せる面は 600 から（red-500 は 3.76:1 で小さな文字の基準に届かない）。
+      expect(screen.getByRole('button').className).toContain('bg-red-600');
     });
 
     it('ghost: bg-brand-600クラスが付かない', () => {

@@ -111,15 +111,15 @@ export default function InkwellShowcasePage() {
           <div className="flex w-full flex-col gap-5">
             <div className="flex items-center gap-6 text-inkwell-primary">
               <InkwellCircularProgress />
-              <InkwellCircularProgress value={progress} />
-              <InkwellCircularProgress value={progress} size={28} thickness={3} />
+              <InkwellCircularProgress value={progress} aria-label="読み込みの進み具合" />
+              <InkwellCircularProgress value={progress} size={28} thickness={3} aria-label="読み込みの進み具合（小）" />
               <InkwellButton size="small" variant="outlined" onClick={() => setProgress((p) => (p >= 100 ? 0 : p + 25))}>
                 進める（{progress}%）
               </InkwellButton>
             </div>
             <div className="space-y-3">
               <InkwellLinearProgress />
-              <InkwellLinearProgress value={progress} />
+              <InkwellLinearProgress value={progress} aria-label="読み込みの進み具合" />
             </div>
           </div>
         </Section>

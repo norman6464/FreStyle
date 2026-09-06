@@ -65,9 +65,18 @@ export default function HeaderUserMenu({
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="true"
         aria-expanded={open}
+        // 名前は横の文字で出しているが、狭い画面ではその文字が消える。ボタンの名前を
+        // ここで固定して、画面幅にかかわらず何のボタンか分かるようにする。
+        aria-label={displayName || 'ユーザー'}
         className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--color-nav-hover)] transition-colors"
       >
-        <Avatar name={displayName || 'U'} src={avatarUrl ?? undefined} size="sm" />
+        {/*
+          絵は読み上げから隠す。隣に同じ名前の文字が出ているので、隠さないと
+          「川野 拓馬 川野 拓馬」と二重に読まれる。
+        */}
+        <span aria-hidden="true">
+          <Avatar name={displayName || 'U'} src={avatarUrl ?? undefined} size="sm" />
+        </span>
         <span className="hidden sm:block text-sm font-medium text-[var(--color-text-primary)] max-w-[10rem] truncate">
           {displayName || 'ユーザー'}
         </span>
@@ -104,7 +113,7 @@ export default function HeaderUserMenu({
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-red-900/10 hover:text-red-500 transition-colors whitespace-nowrap"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-red-900/10 hover:text-red-700 transition-colors whitespace-nowrap"
           >
             <ArrowLeftOnRectangleIcon className="w-4 h-4 flex-shrink-0" />
             ログアウト

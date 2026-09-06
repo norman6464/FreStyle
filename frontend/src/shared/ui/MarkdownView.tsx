@@ -40,7 +40,7 @@ export default memo(function MarkdownView({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand-400 underline-offset-2 hover:underline"
+            className="text-brand-700 underline-offset-2 hover:underline"
           >
             {children as ReactNode}
           </a>

@@ -12,10 +12,10 @@ export default function SubmissionRow({ submission }: { submission: ExerciseSubm
   return (
     <li className="flex items-center gap-2 text-xs px-2 py-1 rounded border border-surface-3 bg-surface-2">
       {submission.isCorrect
-        ? <CheckCircleIcon className="w-4 h-4 text-green-400 flex-shrink-0" />
-        : <XCircleIcon className="w-4 h-4 text-red-400 flex-shrink-0" />}
+        ? <CheckCircleIcon className="w-4 h-4 text-green-700 flex-shrink-0" />
+        : <XCircleIcon className="w-4 h-4 text-red-700 flex-shrink-0" />}
       <span className="font-mono text-[var(--color-text-primary)]">{stamp}</span>
-      <span className={submission.isCorrect ? 'text-green-400' : 'text-red-400'}>
+      <span className={submission.isCorrect ? 'text-green-700' : 'text-red-700'}>
         {submission.isCorrect ? '合格' : '不合格'}
       </span>
     </li>

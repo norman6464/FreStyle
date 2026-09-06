@@ -11,7 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -24,10 +24,10 @@ import (
 // （routes_knowledge_base.go の registerKnowledgeBasePublicRoutes）。
 type KnowledgeBaseShareLinkHandler struct {
 	*kbPermissionGate
-	issue  *usecase.IssueShareLinkUseCase
-	revoke *usecase.RevokeShareLinkUseCase
-	list   *usecase.ListPageShareLinksUseCase
-	verify *usecase.VerifyShareLinkUseCase
+	issue  *kb.IssueShareLinkUseCase
+	revoke *kb.RevokeShareLinkUseCase
+	list   *kb.ListPageShareLinksUseCase
+	verify *kb.VerifyShareLinkUseCase
 	// verifyAttempts はリンク 1 本あたりの検証試行の上限（kbShareLinkAttemptKey を参照）。
 	verifyAttempts *ratelimit.Limiter
 }
@@ -36,10 +36,10 @@ type KnowledgeBaseShareLinkHandler struct {
 // verifyAttempts はリンク 1 本あたりの検証試行を絞る limiter（VerifyShareLink だけが使う）。
 func NewKnowledgeBaseShareLinkHandler(
 	gate *kbPermissionGate,
-	issue *usecase.IssueShareLinkUseCase,
-	revoke *usecase.RevokeShareLinkUseCase,
-	list *usecase.ListPageShareLinksUseCase,
-	verify *usecase.VerifyShareLinkUseCase,
+	issue *kb.IssueShareLinkUseCase,
+	revoke *kb.RevokeShareLinkUseCase,
+	list *kb.ListPageShareLinksUseCase,
+	verify *kb.VerifyShareLinkUseCase,
 	verifyAttempts *ratelimit.Limiter,
 ) *KnowledgeBaseShareLinkHandler {
 	return &KnowledgeBaseShareLinkHandler{
@@ -165,7 +165,7 @@ func (h *KnowledgeBaseShareLinkHandler) ListShareLinks(c *gin.Context) {
 	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
-	links, err := h.list.Execute(c.Request.Context(), usecase.ListPageShareLinksInput{
+	links, err := h.list.Execute(c.Request.Context(), kb.ListPageShareLinksInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	})
@@ -196,7 +196,7 @@ func (h *KnowledgeBaseShareLinkHandler) IssueShareLink(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	out, err := h.issue.Execute(c.Request.Context(), usecase.IssueShareLinkInput{
+	out, err := h.issue.Execute(c.Request.Context(), kb.IssueShareLinkInput{
 		WorkspaceID:     scope.workspaceID,
 		PageID:          pageID,
 		Capability:      domain.Capability(req.Capability),
@@ -229,7 +229,7 @@ func (h *KnowledgeBaseShareLinkHandler) RevokeShareLink(c *gin.Context) {
 	// ものかをここで必ず確かめる。確かめないと、自分が admin のスペースのページ ID と
 	// 他スペースのリンク ID を組み合わせるだけで、他スペースの共有リンクを止められる
 	// （RevokeShareLinkUseCase はワークスペースとリンク ID しか見ない）。
-	links, err := h.list.Execute(c.Request.Context(), usecase.ListPageShareLinksInput{
+	links, err := h.list.Execute(c.Request.Context(), kb.ListPageShareLinksInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	})
@@ -249,7 +249,7 @@ func (h *KnowledgeBaseShareLinkHandler) RevokeShareLink(c *gin.Context) {
 		respondKbPermissionDenied(c)
 		return
 	}
-	if err := h.revoke.Execute(c.Request.Context(), usecase.RevokeShareLinkInput{
+	if err := h.revoke.Execute(c.Request.Context(), kb.RevokeShareLinkInput{
 		WorkspaceID: scope.workspaceID,
 		ShareLinkID: shareLinkID,
 	}); err != nil {
@@ -275,7 +275,7 @@ func (h *KnowledgeBaseShareLinkHandler) VerifyShareLink(c *gin.Context) {
 		middleware.RespondRateLimited(c)
 		return
 	}
-	link, err := h.verify.Execute(c.Request.Context(), usecase.VerifyShareLinkInput{
+	link, err := h.verify.Execute(c.Request.Context(), kb.VerifyShareLinkInput{
 		Token:    req.Token,
 		Password: req.Password,
 	})
@@ -301,7 +301,7 @@ func (h *KnowledgeBaseShareLinkHandler) VerifyShareLink(c *gin.Context) {
 // respondKbShareLinkIssueErr は発行時のエラーを応答へ落とす。
 // 期限が過去・ケイパビリティが未知は入力の誤りなので 400（ここへ来る相手は admin）。
 func respondKbShareLinkIssueErr(c *gin.Context, err error) {
-	if errors.Is(err, usecase.ErrInvalidCapability) {
+	if errors.Is(err, kb.ErrInvalidCapability) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
@@ -328,13 +328,13 @@ func respondKbShareLinkVerifyErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, repository.ErrShareLinkNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
-	case errors.Is(err, usecase.ErrShareLinkRevoked):
+	case errors.Is(err, kb.ErrShareLinkRevoked):
 		c.JSON(http.StatusGone, errorResponse{Error: "share_link_revoked"})
-	case errors.Is(err, usecase.ErrShareLinkExpired):
+	case errors.Is(err, kb.ErrShareLinkExpired):
 		c.JSON(http.StatusGone, errorResponse{Error: "share_link_expired"})
-	case errors.Is(err, usecase.ErrShareLinkPasswordRequired):
+	case errors.Is(err, kb.ErrShareLinkPasswordRequired):
 		c.JSON(http.StatusUnauthorized, errorResponse{Error: "password_required"})
-	case errors.Is(err, usecase.ErrShareLinkPasswordMismatch):
+	case errors.Is(err, kb.ErrShareLinkPasswordMismatch):
 		c.JSON(http.StatusUnauthorized, errorResponse{Error: "password_mismatch"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})

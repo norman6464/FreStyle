@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -21,30 +21,30 @@ import (
 // 一覧と作成は URL に slug を持たず middleware.KnowledgeBaseWorkspace を通れない
 // （通したら「まだ所属していない・まだ存在しない」ワークスペースを扱えない）。
 type KnowledgeBaseWorkspaceHandler struct {
-	listWorkspaces  *usecase.ListMemberWorkspacesUseCase
-	joinCompany     *usecase.JoinCompanyWorkspaceUseCase
-	createWorkspace *usecase.CreateWorkspaceUseCase
-	deleteWorkspace *usecase.DeleteWorkspaceUseCase
-	checkWorkspace  *usecase.CheckWorkspacePermissionUseCase
-	createSpace     *usecase.CreateSpaceUseCase
-	listSpaces      *usecase.ListViewableSpacesUseCase
-	checkSpace      *usecase.CheckSpacePermissionUseCase
-	renameSpace     *usecase.RenameSpaceUseCase
-	searchPages     *usecase.SearchViewablePagesUseCase
+	listWorkspaces  *kb.ListMemberWorkspacesUseCase
+	joinCompany     *kb.JoinCompanyWorkspaceUseCase
+	createWorkspace *kb.CreateWorkspaceUseCase
+	deleteWorkspace *kb.DeleteWorkspaceUseCase
+	checkWorkspace  *kb.CheckWorkspacePermissionUseCase
+	createSpace     *kb.CreateSpaceUseCase
+	listSpaces      *kb.ListViewableSpacesUseCase
+	checkSpace      *kb.CheckSpacePermissionUseCase
+	renameSpace     *kb.RenameSpaceUseCase
+	searchPages     *kb.SearchViewablePagesUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
 func NewKnowledgeBaseWorkspaceHandler(
-	listWorkspaces *usecase.ListMemberWorkspacesUseCase,
-	joinCompany *usecase.JoinCompanyWorkspaceUseCase,
-	createWorkspace *usecase.CreateWorkspaceUseCase,
-	deleteWorkspace *usecase.DeleteWorkspaceUseCase,
-	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
-	createSpace *usecase.CreateSpaceUseCase,
-	listSpaces *usecase.ListViewableSpacesUseCase,
-	checkSpace *usecase.CheckSpacePermissionUseCase,
-	renameSpace *usecase.RenameSpaceUseCase,
-	searchPages *usecase.SearchViewablePagesUseCase,
+	listWorkspaces *kb.ListMemberWorkspacesUseCase,
+	joinCompany *kb.JoinCompanyWorkspaceUseCase,
+	createWorkspace *kb.CreateWorkspaceUseCase,
+	deleteWorkspace *kb.DeleteWorkspaceUseCase,
+	checkWorkspace *kb.CheckWorkspacePermissionUseCase,
+	createSpace *kb.CreateSpaceUseCase,
+	listSpaces *kb.ListViewableSpacesUseCase,
+	checkSpace *kb.CheckSpacePermissionUseCase,
+	renameSpace *kb.RenameSpaceUseCase,
+	searchPages *kb.SearchViewablePagesUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:  listWorkspaces,
@@ -108,13 +108,13 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 	// 会社に属さないユーザー（運営管理者など）は入れる先が無いだけなので、
 	// ErrWorkspaceNotFound は一覧の失敗にしない。それ以外の失敗は握り潰さず 500 にする
 	// （所属を用意できていないのに空の一覧を返すと「会社のページが無い」に見える）。
-	if _, err := h.joinCompany.Execute(c.Request.Context(), usecase.JoinCompanyWorkspaceInput{
+	if _, err := h.joinCompany.Execute(c.Request.Context(), kb.JoinCompanyWorkspaceInput{
 		UserID: uid,
 	}); err != nil && !errors.Is(err, repository.ErrWorkspaceNotFound) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	workspaces, err := h.listWorkspaces.Execute(c.Request.Context(), usecase.ListMemberWorkspacesInput{UserID: uid})
+	workspaces, err := h.listWorkspaces.Execute(c.Request.Context(), kb.ListMemberWorkspacesInput{UserID: uid})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)
 		return
@@ -146,7 +146,7 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	ws, err := h.createWorkspace.Execute(c.Request.Context(), usecase.CreateWorkspaceInput{
+	ws, err := h.createWorkspace.Execute(c.Request.Context(), kb.CreateWorkspaceInput{
 		Slug:        req.Slug,
 		Name:        req.Name,
 		OwnerUserID: uid,
@@ -189,7 +189,7 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 	}
 	// スペースごとに権限を引くと N+1 になるので、一覧はまとめて 1 回で解決する
 	// （ページの木を返す Tree と同じ作り）。
-	spaces, err := h.listSpaces.Execute(c.Request.Context(), usecase.ListViewableSpacesInput{
+	spaces, err := h.listSpaces.Execute(c.Request.Context(), kb.ListViewableSpacesInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
 	})
@@ -229,7 +229,7 @@ func (h *KnowledgeBaseWorkspaceHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
-	perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
+	perm, err := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
 	})
@@ -241,7 +241,7 @@ func (h *KnowledgeBaseWorkspaceHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return
 	}
-	if err := h.deleteWorkspace.Execute(c.Request.Context(), usecase.DeleteWorkspaceInput{
+	if err := h.deleteWorkspace.Execute(c.Request.Context(), kb.DeleteWorkspaceInput{
 		WorkspaceID: scope.workspaceID,
 	}); err != nil {
 		respondKnowledgeBaseErr(c, err)
@@ -287,7 +287,7 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 	// admin だけ。プライベートは自分の区画が増えるだけ（他人の見えるものは変わらない）
 	// なので、メンバーなら誰でも作れる。所属は middleware が確かめ済み。
 	if req.Visibility != string(domain.SpaceVisibilityPrivate) {
-		perm, err := h.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
+		perm, err := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
 			WorkspaceID: scope.workspaceID,
 			UserID:      scope.userID,
 		})
@@ -302,7 +302,7 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 			return
 		}
 	}
-	space, err := h.createSpace.Execute(c.Request.Context(), usecase.CreateSpaceInput{
+	space, err := h.createSpace.Execute(c.Request.Context(), kb.CreateSpaceInput{
 		WorkspaceID:   scope.workspaceID,
 		Key:           req.Key,
 		Name:          req.Name,
@@ -327,7 +327,7 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 		return
 	}
 	spaceID := c.Param("spaceId")
-	perm, err := h.checkSpace.Execute(c.Request.Context(), usecase.CheckSpacePermissionInput{
+	perm, err := h.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		UserID:      scope.userID,
@@ -352,7 +352,7 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	space, err := h.renameSpace.Execute(c.Request.Context(), usecase.RenameSpaceInput{
+	space, err := h.renameSpace.Execute(c.Request.Context(), kb.RenameSpaceInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		Name:        req.Name,
@@ -383,7 +383,7 @@ func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 			limit = n
 		}
 	}
-	pages, err := h.searchPages.Execute(c.Request.Context(), usecase.SearchViewablePagesInput{
+	pages, err := h.searchPages.Execute(c.Request.Context(), kb.SearchViewablePagesInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
 		Query:       q,

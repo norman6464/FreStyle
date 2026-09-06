@@ -12,7 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,8 +219,8 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 		assert.Empty(t, rows)
 
 		// 呼び出し側は 0 行を「許可には倒さない」と決めているので false になる。
-		ok, err := usecase.NewCanEditPageSubtreeUseCase(f.perm).Execute(ctx,
-			usecase.CanEditPageSubtreeInput{WorkspaceID: f.ws, PageID: f.pageID, UserID: wrappedUserID()})
+		ok, err := kb.NewCanEditPageSubtreeUseCase(f.perm).Execute(ctx,
+			kb.CanEditPageSubtreeInput{WorkspaceID: f.ws, PageID: f.pageID, UserID: wrappedUserID()})
 		require.NoError(t, err)
 		assert.False(t, ok)
 	})

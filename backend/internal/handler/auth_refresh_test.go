@@ -12,7 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 )
 
 // newRefreshHandler は token endpoint を模したサーバに向けた AuthHandler を返す。
@@ -38,7 +38,7 @@ func newRefreshHandler(t *testing.T, idp *testIdP, users *fakeUserRepo, respond 
 		tokens: oidc.NewTokenExchanger(oidc.ExchangerConfig{
 			ClientID: cfg.ClientID, TokenURI: cfg.TokenURI,
 		}),
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
+		upsertUser: user.NewUpsertUserFromIDTokenUseCase(
 			users, fakeOidcIdentityRepo{}, fakeTxManager{},
 		),
 	}

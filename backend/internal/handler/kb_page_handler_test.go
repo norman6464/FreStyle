@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1199,22 +1199,22 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 	pages := newKbFakePages()
 	perms := newKbFakePerms(pages, kbCanEdit)
 	h := NewKnowledgeBasePageHandler(
-		usecase.NewCheckPagePermissionUseCase(perms),
-		usecase.NewResolvePageLocationUseCase(pages),
-		usecase.NewCheckSpacePermissionUseCase(perms),
-		usecase.NewCanEditPageSubtreeUseCase(perms),
-		usecase.NewListViewablePagesUseCase(perms),
-		usecase.NewGetPageUseCase(pages),
-		usecase.NewFindPageUseCase(pages),
-		usecase.NewCreatePageUseCase(pages),
-		usecase.NewRenamePageUseCase(pages),
-		usecase.NewMovePageUseCase(pages),
-		usecase.NewArchivePageUseCase(pages),
-		usecase.NewUnarchivePageUseCase(pages),
-		usecase.NewReplacePageBlocksUseCase(pages),
-		usecase.NewResolvePageRefTitlesUseCase(perms),
-		usecase.NewListViewableAncestorsUseCase(pages, perms),
-		usecase.NewDeletePageUseCase(pages),
+		kb.NewCheckPagePermissionUseCase(perms),
+		kb.NewResolvePageLocationUseCase(pages),
+		kb.NewCheckSpacePermissionUseCase(perms),
+		kb.NewCanEditPageSubtreeUseCase(perms),
+		kb.NewListViewablePagesUseCase(perms),
+		kb.NewGetPageUseCase(pages),
+		kb.NewFindPageUseCase(pages),
+		kb.NewCreatePageUseCase(pages),
+		kb.NewRenamePageUseCase(pages),
+		kb.NewMovePageUseCase(pages),
+		kb.NewArchivePageUseCase(pages),
+		kb.NewUnarchivePageUseCase(pages),
+		kb.NewReplacePageBlocksUseCase(pages),
+		kb.NewResolvePageRefTitlesUseCase(perms),
+		kb.NewListViewableAncestorsUseCase(pages, perms),
+		kb.NewDeletePageUseCase(pages),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

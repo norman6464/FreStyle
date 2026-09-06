@@ -3,7 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/notification"
 )
 
 // registerSocialRoutes は通知の REST エンドポイントを登録する。
@@ -11,10 +11,10 @@ import (
 func registerSocialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	notificationRepo := persistence.NewNotificationRepository(deps.db)
 	notificationHandler := NewNotificationHandler(
-		usecase.NewListNotificationsUseCase(notificationRepo),
-		usecase.NewMarkNotificationReadUseCase(notificationRepo),
-		usecase.NewMarkAllNotificationsReadUseCase(notificationRepo),
-		usecase.NewCountUnreadNotificationsUseCase(notificationRepo),
+		notification.NewListNotificationsUseCase(notificationRepo),
+		notification.NewMarkNotificationReadUseCase(notificationRepo),
+		notification.NewMarkAllNotificationsReadUseCase(notificationRepo),
+		notification.NewCountUnreadNotificationsUseCase(notificationRepo),
 	)
 	g.GET("/notifications", notificationHandler.List)
 	g.GET("/notifications/unread-count", notificationHandler.UnreadCount)

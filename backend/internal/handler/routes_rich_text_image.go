@@ -7,14 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/richtextimage"
 )
 
 // registerRichTextImageRoutes はリッチテキスト画像 presigned URL のエンドポイントを登録する。
 func registerRichTextImageRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	richTextImageHandler := NewRichTextImageHandler(
-		usecase.NewIssueRichTextImageUploadURLUseCase(newRichTextImagePresignerOrFallback(deps)),
+		richtextimage.NewIssueRichTextImageUploadURLUseCase(newRichTextImagePresignerOrFallback(deps)),
 	)
 	g.POST("/rich-text/images/upload-url", richTextImageHandler.IssueUploadURL)
 }

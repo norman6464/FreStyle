@@ -8,23 +8,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/exercise"
 	repository "github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // MasterExerciseHandler は運営マスタ演習問題の一覧 / 詳細を返す（詳細は slug ベース URL）。
 type MasterExerciseHandler struct {
-	listExercises   *usecase.ListMasterExercisesUseCase
-	listWithStatus  *usecase.ListMasterExercisesWithStatusUseCase
-	getExercise     *usecase.GetMasterExerciseUseCase
-	languageSummary *usecase.GetExerciseLanguageSummaryUseCase
+	listExercises   *exercise.ListMasterExercisesUseCase
+	listWithStatus  *exercise.ListMasterExercisesWithStatusUseCase
+	getExercise     *exercise.GetMasterExerciseUseCase
+	languageSummary *exercise.GetExerciseLanguageSummaryUseCase
 }
 
 func NewMasterExerciseHandler(
-	list *usecase.ListMasterExercisesUseCase,
-	listWithStatus *usecase.ListMasterExercisesWithStatusUseCase,
-	get *usecase.GetMasterExerciseUseCase,
-	languageSummary *usecase.GetExerciseLanguageSummaryUseCase,
+	list *exercise.ListMasterExercisesUseCase,
+	listWithStatus *exercise.ListMasterExercisesWithStatusUseCase,
+	get *exercise.GetMasterExerciseUseCase,
+	languageSummary *exercise.GetExerciseLanguageSummaryUseCase,
 ) *MasterExerciseHandler {
 	return &MasterExerciseHandler{
 		listExercises:   list,
@@ -111,7 +111,7 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 	}
 
 	// limit+1 件取得して hasNext を判定する（COUNT クエリを別途発行しない）。
-	rows, err := h.listWithStatus.Execute(c.Request.Context(), usecase.ListMasterExercisesWithStatusInput{
+	rows, err := h.listWithStatus.Execute(c.Request.Context(), exercise.ListMasterExercisesWithStatusInput{
 		UserID:   uid,
 		Language: language,
 		Offset:   offset,

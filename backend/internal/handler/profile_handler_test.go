@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -110,8 +110,8 @@ func doProfileUpdate(t *testing.T, body string) (*httptest.ResponseRecorder, *st
 	users := &stubProfileUserRepo{foundUserName: "既存の名前"}
 	profiles := &stubProfileRepo{}
 	h := NewProfileHandler(
-		usecase.NewGetProfileUseCase(profiles),
-		usecase.NewUpdateProfileUseCase(profiles),
+		profile.NewGetProfileUseCase(profiles),
+		profile.NewUpdateProfileUseCase(profiles),
 		users,
 	)
 	w := httptest.NewRecorder()

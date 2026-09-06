@@ -8,7 +8,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/health"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -83,6 +83,6 @@ func buildJWTVerify(v *oidc.Verifier) middleware.VerifyFunc {
 
 // registerHealthRoutes は認証不要のヘルスチェック (/api/v2/health) を登録する。
 func registerHealthRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	h := NewHealthHandler(usecase.NewCheckHealthUseCase(persistence.NewHealthRepository(deps.db)))
+	h := NewHealthHandler(health.NewCheckHealthUseCase(persistence.NewHealthRepository(deps.db)))
 	g.GET("/health", h.Get)
 }

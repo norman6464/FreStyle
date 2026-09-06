@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/health"
 )
 
 type fakeHealthRepo struct{ err error }
@@ -19,7 +19,7 @@ func (f fakeHealthRepo) PingDB(context.Context) error { return f.err }
 
 func runHealthGet(t *testing.T, repoErr error) *httptest.ResponseRecorder {
 	t.Helper()
-	h := NewHealthHandler(usecase.NewCheckHealthUseCase(fakeHealthRepo{err: repoErr}))
+	h := NewHealthHandler(health.NewCheckHealthUseCase(fakeHealthRepo{err: repoErr}))
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/health", nil)

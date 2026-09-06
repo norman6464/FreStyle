@@ -12,7 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,8 +140,8 @@ func (f kbPermFixture) makePrivate(t *testing.T, spaceID string) {
 // 1 ページずつの解決と答えが割れないことを確かめるのに使う。
 func (f kbPermFixture) viewablePageIDs(ctx context.Context, t *testing.T, spaceID string, userID uint64) []string {
 	t.Helper()
-	out, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
-		usecase.ListViewablePagesInput{WorkspaceID: f.ws, SpaceID: spaceID, UserID: userID})
+	out, err := kb.NewListViewablePagesUseCase(f.perm).Execute(ctx,
+		kb.ListViewablePagesInput{WorkspaceID: f.ws, SpaceID: spaceID, UserID: userID})
 	require.NoError(t, err)
 	return pageIDs(out.Pages)
 }
@@ -242,8 +242,8 @@ func TestKnowledgeBaseArchivedViewFacts_Integration(t *testing.T) {
 	// listFor はその一覧に出るページ ID を返す（現役／アーカイブ済みを切り替える）。
 	listFor := func(f kbPermFixture, t *testing.T, userID uint64, archived bool) []string {
 		t.Helper()
-		out, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
-			usecase.ListViewablePagesInput{
+		out, err := kb.NewListViewablePagesUseCase(f.perm).Execute(ctx,
+			kb.ListViewablePagesInput{
 				WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: userID, Archived: archived,
 			})
 		require.NoError(t, err)
@@ -287,8 +287,8 @@ func TestKnowledgeBaseArchivedViewFacts_Integration(t *testing.T) {
 		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
 		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, root.ID))
 
-		out, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(ctx,
-			usecase.ListViewablePagesInput{
+		out, err := kb.NewListViewablePagesUseCase(f.perm).Execute(ctx,
+			kb.ListViewablePagesInput{
 				WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.alice, Archived: true,
 			})
 		require.NoError(t, err)
@@ -766,8 +766,8 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.Empty(t, f.viewablePageIDs(ctx, t, f.spaceA, f.bob))
 
 		// 退職者を外す（付与が張られていた本人）。
-		require.NoError(t, usecase.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
-			usecase.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+		require.NoError(t, kb.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
+			kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
 		// 部署の統廃合でグループを消す（付与が張られていた主体）。
 		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, group.ID))
 
@@ -809,8 +809,8 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		f.grantPage(ctx, t, child.ID, bob.ID, domain.GrantRoleViewer)
 		require.ElementsMatch(t, []string{child.ID}, f.viewablePageIDs(ctx, t, f.spaceA, f.bob))
 
-		require.NoError(t, usecase.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
-			usecase.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+		require.NoError(t, kb.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
+			kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
 
 		assert.False(t, f.permFor(ctx, t, root.ID, f.bob).CanView, "空になった段は全開にならない")
 		assert.False(t, f.permFor(ctx, t, sibling.ID, f.bob).CanView, "root 直下の別の枝も閉じたまま")
@@ -879,7 +879,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		f.grantSpace(ctx, t, f.spaceA, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleEditor)
 		require.ElementsMatch(t, []string{root.ID, leaving.ID}, f.viewablePageIDs(ctx, t, f.spaceA, f.alice))
 
-		require.NoError(t, f.pageUC.archive.Execute(ctx, usecase.ArchivePageInput{
+		require.NoError(t, f.pageUC.archive.Execute(ctx, kb.ArchivePageInput{
 			WorkspaceID: f.ws, PageID: leaving.ID,
 		}))
 		assert.ElementsMatch(t, []string{root.ID}, f.viewablePageIDs(ctx, t, f.spaceA, f.alice),
@@ -904,7 +904,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 		// 付与を持つページの祖先を、別スペースのルートへ動かす（正規の操作）。
 		// 移動後は「スペース A の全員」が対象外になり、行だけが残って効かなくなる。
-		_, err := f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err := f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: parent.ID, NewSpaceID: f.spaceB,
 		})
 		require.Error(t, err, "見えている行が黙って効かなくなる移動は失敗させる")
@@ -917,14 +917,14 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 		// 役割が違っても同じ扱い（強い付与だけ止める、という非対称を残さない）。
 		f.grantPage(ctx, t, shared.ID, everyoneA.ID, domain.GrantRoleViewer)
-		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err = f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: parent.ID, NewSpaceID: f.spaceB,
 		})
 		require.ErrorIs(t, err, repository.ErrPageMoveVoidsSpaceGrant, "viewer でも同じ扱い")
 
 		// 付与を先に整理すれば移せる（止めるのは「意味を失う付与が残っているとき」だけ）。
 		require.NoError(t, f.perm.DeletePageGrant(ctx, f.ws, shared.ID, everyoneA.ID))
-		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err = f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: parent.ID, NewSpaceID: f.spaceB,
 		})
 		require.NoError(t, err)
@@ -941,7 +941,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		newParent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "別の親")
 		stayingChild := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &staying.ID, "全員に配った子")
 		f.grantPage(ctx, t, stayingChild.ID, f.everyoneOf(ctx, t, f.spaceA).ID, domain.GrantRoleViewer)
-		_, err := f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err := f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: staying.ID, NewParentID: &newParent.ID,
 		})
 		require.NoError(t, err, "同一スペース内の移動は付与の意味を変えない")
@@ -950,7 +950,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		leaving := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "移すページ")
 		leavingChild := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &leaving.ID, "移す子")
 		f.grantPage(ctx, t, leavingChild.ID, f.everyoneOf(ctx, t, f.spaceB).ID, domain.GrantRoleViewer)
-		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err = f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: leaving.ID, NewSpaceID: f.spaceB,
 		})
 		require.NoError(t, err, "移動先スペース宛ての付与は移動後に効くので止めない")
@@ -1011,14 +1011,14 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 		assert.True(t, f.permFor(ctx, t, moving.ID, f.bob).CanView, "スペース A では bob も見える")
 
-		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err = f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: moving.ID, NewSpaceID: f.spaceB,
 		})
 		require.NoError(t, err)
 		assert.False(t, f.permFor(ctx, t, moving.ID, f.bob).CanView, "private のスペースへ移すと見えなくなる")
 		assert.True(t, f.permFor(ctx, t, moving.ID, f.alice).CanView, "そのスペースへ張られた本人には見える")
 
-		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+		_, err = f.pageUC.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: f.ws, PageID: moving.ID, NewSpaceID: f.spaceA,
 		})
 		require.NoError(t, err)
@@ -1040,14 +1040,14 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		f.grantPage(ctx, t, open.ID, alice.ID, domain.GrantRoleViewer)
 		f.grantPage(ctx, t, secret.ID, alice.ID, domain.GrantRoleViewer)
 
-		listUC := usecase.NewListViewablePagesUseCase(f.perm)
-		bobPages, err := listUC.Execute(ctx, usecase.ListViewablePagesInput{
+		listUC := kb.NewListViewablePagesUseCase(f.perm)
+		bobPages, err := listUC.Execute(ctx, kb.ListViewablePagesInput{
 			WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.bob,
 		})
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{open.ID}, pageIDs(bobPages.Pages), "秘密の木は丸ごと落ちる")
 
-		alicePages, err := listUC.Execute(ctx, usecase.ListViewablePagesInput{
+		alicePages, err := listUC.Execute(ctx, kb.ListViewablePagesInput{
 			WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1055,7 +1055,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 			[]string{open.ID, secret.ID, secretChild.ID}, pageIDs(alicePages.Pages),
 			"付与された人には子孫まで見える")
 
-		carolPages, err := listUC.Execute(ctx, usecase.ListViewablePagesInput{
+		carolPages, err := listUC.Execute(ctx, kb.ListViewablePagesInput{
 			WorkspaceID: f.ws, SpaceID: f.spaceA, UserID: f.carol,
 		})
 		require.NoError(t, err)
@@ -1117,10 +1117,10 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, f.permFor(ctx, t, page.ID, f.alice).CanEdit)
 
-		removeUC := usecase.NewRemoveWorkspaceMemberUseCase(f.perm)
-		require.NoError(t, removeUC.Execute(ctx, usecase.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+		removeUC := kb.NewRemoveWorkspaceMemberUseCase(f.perm)
+		require.NoError(t, removeUC.Execute(ctx, kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.alice).CanView, "所属を外すと権限も消える")
-		require.NoError(t, removeUC.Execute(ctx, usecase.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}),
+		require.NoError(t, removeUC.Execute(ctx, kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}),
 			"二度目は冪等に成功する")
 
 		require.ErrorIs(t, f.perm.DeletePrincipal(ctx, f.ws, alice.ID), repository.ErrPrincipalNotFound)
@@ -1134,8 +1134,8 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		bob, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.bob)
 		require.NoError(t, err)
 
-		grantWS := usecase.NewGrantWorkspaceRoleUseCase(f.perm)
-		_, err = grantWS.Execute(ctx, usecase.GrantWorkspaceRoleInput{
+		grantWS := kb.NewGrantWorkspaceRoleUseCase(f.perm)
+		_, err = grantWS.Execute(ctx, kb.GrantWorkspaceRoleInput{
 			WorkspaceID: f.ws, PrincipalID: alice.ID, Role: domain.GrantRoleAdmin,
 		})
 		require.NoError(t, err)
@@ -1145,69 +1145,69 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		assert.Equal(t, domain.GrantRoleAdmin, wsGrants[0].Role)
 
 		// 3 段目（ページ）。bob はここで初めて役割を得る。
-		grantPageUC := usecase.NewGrantPageRoleUseCase(f.perm)
-		_, err = grantPageUC.Execute(ctx, usecase.GrantPageRoleInput{
+		grantPageUC := kb.NewGrantPageRoleUseCase(f.perm)
+		_, err = grantPageUC.Execute(ctx, kb.GrantPageRoleInput{
 			WorkspaceID: f.ws, PageID: page.ID, PrincipalID: bob.ID, Role: domain.GrantRoleEditor,
 		})
 		require.NoError(t, err)
-		pageGrants, err := usecase.NewListPageGrantsUseCase(f.perm).Execute(ctx,
-			usecase.ListPageGrantsInput{WorkspaceID: f.ws, PageID: page.ID})
+		pageGrants, err := kb.NewListPageGrantsUseCase(f.perm).Execute(ctx,
+			kb.ListPageGrantsInput{WorkspaceID: f.ws, PageID: page.ID})
 		require.NoError(t, err)
 		require.Len(t, pageGrants, 1)
 		assert.Equal(t, domain.GrantRoleEditor, pageGrants[0].Role)
 		assert.True(t, f.permFor(ctx, t, page.ID, f.bob).CanEdit, "ページ付与で編集できる")
 		assert.False(t, f.permFor(ctx, t, page.ID, f.bob).CanManage, "editor では権限を変えられない")
 
-		require.NoError(t, usecase.NewRevokePageRoleUseCase(f.perm).Execute(ctx,
-			usecase.RevokePageRoleInput{WorkspaceID: f.ws, PageID: page.ID, PrincipalID: bob.ID}))
+		require.NoError(t, kb.NewRevokePageRoleUseCase(f.perm).Execute(ctx,
+			kb.RevokePageRoleInput{WorkspaceID: f.ws, PageID: page.ID, PrincipalID: bob.ID}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.bob).CanView, "剥がせば届かない")
 
 		// 取り消す前に別の admin を用意する（0 人になる取り消しは repository が断る）。
 		keepAdmin(ctx, t, f, f.carol)
-		require.NoError(t, usecase.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
-			usecase.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: alice.ID}))
+		require.NoError(t, kb.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
+			kb.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: alice.ID}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.alice).CanView)
 	})
 
 	t.Run("グループ操作のusecaseが権限に効く", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		bobPrincipal, err := usecase.NewAddWorkspaceMemberUseCase(f.perm).Execute(ctx,
-			usecase.AddWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.bob})
+		bobPrincipal, err := kb.NewAddWorkspaceMemberUseCase(f.perm).Execute(ctx,
+			kb.AddWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.bob})
 		require.NoError(t, err)
 		// メンバー追加は既定で editor を付ける。この試験は「グループ経由の権限」だけを
 		// 見たいので、既定の役割を外して素の状態（役割なしのメンバー）から始める。
-		require.NoError(t, usecase.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
-			usecase.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: bobPrincipal.ID}))
+		require.NoError(t, kb.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
+			kb.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: bobPrincipal.ID}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.bob).CanView, "役割を外した直後は見えない")
-		group, err := usecase.NewCreatePrincipalGroupUseCase(f.perm).Execute(ctx,
-			usecase.CreatePrincipalGroupInput{WorkspaceID: f.ws, Name: "開発"})
+		group, err := kb.NewCreatePrincipalGroupUseCase(f.perm).Execute(ctx,
+			kb.CreatePrincipalGroupInput{WorkspaceID: f.ws, Name: "開発"})
 		require.NoError(t, err)
-		_, err = usecase.NewGrantSpaceRoleUseCase(f.perm).Execute(ctx, usecase.GrantSpaceRoleInput{
+		_, err = kb.NewGrantSpaceRoleUseCase(f.perm).Execute(ctx, kb.GrantSpaceRoleInput{
 			WorkspaceID: f.ws, SpaceID: f.spaceA, PrincipalID: group.ID, Role: domain.GrantRoleEditor,
 		})
 		require.NoError(t, err)
 
-		addUC := usecase.NewAddGroupMemberUseCase(f.perm)
-		require.NoError(t, addUC.Execute(ctx, usecase.AddGroupMemberInput{
+		addUC := kb.NewAddGroupMemberUseCase(f.perm)
+		require.NoError(t, addUC.Execute(ctx, kb.AddGroupMemberInput{
 			WorkspaceID: f.ws, GroupPrincipalID: group.ID, MemberUserID: f.bob,
 		}))
-		require.NoError(t, addUC.Execute(ctx, usecase.AddGroupMemberInput{
+		require.NoError(t, addUC.Execute(ctx, kb.AddGroupMemberInput{
 			WorkspaceID: f.ws, GroupPrincipalID: group.ID, MemberUserID: f.bob,
 		}), "同じ人を二度加えても冪等")
 		assert.True(t, f.permFor(ctx, t, page.ID, f.bob).CanEdit)
 
-		removeUC := usecase.NewRemoveGroupMemberUseCase(f.perm)
-		require.NoError(t, removeUC.Execute(ctx, usecase.RemoveGroupMemberInput{
+		removeUC := kb.NewRemoveGroupMemberUseCase(f.perm)
+		require.NoError(t, removeUC.Execute(ctx, kb.RemoveGroupMemberInput{
 			WorkspaceID: f.ws, GroupPrincipalID: group.ID, MemberUserID: f.bob,
 		}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.bob).CanView)
 
 		// スペース全員の主体も usecase 経由で用意でき、二度呼んでも増えない。
-		everyoneUC := usecase.NewEnsureSpaceEveryonePrincipalUseCase(f.perm)
-		first, err := everyoneUC.Execute(ctx, usecase.EnsureSpaceEveryonePrincipalInput{WorkspaceID: f.ws, SpaceID: f.spaceA})
+		everyoneUC := kb.NewEnsureSpaceEveryonePrincipalUseCase(f.perm)
+		first, err := everyoneUC.Execute(ctx, kb.EnsureSpaceEveryonePrincipalInput{WorkspaceID: f.ws, SpaceID: f.spaceA})
 		require.NoError(t, err)
-		second, err := everyoneUC.Execute(ctx, usecase.EnsureSpaceEveryonePrincipalInput{WorkspaceID: f.ws, SpaceID: f.spaceA})
+		second, err := everyoneUC.Execute(ctx, kb.EnsureSpaceEveryonePrincipalInput{WorkspaceID: f.ws, SpaceID: f.spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, first.ID, second.ID)
 	})
@@ -1310,23 +1310,23 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "子")
 		outside := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象外")
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
 
-		verified, err := usecase.NewVerifyShareLinkUseCase(f.shareLinks).
-			Execute(ctx, usecase.VerifyShareLinkInput{Token: issued.Token})
+		verified, err := kb.NewVerifyShareLinkUseCase(f.shareLinks).
+			Execute(ctx, kb.VerifyShareLinkInput{Token: issued.Token})
 		require.NoError(t, err)
 
-		checkUC := usecase.NewCheckShareLinkPermissionUseCase(f.perm, f.pages)
-		got, err := checkUC.Execute(ctx, usecase.CheckShareLinkPermissionInput{Link: verified, PageID: child.ID})
+		checkUC := kb.NewCheckShareLinkPermissionUseCase(f.perm, f.pages)
+		got, err := checkUC.Execute(ctx, kb.CheckShareLinkPermissionInput{Link: verified, PageID: child.ID})
 		require.NoError(t, err)
 		assert.True(t, got.CanView)
 		assert.False(t, got.CanEdit, "閲覧のリンクでは編集できない")
 
-		_, err = checkUC.Execute(ctx, usecase.CheckShareLinkPermissionInput{Link: verified, PageID: outside.ID})
-		require.ErrorIs(t, err, usecase.ErrShareLinkPageOutOfScope, "リンクの木の外は開けない")
+		_, err = checkUC.Execute(ctx, kb.CheckShareLinkPermissionInput{Link: verified, PageID: outside.ID})
+		require.ErrorIs(t, err, kb.ErrShareLinkPageOutOfScope, "リンクの木の外は開けない")
 	})
 
 	t.Run("リンクの主体に付与を張っても権限は変えられない", func(t *testing.T) {
@@ -1339,7 +1339,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ページ")
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1347,12 +1347,12 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		// リンクの主体へ admin を張る（本来やるべきではない操作だが、いまは通ってしまう）。
 		f.grantPage(ctx, t, page.ID, issued.Link.PrincipalID, domain.GrantRoleAdmin)
 
-		verified, err := usecase.NewVerifyShareLinkUseCase(f.shareLinks).
-			Execute(ctx, usecase.VerifyShareLinkInput{Token: issued.Token})
+		verified, err := kb.NewVerifyShareLinkUseCase(f.shareLinks).
+			Execute(ctx, kb.VerifyShareLinkInput{Token: issued.Token})
 		require.NoError(t, err)
 
-		got, err := usecase.NewCheckShareLinkPermissionUseCase(f.perm, f.pages).
-			Execute(ctx, usecase.CheckShareLinkPermissionInput{Link: verified, PageID: page.ID})
+		got, err := kb.NewCheckShareLinkPermissionUseCase(f.perm, f.pages).
+			Execute(ctx, kb.CheckShareLinkPermissionInput{Link: verified, PageID: page.ID})
 		require.NoError(t, err)
 
 		assert.False(t, got.CanManage,
@@ -1364,7 +1364,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("平文トークンはDBに残らない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView,
 			Password: "s3cret", CreatedByUserID: f.alice,
 		})
@@ -1387,38 +1387,38 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("期限切れと失効は開けない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issueUC := usecase.NewIssueShareLinkUseCase(f.shareLinks)
-		verifyUC := usecase.NewVerifyShareLinkUseCase(f.shareLinks)
+		issueUC := kb.NewIssueShareLinkUseCase(f.shareLinks)
+		verifyUC := kb.NewVerifyShareLinkUseCase(f.shareLinks)
 
-		expiring, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
+		expiring, err := issueUC.Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView,
 			ExpiresAt: ptrTime(time.Now().Add(time.Hour)), CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
-		_, err = verifyUC.Execute(ctx, usecase.VerifyShareLinkInput{Token: expiring.Token})
+		_, err = verifyUC.Execute(ctx, kb.VerifyShareLinkInput{Token: expiring.Token})
 		require.NoError(t, err, "期限内は開ける")
 
 		// 期限を過去へ倒す（時間を待たずに期限切れを再現する）。
 		_, err = f.db.Exec(`UPDATE share_links SET expires_at = now() - interval '1 minute' WHERE id = $1`, expiring.Link.ID)
 		require.NoError(t, err)
-		_, err = verifyUC.Execute(ctx, usecase.VerifyShareLinkInput{Token: expiring.Token})
-		require.ErrorIs(t, err, usecase.ErrShareLinkExpired)
+		_, err = verifyUC.Execute(ctx, kb.VerifyShareLinkInput{Token: expiring.Token})
+		require.ErrorIs(t, err, kb.ErrShareLinkExpired)
 
-		revoking, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
+		revoking, err := issueUC.Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
-		revokeUC := usecase.NewRevokeShareLinkUseCase(f.shareLinks)
-		require.NoError(t, revokeUC.Execute(ctx, usecase.RevokeShareLinkInput{
+		revokeUC := kb.NewRevokeShareLinkUseCase(f.shareLinks)
+		require.NoError(t, revokeUC.Execute(ctx, kb.RevokeShareLinkInput{
 			WorkspaceID: f.ws, ShareLinkID: revoking.Link.ID,
 		}))
-		_, err = verifyUC.Execute(ctx, usecase.VerifyShareLinkInput{Token: revoking.Token})
-		require.ErrorIs(t, err, usecase.ErrShareLinkRevoked)
+		_, err = verifyUC.Execute(ctx, kb.VerifyShareLinkInput{Token: revoking.Token})
+		require.ErrorIs(t, err, kb.ErrShareLinkRevoked)
 
-		require.NoError(t, revokeUC.Execute(ctx, usecase.RevokeShareLinkInput{
+		require.NoError(t, revokeUC.Execute(ctx, kb.RevokeShareLinkInput{
 			WorkspaceID: f.ws, ShareLinkID: revoking.Link.ID,
 		}), "二度目の失効は冪等に成功する")
-		require.ErrorIs(t, revokeUC.Execute(ctx, usecase.RevokeShareLinkInput{
+		require.ErrorIs(t, revokeUC.Execute(ctx, kb.RevokeShareLinkInput{
 			WorkspaceID: f.otherWS, ShareLinkID: revoking.Link.ID,
 		}), repository.ErrShareLinkNotFound, "別テナントからは失効させられない")
 	})
@@ -1431,7 +1431,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "子")
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1463,7 +1463,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		_, err = f.perm.UpsertSpaceGrant(ctx, f.ws, f.spaceA, everyone.ID, domain.GrantRoleAdmin)
 		require.NoError(t, err)
 
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1477,7 +1477,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("リンクを消すと主体も消える", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1496,17 +1496,17 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	t.Run("ページの共有リンク一覧は失効済みも返す", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
-		issueUC := usecase.NewIssueShareLinkUseCase(f.shareLinks)
-		alive, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
+		issueUC := kb.NewIssueShareLinkUseCase(f.shareLinks)
+		alive, err := issueUC.Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
-		dead, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
+		dead, err := issueUC.Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityEdit, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
-		require.NoError(t, usecase.NewRevokeShareLinkUseCase(f.shareLinks).Execute(ctx,
-			usecase.RevokeShareLinkInput{WorkspaceID: f.ws, ShareLinkID: dead.Link.ID}))
+		require.NoError(t, kb.NewRevokeShareLinkUseCase(f.shareLinks).Execute(ctx,
+			kb.RevokeShareLinkInput{WorkspaceID: f.ws, ShareLinkID: dead.Link.ID}))
 
 		links, err := f.shareLinks.ListByPage(ctx, f.ws, page.ID)
 		require.NoError(t, err)
@@ -1523,7 +1523,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		other := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "別ページ")
-		issued, err := usecase.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, usecase.IssueShareLinkInput{
+		issued, err := kb.NewIssueShareLinkUseCase(f.shareLinks).Execute(ctx, kb.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
 		})
 		require.NoError(t, err)
@@ -1550,14 +1550,14 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 // トークンの検証から権限解決までを毎回通すので、未認証の来訪者が実際に辿る経路と同じになる。
 func shareLinkPermFunc(ctx context.Context, t *testing.T, f kbPermFixture) func(token, pageID string) domain.PagePermission {
 	t.Helper()
-	verifyUC := usecase.NewVerifyShareLinkUseCase(f.shareLinks)
-	checkUC := usecase.NewCheckShareLinkPermissionUseCase(f.perm, f.pages)
+	verifyUC := kb.NewVerifyShareLinkUseCase(f.shareLinks)
+	checkUC := kb.NewCheckShareLinkPermissionUseCase(f.perm, f.pages)
 	return func(token, pageID string) domain.PagePermission {
 		t.Helper()
-		link, err := verifyUC.Execute(ctx, usecase.VerifyShareLinkInput{Token: token})
+		link, err := verifyUC.Execute(ctx, kb.VerifyShareLinkInput{Token: token})
 		require.NoError(t, err)
 		got, err := checkUC.Execute(ctx,
-			usecase.CheckShareLinkPermissionInput{Link: link, PageID: pageID})
+			kb.CheckShareLinkPermissionInput{Link: link, PageID: pageID})
 		require.NoError(t, err)
 		return *got
 	}
@@ -1593,8 +1593,8 @@ func TestKnowledgeBaseSearchViewFacts_Integration(t *testing.T) {
 
 	searchFor := func(f kbPermFixture, t *testing.T, userID uint64, query string) []string {
 		t.Helper()
-		pages, err := usecase.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
-			usecase.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: userID, Query: query})
+		pages, err := kb.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
+			kb.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: userID, Query: query})
 		require.NoError(t, err)
 		return pageIDs(pages)
 	}

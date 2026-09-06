@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -30,14 +30,14 @@ const (
 // 他社のワークスペースの実在が分かってしまうため。
 //
 // 前提として、先に CurrentUser middleware が currentUserID を context に入れている必要がある。
-func KnowledgeBaseWorkspace(resolve *usecase.ResolveWorkspaceUseCase) gin.HandlerFunc {
+func KnowledgeBaseWorkspace(resolve *kb.ResolveWorkspaceUseCase) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		uid := CurrentUserIDOrZero(c)
 		if uid == 0 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		ws, err := resolve.Execute(c.Request.Context(), usecase.ResolveWorkspaceInput{
+		ws, err := resolve.Execute(c.Request.Context(), kb.ResolveWorkspaceInput{
 			Slug:   c.Param(ParamKnowledgeBaseWorkspaceSlug),
 			UserID: uid,
 		})

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/richtextimage"
 )
 
 type fakeRichTextImagePresigner struct {
@@ -20,7 +20,7 @@ func (f fakeRichTextImagePresigner) Generate(context.Context, uint64, string) (*
 }
 
 func newRichTextImageHandler(p repository.RichTextImagePresigner) *RichTextImageHandler {
-	return NewRichTextImageHandler(usecase.NewIssueRichTextImageUploadURLUseCase(p))
+	return NewRichTextImageHandler(richtextimage.NewIssueRichTextImageUploadURLUseCase(p))
 }
 
 func Test_リッチテキスト画像ハンドラ_アップロードURL発行(t *testing.T) {

@@ -1,0 +1,73 @@
+package profile
+
+import (
+	"context"
+	"errors"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+)
+
+// GetProfileUseCase は指定 user のプロフィールを返す。
+type GetProfileUseCase struct {
+	profiles repository.ProfileRepository
+}
+
+func NewGetProfileUseCase(p repository.ProfileRepository) *GetProfileUseCase {
+	return &GetProfileUseCase{profiles: p}
+}
+
+func (u *GetProfileUseCase) Execute(ctx context.Context, userID uint64) (*domain.Profile, error) {
+	if userID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	return u.profiles.FindByUserID(ctx, userID)
+}
+
+// UpdateProfileUseCase はプロフィールの任意フィールドを upsert する。
+type UpdateProfileUseCase struct {
+	profiles repository.ProfileRepository
+}
+
+func NewUpdateProfileUseCase(p repository.ProfileRepository) *UpdateProfileUseCase {
+	return &UpdateProfileUseCase{profiles: p}
+}
+
+type UpdateProfileInput struct {
+	UserID        uint64
+	Bio           string
+	AvatarURL     string
+	StatusMessage string
+}
+
+func (u *UpdateProfileUseCase) Execute(ctx context.Context, in UpdateProfileInput) (*domain.Profile, error) {
+	if in.UserID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	p := &domain.Profile{
+		UserID:        in.UserID,
+		Bio:           in.Bio,
+		AvatarURL:     in.AvatarURL,
+		StatusMessage: in.StatusMessage,
+	}
+	if err := u.profiles.Upsert(ctx, p); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// IssueProfileImageUploadURLUseCase は profile アイコン用 S3 PUT 署名付き URL を発行する。
+type IssueProfileImageUploadURLUseCase struct {
+	presigner repository.ProfileImagePresigner
+}
+
+func NewIssueProfileImageUploadURLUseCase(p repository.ProfileImagePresigner) *IssueProfileImageUploadURLUseCase {
+	return &IssueProfileImageUploadURLUseCase{presigner: p}
+}
+
+func (u *IssueProfileImageUploadURLUseCase) Execute(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
+	if userID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	return u.presigner.Generate(ctx, userID, fileName, contentType)
+}

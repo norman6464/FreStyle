@@ -5,15 +5,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/health"
 )
 
 // HealthHandler は /api/v2/health エンドポイントを提供する。
 type HealthHandler struct {
-	uc *usecase.CheckHealthUseCase
+	uc *health.CheckHealthUseCase
 }
 
-func NewHealthHandler(uc *usecase.CheckHealthUseCase) *HealthHandler {
+func NewHealthHandler(uc *health.CheckHealthUseCase) *HealthHandler {
 	return &HealthHandler{uc: uc}
 }
 

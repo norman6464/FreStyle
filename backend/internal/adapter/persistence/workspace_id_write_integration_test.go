@@ -37,7 +37,7 @@ func userWorkspaceID(t *testing.T, db *sql.DB, userID uint64) uuid.NullUUID {
 }
 
 // createUserWithOidcIdentity は users 行と identity をフィクスチャとして用意する。
-// usecase.UpsertUserFromIDTokenUseCase の新規作成経路と同じ2段（Create → EnsureIdentity）。
+// user.UpsertUserFromIDTokenUseCase の新規作成経路と同じ2段（Create → EnsureIdentity）。
 // ここではロールバックの検証はしないため、DoInTx で束ねずそのまま呼ぶ。
 func createUserWithOidcIdentity(ctx context.Context, t *testing.T, db *sql.DB, user *domain.User, provider, subject string) {
 	t.Helper()

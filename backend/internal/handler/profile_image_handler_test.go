@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -24,7 +24,7 @@ func (f fakeProfileImagePresigner) Generate(context.Context, uint64, string, str
 }
 
 func newProfileImageHandler(p repository.ProfileImagePresigner) *ProfileImageHandler {
-	return NewProfileImageHandler(usecase.NewIssueProfileImageUploadURLUseCase(p))
+	return NewProfileImageHandler(profile.NewIssueProfileImageUploadURLUseCase(p))
 }
 
 // userIDCtx は cur user（ContextKeyCurrentUserID）+ userId param + JSON body を持つ context。

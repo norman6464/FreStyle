@@ -5,18 +5,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/exercise"
 )
 
 // CodeExecuteHandler は trainee が書いたコードをサーバ側サンドボックスで実行する。
 // エディタ入場時の事前ウォームアップ（warmup）も担う。
 type CodeExecuteHandler struct {
-	executeCode *usecase.ExecuteCodeUseCase
-	warmupCode  *usecase.WarmupCodeUseCase
+	executeCode *exercise.ExecuteCodeUseCase
+	warmupCode  *exercise.WarmupCodeUseCase
 }
 
 // NewCodeExecuteHandler は実行 / ウォームアップ usecase を注入して handler を返す。
-func NewCodeExecuteHandler(exec *usecase.ExecuteCodeUseCase, warmup *usecase.WarmupCodeUseCase) *CodeExecuteHandler {
+func NewCodeExecuteHandler(exec *exercise.ExecuteCodeUseCase, warmup *exercise.WarmupCodeUseCase) *CodeExecuteHandler {
 	return &CodeExecuteHandler{executeCode: exec, warmupCode: warmup}
 }
 

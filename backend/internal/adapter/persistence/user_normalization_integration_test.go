@@ -27,7 +27,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 	txManager := persistence.NewTxManager(sqlDB)
 	ctx := context.Background()
 
-	// createWithOidcIdentity は usecase.UpsertUserFromIDTokenUseCase の新規作成経路と同じ形
+	// createWithOidcIdentity は user.UpsertUserFromIDTokenUseCase の新規作成経路と同じ形
 	// （DoInTx で users 行と identity を不可分に作る）。repository 自身はもうこの組み合わせを
 	// 単独のメソッドとして持たないため、テストからも usecase と同じ組み立て方で呼ぶ。
 	createWithOidcIdentity := func(u *domain.User, provider, subject string) error {

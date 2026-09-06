@@ -1,6 +1,6 @@
 // Package coderunner は、別コンテナ（サイドカー）で動く code-runner（cmd/coderunner）への
 // HTTP クライアントを提供する。backend 本体イメージから go/php ランタイムを外せるよう、
-// コード実行を HTTP 越しに runner へ委譲する（usecase.CodeRunner を満たす）。
+// コード実行を HTTP 越しに runner へ委譲する（exercise.CodeRunner を満たす）。
 package coderunner
 
 import (

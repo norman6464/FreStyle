@@ -8,7 +8,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -199,8 +199,8 @@ func TestPageGrant_スペース全員宛ての付与が全経路で一致する_
 	require.True(t, f.permFor(ctx, t, page, f.alice).CanView, "前提: 直接開けば見える")
 
 	// 検索でも出る。
-	found, err := usecase.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
-		usecase.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: f.alice, Query: "全員"})
+	found, err := kb.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
+		kb.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: f.alice, Query: "全員"})
 	require.NoError(t, err)
 	assert.True(t, containsPageID(found, page), "検索でも出る（開けるのに検索に出ないのは経路のずれ）")
 

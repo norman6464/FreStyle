@@ -4,7 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 )
 
 // registerAuthPublicRoutes は認証不要の認証エンドポイント（login / logout / refresh）を登録し、
@@ -16,13 +17,13 @@ import (
 // ログイン画面の役目で、アプリが受け取ると、二要素・ロックアウト・パスワードの
 // 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
-	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
-	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(
+	getCurrentUser := user.NewGetCurrentUserUseCase(deps.userRepo)
+	upsertUser := user.NewUpsertUserFromIDTokenUseCase(
 		deps.userRepo,
 		persistence.NewUserOidcIdentityRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 	)
-	ensurePersonalWorkspace := usecase.NewEnsurePersonalWorkspaceUseCase(
+	ensurePersonalWorkspace := kb.NewEnsurePersonalWorkspaceUseCase(
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
 	)

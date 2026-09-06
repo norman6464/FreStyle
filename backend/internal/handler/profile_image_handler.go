@@ -7,15 +7,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 )
 
 // ProfileImageHandler は profile アイコン用 S3 PUT 署名付き URL を発行する。
 type ProfileImageHandler struct {
-	issue *usecase.IssueProfileImageUploadURLUseCase
+	issue *profile.IssueProfileImageUploadURLUseCase
 }
 
-func NewProfileImageHandler(i *usecase.IssueProfileImageUploadURLUseCase) *ProfileImageHandler {
+func NewProfileImageHandler(i *profile.IssueProfileImageUploadURLUseCase) *ProfileImageHandler {
 	return &ProfileImageHandler{issue: i}
 }
 

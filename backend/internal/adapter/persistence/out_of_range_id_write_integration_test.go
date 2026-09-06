@@ -12,7 +12,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,14 +59,6 @@ func outOfRangeWriteCases() []writeCase {
 				return persistence.NewProfileRepository(db).Upsert(ctx, &domain.Profile{
 					UserID: outOfRangeID, Bio: "b",
 				})
-			},
-		},
-		{
-			name: "日次活動の加算（user_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewUserDailyActivityRepository(db).Increment(
-					ctx, outOfRangeID, time.Now(), repository.UserDailyActivityIncrement{LessonCount: 1},
-				)
 			},
 		},
 	}

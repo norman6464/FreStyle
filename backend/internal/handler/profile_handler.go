@@ -8,21 +8,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // ProfileHandler は GET / PUT /profile/:userId(or "me") を提供する。
 // 返却する domain.ProfileView は users.name と profiles を合成したもの。
 type ProfileHandler struct {
-	get    *usecase.GetProfileUseCase
-	update *usecase.UpdateProfileUseCase
+	get    *profile.GetProfileUseCase
+	update *profile.UpdateProfileUseCase
 	users  repository.UserRepository
 }
 
 func NewProfileHandler(
-	g *usecase.GetProfileUseCase,
-	u *usecase.UpdateProfileUseCase,
+	g *profile.GetProfileUseCase,
+	u *profile.UpdateProfileUseCase,
 	users repository.UserRepository,
 ) *ProfileHandler {
 	return &ProfileHandler{get: g, update: u, users: users}
@@ -107,7 +107,7 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 			return
 		}
 	}
-	if _, err := h.update.Execute(c.Request.Context(), usecase.UpdateProfileInput{
+	if _, err := h.update.Execute(c.Request.Context(), profile.UpdateProfileInput{
 		UserID:        uid,
 		Bio:           req.Bio,
 		AvatarURL:     avatarURL,

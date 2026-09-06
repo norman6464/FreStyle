@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -15,8 +15,8 @@ import (
 func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	profileRepo := persistence.NewProfileRepository(deps.db)
 	profileHandler := NewProfileHandler(
-		usecase.NewGetProfileUseCase(profileRepo),
-		usecase.NewUpdateProfileUseCase(profileRepo),
+		profile.NewGetProfileUseCase(profileRepo),
+		profile.NewUpdateProfileUseCase(profileRepo),
 		deps.userRepo,
 	)
 	// :userId は数字 / "me" の両方を受ける。/update はフロント互換の別 path。
@@ -26,7 +26,7 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 
 	// Profile アイコン画像の S3 presigned-url（リッチテキスト画像と同じバケットを profiles/ prefix で共有）。
 	profileImageHandler := NewProfileImageHandler(
-		usecase.NewIssueProfileImageUploadURLUseCase(
+		profile.NewIssueProfileImageUploadURLUseCase(
 			newProfileImagePresignerOrFallback(deps),
 		),
 	)

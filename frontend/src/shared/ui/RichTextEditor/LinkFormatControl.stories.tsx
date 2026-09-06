@@ -16,14 +16,18 @@ import './richTextEditor.css';
  * （`javascript:` など）は弾く。押した人が意図しない動きをする URL を本文に残さないため。
  * 弾かれても入力欄は閉じない — 打ち直せるまま、何が悪かったのかを出す。
  */
-const meta = {
+/*
+ * この部品は単体では立てられない（エディタ本体が要る）。args ではなく render の中で
+ * 作るので、meta も satisfies ではなく注釈で受けて args を任意にする。
+ */
+const meta: Meta<typeof LinkFormatControl> = {
   title: 'shared/RichTextEditor/LinkFormatControl',
   component: LinkFormatControl,
   parameters: { layout: 'padded' },
-} satisfies Meta<typeof LinkFormatControl>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof LinkFormatControl>;
 
 const SAMPLE = {
   type: 'doc',

@@ -13,14 +13,18 @@ import CodeBlockView from './CodeBlockView';
  * 言語を変えると色分けもその場で変わる。言語の一覧は検索できる — 200 近くあるので、
  * 目で探させると見つからない。
  */
-const meta = {
+/*
+ * この部品は単体では立てられない（エディタ本体が要る）。args ではなく render の中で
+ * 作るので、meta も satisfies ではなく注釈で受けて args を任意にする。
+ */
+const meta: Meta<typeof CodeBlockView> = {
   title: 'shared/RichTextEditor/CodeBlockView',
   component: CodeBlockView,
   parameters: { layout: 'padded' },
-} satisfies Meta<typeof CodeBlockView>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof CodeBlockView>;
 
 const docWithCode = (language: string, code: string): RichDocContent => ({
   type: 'doc',

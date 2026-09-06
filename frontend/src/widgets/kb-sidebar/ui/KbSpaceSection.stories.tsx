@@ -36,6 +36,7 @@ const space: KbSpace = {
   id: 's-1',
   key: 's-1a2b3c',
   name: 'バックエンド定例',
+  visibility: 'workspace',
   createdAt: '2026-01-01T00:00:00Z',
 };
 
@@ -81,7 +82,7 @@ export const 閉じている: Story = {
   args: { ...base, state: undefined },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole('button', { name: 'バックエンド定例', exact: true }),
+      within(canvasElement).getByRole('button', { name: /^バックエンド定例$/ }),
     ).toBeVisible();
   },
 };
@@ -164,7 +165,7 @@ export const 見出しを押す: Story = {
   args: { ...base, state: undefined },
   play: async ({ args, canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'バックエンド定例', exact: true }),
+      within(canvasElement).getByRole('button', { name: /^バックエンド定例$/ }),
     );
     await expect(args.onToggleSpace).toHaveBeenCalledWith('s-1');
   },

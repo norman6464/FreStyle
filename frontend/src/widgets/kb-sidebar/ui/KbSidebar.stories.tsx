@@ -73,11 +73,11 @@ export const 既定: Story = {
     const canvas = within(canvasElement);
     await waitFor(
       async () => {
-        await expect(canvas.getByRole('button', { name: 'バックエンド定例', exact: true })).toBeVisible();
+        await expect(canvas.getByRole('button', { name: /^バックエンド定例$/ })).toBeVisible();
       },
       { timeout: 5000 },
     );
-    await expect(canvas.getByRole('button', { name: '営業定例', exact: true })).toBeVisible();
+    await expect(canvas.getByRole('button', { name: /^営業定例$/ })).toBeVisible();
   },
 };
 

@@ -14,14 +14,18 @@ import './richTextEditor.css';
  * 画面上部に固定した帯を置かないのは、場所を取るわりに使うのが書式を変える一瞬だけだから。
  * 選んだときにその場に出るほうが、目も手も移動しない。
  */
-const meta = {
+/*
+ * この部品は単体では立てられない（エディタ本体が要る）。args ではなく render の中で
+ * 作るので、meta も satisfies ではなく注釈で受けて args を任意にする。
+ */
+const meta: Meta<typeof BubbleFormatMenu> = {
   title: 'shared/RichTextEditor/BubbleFormatMenu',
   component: BubbleFormatMenu,
   parameters: { layout: 'padded' },
-} satisfies Meta<typeof BubbleFormatMenu>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof BubbleFormatMenu>;
 
 const SAMPLE = {
   type: 'doc',

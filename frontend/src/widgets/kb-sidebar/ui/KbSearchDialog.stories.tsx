@@ -35,8 +35,20 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const spaces: KbSpace[] = [
-  { id: 's-1', key: 's-1a2b3c', name: 'バックエンド定例', createdAt: '2026-01-01T00:00:00Z' },
-  { id: 's-2', key: 's-9d8c7b', name: '営業定例', createdAt: '2026-02-01T00:00:00Z' },
+  {
+    id: 's-1',
+    key: 's-1a2b3c',
+    name: 'バックエンド定例',
+    visibility: 'workspace',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 's-2',
+    key: 's-9d8c7b',
+    name: '営業定例',
+    visibility: 'private',
+    createdAt: '2026-02-01T00:00:00Z',
+  },
 ];
 
 const page = (id: string, spaceId: string, title: string) => ({

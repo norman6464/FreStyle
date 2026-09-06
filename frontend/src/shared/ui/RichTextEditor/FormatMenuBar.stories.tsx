@@ -17,14 +17,18 @@ import './richTextEditor.css';
  *
  * この部品はエディタ本体（tiptap）が無いと動かないので、見本では小さなエディタを一緒に作っている。
  */
-const meta = {
+/*
+ * この部品は単体では立てられない（エディタ本体が要る）。args ではなく render の中で
+ * 作るので、meta も satisfies ではなく注釈で受けて args を任意にする。
+ */
+const meta: Meta<typeof FormatMenuBar> = {
   title: 'shared/RichTextEditor/FormatMenuBar',
   component: FormatMenuBar,
   parameters: { layout: 'padded' },
-} satisfies Meta<typeof FormatMenuBar>;
+};
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof FormatMenuBar>;
 
 const SAMPLE = {
   type: 'doc',

@@ -7,14 +7,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/richtextimage"
 )
 
 type RichTextImageHandler struct {
-	issue *usecase.IssueRichTextImageUploadURLUseCase
+	issue *richtextimage.IssueRichTextImageUploadURLUseCase
 }
 
-func NewRichTextImageHandler(i *usecase.IssueRichTextImageUploadURLUseCase) *RichTextImageHandler {
+func NewRichTextImageHandler(i *richtextimage.IssueRichTextImageUploadURLUseCase) *RichTextImageHandler {
 	return &RichTextImageHandler{issue: i}
 }
 

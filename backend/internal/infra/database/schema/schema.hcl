@@ -154,7 +154,7 @@ table "user_oidc_identities" {
   }
 }
 
-# ワークスペース: テナント境界。ノート（spaces 以下）と、業務データ
+# ワークスペース: テナント境界。ナレッジ（spaces 以下）と、業務データ
 # （courses / course_chapters）がどちらもこの表を指す。
 table "workspaces" {
   schema = schema.public
@@ -481,45 +481,9 @@ table "exercise_submissions" {
   }
 }
 
-# 日次の学習活動サマリー。PK = (user_id, activity_date)。書き込み時に upsert (+= delta)。
-table "user_daily_activities" {
-  schema = schema.public
-  column "user_id" {
-    null = false
-    type = bigint
-  }
-  column "activity_date" {
-    null = false
-    type = date
-  }
-  column "exercise_count" {
-    null    = false
-    type    = integer
-    default = 0
-  }
-  column "correct_count" {
-    null    = false
-    type    = integer
-    default = 0
-  }
-  column "chapter_count" {
-    null    = false
-    type    = integer
-    default = 0
-  }
-  column "note_count" {
-    null    = false
-    type    = integer
-    default = 0
-  }
-  primary_key {
-    columns = [column.user_id, column.activity_date]
-  }
-}
-
 
 # =====================================================================
-# ノートの骨格（spaces / pages / blocks / page_paths / page_snapshots）
+# ナレッジの骨格（spaces / pages / blocks / page_paths / page_snapshots）
 # =====================================================================
 #
 # 設計の柱は 2 つ:
@@ -603,7 +567,7 @@ table "spaces" {
   }
 }
 
-# ページ: ノートの 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
+# ページ: ナレッジの 1 ページ。parent_id の自己参照で木をなす（無限入れ子）。
 table "pages" {
   schema = schema.public
   column "id" {
@@ -637,7 +601,7 @@ table "pages" {
     type    = character_varying(200)
     default = ""
   }
-  # 作成者（users.id）。users への FK は張らない（ノートの骨格に閉じるため）。
+  # 作成者（users.id）。users への FK は張らない（ナレッジの骨格に閉じるため）。
   column "created_by_user_id" {
     null = false
     type = bigint
@@ -956,7 +920,7 @@ table "page_snapshots" {
 }
 
 # =====================================================================
-# ノートの権限（principals / grants / share_links）
+# ナレッジの権限（principals / grants / share_links）
 # =====================================================================
 #
 # 設計の柱（骨格の 2 つに加えて）:
@@ -1049,7 +1013,7 @@ table "principals" {
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
-  # users への FK は張る。principals はノートとアプリのユーザーを結ぶ唯一の接点で、
+  # users への FK は張る。principals はナレッジとアプリのユーザーを結ぶ唯一の接点で、
   # ここが緩いと「消えたユーザーの principal に権限が残る」＝ 別人が同じ id を再取得したときに
   # 権限を引き継いでしまう。骨格側の pages.created_by_user_id が FK を持たないのは、
   # あちらが既存テーブルだからで、新しく作るこの表には最初から張れる。

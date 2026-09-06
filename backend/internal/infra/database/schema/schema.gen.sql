@@ -276,16 +276,6 @@ CREATE TABLE "public"."spaces" (
 );
 -- Create index "idx_spaces_workspace_id" to table: "spaces"
 CREATE INDEX "idx_spaces_workspace_id" ON "public"."spaces" ("workspace_id");
--- Create "user_daily_activities" table
-CREATE TABLE "public"."user_daily_activities" (
-  "user_id" bigint NOT NULL,
-  "activity_date" date NOT NULL,
-  "exercise_count" integer NOT NULL DEFAULT 0,
-  "correct_count" integer NOT NULL DEFAULT 0,
-  "chapter_count" integer NOT NULL DEFAULT 0,
-  "note_count" integer NOT NULL DEFAULT 0,
-  PRIMARY KEY ("user_id", "activity_date")
-);
 -- Create "user_oidc_identities" table
 CREATE TABLE "public"."user_oidc_identities" (
   "id" bigserial NOT NULL,

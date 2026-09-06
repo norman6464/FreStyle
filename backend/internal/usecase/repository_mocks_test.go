@@ -68,27 +68,6 @@ func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID uint64, wor
 	return m.Called(ctx, userID, workspaceID).Error(0)
 }
 
-// --- mock: UserDailyActivityRepository ---
-
-type mockDailyActivityRepo struct{ mock.Mock }
-
-var _ repository.UserDailyActivityRepository = (*mockDailyActivityRepo)(nil)
-
-func (m *mockDailyActivityRepo) Increment(ctx context.Context, userID uint64, date time.Time, inc repository.UserDailyActivityIncrement) error {
-	return m.Called(ctx, userID, date, inc).Error(0)
-}
-
-// nopActivityRepo は UserDailyActivityRepository の何もしない stub。
-// 呼び出しの検証が要らないテスト（活動記録が本題ではないもの）で mockDailyActivityRepo の
-// On(...) 設定を省くために使う。
-type nopActivityRepo struct{}
-
-var _ repository.UserDailyActivityRepository = (*nopActivityRepo)(nil)
-
-func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
-	return nil
-}
-
 // --- mock: KnowledgeBaseRepository ---
 
 type mockKnowledgeBaseRepo struct{ mock.Mock }

@@ -10,7 +10,7 @@ import SecondaryPanel from './SecondaryPanel';
  * ⌘\ でも切り替わる。表示の状態は `storageKey` ごとに憶えておく。
  */
 const meta = {
-  title: 'widgets/SecondaryPanel',
+  title: 'widgets/secondary-panel/SecondaryPanel',
   component: SecondaryPanel,
   parameters: { layout: 'fullscreen' },
   decorators: [

@@ -9,7 +9,7 @@ import KbRowActions from './KbRowActions';
  * その行の文字色を継いで項目が全部青くなっていた。
  */
 const meta = {
-  title: 'note-sidebar/KbRowActions',
+  title: 'widgets/kb-sidebar/KbRowActions',
   component: KbRowActions,
   parameters: { layout: 'centered' },
   args: {

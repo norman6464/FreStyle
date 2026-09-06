@@ -1,4 +1,4 @@
-package usecase
+package notification
 
 import (
 	"context"

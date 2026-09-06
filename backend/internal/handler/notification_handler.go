@@ -8,21 +8,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/notification"
 )
 
 type NotificationHandler struct {
-	list        *usecase.ListNotificationsUseCase
-	markRead    *usecase.MarkNotificationReadUseCase
-	markAllRead *usecase.MarkAllNotificationsReadUseCase
-	countUnread *usecase.CountUnreadNotificationsUseCase
+	list        *notification.ListNotificationsUseCase
+	markRead    *notification.MarkNotificationReadUseCase
+	markAllRead *notification.MarkAllNotificationsReadUseCase
+	countUnread *notification.CountUnreadNotificationsUseCase
 }
 
 func NewNotificationHandler(
-	l *usecase.ListNotificationsUseCase,
-	m *usecase.MarkNotificationReadUseCase,
-	a *usecase.MarkAllNotificationsReadUseCase,
-	cu *usecase.CountUnreadNotificationsUseCase,
+	l *notification.ListNotificationsUseCase,
+	m *notification.MarkNotificationReadUseCase,
+	a *notification.MarkAllNotificationsReadUseCase,
+	cu *notification.CountUnreadNotificationsUseCase,
 ) *NotificationHandler {
 	return &NotificationHandler{list: l, markRead: m, markAllRead: a, countUnread: cu}
 }

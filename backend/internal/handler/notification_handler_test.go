@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/notification"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -33,10 +33,10 @@ func (f *fakeNotifRepo) CountUnread(context.Context, uint64) (int64, error) {
 
 func newNotifHandler(repo repository.NotificationRepository) *NotificationHandler {
 	return NewNotificationHandler(
-		usecase.NewListNotificationsUseCase(repo),
-		usecase.NewMarkNotificationReadUseCase(repo),
-		usecase.NewMarkAllNotificationsReadUseCase(repo),
-		usecase.NewCountUnreadNotificationsUseCase(repo),
+		notification.NewListNotificationsUseCase(repo),
+		notification.NewMarkNotificationReadUseCase(repo),
+		notification.NewMarkAllNotificationsReadUseCase(repo),
+		notification.NewCountUnreadNotificationsUseCase(repo),
 	)
 }
 

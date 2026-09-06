@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { Decorator, Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { withRouter } from '../../../../.storybook/decorators';
 import NotFoundPage from './NotFoundPage';
@@ -25,8 +25,26 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/**
+ * 目印の Cookie を、その story が要る状態に置き直す。
+ *
+ * Cookie はブラウザに残るので、**story をまたいで持ち越される**。片方で置いてもう片方で
+ * 消す、という書き方だと実行の順番しだいで結果が変わる（実際、手元では通って CI で落ちた）。
+ * 「後始末する」ではなく「毎回どちらの状態かを言い切る」形にして、順番に依存させない。
+ *
+ * 描画の前に置く必要がある。この画面は effect ではなく描画の途中で Cookie を読むため。
+ */
+function signedIn(value: boolean): Decorator {
+  const Wrapped: Decorator = (Story) => {
+    document.cookie = value ? 'fs_signed_in=1; path=/' : 'fs_signed_in=; path=/; max-age=0';
+    return <Story />;
+  };
+  return Wrapped;
+}
+
 /** ログインしていない人が来たとき。トップとログインの両方を案内する。 */
 export const 未ログイン: Story = {
+  decorators: [signedIn(false)],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('heading', { name: 'ページが見つかりません' })).toBeVisible();
@@ -35,23 +53,12 @@ export const 未ログイン: Story = {
   },
 };
 
-/**
- * ログイン済みの人が来たとき。ホームへ戻る 1 つだけにする。
- *
- * 目印の Cookie でログイン済みかを見るので、story でもその Cookie を置いてから描く。
- */
+/** ログイン済みの人が来たとき。ホームへ戻る 1 つだけにする。 */
 export const ログイン済み: Story = {
-  decorators: [
-    (Story) => {
-      document.cookie = 'fs_signed_in=1; path=/';
-      return <Story />;
-    },
-  ],
+  decorators: [signedIn(true)],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('link', { name: 'ホームへ戻る' })).toBeVisible();
     await expect(canvas.queryByRole('link', { name: 'ログイン' })).toBeNull();
-    // 後の story に持ち越さないよう消しておく。
-    document.cookie = 'fs_signed_in=; path=/; max-age=0';
   },
 };

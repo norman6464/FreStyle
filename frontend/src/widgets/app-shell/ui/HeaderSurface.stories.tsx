@@ -9,7 +9,7 @@ import { expect, within } from 'storybook/test';
  * この見本は、その重なりが成立していることを確かめるためのもの。
  */
 const meta = {
-  title: 'app-shell/HeaderSurface',
+  title: 'widgets/app-shell/HeaderSurface',
   parameters: { layout: 'fullscreen' },
 } satisfies Meta;
 

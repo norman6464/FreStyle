@@ -42,7 +42,8 @@ describe('LinkText', () => {
     );
 
     const link = screen.getByText('テスト').closest('a');
-    expect(link?.className).toContain('text-brand-500');
+    // 白地に対し brand-500 は 3.67:1 で、小さな文字の基準 4.5:1 に届かないため 700 を使う。
+    expect(link?.className).toContain('text-brand-700');
     expect(link?.className).toContain('font-medium');
   });
 

@@ -3,16 +3,20 @@ import { CheckIcon } from '@heroicons/react/24/outline';
 import type { Notification } from '../model/types';
 
 /**
- * 通知種別のバッジ文言。キーは backend が入れる値と一致させること
- * （domain.NotificationTypeCompanyApplication = "company_application"）。
+ * 通知種別のバッジ文言。キーは backend が実際に入れる値と一致させること。
  *
- * 以前は backend に存在しない 5 種類（NEW_MESSAGE 等）だけが並んでおり、実在する
- * company_application にラベルが無いため、利用者には生の英字がそのまま見えていた。
- * 未知の種別は種別文字列をそのまま出すフォールバックのままにする。
+ * **いまは空。** backend の domain.Notification は Type が自由文字列で、通知を作る
+ * usecase が 1 つも無い（repository に Create / CreateMany はあるが呼び出し元が無い）。
+ * かつて並べていた company_application も、会社管理の撤去と一緒に backend から消えた。
+ *
+ * ここに「これから来そうな種別」を先回りで書かないこと。この対応表は過去 2 回、
+ * 実在しない種別（NEW_MESSAGE 等 5 種類 → company_application）で埋まっており、
+ * どちらも実際に届く通知にラベルが当たらないまま残った。**作られるようになってから、
+ * 実在を確かめた種別だけを足す。**
+ *
+ * 空のあいだは、下のフォールバックで種別文字列がそのまま出る。
  */
-const TYPE_LABELS: Record<string, string> = {
-  company_application: '利用申請',
-};
+const TYPE_LABELS: Record<string, string> = {};
 
 interface NotificationItemProps {
   notification: Notification;
@@ -31,7 +35,7 @@ export default memo(function NotificationItem({ notification, onMarkAsRead }: No
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-medium text-taupe-400 bg-surface-2 px-2 py-0.5 rounded">
+            <span className="text-[10px] font-medium text-taupe-600 bg-surface-2 px-2 py-0.5 rounded">
               {TYPE_LABELS[notification.type] ?? notification.type}
             </span>
             {!notification.isRead && (
@@ -40,7 +44,8 @@ export default memo(function NotificationItem({ notification, onMarkAsRead }: No
           </div>
           <p className="text-sm font-medium text-[var(--color-text-primary)] mb-0.5">{notification.title}</p>
           <p className="text-xs text-[var(--color-text-muted)]">{notification.body}</p>
-          <p className="text-[10px] text-[var(--color-text-faint)] mt-1">
+          {/* 時刻は情報なので faint（飾り用の淡さ）ではなく muted を使う。faint は白地で 1.5:1 しかない。 */}
+          <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
             {new Date(notification.createdAt).toLocaleString('ja-JP')}
           </p>
         </div>

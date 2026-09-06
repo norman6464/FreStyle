@@ -15,7 +15,7 @@ import type { ShareRow } from '../model/types';
  * （似た文を 2 つ並べると、どちらも読み飛ばされる）。
  */
 const meta = {
-  title: 'permission-sharing/SharePanel',
+  title: 'features/permission-sharing/SharePanel',
   component: SharePanel,
   parameters: { layout: 'centered' },
   args: {

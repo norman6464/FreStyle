@@ -103,7 +103,8 @@ describe('スラッシュコマンド（統合）', () => {
     });
     await typeSlash(editor, 'page');
     const option = await screen.findByRole('option', { name: /ページ/ });
-    fireEvent.click(within(option).getByRole('button'));
+    // 押すのは option 自身（option の中に押せるものを入れ子にしない形へ改めた）。
+    fireEvent.click(option);
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
     expect(run).toHaveBeenCalledWith(editor);
     // 入力した "/page" は本文に残らない。

@@ -1,0 +1,123 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fn, userEvent, within } from 'storybook/test';
+import KbWorkspaceSwitcher from './KbWorkspaceSwitcher';
+import type { KbWorkspace } from '../model/types';
+
+/**
+ * ナレッジの最上段にある、ワークスペースの切り替え。
+ *
+ * **同時に見えるのは 1 つだけ**にしてある。ワークスペースは会社の境目なので、
+ * 2 社ぶんを並べて見る場面が無く、並べると「いまどちらを触っているか」が曖昧になるため。
+ * （その下のスペースは同時に見たいので、あちらは見出しとして並べてある。）
+ *
+ * 一覧は ARIA の役割を名乗らない素のボタンの並びにしてある。listbox や menu を名乗ると
+ * 矢印キーでの移動を約束したことになるが、それを実装していない — 名乗りと実際が食い違うと、
+ * 読み上げソフトを使う人だけが「動かない操作」を教えられることになる。
+ *
+ * 削除は戻せないので、必ず一度確かめる。捨てる入口は触れているあいだだけ出す。
+ */
+const meta = {
+  title: 'entities/kb/KbWorkspaceSwitcher',
+  component: KbWorkspaceSwitcher,
+  parameters: { layout: 'padded' },
+  args: { onSelect: fn(), onCreate: fn(async () => {}) },
+  decorators: [
+    (Story) => (
+      // 実物のサイドバーと同じ幅・地色。開いた一覧が入る高さも確保する。
+      <div className="h-96 w-64 bg-surface-1 p-2">
+        <Story />
+      </div>
+    ),
+  ],
+} satisfies Meta<typeof KbWorkspaceSwitcher>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const workspaces: KbWorkspace[] = [
+  { slug: 'w-3f2a9c', name: '開発チーム', createdAt: '2026-01-01T00:00:00Z', canManage: true },
+  { slug: 'w-88ab21', name: '営業部', createdAt: '2026-02-01T00:00:00Z', canManage: false },
+  { slug: 'w-10cc45', name: '個人メモ', createdAt: '2026-03-01T00:00:00Z', canManage: true },
+];
+
+/** 閉じているとき。いま選んでいるものの名前だけが見える。 */
+export const 閉じている: Story = {
+  args: { workspaces, activeSlug: 'w-3f2a9c' },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('button', { name: /開発チーム/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  },
+};
+
+/** まだどれも選んでいないとき。 */
+export const 未選択: Story = {
+  args: { workspaces, activeSlug: null },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('ワークスペースを選択')).toBeVisible();
+  },
+};
+
+/** 開いたところ。いま選んでいるものにレ点が付く。 */
+export const 開いたところ: Story = {
+  args: { workspaces, activeSlug: 'w-3f2a9c' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: /開発チーム/ }));
+    await expect(canvas.getByRole('list', { name: 'ワークスペース' })).toBeVisible();
+    await expect(canvas.getByRole('button', { name: '営業部' })).toBeVisible();
+  },
+};
+
+/** 別のものを選ぶと、その slug が親へ渡って一覧は閉じる。 */
+export const 切り替える: Story = {
+  args: { workspaces, activeSlug: 'w-3f2a9c' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: /開発チーム/ }));
+    await userEvent.click(canvas.getByRole('button', { name: '営業部' }));
+    await expect(args.onSelect).toHaveBeenCalledWith('w-88ab21');
+    await expect(canvas.queryByRole('list', { name: 'ワークスペース' })).toBeNull();
+  },
+};
+
+/**
+ * 「ワークスペースを追加」から作る。
+ *
+ * この入口をここに置いてあるのが要点。無いと、1 つ作った時点で新しく作る手段が
+ * 画面から消える（スペース側で実際に踏んだ）。
+ */
+export const 追加する: Story = {
+  args: { workspaces, activeSlug: 'w-3f2a9c' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: /開発チーム/ }));
+    await userEvent.click(canvas.getByRole('button', { name: 'ワークスペースを追加' }));
+    await userEvent.type(canvas.getByLabelText('ワークスペースの名前'), '新しいチーム');
+    await userEvent.click(canvas.getByRole('button', { name: 'ワークスペースを作る' }));
+    await expect(args.onCreate).toHaveBeenCalledWith({ name: '新しいチーム' });
+  },
+};
+
+/** まだ 1 つも無いとき。 */
+export const 空: Story = {
+  args: { workspaces: [], activeSlug: null },
+};
+
+/**
+ * 消せる形。管理できるものにだけ捨てる入口が出る（営業部には出ない）。
+ * 押すと必ず一度確かめる。
+ */
+export const 削除の確認: Story = {
+  args: { workspaces, activeSlug: 'w-3f2a9c', onDelete: fn(async () => {}) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: /開発チーム/ }));
+    // 管理できないものには捨てる入口を出さない。
+    await expect(canvas.queryByRole('button', { name: '営業部 を削除' })).toBeNull();
+    await userEvent.click(canvas.getByRole('button', { name: '開発チーム を削除' }));
+    // 確認は portal で body の直下に出るので、story の枠の中からは引けない。
+    await expect(await within(document.body).findByText(/元に戻せません/)).toBeVisible();
+  },
+};

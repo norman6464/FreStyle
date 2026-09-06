@@ -64,7 +64,7 @@ function firstDiffLine(normalizedActual: string, normalizedExpected: string): Di
 export default function ExecutionResultTable({ result, expected, submitError, language }: Props) {
   if (submitError) {
     return (
-      <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-400">
+      <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-700">
         {submitError}
       </div>
     );
@@ -95,28 +95,28 @@ export default function ExecutionResultTable({ result, expected, submitError, la
             </th>
             <td className="px-4 py-2">
               {!isSuccess ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-red-400">
+                <span className="inline-flex items-center gap-1 font-semibold text-red-700">
                   <XCircleIcon className="w-4 h-4" />
                   実行エラー（exit {result.exitCode}）
                 </span>
               ) : !comparable ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-green-400">
+                <span className="inline-flex items-center gap-1 font-semibold text-green-700">
                   <CheckCircleIcon className="w-4 h-4" />
                   実行成功（エラーなし）
                 </span>
               ) : matches ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-green-400">
+                <span className="inline-flex items-center gap-1 font-semibold text-green-700">
                   <CheckCircleIcon className="w-4 h-4" />
                   実行成功・期待する出力と一致
                 </span>
               ) : (
                 <>
-                  <span className="inline-flex items-center gap-1 font-semibold text-amber-500">
+                  <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
                     <ExclamationTriangleIcon className="w-4 h-4" />
                     実行成功（エラーなし）・期待する出力と不一致
                   </span>
                   {diff && (
-                    <p className="mt-1.5 text-amber-600">
+                    <p className="mt-1.5 text-amber-700">
                       {diff.line} 行目が異なります — あなたの出力:{' '}
                       {diff.actual !== undefined ? (
                         <code className="font-mono">「{diff.actual}」</code>
@@ -143,7 +143,7 @@ export default function ExecutionResultTable({ result, expected, submitError, la
                 {errorLabel}
               </th>
               <td className="px-4 py-2">
-                <pre className="whitespace-pre-wrap break-words font-mono text-red-500 bg-red-500/5 border border-red-500/20 rounded-md p-3">
+                <pre className="whitespace-pre-wrap break-words font-mono text-red-700 bg-red-500/5 border border-red-500/20 rounded-md p-3">
                   {result.stderr}
                 </pre>
               </td>
@@ -158,7 +158,7 @@ export default function ExecutionResultTable({ result, expected, submitError, la
                 {result.stdout || '(なし)'}
               </pre>
               {hasNoOutput && (
-                <p className="mt-2 text-amber-500">
+                <p className="mt-2 text-amber-700">
                   まだ出力がありません。<code>echo</code> や <code>print</code> などで結果を出力すると、ここに表示されます。
                 </p>
               )}

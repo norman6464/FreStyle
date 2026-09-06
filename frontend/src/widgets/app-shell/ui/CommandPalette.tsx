@@ -101,14 +101,30 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
           </kbd>
         </div>
 
-        {/* コマンドリスト */}
-        <div ref={listRef} role="listbox" className="max-h-80 overflow-y-auto p-2">
-          {filteredItems.length === 0 ? (
+        {/*
+          コマンドリスト。
+
+          一致が無いときは listbox にしない。listbox は「選べるものが並んでいる」という
+          約束なので、中身が空のまま名乗ると、読み上げソフトには選択肢があるように伝わって
+          何も無い、という食い違いになる。
+
+          tabIndex は 0。縦に流れるスクロール領域は、キーボードだけの人も動かせる必要がある。
+        */}
+        {filteredItems.length === 0 ? (
+          <div className="max-h-80 overflow-y-auto p-2">
             <div className="px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
               該当するコマンドがありません
             </div>
-          ) : (
-            Array.from(categories.entries()).map(([category, { items, startIndex }]) => (
+          </div>
+        ) : (
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label="コマンド"
+            tabIndex={0}
+            className="max-h-80 overflow-y-auto p-2"
+          >
+            {Array.from(categories.entries()).map(([category, { items, startIndex }]) => (
               <div key={category}>
                 <div className="px-3 py-1.5 text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
                   {category}
@@ -145,9 +161,9 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
                   );
                 })}
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* フッター */}
         <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--color-surface-3)] text-[10px] text-[var(--color-text-muted)]">

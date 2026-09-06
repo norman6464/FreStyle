@@ -35,9 +35,9 @@ export default function TextareaField({ label, name, value, onChange, placeholde
       {maxLength && (
         <p className={`text-xs text-right mt-1 ${
           value.length >= maxLength
-            ? 'text-rose-400'
+            ? 'text-rose-700'
             : value.length >= maxLength * 0.9
-              ? 'text-amber-400'
+              ? 'text-amber-700'
               : 'text-[var(--color-text-muted)]'
         }`}>
           {value.length} / {maxLength}

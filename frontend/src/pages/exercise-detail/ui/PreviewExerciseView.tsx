@@ -76,7 +76,7 @@ export default function PreviewExerciseView({
           </div>
         </div>
 
-        <div className="text-xs text-taupe-400">
+        <div className="text-xs text-taupe-600">
           ▼ 下記解答欄にコードを記入すると、プレビューへ即時に反映されます
         </div>
 
@@ -163,7 +163,7 @@ export default function PreviewExerciseView({
         <div className="flex justify-center">
           <p
             role="status"
-            className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold"
+            className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 text-sm font-semibold"
           >
             <CheckCircleIcon className="w-4 h-4" />
             この演習はクリア済みです
@@ -182,7 +182,7 @@ export default function PreviewExerciseView({
         </div>
       )}
       {submitError && (
-        <p role="alert" className="text-center text-xs text-red-400">{submitError}</p>
+        <p role="alert" className="text-center text-xs text-red-700">{submitError}</p>
       )}
     </div>
   );

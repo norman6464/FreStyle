@@ -72,7 +72,8 @@ describe('Toast', () => {
 
   it('成功は塗り（黄緑・白文字）スタイル', () => {
     render(<Toast type="success" message="OK" onClose={vi.fn()} />);
-    expect(screen.getByRole('alert')).toHaveClass('bg-lime-600', 'text-white');
+    // 白文字に対し lime-600 は 3.08:1 で未達。700 で 4.7:1。
+    expect(screen.getByRole('alert')).toHaveClass('bg-lime-700', 'text-white');
   });
 
   it('エラーは塗り（濃い赤・白文字）スタイル', () => {

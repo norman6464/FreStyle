@@ -76,7 +76,7 @@ export default function CodeBlock({ children }: { children: ReactNode }) {
         >
           {copied ? (
             <>
-              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-400" />
+              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-700" />
               <span>コピー済み</span>
             </>
           ) : (
@@ -87,7 +87,13 @@ export default function CodeBlock({ children }: { children: ReactNode }) {
           )}
         </button>
       </div>
-      <pre className="p-3 overflow-x-auto text-xs">{children}</pre>
+      {/*
+        横に流れる領域は、キーボードだけの人も動かせるようにフォーカスを受け取れる必要がある
+        （受け取れないと、はみ出したコードの右側に到達する手段が無くなる）。
+      */}
+      <pre tabIndex={0} className="p-3 overflow-x-auto text-xs">
+        {children}
+      </pre>
     </div>
   );
 }

@@ -64,10 +64,11 @@ describe('SkipLink', () => {
     expect(() => fireEvent.click(link)).not.toThrow();
   });
 
-  it('フォーカス時にbrand-500背景クラスが適用される', () => {
+  it('フォーカス時にbrand-600背景クラスが適用される', () => {
     render(<SkipLink targetId="main-content" />);
     const link = screen.getByText('メインコンテンツへスキップ');
-    expect(link.className).toContain('focus:bg-brand-500');
+    // 白文字を載せる面は 600 から（brand-500 は 3.67:1 で未達）。
+    expect(link.className).toContain('focus:bg-brand-600');
   });
 
   it('異なるtargetIdでhrefが正しく設定される', () => {

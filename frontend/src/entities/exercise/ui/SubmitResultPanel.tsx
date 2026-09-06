@@ -27,10 +27,10 @@ function TestCaseResultRow({ r }: { r: ExerciseTestCaseResult }) {
     >
       <summary className="cursor-pointer flex items-center gap-2 text-xs">
         {r.passed
-          ? <CheckCircleIcon className="w-4 h-4 text-green-400" />
-          : <XCircleIcon className="w-4 h-4 text-red-400" />}
+          ? <CheckCircleIcon className="w-4 h-4 text-green-700" />
+          : <XCircleIcon className="w-4 h-4 text-red-700" />}
         <span className="font-mono text-[var(--color-text-primary)]">テストケース {r.orderIndex}</span>
-        <span className={r.passed ? 'text-green-400' : 'text-red-400'}>{r.passed ? '合格' : '不合格'}</span>
+        <span className={r.passed ? 'text-green-700' : 'text-red-700'}>{r.passed ? '合格' : '不合格'}</span>
       </summary>
       <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono">
         {r.input && (
@@ -50,7 +50,7 @@ function TestCaseResultRow({ r }: { r: ExerciseTestCaseResult }) {
         {r.stderr && (
           <div className="md:col-span-2">
             <p className="text-[var(--color-text-muted)] mb-0.5">stderr</p>
-            <pre className="whitespace-pre-wrap break-words bg-[var(--color-surface)] p-1.5 rounded text-red-400">{r.stderr}</pre>
+            <pre className="whitespace-pre-wrap break-words bg-[var(--color-surface)] p-1.5 rounded text-red-700">{r.stderr}</pre>
           </div>
         )}
       </div>

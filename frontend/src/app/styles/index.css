@@ -11,6 +11,76 @@
  */
 @import 'highlight.js/styles/atom-one-light.css';
 
+/*
+ * Atom One Light の配色を、読みやすさ（コントラスト比）が足りるものへ差し替える。
+ *
+ * 元テーマは白より少し明るい地（#fafafa）を前提にした配色で、このアプリのコードの囲み
+ * （地は surface-2 = #F5F5F4）に載せると小さな文字の基準 4.5:1 に届かないものが複数ある。
+ * story の a11y 検査が実際に拾った: 文字列の緑 2.94 / 組み込みの橙 2.93 / 関数の青 3.71 /
+ * 数値の橙 4.46 / 注釈の灰 2.36。
+ *
+ * 色の役割（何が紫で何が緑か）は元テーマのまま、明るさだけを落とす。色分けの見分けを保ったまま
+ * 基準を満たすため。括弧内は #F5F5F4 上の比。
+ *
+ * テーマを差し替えるときは、この上書きも一緒に見直すこと（元の色に戻ると検査で落ちる）。
+ */
+.hljs-comment,
+.hljs-quote {
+  color: #6b6c73; /* 4.79 */
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-formula {
+  color: #8f2b8d; /* 6.64 */
+}
+
+.hljs-section,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-deletion,
+.hljs-subst {
+  color: #b3392c; /* 5.44 */
+}
+
+.hljs-literal {
+  color: #01678f; /* 5.77 */
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: #357a34; /* 4.83 */
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number {
+  color: #7a5301; /* 6.28 */
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-title {
+  color: #2559c4; /* 5.82 */
+}
+
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: #7a5301; /* 6.28 */
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -191,12 +261,15 @@
   --color-nav-active: #EAEAE9;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
-  /* WCAG AA(4.5:1) を満たすよう微調整（旧 #787774 は 4.48:1 で未達）。現 4.68:1。 */
-  /* 白地に対する読みやすさ（コントラスト比）を基準に決める。小さな文字は 4.5:1 が要る。
-     muted は #A4A4A0 で 2.5:1 しか無く、節見出し・ラベル・補助文の全部が読みにくかった
-     （story の a11y 検査が拾った）。tertiary との差が潰れないよう両方を一段濃くする。 */
-  --color-text-tertiary: #5C5B57; /* 6.6:1 */
-  --color-text-muted: #767671; /* 4.6:1 */
+  /* 読みやすさ（コントラスト比）は**白地だけで決めない**。小さな文字には 4.5:1 が要る。
+     muted は #767671 で白地 4.6:1 を満たしていたが、surface-2(#F5F5F4) の上で 4.18:1、
+     surface-3(#E7E5E4) の上では 3.64:1 しか無く、コードの囲みの見出し・サイドバーの
+     補助文など「灰色の面に載る小さな文字」が軒並み未達だった（story の a11y 検査が拾った）。
+     いちばん濃い地（surface-3）を基準に取り直す。tertiary との差が潰れないよう両方を一段濃くする。
+     muted: 白 5.85 / surface-2 5.36 / surface-3 4.66
+     tertiary: 白 9.01 / surface-2 8.26 / surface-3 7.18 */
+  --color-text-tertiary: #4A4945;
+  --color-text-muted: #66655F;
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;

@@ -27,7 +27,7 @@ export default function ExerciseLanguageSelectPage() {
       </header>
 
       {loading && <p className="text-sm text-[var(--color-text-muted)]">読み込み中...</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
 
       {!loading && !error && cards.length === 0 && (
         <p className="text-sm text-[var(--color-text-muted)]">公開されている問題がまだありません。</p>
@@ -73,7 +73,7 @@ function LanguageCard({ card }: { card: ExerciseLanguageCard }) {
             {solved}/{total} 問完了
           </span>
           {completed && (
-            <span className="font-semibold text-emerald-600">すべて完了</span>
+            <span className="font-semibold text-emerald-700">すべて完了</span>
           )}
         </div>
         {/* 進捗バー。完了済みは緑、進行中はブランド色で「今どこまで来たか」を一目で示す。 */}

@@ -72,7 +72,7 @@ export default function ExerciseDetailPage() {
     return (
       <div className="px-6 pt-6 max-w-3xl mx-auto">
         <BackLink />
-        <p className="mt-6 text-red-500">{error ?? '演習問題が見つかりません'}</p>
+        <p className="mt-6 text-red-700">{error ?? '演習問題が見つかりません'}</p>
       </div>
     );
   }
@@ -129,7 +129,7 @@ export default function ExerciseDetailPage() {
           </div>
         </div>
 
-        <div className="text-xs text-taupe-400">
+        <div className="text-xs text-taupe-600">
           ▼ 下記解答欄にコードを記入してみよう
         </div>
 
@@ -186,7 +186,7 @@ export default function ExerciseDetailPage() {
       </section>
 
       {/* テストケース注意書き */}
-      <p className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-md px-3 py-2">
+      <p className="text-xs text-orange-800 bg-orange-500/10 border border-orange-500/20 rounded-md px-3 py-2">
         ❓ 複数のテストケースで採点しますので、 動作確認用の入力例だけでなく入力値を変えてのデバッグもおすすめします。
       </p>
 
@@ -204,7 +204,7 @@ export default function ExerciseDetailPage() {
             <LanguageBadge language={ex.language} mono />
 
             {warmupReady && (
-              <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 inline-flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-800 inline-flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden />
                 実行環境 準備完了
               </span>
@@ -261,7 +261,7 @@ export default function ExerciseDetailPage() {
         <div className="flex justify-center">
           <p
             role="status"
-            className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold"
+            className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 text-sm font-semibold"
           >
             <CheckCircleIcon className="w-4 h-4" />
             正解済みです（提出は正解するまで）

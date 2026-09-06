@@ -53,7 +53,7 @@ export default function ExerciseListPage() {
         <p className="text-sm text-[var(--color-text-muted)]">読み込み中...</p>
       )}
       {error && (
-        <p className="text-sm text-red-500">{error}</p>
+        <p className="text-sm text-red-700">{error}</p>
       )}
 
       {!loading && !error && exercises.length === 0 && (
@@ -103,7 +103,7 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
             <LanguageBadge language={ex.language} />
             <DifficultyBadge level={ex.difficulty} />
           </div>
-          <h3 className="mt-1 text-base font-semibold text-[var(--color-text-primary)] group-hover:text-taupe-400 transition-colors truncate">
+          <h3 className="mt-1 text-base font-semibold text-[var(--color-text-primary)] group-hover:text-taupe-600 transition-colors truncate">
             {ex.title}
           </h3>
         </div>
@@ -123,7 +123,7 @@ function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] })
   // 淡色だと白背景で薄く「見えにくい」ため、濃色塗り + 白文字ではっきり区別する。
   if (status === 'solved') {
     return (
-      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white flex-shrink-0">
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-700 text-white flex-shrink-0">
         <CheckCircleIcon className="w-3.5 h-3.5" />
         解いた
       </span>
@@ -131,7 +131,7 @@ function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] })
   }
   if (status === 'in_progress') {
     return (
-      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-600 text-white flex-shrink-0">
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-700 text-white flex-shrink-0">
         <ClockIcon className="w-3.5 h-3.5" />
         取り組み中
       </span>

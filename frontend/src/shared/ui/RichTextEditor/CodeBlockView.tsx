@@ -90,15 +90,17 @@ export default function CodeBlockView({ node, updateAttributes, editor }: NodeVi
                   <li className="rte-codeblock-empty">該当する言語がありません</li>
                 ) : (
                   languages.map((item) => (
-                    <li key={item.id} role="option" aria-selected={item.id === language}>
-                      <button
-                        type="button"
-                        onClick={() => selectLanguage(item.id)}
-                        className={`rte-codeblock-item ${item.id === language ? 'is-active' : ''}`}
-                      >
-                        <span className="flex-1 truncate">{item.label}</span>
-                        {item.id === language && <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />}
-                      </button>
+                    // 押されるのは option である li 自身。option の中にボタンを入れると、
+                    // 支援技術からは「押せるものの中に押せるものがある」壊れた形に見える。
+                    <li
+                      key={item.id}
+                      role="option"
+                      aria-selected={item.id === language}
+                      onClick={() => selectLanguage(item.id)}
+                      className={`rte-codeblock-item ${item.id === language ? 'is-active' : ''}`}
+                    >
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.id === language && <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />}
                     </li>
                   ))
                 )}
@@ -115,7 +117,7 @@ export default function CodeBlockView({ node, updateAttributes, editor }: NodeVi
           className="rte-codeblock-copy"
         >
           {copied ? (
-            <CheckIcon className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+            <CheckIcon className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
           ) : (
             <DocumentDuplicateIcon className="h-3.5 w-3.5" aria-hidden="true" />
           )}

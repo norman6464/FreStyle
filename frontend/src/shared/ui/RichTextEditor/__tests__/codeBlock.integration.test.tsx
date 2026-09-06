@@ -65,7 +65,8 @@ describe('コードブロック NodeView（統合）', () => {
 
     // 検索で絞り込んで SQL を選択。
     fireEvent.change(screen.getByLabelText('言語を検索'), { target: { value: 'sql' } });
-    fireEvent.click(screen.getByRole('option', { name: /SQL/ }).querySelector('button')!);
+    // 押すのは option 自身（option の中に押せるものを入れ子にしない形へ改めた）。
+    fireEvent.click(screen.getByRole('option', { name: /SQL/ }));
 
     await waitFor(() => {
       expect(editor.getJSON().content?.[0]?.attrs?.language).toBe('sql');

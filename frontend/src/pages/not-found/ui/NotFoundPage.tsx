@@ -34,7 +34,7 @@ export default function NotFoundPage() {
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md text-center">
-          <p className="text-sm font-semibold tracking-widest text-brand-500">404</p>
+          <p className="text-sm font-semibold tracking-widest text-brand-700">404</p>
           <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
             ページが見つかりません
           </h1>
@@ -48,7 +48,7 @@ export default function NotFoundPage() {
             {signedIn ? (
               <Link
                 to="/"
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors"
               >
                 ホームへ戻る
               </Link>
@@ -56,7 +56,7 @@ export default function NotFoundPage() {
               <>
                 <Link
                   to="/"
-                  className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
+                  className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors"
                 >
                   トップへ戻る
                 </Link>

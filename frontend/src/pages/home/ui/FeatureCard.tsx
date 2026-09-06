@@ -41,7 +41,7 @@ export default function FeatureCard({ to, icon: Icon, title, description, color,
           <Icon className="w-5 h-5 -translate-y-px" />
         </div>
         <div className="min-w-0 pt-1">
-          <h3 className="font-semibold text-[var(--color-text-primary)] text-sm group-hover:text-brand-500 transition-colors">
+          <h3 className="font-semibold text-[var(--color-text-primary)] text-sm group-hover:text-brand-700 transition-colors">
             {title}
           </h3>
         </div>
@@ -57,7 +57,7 @@ export default function FeatureCard({ to, icon: Icon, title, description, color,
           ))}
         </div>
       )}
-      <div className="mt-4 flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-brand-500 transition-colors">
+      <div className="mt-4 flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-brand-700 transition-colors">
         <span>開く</span>
         <ArrowRightIcon className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
       </div>

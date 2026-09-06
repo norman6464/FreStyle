@@ -7,13 +7,13 @@ import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 export default function ResultBadge({ isCorrect }: { isCorrect: boolean }) {
   if (isCorrect) {
     return (
-      <span className="flex-shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">
+      <span className="flex-shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-500/15 text-green-800 border border-green-500/30">
         <CheckCircleIcon className="w-4 h-4" /> 全テストケース合格
       </span>
     );
   }
   return (
-    <span className="flex-shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
+    <span className="flex-shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-red-500/15 text-red-800 border border-red-500/30">
       <XCircleIcon className="w-4 h-4" /> 不合格
     </span>
   );

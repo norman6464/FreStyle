@@ -4,18 +4,21 @@ import NotificationItem from '../NotificationItem';
 import type { Notification } from '../../model/types';
 
 /**
- * 実際に backend が作る通知に合わせる。
+ * backend の形に合わせる（本文は message ではなく body）。
  *
- * 以前のテストは存在しない種別（GOAL_ACHIEVED）と存在しない項目（message）で
- * 書かれていたため、本文が画面に出ていないのにテストは通り続けていた。
- * backend が入れる値は type=company_application、本文は body。
+ * 以前のテストは存在しない種別（GOAL_ACHIEVED）と存在しない項目（message）で書かれており、
+ * 本文が画面に出ていないのにテストは通り続けていた。
+ *
+ * 種別に実在の値を書かないのは、いま backend に通知を作る usecase が 1 つも無く、
+ * 「実際に届く種別」がまだ存在しないため。Type は自由文字列なので、ここでは
+ * 素性の分かる仮の値を使い、**種別文字列がそのまま出る**ことだけを確かめる。
  */
 function makeNotification(overrides: Partial<Notification> = {}): Notification {
   return {
     id: 1,
-    type: 'company_application',
-    title: '新しい利用申請が届きました',
-    body: '株式会社サンプル（山田 太郎 / taro@example.com）から利用申請がありました。',
+    type: 'sample_type',
+    title: '演習の採点が終わりました',
+    body: '「スライスに要素を足す」は 4 件のテストケースすべてに通りました。',
     isRead: false,
     createdAt: '2026-08-02T10:00:00Z',
     ...overrides,
@@ -33,25 +36,22 @@ describe('NotificationItem', () => {
     renderItem();
 
     expect(
-      screen.getByText('株式会社サンプル（山田 太郎 / taro@example.com）から利用申請がありました。'),
+      screen.getByText('「スライスに要素を足す」は 4 件のテストケースすべてに通りました。'),
     ).toBeInTheDocument();
   });
 
   it('タイトルを表示する', () => {
     renderItem();
 
-    expect(screen.getByText('新しい利用申請が届きました')).toBeInTheDocument();
+    expect(screen.getByText('演習の採点が終わりました')).toBeInTheDocument();
   });
 
-  it('利用申請の種別を日本語のバッジで出す', () => {
-    renderItem({ type: 'company_application' });
-
-    expect(screen.getByText('利用申請')).toBeInTheDocument();
-    expect(screen.queryByText('company_application')).not.toBeInTheDocument();
-  });
-
-  // ラベル未定義の種別が来ても表示が消えないこと（種別が増えたときの安全側の挙動）。
-  it('未知の種別はそのまま表示する', () => {
+  /*
+   * 日本語ラベルを当てる対応表はいま空（backend に通知を作る usecase が無く、実在する
+   * 種別がまだ無いため）。したがって、どの種別で来ても種別文字列がそのまま出るのが正。
+   * 対応表に実在の種別を足したときは、その種別のラベルを確かめるテストをここに足す。
+   */
+  it('ラベルの無い種別は種別文字列をそのまま表示する', () => {
     renderItem({ type: 'unknown_type' });
 
     expect(screen.getByText('unknown_type')).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe('NotificationItem', () => {
   it('本文が空でもタイトルは表示する', () => {
     renderItem({ body: '' });
 
-    expect(screen.getByText('新しい利用申請が届きました')).toBeInTheDocument();
+    expect(screen.getByText('演習の採点が終わりました')).toBeInTheDocument();
   });
 
   describe('既読の操作', () => {

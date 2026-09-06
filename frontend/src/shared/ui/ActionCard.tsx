@@ -57,7 +57,7 @@ export default function ActionCard({
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
             isPrimary
               ? 'bg-taupe-500 text-white'
-              : 'bg-surface-2 text-taupe-300'
+              : 'bg-surface-2 text-taupe-600'
           }`}
           aria-hidden="true"
         >
@@ -68,7 +68,7 @@ export default function ActionCard({
         <div className="flex items-center justify-between gap-2">
           <p className="text-base font-semibold text-[var(--color-text-primary)]">{title}</p>
           {badge && (
-            <span className="shrink-0 rounded-full border border-taupe-400/40 bg-taupe-500/10 px-2 py-0.5 text-xs font-medium text-taupe-300">
+            <span className="shrink-0 rounded-full border border-taupe-400/40 bg-taupe-500/10 px-2 py-0.5 text-xs font-medium text-taupe-600">
               {badge}
             </span>
           )}
@@ -80,7 +80,7 @@ export default function ActionCard({
         )}
       </div>
       <ArrowRightIcon
-        className="mt-2 h-4 w-4 shrink-0 text-[var(--color-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-taupe-300"
+        className="mt-2 h-4 w-4 shrink-0 text-[var(--color-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-taupe-600"
         aria-hidden="true"
       />
     </>

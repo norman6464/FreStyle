@@ -10,7 +10,7 @@ interface UploadUrlResponse {
 }
 
 /**
- * ImageUploadRepository — 画像を S3 にアップロードして公開 URL を返す（ノート / 教材で共有）。
+ * ImageUploadRepository — 画像を S3 にアップロードして公開 URL を返す（リッチテキストエディタ全般で共有）。
  *
  * フロー: presign 発行(current user 名義) → S3 へ直接 PUT → 配信 URL(publicUrl) を返す。
  * userId は送らず backend が context の current user で発行する（IDOR 対策）。

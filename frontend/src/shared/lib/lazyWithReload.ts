@@ -11,8 +11,8 @@ import { lazy, type ComponentType } from 'react';
  *
  * 症状:
  *   - 旧 index.html を SPA としてロードしているクライアントが、ナビゲーション時に
- *     `import('./pages/NotesPage')` 等を解決しようとして
- *     `Failed to fetch dynamically imported module: .../assets/NotesPage-XXXX.js` を出す
+ *     `import('./pages/SettingsPage')` 等を解決しようとして
+ *     `Failed to fetch dynamically imported module: .../assets/SettingsPage-XXXX.js` を出す
  *   - S3/CloudFront は missing object に対して index.html を返す設定なので、
  *     ブラウザは「JS module を期待したのに text/html が来た」とエラーする
  *

@@ -49,10 +49,10 @@ describe('useCommandPalette', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('ノート');
+      result.current.setQuery('ナレッジ');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('ノート');
+    expect(labels).toContain('ナレッジ');
     expect(labels).not.toContain('ホーム');
   });
 
@@ -83,8 +83,17 @@ describe('useCommandPalette', () => {
       result.current.setQuery('KB');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    // 旧「ナレッジ」の英語キーワード kb は、統合先のノートを引き当てる。
-    expect(labels).toContain('ノート');
+    expect(labels).toContain('ナレッジ');
+  });
+
+  it('キーワード（英語の別名）でも引ける', () => {
+    const { result } = renderHook(() => useCommandPalette());
+    act(() => {
+      result.current.open();
+      result.current.setQuery('wiki');
+    });
+    const labels = result.current.filteredItems.map(i => i.label);
+    expect(labels).toContain('ナレッジ');
   });
 
   it('クエリ変更時にselectedIndexが0にリセットされる', () => {
@@ -96,7 +105,7 @@ describe('useCommandPalette', () => {
     });
     expect(result.current.selectedIndex).toBe(2);
     act(() => {
-      result.current.setQuery('ノート');
+      result.current.setQuery('ナレッジ');
     });
     expect(result.current.selectedIndex).toBe(0);
   });

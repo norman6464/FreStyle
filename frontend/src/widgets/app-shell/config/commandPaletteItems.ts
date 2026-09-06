@@ -60,14 +60,13 @@ export const COMMAND_ITEMS: CommandItem[] = [
     keywords: ['favorite', 'star', 'お気に入り', 'フレーズ'],
   },
   {
-    id: 'nav-notes',
-    label: 'ノート',
-    description: 'ノートに移動',
+    id: 'nav-kb',
+    label: 'ナレッジ',
+    description: 'ナレッジに移動',
     icon: DocumentTextIcon,
     category: 'ページ移動',
-    action: { type: 'navigate', path: '/notes' },
-    // 旧「ナレッジ」の語でも引けるようにしておく（統合後も呼び名の記憶は残る）。
-    keywords: ['note', 'メモ', 'ノート', 'kb', 'knowledge', 'ナレッジ', 'wiki', '共有'],
+    action: { type: 'navigate', path: '/kb' },
+    keywords: ['kb', 'knowledge', 'ナレッジ', 'メモ', 'wiki', '共有'],
   },
   {
     id: 'nav-profile',

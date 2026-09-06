@@ -93,7 +93,7 @@ describe('SecondaryPanel peekable（一時表示/固定表示）', () => {
 
   function renderPeekable() {
     return render(
-      <SecondaryPanel title="ノート" badge="3件" peekable storageKey={KEY}>
+      <SecondaryPanel title="ナレッジ" badge="3件" peekable storageKey={KEY}>
         <p>一覧の中身</p>
       </SecondaryPanel>,
     );

@@ -38,7 +38,7 @@ describe('MenuPage', () => {
 
     expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('コード演習')).toBeInTheDocument();
-    expect(screen.getByText('ノート')).toBeInTheDocument();
+    expect(screen.getByText('ナレッジ')).toBeInTheDocument();
   });
 
   it('演習カードに学べる技術ロゴ(Devicon)が出る', () => {

@@ -3,7 +3,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 import SecondaryPanel from './SecondaryPanel';
 
 /**
- * 本文の脇に出す面（コースの章一覧・ノートのサイドバー）。
+ * 本文の脇に出す面（コースの章一覧・ナレッジのサイドバー）。
  *
  * **同じ部品を両方の画面で使う。** 画面ごとに別の開閉を作ると、覚えることが増える。
  * `peekable` では « で隠すと本文が全幅になり、左端に触れると一時的に浮いて出る。
@@ -31,7 +31,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 中身の見本（章の一覧・ノートの木のかわり）。 */
+/** 中身の見本（章の一覧・ナレッジの木のかわり）。 */
 function PanelBody() {
   return (
     <ul className="p-2">

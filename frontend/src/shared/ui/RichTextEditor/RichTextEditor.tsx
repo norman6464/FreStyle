@@ -127,7 +127,7 @@ export default function RichTextEditor({
   // '/image' から開くファイル選択（キーボード/クリックでも画像を挿入できる経路）。
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // アンマウント（別ノートへ切替）後にアップロードが完了しても挿入しないための番人。
+  // アンマウント（別ページへ切替）後にアップロードが完了しても挿入しないための番人。
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;

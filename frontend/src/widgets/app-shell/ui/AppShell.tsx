@@ -11,7 +11,7 @@ import CommandPalette from './CommandPalette';
 export default function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { pathname } = useLocation();
-  // ヘッダーの自動隠し（ノート本文の下スクロール等）。ページ側が setHeaderHidden で切り替える。
+  // ヘッダーの自動隠し（ナレッジ本文の下スクロール等）。ページ側が setHeaderHidden で切り替える。
   const headerVisibility = useHeaderVisibilityState();
 
   // 認証必須ページ（AppShell 配下）はログイン前提なので検索インデックス対象外にする。

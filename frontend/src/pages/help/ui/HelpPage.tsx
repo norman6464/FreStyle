@@ -217,10 +217,10 @@ export default function HelpPage() {
         </p>
       </section>
 
-      {/* 5. ノート */}
-      <section aria-labelledby="help-notes">
-        <h2 id="help-notes" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          5. ノート機能
+      {/* 5. ナレッジ */}
+      <section aria-labelledby="help-kb">
+        <h2 id="help-kb" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
+          5. ナレッジ機能
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
           気付きや決めごとは、ワークスペースとスペースで整理されたページに書き残せます。
@@ -228,8 +228,8 @@ export default function HelpPage() {
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <ActionCard
-            to="/notes"
-            title="ノートを書く"
+            to="/kb"
+            title="ナレッジを書く"
             description="スペースにページを作り、チームで共有できます。"
             icon={<DocumentTextIcon className="h-5 w-5" />}
           />

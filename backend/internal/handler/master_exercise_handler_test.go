@@ -23,7 +23,7 @@ type fakeMasterExerciseRepo struct {
 	getErr       error
 	gotSlug      string
 
-	// 言語別集計(FRESTYLE-152)用。
+	// 言語別集計用。
 	summaryResult    []repository.ExerciseLanguageSummary
 	summaryErr       error
 	gotSummaryUserID uint64
@@ -101,7 +101,7 @@ func newMasterExerciseTestHandler(repo *fakeMasterExerciseRepo, examples *fakeEx
 	return r
 }
 
-// /exercises/summary → 言語別の 問題数 / 正解済み件数 が JSON 配列で返る（FRESTYLE-152）。
+// /exercises/summary → 言語別の 問題数 / 正解済み件数 が JSON 配列で返る。
 func Test_演習問題ハンドラ_言語別集計(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{
 		summaryResult: []repository.ExerciseLanguageSummary{

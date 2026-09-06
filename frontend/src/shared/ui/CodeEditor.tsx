@@ -31,7 +31,7 @@ interface CodeEditorProps {
   /** Ctrl+Enter / Cmd+Enter で呼ばれる実行ハンドラ（コード実行ショートカット）。 */
   onRun?: () => void;
   /**
-   * 実行エラーの行マーカー(FRESTYLE-117)。該当行のガターに ✕ グリフ + 行の薄い赤
+   * 実行エラーの行マーカー。該当行のガターに ✕ グリフ + 行の薄い赤
    * ハイライト + ホバーでエラーメッセージを表示する。空なら何も出さない。
    */
   errorMarkers?: { line: number; message: string }[];
@@ -151,7 +151,7 @@ export default function CodeEditor({
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly]);
 
-  // 実行エラーの行マーカー(FRESTYLE-117)。
+  // 実行エラーの行マーカー。
   // - setModelMarkers: 赤波線 + ホバーでエラーメッセージ
   // - decorations: ガターの ✕ グリフ + 行の薄い赤ハイライト(スタイルは index.css)
   // ガター余白(glyphMargin)はマーカーがあるときだけ確保し、普段の見た目を変えない。

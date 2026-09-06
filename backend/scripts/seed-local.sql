@@ -110,8 +110,8 @@ END $$;
 
 -- ---- users ----------------------------------------------------------------
 -- 1% を company_admin にして権限分岐のあるクエリも実データで踏めるようにする。
--- ロールは role_id が正（FRESTYLE-311）。OIDC subject は user_oidc_identities に持つ。
--- password_hash は全員 'password' の bcrypt（ローカルのパスワードログイン用・FRESTYLE-311 PR2）。
+-- ロールは role_id が正。OIDC subject は user_oidc_identities に持つ。
+-- password_hash は全員 'password' の bcrypt（ローカルのパスワードログイン用）。
 INSERT INTO users (id, email, name, workspace_id, role_id, password_hash, is_active, created_at, updated_at)
 SELECT
   1000000 + i,

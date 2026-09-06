@@ -17,7 +17,7 @@ const SIZE_STYLES: Record<AvatarSize, { container: string; text: string }> = {
 
 export default function Avatar({ name, src, size = 'md' }: AvatarProps) {
   // 画像が読めなかったときは頭文字表示に戻す。フォールバックが無いとブラウザ既定の
-  // 「壊れた画像」マークと代替テキストが出て崩れた見た目になる（FRESTYLE-232）。
+  // 「壊れた画像」マークと代替テキストが出て崩れた見た目になる。
   const [failed, setFailed] = useState(false);
   const initial = name ? name.charAt(0).toUpperCase() : '?';
   const styles = SIZE_STYLES[size];

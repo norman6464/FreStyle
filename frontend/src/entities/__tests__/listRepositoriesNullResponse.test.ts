@@ -12,8 +12,8 @@ import { NotificationRepository } from '@/entities/notification';
 const mockGet = vi.mocked(apiClient.get);
 
 /**
- * 一覧 API が 0 件のとき null を返しても、フロントが必ず配列を受け取ることを保証する
- * （FRESTYLE-77）。null がそのまま流れると map / filter / for-of が TypeError で落ち、
+ * 一覧 API が 0 件のとき null を返しても、フロントが必ず配列を受け取ることを保証する。
+ * null がそのまま流れると map / filter / for-of が TypeError で落ち、
  * データがまだ無い新規ユーザーがそのページを開けなくなる。
  *
  * backend 側でも空配列を保証しているが、片側だけの対策では

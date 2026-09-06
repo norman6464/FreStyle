@@ -8,7 +8,7 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 |---|---|---|---|
 | `ci-backend.yml` | CI | PR / push to main（`FreStyle/**`） | `./gradlew test` + Docker image ビルド検証 |
 | `ci-frontend.yml` | CI | PR / push to main（`frontend/**`） | `pnpm test` + `pnpm run build` |
-| `cd-backend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | ECR push + ECS ローリング再起動（タスク定義は infra リポの Terraform が管理。CFn 依存は FRESTYLE-61 で撤去） |
+| `cd-backend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | ECR push + ECS ローリング再起動（タスク定義は infra リポの Terraform が管理。CFn 依存は撤去済み） |
 | `cd-frontend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | S3 sync + CloudFront invalidation |
 
 ## 必要な GitHub Secrets（CD 動作前提）
@@ -33,14 +33,14 @@ AWS 認証はすべて GitHub OIDC で、ワークフローが実行のたびに
 >
 > | Secret | 失効手順 |
 > |---|---|
-> | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | OIDC デプロイの成功を確認 → IAM ユーザーのアクセスキーを無効化してから削除 → GitHub Secrets からも削除（FRESTYLE-89） |
-> | `IAC_REPO_TOKEN` | PAT を revoke → GitHub Secrets からも削除（FRESTYLE-61） |
+> | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | OIDC デプロイの成功を確認 → IAM ユーザーのアクセスキーを無効化してから削除 → GitHub Secrets からも削除 |
+> | `IAC_REPO_TOKEN` | PAT を revoke → GitHub Secrets からも削除 |
 >
 > 失効まで終えたら、この表から下の「廃止済み」へ移す。
 >
 > **廃止済み Secrets**（認証情報ではない / 参照されない）:
 > `IAC_REPO`、`COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。タスク定義の
-> env / secrets は infra リポの Terraform `ecs.tf` が持つ）。いずれも FRESTYLE-61 の cd-backend
+> env / secrets は infra リポの Terraform `ecs.tf` が持つ）。いずれも cd-backend の
 > Terraform 前提化で不要になった。GitHub Secrets 側に残っていても参照されない。
 
 ### Secrets 一覧確認

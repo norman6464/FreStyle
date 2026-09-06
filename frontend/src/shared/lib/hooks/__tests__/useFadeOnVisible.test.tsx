@@ -58,7 +58,7 @@ function Harness({
 const TWO_SEGS =
   '<span class="fade-seg" id="a">見えている、</span><span class="fade-seg" id="b">画面外です。</span>';
 
-describe('useFadeOnVisible (FRESTYLE-153)', () => {
+describe('useFadeOnVisible', () => {
   beforeEach(() => {
     capturedCallback = null;
     observed = [];

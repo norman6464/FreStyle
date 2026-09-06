@@ -3,12 +3,12 @@ import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { hasAuthHint } from '@/shared/lib/authHint';
 
 /**
- * 存在しない URL の受け皿（FRESTYLE-86）。
+ * 存在しない URL の受け皿。
  *
  * catch-all（`path="*"`）が無かったため、タイポ・古いリンク・削除済みリソースで
  * 完全に真っ白な画面になり、戻る手段が無いまま離脱していた。
  *
- * ログイン状態は目印 Cookie で判断する（FRESTYLE-231）。認証必須ルートの外に置く
+ * ログイン状態は目印 Cookie で判断する。認証必須ルートの外に置く
  * ページなので `/auth/me` の結果を待つと表示が遅れ、待たずに Redux を読むと未確定の
  * 既定値（未ログイン扱い）で描画してしまう。この画面は行き先の案内を出し分けるだけで
  * 権限を判定しないため、目印で十分（実際の認証は遷移先で行われる）。

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { toArray } from '../toArray';
 
 /**
- * API が 0 件のとき null を返しても画面が落ちないようにする防御（FRESTYLE-77）。
+ * API が 0 件のとき null を返しても画面が落ちないようにする防御。
  * ここが崩れると map / filter / for-of が TypeError になり、
  * データがまだ無い新規ユーザーがそのページを開けなくなる。
  */

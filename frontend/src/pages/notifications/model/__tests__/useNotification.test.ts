@@ -108,7 +108,7 @@ describe('useNotification', () => {
   });
 
   // 取得できなかったことを空配列で表すと「通知は 0 件」と区別がつかず、
-  // 障害中に「通知はありません」という嘘を見せてしまう（FRESTYLE-94）。
+  // 障害中に「通知はありません」という嘘を見せてしまう。
   describe('取得に失敗したとき', () => {
     beforeEach(() => {
       mockGetAll.mockRejectedValue(new Error('API Error'));

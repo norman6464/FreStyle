@@ -104,7 +104,7 @@ describe('NotificationPage', () => {
     expect(screen.queryByText('すべて既読にする')).not.toBeInTheDocument();
   });
 
-  // 取得に失敗したときに「通知はありません」と嘘を見せないことを固定する（FRESTYLE-94）。
+  // 取得に失敗したときに「通知はありません」と嘘を見せないことを固定する。
   describe('取得に失敗したとき', () => {
     const failing = (overrides = {}) => ({
       notifications: [],

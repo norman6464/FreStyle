@@ -2,7 +2,7 @@ name: Scheduled - Stop (scale ECS to 0 at night)
 
 # 夜間コスト最適化: ECS サービスの desiredCount を 0 にする(ALB は維持)。
 # 旧 CFn destroy 方式は runtime の Terraform 移行で衝突するため廃止し、
-# desiredCount 0↔1 方式に変更した(FRESTYLE-58)。ALB を残すので朝の不発でも全断にはならない。
+# desiredCount 0↔1 方式に変更した。ALB を残すので朝の不発でも全断にはならない。
 on:
   schedule:
     - cron: '0 13 * * *' # 22:00 JST

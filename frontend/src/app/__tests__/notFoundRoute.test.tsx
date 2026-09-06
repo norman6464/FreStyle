@@ -19,7 +19,7 @@ function renderAt(path: string) {
 }
 
 /**
- * catch-all（`path="*"`）の結線を App ごと描画して検証する（FRESTYLE-86）。
+ * catch-all（`path="*"`）の結線を App ごと描画して検証する。
  *
  * NotFoundPage 単体のテストだけでは、ルートの配置換え・パス指定の誤り・遅延 import の
  * 接続不良を検出できない。「未知の URL を開いたら 404 が出る」という利用者から見た

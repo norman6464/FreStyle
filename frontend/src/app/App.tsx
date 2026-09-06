@@ -98,14 +98,14 @@ export default function App() {
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/help" element={<HelpPage />} />
-        {/* コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段(FRESTYLE-152)。
+        {/* コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段。
             /lang/:language は 2 セグメントなので 1 セグメントの :slug とは衝突しない。 */}
         <Route path="/code-editor" element={<ExerciseLanguageSelectPage />} />
         <Route path="/code-editor/lang/:language" element={<ExerciseListPage />} />
         <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
       </Route>
 
-      {/* どのルートにも一致しない URL の受け皿（FRESTYLE-86）。
+      {/* どのルートにも一致しない URL の受け皿。
           認証ブロックの外に置く: 中に入れると未ログイン時に /login へ飛ばされ、
           タイポや古いリンクで来た訪問者に 404 を見せられない（公開サイトとして不適切）。 */}
       <Route path="*" element={<NotFoundPage />} />

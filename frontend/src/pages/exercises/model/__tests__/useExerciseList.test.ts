@@ -32,7 +32,7 @@ describe('useExerciseList', () => {
     expect(mockList).toHaveBeenCalledWith('php', 0, 20);
   });
 
-  // 言語は URL(引数)が正なので、切り替えは rerender で表現される(FRESTYLE-152)。
+  // 言語は URL(引数)が正なので、切り替えは rerender で表現される。
   it('language 引数が変わると items をリセットして再 fetch する', async () => {
     mockList.mockResolvedValue(emptyPage);
     const { result, rerender } = renderHook(({ lang }) => useExerciseList(lang), {

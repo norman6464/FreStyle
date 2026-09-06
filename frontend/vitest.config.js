@@ -18,7 +18,7 @@ const withStorybookTests = process.env.WITH_STORYBOOK_TESTS === '1';
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
   plugins: [react()],
-  // vite.config.js / tsconfig.json と同じ '@' → src のエイリアス（FRESTYLE-155）。
+  // vite.config.js / tsconfig.json と同じ '@' → src のエイリアス。
   // ここが無いと、テストだけが絶対パスを解決できず一斉に落ちる。
   resolve: {
     alias: {

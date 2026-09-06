@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     devCsp(loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '').VITE_API_BASE_URL),
   ],
   // '@' → src の絶対パス。FSD は層をまたぐ参照を絶対パスで書く前提なので、
-  // tsconfig.json の paths と同じ内容をビルド側にも定義する（FRESTYLE-155）。
+  // tsconfig.json の paths と同じ内容をビルド側にも定義する。
   // 型チェック・ビルド・テストの 3 か所すべてに無いと、
   // 「型は通るがビルドで落ちる」状態になるため必ず揃える。
   resolve: {

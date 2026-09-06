@@ -10,7 +10,7 @@ import { readdirSync } from 'node:fs';
 import tseslint from 'typescript-eslint';
 
 /*
- * FSD の層間依存ルール（FRESTYLE-154 / 155）。
+ * FSD の層間依存ルール。
  *
  * 公式仕様:
  *   「Slice 内のモジュールは、厳密に下の層にある Slice しか import できない」
@@ -21,7 +21,7 @@ import tseslint from 'typescript-eslint';
  *
  * FSD 移行（Phase 0〜7）が完了したので **'error'** で強制する。移行中は旧新構造の
  * 混在で CI が常時赤にならないよう 'warn' に留めていたが、レイヤー移行が完了し
- * 違反 0 になったため Phase 7（FRESTYLE-176）で 'error' へ昇格した。以後、層の
+ * 違反 0 になったため Phase 7 で 'error' へ昇格した。以後、層の
  * 逆流・Slice 間の直接 import・Slice の自己参照は CI（`--max-warnings 0`）で弾かれる。
  */
 const FSD_LAYERS = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'];

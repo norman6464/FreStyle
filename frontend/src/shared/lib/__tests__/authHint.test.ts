@@ -24,7 +24,7 @@ function axiosErrorWith(status?: number): AxiosError {
 }
 
 /**
- * ログイン済みの目印 Cookie（FRESTYLE-231）。
+ * ログイン済みの目印 Cookie。
  * これが正しく置かれ・消えることが、配信側（CloudFront）のトップ振り分けの前提になる。
  */
 describe('authHint', () => {

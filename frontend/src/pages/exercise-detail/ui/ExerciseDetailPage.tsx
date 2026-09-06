@@ -56,7 +56,7 @@ export default function ExerciseDetailPage() {
 
   const [showHint, setShowHint] = useState(false);
 
-  // 実行エラー時は stderr から行番号を抽出し、エディタのガターに ✕ マーカーを出す(FRESTYLE-117)。
+  // 実行エラー時は stderr から行番号を抽出し、エディタのガターに ✕ マーカーを出す。
   const errorMarkers = useMemo(
     () =>
       executionResult && executionResult.exitCode !== 0 && detail

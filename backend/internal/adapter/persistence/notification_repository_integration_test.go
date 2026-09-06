@@ -47,7 +47,7 @@ func TestNotificationRepository_Integration(t *testing.T) {
 }
 
 // TestNotificationRepository_CreateMany_Integration は一括作成を実 Postgres で検証する。
-// 宛先が増えるたびに DB との往復が増えないよう 1 回の INSERT にまとめている（FRESTYLE-17）。
+// 宛先が増えるたびに DB との往復が増えないよう 1 回の INSERT にまとめている。
 func TestNotificationRepository_CreateMany_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewNotificationRepository(sqlDB)

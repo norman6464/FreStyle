@@ -36,7 +36,7 @@ const apiClient = axios.create({
  * `skipAuthRedirect: true` を付けた呼び出しは、401（かつリフレッシュ失敗）でも
  * /login へ強制遷移しない。「ログイン済みか確かめる」用途では 401 は正常な答えであり、
  * 公開ページの訪問者や検索エンジンのクローラをログイン画面へ追い出してはいけないため
- * （公開 LP の全訪問者が /login に飛ばされた回帰: FRESTYLE-225）。
+ * （公開 LP の全訪問者が /login に飛ばされた回帰への対応）。
  */
 export interface PublicSafeRequestConfig extends AxiosRequestConfig {
   skipAuthRedirect?: boolean;

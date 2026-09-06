@@ -35,7 +35,7 @@ export default function NotificationPage() {
         )}
       </div>
 
-      {/* 取得に失敗したことは独立した帯で伝える。取得済みの通知は隠さない（FRESTYLE-94）。 */}
+      {/* 取得に失敗したことは独立した帯で伝える。取得済みの通知は隠さない。 */}
       {error && (
         <div
           role="alert"

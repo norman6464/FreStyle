@@ -32,7 +32,7 @@ interface DiffLine {
 
 /**
  * 正規化済みの出力と期待出力を行単位で比較し、最初に異なる行を返す（一致なら null）。
- * 「どこが違うのか」を学習者が自力で見つけなくて済むようにするための情報(FRESTYLE-113)。
+ * 「どこが違うのか」を学習者が自力で見つけなくて済むようにするための情報。
  */
 function firstDiffLine(normalizedActual: string, normalizedExpected: string): DiffLine | null {
   if (normalizedActual === normalizedExpected) return null;
@@ -52,11 +52,11 @@ function firstDiffLine(normalizedActual: string, normalizedExpected: string): Di
  * stdout / stderr / 期待 出力 を 並列 で 見せる。
  *
  * 「実行 ステータス」 は 3 状態 に 分け、 緑 は 「期待 出力 と 一致 した とき だけ」 に 予約 する。
- * exit 0 なら 常に 緑 だと 「エラー なく 動いた ＝ 正解」 と 色 の 印象 で 誤解 され やすい ため
- * (FRESTYLE-111)。 正誤 の 確定 は 従来 どおり 提出 時 の サーバ 側 採点 (複数 テストケース):
+ * exit 0 なら 常に 緑 だと 「エラー なく 動いた ＝ 正解」 と 色 の 印象 で 誤解 され やすい
+ * ため。 正誤 の 確定 は 従来 どおり 提出 時 の サーバ 側 採点 (複数 テストケース):
  *   - exit 0 + 出力 一致   → 緑 + ✓ 「実行 成功・期待 する 出力 と 一致」
  *   - exit 0 + 出力 不一致 → 琥珀 + ⚠ 「実行 成功 (エラー なし)・期待 する 出力 と 不一致」
- *                            + 最初 に 異なる 行 の 提示 (どこ が 違う か を 自力 で 探さ せ ない / FRESTYLE-113)
+ *                            + 最初 に 異なる 行 の 提示 (どこ が 違う か を 自力 で 探さ せ ない)
  *   - exit != 0            → 赤 + ✗ 「実行 エラー (exit N)」
  * 期待 出力 が 空 の 演習 は 比較 でき ない ので 従来 の 中立 表示 に フォールバック。
  * さらに exit 0 でも stdout が 空 の とき は 「まだ 出力 が ない」 ヒント を 出す。
@@ -135,7 +135,7 @@ export default function ExecutionResultTable({ result, expected, submitError, la
               )}
             </td>
           </tr>
-          {/* stderr は stdout と混ぜず専用の行に分ける(FRESTYLE-117)。
+          {/* stderr は stdout と混ぜず専用の行に分ける。
               エラーの本文を探す場所が一定になり、エディタの行マーカーと突き合わせやすい。 */}
           {result.stderr && (
             <tr className="border-b border-surface-3">

@@ -1,11 +1,10 @@
 import { RefObject, useEffect, useLayoutEffect, useRef } from 'react';
 
 /**
- * useFadeOnVisible — `.fade-seg` のフェードを「mount 時」ではなく「初めて画面に入った時」に走らせる
- * （FRESTYLE-153）。
+ * useFadeOnVisible — `.fade-seg` のフェードを「mount 時」ではなく「初めて画面に入った時」に走らせる。
  *
  * `.fade-seg` の CSS アニメーションは DOM に mount した瞬間に再生される。ストリーミング中の自動
- * スクロール追従をやめた（FRESTYLE-149）ため本文は画面外へ伸びていき、画面外で mount した
+ * スクロール追従をやめたため本文は画面外へ伸びていき、画面外で mount した
  * チャンクはそこでフェードを再生し終える。ユーザーが自分でスクロールして到達した頃には
  * 不透明になっていて「ただ文字が順に出るだけ」に見えていた。
  *

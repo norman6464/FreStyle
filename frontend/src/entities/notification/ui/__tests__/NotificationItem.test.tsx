@@ -4,7 +4,7 @@ import NotificationItem from '../NotificationItem';
 import type { Notification } from '../../model/types';
 
 /**
- * 実際に backend が作る通知に合わせる（FRESTYLE-87）。
+ * 実際に backend が作る通知に合わせる。
  *
  * 以前のテストは存在しない種別（GOAL_ACHIEVED）と存在しない項目（message）で
  * 書かれていたため、本文が画面に出ていないのにテストは通り続けていた。

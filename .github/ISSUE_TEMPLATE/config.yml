@@ -1,7 +1,0 @@
-# 空 Issue を禁止し、必ずテンプレートから起票させる。
-blank_issues_enabled: false
-
-contact_links:
-  - name: Markdown 記法ヘルプ
-    url: https://normanblog.com/notes/markdown-help
-    about: 教材・ノートの Markdown レンダラ仕様

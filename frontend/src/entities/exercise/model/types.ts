@@ -102,7 +102,7 @@ export interface ExercisePage {
 
 /**
  * 言語別の演習集計（`GET /api/v2/exercises/summary`）。
- * 言語選択カードの進捗表示に使う（FRESTYLE-152）。solved は current user が正解済みの問題数。
+ * 言語選択カードの進捗表示に使う。solved は current user が正解済みの問題数。
  */
 export interface ExerciseLanguageSummary {
   language: string;

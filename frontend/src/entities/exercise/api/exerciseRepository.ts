@@ -28,7 +28,7 @@ const ExerciseRepository = {
     return res.data;
   },
 
-  /** 言語別の問題数 / 正解済み件数を取得する（言語選択カード用・FRESTYLE-152）。 */
+  /** 言語別の問題数 / 正解済み件数を取得する（言語選択カード用）。 */
   async listLanguageSummary(): Promise<ExerciseLanguageSummary[]> {
     const res = await api.get<ExerciseLanguageSummary[]>(EXERCISES.summary);
     return toArray<ExerciseLanguageSummary>(res.data);

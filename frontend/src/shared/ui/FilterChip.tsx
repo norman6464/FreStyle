@@ -1,7 +1,7 @@
 /**
  * FilterChip — 一覧の絞り込みに使うピル型トグルボタン。
  *
- * コース一覧のカテゴリ絞り込み(FRESTYLE-68)と演習一覧の言語絞り込み(FRESTYLE-101)で共用。
+ * コース一覧のカテゴリ絞り込みと演習一覧の言語絞り込みで共用。
  * active 時は activeClass(カテゴリ色などの badgeClass)、未指定なら brand 色。
  * 選択状態は aria-pressed で公開する。
  */

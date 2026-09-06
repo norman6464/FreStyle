@@ -40,7 +40,7 @@ reviews:
         (2) *gin.Context や net/http の型を usecase の引数に渡していないか。
         (3) request / response 構造体は handler ファイル内 local 定義で、binding タグでバリデーションしているか。
         (4) 機密フィールド (パスワード hash / token / BlobData 等) が response に露出していないか (domain 側 json:"-" で除外)。
-        (5) 【最重要・再発防止】response / request の json タグのキー名が、フロントの手書き repository (frontend/src/**/api/*.ts) が送受信するキーと一致しているか。displayName↔name のような不一致、フロントが叩くパスと router 登録パスの不一致 (未登録=404) を必ず指摘する。過去に FRESTYLE-198/204/205/206 で本番障害になった箇所。
+        (5) 【最重要・再発防止】response / request の json タグのキー名が、フロントの手書き repository (frontend/src/**/api/*.ts) が送受信するキーと一致しているか。displayName↔name のような不一致、フロントが叩くパスと router 登録パスの不一致 (未登録=404) を必ず指摘する。過去に本番障害になった箇所。
     - path: "backend/internal/usecase/**"
       instructions: >-
         usecase 層。(1) 1 usecase = 1 struct + Execute の単一責任か (複数操作を詰め込んでいたら分割を提案)。

@@ -13,7 +13,7 @@ name: CD - Backend Deploy to ECS
 #
 # タスク定義・ECS サービス・ALB は infra リポの Terraform（ecs.tf）が管理する（2026-06 移行済・
 # 旧 CloudFormation スタックは全撤去）。本 CD はイメージ push と再起動だけを担い、
-# インフラ定義には触れない（FRESTYLE-61）。
+# インフラ定義には触れない。
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
 #       Step 3 で導入。長寿命の AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY は廃止。
@@ -192,7 +192,7 @@ jobs:
       # ECS サービスは Terraform 側で lifecycle.ignore_changes = [task_definition] のため、
       # ecs.tf の環境変数を変えて apply しても新リビジョンが作られるだけでサービスは古い
       # リビジョンのまま動き続ける。force-new-deployment だけだとその古い設定を再起動して
-      # しまい、環境変数の変更が永久に本番へ反映されない(FRESTYLE-226 でログイン不能の原因)。
+      # しまい、環境変数の変更が永久に本番へ反映されない(過去にログイン不能の原因になった)。
       - name: Deploy latest task definition (rolling restart)
         run: |
           aws ecs update-service --region "$AWS_REGION" \

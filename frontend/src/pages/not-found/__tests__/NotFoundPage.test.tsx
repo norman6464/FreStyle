@@ -13,7 +13,7 @@ function renderPage() {
 }
 
 /**
- * 存在しない URL の受け皿（FRESTYLE-86）。
+ * 存在しない URL の受け皿。
  * これが無いと、タイポや古いリンクで来た人が真っ白な画面のまま戻る手段を失う。
  */
 describe('NotFoundPage', () => {

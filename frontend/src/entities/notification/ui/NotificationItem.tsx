@@ -7,8 +7,8 @@ import type { Notification } from '../model/types';
  * （domain.NotificationTypeCompanyApplication = "company_application"）。
  *
  * 以前は backend に存在しない 5 種類（NEW_MESSAGE 等）だけが並んでおり、実在する
- * company_application にラベルが無いため、利用者には生の英字がそのまま見えていた
- * （FRESTYLE-87）。未知の種別は種別文字列をそのまま出すフォールバックのままにする。
+ * company_application にラベルが無いため、利用者には生の英字がそのまま見えていた。
+ * 未知の種別は種別文字列をそのまま出すフォールバックのままにする。
  */
 const TYPE_LABELS: Record<string, string> = {
   company_application: '利用申請',

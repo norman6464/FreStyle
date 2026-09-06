@@ -21,7 +21,7 @@ export function useNotification() {
       setError(null);
     } catch (err) {
       // 取得できなかったことを空配列で表すと「通知は 0 件」と区別がつかず、
-      // 障害中に「通知はありません」という嘘を見せてしまう（FRESTYLE-94）。
+      // 障害中に「通知はありません」という嘘を見せてしまう。
       // 直前まで表示していた内容は消さずに残し、失敗した事実だけを伝える。
       setError(classifyApiError(err, '通知の取得に失敗しました。'));
     } finally {

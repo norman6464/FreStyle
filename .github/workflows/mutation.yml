@@ -75,7 +75,7 @@ jobs:
 
   frontend-mutation:
     name: Stryker (JS/TS mutation)
-    # 当面 nightly / 手動のみ。PR-light は初期テスト実行が CI で失敗する問題(FRESTYLE-214)を
+    # 当面 nightly / 手動のみ。PR-light は初期テスト実行が CI で失敗する問題を
     # 解消してから再有効化する。gremlins(backend)は PR でも回す。
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest

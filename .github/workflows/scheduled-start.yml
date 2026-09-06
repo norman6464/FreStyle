@@ -1,7 +1,7 @@
 name: Scheduled - Start (scale ECS to 1 at morning)
 
 # 朝起動: ECS サービスの desiredCount を 1 に戻す(ALB は常時維持)。
-# desiredCount 0↔1 方式(FRESTYLE-58)。万一 cron 不発でも ALB は生きており、
+# desiredCount 0↔1 方式。万一 cron 不発でも ALB は生きており、
 # 手動で desired=1 に戻すだけで復旧できる(旧 CFn 方式のような全断 recreate は不要)。
 on:
   schedule:

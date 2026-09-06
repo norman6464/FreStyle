@@ -41,7 +41,7 @@ describe('MenuPage', () => {
     expect(screen.getByText('ノート')).toBeInTheDocument();
   });
 
-  it('演習カードに学べる技術ロゴ(Devicon)が出る (FRESTYLE-179)', () => {
+  it('演習カードに学べる技術ロゴ(Devicon)が出る', () => {
     const { container } = renderMenu();
     // LanguageIcon は /lang/<key>.svg を img で描画する。演習(go 等)のロゴが出る。
     expect(container.querySelector('img[src="/lang/go.svg"]')).not.toBeNull();

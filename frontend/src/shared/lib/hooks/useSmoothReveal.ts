@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { splitSubSentences, endsAtBoundary } from '@/shared/lib/subSentenceSegments';
 
 /**
- * useSmoothReveal — ストリーミング本文を Gemini 実物と同じリズムで放出するペーシングフック
- * (FRESTYLE-146)。
+ * useSmoothReveal — ストリーミング本文を Gemini 実物と同じリズムで放出するペーシングフック。
  *
  * Gemini web の配信バンドルから確認したアルゴリズムの再現:
  * - 本文を句読点チャンク(sub-sentence)に分割し、1 チャンクずつ表示に追加する

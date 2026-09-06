@@ -3,7 +3,7 @@
  *
  * key は backend の master_exercises.language 値、label は表示名。
  * 選択肢(ExerciseListPage のチップ)と有効値の検証(useExerciseList の localStorage 復元)の
- * 単一情報源にして二重管理を防ぐ(FRESTYLE-101)。
+ * 単一情報源にして二重管理を防ぐ。
  * 'linux' という独立値は存在せず bash に統合されている(表示名で併記)。
  */
 import { LANGUAGE_BADGE_CLASSES } from '@/shared/config/languageBadgeClasses';

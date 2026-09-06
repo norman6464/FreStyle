@@ -78,5 +78,5 @@ gitignore 記法では「親ディレクトリが除外されていると子を�
 
 ## 移行状況
 
-FSD 移行（FRESTYLE-154）の Phase 5b-1（FRESTYLE-164）と 5b-2（FRESTYLE-165）で構築した。
+FSD 移行の Phase 5b-1 と 5b-2 で構築した。
 `hooks/` はまだ旧ディレクトリにあり、Phase 6 で `features/` へ振り分ける。

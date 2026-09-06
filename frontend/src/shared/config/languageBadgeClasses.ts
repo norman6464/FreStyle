@@ -1,9 +1,9 @@
 /**
  * 言語・技術名 → バッジ配色の対応表。演習の言語バッジとコースの言語バッジで共用する
- * （同じ技術は画面をまたいで同じ色に見えるように、色の正本をここに一本化。FRESTYLE-114）。
+ * （同じ技術は画面をまたいで同じ色に見えるように、色の正本をここに一本化）。
  *
  * 淡色背景 + 濃色文字 + 枠のトーン。背景 /25 + 枠 /50 は「淡すぎて見えにくい」という
- * ユーザー要望によるコントラスト強化(FRESTYLE-112)。
+ * ユーザー要望によるコントラスト強化。
  * 各技術の一般的なイメージカラーに寄せる。
  */
 export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
@@ -33,7 +33,7 @@ export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
 };
 
 /**
- * 「先頭のみ大文字」の機械整形(FRESTYLE-121)では正しく表せない表示名の上書き。
+ * 「先頭のみ大文字」の機械整形では正しく表せない表示名の上書き。
  * 例: cpp → "Cpp" になってしまうため "C++" を明示する。
  */
 export const LANGUAGE_DISPLAY_OVERRIDES: Record<string, string> = {

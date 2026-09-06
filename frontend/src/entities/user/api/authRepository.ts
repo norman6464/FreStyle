@@ -74,7 +74,7 @@ class AuthRepository {
    *
    * getCurrentUser との違いは「未ログインでも /login へ飛ばさない」ことだけ。
    * 公開ページでは 401 が正常な答えなので、訪問者や検索エンジンのクローラを
-   * ログイン画面へ追い出さないためにこちらを使う（FRESTYLE-225）。
+   * ログイン画面へ追い出さないためにこちらを使う。
    */
   async probeCurrentUser(): Promise<UserInfo> {
     const config: PublicSafeRequestConfig = { skipAuthRedirect: true };

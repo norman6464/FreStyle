@@ -8,7 +8,7 @@ func Test_許可オリジン判定(t *testing.T) {
 		want   bool
 	}{
 		{"https://frestyle.jp", true},
-		// 旧ドメインは撤去済みのため許可しない(FRESTYLE-226)。http/https 双方を確認する。
+		// 旧ドメインは撤去済みのため許可しない。http/https 双方を確認する。
 		{"https://normanblog.com", false},
 		{"http://normanblog.com", false},
 		{"http://localhost:5173", true},

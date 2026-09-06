@@ -7,7 +7,7 @@ const PAGE_SIZE = 20;
 /**
  * useExerciseList — 演習問題リストページの状態管理フック。
  *
- * 対象言語は **引数（= URL の `/code-editor/lang/:language`）が正**（FRESTYLE-152）。
+ * 対象言語は **引数（= URL の `/code-editor/lang/:language`）が正**。
  * 以前はページ内のチップで切り替えて localStorage に保存していたが、言語選択カード画面を
  * 入口にしたため、選択状態は URL だけが持つ（戻る / 共有 / リロードでもぶれない）。
  *

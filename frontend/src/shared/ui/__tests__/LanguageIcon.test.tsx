@@ -4,7 +4,7 @@ import LanguageIcon from '../LanguageIcon';
 
 // 言語ロゴは public/lang/<key>.svg（Devicon）を <img> で読む。jsdom は実際に画像を
 // 取得しないので、フォールバック経路は onError を発火させて検証する。
-describe('LanguageIcon (FRESTYLE-152)', () => {
+describe('LanguageIcon', () => {
   it('言語に対応する SVG を読み込む', () => {
     const { container } = render(<LanguageIcon language="go" />);
     const img = container.querySelector('img');

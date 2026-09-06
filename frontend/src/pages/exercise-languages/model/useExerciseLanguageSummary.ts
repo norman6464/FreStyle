@@ -10,7 +10,7 @@ export interface ExerciseLanguageCard extends ExerciseLanguageSummary {
 }
 
 /**
- * useExerciseLanguageSummary — コード学習の言語選択カード用データ（FRESTYLE-152）。
+ * useExerciseLanguageSummary — コード学習の言語選択カード用データ。
  *
  * `GET /exercises/summary`（言語ごとの問題数 + current user の正解済み件数）を取得し、
  * 表示名を [EXERCISE_LANGUAGES] から解決して返す。

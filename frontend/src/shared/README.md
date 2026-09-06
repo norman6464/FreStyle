@@ -64,7 +64,7 @@ monaco-editor（数百 KB）で、演習ページだけが `lazyWithReload` で�
 
 ## 移行状況
 
-FSD 移行（FRESTYLE-154）の Phase 2 で骨格を作り、**Phase 5a（FRESTYLE-163）で
+FSD 移行の Phase 2 で骨格を作り、**Phase 5a で
 `components/` 直下の汎用 UI 18 件をここへ移した**。残っているのは entity / feature
 固有の部品で、Phase 5b・6 で `entities/` `features/` へ振り分ける。
 

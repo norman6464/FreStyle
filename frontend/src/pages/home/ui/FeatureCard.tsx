@@ -12,7 +12,7 @@ interface FeatureCardProps {
   description: string;
   color: CardColor;
   badge?: string;
-  /** 学べる技術のロゴ（Devicon）。指定時に説明の下へミニロゴ列を出す（FRESTYLE-179）。
+  /** 学べる技術のロゴ（Devicon）。指定時に説明の下へミニロゴ列を出す。
       vendoring 済みの key（public/lang/*.svg）だけ渡すこと（未 vendoring は汎用アイコンにフォールバックし列が不揃いになる）。 */
   techLogos?: string[];
 }
@@ -49,7 +49,7 @@ export default function FeatureCard({ to, icon: Icon, title, description, color,
       <p className="mt-3 text-xs text-[var(--color-text-muted)] leading-relaxed">
         {description}
       </p>
-      {/* 学べる技術のロゴ列（Devicon）。コース/演習カードにだけ付き、技術感を出す（FRESTYLE-179）。 */}
+      {/* 学べる技術のロゴ列（Devicon）。コース/演習カードにだけ付き、技術感を出す。 */}
       {techLogos && techLogos.length > 0 && (
         <div className="mt-3 flex items-center gap-2" aria-hidden="true">
           {techLogos.map((tech) => (

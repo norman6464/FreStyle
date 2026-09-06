@@ -32,5 +32,5 @@ Segment 名は標準の 5 つ（ui / api / model / lib / config）に縛られ�
 
 ## 移行状況
 
-FSD 移行（FRESTYLE-154）の Phase 1 でここへ移す。それまでは `src/` 直下と
+FSD 移行の Phase 1 でここへ移す。それまでは `src/` 直下と
 `src/store/` にある。**新規に追加するアプリ初期化コードは、旧構造に足さずここへ置くこと。**

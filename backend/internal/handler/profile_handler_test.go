@@ -126,7 +126,7 @@ func doProfileUpdate(t *testing.T, body string) (*httptest.ResponseRecorder, *st
 
 func Test_プロフィール更新_displayNameキーで氏名がUpdateNameに渡る(t *testing.T) {
 	// フロント (UpdateProfileRequest) の実送信キーは displayName。
-	// 旧タグ json:"name" ではここが常に空になり氏名が保存されなかった (FRESTYLE-198)。
+	// 旧タグ json:"name" ではここが常に空になり氏名が保存されなかった。
 	w, users, profiles := doProfileUpdate(t, `{"displayName":"河野拓真","bio":"自己紹介","status":"勤務中"}`)
 	if w.Code != 200 {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())

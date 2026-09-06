@@ -9,7 +9,7 @@ import type { MasterExerciseWithStatus } from '@/entities/exercise';
 /**
  * ExerciseListPage — `/code-editor/lang/:language` の問題一覧画面。
  *
- * - 言語は URL から決まる（言語選択カード `/code-editor` から遷移してくる。FRESTYLE-152）
+ * - 言語は URL から決まる（言語選択カード `/code-editor` から遷移してくる）
  * - カード形式で演習問題を一覧表示
  * - スクロール型ページネーション（IntersectionObserver）で次ページを自動取得
  * - カテゴリ見出しは蓄積されたリストから動的に生成する
@@ -62,7 +62,7 @@ export default function ExerciseListPage() {
 
       {!loading && !error && categories.map((cat) => (
         <section key={cat} className="space-y-3">
-          {/* カテゴリ見出しは無色のテキスト(FRESTYLE-112 の色付けはユーザー要望で撤回)。 */}
+          {/* カテゴリ見出しは無色のテキスト(色付けはユーザー要望で撤回)。 */}
           <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] tracking-wide">
             {cat}
           </h2>
@@ -120,7 +120,7 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
 }
 
 function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] }) {
-  // 淡色だと白背景で薄く「見えにくい」ため、濃色塗り + 白文字ではっきり区別する(FRESTYLE-112)。
+  // 淡色だと白背景で薄く「見えにくい」ため、濃色塗り + 白文字ではっきり区別する。
   if (status === 'solved') {
     return (
       <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white flex-shrink-0">
@@ -138,7 +138,7 @@ function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] })
     );
   }
   // 未着手はデフォルト状態なのでバッジを出さない。全カードに付く「未着手」チップは
-  // 視覚ノイズになり、意味のある状態(解いた/取り組み中)の視認性を下げるため(FRESTYLE-64)。
+  // 視覚ノイズになり、意味のある状態(解いた/取り組み中)の視認性を下げるため。
   return null;
 }
 

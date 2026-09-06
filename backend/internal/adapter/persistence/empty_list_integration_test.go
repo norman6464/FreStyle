@@ -66,8 +66,8 @@ func listCases() []listCase {
 // 一覧を返す repository メソッドが「該当行なし」で nil を返さないことを実 DB で検証する。
 //
 // nil スライスは encoding/json で null になり、フロントの map / filter / for-of が
-// TypeError で落ちる（FRESTYLE-70 で staging 実機で観測）。新規ユーザー・新規コース・
-// 未提出演習という、新メンバーが最初に踏む動線で発生するため影響が大きい（FRESTYLE-77）。
+// TypeError で落ちる（staging 実機で観測）。新規ユーザー・新規コース・
+// 未提出演習という、新メンバーが最初に踏む動線で発生するため影響が大きい。
 func TestPersistence_一覧が0件でもnullではなく空配列を返すこと_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()

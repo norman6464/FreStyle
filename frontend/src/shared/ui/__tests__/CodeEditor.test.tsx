@@ -79,7 +79,7 @@ describe('CodeEditor の実行ショートカット', () => {
   });
 });
 
-describe('CodeEditor のエラー行マーカー (FRESTYLE-117)', () => {
+describe('CodeEditor のエラー行マーカー', () => {
   beforeEach(() => {
     setModelMarkersMock.mockClear();
     editorMock.createDecorationsCollection.mockClear();

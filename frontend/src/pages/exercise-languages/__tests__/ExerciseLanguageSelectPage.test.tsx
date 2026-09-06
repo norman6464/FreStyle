@@ -20,7 +20,7 @@ function renderPage() {
   );
 }
 
-describe('ExerciseLanguageSelectPage (FRESTYLE-152)', () => {
+describe('ExerciseLanguageSelectPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

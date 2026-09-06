@@ -15,7 +15,7 @@ const mockListExercises = vi.mocked(ExerciseRepository.listExercises);
 
 const emptyPage: ExercisePage = { items: [], hasNext: false, offset: 0, limit: 20 };
 
-// 対象言語は URL(`/code-editor/lang/:language`)が正なので、ルータ経由で描画する(FRESTYLE-152)。
+// 対象言語は URL(`/code-editor/lang/:language`)が正なので、ルータ経由で描画する。
 function renderPage(language = 'php') {
   return render(
     <MemoryRouter initialEntries={[`/code-editor/lang/${language}`]}>
@@ -100,7 +100,7 @@ describe('ExerciseListPage', () => {
     });
     renderPage();
     await waitFor(() => expect(screen.getByText('変数')).toBeInTheDocument());
-    // 未着手はデフォルト状態なのでバッジを出さない(視覚ノイズ削減 / FRESTYLE-64)。
+    // 未着手はデフォルト状態なのでバッジを出さない(視覚ノイズ削減)。
     expect(screen.queryByText('未着手')).not.toBeInTheDocument();
   });
 

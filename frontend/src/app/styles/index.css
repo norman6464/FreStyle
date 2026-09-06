@@ -49,7 +49,7 @@
   font-size: inherit;
 }
 /*
- * コース教材の本文タイポグラフィ(FRESTYLE-115)。
+ * コース教材の本文タイポグラフィ。
  * prose-sm のプリセットは行間・段落間が詰まって「読み物」に向かないため、
  * 教材専用スコープ(.course-prose)だけ本文 16px・行間 2.0 のゆったりした
  * 余白に上書きする。ノート / AI チャットの prose には影響しない。
@@ -165,10 +165,10 @@
 /*
  * ライトテーマ単一構成（ダークモードは廃止）。
  *
- * カラー設計（白ボディ + 白カード + border/影。FRESTYLE-147 で FRESTYLE-119 の灰青統一を撤回）:
+ * カラー設計（白ボディ + 白カード + border/影。旧灰青統一の方針を撤回）:
  *   - body は白 (#FFFFFF)。カードは border 1px + 影で白 body から浮かせる
  *   - 教材コース閲覧 (/courses/:id) も白 (--color-reading-surface = #FFFFFF)。
- *     旧灰青は tiptap 表示への切替（FRESTYLE-338）でノートと同じ白に統一した
+ *     旧灰青は tiptap 表示への切替でノートと同じ白に統一した
  *   - サイドバー / ヘッダーは白 (--color-nav) + border 1px で境界を表現
  *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
  *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
@@ -231,7 +231,7 @@
 
 /*
  * AI チャットのストリーミング表示: 新しく現れた句読点チャンクを 1 回だけフェードイン
- * (FRESTYLE-145 → 146 で Gemini 実物仕様に変更)。
+ * (Gemini 実物仕様に変更)。
  * rehypeFadeSegments が本文を句読点チャンクの <span class="fade-seg"> に包み、mount 時に
  * このアニメが 1 回再生される。既表示のチャンクは React が DOM を再利用するため再生し直されない。
  * 放出リズムは useSmoothReveal(適応ペーシング)が制御する。
@@ -256,7 +256,7 @@
 
 /*
  * 画面外で mount したチャンクはフェードを保留し、スクロールで見えた瞬間に再生する
- * (FRESTYLE-153。useFadeOnVisible が data-fade を付け外しする)。
+ * (useFadeOnVisible が data-fade を付け外しする)。
  * 保留が付くのは画面外の要素だけなので、見えている本文が隠れることはない。
  */
 .fade-seg[data-fade='defer'] {
@@ -357,7 +357,7 @@
 }
 
 /*
- * 実行エラーの行マーカー(FRESTYLE-117)。CodeEditor(Monaco) の decoration から参照する。
+ * 実行エラーの行マーカー。CodeEditor(Monaco) の decoration から参照する。
  * ガターに赤丸 + 白 ✕、該当行はダークテーマ上で薄い赤のハイライト。
  */
 .exec-error-glyph::after {

@@ -1,7 +1,7 @@
 /**
  * subSentenceSegments — Gemini 実物と同じ「句読点区切りチャンク(sub-sentence)」分割。
  *
- * Gemini web の配信バンドルから確認した実装(FRESTYLE-146 調査)では、ストリーミング本文を
+ * Gemini web の配信バンドルから確認した実装では、ストリーミング本文を
  * 正規表現 /[,:\.!\?、。，۔]+/gi で分割し、各チャンクを不可視 span として先行挿入 →
  * 一定リズムで 1 チャンクずつフェードインさせている。本モジュールはその分割部分を
  * 表示側(rehypeFadeSegments)とペーシング側(useSmoothReveal)で共用する。

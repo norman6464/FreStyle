@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestUserNormalization_Integration は users 正規化（FRESTYLE-311）の契約を実 Postgres で固定する。
+// TestUserNormalization_Integration は users 正規化の契約を実 Postgres で固定する。
 // 旧カラム（users.role / users.cognito_sub）撤去（migrations/0021、および users.role 列自体の
 // 撤去）後の world を対象にする:
 //   - CreateWithOidcIdentity が users 行と identity を単一トランザクションで作る（片方だけ残らない）

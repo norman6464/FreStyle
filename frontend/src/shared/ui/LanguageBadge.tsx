@@ -13,7 +13,7 @@ const FALLBACK = 'bg-surface-3 text-[var(--color-text-muted)] border-transparent
 
 /** 言語・技術を識別色付きのバッジで表示する（演習・コース共用）。 */
 export default function LanguageBadge({ language, mono = false, className = '' }: LanguageBadgeProps) {
-  // 全大文字(TYPESCRIPT)は圧が強いというユーザー要望で、先頭のみ大文字の表記にする(FRESTYLE-121)。
+  // 全大文字(TYPESCRIPT)は圧が強いというユーザー要望で、先頭のみ大文字の表記にする。
   // 機械整形で表せないもの(cpp → C++)だけ LANGUAGE_DISPLAY_OVERRIDES で上書きする。
   const label = language
     ? (LANGUAGE_DISPLAY_OVERRIDES[language.toLowerCase()] ??

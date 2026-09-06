@@ -17,21 +17,22 @@ vi.mock('@/entities/notification/api/notificationRepository', () => ({
   },
 }));
 
-// backend が実際に作る形に合わせる（type=company_application / 本文は body）。
+// backend の形に合わせる（本文は message ではなく body）。種別は自由文字列で、
+// いま通知を作る usecase が 1 つも無いため、実在の値ではなく素性の分かる仮の値を使う。
 const mockNotifications: Notification[] = [
   {
     id: 1,
-    type: 'company_application',
-    title: '新しい利用申請が届きました',
-    body: '株式会社サンプル（山田 太郎 / taro@example.com）から利用申請がありました。',
+    type: 'sample_type',
+    title: '演習の採点が終わりました',
+    body: '「スライスに要素を足す」は 4 件すべてに通りました。',
     isRead: false,
     createdAt: '2026-08-02T10:30:00Z',
   },
   {
     id: 2,
-    type: 'company_application',
-    title: '新しい利用申請が届きました',
-    body: '株式会社テスト（鈴木 花子 / hanako@example.com）から利用申請がありました。',
+    type: 'sample_type',
+    title: '演習の採点が終わりました',
+    body: '「マップを数える」は 1 件が通りませんでした。',
     isRead: true,
     createdAt: '2026-08-02T09:00:00Z',
   },

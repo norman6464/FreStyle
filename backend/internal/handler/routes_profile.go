@@ -24,7 +24,7 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.PUT("/profile/:userId", profileHandler.Update)
 	g.PUT("/profile/:userId/update", profileHandler.Update) //apispec:allow フロント互換の別 path（正規は PUT /profile/:userId）
 
-	// Profile アイコン画像の S3 presigned-url（note image と同じバケットを profiles/ prefix で共有）。
+	// Profile アイコン画像の S3 presigned-url（リッチテキスト画像と同じバケットを profiles/ prefix で共有）。
 	profileImageHandler := NewProfileImageHandler(
 		usecase.NewIssueProfileImageUploadURLUseCase(
 			newProfileImagePresignerOrFallback(deps),
@@ -34,9 +34,9 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 }
 
 func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImagePresigner {
-	bucket := deps.cfg.S3.NoteImagesBucket
+	bucket := deps.cfg.S3.ImagesBucket
 	if bucket == "" {
-		log.Printf("[profile] NOTE_IMAGES_BUCKET unset — using stub presigner (DEV)")
+		log.Printf("[profile] IMAGES_BUCKET unset — using stub presigner (DEV)")
 		return persistence.NewStubProfileImagePresigner("stub-bucket")
 	}
 	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)

@@ -1,12 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 
 // CDN 読み込みを完全回避: Vite バンドル済み monaco-editor を直接使う。
 // @monaco-editor/react は loader が jsDelivr を参照するため使わない。
+//
+// 言語ごとに別のワーカーを返す。
+//
+// 一部の言語（HTML / CSS / JSON / TypeScript）は、色分けだけでなく「折りたたみ」「記号の一覧」
+// 「リンクの検出」といった仕事を専用のワーカーに任せる作りになっている。どの言語にも汎用の
+// ワーカーを返していたため、それらの要求が
+//   Missing requestHandler or method: getFoldingRanges / findDocumentLinks / findDocumentSymbols
+// で落ちていた（story をブラウザで走らせて表に出た）。画面が壊れるわけではないが、
+// HTML の演習で折りたたみが効かない状態のまま気づけていなかった。
+//
+// ワーカーは別ファイルとして書き出され、その言語を開いたときにだけ読み込まれる
+// （vendor-monaco の大きさには乗らない）。
 if (typeof self !== 'undefined' && !self.MonacoEnvironment) {
   self.MonacoEnvironment = {
-    getWorker() {
+    getWorker(_workerId: string, label: string) {
+      if (label === 'json') return new jsonWorker();
+      if (label === 'css' || label === 'scss' || label === 'less') return new cssWorker();
+      if (label === 'html' || label === 'handlebars' || label === 'razor') return new htmlWorker();
+      if (label === 'typescript' || label === 'javascript') return new tsWorker();
       return new editorWorker();
     },
   };

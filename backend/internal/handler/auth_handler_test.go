@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 )
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
@@ -96,7 +96,7 @@ func newTestAuthHandler(
 	return &AuthHandler{
 		verifier: idp.verifier(t),
 		oidcCfg:  &config.OIDCConfig{AdminRoleClaim: testRolesClaim, AdminRole: "admin"},
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
+		upsertUser: user.NewUpsertUserFromIDTokenUseCase(
 			users, fakeOidcIdentityRepo{}, fakeTxManager{},
 		),
 	}

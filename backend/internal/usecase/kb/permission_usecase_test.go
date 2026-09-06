@@ -1,12 +1,13 @@
-package usecase_test
+package kb_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,14 +22,14 @@ const (
 func kbGrantRole(r domain.GrantRole) *domain.GrantRole { return &r }
 
 func Test_ページ権限確認_必須項目の検証(t *testing.T) {
-	uc := usecase.NewCheckPagePermissionUseCase(&mockKBPermissionRepo{})
+	uc := kb.NewCheckPagePermissionUseCase(&mockKBPermissionRepo{})
 	ctx := context.Background()
 
-	_, err := uc.Execute(ctx, usecase.CheckPagePermissionInput{PageID: kbPage, UserID: 1})
+	_, err := uc.Execute(ctx, kb.CheckPagePermissionInput{PageID: kbPage, UserID: 1})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(ctx, usecase.CheckPagePermissionInput{WorkspaceID: kbWS, UserID: 1})
+	_, err = uc.Execute(ctx, kb.CheckPagePermissionInput{WorkspaceID: kbWS, UserID: 1})
 	require.Error(t, err, "pageID 必須")
-	_, err = uc.Execute(ctx, usecase.CheckPagePermissionInput{WorkspaceID: kbWS, PageID: kbPage})
+	_, err = uc.Execute(ctx, kb.CheckPagePermissionInput{WorkspaceID: kbWS, PageID: kbPage})
 	require.Error(t, err, "userID 必須")
 }
 
@@ -53,8 +54,8 @@ func Test_ページ権限確認_集めた事実を規則にかけて返す(t *te
 			repo.On("PagePermissionFactsForUser", mock.Anything, kbWS, kbPage, uint64(1)).
 				Return(&domain.PagePermissionFacts{Member: true, Role: tc.role}, nil)
 
-			got, err := usecase.NewCheckPagePermissionUseCase(repo).
-				Execute(context.Background(), usecase.CheckPagePermissionInput{
+			got, err := kb.NewCheckPagePermissionUseCase(repo).
+				Execute(context.Background(), kb.CheckPagePermissionInput{
 					WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
 				})
 			require.NoError(t, err)
@@ -69,9 +70,9 @@ func Test_ページ権限確認_ページが無ければそのまま伝える(t 
 	repo := &mockKBPermissionRepo{}
 	repo.On("PagePermissionFactsForUser", mock.Anything, kbWS, kbPage, uint64(1)).
 		Return(nil, repository.ErrPageNotFound)
-	uc := usecase.NewCheckPagePermissionUseCase(repo)
+	uc := kb.NewCheckPagePermissionUseCase(repo)
 
-	_, err := uc.Execute(context.Background(), usecase.CheckPagePermissionInput{
+	_, err := uc.Execute(context.Background(), kb.CheckPagePermissionInput{
 		WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
@@ -80,15 +81,15 @@ func Test_ページ権限確認_ページが無ければそのまま伝える(t 
 func Test_ワークスペース所属判定(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(true, nil)
-	uc := usecase.NewIsWorkspaceMemberUseCase(repo)
+	uc := kb.NewIsWorkspaceMemberUseCase(repo)
 
-	ok, err := uc.Execute(context.Background(), usecase.IsWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 1})
+	ok, err := uc.Execute(context.Background(), kb.IsWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 1})
 	require.NoError(t, err)
 	assert.True(t, ok)
 
-	_, err = uc.Execute(context.Background(), usecase.IsWorkspaceMemberInput{UserID: 1})
+	_, err = uc.Execute(context.Background(), kb.IsWorkspaceMemberInput{UserID: 1})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(context.Background(), usecase.IsWorkspaceMemberInput{WorkspaceID: kbWS})
+	_, err = uc.Execute(context.Background(), kb.IsWorkspaceMemberInput{WorkspaceID: kbWS})
 	require.Error(t, err, "userID 必須")
 }
 
@@ -103,15 +104,15 @@ func Test_閲覧可能ページ一覧_見えないページを落とす(t *testi
 			// ある枝にだけページ付与で届いているときに起こる（付与は下へ降りるだけ）。
 			{Page: hidden, Role: nil},
 		}, nil)
-	uc := usecase.NewListViewablePagesUseCase(repo)
+	uc := kb.NewListViewablePagesUseCase(repo)
 
-	out, err := uc.Execute(context.Background(), usecase.ListViewablePagesInput{
+	out, err := uc.Execute(context.Background(), kb.ListViewablePagesInput{
 		WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1,
 	})
 	require.NoError(t, err)
 	require.Len(t, out.Pages, 1)
 	assert.Equal(t, "見える", out.Pages[0].Title)
-	assert.True(t, out.HasHiddenChildren[usecase.HiddenChildrenRootKey],
+	assert.True(t, out.HasHiddenChildren[kb.HiddenChildrenRootKey],
 		"落とした分は「在る」とだけ残す（枚数も題名も出さない）")
 }
 
@@ -145,11 +146,11 @@ func Test_閲覧可能ページ一覧_見えない親の下は数えない(t *te
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).Return(rows, nil)
 
-	out, err := usecase.NewListViewablePagesUseCase(repo).
-		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	out, err := kb.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), kb.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
 	require.NoError(t, err)
 
-	assert.True(t, out.HasHiddenChildren[usecase.HiddenChildrenRootKey], "スペース直下で伏せた分は知らせる")
+	assert.True(t, out.HasHiddenChildren[kb.HiddenChildrenRootKey], "スペース直下で伏せた分は知らせる")
 	assert.False(t, out.HasHiddenChildren[b], "見えない親の直下は、伏せた孫が居ても知らせない")
 	assert.Len(t, out.Pages, 2, "見える根と孤児。孤児を落とすのは木の組み立て側の役目")
 }
@@ -171,13 +172,13 @@ func Test_閲覧可能ページ一覧_見える親の直下で伏せた分は知
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1), false).Return(rows, nil)
 
-	out, err := usecase.NewListViewablePagesUseCase(repo).
-		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	out, err := kb.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), kb.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
 	require.NoError(t, err)
 
 	assert.Len(t, out.Pages, 1)
 	assert.True(t, out.HasHiddenChildren["root"], "伏せた分は親の ID に印を付ける")
-	assert.False(t, out.HasHiddenChildren[usecase.HiddenChildrenRootKey], "スペース直下では伏せていない")
+	assert.False(t, out.HasHiddenChildren[kb.HiddenChildrenRootKey], "スペース直下では伏せていない")
 }
 
 func Test_閲覧可能ページ一覧_見える根が無いなら有無も返さない(t *testing.T) {
@@ -198,8 +199,8 @@ func Test_閲覧可能ページ一覧_見える根が無いなら有無も返さ
 			{Page: child, Role: kbGrantRole(domain.GrantRoleViewer)},
 		}, nil)
 
-	out, err := usecase.NewListViewablePagesUseCase(repo).
-		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	out, err := kb.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), kb.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
 	require.NoError(t, err)
 
 	assert.Len(t, out.Pages, 1, "子は見えるので一覧には入る（木から落とすのは組み立て側の役目）")
@@ -217,8 +218,8 @@ func Test_閲覧可能ページ一覧_1件も見えないなら有無も返さ�
 			{Page: domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace}},
 		}, nil)
 
-	out, err := usecase.NewListViewablePagesUseCase(repo).
-		Execute(context.Background(), usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
+	out, err := kb.NewListViewablePagesUseCase(repo).
+		Execute(context.Background(), kb.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1})
 	require.NoError(t, err)
 
 	assert.Empty(t, out.Pages)
@@ -226,26 +227,26 @@ func Test_閲覧可能ページ一覧_1件も見えないなら有無も返さ�
 }
 
 func Test_閲覧可能ページ一覧_必須項目の検証(t *testing.T) {
-	uc := usecase.NewListViewablePagesUseCase(&mockKBPermissionRepo{})
+	uc := kb.NewListViewablePagesUseCase(&mockKBPermissionRepo{})
 	ctx := context.Background()
 
-	_, err := uc.Execute(ctx, usecase.ListViewablePagesInput{SpaceID: kbSpace, UserID: 1})
+	_, err := uc.Execute(ctx, kb.ListViewablePagesInput{SpaceID: kbSpace, UserID: 1})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(ctx, usecase.ListViewablePagesInput{WorkspaceID: kbWS, UserID: 1})
+	_, err = uc.Execute(ctx, kb.ListViewablePagesInput{WorkspaceID: kbWS, UserID: 1})
 	require.Error(t, err, "spaceID 必須")
-	_, err = uc.Execute(ctx, usecase.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace})
+	_, err = uc.Execute(ctx, kb.ListViewablePagesInput{WorkspaceID: kbWS, SpaceID: kbSpace})
 	require.Error(t, err, "userID 必須")
 }
 
 func Test_サブツリー編集可否_必須項目の検証(t *testing.T) {
-	uc := usecase.NewCanEditPageSubtreeUseCase(&mockKBPermissionRepo{})
+	uc := kb.NewCanEditPageSubtreeUseCase(&mockKBPermissionRepo{})
 	ctx := context.Background()
 
-	_, err := uc.Execute(ctx, usecase.CanEditPageSubtreeInput{PageID: kbPage, UserID: 1})
+	_, err := uc.Execute(ctx, kb.CanEditPageSubtreeInput{PageID: kbPage, UserID: 1})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(ctx, usecase.CanEditPageSubtreeInput{WorkspaceID: kbWS, UserID: 1})
+	_, err = uc.Execute(ctx, kb.CanEditPageSubtreeInput{WorkspaceID: kbWS, UserID: 1})
 	require.Error(t, err, "pageID 必須")
-	_, err = uc.Execute(ctx, usecase.CanEditPageSubtreeInput{WorkspaceID: kbWS, PageID: kbPage})
+	_, err = uc.Execute(ctx, kb.CanEditPageSubtreeInput{WorkspaceID: kbWS, PageID: kbPage})
 	require.Error(t, err, "userID 必須")
 }
 
@@ -294,9 +295,9 @@ func Test_サブツリー編集可否_1枚でも編集できなければ不可(t
 			repo := &mockKBPermissionRepo{}
 			repo.On("ListSubtreePagePermissionFacts", mock.Anything, kbWS, kbPage, uint64(1)).
 				Return(tc.rows, nil)
-			uc := usecase.NewCanEditPageSubtreeUseCase(repo)
+			uc := kb.NewCanEditPageSubtreeUseCase(repo)
 
-			got, err := uc.Execute(context.Background(), usecase.CanEditPageSubtreeInput{
+			got, err := uc.Execute(context.Background(), kb.CanEditPageSubtreeInput{
 				WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
 			})
 			require.NoError(t, err)
@@ -309,9 +310,9 @@ func Test_サブツリー編集可否_事実の収集が失敗したら伝える
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSubtreePagePermissionFacts", mock.Anything, kbWS, kbPage, uint64(1)).
 		Return(nil, repository.ErrPageNotFound)
-	uc := usecase.NewCanEditPageSubtreeUseCase(repo)
+	uc := kb.NewCanEditPageSubtreeUseCase(repo)
 
-	got, err := uc.Execute(context.Background(), usecase.CanEditPageSubtreeInput{
+	got, err := uc.Execute(context.Background(), kb.CanEditPageSubtreeInput{
 		WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
@@ -326,25 +327,25 @@ func Test_メンバー追加_主体を作る(t *testing.T) {
 	// （上書きの Upsert だと、追加のやり直しで admin が editor に落ちる）。
 	repo.On("GrantWorkspaceRoleIfAbsent", mock.Anything, kbWS, kbPrincipal, domain.GrantRoleEditor).
 		Return(nil)
-	uc := usecase.NewAddWorkspaceMemberUseCase(repo)
+	uc := kb.NewAddWorkspaceMemberUseCase(repo)
 
-	got, err := uc.Execute(context.Background(), usecase.AddWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7})
+	got, err := uc.Execute(context.Background(), kb.AddWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7})
 	require.NoError(t, err)
 	assert.Equal(t, domain.PrincipalKindUser, got.Kind)
 	repo.AssertExpectations(t)
 
-	_, err = uc.Execute(context.Background(), usecase.AddWorkspaceMemberInput{UserID: 7})
+	_, err = uc.Execute(context.Background(), kb.AddWorkspaceMemberInput{UserID: 7})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(context.Background(), usecase.AddWorkspaceMemberInput{WorkspaceID: kbWS})
+	_, err = uc.Execute(context.Background(), kb.AddWorkspaceMemberInput{WorkspaceID: kbWS})
 	require.Error(t, err, "userID 必須")
 }
 
 func Test_メンバー削除_非メンバーなら何もしない(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(7)).Return(nil, repository.ErrPrincipalNotFound)
-	uc := usecase.NewRemoveWorkspaceMemberUseCase(repo)
+	uc := kb.NewRemoveWorkspaceMemberUseCase(repo)
 
-	require.NoError(t, uc.Execute(context.Background(), usecase.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
+	require.NoError(t, uc.Execute(context.Background(), kb.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
 	repo.AssertNotCalled(t, "DeletePrincipal", mock.Anything, mock.Anything, mock.Anything)
 }
 
@@ -353,21 +354,21 @@ func Test_メンバー削除_主体を消す(t *testing.T) {
 	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(7)).
 		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
 	repo.On("DeletePrincipal", mock.Anything, kbWS, kbPrincipal).Return(nil)
-	uc := usecase.NewRemoveWorkspaceMemberUseCase(repo)
+	uc := kb.NewRemoveWorkspaceMemberUseCase(repo)
 
-	require.NoError(t, uc.Execute(context.Background(), usecase.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
+	require.NoError(t, uc.Execute(context.Background(), kb.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
 	repo.AssertCalled(t, "DeletePrincipal", mock.Anything, kbWS, kbPrincipal)
 }
 
 func Test_グループ作成_名前の検証(t *testing.T) {
-	uc := usecase.NewCreatePrincipalGroupUseCase(&mockKBPermissionRepo{})
+	uc := kb.NewCreatePrincipalGroupUseCase(&mockKBPermissionRepo{})
 	ctx := context.Background()
 
-	_, err := uc.Execute(ctx, usecase.CreatePrincipalGroupInput{WorkspaceID: kbWS})
+	_, err := uc.Execute(ctx, kb.CreatePrincipalGroupInput{WorkspaceID: kbWS})
 	require.Error(t, err, "name 必須")
-	_, err = uc.Execute(ctx, usecase.CreatePrincipalGroupInput{WorkspaceID: kbWS, Name: strings.Repeat("あ", 201)})
+	_, err = uc.Execute(ctx, kb.CreatePrincipalGroupInput{WorkspaceID: kbWS, Name: strings.Repeat("あ", 201)})
 	require.Error(t, err, "name は 200 文字まで")
-	_, err = uc.Execute(ctx, usecase.CreatePrincipalGroupInput{Name: "開発"})
+	_, err = uc.Execute(ctx, kb.CreatePrincipalGroupInput{Name: "開発"})
 	require.Error(t, err, "workspaceID 必須")
 }
 
@@ -375,12 +376,12 @@ func Test_グループ所属追加_グループでない主体は拒否(t *testi
 	repo := &mockKBPermissionRepo{}
 	repo.On("FindPrincipal", mock.Anything, kbWS, kbGroup).
 		Return(&domain.Principal{ID: kbGroup, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
-	uc := usecase.NewAddGroupMemberUseCase(repo)
+	uc := kb.NewAddGroupMemberUseCase(repo)
 
-	err := uc.Execute(context.Background(), usecase.AddGroupMemberInput{
+	err := uc.Execute(context.Background(), kb.AddGroupMemberInput{
 		WorkspaceID: kbWS, GroupPrincipalID: kbGroup, MemberUserID: 7,
 	})
-	require.ErrorIs(t, err, usecase.ErrPrincipalKindMismatch)
+	require.ErrorIs(t, err, kb.ErrPrincipalKindMismatch)
 	repo.AssertNotCalled(t, "AddGroupMember", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
@@ -389,9 +390,9 @@ func Test_グループ所属追加_非メンバーは加えられない(t *testi
 	repo.On("FindPrincipal", mock.Anything, kbWS, kbGroup).
 		Return(&domain.Principal{ID: kbGroup, WorkspaceID: kbWS, Kind: domain.PrincipalKindGroup, Name: "開発"}, nil)
 	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(7)).Return(nil, repository.ErrPrincipalNotFound)
-	uc := usecase.NewAddGroupMemberUseCase(repo)
+	uc := kb.NewAddGroupMemberUseCase(repo)
 
-	err := uc.Execute(context.Background(), usecase.AddGroupMemberInput{
+	err := uc.Execute(context.Background(), kb.AddGroupMemberInput{
 		WorkspaceID: kbWS, GroupPrincipalID: kbGroup, MemberUserID: 7,
 	})
 	require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
@@ -400,46 +401,46 @@ func Test_グループ所属追加_非メンバーは加えられない(t *testi
 func Test_グループ所属削除_非メンバーなら何もしない(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(7)).Return(nil, repository.ErrPrincipalNotFound)
-	uc := usecase.NewRemoveGroupMemberUseCase(repo)
+	uc := kb.NewRemoveGroupMemberUseCase(repo)
 
-	require.NoError(t, uc.Execute(context.Background(), usecase.RemoveGroupMemberInput{
+	require.NoError(t, uc.Execute(context.Background(), kb.RemoveGroupMemberInput{
 		WorkspaceID: kbWS, GroupPrincipalID: kbGroup, MemberUserID: 7,
 	}))
 	repo.AssertNotCalled(t, "RemoveGroupMember", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_スペース全員の主体_必須項目の検証(t *testing.T) {
-	uc := usecase.NewEnsureSpaceEveryonePrincipalUseCase(&mockKBPermissionRepo{})
+	uc := kb.NewEnsureSpaceEveryonePrincipalUseCase(&mockKBPermissionRepo{})
 	ctx := context.Background()
 
-	_, err := uc.Execute(ctx, usecase.EnsureSpaceEveryonePrincipalInput{SpaceID: kbSpace})
+	_, err := uc.Execute(ctx, kb.EnsureSpaceEveryonePrincipalInput{SpaceID: kbSpace})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(ctx, usecase.EnsureSpaceEveryonePrincipalInput{WorkspaceID: kbWS})
+	_, err = uc.Execute(ctx, kb.EnsureSpaceEveryonePrincipalInput{WorkspaceID: kbWS})
 	require.Error(t, err, "spaceID 必須")
 }
 
 func Test_権限付与_役割の検証(t *testing.T) {
 	ctx := context.Background()
 
-	wsUC := usecase.NewGrantWorkspaceRoleUseCase(&mockKBPermissionRepo{})
-	_, err := wsUC.Execute(ctx, usecase.GrantWorkspaceRoleInput{
+	wsUC := kb.NewGrantWorkspaceRoleUseCase(&mockKBPermissionRepo{})
+	_, err := wsUC.Execute(ctx, kb.GrantWorkspaceRoleInput{
 		WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRole("owner"),
 	})
-	require.ErrorIs(t, err, usecase.ErrInvalidGrantRole)
+	require.ErrorIs(t, err, kb.ErrInvalidGrantRole)
 
-	spUC := usecase.NewGrantSpaceRoleUseCase(&mockKBPermissionRepo{})
-	_, err = spUC.Execute(ctx, usecase.GrantSpaceRoleInput{
+	spUC := kb.NewGrantSpaceRoleUseCase(&mockKBPermissionRepo{})
+	_, err = spUC.Execute(ctx, kb.GrantSpaceRoleInput{
 		WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal, Role: domain.GrantRole(""),
 	})
-	require.ErrorIs(t, err, usecase.ErrInvalidGrantRole)
+	require.ErrorIs(t, err, kb.ErrInvalidGrantRole)
 }
 
 func Test_権限付与_別ワークスペースの主体は拒否(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("FindPrincipal", mock.Anything, kbWS, kbPrincipal).Return(nil, repository.ErrPrincipalNotFound)
-	uc := usecase.NewGrantSpaceRoleUseCase(repo)
+	uc := kb.NewGrantSpaceRoleUseCase(repo)
 
-	_, err := uc.Execute(context.Background(), usecase.GrantSpaceRoleInput{
+	_, err := uc.Execute(context.Background(), kb.GrantSpaceRoleInput{
 		WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
 	})
 	require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
@@ -455,13 +456,13 @@ func Test_権限付与_ワークスペースとスペースの両方に張れる
 	repo.On("UpsertSpaceGrant", mock.Anything, kbWS, kbSpace, kbPrincipal, domain.GrantRoleViewer).
 		Return(&domain.SpaceGrant{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal, Role: domain.GrantRoleViewer}, nil)
 
-	wsGrant, err := usecase.NewGrantWorkspaceRoleUseCase(repo).Execute(context.Background(),
-		usecase.GrantWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin})
+	wsGrant, err := kb.NewGrantWorkspaceRoleUseCase(repo).Execute(context.Background(),
+		kb.GrantWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin})
 	require.NoError(t, err)
 	assert.Equal(t, domain.GrantRoleAdmin, wsGrant.Role)
 
-	spGrant, err := usecase.NewGrantSpaceRoleUseCase(repo).Execute(context.Background(),
-		usecase.GrantSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal, Role: domain.GrantRoleViewer})
+	spGrant, err := kb.NewGrantSpaceRoleUseCase(repo).Execute(context.Background(),
+		kb.GrantSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal, Role: domain.GrantRoleViewer})
 	require.NoError(t, err)
 	assert.Equal(t, domain.GrantRoleViewer, spGrant.Role)
 }
@@ -470,14 +471,14 @@ func Test_権限剥奪_必須項目の検証(t *testing.T) {
 	ctx := context.Background()
 	repo := &mockKBPermissionRepo{}
 
-	wsUC := usecase.NewRevokeWorkspaceRoleUseCase(repo)
-	require.Error(t, wsUC.Execute(ctx, usecase.RevokeWorkspaceRoleInput{PrincipalID: kbPrincipal}))
-	require.Error(t, wsUC.Execute(ctx, usecase.RevokeWorkspaceRoleInput{WorkspaceID: kbWS}))
+	wsUC := kb.NewRevokeWorkspaceRoleUseCase(repo)
+	require.Error(t, wsUC.Execute(ctx, kb.RevokeWorkspaceRoleInput{PrincipalID: kbPrincipal}))
+	require.Error(t, wsUC.Execute(ctx, kb.RevokeWorkspaceRoleInput{WorkspaceID: kbWS}))
 
-	spUC := usecase.NewRevokeSpaceRoleUseCase(repo)
-	require.Error(t, spUC.Execute(ctx, usecase.RevokeSpaceRoleInput{SpaceID: kbSpace, PrincipalID: kbPrincipal}))
-	require.Error(t, spUC.Execute(ctx, usecase.RevokeSpaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
-	require.Error(t, spUC.Execute(ctx, usecase.RevokeSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace}))
+	spUC := kb.NewRevokeSpaceRoleUseCase(repo)
+	require.Error(t, spUC.Execute(ctx, kb.RevokeSpaceRoleInput{SpaceID: kbSpace, PrincipalID: kbPrincipal}))
+	require.Error(t, spUC.Execute(ctx, kb.RevokeSpaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
+	require.Error(t, spUC.Execute(ctx, kb.RevokeSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace}))
 }
 
 func Test_権限剥奪_repository_へ委譲する(t *testing.T) {
@@ -486,10 +487,10 @@ func Test_権限剥奪_repository_へ委譲する(t *testing.T) {
 	repo.On("DeleteSpaceGrant", mock.Anything, kbWS, kbSpace, kbPrincipal).Return(nil)
 	ctx := context.Background()
 
-	require.NoError(t, usecase.NewRevokeWorkspaceRoleUseCase(repo).Execute(ctx,
-		usecase.RevokeWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
-	require.NoError(t, usecase.NewRevokeSpaceRoleUseCase(repo).Execute(ctx,
-		usecase.RevokeSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal}))
+	require.NoError(t, kb.NewRevokeWorkspaceRoleUseCase(repo).Execute(ctx,
+		kb.RevokeWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
+	require.NoError(t, kb.NewRevokeSpaceRoleUseCase(repo).Execute(ctx,
+		kb.RevokeSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal}))
 }
 
 // strPtr は ParentID のようなポインタ項目をテストから書くための小道具。
@@ -511,10 +512,10 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 			{Page: visible2, Role: kbGrantRole(domain.GrantRoleViewer)},
 		}, nil)
 
-	uc := usecase.NewSearchViewablePagesUseCase(repo)
+	uc := kb.NewSearchViewablePagesUseCase(repo)
 
 	t.Run("役割が届いていない行は返らない", func(t *testing.T) {
-		pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+		pages, err := uc.Execute(context.Background(), kb.SearchViewablePagesInput{
 			WorkspaceID: "ws-1", UserID: 7, Query: "docker",
 		})
 		require.NoError(t, err)
@@ -537,7 +538,7 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				pages, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+				pages, err := uc.Execute(context.Background(), kb.SearchViewablePagesInput{
 					WorkspaceID: "ws-1", UserID: 7, Query: "docker", Limit: tc.limit,
 				})
 				require.NoError(t, err)
@@ -550,8 +551,8 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 
 func Test_題名検索_空の問い合わせは誤り(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
-	uc := usecase.NewSearchViewablePagesUseCase(repo)
-	_, err := uc.Execute(context.Background(), usecase.SearchViewablePagesInput{
+	uc := kb.NewSearchViewablePagesUseCase(repo)
+	_, err := uc.Execute(context.Background(), kb.SearchViewablePagesInput{
 		WorkspaceID: "ws-1", UserID: 7, Query: "   ",
 	})
 	// 空で全件を返す口にしない（見えるページの全数が数えられる口になる）。
@@ -561,31 +562,31 @@ func Test_題名検索_空の問い合わせは誤り(t *testing.T) {
 
 func Test_ページ権限付与_必須項目と役割の検証(t *testing.T) {
 	ctx := context.Background()
-	uc := usecase.NewGrantPageRoleUseCase(&mockKBPermissionRepo{})
+	uc := kb.NewGrantPageRoleUseCase(&mockKBPermissionRepo{})
 
-	_, err := uc.Execute(ctx, usecase.GrantPageRoleInput{
+	_, err := uc.Execute(ctx, kb.GrantPageRoleInput{
 		PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
 	})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(ctx, usecase.GrantPageRoleInput{
+	_, err = uc.Execute(ctx, kb.GrantPageRoleInput{
 		WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
 	})
 	require.Error(t, err, "pageID 必須")
-	_, err = uc.Execute(ctx, usecase.GrantPageRoleInput{
+	_, err = uc.Execute(ctx, kb.GrantPageRoleInput{
 		WorkspaceID: kbWS, PageID: kbPage, Role: domain.GrantRoleEditor,
 	})
 	require.Error(t, err, "principalID 必須")
-	_, err = uc.Execute(ctx, usecase.GrantPageRoleInput{
+	_, err = uc.Execute(ctx, kb.GrantPageRoleInput{
 		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRole("owner"),
 	})
-	require.ErrorIs(t, err, usecase.ErrInvalidGrantRole)
+	require.ErrorIs(t, err, kb.ErrInvalidGrantRole)
 }
 
 func Test_ページ権限付与_別ワークスペースの主体は拒否(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("FindPrincipal", mock.Anything, kbWS, kbPrincipal).Return(nil, repository.ErrPrincipalNotFound)
 
-	_, err := usecase.NewGrantPageRoleUseCase(repo).Execute(context.Background(), usecase.GrantPageRoleInput{
+	_, err := kb.NewGrantPageRoleUseCase(repo).Execute(context.Background(), kb.GrantPageRoleInput{
 		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleEditor,
 	})
 	require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
@@ -603,7 +604,7 @@ func Test_ページ権限付与_repository_へ委譲する(t *testing.T) {
 			WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin,
 		}, nil)
 
-	got, err := usecase.NewGrantPageRoleUseCase(repo).Execute(context.Background(), usecase.GrantPageRoleInput{
+	got, err := kb.NewGrantPageRoleUseCase(repo).Execute(context.Background(), kb.GrantPageRoleInput{
 		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin,
 	})
 	require.NoError(t, err)
@@ -614,14 +615,14 @@ func Test_ページ権限付与_repository_へ委譲する(t *testing.T) {
 func Test_ページ権限剥奪_必須項目の検証と委譲(t *testing.T) {
 	ctx := context.Background()
 	repo := &mockKBPermissionRepo{}
-	uc := usecase.NewRevokePageRoleUseCase(repo)
+	uc := kb.NewRevokePageRoleUseCase(repo)
 
-	require.Error(t, uc.Execute(ctx, usecase.RevokePageRoleInput{PageID: kbPage, PrincipalID: kbPrincipal}))
-	require.Error(t, uc.Execute(ctx, usecase.RevokePageRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
-	require.Error(t, uc.Execute(ctx, usecase.RevokePageRoleInput{WorkspaceID: kbWS, PageID: kbPage}))
+	require.Error(t, uc.Execute(ctx, kb.RevokePageRoleInput{PageID: kbPage, PrincipalID: kbPrincipal}))
+	require.Error(t, uc.Execute(ctx, kb.RevokePageRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
+	require.Error(t, uc.Execute(ctx, kb.RevokePageRoleInput{WorkspaceID: kbWS, PageID: kbPage}))
 
 	repo.On("DeletePageGrant", mock.Anything, kbWS, kbPage, kbPrincipal).Return(nil)
-	require.NoError(t, uc.Execute(ctx, usecase.RevokePageRoleInput{
+	require.NoError(t, uc.Execute(ctx, kb.RevokePageRoleInput{
 		WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal,
 	}))
 	// 実際に消しに行ったことまで見る。これが無いと、何もせず nil を返す実装でも通る。
@@ -631,17 +632,242 @@ func Test_ページ権限剥奪_必須項目の検証と委譲(t *testing.T) {
 func Test_ページ権限一覧_必須項目の検証と委譲(t *testing.T) {
 	ctx := context.Background()
 	repo := &mockKBPermissionRepo{}
-	uc := usecase.NewListPageGrantsUseCase(repo)
+	uc := kb.NewListPageGrantsUseCase(repo)
 
-	_, err := uc.Execute(ctx, usecase.ListPageGrantsInput{PageID: kbPage})
+	_, err := uc.Execute(ctx, kb.ListPageGrantsInput{PageID: kbPage})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(ctx, usecase.ListPageGrantsInput{WorkspaceID: kbWS})
+	_, err = uc.Execute(ctx, kb.ListPageGrantsInput{WorkspaceID: kbWS})
 	require.Error(t, err, "pageID 必須")
 
 	repo.On("ListPageGrants", mock.Anything, kbWS, kbPage).
 		Return([]domain.PageGrant{{WorkspaceID: kbWS, PageID: kbPage, PrincipalID: kbPrincipal}}, nil)
-	got, err := uc.Execute(ctx, usecase.ListPageGrantsInput{WorkspaceID: kbWS, PageID: kbPage})
+	got, err := uc.Execute(ctx, kb.ListPageGrantsInput{WorkspaceID: kbWS, PageID: kbPage})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, kbPrincipal, got[0].PrincipalID)
+}
+
+const (
+	kbAdminA = "0198a000-0000-7000-8000-0000000000a1"
+	kbAdminB = "0198a000-0000-7000-8000-0000000000a2"
+	kbGroupA = "0198a000-0000-7000-8000-0000000000a3"
+)
+
+func kbUserPrincipal(id string, userID uint64) *domain.Principal {
+	return &domain.Principal{
+		ID: id, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser, UserID: &userID,
+	}
+}
+
+func kbAdminGrant(principalID string) domain.WorkspaceGrant {
+	return domain.WorkspaceGrant{WorkspaceID: kbWS, PrincipalID: principalID, Role: domain.GrantRoleAdmin}
+}
+
+func Test_最後のadmin判定_必須項目の検証(t *testing.T) {
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(&mockKBPermissionRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, kb.CanRemoveWorkspaceAdminInput{PrincipalID: kbAdminA})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, kb.CanRemoveWorkspaceAdminInput{WorkspaceID: kbWS})
+	require.Error(t, err, "対象（principalID か userID）が必須")
+}
+
+func Test_最後のadmin判定_他にユーザーのadminが居れば外せる(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListWorkspaceGrants", mock.Anything, kbWS).
+		Return([]domain.WorkspaceGrant{kbAdminGrant(kbAdminA), kbAdminGrant(kbAdminB)}, nil)
+	repo.On("FindPrincipal", mock.Anything, kbWS, kbAdminB).Return(kbUserPrincipal(kbAdminB, 2), nil)
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(repo)
+
+	ok, err := uc.Execute(context.Background(), kb.CanRemoveWorkspaceAdminInput{
+		WorkspaceID: kbWS, PrincipalID: kbAdminA,
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func Test_最後のadmin判定_ひとりだけなら外せない(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListWorkspaceGrants", mock.Anything, kbWS).
+		Return([]domain.WorkspaceGrant{
+			kbAdminGrant(kbAdminA),
+			{WorkspaceID: kbWS, PrincipalID: kbAdminB, Role: domain.GrantRoleEditor},
+		}, nil)
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(repo)
+
+	ok, err := uc.Execute(context.Background(), kb.CanRemoveWorkspaceAdminInput{
+		WorkspaceID: kbWS, PrincipalID: kbAdminA,
+	})
+	require.NoError(t, err)
+	assert.False(t, ok, "admin が 0 人になる操作は断る")
+}
+
+func Test_最後のadmin判定_グループ宛てのadminは数えない(t *testing.T) {
+	// メンバーが 1 人も居ないグループが「最後の admin」として残ると、結局誰も
+	// 権限を変えられなくなる。grant の行からは中身が分からないので数に入れない。
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListWorkspaceGrants", mock.Anything, kbWS).
+		Return([]domain.WorkspaceGrant{kbAdminGrant(kbAdminA), kbAdminGrant(kbGroupA)}, nil)
+	repo.On("FindPrincipal", mock.Anything, kbWS, kbGroupA).
+		Return(&domain.Principal{ID: kbGroupA, WorkspaceID: kbWS, Kind: domain.PrincipalKindGroup, Name: "運用"}, nil)
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(repo)
+
+	ok, err := uc.Execute(context.Background(), kb.CanRemoveWorkspaceAdminInput{
+		WorkspaceID: kbWS, PrincipalID: kbAdminA,
+	})
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func Test_最後のadmin判定_元からadminでなければ通す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListWorkspaceGrants", mock.Anything, kbWS).
+		Return([]domain.WorkspaceGrant{
+			{WorkspaceID: kbWS, PrincipalID: kbAdminA, Role: domain.GrantRoleViewer},
+		}, nil)
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(repo)
+
+	ok, err := uc.Execute(context.Background(), kb.CanRemoveWorkspaceAdminInput{
+		WorkspaceID: kbWS, PrincipalID: kbAdminA,
+	})
+	require.NoError(t, err)
+	assert.True(t, ok, "admin を 1 人も減らさない操作は止めない")
+}
+
+func Test_最後のadmin判定_ユーザーIDで指しても同じ結論になる(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(1)).Return(kbUserPrincipal(kbAdminA, 1), nil)
+	repo.On("ListWorkspaceGrants", mock.Anything, kbWS).
+		Return([]domain.WorkspaceGrant{kbAdminGrant(kbAdminA)}, nil)
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(repo)
+
+	ok, err := uc.Execute(context.Background(), kb.CanRemoveWorkspaceAdminInput{
+		WorkspaceID: kbWS, UserID: 1,
+	})
+	require.NoError(t, err)
+	assert.False(t, ok, "メンバー削除でも principal ごと消えて admin が 0 人になる")
+}
+
+func Test_最後のadmin判定_非メンバーは通す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(9)).
+		Return(nil, repository.ErrPrincipalNotFound)
+	uc := kb.NewCanRemoveWorkspaceAdminUseCase(repo)
+
+	ok, err := uc.Execute(context.Background(), kb.CanRemoveWorkspaceAdminInput{
+		WorkspaceID: kbWS, UserID: 9,
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func Test_スペース権限確認_必須項目の検証(t *testing.T) {
+	uc := kb.NewCheckSpacePermissionUseCase(&mockKBPermissionRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, kb.CheckSpacePermissionInput{SpaceID: kbSpace, UserID: 1})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, kb.CheckSpacePermissionInput{WorkspaceID: kbWS, UserID: 1})
+	assert.ErrorIs(t, err, repository.ErrSpaceNotFound, "spaceID が空なら「無い」と同じ扱い")
+	_, err = uc.Execute(ctx, kb.CheckSpacePermissionInput{WorkspaceID: kbWS, SpaceID: kbSpace})
+	require.Error(t, err, "userID 必須")
+}
+
+// 集めた事実（役割の集合）を畳むのは domain.ResolveScopePermission であって、
+// usecase は規則を持たない。強い方が採られることを usecase 経由で確かめる。
+func Test_スペース権限確認_集めた役割を規則にかけて返す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("SpacePermissionFactsForUser", mock.Anything, kbWS, kbSpace, uint64(1)).
+		Return(&domain.ScopeFacts{Roles: []domain.GrantRole{
+			domain.GrantRoleViewer, domain.GrantRoleEditor,
+		}}, nil)
+	uc := kb.NewCheckSpacePermissionUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.CheckSpacePermissionInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1,
+	})
+	require.NoError(t, err)
+	assert.True(t, got.CanView)
+	assert.True(t, got.CanEdit, "viewer と editor なら強い editor が効く")
+	assert.False(t, got.CanManage)
+}
+
+func Test_スペース権限確認_役割が1つも無ければ何もできない(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("SpacePermissionFactsForUser", mock.Anything, kbWS, kbSpace, uint64(1)).
+		Return(&domain.ScopeFacts{}, nil)
+	uc := kb.NewCheckSpacePermissionUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.CheckSpacePermissionInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domain.ScopePermission{}, *got, "fail-closed（見えないものは作れない）")
+}
+
+func Test_スペース権限確認_スペースが無ければそのまま伝える(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("SpacePermissionFactsForUser", mock.Anything, kbWS, kbSpace, uint64(1)).
+		Return(nil, repository.ErrSpaceNotFound)
+	uc := kb.NewCheckSpacePermissionUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.CheckSpacePermissionInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, UserID: 1,
+	})
+	assert.ErrorIs(t, err, repository.ErrSpaceNotFound)
+}
+
+func Test_ワークスペース権限確認_必須項目の検証(t *testing.T) {
+	uc := kb.NewCheckWorkspacePermissionUseCase(&mockKBPermissionRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, kb.CheckWorkspacePermissionInput{UserID: 1})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, kb.CheckWorkspacePermissionInput{WorkspaceID: kbWS})
+	require.Error(t, err, "userID 必須")
+}
+
+func Test_ワークスペース権限確認_集めた役割を規則にかけて返す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("WorkspacePermissionFactsForUser", mock.Anything, kbWS, uint64(1)).
+		Return(&domain.ScopeFacts{Roles: []domain.GrantRole{domain.GrantRoleAdmin}}, nil)
+	uc := kb.NewCheckWorkspacePermissionUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.CheckWorkspacePermissionInput{
+		WorkspaceID: kbWS, UserID: 1,
+	})
+	require.NoError(t, err)
+	assert.True(t, got.CanManage)
+}
+
+func Test_所属ワークスペース一覧_必須項目の検証(t *testing.T) {
+	uc := kb.NewListMemberWorkspacesUseCase(&mockKBPermissionRepo{})
+
+	_, err := uc.Execute(context.Background(), kb.ListMemberWorkspacesInput{})
+	require.Error(t, err, "userID 必須")
+}
+
+func Test_所属ワークスペース一覧_repositoryの結果をそのまま返す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListMemberWorkspaces", mock.Anything, uint64(7)).
+		Return([]domain.MemberWorkspace{{Workspace: domain.Workspace{ID: kbWS, Slug: "acme"}, CanManage: true}}, nil)
+	uc := kb.NewListMemberWorkspacesUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.ListMemberWorkspacesInput{UserID: 7})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "acme", got[0].Slug)
+	assert.True(t, got[0].CanManage)
+}
+
+func Test_所属ワークスペース一覧_失敗はそのまま伝える(t *testing.T) {
+	wantErr := errors.New("db down")
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListMemberWorkspaces", mock.Anything, uint64(7)).
+		Return([]domain.MemberWorkspace(nil), wantErr)
+	uc := kb.NewListMemberWorkspacesUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.ListMemberWorkspacesInput{UserID: 7})
+	assert.ErrorIs(t, err, wantErr)
 }

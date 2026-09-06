@@ -5,7 +5,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -70,68 +70,68 @@ func registerKnowledgeBaseRoutesWith(
 	users repository.UserRepository,
 ) {
 	h := NewKnowledgeBasePageHandler(
-		usecase.NewCheckPagePermissionUseCase(permissions),
-		usecase.NewResolvePageLocationUseCase(pages),
-		usecase.NewCheckSpacePermissionUseCase(permissions),
-		usecase.NewCanEditPageSubtreeUseCase(permissions),
-		usecase.NewListViewablePagesUseCase(permissions),
-		usecase.NewGetPageUseCase(pages),
-		usecase.NewFindPageUseCase(pages),
-		usecase.NewCreatePageUseCase(pages),
-		usecase.NewRenamePageUseCase(pages),
-		usecase.NewMovePageUseCase(pages),
-		usecase.NewArchivePageUseCase(pages),
-		usecase.NewUnarchivePageUseCase(pages),
-		usecase.NewReplacePageBlocksUseCase(pages),
-		usecase.NewResolvePageRefTitlesUseCase(permissions),
-		usecase.NewListViewableAncestorsUseCase(pages, permissions),
-		usecase.NewDeletePageUseCase(pages),
+		kb.NewCheckPagePermissionUseCase(permissions),
+		kb.NewResolvePageLocationUseCase(pages),
+		kb.NewCheckSpacePermissionUseCase(permissions),
+		kb.NewCanEditPageSubtreeUseCase(permissions),
+		kb.NewListViewablePagesUseCase(permissions),
+		kb.NewGetPageUseCase(pages),
+		kb.NewFindPageUseCase(pages),
+		kb.NewCreatePageUseCase(pages),
+		kb.NewRenamePageUseCase(pages),
+		kb.NewMovePageUseCase(pages),
+		kb.NewArchivePageUseCase(pages),
+		kb.NewUnarchivePageUseCase(pages),
+		kb.NewReplacePageBlocksUseCase(pages),
+		kb.NewResolvePageRefTitlesUseCase(permissions),
+		kb.NewListViewableAncestorsUseCase(pages, permissions),
+		kb.NewDeletePageUseCase(pages),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
-		usecase.NewListMemberWorkspacesUseCase(permissions),
-		usecase.NewJoinCompanyWorkspaceUseCase(permissions, users),
-		usecase.NewCreateWorkspaceUseCase(provisioner),
-		usecase.NewDeleteWorkspaceUseCase(pages),
-		usecase.NewCheckWorkspacePermissionUseCase(permissions),
-		usecase.NewCreateSpaceUseCase(pages, provisioner),
-		usecase.NewListViewableSpacesUseCase(permissions),
-		usecase.NewCheckSpacePermissionUseCase(permissions),
-		usecase.NewRenameSpaceUseCase(pages),
-		usecase.NewSearchViewablePagesUseCase(permissions),
+		kb.NewListMemberWorkspacesUseCase(permissions),
+		kb.NewJoinCompanyWorkspaceUseCase(permissions, users),
+		kb.NewCreateWorkspaceUseCase(provisioner),
+		kb.NewDeleteWorkspaceUseCase(pages),
+		kb.NewCheckWorkspacePermissionUseCase(permissions),
+		kb.NewCreateSpaceUseCase(pages, provisioner),
+		kb.NewListViewableSpacesUseCase(permissions),
+		kb.NewCheckSpacePermissionUseCase(permissions),
+		kb.NewRenameSpaceUseCase(pages),
+		kb.NewSearchViewablePagesUseCase(permissions),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
 	// 「なぜ handler で認可を判定するのか」「なぜ super_admin を特別扱いしないのか」
 	// 「なぜ拒否を 404 で揃えるのか」は kb_permission_gate.go の冒頭に書いてある。
 	gate := newKbPermissionGate(
-		usecase.NewCheckWorkspacePermissionUseCase(permissions),
-		usecase.NewCheckSpacePermissionUseCase(permissions),
-		usecase.NewCheckPagePermissionUseCase(permissions),
+		kb.NewCheckWorkspacePermissionUseCase(permissions),
+		kb.NewCheckSpacePermissionUseCase(permissions),
+		kb.NewCheckPagePermissionUseCase(permissions),
 	)
-	canRemoveAdmin := usecase.NewCanRemoveWorkspaceAdminUseCase(permissions)
+	canRemoveAdmin := kb.NewCanRemoveWorkspaceAdminUseCase(permissions)
 
 	gh := NewKnowledgeBaseGrantHandler(
 		gate,
-		usecase.NewGrantWorkspaceRoleUseCase(permissions),
-		usecase.NewRevokeWorkspaceRoleUseCase(permissions),
-		usecase.NewGrantSpaceRoleUseCase(permissions),
-		usecase.NewRevokeSpaceRoleUseCase(permissions),
-		usecase.NewGrantPageRoleUseCase(permissions),
-		usecase.NewRevokePageRoleUseCase(permissions),
-		usecase.NewListPageGrantsUseCase(permissions),
-		usecase.NewListGrantablePrincipalsUseCase(permissions),
+		kb.NewGrantWorkspaceRoleUseCase(permissions),
+		kb.NewRevokeWorkspaceRoleUseCase(permissions),
+		kb.NewGrantSpaceRoleUseCase(permissions),
+		kb.NewRevokeSpaceRoleUseCase(permissions),
+		kb.NewGrantPageRoleUseCase(permissions),
+		kb.NewRevokePageRoleUseCase(permissions),
+		kb.NewListPageGrantsUseCase(permissions),
+		kb.NewListGrantablePrincipalsUseCase(permissions),
 		canRemoveAdmin,
 	)
 
 	mh := NewKnowledgeBaseMemberHandler(
 		gate,
-		usecase.NewAddWorkspaceMemberUseCase(permissions),
-		usecase.NewRemoveWorkspaceMemberUseCase(permissions),
-		usecase.NewCreatePrincipalGroupUseCase(permissions),
-		usecase.NewAddGroupMemberUseCase(permissions),
-		usecase.NewRemoveGroupMemberUseCase(permissions),
-		usecase.NewEnsureSpaceEveryonePrincipalUseCase(permissions),
+		kb.NewAddWorkspaceMemberUseCase(permissions),
+		kb.NewRemoveWorkspaceMemberUseCase(permissions),
+		kb.NewCreatePrincipalGroupUseCase(permissions),
+		kb.NewAddGroupMemberUseCase(permissions),
+		kb.NewRemoveGroupMemberUseCase(permissions),
+		kb.NewEnsureSpaceEveryonePrincipalUseCase(permissions),
 		canRemoveAdmin,
 	)
 
@@ -141,10 +141,10 @@ func registerKnowledgeBaseRoutesWith(
 	// 上限が無いまま動く）。
 	sh := NewKnowledgeBaseShareLinkHandler(
 		gate,
-		usecase.NewIssueShareLinkUseCase(shareLinks),
-		usecase.NewRevokeShareLinkUseCase(shareLinks),
-		usecase.NewListPageShareLinksUseCase(shareLinks),
-		usecase.NewVerifyShareLinkUseCase(shareLinks),
+		kb.NewIssueShareLinkUseCase(shareLinks),
+		kb.NewRevokeShareLinkUseCase(shareLinks),
+		kb.NewListPageShareLinksUseCase(shareLinks),
+		kb.NewVerifyShareLinkUseCase(shareLinks),
 		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
 
@@ -162,7 +162,7 @@ func registerKnowledgeBaseRoutesWith(
 	g.POST("/kb/workspaces", middleware.RateLimitPerMinute(10, 5), wh.Create)
 
 	kbGroup := g.Group("", middleware.KnowledgeBaseWorkspace(
-		usecase.NewResolveWorkspaceUseCase(pages, permissions, users),
+		kb.NewResolveWorkspaceUseCase(pages, permissions, users),
 	))
 	// スペースの一覧はワークスペースのメンバーなら誰でも叩ける（返る中身が権限で変わる）。
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
@@ -244,14 +244,14 @@ func registerKnowledgeBasePublicRoutesWith(
 ) {
 	sh := NewKnowledgeBaseShareLinkHandler(
 		newKbPermissionGate(
-			usecase.NewCheckWorkspacePermissionUseCase(permissions),
-			usecase.NewCheckSpacePermissionUseCase(permissions),
-			usecase.NewCheckPagePermissionUseCase(permissions),
+			kb.NewCheckWorkspacePermissionUseCase(permissions),
+			kb.NewCheckSpacePermissionUseCase(permissions),
+			kb.NewCheckPagePermissionUseCase(permissions),
 		),
-		usecase.NewIssueShareLinkUseCase(shareLinks),
-		usecase.NewRevokeShareLinkUseCase(shareLinks),
-		usecase.NewListPageShareLinksUseCase(shareLinks),
-		usecase.NewVerifyShareLinkUseCase(shareLinks),
+		kb.NewIssueShareLinkUseCase(shareLinks),
+		kb.NewRevokeShareLinkUseCase(shareLinks),
+		kb.NewListPageShareLinksUseCase(shareLinks),
+		kb.NewVerifyShareLinkUseCase(shareLinks),
 		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
 	// 上限は 2 段。**本命は handler 側のリンク 1 本あたりの上限**で、こちらの IP 単位は

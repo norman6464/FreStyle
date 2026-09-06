@@ -1,0 +1,872 @@
+package kb_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	kbWS    = "0198a000-0000-7000-8000-000000000001"
+	kbSpace = "0198a000-0000-7000-8000-000000000002"
+	kbPage  = "0198a000-0000-7000-8000-000000000003"
+)
+
+func kbActivePage(id, spaceID string, parentID *string) *domain.Page {
+	return &domain.Page{
+		ID: id, WorkspaceID: kbWS, SpaceID: spaceID, ParentID: parentID,
+		Position: "a0", Title: "ページ", CreatedByUserID: 1,
+	}
+}
+
+func kbArchivedPage(id, spaceID string, parentID *string) *domain.Page {
+	p := kbActivePage(id, spaceID, parentID)
+	at := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	p.ArchivedAt = &at
+	return p
+}
+
+func Test_ページ作成_必須項目の検証(t *testing.T) {
+	uc := kb.NewCreatePageUseCase(&mockKnowledgeBaseRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, kb.CreatePageInput{SpaceID: kbSpace, CreatedByUserID: 1})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, kb.CreatePageInput{WorkspaceID: kbWS, CreatedByUserID: 1})
+	require.Error(t, err, "spaceID 必須")
+	_, err = uc.Execute(ctx, kb.CreatePageInput{WorkspaceID: kbWS, SpaceID: kbSpace})
+	require.Error(t, err, "createdByUserID 必須")
+	_, err = uc.Execute(ctx, kb.CreatePageInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, CreatedByUserID: 1,
+		Title: strings.Repeat("あ", 201),
+	})
+	require.Error(t, err, "title は 200 文字まで")
+}
+
+func Test_ページ作成_スペースが無ければ失敗(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(nil, repository.ErrSpaceNotFound)
+	uc := kb.NewCreatePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.CreatePageInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, CreatedByUserID: 1,
+	})
+	require.ErrorIs(t, err, repository.ErrSpaceNotFound)
+}
+
+func Test_ページ作成_親が別スペースなら拒否(t *testing.T) {
+	otherSpace := "0198a000-0000-7000-8000-00000000000f"
+	parentID := kbPage
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(&domain.Space{ID: kbSpace, WorkspaceID: kbWS}, nil)
+	repo.On("FindPage", mock.Anything, kbWS, parentID).Return(kbActivePage(parentID, otherSpace, nil), nil)
+	uc := kb.NewCreatePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.CreatePageInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &parentID, CreatedByUserID: 1,
+	})
+	require.ErrorIs(t, err, kb.ErrPageParentSpaceMismatch)
+}
+
+func Test_ページ作成_アーカイブ済みの親は拒否(t *testing.T) {
+	parentID := kbPage
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(&domain.Space{ID: kbSpace, WorkspaceID: kbWS}, nil)
+	repo.On("FindPage", mock.Anything, kbWS, parentID).Return(kbArchivedPage(parentID, kbSpace, nil), nil)
+	uc := kb.NewCreatePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.CreatePageInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &parentID, CreatedByUserID: 1,
+	})
+	require.ErrorIs(t, err, kb.ErrPageParentArchived)
+}
+
+func Test_ページ作成_末尾のpositionを採番して保存(t *testing.T) {
+	parentID := kbPage
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(&domain.Space{ID: kbSpace, WorkspaceID: kbWS}, nil)
+	repo.On("FindPage", mock.Anything, kbWS, parentID).Return(kbActivePage(parentID, kbSpace, nil), nil)
+	repo.On("LastActiveSiblingPosition", mock.Anything, kbWS, kbSpace, &parentID).Return("a5", nil)
+	var created *domain.Page
+	repo.On("CreatePage", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { created = args.Get(1).(*domain.Page) }).Return(nil)
+	uc := kb.NewCreatePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.CreatePageInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, ParentID: &parentID, Title: "新ページ", CreatedByUserID: 7,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, "a6", created.Position, "末尾 a5 の次 = fracindex.Between(\"a5\", \"\")")
+	assert.Equal(t, kbSpace, created.SpaceID)
+	assert.Equal(t, &parentID, created.ParentID)
+	assert.Equal(t, uint64(7), created.CreatedByUserID)
+}
+
+func Test_ページ作成_最初の1件はルートに採番(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(&domain.Space{ID: kbSpace, WorkspaceID: kbWS}, nil)
+	repo.On("LastActiveSiblingPosition", mock.Anything, kbWS, kbSpace, (*string)(nil)).Return("", nil)
+	var created *domain.Page
+	repo.On("CreatePage", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { created = args.Get(1).(*domain.Page) }).Return(nil)
+	uc := kb.NewCreatePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.CreatePageInput{
+		WorkspaceID: kbWS, SpaceID: kbSpace, CreatedByUserID: 1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, "a0", created.Position, "兄弟なし = fracindex の最初のキー")
+	assert.Nil(t, created.ParentID)
+}
+
+func Test_ページ取得_snapshotがあればそれを返す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
+		Return(&domain.PageSnapshot{PageID: kbPage, Doc: `{"type":"doc","content":[]}`}, nil)
+	uc := kb.NewGetPageUseCase(repo)
+
+	out, err := uc.Execute(context.Background(), kb.GetPageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	assert.Equal(t, `{"type":"doc","content":[]}`, out.Doc)
+	assert.Equal(t, kbPage, out.Page.ID)
+	repo.AssertNotCalled(t, "ListBlocksByPage", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ取得_snapshotが無ければブロックから組み立てる(t *testing.T) {
+	inline := `[{"type":"text","text":"本文"}]`
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).Return(nil, repository.ErrPageSnapshotNotFound)
+	repo.On("ListBlocksByPage", mock.Anything, kbWS, kbPage).Return([]domain.Block{
+		{ID: "b1", PageID: kbPage, Type: domain.BlockTypeParagraph, Position: "a0", Attrs: "{}", Inline: &inline},
+	}, nil)
+	uc := kb.NewGetPageUseCase(repo)
+
+	out, err := uc.Execute(context.Background(), kb.GetPageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`, out.Doc)
+}
+
+func Test_ページ取得_無いページはそのまま失敗(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(nil, repository.ErrPageNotFound)
+	uc := kb.NewGetPageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.GetPageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.ErrorIs(t, err, repository.ErrPageNotFound)
+}
+
+func Test_ページツリー_親子と兄弟順を組み立てる(t *testing.T) {
+	root1 := kbActivePage("p1", kbSpace, nil)
+	root1.Position = "a0"
+	root2 := kbActivePage("p2", kbSpace, nil)
+	root2.Position = "a1"
+	p1 := "p1"
+	child1 := kbActivePage("p3", kbSpace, &p1)
+	child1.Position = "a0"
+	child2 := kbActivePage("p4", kbSpace, &p1)
+	child2.Position = "a1"
+
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(&domain.Space{ID: kbSpace, WorkspaceID: kbWS}, nil)
+	// ListActivePagesBySpace は position 順で返る（クエリの ORDER BY）。
+	repo.On("ListActivePagesBySpace", mock.Anything, kbWS, kbSpace).
+		Return([]domain.Page{*root1, *child1, *root2, *child2}, nil)
+	uc := kb.NewGetPageTreeUseCase(repo)
+
+	tree, err := uc.Execute(context.Background(), kb.GetPageTreeInput{WorkspaceID: kbWS, SpaceID: kbSpace})
+	require.NoError(t, err)
+	require.Len(t, tree, 2)
+	assert.Equal(t, "p1", tree[0].Page.ID)
+	assert.Equal(t, "p2", tree[1].Page.ID)
+	require.Len(t, tree[0].Children, 2)
+	assert.Equal(t, "p3", tree[0].Children[0].Page.ID)
+	assert.Equal(t, "p4", tree[0].Children[1].Page.ID)
+	assert.Empty(t, tree[1].Children)
+}
+
+func Test_ページツリー_スペースが無ければ失敗(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(nil, repository.ErrSpaceNotFound)
+	uc := kb.NewGetPageTreeUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.GetPageTreeInput{WorkspaceID: kbWS, SpaceID: kbSpace})
+	require.ErrorIs(t, err, repository.ErrSpaceNotFound)
+}
+
+func Test_ページツリー_親が一覧に無い行はルート扱いで隠さない(t *testing.T) {
+	missing := "not-in-list"
+	orphan := kbActivePage("p9", kbSpace, &missing)
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindSpace", mock.Anything, kbWS, kbSpace).Return(&domain.Space{ID: kbSpace, WorkspaceID: kbWS}, nil)
+	repo.On("ListActivePagesBySpace", mock.Anything, kbWS, kbSpace).Return([]domain.Page{*orphan}, nil)
+	uc := kb.NewGetPageTreeUseCase(repo)
+
+	tree, err := uc.Execute(context.Background(), kb.GetPageTreeInput{WorkspaceID: kbWS, SpaceID: kbSpace})
+	require.NoError(t, err)
+	require.Len(t, tree, 1)
+	assert.Equal(t, "p9", tree[0].Page.ID)
+}
+
+func Test_ページ改名_アーカイブ済みは拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewRenamePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.RenamePageInput{WorkspaceID: kbWS, PageID: kbPage, Title: "x"})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+}
+
+func Test_ページ改名_タイトルを更新する(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	updated := kbActivePage(kbPage, kbSpace, nil)
+	updated.Title = "改名後"
+	repo.On("UpdatePageTitle", mock.Anything, kbWS, kbPage, "改名後").Return(updated, nil)
+	uc := kb.NewRenamePageUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.RenamePageInput{WorkspaceID: kbWS, PageID: kbPage, Title: "改名後"})
+	require.NoError(t, err)
+	assert.Equal(t, "改名後", got.Title)
+}
+
+func Test_ページ改名_長すぎるタイトルは拒否(t *testing.T) {
+	uc := kb.NewRenamePageUseCase(&mockKnowledgeBaseRepo{})
+	_, err := uc.Execute(context.Background(), kb.RenamePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, Title: strings.Repeat("あ", 201),
+	})
+	require.Error(t, err)
+}
+
+func Test_ページ参照_本文を読まずにメタ情報だけ返す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewFindPageUseCase(repo)
+
+	page, err := uc.Execute(context.Background(), kb.FindPageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	assert.Equal(t, kbSpace, page.SpaceID, "権限判定に使うスペースが取れる")
+	repo.AssertNotCalled(t, "GetPageSnapshot", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "ListBlocksByPage", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ参照_必須項目の検証(t *testing.T) {
+	uc := kb.NewFindPageUseCase(&mockKnowledgeBaseRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, kb.FindPageInput{PageID: kbPage})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, kb.FindPageInput{WorkspaceID: kbWS})
+	require.ErrorIs(t, err, repository.ErrPageNotFound, "空の pageID は存在しないページと同じ扱い")
+}
+
+// kbTreePages は root → child → grandchild と、独立した sibling の 4 ページ。
+func kbTreePages() []domain.Page {
+	root := "p-root"
+	child := "p-child"
+	return []domain.Page{
+		{ID: root, Position: "a0", Title: "root"},
+		{ID: child, Position: "a1", Title: "child", ParentID: &root},
+		{ID: "p-grandchild", Position: "a2", Title: "grandchild", ParentID: &child},
+		{ID: "p-sibling", Position: "a3", Title: "sibling"},
+	}
+}
+
+func Test_ツリー組み立て_親子が復元される(t *testing.T) {
+	roots := kb.BuildPageTree(kbTreePages(), kb.PageTreeOrphanHidden)
+
+	require.Len(t, roots, 2)
+	assert.Equal(t, "p-root", roots[0].Page.ID)
+	require.Len(t, roots[0].Children, 1)
+	assert.Equal(t, "p-child", roots[0].Children[0].Page.ID)
+	require.Len(t, roots[0].Children[0].Children, 1)
+	assert.Equal(t, "p-grandchild", roots[0].Children[0].Children[0].Page.ID)
+	assert.Equal(t, "p-sibling", roots[1].Page.ID)
+}
+
+func Test_ツリー組み立て_見えない親の子孫はまとめて落ちる(t *testing.T) {
+	// 権限のふるいで root が落ちた一覧を再現する。
+	pages := kbTreePages()[1:]
+
+	roots := kb.BuildPageTree(pages, kb.PageTreeOrphanHidden)
+
+	require.Len(t, roots, 1, "見えない親の子は根に昇格させない（配下の存在も漏らさない）")
+	assert.Equal(t, "p-sibling", roots[0].Page.ID)
+}
+
+func Test_ツリー組み立て_ふるいにかけない一覧では親無しを根として見せる(t *testing.T) {
+	pages := kbTreePages()[1:]
+
+	roots := kb.BuildPageTree(pages, kb.PageTreeOrphanAsRoot)
+
+	require.Len(t, roots, 2, "整合が崩れた行はデータを隠さずルート扱いで見せる")
+	assert.Equal(t, "p-child", roots[0].Page.ID)
+	require.Len(t, roots[0].Children, 1)
+	assert.Equal(t, "p-sibling", roots[1].Page.ID)
+}
+
+func Test_ツリー組み立て_空の一覧は空のスライス(t *testing.T) {
+	roots := kb.BuildPageTree(nil, kb.PageTreeOrphanHidden)
+	assert.NotNil(t, roots, "nil ではなく空スライス（JSON で null にしない）")
+	assert.Empty(t, roots)
+}
+
+func Test_ツリー組み立て_兄弟の並びは入力順のまま(t *testing.T) {
+	parent := "p-parent"
+	pages := []domain.Page{
+		{ID: parent, Position: "a0"},
+		{ID: "p-1", Position: "a1", ParentID: &parent},
+		{ID: "p-2", Position: "a2", ParentID: &parent},
+		{ID: "p-3", Position: "a3", ParentID: &parent},
+	}
+
+	roots := kb.BuildPageTree(pages, kb.PageTreeOrphanHidden)
+
+	require.Len(t, roots, 1)
+	got := make([]string, 0, 3)
+	for _, c := range roots[0].Children {
+		got = append(got, c.Page.ID)
+	}
+	assert.Equal(t, []string{"p-1", "p-2", "p-3"}, got)
+}
+
+func Test_本文書き換え_docを行に分解して全入れ替えする(t *testing.T) {
+	doc := `{"type":"doc","content":[
+		{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"見出し"}]},
+		{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"項目"}]}]}]}
+	]}`
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	var gotRows []repository.BlockWrite
+	var gotSnapshot string
+	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			gotRows = args.Get(3).([]repository.BlockWrite)
+			gotSnapshot = args.String(4)
+		}).Return(nil)
+	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
+		Return(&domain.PageSnapshot{PageID: kbPage, Doc: doc}, nil)
+	uc := kb.NewReplacePageBlocksUseCase(repo)
+
+	out, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: doc,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.Len(t, gotRows, 4, "heading / bulletList / listItem / paragraph の 4 行")
+	assert.Equal(t, domain.BlockTypeHeading, gotRows[0].Type)
+	assert.Equal(t, domain.BlockTypeBulletList, gotRows[1].Type)
+	assert.Equal(t, 1, gotRows[2].ParentIndex, "listItem の親は bulletList")
+	assert.JSONEq(t, doc, gotSnapshot, "snapshot は行から再生成した正規形の doc")
+}
+
+func Test_本文書き換え_不正なdocは保存せず失敗(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewReplacePageBlocksUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[{"type":"iframe"}]}`,
+	})
+	require.ErrorIs(t, err, kb.ErrPageDocUnknownNodeType)
+	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_本文書き換え_アーカイブ済みページは拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewReplacePageBlocksUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`,
+	})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+}
+
+func Test_本文書き換え_無いページはそのまま失敗(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(nil, repository.ErrPageNotFound)
+	uc := kb.NewReplacePageBlocksUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`,
+	})
+	require.ErrorIs(t, err, repository.ErrPageNotFound)
+}
+
+func Test_ページ移動_自分自身の下には移せない(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	self := kbPage
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewParentID: &self,
+	})
+	require.ErrorIs(t, err, kb.ErrPageCycle)
+	repo.AssertNotCalled(t, "MovePage", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ移動_子孫の下には移せない(t *testing.T) {
+	desc := "0198a000-0000-7000-8000-0000000000aa"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("FindPage", mock.Anything, kbWS, desc).Return(kbActivePage(desc, kbSpace, nil), nil)
+	repo.On("HasDescendant", mock.Anything, kbWS, kbPage, desc).Return(true, nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewParentID: &desc,
+	})
+	require.ErrorIs(t, err, kb.ErrPageCycle)
+	repo.AssertNotCalled(t, "MovePage", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ移動_アーカイブ済みページは移せない(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+}
+
+func Test_ページ移動_アーカイブ済みの親の下には移せない(t *testing.T) {
+	parent := "0198a000-0000-7000-8000-0000000000bb"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("FindPage", mock.Anything, kbWS, parent).Return(kbArchivedPage(parent, kbSpace, nil), nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewParentID: &parent,
+	})
+	require.ErrorIs(t, err, kb.ErrPageParentArchived)
+}
+
+func Test_ページ移動_指定スペースと親のスペースが食い違えば拒否(t *testing.T) {
+	parent := "0198a000-0000-7000-8000-0000000000bb"
+	otherSpace := "0198a000-0000-7000-8000-0000000000cc"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("FindPage", mock.Anything, kbWS, parent).Return(kbActivePage(parent, otherSpace, nil), nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewParentID: &parent, NewSpaceID: kbSpace,
+	})
+	require.ErrorIs(t, err, kb.ErrPageParentSpaceMismatch)
+}
+
+func Test_ページ移動_親の下の末尾へ移す(t *testing.T) {
+	parent := "0198a000-0000-7000-8000-0000000000bb"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil).Once()
+	repo.On("FindPage", mock.Anything, kbWS, parent).Return(kbActivePage(parent, kbSpace, nil), nil)
+	repo.On("HasDescendant", mock.Anything, kbWS, kbPage, parent).Return(false, nil)
+	repo.On("LastActiveSiblingPosition", mock.Anything, kbWS, kbSpace, &parent).Return("a2", nil)
+	repo.On("MovePage", mock.Anything, kbWS, kbPage, &parent, kbSpace, "a3").Return(nil)
+	moved := kbActivePage(kbPage, kbSpace, &parent)
+	moved.Position = "a3"
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(moved, nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewParentID: &parent,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "a3", got.Position)
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ移動_別スペースのルートへ移す(t *testing.T) {
+	otherSpace := "0198a000-0000-7000-8000-0000000000cc"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("FindSpace", mock.Anything, kbWS, otherSpace).Return(&domain.Space{ID: otherSpace, WorkspaceID: kbWS}, nil)
+	repo.On("LastActiveSiblingPosition", mock.Anything, kbWS, otherSpace, (*string)(nil)).Return("", nil)
+	repo.On("MovePage", mock.Anything, kbWS, kbPage, (*string)(nil), otherSpace, "a0").Return(nil)
+	uc := kb.NewMovePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewSpaceID: otherSpace,
+	})
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ移動_移動先スペースが無ければ失敗(t *testing.T) {
+	otherSpace := "0198a000-0000-7000-8000-0000000000cc"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("FindSpace", mock.Anything, kbWS, otherSpace).Return(nil, repository.ErrSpaceNotFound)
+	uc := kb.NewMovePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.MovePageInput{
+		WorkspaceID: kbWS, PageID: kbPage, NewSpaceID: otherSpace,
+	})
+	require.ErrorIs(t, err, repository.ErrSpaceNotFound)
+}
+
+func Test_ページアーカイブ_サブツリーごと隠す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("ArchivePageSubtree", mock.Anything, kbWS, kbPage).Return(nil)
+	uc := kb.NewArchivePageUseCase(repo)
+
+	require.NoError(t, uc.Execute(context.Background(), kb.ArchivePageInput{WorkspaceID: kbWS, PageID: kbPage}))
+	repo.AssertExpectations(t)
+}
+
+func Test_ページアーカイブ_アーカイブ済みなら何もしない(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewArchivePageUseCase(repo)
+
+	require.NoError(t, uc.Execute(context.Background(), kb.ArchivePageInput{WorkspaceID: kbWS, PageID: kbPage}))
+	repo.AssertNotCalled(t, "ArchivePageSubtree", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ復帰_一括分をarchived_atを境に戻す(t *testing.T) {
+	page := kbArchivedPage(kbPage, kbSpace, nil)
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(page, nil).Once()
+	repo.On("HasActiveSiblingPosition", mock.Anything, kbWS, kbSpace, (*string)(nil), page.Position, kbPage).Return(false, nil)
+	repo.On("UnarchivePageSubtree", mock.Anything, kbWS, kbPage, *page.ArchivedAt, (*string)(nil)).Return(nil)
+	restored := kbActivePage(kbPage, kbSpace, nil)
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(restored, nil)
+	uc := kb.NewUnarchivePageUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.UnarchivePageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	assert.Nil(t, got.ArchivedAt)
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ復帰_positionが衝突したら末尾へ再採番(t *testing.T) {
+	page := kbArchivedPage(kbPage, kbSpace, nil)
+	page.Position = "a0"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(page, nil).Once()
+	repo.On("HasActiveSiblingPosition", mock.Anything, kbWS, kbSpace, (*string)(nil), "a0", kbPage).Return(true, nil)
+	repo.On("LastActiveSiblingPosition", mock.Anything, kbWS, kbSpace, (*string)(nil)).Return("a7", nil)
+	newPos := "a8"
+	repo.On("UnarchivePageSubtree", mock.Anything, kbWS, kbPage, *page.ArchivedAt, &newPos).Return(nil)
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewUnarchivePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.UnarchivePageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ復帰_親がアーカイブ中なら拒否(t *testing.T) {
+	parent := "0198a000-0000-7000-8000-0000000000bb"
+	page := kbArchivedPage(kbPage, kbSpace, &parent)
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(page, nil)
+	repo.On("FindPage", mock.Anything, kbWS, parent).Return(kbArchivedPage(parent, kbSpace, nil), nil)
+	uc := kb.NewUnarchivePageUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.UnarchivePageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.ErrorIs(t, err, kb.ErrPageParentArchived)
+	repo.AssertNotCalled(t, "UnarchivePageSubtree", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページ復帰_現役ページなら何もしない(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewUnarchivePageUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.UnarchivePageInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.NoError(t, err)
+	assert.Nil(t, got.ArchivedAt)
+	repo.AssertNotCalled(t, "UnarchivePageSubtree", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+const kbRefWS = "00000000-0000-7000-8000-00000000aaaa"
+
+func kbRefDoc(refs ...string) string {
+	content := ""
+	for i, id := range refs {
+		if i > 0 {
+			content += ","
+		}
+		content += fmt.Sprintf(`{"type":"pageRef","attrs":{"pageId":%q,"title":"無題"}}`, id)
+	}
+	return `{"type":"doc","content":[{"type":"paragraph","content":[` + content + `]}]}`
+}
+
+// kbViewableFacts は「閲覧の役割が届いているページ」の行。
+func kbViewableFacts(id, title string) repository.PageWithViewFacts {
+	return repository.PageWithViewFacts{
+		Page: domain.Page{ID: id, Title: title},
+		Role: kbGrantRole(domain.GrantRoleViewer),
+	}
+}
+
+// kbUnreachableFacts は「付与が 1 つも届いていないページ」の行（Role が nil）。
+// 自分が入っていない private のスペースに置かれたページがこれにあたる。
+// repository は行そのものは返す（本番の SQL も候補として引いてくる）ので、
+// 見えるかどうかは Role を見て usecase 側の domain.ResolvePageView が決める。
+func kbUnreachableFacts(id, title string) repository.PageWithViewFacts {
+	return repository.PageWithViewFacts{Page: domain.Page{ID: id, Title: title}}
+}
+
+func Test_ページ参照の題名解決_閲覧できる参照だけを現在の題名にする(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	visible := "00000000-0000-7000-8000-000000000001"
+	unreachable := "00000000-0000-7000-8000-000000000002"
+	// unreachable には役割が届いていない（別の private なスペースに置かれたページ）。
+	// repository が返すのは事実（届いた中で最も強い役割。無ければ nil）だけで、
+	// 判定は usecase 側の ResolvePageView が行う。
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{visible, unreachable}).
+		Return([]repository.PageWithViewFacts{
+			kbViewableFacts(visible, "設計メモ v2"),
+			kbUnreachableFacts(unreachable, "届かないページの新題名"),
+		}, nil)
+
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+	got, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(visible, unreachable),
+	})
+	assert.NoError(t, err)
+
+	var doc map[string]any
+	assert.NoError(t, json.Unmarshal([]byte(got), &doc))
+	inline := doc["content"].([]any)[0].(map[string]any)["content"].([]any)
+	first := inline[0].(map[string]any)["attrs"].(map[string]any)
+	second := inline[1].(map[string]any)["attrs"].(map[string]any)
+	assert.Equal(t, "設計メモ v2", first["title"], "閲覧できる参照は現在の題名になる")
+	// 届いていない参照には題名を入れない。保存されていた title も読み出し時に剥がす
+	// （剥がす前に保存された doc から、権限を失った読み手へ古い題名が返らないように）。
+	assert.Nil(t, second["title"])
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ参照の題名解決_参照が無ければ問い合わせず原文のまま(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+	doc := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"参照なし"}]}]}`
+
+	got, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: doc,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, doc, got)
+	repo.AssertNotCalled(t, "ListWorkspacePageViewFactsByIDs")
+}
+
+func Test_ページ参照の題名解決_壊れたdocや取得失敗では原文を返す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+
+	broken := `{"type":"doc","content":[`
+	got, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: broken,
+	})
+	assert.NoError(t, err, "読めない doc はエラーではない（保存経路の検証が弾く領分）")
+	assert.Equal(t, broken, got, "読めない doc はそのまま返す（本文が開けることが題名より重い）")
+
+	id := "00000000-0000-7000-8000-000000000001"
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{id}).
+		Return(nil, assert.AnError)
+	got2, err2 := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(id),
+	})
+	assert.ErrorIs(t, err2, assert.AnError, "事実の取得失敗は握り潰さず返す（気づけるように）")
+	// 失敗でも本文は返すが、保存されていた title は剥がして返す（可視判定を通っていない
+	// 題名を、失敗経路からも出さない）。参照そのものは残る。
+	assert.Contains(t, got2, id)
+	assert.NotContains(t, got2, `"無題"`)
+}
+
+func Test_ページ参照の題名解決_同じ参照は1回だけ数える(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	dup := "00000000-0000-7000-8000-000000000001"
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{dup}).
+		Return([]repository.PageWithViewFacts{kbViewableFacts(dup, "本題")}, nil)
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(dup, dup),
+	})
+	assert.NoError(t, err)
+
+	// 同じ ID は 1 回で問い合わせ、両方の出現が書き換わる。
+	assert.Contains(t, got, `"本題"`)
+	assert.NotContains(t, got, `"無題"`)
+	repo.AssertNumberOfCalls(t, "ListWorkspacePageViewFactsByIDs", 1)
+}
+
+func Test_ページ参照の題名解決_解決数の天井は文書順の先頭100件(t *testing.T) {
+	// 「長さが 100」だけでは、末尾や任意の 100 件を選ぶ実装でも通ってしまう。
+	// 契約は**文書順の先頭 100 件**なので、選ばれた ID の並びまで固定する。
+	repo := &mockKBPermissionRepo{}
+	ids := make([]string, 101)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("00000000-0000-7000-8000-%012d", i+1)
+	}
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), ids[:100]).
+		Return([]repository.PageWithViewFacts{}, nil)
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(ids...),
+	})
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ参照の題名解決_pageIdの表記ゆれは正規形へ寄せて照合する(t *testing.T) {
+	// repository は ID を小文字・ハイフン区切りへ正規化して返す。保存された参照が
+	// 大文字で書かれていても、突き合わせが外れて題名だけ差し替わらない、を防ぐ。
+	repo := &mockKBPermissionRepo{}
+	canonical := "00000000-0000-7000-8000-0000000000ab"
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{canonical}).
+		Return([]repository.PageWithViewFacts{kbViewableFacts(canonical, "正規形の題名")}, nil)
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+
+	upper := "00000000-0000-7000-8000-0000000000AB"
+	got, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(upper),
+	})
+
+	assert.NoError(t, err)
+	assert.Contains(t, got, "正規形の題名")
+	repo.AssertExpectations(t)
+}
+
+func Test_ページ参照の題名は保存時に剥がされる(t *testing.T) {
+	// title は読み手ごとの派生値。保存されると、閲覧できる編集者の画面で解決された
+	// 現在の題名が本文へ焼き込まれ、閲覧できない読み手にも返ってしまう。
+	id := "00000000-0000-7000-8000-000000000001"
+	doc := kbRefDoc(id)
+
+	got := kb.StripPageRefTitles(doc)
+
+	assert.NotContains(t, got, `"無題"`)
+	assert.Contains(t, got, id, "参照そのもの（pageId）は残る")
+
+	// 参照が無い doc は触らない（同じ文字列のまま）。
+	plain := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`
+	assert.Equal(t, plain, kb.StripPageRefTitles(plain))
+}
+
+func Test_ページ参照の題名解決_アーカイブ済みの参照は題名に採らない(t *testing.T) {
+	// 隠したページの現在の題名を本文へ映さない（検索が現役だけを対象にするのと同じ線引き）。
+	repo := &mockKBPermissionRepo{}
+	id := "00000000-0000-7000-8000-000000000001"
+	archivedAt := time.Now()
+	archived := repository.PageWithViewFacts{
+		Page: domain.Page{ID: id, Title: "隠した題名", ArchivedAt: &archivedAt},
+		Role: kbGrantRole(domain.GrantRoleViewer),
+	}
+	repo.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{id}).
+		Return([]repository.PageWithViewFacts{archived}, nil)
+	uc := kb.NewResolvePageRefTitlesUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.ResolvePageRefTitlesInput{
+		WorkspaceID: kbRefWS, UserID: 7, Doc: kbRefDoc(id),
+	})
+
+	assert.NoError(t, err)
+	assert.NotContains(t, got, "隠した題名", "現在の題名は入れない")
+	// 原文をそのまま返しても通る検証にしない: 保存されていた「無題」も剥がれている
+	//（＝読み出し側の strip と解決の両方が実際に走った）ことまで確かめる。
+	assert.NotContains(t, got, `"無題"`)
+	repo.AssertExpectations(t)
+}
+
+func Test_パンくず_閲覧できる祖先だけがclosureの順で返る(t *testing.T) {
+	pages := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	// closure の順は「ん」→「あ」（根が「ん」）。facts は題名順（「あ」が先）で返す —
+	// 題名順をそのまま使う退行をこの並びで捕まえる。
+	root := "00000000-0000-7000-8000-00000000000a"
+	child := "00000000-0000-7000-8000-00000000000b"
+	unreachable := "00000000-0000-7000-8000-00000000000c"
+	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "page-x").
+		Return([]string{root, child, unreachable}, nil)
+	// 祖先には届いていないのに手前のページは開ける、という並びは本番でも起こる:
+	// 付与は 3 段（ワークスペース / スペース / ページ）を足し合わせるので、深い側の
+	// ページに直接付与を張れば、その祖先に役割が無いまま子だけが見える。
+	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7),
+		[]string{root, child, unreachable}).
+		Return([]repository.PageWithViewFacts{
+			// 題名順: 「あ」(child) が先、「ん」(root) が後。unreachable は役割が nil。
+			kbViewableFacts(child, "あ"),
+			kbViewableFacts(root, "ん"),
+			kbUnreachableFacts(unreachable, "見えない段"),
+		}, nil)
+	uc := kb.NewListViewableAncestorsUseCase(pages, perms)
+
+	got, err := uc.Execute(context.Background(), kb.ListViewableAncestorsInput{
+		WorkspaceID: kbRefWS, UserID: 7, PageID: "page-x",
+	})
+
+	assert.NoError(t, err)
+	// 並びは closure（根から）。facts の題名順に引きずられない。
+	// 見えない段は行ごと消える（題名どころか実在も知らせない）。
+	assert.Equal(t, []kb.AncestorRef{
+		{ID: root, Title: "ん"},
+		{ID: child, Title: "あ"},
+	}, got)
+}
+
+func Test_パンくず_アーカイブ済みの祖先も閲覧できる限り含める(t *testing.T) {
+	// アーカイブ済みのページは /p で開ける。経路から抜くと「その段が無い」かのように
+	// 場所を偽るので、可視である限り出す（題名解決と除外の線引きが違う）。
+	pages := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	arch := "00000000-0000-7000-8000-00000000000d"
+	archivedAt := time.Now()
+	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "page-y").
+		Return([]string{arch}, nil)
+	perms.On("ListWorkspacePageViewFactsByIDs", mock.Anything, kbRefWS, uint64(7), []string{arch}).
+		Return([]repository.PageWithViewFacts{{
+			Page: domain.Page{ID: arch, Title: "片付けた親", ArchivedAt: &archivedAt},
+			Role: kbGrantRole(domain.GrantRoleViewer),
+		}}, nil)
+	uc := kb.NewListViewableAncestorsUseCase(pages, perms)
+
+	got, err := uc.Execute(context.Background(), kb.ListViewableAncestorsInput{
+		WorkspaceID: kbRefWS, UserID: 7, PageID: "page-y",
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []kb.AncestorRef{{ID: arch, Title: "片付けた親"}}, got)
+}
+
+func Test_パンくず_祖先が無ければ空のsliceを返す(t *testing.T) {
+	// nil を返すと JSON で null になり、フロントの ancestors.map が落ちる。
+	pages := &mockKnowledgeBaseRepo{}
+	perms := &mockKBPermissionRepo{}
+	pages.On("ListAncestorPageIDs", mock.Anything, kbRefWS, "root-page").
+		Return([]string{}, nil)
+	uc := kb.NewListViewableAncestorsUseCase(pages, perms)
+
+	got, err := uc.Execute(context.Background(), kb.ListViewableAncestorsInput{
+		WorkspaceID: kbRefWS, UserID: 7, PageID: "root-page",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, got)
+	assert.Empty(t, got)
+	perms.AssertNotCalled(t, "ListWorkspacePageViewFactsByIDs")
+}

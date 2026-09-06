@@ -12,7 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,33 +20,33 @@ import (
 
 // kbUseCases は結合テストで使う usecase 一式（実 repository を注入した状態）。
 type kbUseCases struct {
-	create    *usecase.CreatePageUseCase
-	get       *usecase.GetPageUseCase
-	tree      *usecase.GetPageTreeUseCase
-	rename    *usecase.RenamePageUseCase
-	move      *usecase.MovePageUseCase
-	archive   *usecase.ArchivePageUseCase
-	unarchive *usecase.UnarchivePageUseCase
-	replace   *usecase.ReplacePageBlocksUseCase
+	create    *kb.CreatePageUseCase
+	get       *kb.GetPageUseCase
+	tree      *kb.GetPageTreeUseCase
+	rename    *kb.RenamePageUseCase
+	move      *kb.MovePageUseCase
+	archive   *kb.ArchivePageUseCase
+	unarchive *kb.UnarchivePageUseCase
+	replace   *kb.ReplacePageBlocksUseCase
 }
 
 func newKbUseCases(repo repository.KnowledgeBaseRepository) kbUseCases {
 	return kbUseCases{
-		create:    usecase.NewCreatePageUseCase(repo),
-		get:       usecase.NewGetPageUseCase(repo),
-		tree:      usecase.NewGetPageTreeUseCase(repo),
-		rename:    usecase.NewRenamePageUseCase(repo),
-		move:      usecase.NewMovePageUseCase(repo),
-		archive:   usecase.NewArchivePageUseCase(repo),
-		unarchive: usecase.NewUnarchivePageUseCase(repo),
-		replace:   usecase.NewReplacePageBlocksUseCase(repo),
+		create:    kb.NewCreatePageUseCase(repo),
+		get:       kb.NewGetPageUseCase(repo),
+		tree:      kb.NewGetPageTreeUseCase(repo),
+		rename:    kb.NewRenamePageUseCase(repo),
+		move:      kb.NewMovePageUseCase(repo),
+		archive:   kb.NewArchivePageUseCase(repo),
+		unarchive: kb.NewUnarchivePageUseCase(repo),
+		replace:   kb.NewReplacePageBlocksUseCase(repo),
 	}
 }
 
 // mustCreatePage は usecase 経由でページを 1 枚作る（closure も張られる）。
 func mustCreatePage(ctx context.Context, t *testing.T, uc kbUseCases, ws, space string, parentID *string, title string) *domain.Page {
 	t.Helper()
-	page, err := uc.create.Execute(ctx, usecase.CreatePageInput{
+	page, err := uc.create.Execute(ctx, kb.CreatePageInput{
 		WorkspaceID: ws, SpaceID: space, ParentID: parentID, Title: title, CreatedByUserID: 1,
 	})
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func queryPagePaths(t *testing.T, db *sql.DB, workspaceID string) map[string]int
 }
 
 // treeShape はページツリーを "title(子, 子, ...)" の文字列に落とす（木の形の比較用）。
-func treeShape(nodes []*usecase.PageTreeNode) string {
+func treeShape(nodes []*kb.PageTreeNode) string {
 	s := ""
 	for i, n := range nodes {
 		if i > 0 {
@@ -127,7 +127,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "消す根")
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "消える子")
 		_ = mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
-		_, err := uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{
+		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
 			WorkspaceID: ws, PageID: child.ID,
 			Doc: `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`,
 		})
@@ -135,9 +135,9 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 		require.NoError(t, repo.DeletePageSubtree(ctx, ws, root.ID))
 
-		_, err = uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: child.ID})
+		_, err = uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: child.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound, "子孫も一緒に消える")
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "残る根", treeShape(tree), "残す根は無傷で、消した木は形から消える")
 
@@ -165,13 +165,13 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root1.ID, "child")
 		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
 
-		got, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: child.ID})
+		got, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: child.ID})
 		require.NoError(t, err)
 		assert.Equal(t, "child", got.Page.Title)
 		assert.Equal(t, &root1.ID, got.Page.ParentID)
 		assert.JSONEq(t, `{"type":"doc","content":[]}`, got.Doc, "未保存ページの本文は空 doc")
 
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "root1(child(grand)), root2", treeShape(tree))
 
@@ -193,14 +193,14 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root1.ID, "child")
 		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
 
-		moved, err := uc.move.Execute(ctx, usecase.MovePageInput{
+		moved, err := uc.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: ws, PageID: child.ID, NewParentID: &root2.ID,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, &root2.ID, moved.ParentID)
 		assert.Equal(t, spaceA, moved.SpaceID)
 
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "root1, root2(child(grand))", treeShape(tree))
 
@@ -221,18 +221,18 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "child")
 		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
 
-		_, err := uc.move.Execute(ctx, usecase.MovePageInput{
+		_, err := uc.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: ws, PageID: root.ID, NewParentID: &grand.ID,
 		})
-		require.ErrorIs(t, err, usecase.ErrPageCycle)
+		require.ErrorIs(t, err, kb.ErrPageCycle)
 
-		_, err = uc.move.Execute(ctx, usecase.MovePageInput{
+		_, err = uc.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: ws, PageID: root.ID, NewParentID: &root.ID,
 		})
-		require.ErrorIs(t, err, usecase.ErrPageCycle, "自分自身も拒否")
+		require.ErrorIs(t, err, kb.ErrPageCycle, "自分自身も拒否")
 
 		// 木が壊れていないこと。
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "root(child(grand))", treeShape(tree))
 	})
@@ -245,20 +245,20 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		rootB := mustCreatePage(ctx, t, uc, ws, spaceB, nil, "rootB")
 
 		// child（+ grand）を spaceB の rootB の下へ。
-		moved, err := uc.move.Execute(ctx, usecase.MovePageInput{
+		moved, err := uc.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: ws, PageID: child.ID, NewParentID: &rootB.ID,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, spaceB, moved.SpaceID)
 
-		grandAfter, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: grand.ID})
+		grandAfter, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: grand.ID})
 		require.NoError(t, err)
 		assert.Equal(t, spaceB, grandAfter.Page.SpaceID, "子孫の space_id も一括で変わる")
 
-		treeA, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		treeA, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "rootA", treeShape(treeA))
-		treeB, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceB})
+		treeB, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceB})
 		require.NoError(t, err)
 		assert.Equal(t, "rootB(child(grand))", treeShape(treeB))
 
@@ -278,7 +278,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		rootA := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "rootA")
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &rootA.ID, "child")
 
-		moved, err := uc.move.Execute(ctx, usecase.MovePageInput{
+		moved, err := uc.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: ws, PageID: child.ID, NewSpaceID: spaceB,
 		})
 		require.NoError(t, err)
@@ -297,21 +297,21 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "child")
 		keep := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "keep")
 
-		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
+		require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "keep", treeShape(tree), "サブツリーごと消える")
 
-		childAfter, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: child.ID})
+		childAfter, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: child.ID})
 		require.NoError(t, err)
 		assert.NotNil(t, childAfter.Page.ArchivedAt, "子孫もアーカイブされる")
 
-		restored, err := uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: root.ID})
+		restored, err := uc.unarchive.Execute(ctx, kb.UnarchivePageInput{WorkspaceID: ws, PageID: root.ID})
 		require.NoError(t, err)
 		assert.Nil(t, restored.ArchivedAt)
 
-		tree, err = uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err = uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "root(child), keep", treeShape(tree), "サブツリーごと戻る")
 		_ = keep
@@ -321,17 +321,17 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		first := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "first") // position a0
 
-		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: first.ID}))
+		require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: first.ID}))
 		// アーカイブ中は現役の兄弟がいないので、新しいページが同じ position a0 を取る。
 		second := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "second")
 		assert.Equal(t, first.Position, second.Position, "前提: 部分 UNIQUE は現役だけを守るので同じ position になる")
 
-		restored, err := uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: first.ID})
+		restored, err := uc.unarchive.Execute(ctx, kb.UnarchivePageInput{WorkspaceID: ws, PageID: first.ID})
 		require.NoError(t, err)
 		assert.Nil(t, restored.ArchivedAt)
 		assert.Greater(t, restored.Position, second.Position, "衝突を検出して末尾へ再採番")
 
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "second, first", treeShape(tree))
 	})
@@ -343,13 +343,13 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		late := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "late")
 
 		// early を先に単独アーカイブ → その後 root ごとアーカイブ。
-		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: early.ID}))
-		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
+		require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: early.ID}))
+		require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
-		_, err := uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: root.ID})
+		_, err := uc.unarchive.Execute(ctx, kb.UnarchivePageInput{WorkspaceID: ws, PageID: root.ID})
 		require.NoError(t, err)
 
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		assert.Equal(t, "root(late)", treeShape(tree), "先に単独アーカイブした early は戻らない")
 		_ = late
@@ -359,27 +359,27 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "child")
-		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
+		require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
-		_, err := uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: child.ID})
-		require.ErrorIs(t, err, usecase.ErrPageParentArchived)
+		_, err := uc.unarchive.Execute(ctx, kb.UnarchivePageInput{WorkspaceID: ws, PageID: child.ID})
+		require.ErrorIs(t, err, kb.ErrPageParentArchived)
 	})
 
 	t.Run("アーカイブ済みの親の下には作成も移動もできない", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
 		other := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "other")
-		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
+		require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
-		_, err := uc.create.Execute(ctx, usecase.CreatePageInput{
+		_, err := uc.create.Execute(ctx, kb.CreatePageInput{
 			WorkspaceID: ws, SpaceID: spaceA, ParentID: &root.ID, Title: "x", CreatedByUserID: 1,
 		})
-		require.ErrorIs(t, err, usecase.ErrPageParentArchived)
+		require.ErrorIs(t, err, kb.ErrPageParentArchived)
 
-		_, err = uc.move.Execute(ctx, usecase.MovePageInput{
+		_, err = uc.move.Execute(ctx, kb.MovePageInput{
 			WorkspaceID: ws, PageID: other.ID, NewParentID: &root.ID,
 		})
-		require.ErrorIs(t, err, usecase.ErrPageParentArchived)
+		require.ErrorIs(t, err, kb.ErrPageParentArchived)
 	})
 
 	t.Run("ブロック書き換えと取得の往復とsnapshot更新", func(t *testing.T) {
@@ -392,24 +392,24 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 				{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","marks":[{"type":"bold"}],"text":"太字"}]}]}
 			]}
 		]}`
-		snap1, err := uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc1})
+		snap1, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc1})
 		require.NoError(t, err)
 		assert.JSONEq(t, doc1, snap1.Doc)
 
-		got, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: page.ID})
+		got, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: page.ID})
 		require.NoError(t, err)
 		assert.JSONEq(t, doc1, got.Doc, "保存した doc と取得した doc が同値")
 
 		// snapshot を消しても blocks から同じ doc が組み上がる（正本は blocks 側）。
 		_, err = sqlDB.Exec(`DELETE FROM page_snapshots WHERE page_id = $1`, page.ID)
 		require.NoError(t, err)
-		got, err = uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: page.ID})
+		got, err = uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: page.ID})
 		require.NoError(t, err)
 		assert.JSONEq(t, doc1, got.Doc, "blocks からの組み立てでも同値")
 
 		// 書き換えると blocks / snapshot が置き換わる。
 		doc2 := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"書き換え後"}]}]}`
-		snap2, err := uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc2})
+		snap2, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc2})
 		require.NoError(t, err)
 		assert.JSONEq(t, doc2, snap2.Doc, "snapshot が焼き直される")
 
@@ -419,7 +419,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 		// 空 doc で全消しできる。
 		empty := `{"type":"doc","content":[]}`
-		snap3, err := uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: empty})
+		snap3, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: empty})
 		require.NoError(t, err)
 		assert.JSONEq(t, empty, snap3.Doc)
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&blockCount))
@@ -429,7 +429,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 	t.Run("改名できる", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		page := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "旧名")
-		renamed, err := uc.rename.Execute(ctx, usecase.RenamePageInput{WorkspaceID: ws, PageID: page.ID, Title: "新名"})
+		renamed, err := uc.rename.Execute(ctx, kb.RenamePageInput{WorkspaceID: ws, PageID: page.ID, Title: "新名"})
 		require.NoError(t, err)
 		assert.Equal(t, "新名", renamed.Title)
 		assert.True(t, renamed.UpdatedAt.After(page.UpdatedAt) || renamed.UpdatedAt.Equal(page.UpdatedAt))
@@ -443,37 +443,37 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		mine := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "mine")
 
 		// 読み: 取得・ツリー。
-		_, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: victim.ID})
+		_, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: victim.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
-		_, err = uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceOther})
+		_, err = uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceOther})
 		require.ErrorIs(t, err, repository.ErrSpaceNotFound)
 
 		// 書き: 作成（親／スペース越え）・改名・移動・アーカイブ・復帰・本文書き換え。
-		_, err = uc.create.Execute(ctx, usecase.CreatePageInput{
+		_, err = uc.create.Execute(ctx, kb.CreatePageInput{
 			WorkspaceID: ws, SpaceID: spaceOther, Title: "x", CreatedByUserID: 1,
 		})
 		require.ErrorIs(t, err, repository.ErrSpaceNotFound)
-		_, err = uc.create.Execute(ctx, usecase.CreatePageInput{
+		_, err = uc.create.Execute(ctx, kb.CreatePageInput{
 			WorkspaceID: ws, SpaceID: spaceA, ParentID: &victim.ID, Title: "x", CreatedByUserID: 1,
 		})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
-		_, err = uc.rename.Execute(ctx, usecase.RenamePageInput{WorkspaceID: ws, PageID: victim.ID, Title: "乗っ取り"})
+		_, err = uc.rename.Execute(ctx, kb.RenamePageInput{WorkspaceID: ws, PageID: victim.ID, Title: "乗っ取り"})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
-		_, err = uc.move.Execute(ctx, usecase.MovePageInput{WorkspaceID: ws, PageID: victim.ID})
+		_, err = uc.move.Execute(ctx, kb.MovePageInput{WorkspaceID: ws, PageID: victim.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
-		_, err = uc.move.Execute(ctx, usecase.MovePageInput{WorkspaceID: ws, PageID: mine.ID, NewParentID: &victim.ID})
+		_, err = uc.move.Execute(ctx, kb.MovePageInput{WorkspaceID: ws, PageID: mine.ID, NewParentID: &victim.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound, "別テナントのページを親にもできない")
-		err = uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: victim.ID})
+		err = uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: victim.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
-		_, err = uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: victim.ID})
+		_, err = uc.unarchive.Execute(ctx, kb.UnarchivePageInput{WorkspaceID: ws, PageID: victim.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
-		_, err = uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{
+		_, err = uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
 			WorkspaceID: ws, PageID: victim.ID, Doc: `{"type":"doc","content":[]}`,
 		})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
 
 		// 相手のページが無傷であること。
-		after, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: wsOther, PageID: victim.ID})
+		after, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: wsOther, PageID: victim.ID})
 		require.NoError(t, err)
 		assert.Equal(t, "victim", after.Page.Title)
 		assert.Nil(t, after.Page.ArchivedAt)
@@ -574,11 +574,11 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 			}
 			parent = next
 		}
-		tree, err := uc.tree.Execute(ctx, usecase.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
+		tree, err := uc.tree.Execute(ctx, kb.GetPageTreeInput{WorkspaceID: ws, SpaceID: spaceA})
 		require.NoError(t, err)
 		require.Len(t, tree, 1)
-		var count func(nodes []*usecase.PageTreeNode) int
-		count = func(nodes []*usecase.PageTreeNode) int {
+		var count func(nodes []*kb.PageTreeNode) int
+		count = func(nodes []*kb.PageTreeNode) int {
 			n := len(nodes)
 			for _, node := range nodes {
 				n += count(node.Children)
@@ -610,11 +610,11 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 		{"type":"horizontalRule"},
 		{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"項目"}]}]}]}
 	]}`
-	snap, err := uc.replace.Execute(ctx, usecase.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc})
+	snap, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc})
 	require.NoError(t, err)
 	assert.JSONEq(t, doc, snap.Doc)
 
-	got, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: page.ID})
+	got, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: page.ID})
 	require.NoError(t, err)
 	assert.JSONEq(t, doc, got.Doc)
 

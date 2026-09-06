@@ -1,6 +1,6 @@
 //go:build integration
 
-package usecase_test
+package user_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,13 +23,13 @@ func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
 
 		users := persistence.NewUserRepository(db)
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(
+		uc := user.NewUpsertUserFromIDTokenUseCase(
 			users,
 			persistence.NewUserOidcIdentityRepository(db),
 			persistence.NewTxManager(db),
 		)
 
-		got, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+		got, err := uc.Execute(ctx, user.UpsertUserFromIDTokenInput{
 			CognitoSub: "new-sub",
 			Email:      "new@example.com",
 			Name:       "新規ユーザー",
@@ -48,21 +48,21 @@ func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
 
 		users := persistence.NewUserRepository(db)
-		uc := usecase.NewUpsertUserFromIDTokenUseCase(
+		uc := user.NewUpsertUserFromIDTokenUseCase(
 			users,
 			persistence.NewUserOidcIdentityRepository(db),
 			persistence.NewTxManager(db),
 		)
 
 		// 1 回目でユーザーを作る（Name は email と同じ = 未編集）。
-		_, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+		_, err := uc.Execute(ctx, user.UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-sub",
 			Email:      "existing@example.com",
 		})
 		require.NoError(t, err)
 
 		// 2 回目、name claim 付きで再度ログイン。
-		got, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+		got, err := uc.Execute(ctx, user.UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-sub",
 			Email:      "existing@example.com",
 			Name:       "後から付いた名前",

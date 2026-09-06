@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -19,42 +19,42 @@ import (
 // ワークスペースはリクエストからは受け取らず、middleware.KnowledgeBaseWorkspace が
 // URL の slug と principals から確定させたものを context から取る。
 type KnowledgeBasePageHandler struct {
-	check          *usecase.CheckPagePermissionUseCase
-	resolve        *usecase.ResolvePageLocationUseCase
-	checkSpace     *usecase.CheckSpacePermissionUseCase
-	canEditSubtree *usecase.CanEditPageSubtreeUseCase
-	listViewable   *usecase.ListViewablePagesUseCase
-	get            *usecase.GetPageUseCase
-	findPage       *usecase.FindPageUseCase
-	create         *usecase.CreatePageUseCase
-	rename         *usecase.RenamePageUseCase
-	move           *usecase.MovePageUseCase
-	archive        *usecase.ArchivePageUseCase
-	unarchive      *usecase.UnarchivePageUseCase
-	replaceBlocks  *usecase.ReplacePageBlocksUseCase
-	resolveRefs    *usecase.ResolvePageRefTitlesUseCase
-	ancestors      *usecase.ListViewableAncestorsUseCase
-	deletePage     *usecase.DeletePageUseCase
+	check          *kb.CheckPagePermissionUseCase
+	resolve        *kb.ResolvePageLocationUseCase
+	checkSpace     *kb.CheckSpacePermissionUseCase
+	canEditSubtree *kb.CanEditPageSubtreeUseCase
+	listViewable   *kb.ListViewablePagesUseCase
+	get            *kb.GetPageUseCase
+	findPage       *kb.FindPageUseCase
+	create         *kb.CreatePageUseCase
+	rename         *kb.RenamePageUseCase
+	move           *kb.MovePageUseCase
+	archive        *kb.ArchivePageUseCase
+	unarchive      *kb.UnarchivePageUseCase
+	replaceBlocks  *kb.ReplacePageBlocksUseCase
+	resolveRefs    *kb.ResolvePageRefTitlesUseCase
+	ancestors      *kb.ListViewableAncestorsUseCase
+	deletePage     *kb.DeletePageUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
 func NewKnowledgeBasePageHandler(
-	check *usecase.CheckPagePermissionUseCase,
-	resolve *usecase.ResolvePageLocationUseCase,
-	checkSpace *usecase.CheckSpacePermissionUseCase,
-	canEditSubtree *usecase.CanEditPageSubtreeUseCase,
-	listViewable *usecase.ListViewablePagesUseCase,
-	get *usecase.GetPageUseCase,
-	findPage *usecase.FindPageUseCase,
-	create *usecase.CreatePageUseCase,
-	rename *usecase.RenamePageUseCase,
-	move *usecase.MovePageUseCase,
-	archive *usecase.ArchivePageUseCase,
-	unarchive *usecase.UnarchivePageUseCase,
-	replaceBlocks *usecase.ReplacePageBlocksUseCase,
-	resolveRefs *usecase.ResolvePageRefTitlesUseCase,
-	ancestors *usecase.ListViewableAncestorsUseCase,
-	deletePage *usecase.DeletePageUseCase,
+	check *kb.CheckPagePermissionUseCase,
+	resolve *kb.ResolvePageLocationUseCase,
+	checkSpace *kb.CheckSpacePermissionUseCase,
+	canEditSubtree *kb.CanEditPageSubtreeUseCase,
+	listViewable *kb.ListViewablePagesUseCase,
+	get *kb.GetPageUseCase,
+	findPage *kb.FindPageUseCase,
+	create *kb.CreatePageUseCase,
+	rename *kb.RenamePageUseCase,
+	move *kb.MovePageUseCase,
+	archive *kb.ArchivePageUseCase,
+	unarchive *kb.UnarchivePageUseCase,
+	replaceBlocks *kb.ReplacePageBlocksUseCase,
+	resolveRefs *kb.ResolvePageRefTitlesUseCase,
+	ancestors *kb.ListViewableAncestorsUseCase,
+	deletePage *kb.DeletePageUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -145,7 +145,7 @@ type kbPageTreeRootResponse struct {
 	HasHiddenChildren bool `json:"hasHiddenChildren" example:"false"`
 }
 
-func toKbPageTreeResponse(nodes []*usecase.PageTreeNode, hidden, parentArchived map[string]bool) []kbPageTreeResponse {
+func toKbPageTreeResponse(nodes []*kb.PageTreeNode, hidden, parentArchived map[string]bool) []kbPageTreeResponse {
 	out := make([]kbPageTreeResponse, 0, len(nodes))
 	for _, n := range nodes {
 		out = append(out, kbPageTreeResponse{
@@ -174,13 +174,13 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		errors.Is(err, repository.ErrSpaceNotFound),
 		errors.Is(err, repository.ErrWorkspaceNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
-	case errors.Is(err, usecase.ErrPagePermissionDenied):
+	case errors.Is(err, kb.ErrPagePermissionDenied):
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
-	case errors.Is(err, usecase.ErrPageArchived):
+	case errors.Is(err, kb.ErrPageArchived):
 		c.JSON(http.StatusConflict, errorResponse{Error: "page_archived"})
-	case errors.Is(err, usecase.ErrPageParentArchived):
+	case errors.Is(err, kb.ErrPageParentArchived):
 		c.JSON(http.StatusConflict, errorResponse{Error: "parent_archived"})
-	case errors.Is(err, usecase.ErrPageCycle):
+	case errors.Is(err, kb.ErrPageCycle):
 		c.JSON(http.StatusConflict, errorResponse{Error: "page_cycle"})
 	case errors.Is(err, repository.ErrPageMoveVoidsSpaceGrant):
 		// 「今の権限設定のままでは移せない」という業務上の衝突であって、サーバの故障ではない。
@@ -199,16 +199,16 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		// 所属が確かめられた後に外された場合にここへ来る。権限の拒否なので、
 		// ほかの拒否と同じ 404 に畳む（500 にすると再試行してよいと誤解される）。
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
-	case errors.Is(err, usecase.ErrInvalidWorkspaceSlug),
-		errors.Is(err, usecase.ErrInvalidSpaceKey),
-		errors.Is(err, usecase.ErrInvalidSpaceVisibility),
-		errors.Is(err, usecase.ErrInvalidName):
+	case errors.Is(err, kb.ErrInvalidWorkspaceSlug),
+		errors.Is(err, kb.ErrInvalidSpaceKey),
+		errors.Is(err, kb.ErrInvalidSpaceVisibility),
+		errors.Is(err, kb.ErrInvalidName):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
-	case errors.Is(err, usecase.ErrPageParentSpaceMismatch):
+	case errors.Is(err, kb.ErrPageParentSpaceMismatch):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "parent_space_mismatch"})
-	case errors.Is(err, usecase.ErrPageAnchorNotSibling):
+	case errors.Is(err, kb.ErrPageAnchorNotSibling):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "anchor_not_sibling"})
-	case errors.Is(err, usecase.ErrPageDocInvalid), errors.Is(err, usecase.ErrPageDocUnknownNodeType):
+	case errors.Is(err, kb.ErrPageDocInvalid), errors.Is(err, kb.ErrPageDocUnknownNodeType):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_document"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
@@ -244,7 +244,7 @@ func kbScope(c *gin.Context) (kbRequestScope, bool) {
 func (h *KnowledgeBasePageHandler) requirePagePermission(
 	c *gin.Context, scope kbRequestScope, pageID string, capability domain.Capability,
 ) bool {
-	perm, err := h.check.Execute(c.Request.Context(), usecase.CheckPagePermissionInput{
+	perm, err := h.check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		UserID:      scope.userID,
@@ -276,7 +276,7 @@ func (h *KnowledgeBasePageHandler) requirePagePermission(
 func (h *KnowledgeBasePageHandler) requireSpacePermission(
 	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
-	perm, err := h.checkSpace.Execute(c.Request.Context(), usecase.CheckSpacePermissionInput{
+	perm, err := h.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		UserID:      scope.userID,
@@ -318,7 +318,7 @@ func (h *KnowledgeBasePageHandler) requireSpacePermission(
 func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 	c *gin.Context, scope kbRequestScope, pageID string,
 ) bool {
-	ok, err := h.canEditSubtree.Execute(c.Request.Context(), usecase.CanEditPageSubtreeInput{
+	ok, err := h.canEditSubtree.Execute(c.Request.Context(), kb.CanEditPageSubtreeInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		UserID:      scope.userID,
@@ -345,7 +345,7 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	// 口を分けると、片方だけ直して食い違う形をわざわざ作ることになる。
 	archived := c.Query("archived") == "true"
 	// ページごとに権限を引くと N+1 になるので、一覧はまとめて 1 回で解決する。
-	viewable, err := h.listViewable.Execute(c.Request.Context(), usecase.ListViewablePagesInput{
+	viewable, err := h.listViewable.Execute(c.Request.Context(), kb.ListViewablePagesInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     c.Param("spaceId"),
 		UserID:      scope.userID,
@@ -369,14 +369,14 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	// 昇格させても現役のような漏れは起きない — 昇格した行が「親が現役の根」なのか
 	// 「親もアーカイブ済みだが自分には見えない」のかは、応答から区別が付かない。
 	// 前者だけが復帰できるので、その違いは parentArchived という事実として返す。
-	policy := usecase.PageTreeOrphanHidden
+	policy := kb.PageTreeOrphanHidden
 	if archived {
-		policy = usecase.PageTreeOrphanAsRoot
+		policy = kb.PageTreeOrphanAsRoot
 	}
-	tree := usecase.BuildPageTree(viewable.Pages, policy)
+	tree := kb.BuildPageTree(viewable.Pages, policy)
 	c.JSON(http.StatusOK, kbPageTreeRootResponse{
 		Pages:             toKbPageTreeResponse(tree, viewable.HasHiddenChildren, viewable.ParentArchived),
-		HasHiddenChildren: viewable.HasHiddenChildren[usecase.HiddenChildrenRootKey],
+		HasHiddenChildren: viewable.HasHiddenChildren[kb.HiddenChildrenRootKey],
 	})
 }
 
@@ -420,7 +420,7 @@ func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 		}
 		parentID = &req.ParentID
 	}
-	page, err := h.create.Execute(c.Request.Context(), usecase.CreatePageInput{
+	page, err := h.create.Execute(c.Request.Context(), kb.CreatePageInput{
 		WorkspaceID:     scope.workspaceID,
 		SpaceID:         spaceID,
 		ParentID:        parentID,
@@ -444,7 +444,7 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityView) {
 		return
 	}
-	out, err := h.get.Execute(c.Request.Context(), usecase.GetPageInput{
+	out, err := h.get.Execute(c.Request.Context(), kb.GetPageInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	})
@@ -455,7 +455,7 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 	// 本文中のページ参照の題名を、読み手にとっての「いまの題名」へ差し替えて出す
 	// （題名の正本は pages.title で、保存側は title を持たない）。解決の失敗は
 	// 本文の読み出しを止めない — 元の doc のまま返し、死んでいることだけ記録する。
-	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), usecase.ResolvePageRefTitlesInput{
+	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), kb.ResolvePageRefTitlesInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
 		Doc:         out.Doc,
@@ -489,7 +489,7 @@ func (h *KnowledgeBasePageHandler) Rename(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	page, err := h.rename.Execute(c.Request.Context(), usecase.RenamePageInput{
+	page, err := h.rename.Execute(c.Request.Context(), kb.RenamePageInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		Title:       req.Title,
@@ -599,7 +599,7 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	} else {
 		// 動かすページ自身の所属スペースへ戻す（スペースをまたぐ移動はこの口では扱わない）。
 		// ページの編集権限は上で確かめてあるので、ここで読んでも実在は新しく漏れない。
-		moving, err := h.findPage.Execute(c.Request.Context(), usecase.FindPageInput{
+		moving, err := h.findPage.Execute(c.Request.Context(), kb.FindPageInput{
 			WorkspaceID: scope.workspaceID,
 			PageID:      pageID,
 		})
@@ -631,7 +631,7 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	if anchor != "" && !h.requirePagePermission(c, scope, anchor, domain.CapabilityView) {
 		return
 	}
-	page, err := h.move.Execute(c.Request.Context(), usecase.MovePageInput{
+	page, err := h.move.Execute(c.Request.Context(), kb.MovePageInput{
 		WorkspaceID:  scope.workspaceID,
 		PageID:       pageID,
 		NewParentID:  newParentID,
@@ -660,7 +660,7 @@ func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
-	if err := h.archive.Execute(c.Request.Context(), usecase.ArchivePageInput{
+	if err := h.archive.Execute(c.Request.Context(), kb.ArchivePageInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	}); err != nil {
@@ -691,7 +691,7 @@ func (h *KnowledgeBasePageHandler) Delete(c *gin.Context) {
 	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
-	if err := h.deletePage.Execute(c.Request.Context(), usecase.DeletePageInput{
+	if err := h.deletePage.Execute(c.Request.Context(), kb.DeletePageInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	}); err != nil {
@@ -714,7 +714,7 @@ func (h *KnowledgeBasePageHandler) Unarchive(c *gin.Context) {
 	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
-	page, err := h.unarchive.Execute(c.Request.Context(), usecase.UnarchivePageInput{
+	page, err := h.unarchive.Execute(c.Request.Context(), kb.UnarchivePageInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	})
@@ -745,7 +745,7 @@ func (h *KnowledgeBasePageHandler) ReplaceContent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	snap, err := h.replaceBlocks.Execute(c.Request.Context(), usecase.ReplacePageBlocksInput{
+	snap, err := h.replaceBlocks.Execute(c.Request.Context(), kb.ReplacePageBlocksInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		Doc:         string(req.Doc),
@@ -780,8 +780,8 @@ type kbResolvedPageResponse struct {
 	CanEdit       bool            `json:"canEdit"`
 	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
 	// 届いている役割が admin かどうかだけで決まる。
-	CanManage bool                  `json:"canManage"`
-	Ancestors []usecase.AncestorRef `json:"ancestors"`
+	CanManage bool             `json:"canManage"`
+	Ancestors []kb.AncestorRef `json:"ancestors"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -799,7 +799,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		return
 	}
 	// 解決はテナント確定前の読みなので、**ここで必ず**その workspace の権限判定を通す。
-	perm, err := h.check.Execute(c.Request.Context(), usecase.CheckPagePermissionInput{
+	perm, err := h.check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
 		WorkspaceID: loc.Workspace.ID,
 		PageID:      pageID,
 		UserID:      uid,
@@ -813,7 +813,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 		return
 	}
-	out, err := h.get.Execute(c.Request.Context(), usecase.GetPageInput{
+	out, err := h.get.Execute(c.Request.Context(), kb.GetPageInput{
 		WorkspaceID: loc.Workspace.ID,
 		PageID:      pageID,
 	})
@@ -822,7 +822,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		return
 	}
 	// Get と同じく、本文中のページ参照の題名を読み手の可視範囲で解決して出す。
-	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), usecase.ResolvePageRefTitlesInput{
+	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), kb.ResolvePageRefTitlesInput{
 		WorkspaceID: loc.Workspace.ID,
 		UserID:      uid,
 		Doc:         out.Doc,
@@ -831,14 +831,14 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		slog.WarnContext(c.Request.Context(), "kb: page ref title resolve failed", "err", refErr)
 	}
 	// パンくず（閲覧できる祖先だけ）。失敗してもページは開く — 空のまま出し、記録だけ残す。
-	ancestors, ancErr := h.ancestors.Execute(c.Request.Context(), usecase.ListViewableAncestorsInput{
+	ancestors, ancErr := h.ancestors.Execute(c.Request.Context(), kb.ListViewableAncestorsInput{
 		WorkspaceID: loc.Workspace.ID,
 		UserID:      uid,
 		PageID:      pageID,
 	})
 	if ancErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: ancestors resolve failed", "err", ancErr)
-		ancestors = []usecase.AncestorRef{}
+		ancestors = []kb.AncestorRef{}
 	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug: loc.Workspace.Slug,

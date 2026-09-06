@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 )
 
 // KnowledgeBaseGrantHandler はナレッジの「既定の権限（grant）」の読み書きを受ける。
@@ -16,29 +16,29 @@ import (
 // なぜ拒否を 404 で揃えるのかは kb_permission_gate.go の冒頭を参照。
 type KnowledgeBaseGrantHandler struct {
 	*kbPermissionGate
-	grantWorkspaceRole  *usecase.GrantWorkspaceRoleUseCase
-	revokeWorkspaceRole *usecase.RevokeWorkspaceRoleUseCase
-	grantSpaceRole      *usecase.GrantSpaceRoleUseCase
-	revokeSpaceRole     *usecase.RevokeSpaceRoleUseCase
-	grantPageRole       *usecase.GrantPageRoleUseCase
-	revokePageRole      *usecase.RevokePageRoleUseCase
-	listPageGrants      *usecase.ListPageGrantsUseCase
-	listPrincipals      *usecase.ListGrantablePrincipalsUseCase
-	canRemoveAdmin      *usecase.CanRemoveWorkspaceAdminUseCase
+	grantWorkspaceRole  *kb.GrantWorkspaceRoleUseCase
+	revokeWorkspaceRole *kb.RevokeWorkspaceRoleUseCase
+	grantSpaceRole      *kb.GrantSpaceRoleUseCase
+	revokeSpaceRole     *kb.RevokeSpaceRoleUseCase
+	grantPageRole       *kb.GrantPageRoleUseCase
+	revokePageRole      *kb.RevokePageRoleUseCase
+	listPageGrants      *kb.ListPageGrantsUseCase
+	listPrincipals      *kb.ListGrantablePrincipalsUseCase
+	canRemoveAdmin      *kb.CanRemoveWorkspaceAdminUseCase
 }
 
 // NewKnowledgeBaseGrantHandler は KnowledgeBaseGrantHandler を組み立てる。
 func NewKnowledgeBaseGrantHandler(
 	gate *kbPermissionGate,
-	grantWorkspaceRole *usecase.GrantWorkspaceRoleUseCase,
-	revokeWorkspaceRole *usecase.RevokeWorkspaceRoleUseCase,
-	grantSpaceRole *usecase.GrantSpaceRoleUseCase,
-	revokeSpaceRole *usecase.RevokeSpaceRoleUseCase,
-	grantPageRole *usecase.GrantPageRoleUseCase,
-	revokePageRole *usecase.RevokePageRoleUseCase,
-	listPageGrants *usecase.ListPageGrantsUseCase,
-	listPrincipals *usecase.ListGrantablePrincipalsUseCase,
-	canRemoveAdmin *usecase.CanRemoveWorkspaceAdminUseCase,
+	grantWorkspaceRole *kb.GrantWorkspaceRoleUseCase,
+	revokeWorkspaceRole *kb.RevokeWorkspaceRoleUseCase,
+	grantSpaceRole *kb.GrantSpaceRoleUseCase,
+	revokeSpaceRole *kb.RevokeSpaceRoleUseCase,
+	grantPageRole *kb.GrantPageRoleUseCase,
+	revokePageRole *kb.RevokePageRoleUseCase,
+	listPageGrants *kb.ListPageGrantsUseCase,
+	listPrincipals *kb.ListGrantablePrincipalsUseCase,
+	canRemoveAdmin *kb.CanRemoveWorkspaceAdminUseCase,
 ) *KnowledgeBaseGrantHandler {
 	return &KnowledgeBaseGrantHandler{
 		kbPermissionGate:    gate,
@@ -142,7 +142,7 @@ type kbGrantRoleRequest struct {
 // （拒否を 404 に揃える規則は「権限が無い相手に対象を明かさない」ためのもので、
 // admin 自身への説明までは縛らない）。
 func (h *KnowledgeBaseGrantHandler) requireNotLastWorkspaceAdmin(
-	c *gin.Context, in usecase.CanRemoveWorkspaceAdminInput,
+	c *gin.Context, in kb.CanRemoveWorkspaceAdminInput,
 ) bool {
 	ok, err := h.canRemoveAdmin.Execute(c.Request.Context(), in)
 	if err != nil {
@@ -175,14 +175,14 @@ func (h *KnowledgeBaseGrantHandler) GrantWorkspaceRole(c *gin.Context) {
 	principalID := c.Param("principalId")
 	// admin から他の役割へ落とすのも「admin を外す」操作。取り消しと同じ検査を通す。
 	if domain.GrantRole(req.Role) != domain.GrantRoleAdmin {
-		if !h.requireNotLastWorkspaceAdmin(c, usecase.CanRemoveWorkspaceAdminInput{
+		if !h.requireNotLastWorkspaceAdmin(c, kb.CanRemoveWorkspaceAdminInput{
 			WorkspaceID: scope.workspaceID,
 			PrincipalID: principalID,
 		}) {
 			return
 		}
 	}
-	grant, err := h.grantWorkspaceRole.Execute(c.Request.Context(), usecase.GrantWorkspaceRoleInput{
+	grant, err := h.grantWorkspaceRole.Execute(c.Request.Context(), kb.GrantWorkspaceRoleInput{
 		WorkspaceID: scope.workspaceID,
 		PrincipalID: principalID,
 		Role:        domain.GrantRole(req.Role),
@@ -204,13 +204,13 @@ func (h *KnowledgeBaseGrantHandler) RevokeWorkspaceRole(c *gin.Context) {
 		return
 	}
 	principalID := c.Param("principalId")
-	if !h.requireNotLastWorkspaceAdmin(c, usecase.CanRemoveWorkspaceAdminInput{
+	if !h.requireNotLastWorkspaceAdmin(c, kb.CanRemoveWorkspaceAdminInput{
 		WorkspaceID: scope.workspaceID,
 		PrincipalID: principalID,
 	}) {
 		return
 	}
-	if err := h.revokeWorkspaceRole.Execute(c.Request.Context(), usecase.RevokeWorkspaceRoleInput{
+	if err := h.revokeWorkspaceRole.Execute(c.Request.Context(), kb.RevokeWorkspaceRoleInput{
 		WorkspaceID: scope.workspaceID,
 		PrincipalID: principalID,
 	}); err != nil {
@@ -239,7 +239,7 @@ func (h *KnowledgeBaseGrantHandler) GrantSpaceRole(c *gin.Context) {
 	// 「最後の admin」の検査はここでは行わない。守っているのはワークスペースの admin が
 	// 0 人になることで、スペースの admin を外してもワークスペースの admin は残る
 	// （スペースの grant を全部消しても、ワークスペースの admin は配下の全スペースに届く）。
-	grant, err := h.grantSpaceRole.Execute(c.Request.Context(), usecase.GrantSpaceRoleInput{
+	grant, err := h.grantSpaceRole.Execute(c.Request.Context(), kb.GrantSpaceRoleInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		PrincipalID: c.Param("principalId"),
@@ -262,7 +262,7 @@ func (h *KnowledgeBaseGrantHandler) RevokeSpaceRole(c *gin.Context) {
 	if !h.requireSpaceAdmin(c, scope, spaceID) {
 		return
 	}
-	if err := h.revokeSpaceRole.Execute(c.Request.Context(), usecase.RevokeSpaceRoleInput{
+	if err := h.revokeSpaceRole.Execute(c.Request.Context(), kb.RevokeSpaceRoleInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		PrincipalID: c.Param("principalId"),
@@ -292,7 +292,7 @@ func (h *KnowledgeBaseGrantHandler) GrantPageRole(c *gin.Context) {
 	// 「最後の admin」の検査はここでも行わない。守っているのはワークスペースの admin が
 	// 0 人になることで、ページの grant をどう変えてもワークスペースの admin は
 	// 配下の全ページに届き続ける（RevokeSpaceRole と同じ理由）。
-	grant, err := h.grantPageRole.Execute(c.Request.Context(), usecase.GrantPageRoleInput{
+	grant, err := h.grantPageRole.Execute(c.Request.Context(), kb.GrantPageRoleInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		PrincipalID: c.Param("principalId"),
@@ -315,7 +315,7 @@ func (h *KnowledgeBaseGrantHandler) RevokePageRole(c *gin.Context) {
 	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
-	if err := h.revokePageRole.Execute(c.Request.Context(), usecase.RevokePageRoleInput{
+	if err := h.revokePageRole.Execute(c.Request.Context(), kb.RevokePageRoleInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		PrincipalID: c.Param("principalId"),
@@ -336,7 +336,7 @@ func (h *KnowledgeBaseGrantHandler) ListPageGrants(c *gin.Context) {
 	if !h.requirePageAdmin(c, scope, pageID) {
 		return
 	}
-	grants, err := h.listPageGrants.Execute(c.Request.Context(), usecase.ListPageGrantsInput{
+	grants, err := h.listPageGrants.Execute(c.Request.Context(), kb.ListPageGrantsInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 	})
@@ -371,7 +371,7 @@ func (h *KnowledgeBaseGrantHandler) ListGrantablePrincipals(c *gin.Context) {
 	if !h.requirePageAdmin(c, scope, c.Param("pageId")) {
 		return
 	}
-	principals, err := h.listPrincipals.Execute(c.Request.Context(), usecase.ListGrantablePrincipalsInput{
+	principals, err := h.listPrincipals.Execute(c.Request.Context(), kb.ListGrantablePrincipalsInput{
 		WorkspaceID: scope.workspaceID,
 	})
 	if err != nil {

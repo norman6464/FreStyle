@@ -12,16 +12,17 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 )
 
 // AuthHandler は認証エンドポイントを提供する。
 // 発行者との通信は infra/oidc に切り出し、ここは HTTP の境界とユーザーの upsert だけを持つ。
 type AuthHandler struct {
-	getCurrentUser          *usecase.GetCurrentUserUseCase
-	upsertUser              *usecase.UpsertUserFromIDTokenUseCase
-	ensurePersonalWorkspace *usecase.EnsurePersonalWorkspaceUseCase
+	getCurrentUser          *user.GetCurrentUserUseCase
+	upsertUser              *user.UpsertUserFromIDTokenUseCase
+	ensurePersonalWorkspace *kb.EnsurePersonalWorkspaceUseCase
 	oidcCfg                 *config.OIDCConfig
 	tokens                  *oidc.TokenExchanger
 	verifier                *oidc.Verifier
@@ -29,9 +30,9 @@ type AuthHandler struct {
 
 // NewAuthHandler は AuthHandler を組み立てる。
 func NewAuthHandler(
-	getCurrentUser *usecase.GetCurrentUserUseCase,
-	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
-	ensurePersonalWorkspace *usecase.EnsurePersonalWorkspaceUseCase,
+	getCurrentUser *user.GetCurrentUserUseCase,
+	upsertUser *user.UpsertUserFromIDTokenUseCase,
+	ensurePersonalWorkspace *kb.EnsurePersonalWorkspaceUseCase,
 	oidcCfg *config.OIDCConfig,
 	verifier *oidc.Verifier,
 ) *AuthHandler {
@@ -299,7 +300,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 
 	u, err = h.upsertUser.Execute(
 		c.Request.Context(),
-		usecase.UpsertUserFromIDTokenInput{
+		user.UpsertUserFromIDTokenInput{
 			CognitoSub: sub,
 			Email:      email,
 			Name:       name,
@@ -313,7 +314,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	if h.ensurePersonalWorkspace != nil {
 		if _, wsErr := h.ensurePersonalWorkspace.Execute(
 			c.Request.Context(),
-			usecase.EnsurePersonalWorkspaceInput{UserID: u.ID, Name: u.Name},
+			kb.EnsurePersonalWorkspaceInput{UserID: u.ID, Name: u.Name},
 		); wsErr != nil {
 			slog.ErrorContext(c.Request.Context(), "ensure personal workspace failed (non-fatal)", "userID", u.ID, "err", wsErr)
 		}

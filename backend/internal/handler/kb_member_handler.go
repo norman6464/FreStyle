@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 )
 
 // KnowledgeBaseMemberHandler はナレッジの主体（principals）の出し入れを受ける。
@@ -20,25 +20,25 @@ import (
 // 認可はすべて kbPermissionGate が持つ。判断の根拠は kb_permission_gate.go の冒頭を参照。
 type KnowledgeBaseMemberHandler struct {
 	*kbPermissionGate
-	addMember         *usecase.AddWorkspaceMemberUseCase
-	removeMember      *usecase.RemoveWorkspaceMemberUseCase
-	createGroup       *usecase.CreatePrincipalGroupUseCase
-	addGroupMember    *usecase.AddGroupMemberUseCase
-	removeGroupMember *usecase.RemoveGroupMemberUseCase
-	ensureEveryone    *usecase.EnsureSpaceEveryonePrincipalUseCase
-	canRemoveAdmin    *usecase.CanRemoveWorkspaceAdminUseCase
+	addMember         *kb.AddWorkspaceMemberUseCase
+	removeMember      *kb.RemoveWorkspaceMemberUseCase
+	createGroup       *kb.CreatePrincipalGroupUseCase
+	addGroupMember    *kb.AddGroupMemberUseCase
+	removeGroupMember *kb.RemoveGroupMemberUseCase
+	ensureEveryone    *kb.EnsureSpaceEveryonePrincipalUseCase
+	canRemoveAdmin    *kb.CanRemoveWorkspaceAdminUseCase
 }
 
 // NewKnowledgeBaseMemberHandler は KnowledgeBaseMemberHandler を組み立てる。
 func NewKnowledgeBaseMemberHandler(
 	gate *kbPermissionGate,
-	addMember *usecase.AddWorkspaceMemberUseCase,
-	removeMember *usecase.RemoveWorkspaceMemberUseCase,
-	createGroup *usecase.CreatePrincipalGroupUseCase,
-	addGroupMember *usecase.AddGroupMemberUseCase,
-	removeGroupMember *usecase.RemoveGroupMemberUseCase,
-	ensureEveryone *usecase.EnsureSpaceEveryonePrincipalUseCase,
-	canRemoveAdmin *usecase.CanRemoveWorkspaceAdminUseCase,
+	addMember *kb.AddWorkspaceMemberUseCase,
+	removeMember *kb.RemoveWorkspaceMemberUseCase,
+	createGroup *kb.CreatePrincipalGroupUseCase,
+	addGroupMember *kb.AddGroupMemberUseCase,
+	removeGroupMember *kb.RemoveGroupMemberUseCase,
+	ensureEveryone *kb.EnsureSpaceEveryonePrincipalUseCase,
+	canRemoveAdmin *kb.CanRemoveWorkspaceAdminUseCase,
 ) *KnowledgeBaseMemberHandler {
 	return &KnowledgeBaseMemberHandler{
 		kbPermissionGate:  gate,
@@ -115,7 +115,7 @@ func (h *KnowledgeBaseMemberHandler) AddMember(c *gin.Context) {
 	// admin になれる以上、ユーザー ID 空間の走査を完全には塞げていない。
 	// 塞ぐには「誰を招けるか」を会社などで絞る必要があり、それは権限モデルの外側の
 	// 設計判断になるため別途扱う（このチケットの範囲は既存 usecase の配線）。
-	principal, err := h.addMember.Execute(c.Request.Context(), usecase.AddWorkspaceMemberInput{
+	principal, err := h.addMember.Execute(c.Request.Context(), kb.AddWorkspaceMemberInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      userID,
 	})
@@ -144,7 +144,7 @@ func (h *KnowledgeBaseMemberHandler) RemoveMember(c *gin.Context) {
 	if !h.requireNotLastWorkspaceAdminByUser(c, scope, userID) {
 		return
 	}
-	if err := h.removeMember.Execute(c.Request.Context(), usecase.RemoveWorkspaceMemberInput{
+	if err := h.removeMember.Execute(c.Request.Context(), kb.RemoveWorkspaceMemberInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      userID,
 	}); err != nil {
@@ -160,7 +160,7 @@ func (h *KnowledgeBaseMemberHandler) RemoveMember(c *gin.Context) {
 func (h *KnowledgeBaseMemberHandler) requireNotLastWorkspaceAdminByUser(
 	c *gin.Context, scope kbRequestScope, userID uint64,
 ) bool {
-	ok, err := h.canRemoveAdmin.Execute(c.Request.Context(), usecase.CanRemoveWorkspaceAdminInput{
+	ok, err := h.canRemoveAdmin.Execute(c.Request.Context(), kb.CanRemoveWorkspaceAdminInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      userID,
 	})
@@ -190,7 +190,7 @@ func (h *KnowledgeBaseMemberHandler) CreateGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	principal, err := h.createGroup.Execute(c.Request.Context(), usecase.CreatePrincipalGroupInput{
+	principal, err := h.createGroup.Execute(c.Request.Context(), kb.CreatePrincipalGroupInput{
 		WorkspaceID: scope.workspaceID,
 		Name:        req.Name,
 	})
@@ -214,7 +214,7 @@ func (h *KnowledgeBaseMemberHandler) AddGroupMember(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.addGroupMember.Execute(c.Request.Context(), usecase.AddGroupMemberInput{
+	if err := h.addGroupMember.Execute(c.Request.Context(), kb.AddGroupMemberInput{
 		WorkspaceID:      scope.workspaceID,
 		GroupPrincipalID: c.Param("groupPrincipalId"),
 		MemberUserID:     userID,
@@ -238,7 +238,7 @@ func (h *KnowledgeBaseMemberHandler) RemoveGroupMember(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.removeGroupMember.Execute(c.Request.Context(), usecase.RemoveGroupMemberInput{
+	if err := h.removeGroupMember.Execute(c.Request.Context(), kb.RemoveGroupMemberInput{
 		WorkspaceID:      scope.workspaceID,
 		GroupPrincipalID: c.Param("groupPrincipalId"),
 		MemberUserID:     userID,
@@ -259,7 +259,7 @@ func (h *KnowledgeBaseMemberHandler) EnsureSpaceEveryone(c *gin.Context) {
 	if !h.requireSpaceAdmin(c, scope, spaceID) {
 		return
 	}
-	principal, err := h.ensureEveryone.Execute(c.Request.Context(), usecase.EnsureSpaceEveryonePrincipalInput{
+	principal, err := h.ensureEveryone.Execute(c.Request.Context(), kb.EnsureSpaceEveryonePrincipalInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 	})

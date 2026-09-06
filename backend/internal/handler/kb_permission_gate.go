@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -65,16 +65,16 @@ import (
 // kbPermissionGate は権限操作 API の認可判定をまとめた入口。
 // 各 handler はこれを埋め込んで使う（同じ判定を handler ごとに写経しないため）。
 type kbPermissionGate struct {
-	checkWorkspace *usecase.CheckWorkspacePermissionUseCase
-	checkSpace     *usecase.CheckSpacePermissionUseCase
-	checkPage      *usecase.CheckPagePermissionUseCase
+	checkWorkspace *kb.CheckWorkspacePermissionUseCase
+	checkSpace     *kb.CheckSpacePermissionUseCase
+	checkPage      *kb.CheckPagePermissionUseCase
 }
 
 // newKbPermissionGate は権限操作 API 共通の認可判定を組み立てる。
 func newKbPermissionGate(
-	checkWorkspace *usecase.CheckWorkspacePermissionUseCase,
-	checkSpace *usecase.CheckSpacePermissionUseCase,
-	checkPage *usecase.CheckPagePermissionUseCase,
+	checkWorkspace *kb.CheckWorkspacePermissionUseCase,
+	checkSpace *kb.CheckSpacePermissionUseCase,
+	checkPage *kb.CheckPagePermissionUseCase,
 ) *kbPermissionGate {
 	return &kbPermissionGate{checkWorkspace: checkWorkspace, checkSpace: checkSpace, checkPage: checkPage}
 }
@@ -94,7 +94,7 @@ func respondKbPermissionDenied(c *gin.Context) {
 // テナント全体の管理者。スペースやページを指さない操作（メンバーの出入り・
 // グループ・ワークスペース grant）が使う。
 func (g *kbPermissionGate) requireWorkspaceAdmin(c *gin.Context, scope kbRequestScope) bool {
-	perm, err := g.checkWorkspace.Execute(c.Request.Context(), usecase.CheckWorkspacePermissionInput{
+	perm, err := g.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
 	})
@@ -120,7 +120,7 @@ func (g *kbPermissionGate) requireWorkspaceAdmin(c *gin.Context, scope kbRequest
 // 役割を集める前にスペースの実在を確かめて ErrSpaceNotFound を返すので、
 // 「他テナントのスペース ID を渡すと自分の役割がそのまま返る」という緩み方はしない。
 func (g *kbPermissionGate) requireSpaceAdmin(c *gin.Context, scope kbRequestScope, spaceID string) bool {
-	perm, err := g.checkSpace.Execute(c.Request.Context(), usecase.CheckSpacePermissionInput{
+	perm, err := g.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		UserID:      scope.userID,
@@ -155,7 +155,7 @@ func (g *kbPermissionGate) requireSpaceAdmin(c *gin.Context, scope kbRequestScop
 // 役割が足りない場合と同じ 404 に落ちる。落ちる段によって往復の回数が変わらないので、
 // 返るまでの時間から「そのページ ID が実在するか」は読めない。
 func (g *kbPermissionGate) requirePageAdmin(c *gin.Context, scope kbRequestScope, pageID string) bool {
-	perm, err := g.checkPage.Execute(c.Request.Context(), usecase.CheckPagePermissionInput{
+	perm, err := g.checkPage.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		UserID:      scope.userID,
@@ -199,9 +199,9 @@ func respondKbPermissionErr(c *gin.Context, err error) {
 // 呼び出し側から見た応答の集合を増やさない。
 func respondKbPermissionOperationErr(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, usecase.ErrInvalidGrantRole),
-		errors.Is(err, usecase.ErrInvalidCapability),
-		errors.Is(err, usecase.ErrPrincipalKindMismatch):
+	case errors.Is(err, kb.ErrInvalidGrantRole),
+		errors.Is(err, kb.ErrInvalidCapability),
+		errors.Is(err, kb.ErrPrincipalKindMismatch):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, repository.ErrPrincipalGroupNameTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "group_name_taken"})

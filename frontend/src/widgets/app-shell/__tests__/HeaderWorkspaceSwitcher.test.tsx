@@ -10,7 +10,7 @@ const hoisted = vi.hoisted(() => ({
   showToast: vi.fn(),
 }));
 
-vi.mock('@/entities/note/api/noteRepository', () => ({
+vi.mock('@/entities/kb/api/kbRepository', () => ({
   default: {
     fetchWorkspaces: hoisted.fetchWorkspaces,
     createWorkspace: hoisted.createWorkspace,
@@ -33,7 +33,7 @@ function renderSwitcher() {
     <MemoryRouter initialEntries={['/']}>
       <Routes>
         <Route path="/" element={<HeaderWorkspaceSwitcher />} />
-        <Route path="/notes" element={<LocationProbe />} />
+        <Route path="/kb" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -49,7 +49,7 @@ describe('HeaderWorkspaceSwitcher', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('選ぶと /notes へ選んだ slug を渡して遷移する', async () => {
+  it('選ぶと /kb へ選んだ slug を渡して遷移する', async () => {
     hoisted.fetchWorkspaces.mockResolvedValue([{ slug: 'acme', name: 'Acme', createdAt: '' }]);
     renderSwitcher();
 

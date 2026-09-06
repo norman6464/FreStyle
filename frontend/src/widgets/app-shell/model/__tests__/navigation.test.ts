@@ -1,33 +1,33 @@
 import { describe, it, expect } from 'vitest';
 import { MAIN_NAV_ITEMS, navActive } from '../navigation';
 
-describe('ノートへの導線', () => {
-  it('主要ナビにノートがある', () => {
+describe('ナレッジへの導線', () => {
+  it('主要ナビにナレッジがある', () => {
     // 導線が無いと、画面が出来ていても URL を手で打つしかたどり着けない。
-    const notes = MAIN_NAV_ITEMS.find((item) => item.id === 'notes');
+    const kb = MAIN_NAV_ITEMS.find((item) => item.id === 'kb');
 
-    expect(notes).toBeDefined();
-    expect(notes?.to).toBe('/notes');
+    expect(kb).toBeDefined();
+    expect(kb?.label).toBe('ナレッジ');
+    expect(kb?.to).toBe('/kb');
   });
 
-  it('ナレッジという別項目は無い（ノートに統合した）', () => {
+  it('/notes という項目・パスはもう無い（撤去済み）', () => {
+    const ids = MAIN_NAV_ITEMS.map((item) => item.id);
     const paths = MAIN_NAV_ITEMS.map((item) => item.to);
 
-    expect(paths).toContain('/notes');
-    expect(paths).not.toContain('/kb');
+    expect(ids).not.toContain('notes');
+    expect(paths).not.toContain('/notes');
   });
 
   it('ページの中（/kb/…）にいても選ばれた状態になる', () => {
-    // ページの URL は /notes ではなく /kb/{pageId}。系統が 2 つあるので両方で光らせる。
-    const notes = MAIN_NAV_ITEMS.find((item) => item.id === 'notes');
+    const kb = MAIN_NAV_ITEMS.find((item) => item.id === 'kb');
 
-    expect(navActive(notes!, '/notes')).toBe(true);
-    expect(navActive(notes!, '/kb/3ca2c0de-0000-0000-0000-000000000000')).toBe(true);
-    expect(navActive(notes!, '/courses')).toBe(false);
+    expect(navActive(kb!, '/kb')).toBe(true);
+    expect(navActive(kb!, '/kb/3ca2c0de-0000-0000-0000-000000000000')).toBe(true);
+    expect(navActive(kb!, '/courses')).toBe(false);
   });
 
-  it('文字列 1 本の matchPrefix（演習など）も子パスまで選ばれる', () => {
-    // notes は配列、code は文字列。navActive は両方の形を受けるので、両方の分岐を固定する。
+  it('文字列 1 本の matchPrefix（演習・ナレッジとも）で子パスまで選ばれる', () => {
     const code = MAIN_NAV_ITEMS.find((item) => item.id === 'code');
 
     expect(navActive(code!, '/code-editor')).toBe(true);
@@ -37,12 +37,12 @@ describe('ノートへの導線', () => {
   });
 
   it('名前が前方一致するだけの別パスでは選ばれない', () => {
-    // 素の startsWith だと /notes-foo でも「ノート」が光る。
+    // 素の startsWith だと /kb-other でも「ナレッジ」が光ってしまう。
     // いまそういうルートは無いが、足した瞬間に静かに壊れる形なので判定側で塞ぐ。
-    const notes = MAIN_NAV_ITEMS.find((item) => item.id === 'notes');
+    const kb = MAIN_NAV_ITEMS.find((item) => item.id === 'kb');
 
-    expect(navActive(notes!, '/notes-foo')).toBe(false);
-    expect(navActive(notes!, '/px')).toBe(false);
-    expect(navActive(notes!, '/profile')).toBe(false);
+    expect(navActive(kb!, '/kb-other')).toBe(false);
+    expect(navActive(kb!, '/px')).toBe(false);
+    expect(navActive(kb!, '/profile')).toBe(false);
   });
 });

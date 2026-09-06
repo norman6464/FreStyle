@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
-import { NoteWorkspaceSwitcher, useWorkspaceList } from '@/entities/note';
+import { KbWorkspaceSwitcher, useWorkspaceList } from '@/entities/kb';
 import { useToast } from '@/shared/lib/hooks/useToast';
 
 /**
  * HeaderWorkspaceSwitcher はヘッダーから所属ワークスペースを切り替える入口。
  *
- * 「いま開いている」状態はページ（/notes・/kb/:id）側だけが持っており、ヘッダーとは
- * 共有していない。選んだ先はナビゲーションの state で /notes へ渡し、初期表示だけに使う
+ * 「いま開いている」状態はページ（/kb・/kb/:id）側だけが持っており、ヘッダーとは
+ * 共有していない。選んだ先はナビゲーションの state で /kb へ渡す — resolveEntryPageId
+ * （pages/kb/model/resolveEntryPage.ts）がそれを見て、切り替え先の最初のページへ移る
  * （以後の切替はサイドバー側の状態が正）。
  */
 export default function HeaderWorkspaceSwitcher() {
@@ -19,14 +20,14 @@ export default function HeaderWorkspaceSwitcher() {
 
   return (
     <div className="hidden w-44 flex-shrink-0 md:block">
-      <NoteWorkspaceSwitcher
+      <KbWorkspaceSwitcher
         workspaces={workspaces}
         activeSlug={null}
-        onSelect={(slug) => navigate('/notes', { state: { workspaceSlug: slug } })}
+        onSelect={(slug) => navigate('/kb', { state: { workspaceSlug: slug } })}
         onCreate={async (input) => {
           try {
             const workspace = await createWorkspace(input);
-            navigate('/notes', { state: { workspaceSlug: workspace.slug } });
+            navigate('/kb', { state: { workspaceSlug: workspace.slug } });
           } catch {
             showToast('error', 'ワークスペースを作成できませんでした');
             throw new Error('create workspace failed');

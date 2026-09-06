@@ -56,9 +56,9 @@ describe('useToast', () => {
   it('同一メッセージを連続で出すと 1 枚にまとまり count が増える', () => {
     const { result } = renderHook(() => useToast(), { wrapper });
     act(() => {
-      result.current.showToast('success', 'ノートを作成しました');
-      result.current.showToast('success', 'ノートを作成しました');
-      result.current.showToast('success', 'ノートを作成しました');
+      result.current.showToast('success', 'ナレッジを作成しました');
+      result.current.showToast('success', 'ナレッジを作成しました');
+      result.current.showToast('success', 'ナレッジを作成しました');
     });
     expect(result.current.toasts).toHaveLength(1);
     expect(result.current.toasts[0].count).toBe(3);

@@ -42,10 +42,10 @@ export const PROFILE = {
   meStats: `${API_V2}/users/me/stats`,
 } as const;
 
-/** 画像アップロード（current user 名義の S3 PUT 署名 URL。ノート/教材で共有）*/
+/** 画像アップロード（current user 名義の S3 PUT 署名 URL。リッチテキストエディタ全般で共有）*/
 export const IMAGES = {
-  /** POST /api/v2/notes/images/upload-url — {contentType} → {url, key, publicUrl} */
-  uploadUrl: `${API_V2}/notes/images/upload-url`,
+  /** POST /api/v2/rich-text/images/upload-url — {contentType} → {url, key, publicUrl} */
+  uploadUrl: `${API_V2}/rich-text/images/upload-url`,
 } as const;
 
 export const RANKING = `${API_V2}/ranking` as const;
@@ -130,7 +130,7 @@ export const CODE = {
 } as const;
 
 /**
- * ノート（workspaces → spaces → pages の木）。
+ * ナレッジ（workspaces → spaces → pages の木）。
  *
  * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧で、
  * UI は撤去済み（データは残っているが、フロントからはもう呼ばない）。
@@ -139,7 +139,7 @@ export const CODE = {
  * ワークスペースは URL の slug で指す（内部 UUID は外に出さない）。slug から所属を確定する
  * middleware を backend 側の group が通しているので、slug を含まないパスは一覧と作成だけ。
  */
-export const NOTES_API = {
+export const KB_API = {
   /** GET(所属一覧) / POST(作成) — /api/v2/kb/workspaces */
   workspaces: `${API_V2}/kb/workspaces`,
   /** DELETE(削除) — /api/v2/kb/workspaces/:slug。配下ごと消える。会社のものは消せない */

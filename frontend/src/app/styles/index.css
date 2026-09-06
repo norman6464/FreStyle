@@ -28,7 +28,7 @@
   --tw-prose-pre-code: #383a42;
   --tw-prose-pre-border: var(--color-surface-3);
   /* 箇条書きの点・番号は typography の既定だと灰色で、本文から浮いて見える。
-     本文と同じ色に揃える（ノート / 教材 / AI チャットの prose 全部に効く）。 */
+     本文と同じ色に揃える（ナレッジ / 教材 / AI チャットの prose 全部に効く）。 */
   --tw-prose-bullets: var(--color-text-primary);
   --tw-prose-counters: var(--color-text-primary);
 }
@@ -52,7 +52,7 @@
  * コース教材の本文タイポグラフィ。
  * prose-sm のプリセットは行間・段落間が詰まって「読み物」に向かないため、
  * 教材専用スコープ(.course-prose)だけ本文 16px・行間 2.0 のゆったりした
- * 余白に上書きする。ノート / AI チャットの prose には影響しない。
+ * 余白に上書きする。ナレッジ / AI チャットの prose には影響しない。
  */
 .prose.course-prose {
   font-size: 1rem;
@@ -97,10 +97,10 @@
 }
 /*
  * コース教材の tiptap 表示（.course-doc = RichTextEditor の外枠に付与）。
- * ノート用の prose スケール（h1 36px / h2 24px）では、教材の長い見出し
+ * ナレッジ用の prose スケール（h1 36px / h2 24px）では、教材の長い見出し
  * （ファイルパス入り等・45 文字超が 73 見出し）が折り返して巨大に見えるため、
  * 旧 Markdown 表示（course-prose）と同等の読み物タイポグラフィに抑える。
- * ノート / AI チャットの表示には影響しない。
+ * ナレッジ / AI チャットの表示には影響しない。
  */
 .course-doc .rte-content {
   font-size: 1rem;
@@ -168,7 +168,7 @@
  * カラー設計（白ボディ + 白カード + border/影。旧灰青統一の方針を撤回）:
  *   - body は白 (#FFFFFF)。カードは border 1px + 影で白 body から浮かせる
  *   - 教材コース閲覧 (/courses/:id) も白 (--color-reading-surface = #FFFFFF)。
- *     旧灰青は tiptap 表示への切替でノートと同じ白に統一した
+ *     旧灰青は tiptap 表示への切替でナレッジと同じ白に統一した
  *   - サイドバー / ヘッダーは白 (--color-nav) + border 1px で境界を表現
  *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
  *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
@@ -180,7 +180,7 @@
   --color-surface-1: #FFFFFF;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
-  /* 教材コース閲覧 (/courses/:id) の読み物背景。tiptap 表示への切替に合わせ、ノートと同じ白へ
+  /* 教材コース閲覧 (/courses/:id) の読み物背景。tiptap 表示への切替に合わせ、ナレッジと同じ白へ
      統一した（旧 #f5f6f6 の灰青は廃止・ユーザー指示 2026-08-23）。変数はコース閲覧ページ専用。 */
   --color-reading-surface: #FFFFFF;
   /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */

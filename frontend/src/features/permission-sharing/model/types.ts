@@ -1,12 +1,12 @@
-import type { NoteGrantRole } from '@/entities/note';
+import type { KbGrantRole } from '@/entities/kb';
 
 /**
- * 付与で与える役割。ノートも教材も同じ 4 つで、backend の domain.GrantRole と対応する。
+ * 付与で与える役割。ナレッジも教材も同じ 4 つで、backend の domain.GrantRole と対応する。
  *
- * ノート側の型を再輸出しているのは、**同じものが 2 つあると必ずずれる**ため。
+ * ナレッジ側の型を再輸出しているのは、**同じものが 2 つあると必ずずれる**ため。
  * 役割が増えたときに片方だけ増える、という壊れ方を型で防ぐ。
  */
-export type ShareRole = NoteGrantRole;
+export type ShareRole = KbGrantRole;
 
 /** 一覧に並ぶ 1 行（張った権限と、その相手の表示名を突き合わせたもの）。 */
 export interface ShareRow {
@@ -33,7 +33,7 @@ export interface SharePrincipal {
 /**
  * 共有パネルが必要とする状態と操作。
  *
- * 取得の仕方（どの API を叩くか）は持たない。ノートはページ単位、教材はコース / 章単位で
+ * 取得の仕方（どの API を叩くか）は持たない。ナレッジはページ単位、教材はコース / 章単位で
  * 口が違うが、**画面の見え方と操作は同じ**なので、この形だけを共通にする。
  */
 export interface ShareState {

@@ -45,7 +45,7 @@ describe('Header', () => {
   it('テキストのナビ項目を表示する', () => {
     renderHeader();
     expect(screen.getAllByText('演習').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('ノート').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('ナレッジ').length).toBeGreaterThanOrEqual(1);
   });
 
   it('通知ベルとハンバーガー(メニュー)を表示する', () => {

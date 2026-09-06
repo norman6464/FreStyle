@@ -22,7 +22,7 @@ export const lowlight = createLowlight(common);
  * CombinableCode は他のマークと共存できるインラインコード。
  *
  * 既定の Code は `excludes: '_'`（＝他の全マークを排他）で、コードを掛けると
- * 太字・斜体・下線・打ち消しがすべて外れてしまう。ノートでは「コード＋太字」等を
+ * 太字・斜体・下線・打ち消しがすべて外れてしまう。ナレッジでは「コード＋太字」等を
  * 重ねたい場面があるため、排他指定を解いて併用できるようにする。マーク名は 'code' のまま。
  */
 const CombinableCode = Code.extend({ excludes: '' });
@@ -117,7 +117,7 @@ const SafeLink = Link.configure({
 });
 
 /**
- * PageRef は「ページ参照」— ノートのページを指すインラインの 1 要素（atom）。
+ * PageRef は「ページ参照」— ナレッジのページを指すインラインの 1 要素（atom）。
  *
  * 文字を持たず、表示は attrs.title（**表示のための写し**）。題名の正本はページ側にあり、
  * サーバーが読み出しのたびに「読み手が閲覧できる参照だけ」現在の題名へ差し替える。
@@ -224,10 +224,10 @@ export function createSchemaExtensions(
     Heading.configure({ levels: [1, 2, 3] }),
     // 構文ハイライト付きコードブロック。ノード名は 'codeBlock' のまま既存 doc と互換。
     CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'plaintext' }),
-    // 表（GFM テーブル相当）。教材の本文とノートの両方で使う。
+    // 表（GFM テーブル相当）。教材の本文とナレッジの両方で使う。
     // resizable は列幅ドラッグ UI が必要になるため、まずは固定幅で表現力を優先する。
     TableKit.configure({ table: { resizable: false } }),
-    // タスクリスト（チェックボックス）。教材のチェックリスト章とノートの TODO で使う。
+    // タスクリスト（チェックボックス）。教材のチェックリスト章とナレッジの TODO で使う。
     TaskList,
     TaskItem.configure({ nested: true }),
     // ページ参照（インラインの atom）。題名はサーバーが読み出し時に解決する。

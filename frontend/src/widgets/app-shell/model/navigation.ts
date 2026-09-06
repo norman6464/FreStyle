@@ -4,7 +4,7 @@ export interface NavItem {
   label: string;
   to: string;
   matchExact?: boolean;
-  /** 複数の URL 系統が同じ画面に属するとき（例: ノートの /notes と /kb）は配列で並べる。 */
+  /** 複数の URL 系統が同じ画面に属するときは配列で並べる（いまはどの項目も 1 系統）。 */
   matchPrefix?: string | string[];
 }
 
@@ -15,15 +15,16 @@ export interface NavItem {
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'ホーム', to: '/', matchExact: true },
   { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
-  // ノートは共有される木（旧ナレッジを統合）。ページの URL は /kb/{pageId}。
-  { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: ['/notes', '/kb'] },
+  // ナレッジは共有される木（workspaces → spaces → pages）。to の /kb はページ未選択の入口で、
+  // resolveEntryPageId（pages/kb/model/resolveEntryPage.ts）が続きのページへ即座に移す。
+  { id: 'kb', label: 'ナレッジ', to: '/kb', matchPrefix: '/kb' },
 ];
 
 /**
  * navActive は現在の pathname がその項目を指しているかを判定する。
  *
- * matchPrefix は**パスの区切りまで見る**。素の startsWith だと `/kb` が `/kb-other` にも、
- * `/notes` が `/notes-foo` にも一致し、名前が前方一致するだけの無関係な画面でナビが光る。
+ * matchPrefix は**パスの区切りまで見る**。素の startsWith だと `/kb` が `/kb-other` にも
+ * 一致し、名前が前方一致するだけの無関係な画面でナビが光る。
  * 一致してよいのは、そのものか、`/` で続く下の階層だけ。
  */
 export function navActive(item: NavItem, pathname: string): boolean {

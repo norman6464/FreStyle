@@ -6,7 +6,7 @@ import FeatureCard from './FeatureCard';
 /**
  * ホーム画面。
  *
- * 全ユーザーに同じレイアウトを出す（コード演習・ノート）。
+ * 全ユーザーに同じレイアウトを出す（コード演習・ナレッジ）。
  */
 export default function MenuPage() {
   return (
@@ -40,9 +40,9 @@ export default function MenuPage() {
 
           <FeatureSection title="ツール">
             <FeatureCard
-              to="/notes"
+              to="/kb"
               icon={DocumentTextIcon}
-              title="ノート"
+              title="ナレッジ"
               description="学習メモを書き留め、いつでも振り返れます。"
               color="taupe"
             />

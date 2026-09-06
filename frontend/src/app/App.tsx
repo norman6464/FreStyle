@@ -21,7 +21,7 @@ const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
-const NotePage = lazyWithReload(() => import('@/pages/note').then((m) => ({ default: m.NotePage })), 'NotePage');
+const KbPage = lazyWithReload(() => import('@/pages/kb').then((m) => ({ default: m.KbPage })), 'KbPage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
@@ -86,15 +86,15 @@ export default function App() {
         {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
         <Route path="/profile/me" element={<SettingsPage />} />
         {/*
-          ノート（workspaces → spaces → pages の木）。旧「ナレッジ」を統合した現在の正
-          。ページの URL は /kb/{pageId} だけで、テナントを URL に出さない。
+          ナレッジ（workspaces → spaces → pages の木）。テナントは URL に出さない。
+          ページの URL は /kb/{pageId}、ページ未選択の入口は素の /kb（続きのページへ
+          resolveEntryPageId が即座に移す。空振りだけ「まだページがありません」を出す）。
         */}
-        <Route path="/notes" element={<NotePage />} />
-        <Route path="/kb/:pageId" element={<NotePage />} />
+        <Route path="/kb" element={<KbPage />} />
+        <Route path="/kb/:pageId" element={<KbPage />} />
         {/* 旧 URL の受け皿。ワークスペース単体（/kb/:workspaceSlug）の古いブックマークは、
             新しい /kb/:pageId と同じ形なので区別できず廃止した。ページ付きの旧 URL
             （/kb/:slug/pages/:pageId）だけ引き続き写す。 */}
-        <Route path="/kb" element={<Navigate to="/notes" replace />} />
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/help" element={<HelpPage />} />

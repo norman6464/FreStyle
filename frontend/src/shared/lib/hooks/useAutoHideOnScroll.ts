@@ -40,7 +40,7 @@ export interface UseAutoHideOnScrollResult {
  * - 下へスクロール: hidden = true（本文に集中させる）
  * - 上へスクロール: 累積 showAfterUp（px）戻したら hidden = false（わずかな戻りでは出さない）
  * - 先頭付近（topThreshold 以内）: 常に false
- * - 監視対象が消えた（ノート切替のローディング等）: false に戻す
+ * - 監視対象が消えた（ナレッジ切替のローディング等）: false に戻す
  */
 export function useAutoHideOnScroll(
   options: UseAutoHideOnScrollOptions = {},

@@ -123,7 +123,7 @@ describe('useAutoHideOnScroll', () => {
     expect(other.result.current.hidden).toBe(true);
   });
 
-  it('監視対象が消えたら（ノート切替のローディング等）表示へ戻る', () => {
+  it('監視対象が消えたら（ナレッジ切替のローディング等）表示へ戻る', () => {
     const el = makeScrollable();
     const { result } = renderHook(() => useAutoHideOnScroll());
     act(() => result.current.scrollRef(el));

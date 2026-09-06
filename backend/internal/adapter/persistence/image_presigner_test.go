@@ -34,14 +34,14 @@ func Test_画像の表示URLに配信ドメインを含めないこと(t *testin
 			wantPrefix: "/profiles/7/",
 		},
 		{
-			name: "ノート画像",
+			name: "リッチテキスト画像",
 			publicURL: func(t *testing.T) string {
 				t.Helper()
-				out, err := NewStubNoteImagePresigner("bucket").Generate(ctx, 7, "image/png")
+				out, err := NewStubRichTextImagePresigner("bucket").Generate(ctx, 7, "image/png")
 				require.NoError(t, err)
 				return out.PublicURL
 			},
-			wantPrefix: "/notes/7/",
+			wantPrefix: "/rich-text/7/",
 		},
 	}
 
@@ -68,9 +68,9 @@ func Test_アップロード先URLは絶対URLのままであること(t *testin
 	require.NoError(t, err)
 	assert.Contains(t, profile.UploadURL, "://", "アップロード先は絶対 URL であること")
 
-	note, err := NewStubNoteImagePresigner("bucket").Generate(ctx, 7, "image/png")
+	richText, err := NewStubRichTextImagePresigner("bucket").Generate(ctx, 7, "image/png")
 	require.NoError(t, err)
-	assert.Contains(t, note.URL, "://", "アップロード先は絶対 URL であること")
+	assert.Contains(t, richText.URL, "://", "アップロード先は絶対 URL であること")
 }
 
 func Test_画像のキーは表示URLから先頭のスラッシュを外した値になること(t *testing.T) {
@@ -82,7 +82,7 @@ func Test_画像のキーは表示URLから先頭のスラッシュを外した�
 	require.NoError(t, err)
 	assert.Equal(t, profile.Key, strings.TrimPrefix(profile.ImageURL, "/"))
 
-	note, err := NewStubNoteImagePresigner("bucket").Generate(ctx, 7, "image/png")
+	richText, err := NewStubRichTextImagePresigner("bucket").Generate(ctx, 7, "image/png")
 	require.NoError(t, err)
-	assert.Equal(t, note.Key, strings.TrimPrefix(note.PublicURL, "/"))
+	assert.Equal(t, richText.Key, strings.TrimPrefix(richText.PublicURL, "/"))
 }

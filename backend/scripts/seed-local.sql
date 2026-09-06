@@ -17,9 +17,9 @@
 --     (実行計画の比較には再現性が必須。ばらつくと前後比較が意味を失う)
 --   - 冪等にする。再実行時は自分が入れた範囲だけを消してから入れ直す
 --   - 本物の教材本文は非公開リポが正本のため、ここでは触れずダミー文言を使う
---   - ノート(workspace/space/page/block)だけは SIZE に関わらず固定セットを入れる。
+--   - ナレッジ(workspace/space/page/block)だけは SIZE に関わらず固定セットを入れる。
 --     bulk データ(users 等)と違って「実行計画の比較用の量」ではなく、運営管理者
---     (admin@example.com)でログインしたときにノート機能が空っぽに見えないようにする
+--     (admin@example.com)でログインしたときにナレッジ機能が空っぽに見えないようにする
 --     のが目的のため、量を増やす理由が無い。ワークスペース切り替え UI を確認できるよう、
 --     個人ワークスペース 1 つ + チーム共有ワークスペース 2 つの計 3 つを用意する
 
@@ -63,7 +63,7 @@ SELECT n_users, submissions_per_user, activity_days
 
 \echo '=== seed-local: size =' :'size' '/ users =' :n_users '/ submissions_per_user =' :submissions_per_user
 
--- ノート(workspace/space/page/block)に使う固定 ID。
+-- ナレッジ(workspace/space/page/block)に使う固定 ID。
 --
 -- bulk データ(users 等)と違って UUID 主キーなので「id >= 1000000」のような範囲では
 -- 判別できない。その代わり、再実行しても同じ値になるよう決め打ちの UUID を使う
@@ -121,7 +121,7 @@ WHERE user_id >= 1000000;
 DELETE FROM users
 WHERE id >= 1000000;
 
--- ノートは workspaces を消せば配下(spaces / pages / blocks / page_paths / page_snapshots /
+-- ナレッジは workspaces を消せば配下(spaces / pages / blocks / page_paths / page_snapshots /
 -- principals / workspace_grants / space_grants / page_grants)が ON DELETE CASCADE で
 -- 全部まとめて消える(schema.hcl 参照)。bulk データのように子テーブルから順に
 -- DELETE する必要は無い。3 つとも(個人ワークスペース + チーム共有ワークスペース 2 つ)
@@ -209,7 +209,7 @@ FROM generate_series(1, :n_users) AS i;
 INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
 VALUES (1000000, 'シード運営管理者です。', '', '運用中', now());
 
--- ---- ノート(workspace/space/page/block) ------------------------------------
+-- ---- ナレッジ(workspace/space/page/block) ------------------------------------
 -- 運営管理者(id 1000000)専用の個人ワークスペースを 1 つ用意する。
 --
 -- EnsurePersonalWorkspaceUseCase はログインのたびに
@@ -236,7 +236,7 @@ VALUES (:'kb_workspace_id', :'kb_principal_admin_id', 'admin');
 -- がそのまま届くので、private スペースと違って space_grants を別に張る必要は無い。
 INSERT INTO spaces (id, workspace_id, "key", name, visibility)
 VALUES
-  (:'kb_space_dev_id',      :'kb_workspace_id', 'dev',      '開発ノート',   'workspace'),
+  (:'kb_space_dev_id',      :'kb_workspace_id', 'dev',      '開発ナレッジ',   'workspace'),
   (:'kb_space_handbook_id', :'kb_workspace_id', 'handbook', 'ハンドブック', 'workspace');
 
 -- ページは親→子の順で INSERT する(pages.parent_id は同じ workspace_id/space_id の
@@ -284,7 +284,7 @@ VALUES
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_onboarding_id', NULL, 'a0', 'heading',
    '{"level":2}'::jsonb, '[{"type":"text","text":"はじめに"}]'::jsonb),
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_onboarding_id', NULL, 'a1', 'paragraph',
-   '{}'::jsonb, '[{"type":"text","text":"このワークスペースは backend ディレクトリで make local-seed を実行すると作られるサンプルのノートです。"}]'::jsonb),
+   '{}'::jsonb, '[{"type":"text","text":"このワークスペースは backend ディレクトリで make local-seed を実行すると作られるサンプルのナレッジです。"}]'::jsonb),
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_onboarding_id', NULL, 'a2', 'paragraph',
    '{}'::jsonb, '[{"type":"text","text":"ログインは admin@example.com / password(Dex の staticPasswords によるダミーアカウント)です。"}]'::jsonb),
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_onboarding_id', NULL, 'a3', 'paragraph',
@@ -367,9 +367,9 @@ VALUES
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_faq_id', NULL, 'a1', 'paragraph',
    '{}'::jsonb, '[{"type":"text","text":"A. docker compose up -d で idp(Dex)コンテナが起動しているか確認してください。"}]'::jsonb),
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_faq_id', NULL, 'a2', 'heading',
-   '{"level":2}'::jsonb, '[{"type":"text","text":"Q. ノートのページが空っぽ"}]'::jsonb),
+   '{"level":2}'::jsonb, '[{"type":"text","text":"Q. ナレッジのページが空っぽ"}]'::jsonb),
   (gen_random_uuid(), :'kb_workspace_id', :'kb_page_faq_id', NULL, 'a3', 'paragraph',
-   '{}'::jsonb, '[{"type":"text","text":"A. backend ディレクトリで make local-seed を実行するとサンプルのノートが作られます。"}]'::jsonb);
+   '{}'::jsonb, '[{"type":"text","text":"A. backend ディレクトリで make local-seed を実行するとサンプルのナレッジが作られます。"}]'::jsonb);
 
 -- ---- 複数ワークスペースの例 --------------------------------------------------
 -- ワークスペース一覧・切り替え UI が実際に複数件を返す状態を確認できるよう、上の
@@ -508,29 +508,6 @@ FROM generate_series(1, :n_users) AS u,
      generate_series(1, :submissions_per_user) AS s;
 COMMIT;
 
--- ---- 学習の日次集計 ---------------------------------------------------------
--- ダッシュボードが読むテーブル。course_chapters が全廃済みのため、かつてここにあった
--- user_chapter_progress / user_chapter_views(講座の章単位の進捗・閲覧)への投入は
--- 対象テーブルごと無くなっている。
-\echo '=== 日次集計を投入中 ...'
-BEGIN;
-INSERT INTO user_daily_activities (user_id, activity_date, exercise_count, correct_count,
-                                   chapter_count, note_count)
-SELECT
-  1000000 + u,
-  (now() - d * interval '1 day')::date,
-  e.exercise_count,
-  -- 正答数は提出数を超えさせない。独立に生成すると正答率が 100% を超える行ができ、
-  -- ダッシュボードの集計が破綻する。
-  (random() * e.exercise_count)::int,
-  (random() * 3)::int,
-  (random() * 2)::int
-FROM generate_series(1, :n_users) AS u,
-     generate_series(0, :activity_days - 1) AS d,
-     LATERAL (SELECT (random() * 10)::int AS exercise_count) AS e
-WHERE random() < 0.4
-ON CONFLICT DO NOTHING;
-COMMIT;
 
 -- ---- 統計の更新 ------------------------------------------------------------
 -- ANALYZE を忘れるとプランナが古い統計で判断し、実行計画の比較が無意味になる。

@@ -474,7 +474,7 @@ func TestKnowledgeBasePrivateSpaceAPI_Integration(t *testing.T) {
 // TestKnowledgeBaseWorkspaceMembership_Integration は「同じワークスペースに属する人は
 // チームスペースを見られる」を実 PostgreSQL で確かめる。
 //
-// 所属は users.workspace_id が表すが、ノートの所属（principals の行）は作成者にしか
+// 所属は users.workspace_id が表すが、ナレッジの所属（principals の行）は作成者にしか
 // 無かったため、同じワークスペースの他のメンバーには一覧にも出ず URL も 404 だった。
 // ここでその経路を固定する。
 func TestKnowledgeBaseWorkspaceMembership_Integration(t *testing.T) {

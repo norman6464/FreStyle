@@ -1,4 +1,4 @@
--- ノートの権限モデル（principals / principal_members / workspace_grants /
+-- ナレッジの権限モデル（principals / principal_members / workspace_grants /
 -- space_grants / page_grants / share_links）のクエリ。
 --
 -- 作法（knowledge_base.sql と同じ）:
@@ -91,7 +91,7 @@ WHERE workspace_id = $1 AND principal_id = $2;
 -- なぜロックまでするのか（検査を単一文にするだけでは足りなかった）:
 --   検査と削除が別トランザクションだと、2 人の admin をほぼ同時に外す要求が
 --   両方とも検査を通り抜け、ワークスペースの admin が 0 人になる。0 人になると
---   ノートには super_admin の抜け道が無いので、元 admin を含む誰も API から
+--   ナレッジには super_admin の抜け道が無いので、元 admin を含む誰も API から
 --   権限を張り直せない（復旧は DB を直接触るしかない）。
 --
 --   検査を DELETE の EXISTS へ畳んで単一文にしても、これは塞がらない。

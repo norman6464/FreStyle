@@ -19,19 +19,19 @@ describe('ImageUploadRepository', () => {
 
   it('presign → S3 PUT → publicUrl を返す', async () => {
     mockedPost.mockResolvedValue({
-      data: { url: 'https://s3/put?sig', key: 'notes/7/1.bin', publicUrl: 'https://cdn/notes/7/1.bin', expiresIn: 600 },
+      data: { url: 'https://s3/put?sig', key: 'rich-text/7/1.bin', publicUrl: 'https://cdn/rich-text/7/1.bin', expiresIn: 600 },
     });
     mockedPut.mockResolvedValue({});
 
     const file = new File(['x'], 'diagram.png', { type: 'image/png' });
     const url = await ImageUploadRepository.upload(file);
 
-    expect(mockedPost).toHaveBeenCalledWith('/api/v2/notes/images/upload-url', {
+    expect(mockedPost).toHaveBeenCalledWith('/api/v2/rich-text/images/upload-url', {
       contentType: 'image/png',
     });
     expect(mockedPut).toHaveBeenCalledWith('https://s3/put?sig', file, {
       headers: { 'Content-Type': 'image/png' },
     });
-    expect(url).toBe('https://cdn/notes/7/1.bin');
+    expect(url).toBe('https://cdn/rich-text/7/1.bin');
   });
 });

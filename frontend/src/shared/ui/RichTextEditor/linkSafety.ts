@@ -27,7 +27,7 @@ import type { JSONContent } from '@tiptap/core';
 export const ALLOWED_LINK_PROTOCOLS: readonly string[] = ['http', 'https', 'mailto', 'tel'];
 
 /**
- * ページ間リンク（/kb/{ページID}）の形。ノートのページを指す内部リンクで、
+ * ページ間リンク（/kb/{ページID}）の形。ナレッジのページを指す内部リンクで、
  * 相対パスの中では**この形だけ**を許す。任意の相対パスを開けると、利用者入力から
  * 任意の画面へ踏ませる経路（ログアウトの踏み台や、将来できるかもしれない
  * 副作用つき URL への誘導）になるため、ID は UUID の字面に固定し、

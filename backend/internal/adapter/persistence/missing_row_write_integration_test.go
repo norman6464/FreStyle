@@ -118,9 +118,9 @@ func TestPersistence_一括操作は0件でも成功のままであること_Int
 }
 
 // TestKnowledgeBase_存在しないページのアーカイブ操作はnot_foundを返すこと_Integration は
-// ノート側（UUID 主キー・:execrows の戻り値を捨てていた経路）を同じ観点で固定する。
+// ナレッジ側（UUID 主キー・:execrows の戻り値を捨てていた経路）を同じ観点で固定する。
 //
-// ノートは domain.ErrNotFound ではなく repository.ErrPageNotFound を使う
+// ナレッジは domain.ErrNotFound ではなく repository.ErrPageNotFound を使う
 // （handler の respondKnowledgeBaseErr が「存在しない」と「権限が無い」を同じ 404 に畳むため）。
 func TestKnowledgeBase_存在しないページのアーカイブ操作はnot_foundを返すこと_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)

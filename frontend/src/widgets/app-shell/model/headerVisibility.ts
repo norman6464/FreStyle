@@ -9,7 +9,7 @@ export interface HeaderVisibilityValue {
 
 /**
  * HeaderVisibilityContext はアプリ共通ヘッダーの表示/非表示状態を配る。
- * AppShell が Provider として値を持ち、ページ（例: ノートの本文スクロール）が
+ * AppShell が Provider として値を持ち、ページ（例: ナレッジの本文スクロール）が
  * setHeaderHidden で「下スクロール中は隠す」を実現する。復帰は AppShell 側が行う。
  */
 export const HeaderVisibilityContext = createContext<HeaderVisibilityValue>({

@@ -10,7 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// KnowledgeBaseMemberHandler はノートの主体（principals）の出し入れを受ける。
+// KnowledgeBaseMemberHandler はナレッジの主体（principals）の出し入れを受ける。
 //
 // ワークスペース所属・グループ・スペースの「全員」は、どれも principals の 1 行で表す
 // （専用のメンバーシップ表は持たない）。したがってこの handler が扱うのは

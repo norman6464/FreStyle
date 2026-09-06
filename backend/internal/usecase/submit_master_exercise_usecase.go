@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -49,13 +48,11 @@ type SubmitMasterExerciseOutput struct {
 //     どこで落ちたか全部見せるため最初の不一致で打ち切らず全件実行する。
 //
 // 履歴は 1 行にまとめて保存（失敗時は最初の失敗、成功時は最後の実行結果を採用）。
-// 採点成功後に user_daily_activities をベストエフォートでインクリメントする。
 type SubmitMasterExerciseUseCase struct {
 	exercises   repository.MasterExerciseRepository
 	examples    repository.MasterExerciseExampleRepository
 	submissions repository.ExerciseSubmissionRepository
 	executor    CodeExecutor
-	activity    repository.UserDailyActivityRepository
 }
 
 func NewSubmitMasterExerciseUseCase(
@@ -63,14 +60,12 @@ func NewSubmitMasterExerciseUseCase(
 	examples repository.MasterExerciseExampleRepository,
 	submissions repository.ExerciseSubmissionRepository,
 	executor CodeExecutor,
-	activity repository.UserDailyActivityRepository,
 ) *SubmitMasterExerciseUseCase {
 	return &SubmitMasterExerciseUseCase{
 		exercises:   exercises,
 		examples:    examples,
 		submissions: submissions,
 		executor:    executor,
-		activity:    activity,
 	}
 }
 
@@ -171,18 +166,6 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 		return nil, err
 	}
 
-	// 日次活動サマリーを更新（失敗しても採点結果には影響させない）。
-	correct := 0
-	if allPassed {
-		correct = 1
-	}
-	if err := uc.activity.Increment(ctx, in.UserID, submission.SubmittedAt, repository.UserDailyActivityIncrement{
-		ExerciseCount: 1,
-		CorrectCount:  correct,
-	}); err != nil {
-		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
-	}
-
 	return &SubmitMasterExerciseOutput{
 		SubmissionID: submission.ID,
 		IsCorrect:    allPassed,
@@ -210,13 +193,6 @@ func (uc *SubmitMasterExerciseUseCase) submitPreview(ctx context.Context, in Sub
 		return nil, err
 	}
 
-	if err := uc.activity.Increment(ctx, in.UserID, submission.SubmittedAt, repository.UserDailyActivityIncrement{
-		ExerciseCount: 1,
-		CorrectCount:  1,
-	}); err != nil {
-		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
-	}
-
 	return &SubmitMasterExerciseOutput{
 		SubmissionID: submission.ID,
 		IsCorrect:    true,
@@ -242,17 +218,6 @@ func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMa
 	}
 	if err := uc.submissions.Create(ctx, submission); err != nil {
 		return nil, err
-	}
-
-	correct := 0
-	if isCorrect {
-		correct = 1
-	}
-	if err := uc.activity.Increment(ctx, in.UserID, submission.SubmittedAt, repository.UserDailyActivityIncrement{
-		ExerciseCount: 1,
-		CorrectCount:  correct,
-	}); err != nil {
-		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
 	}
 
 	return &SubmitMasterExerciseOutput{

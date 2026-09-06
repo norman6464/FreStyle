@@ -215,7 +215,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 }
 
 // TestKnowledgeBaseMemberWorkspaces_Integration は所属ワークスペース一覧を実 PostgreSQL で固定する。
-// ノートで唯一テナントを跨いで読む口なので、絞り込みが緩むと全テナントが漏れる。
+// ナレッジで唯一テナントを跨いで読む口なので、絞り込みが緩むと全テナントが漏れる。
 func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()

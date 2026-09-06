@@ -5,7 +5,7 @@ import RichTextEditor from './RichTextEditor';
 import { emptyRichDoc, type RichDocContent } from './emptyRichDoc';
 
 /**
- * 本文エディタの見本。ノート画面（/p）での使われ方をそのまま再現する。
+ * 本文エディタの見本。ナレッジ画面（/kb）での使われ方をそのまま再現する。
  *
  * ここの story は addon-vitest で**そのままテストとして実行される**
  * （play の assertion が落ちると CI が落ちる）。見た目の検証と回帰テストを兼ねる。
@@ -68,11 +68,11 @@ const sampleDoc = (): RichDocContent => ({
 });
 
 /**
- * ノート画面の形の再現（題名 → 本文）。書式は**選んだときに出るバブル**で変える。
+ * ナレッジ画面の形の再現（題名 → 本文）。書式は**選んだときに出るバブル**で変える。
  * 画面上部に固定する帯は置かない（場所を取るわりに、使うのは書式を変える一瞬だけ）。
  */
-function NotePageLayout() {
-  // 題名で Enter を押したら本文へ移る合図（ノート画面と同じ配線）。
+function KbPageLayout() {
+  // 題名で Enter を押したら本文へ移る合図（ナレッジ画面と同じ配線）。
   const [bodyFocusSignal, setBodyFocusSignal] = useState(0);
   return (
     <div style={{ height: '100vh', overflowY: 'auto' }}>
@@ -103,7 +103,7 @@ function NotePageLayout() {
  */
 export const 題名でEnterすると本文へ移る: Story = {
   args: { value: emptyRichDoc() },
-  render: () => <NotePageLayout />,
+  render: () => <KbPageLayout />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = await canvas.findByRole('textbox', { name: '本文' });

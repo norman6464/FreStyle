@@ -9,7 +9,7 @@ import (
 )
 
 // ResolveWorkspaceUseCase は URL の slug と現在のユーザーから、操作対象のワークスペースを決める。
-// ノートの HTTP 経路はすべてここを通ってテナントを確定させる
+// ナレッジの HTTP 経路はすべてここを通ってテナントを確定させる
 // （クライアントが送った workspace_id をそのまま信じる経路を作らない）。
 //
 // 所属していない slug も存在しない slug も、どちらも repository.ErrWorkspaceNotFound を返す。
@@ -49,7 +49,7 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 	}
 	// 停止中のワークスペースは無いものとして扱う。middleware は「叩いた人の所属」しか
 	// 見ないので、そこを通り抜けた別のワークスペース（個人用や、principal として参加して
-	// いる先）が停止されていても届いてしまう。ノートの全 HTTP 経路がこの解決を通るため、
+	// いる先）が停止されていても届いてしまう。ナレッジの全 HTTP 経路がこの解決を通るため、
 	// ここで塞ぐ。存在を漏らさないよう、権限が無いときと同じ「見つからない」に畳む。
 	if !ws.IsActive {
 		return nil, repository.ErrWorkspaceNotFound

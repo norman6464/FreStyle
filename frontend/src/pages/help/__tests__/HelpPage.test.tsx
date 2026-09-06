@@ -33,7 +33,7 @@ describe('HelpPage', () => {
     expect(screen.getByRole('heading', { name: /2\. 最初の1日にやること/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /3\. 練習モードの使い方/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /4\. 5軸評価の読み方/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /5\. ノート機能/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /5\. ナレッジ機能/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /6\. 困ったとき/ })).toBeInTheDocument();
   });
 
@@ -50,9 +50,9 @@ describe('HelpPage', () => {
   });
 
 
-  it('ノートのカードが /notes を指す', () => {
+  it('ナレッジのカードが /kb を指す', () => {
     renderHelp();
-    expect(screen.getByRole('link', { name: /ノートを書く/ })).toHaveAttribute('href', '/notes');
+    expect(screen.getByRole('link', { name: /ナレッジを書く/ })).toHaveAttribute('href', '/kb');
     // 撤去したテンプレートカード（/templates は実在しないルート）が復活していないこと。
     expect(screen.queryByRole('link', { name: /テンプレートを使う/ })).not.toBeInTheDocument();
   });

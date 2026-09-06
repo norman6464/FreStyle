@@ -77,7 +77,7 @@ func ResolvePageView(role *GrantRole) bool {
 }
 
 // ResolvePagePermission は集めた事実から 1 ページの実効権限を決める。
-// ノートの権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
+// ナレッジの権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
 func ResolvePagePermission(f PagePermissionFacts) PagePermission {
 	// 所属していない相手には何もさせない。
 	//

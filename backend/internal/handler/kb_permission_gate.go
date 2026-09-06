@@ -9,7 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ── ノートの「権限そのものを変える」API に共通する認可 ──
+// ── ナレッジの「権限そのものを変える」API に共通する認可 ──
 //
 // # なぜ handler で認可を判定するのか
 //
@@ -31,7 +31,7 @@ import (
 //
 // # なぜ特権ロールを特別扱いしないのか
 //
-// ノートの役割（domain.GrantRole の admin / editor / commenter / viewer）は
+// ナレッジの役割（domain.GrantRole の admin / editor / commenter / viewer）は
 // per-workspace の grant だけで閉じており、アプリ全体のグローバルなロール概念は
 // 存在しない（domain/grant.go のコメント）。「この入れ物で何ができるか」を
 // 入れ物ごとに持つ、それだけがこのアプリの権限モデル。

@@ -116,7 +116,7 @@ WHERE w.id = $1
 // 配下（spaces / pages / blocks / page_paths / principals / grants / 共有リンク）は
 // すべて workspaces への FK が ON DELETE CASCADE で連なっているので、この 1 文で消える。
 //
-// 人が居るワークスペースを守るのは、そこに全員のノートが入るため。1 人の操作でみんなの
+// 人が居るワークスペースを守るのは、そこに全員のナレッジが入るため。1 人の操作でみんなの
 // 資産が消えてよいはずがない。users.workspace_id の FK（fk_users_workspace）も同じ削除を
 // 物理的に止めるが、それに任せると理由が制約違反エラーの文面でしか分からない。WHERE で
 // 明示して 0 行で返し、呼び出し側が「無い」と「人が居る」を撃ち分けられるようにする。
@@ -311,7 +311,7 @@ SELECT id, slug, name, is_active, personal_owner_user_id, created_at, updated_at
 WHERE id = $1
 `
 
-// ノート（workspaces / spaces / pages / blocks / page_paths / page_snapshots）のクエリ。
+// ナレッジ（workspaces / spaces / pages / blocks / page_paths / page_snapshots）のクエリ。
 //
 // 作法（このファイル全体の前提）:
 //   - すべての SELECT / UPDATE / DELETE の WHERE に workspace_id を含める。

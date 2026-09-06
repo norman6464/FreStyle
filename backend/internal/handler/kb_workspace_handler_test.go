@@ -19,7 +19,7 @@ import (
 // ワークスペース / スペースの API は判定対象がページではないので、kbEndpoints の表
 // （ページ 1 枚の権限を軸に回す）とは別にここで検証する。
 
-func Test_ノートAPI_ワークスペース削除(t *testing.T) {
+func Test_ナレッジAPI_ワークスペース削除(t *testing.T) {
 	t.Run("admin は配下ごと消せる", func(t *testing.T) {
 		f := newKbFixture(kbCanEdit, kbUserID)
 		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
@@ -44,7 +44,7 @@ func Test_ノートAPI_ワークスペース削除(t *testing.T) {
 	})
 
 	t.Run("人が所属しているワークスペースは admin でも消せない", func(t *testing.T) {
-		// そこに全員のノートが入るので、1 人の操作でみんなの資産が消えてよいはずがない。
+		// そこに全員のナレッジが入るので、1 人の操作でみんなの資産が消えてよいはずがない。
 		f := newKbFixture(kbCanEdit, kbUserID)
 		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
 		workspacesWithMembers[kbWorkspaceID] = true
@@ -77,7 +77,7 @@ func Test_ノートAPI_ワークスペース削除(t *testing.T) {
 	})
 }
 
-func Test_ノートAPI_所属ワークスペース一覧は所属しているものだけを返す(t *testing.T) {
+func Test_ナレッジAPI_所属ワークスペース一覧は所属しているものだけを返す(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	w := f.do(t, http.MethodGet, kbWorkspacesPath, "")
@@ -92,7 +92,7 @@ func Test_ノートAPI_所属ワークスペース一覧は所属しているも
 	assert.NotContains(t, w.Body.String(), kbWorkspaceID, "内部 UUID は返さない")
 }
 
-func Test_ノートAPI_所属ワークスペース一覧は未認証なら401(t *testing.T) {
+func Test_ナレッジAPI_所属ワークスペース一覧は未認証なら401(t *testing.T) {
 	f := newKbFixture(kbCanEdit, 0)
 
 	w := f.do(t, http.MethodGet, kbWorkspacesPath, "")
@@ -100,7 +100,7 @@ func Test_ノートAPI_所属ワークスペース一覧は未認証なら401(t 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func Test_ノートAPI_所属ワークスペース一覧は0件でも空配列(t *testing.T) {
+func Test_ナレッジAPI_所属ワークスペース一覧は0件でも空配列(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	// 所属を消す（principals の行が唯一の表現なので、消せば非メンバー）。
 	f.perms.principals = map[string]*domain.Principal{}
@@ -111,7 +111,7 @@ func Test_ノートAPI_所属ワークスペース一覧は0件でも空配列(t
 	assert.JSONEq(t, `[]`, w.Body.String(), "null ではなく空配列")
 }
 
-func Test_ノートAPI_ワークスペース作成は作成者をメンバーにする(t *testing.T) {
+func Test_ナレッジAPI_ワークスペース作成は作成者をメンバーにする(t *testing.T) {
 	const otherUser = uint64(777)
 	f := newKbFixture(kbCanEdit, otherUser)
 
@@ -140,7 +140,7 @@ func Test_ノートAPI_ワークスペース作成は作成者をメンバーに
 		"作成者は admin なので自分のワークスペースを設定できる")
 }
 
-func Test_ノートAPI_ワークスペース作成はslugの重複を409で断る(t *testing.T) {
+func Test_ナレッジAPI_ワークスペース作成はslugの重複を409で断る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	w := f.do(t, http.MethodPost, kbWorkspacesPath,
@@ -150,7 +150,7 @@ func Test_ノートAPI_ワークスペース作成はslugの重複を409で断�
 	assert.JSONEq(t, `{"error":"slug_taken"}`, w.Body.String())
 }
 
-func Test_ノートAPI_ワークスペース作成は未認証なら401(t *testing.T) {
+func Test_ナレッジAPI_ワークスペース作成は未認証なら401(t *testing.T) {
 	f := newKbFixture(kbCanEdit, 0)
 
 	w := f.do(t, http.MethodPost, kbWorkspacesPath, `{"slug":"new-team","name":"新チーム"}`)
@@ -158,7 +158,7 @@ func Test_ノートAPI_ワークスペース作成は未認証なら401(t *testi
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func Test_ノートAPI_ワークスペース作成は連打をレート制限で断る(t *testing.T) {
+func Test_ナレッジAPI_ワークスペース作成は連打をレート制限で断る(t *testing.T) {
 	// slug はテナントをまたいで一意で、取られた slug を取り返す口が無い。
 	// 上限が無いと 1 人で短い slug を掴み取れてしまうので、作成だけは流量を絞る。
 	f := newKbFixture(kbCanEdit, kbUserID)
@@ -182,7 +182,7 @@ func Test_ノートAPI_ワークスペース作成は連打をレート制限で
 
 // fake が本番より緩いと、本番では通らない作成要求で緑になるテストが書けてしまう。
 // 実 PostgreSQL 側の対応する検証は knowledge_base_provision_integration_test.go にある。
-func Test_ノートテスト用fake_存在しないワークスペースへのスペース作成を拒む(t *testing.T) {
+func Test_ナレッジテスト用fake_存在しないワークスペースへのスペース作成を拒む(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 
 	err := f.pages.CreateSpace(t.Context(), &domain.Space{
@@ -192,7 +192,7 @@ func Test_ノートテスト用fake_存在しないワークスペースへの�
 	assert.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
 }
 
-func Test_ノートAPI_ワークスペース作成の失敗は500(t *testing.T) {
+func Test_ナレッジAPI_ワークスペース作成の失敗は500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.provisioner.failWith = errors.New("db down")
 
@@ -202,7 +202,7 @@ func Test_ノートAPI_ワークスペース作成の失敗は500(t *testing.T) 
 }
 
 // スペース作成は「ワークスペース単位」の判定で、admin だけが通る。
-func Test_ノートAPI_スペース作成はワークスペースのadminだけが通る(t *testing.T) {
+func Test_ナレッジAPI_スペース作成はワークスペースのadminだけが通る(t *testing.T) {
 	spacesPath := kbFill(kbSpacesPath, kbWorkspaceSlug, "")
 
 	t.Run("admin なら作れる", func(t *testing.T) {
@@ -265,7 +265,7 @@ func Test_ノートAPI_スペース作成はワークスペースのadminだけ�
 	})
 }
 
-func Test_ノートAPI_スペース作成はkeyの重複を409で断る(t *testing.T) {
+func Test_ナレッジAPI_スペース作成はkeyの重複を409で断る(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
 	spacesPath := kbFill(kbSpacesPath, kbWorkspaceSlug, "")
@@ -278,7 +278,7 @@ func Test_ノートAPI_スペース作成はkeyの重複を409で断る(t *testi
 	assert.JSONEq(t, `{"error":"space_key_taken"}`, w.Body.String())
 }
 
-func Test_ノートAPI_スペース作成は不正なkeyと長すぎる名前を400で断る(t *testing.T) {
+func Test_ナレッジAPI_スペース作成は不正なkeyと長すぎる名前を400で断る(t *testing.T) {
 	spacesPath := kbFill(kbSpacesPath, kbWorkspaceSlug, "")
 	cases := []struct {
 		name string
@@ -301,7 +301,7 @@ func Test_ノートAPI_スペース作成は不正なkeyと長すぎる名前を
 }
 
 // スペース直下へのページ作成（parentId 省略）は「スペースの編集権限」で判断する。
-func Test_ノートAPI_スペース直下のページ作成はスペースの権限で判断する(t *testing.T) {
+func Test_ナレッジAPI_スペース直下のページ作成はスペースの権限で判断する(t *testing.T) {
 	pagesPath := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/spaces/" + kbSpaceID + "/pages"
 
 	t.Run("スペースのeditorならルートページを作れる", func(t *testing.T) {
@@ -390,7 +390,7 @@ const kbSecondSpaceID = "0198a000-0000-7000-8000-0000000000a2"
 
 // プライベートスペース: 自分の区画が増えるだけなので、admin でないメンバーでも作れる。
 // チームスペース（省略時）は今までどおり admin だけ（上のテスト）。この非対称が仕様。
-func Test_ノートAPI_プライベートスペースはメンバーなら作れる(t *testing.T) {
+func Test_ナレッジAPI_プライベートスペースはメンバーなら作れる(t *testing.T) {
 	spacesPath := kbFill(kbSpacesPath, kbWorkspaceSlug, "")
 
 	t.Run("editor でも private なら作れて、応答に visibility が載る", func(t *testing.T) {
@@ -464,10 +464,10 @@ func Test_ノートAPI_プライベートスペースはメンバーなら作れ
 
 // ワークスペースには、そこに所属している人が自動で入る。
 //
-// 所属は users.workspace_id が表すが、ノートの所属（principals の行）は作成者にしか
+// 所属は users.workspace_id が表すが、ナレッジの所属（principals の行）は作成者にしか
 // 無かった。そのため同じワークスペースの他のメンバーは一覧にも出ず、URL を叩いても
 // 404 になっていた（実際に踏んだ形の回帰）。
-func Test_ノートAPI_ワークスペースには所属している人が自動で入る(t *testing.T) {
+func Test_ナレッジAPI_ワークスペースには所属している人が自動で入る(t *testing.T) {
 	t.Run("一覧を開くと所属が用意され、そのワークスペースが出る", func(t *testing.T) {
 		const newcomer = uint64(777)
 		f := newKbFixture(kbCanEdit, newcomer)
@@ -577,7 +577,7 @@ func kbListSpaces(t *testing.T, f kbFixture, slug string) (*httptest.ResponseRec
 	return w, got
 }
 
-func Test_ノートAPI_スペース一覧は閲覧できるスペースだけを返す(t *testing.T) {
+func Test_ナレッジAPI_スペース一覧は閲覧できるスペースだけを返す(t *testing.T) {
 	// スペースは「誰に何を見せるか」を分ける入れ物なので、key と name が並ぶだけでも
 	// 中で何が進んでいるかが伝わる。役割が届いていないスペースは 1 件も出さない。
 	roles := []domain.GrantRole{
@@ -623,7 +623,7 @@ func Test_ノートAPI_スペース一覧は閲覧できるスペースだけを
 	})
 }
 
-func Test_ノートAPI_スペース一覧はスペースが0件でも空配列(t *testing.T) {
+func Test_ナレッジAPI_スペース一覧はスペースが0件でも空配列(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleAdmin)
 	f.pages.spaces = map[string]*domain.Space{}
@@ -635,7 +635,7 @@ func Test_ノートAPI_スペース一覧はスペースが0件でも空配列(t
 		"null を返すとフロントの .map が TypeError で落ちる")
 }
 
-func Test_ノートAPI_スペース一覧は存在しないワークスペースと権限の無いワークスペースを区別できない(t *testing.T) {
+func Test_ナレッジAPI_スペース一覧は存在しないワークスペースと権限の無いワークスペースを区別できない(t *testing.T) {
 	// slug の総当たりで他社テナントの実在が分からないこと。判定は middleware にあり、
 	// この口は「メンバーであること」を前提に動く。
 	f := newKbFixture(kbCanEdit, kbUserID)
@@ -649,7 +649,7 @@ func Test_ノートAPI_スペース一覧は存在しないワークスペース
 	assert.Equal(t, unknown.Body.String(), foreign.Body.String())
 }
 
-func Test_ノートAPI_スペース一覧は未認証なら401(t *testing.T) {
+func Test_ナレッジAPI_スペース一覧は未認証なら401(t *testing.T) {
 	f := newKbFixture(kbCanEdit, 0)
 
 	w, _ := kbListSpaces(t, f, kbWorkspaceSlug)
@@ -657,7 +657,7 @@ func Test_ノートAPI_スペース一覧は未認証なら401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func Test_ノートAPI_スペース一覧は事実の収集に失敗したら500(t *testing.T) {
+func Test_ナレッジAPI_スペース一覧は事実の収集に失敗したら500(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
 	f.perms.scopeFactsErr = errors.New("db down")
 

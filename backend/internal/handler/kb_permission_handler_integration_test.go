@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ノートの権限操作 API を、実 PostgreSQL・本番と同じ配線で確かめる。
+// ナレッジの権限操作 API を、実 PostgreSQL・本番と同じ配線で確かめる。
 //
 // 権限を書き換える usecase は認可を一切見ない（受け取った ID をそのまま書く）ので、
 // 認可が効いているかどうかは HTTP の入口を実際に叩かないと分からない。ここで固定するのは:

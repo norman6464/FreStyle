@@ -49,13 +49,13 @@ func TestApplySchema_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("ノートと権限モデルが揃っている", func(t *testing.T) {
+	t.Run("ナレッジと権限モデルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
 			"workspaces", "spaces", "pages", "blocks", "page_paths", "page_snapshots",
 			"principals", "principal_members", "workspace_grants", "space_grants",
 			"page_grants", "share_links",
 		} {
-			require.True(t, tableExists(t, db, table), "ノートのテーブル %s が無い", table)
+			require.True(t, tableExists(t, db, table), "ナレッジのテーブル %s が無い", table)
 		}
 	})
 

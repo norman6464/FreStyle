@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// kbIntegrationTables は結合テストが触るノートのテーブル（TRUNCATE 対象）。
+// kbIntegrationTables は結合テストが触るナレッジのテーブル（TRUNCATE 対象）。
 // users は他の結合テストと共有するため消さず、毎回一意なアドレスで足す。
 var kbIntegrationTables = []string{
 	"share_links", "page_grants", "space_grants", "workspace_grants",

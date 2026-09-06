@@ -161,45 +161,45 @@ func registerKnowledgeBaseRoutesWith(
 	// 保有数の上限までは塞げないが、掴み取りの速度は他の作成系と同じ土俵に落とす。
 	g.POST("/kb/workspaces", middleware.RateLimitPerMinute(10, 5), wh.Create)
 
-	kb := g.Group("", middleware.KnowledgeBaseWorkspace(
+	kbGroup := g.Group("", middleware.KnowledgeBaseWorkspace(
 		usecase.NewResolveWorkspaceUseCase(pages, permissions, users),
 	))
 	// スペースの一覧はワークスペースのメンバーなら誰でも叩ける（返る中身が権限で変わる）。
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
 	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
-	kb.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
 	// ワークスペースの削除（配下ごと・戻せない）。会社のワークスペースは SQL 側で守る。
-	kb.DELETE("/kb/workspaces/:workspaceSlug", wh.Delete)
-	kb.POST("/kb/workspaces/:workspaceSlug/spaces",
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug", wh.Delete)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces",
 		middleware.RateLimitPerMinutePerUser(kbCreateSpacePerMinute, kbCreateSpaceBurst), wh.CreateSpace)
-	kb.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)
+	kbGroup.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)
 	// 検索は /pages/:pageId と衝突しないよう /search を独立させる。
-	kb.GET("/kb/workspaces/:workspaceSlug/search", wh.SearchPages)
-	kb.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Tree)
-	kb.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Create)
-	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Get)
-	kb.PATCH("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Rename)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Delete)
-	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/move", h.Move)
-	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/archive", h.Archive)
-	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/unarchive", h.Unarchive)
-	kb.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content", h.ReplaceContent)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/search", wh.SearchPages)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Tree)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Create)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Get)
+	kbGroup.PATCH("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Rename)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Delete)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/move", h.Move)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/archive", h.Archive)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/unarchive", h.Unarchive)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content", h.ReplaceContent)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。
 	//
 	// 既定の権限（grant）— ワークスペース全体とスペース単位の 2 段。
-	kb.PUT("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.GrantWorkspaceRole)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.RevokeWorkspaceRole)
-	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.GrantSpaceRole)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.RevokeSpaceRole)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.GrantWorkspaceRole)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/grants/:principalId", gh.RevokeWorkspaceRole)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.GrantSpaceRole)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/spaces/:spaceId/grants/:principalId", gh.RevokeSpaceRole)
 	// ページ単位の grant（既定の 3 段目）。このページとその子孫に効く。
 	// 一覧が返すのはこの段で足した行だけで、上の段や祖先から届いている相手は含まない。
-	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/grants", gh.ListPageGrants)
-	kb.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.GrantPageRole)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.RevokePageRole)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/grants", gh.ListPageGrants)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.GrantPageRole)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/grants/:principalId", gh.RevokePageRole)
 	// 権限を張れる相手（画面の相手選び）。認可はページ単位で、返る中身はワークスペース全体。
-	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/principals", gh.ListGrantablePrincipals)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/principals", gh.ListGrantablePrincipals)
 
 	// 権限を張る相手（principals）の出し入れ。
 	// メンバー追加だけは回数に上限を置く。この口は users.id をそのまま受け取り、
@@ -211,19 +211,19 @@ func registerKnowledgeBaseRoutesWith(
 	// 走査そのものを塞ぐには「誰を招けるか」を会社などで絞る必要があり、それは
 	// 権限モデルの外側の設計判断になる（同意なく他人を自分のワークスペースへ入れられる、
 	// という別の問題も同じところに根がある）。ここで掛けるのは速度の頭打ちまで。
-	kb.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
 		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.AddMember)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)
-	kb.POST("/kb/workspaces/:workspaceSlug/groups", mh.CreateGroup)
-	kb.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.AddGroupMember)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.RemoveGroupMember)
-	kb.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/principals/everyone", mh.EnsureSpaceEveryone)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/groups", mh.CreateGroup)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.AddGroupMember)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.RemoveGroupMember)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/principals/everyone", mh.EnsureSpaceEveryone)
 
 	// 共有リンク（発行・一覧・失効）。発行と失効は「誰が見られるか」を変える操作。
 	// 検証だけは未認証なので registerKnowledgeBasePublicRoutesWith 側に置く。
-	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.ListShareLinks)
-	kb.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.IssueShareLink)
-	kb.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links/:shareLinkId", sh.RevokeShareLink)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.ListShareLinks)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links", sh.IssueShareLink)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/share-links/:shareLinkId", sh.RevokeShareLink)
 }
 
 // registerKnowledgeBasePublicRoutesWith は認証不要のルートを組み立てる。

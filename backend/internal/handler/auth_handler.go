@@ -280,7 +280,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	c *gin.Context,
 	idToken string,
 	expectedNonce string,
-) (user *domain.User, err error) {
+) (u *domain.User, err error) {
 	if h.upsertUser == nil {
 		return nil, errors.New("upsert user usecase not configured")
 	}
@@ -297,7 +297,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	email, _ := claims["email"].(string)
 	name, _ := claims["name"].(string)
 
-	user, err = h.upsertUser.Execute(
+	u, err = h.upsertUser.Execute(
 		c.Request.Context(),
 		usecase.UpsertUserFromIDTokenInput{
 			CognitoSub: sub,
@@ -305,7 +305,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 			Name:       name,
 		},
 	)
-	if err != nil || user == nil {
+	if err != nil || u == nil {
 		return nil, err
 	}
 
@@ -313,11 +313,11 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	if h.ensurePersonalWorkspace != nil {
 		if _, wsErr := h.ensurePersonalWorkspace.Execute(
 			c.Request.Context(),
-			usecase.EnsurePersonalWorkspaceInput{UserID: user.ID, Name: user.Name},
+			usecase.EnsurePersonalWorkspaceInput{UserID: u.ID, Name: u.Name},
 		); wsErr != nil {
-			slog.ErrorContext(c.Request.Context(), "ensure personal workspace failed (non-fatal)", "userID", user.ID, "err", wsErr)
+			slog.ErrorContext(c.Request.Context(), "ensure personal workspace failed (non-fatal)", "userID", u.ID, "err", wsErr)
 		}
 	}
 
-	return user, nil
+	return u, nil
 }

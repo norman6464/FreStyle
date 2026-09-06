@@ -29,13 +29,13 @@ func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 			persistence.NewTxManager(db),
 		)
 
-		user, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+		got, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
 			CognitoSub: "new-sub",
 			Email:      "new@example.com",
 			Name:       "新規ユーザー",
 		})
 		require.NoError(t, err)
-		require.NotNil(t, user)
+		require.NotNil(t, got)
 
 		created, err := users.FindByCognitoSub(ctx, "new-sub")
 		require.NoError(t, err)
@@ -62,15 +62,15 @@ func TestUpsertUserFromIDToken_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// 2 回目、name claim 付きで再度ログイン。
-		user, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
+		got, err := uc.Execute(ctx, usecase.UpsertUserFromIDTokenInput{
 			CognitoSub: "existing-sub",
 			Email:      "existing@example.com",
 			Name:       "後から付いた名前",
 		})
 		require.NoError(t, err)
-		require.NotNil(t, user)
+		require.NotNil(t, got)
 
-		got, err := users.FindByCognitoSub(ctx, "existing-sub")
+		got, err = users.FindByCognitoSub(ctx, "existing-sub")
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, "後から付いた名前", got.Name, "未編集（Name==Email）なら OIDC name で補完される")

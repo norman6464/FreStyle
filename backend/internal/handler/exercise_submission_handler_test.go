@@ -52,10 +52,10 @@ func (s *stubExecutorForHandlerTest) Execute(_ context.Context, in domain.CodeEx
 	return &domain.CodeExecutionResult{Stdout: s.stdout}, nil
 }
 
-func newSubmissionTestRouter(t *testing.T, exercise *domain.MasterExercise, examples []domain.MasterExerciseExample, executorOut string, listed []domain.ExerciseSubmission) (*gin.Engine, *fakeFullSubmissionRepo) {
+func newSubmissionTestRouter(t *testing.T, ex *domain.MasterExercise, examples []domain.MasterExerciseExample, executorOut string, listed []domain.ExerciseSubmission) (*gin.Engine, *fakeFullSubmissionRepo) {
 	t.Helper()
-	exRepo := &fakeMasterExerciseRepo{getResult: exercise}
-	exampleRepo := &fakeExampleRepo{byID: map[uint64][]domain.MasterExerciseExample{exercise.ID: examples}}
+	exRepo := &fakeMasterExerciseRepo{getResult: ex}
+	exampleRepo := &fakeExampleRepo{byID: map[uint64][]domain.MasterExerciseExample{ex.ID: examples}}
 	subRepo := &fakeFullSubmissionRepo{listed: listed}
 	executor := &stubExecutorForHandlerTest{stdout: executorOut}
 
@@ -76,11 +76,11 @@ func newSubmissionTestRouter(t *testing.T, exercise *domain.MasterExercise, exam
 
 func Test_演習提出ハンドラ_提出_成功(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	exercise := &domain.MasterExercise{ID: 7, Slug: "php-7"}
+	ex := &domain.MasterExercise{ID: 7, Slug: "php-7"}
 	examples := []domain.MasterExerciseExample{
 		{ID: 1, ExerciseID: 7, OrderIndex: 1, InputText: "", ExpectedOutput: "Hello"},
 	}
-	r, subRepo := newSubmissionTestRouter(t, exercise, examples, "Hello", nil)
+	r, subRepo := newSubmissionTestRouter(t, ex, examples, "Hello", nil)
 
 	body, _ := json.Marshal(map[string]string{"code": "<?php echo 'Hello';"})
 	req := httptest.NewRequest(http.MethodPost, "/exercises/php-7/submit", bytes.NewReader(body))
@@ -104,8 +104,8 @@ func Test_演習提出ハンドラ_提出_成功(t *testing.T) {
 
 func Test_演習提出ハンドラ_提出_未認証(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	exercise := &domain.MasterExercise{ID: 7, Slug: "php-7"}
-	r, _ := newSubmissionTestRouter(t, exercise, []domain.MasterExerciseExample{
+	ex := &domain.MasterExercise{ID: 7, Slug: "php-7"}
+	r, _ := newSubmissionTestRouter(t, ex, []domain.MasterExerciseExample{
 		{ExerciseID: 7, OrderIndex: 1, ExpectedOutput: ""},
 	}, "", nil)
 	// middleware で user_id をセットせずに呼ぶシナリオを再現するため新しい engine を作る。
@@ -117,7 +117,7 @@ func Test_演習提出ハンドラ_提出_未認証(t *testing.T) {
 	}
 	// 簡素化のため: 既存 r で `currentUserID` セット前に walk できないので
 	// 認可テストは別ルータを直接組み立てる。
-	exRepo := &fakeMasterExerciseRepo{getResult: exercise}
+	exRepo := &fakeMasterExerciseRepo{getResult: ex}
 	exampleRepo := &fakeExampleRepo{}
 	subRepo := &fakeFullSubmissionRepo{}
 	executor := &stubExecutorForHandlerTest{}
@@ -140,12 +140,12 @@ func Test_演習提出ハンドラ_提出_未認証(t *testing.T) {
 
 func Test_演習提出ハンドラ_一覧_成功(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	exercise := &domain.MasterExercise{ID: 7, Slug: "php-7"}
+	ex := &domain.MasterExercise{ID: 7, Slug: "php-7"}
 	listed := []domain.ExerciseSubmission{
 		{ID: 1, UserID: 101, ExerciseID: 7, ExerciseKind: domain.ExerciseKindMaster, IsCorrect: true},
 		{ID: 2, UserID: 101, ExerciseID: 7, ExerciseKind: domain.ExerciseKindMaster, IsCorrect: false},
 	}
-	r, subRepo := newSubmissionTestRouter(t, exercise, nil, "", listed)
+	r, subRepo := newSubmissionTestRouter(t, ex, nil, "", listed)
 
 	req := httptest.NewRequest(http.MethodGet, "/exercises/php-7/submissions", nil)
 	w := httptest.NewRecorder()

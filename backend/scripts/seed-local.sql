@@ -31,11 +31,12 @@ SELECT setseed(0.42);
 
 -- 規模の定義。ダミーデータの範囲を判別できるよう、ID は SEED_ID_BASE 以降に採番する
 -- (既存の実データや教材 seed と衝突させない。撤去もこの範囲だけ消せばよい)。
+-- courses / course_chapters は全廃済みのテーブルなので n_courses / chapters_per_course は
+-- 持たない(かつては courses / course_chapters / user_chapter_progress / user_chapter_views の
+-- 規模指定に使っていたが、いずれも現行 schema.hcl に存在しない)。
 CREATE TEMP TABLE _cfg AS
 SELECT
   CASE :'size' WHEN 'small' THEN 100 WHEN 'medium' THEN 1000 WHEN 'large' THEN 10000 END::int  AS n_users,
-  CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN   50 WHEN 'large' THEN   200 END::int  AS n_courses,
-  CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN   20 WHEN 'large' THEN    50 END::int  AS chapters_per_course,
   CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN  100 WHEN 'large' THEN   500 END::int  AS submissions_per_user,
   CASE :'size' WHEN 'small' THEN  30 WHEN 'medium' THEN  180 WHEN 'large' THEN   365 END::int  AS activity_days,
   1000000::bigint AS id_base;
@@ -52,7 +53,7 @@ BEGIN
 END $$;
 
 -- 規模の値を psql 変数へ取り込む(以降 :n_users のように埋め込んで使う)。
-SELECT n_users, n_courses, chapters_per_course, submissions_per_user, activity_days
+SELECT n_users, submissions_per_user, activity_days
   FROM _cfg \gset
 
 \echo '=== seed-local: size =' :'size' '/ users =' :n_users '/ submissions_per_user =' :submissions_per_user
@@ -63,23 +64,11 @@ BEGIN;
 DELETE FROM user_daily_activities
 WHERE user_id >= 1000000;
 
-DELETE FROM user_chapter_views
-WHERE user_id >= 1000000;
-
-DELETE FROM user_chapter_progress
-WHERE user_id >= 1000000;
-
 DELETE FROM exercise_submissions
 WHERE user_id >= 1000000;
 
 DELETE FROM profiles
 WHERE user_id >= 1000000;
-
-DELETE FROM course_chapters
-WHERE id >= 1000000;
-
-DELETE FROM courses
-WHERE id >= 1000000;
 
 DELETE FROM master_exercises
 WHERE id >= 1000000;
@@ -90,63 +79,78 @@ WHERE user_id >= 1000000;
 DELETE FROM users
 WHERE id >= 1000000;
 
--- 会社は起動時マイグレーションの seedCompanies が id=1 を入れている前提。無ければ作る。
--- 所属の正本は workspace_id なので、起動時バックフィルが会社 1 に用意したワークスペースを
--- 以降の INSERT で使う（バックフィル前に流すとワークスペース未紐付けになるため、
--- seed は必ずサーバーを 1 度起動したあとに流す）。
-INSERT INTO companies (id, name)
-SELECT 1, '株式会社FreStyle'
-WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id = 1);
-
--- ここで会社 1 にワークスペースが無いなら、上の INSERT で今まさに作った行か、バックフィル前の
--- DB のどちらか。そのまま進めると以降の users / courses / course_chapters が所属 NULL で入り、
--- company_id はもう無いので次回起動でも復元できない。黙って壊れた seed を作らず、ここで止める。
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM companies WHERE id = 1 AND workspace_id IS NOT NULL) THEN
-    RAISE EXCEPTION '会社 1 にワークスペースが紐付いていません。サーバーを 1 度起動してバックフィルを走らせてから seed を流してください。';
-  END IF;
-END $$;
-
 -- ---- users ----------------------------------------------------------------
--- 1% を company_admin にして権限分岐のあるクエリも実データで踏めるようにする。
--- ロールは role_id が正。OIDC subject は user_oidc_identities に持つ。
--- password_hash は全員 'password' の bcrypt（ローカルのパスワードログイン用）。
-INSERT INTO users (id, email, name, workspace_id, role_id, password_hash, is_active, created_at, updated_at)
+-- companies / roles テーブルは会社→ワークスペース移行のレガシー橋渡し撤去(#2413)で
+-- 全廃済みなので、もう company_id 経由で workspace_id を引けないし role_id 列自体も無い。
+-- 運営管理者かどうかは DB の列ではなく、ログイン時に発行される OIDC トークンの
+-- groups クレーム(OIDC_ROLES_CLAIM。config.go の AdminRoleClaim/AdminRole)に
+-- "admin" が入っているかで決まるため、ここでは判定材料を持たせようがない
+-- (かつ持たせる必要も無い)。workspace_id は所属先が無いので NULL のままにする
+-- (users.workspace_id は nullable)。
+-- password_hash も同じ理由で投入しない: パスワード検証はもう DB 側ではなく
+-- Dex(docker/idp/config.yaml の staticPasswords)側が持つ。列自体は残っているので
+-- INSERT の列リストから外し、NULL のまま(既定値は無い)にしている。
+INSERT INTO users (id, email, name, workspace_id, is_active, created_at, updated_at)
 SELECT
   1000000 + i,
   'seed' || i || '@example.test',
   'シード利用者' || i,
-  (SELECT workspace_id FROM companies WHERE id = 1),
-  (SELECT id
-   FROM roles
-   WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
-  '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm',
+  NULL,
   true,
   now() - (random() * 365)::int * interval '1 day',
   now()
 FROM generate_series(1, :n_users) AS i;
 
--- オフラインで管理画面まで触れるよう、運営管理者を 1 人入れる（admin@example.test / password）。
+-- オフラインで管理画面まで触れるよう、運営管理者を 1 人入れる
+-- (admin@example.test / password。Dex 側の docker/idp/config.yaml staticPasswords で認証する)。
 -- id 1000000 は連番（1000000 + i, i >= 1）と衝突しない。
-INSERT INTO users (id, email, name, workspace_id, role_id, password_hash, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, workspace_id, is_active, created_at, updated_at)
 VALUES (
-  1000000, 'admin@example.test', 'シード運営管理者', NULL,
-  (SELECT id
-   FROM roles
-   WHERE name = 'super_admin'),
-  '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm', true, now(), now()
+  1000000, 'admin@example.test', 'シード運営管理者', NULL, true, now(), now()
 );
 
--- OIDC identity（正規化後のログイン突き合わせの正）。seed の sub はダミーで、
--- Cognito ログインには使えないが、ローカルのパスワードログインが発行するトークンの sub になる。
--- 運営管理者（id 1000000）も含めて全 seed ユーザーに 1 対 1 で作る。
+-- OIDC identity（正規化後のログイン突き合わせの正）。
+--
+-- bulk の seed1..N@example.test には Dex 側に対応する staticPasswords が無く、実際には
+-- 誰もログインしない(exercise_submissions 等のダミーデータ量産のためだけに存在する)ので、
+-- subject はダミー文字列のままでよい。provider は "cognito" 固定
+-- (domain.OidcProviderCognito。歴史的な名残りで実際の発行者を指す値ではないが、
+-- FindByCognitoSub 等がこの文字列で照合するため、発行者を Dex に変えても値は変えない)。
 INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 SELECT 1000000 + i, 'cognito', 'seed-sub-' || i, now(), now()
 FROM generate_series(1, :n_users) AS i;
 
+-- 運営管理者(id 1000000)は実際に Dex でログインするため、Dex が本当に発行する sub と
+-- 一致させる必要がある。Dex の password connector が返す sub は、
+-- userID(docker/idp/config.yaml の staticPasswords[].userID)とコネクタ名の固定値
+-- "local" を internal.IDTokenSubject 相当の protobuf メッセージ
+-- (field 1 = userID, field 2 = connector id)に詰めて base64url(パディング無し)した値
+-- になる(公式ドキュメントには明記が無いため、実際に Dex が発行した id_token をデコードして
+-- 実測・確認済み)。以下は生の protobuf バイト列を手で組み立てて同じ値を再現している:
+--   \x0a <userID の長さ(1 byte)> <userID>  -- タグ 0x0a = field 1, wiretype 2(length-delimited)
+--   \x12 <"local" の長さ(1 byte)> local    -- タグ 0x12 = field 2, wiretype 2
+-- 長さを 1 byte(set_byte)で埋めているため、userID / "local" が 128 byte 未満
+-- (protobuf のごく短い varint 長が 1 byte に収まる範囲)であることが前提
+-- (このユースケースでは常に成立する)。
+-- 標準 base64 の '+' '/' を '-' '_' に translate し、'=' パディングを rtrim で落として
+-- base64url 化している。
+--
+-- ここで使う userID('seed-sub-admin')は docker/idp/config.yaml の
+-- staticPasswords[].userID と完全に一致させること。ずれると、Dex が発行する sub が
+-- ここに登録した subject と一致せず、ログイン時に「未知の sub」として
+-- 新規サインアップが走り、既に使われている admin@example.test で 409 email_taken になる。
 INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
-VALUES (1000000, 'cognito', 'seed-sub-admin', now(), now());
+SELECT
+  1000000,
+  'cognito',
+  rtrim(translate(encode(
+    '\x0a'::bytea || set_byte('\x00'::bytea, 0, octet_length(u)) || convert_to(u, 'UTF8') ||
+    '\x12'::bytea || set_byte('\x00'::bytea, 0, octet_length('local')) || convert_to('local', 'UTF8'),
+    'base64'
+  ), E'+/\n', '-_'), '='),
+  now(),
+  now()
+FROM (SELECT 'seed-sub-admin'::text AS u) AS dex_local_subject;
 
 INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
 SELECT 1000000 + i, 'シード用の自己紹介文です。', '', '学習中', now()
@@ -154,36 +158,6 @@ FROM generate_series(1, :n_users) AS i;
 
 INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
 VALUES (1000000, 'シード運営管理者です。', '', '運用中', now());
-
--- ---- courses / chapters ---------------------------------------------------
-INSERT INTO courses (id, workspace_id, created_by_user_id, title, description, category, language,
-                     sort_order, is_published, created_at, updated_at)
-SELECT
-  1000000 + c,
-  (SELECT workspace_id FROM companies WHERE id = 1),
-  1000000 + 1,
-  'シード講座 ' || c,
-  'ダミーの説明文。実教材は非公開リポが正本のためここでは扱わない。',
-  (ARRAY['programming','infrastructure','database','security'])[1 + (c % 4)],
-  (ARRAY['go','php','sql','bash'])[1 + (c % 4)],
-  c,
-  true,
-  now(), now()
-FROM generate_series(1, :n_courses) AS c;
-
-INSERT INTO course_chapters (id, workspace_id, course_id, created_by_user_id, title,
-                             sort_order, is_published, created_at, updated_at)
-SELECT
-  1000000 + ((c - 1) * :chapters_per_course + ch),
-  (SELECT workspace_id FROM companies WHERE id = 1),
-  1000000 + c,
-  1000000 + 1,
-  '第' || ch || '章',
-  ch,
-  true,
-  now(), now()
-FROM generate_series(1, :n_courses) AS c,
-     generate_series(1, :chapters_per_course) AS ch;
 
 -- ---- master_exercises -----------------------------------------------------
 INSERT INTO master_exercises (id, slug, language, sort_order, category, title, description,
@@ -230,41 +204,12 @@ FROM generate_series(1, :n_users) AS u,
      generate_series(1, :submissions_per_user) AS s;
 COMMIT;
 
--- ---- 学習の進捗 / 閲覧 / 日次集計 -------------------------------------------
--- ダッシュボードが読む 3 テーブル。各利用者が最初の 3 講座を進めている想定にする。
-\echo '=== 進捗 / 閲覧 / 日次集計を投入中 ...'
+-- ---- 学習の日次集計 ---------------------------------------------------------
+-- ダッシュボードが読むテーブル。course_chapters が全廃済みのため、かつてここにあった
+-- user_chapter_progress / user_chapter_views(講座の章単位の進捗・閲覧)への投入は
+-- 対象テーブルごと無くなっている。
+\echo '=== 日次集計を投入中 ...'
 BEGIN;
-INSERT INTO user_chapter_progress (user_id, chapter_id, course_id, completed_at, created_at)
-SELECT
-  1000000 + u,
-  1000000 + ((c - 1) * :chapters_per_course + ch),
-  1000000 + c,
-  now() - (random() * 180)::int * interval '1 day',
-  now()
-FROM generate_series(1, :n_users) AS u,
-     generate_series(1, LEAST(3, :n_courses)) AS c,
-     generate_series(1, :chapters_per_course) AS ch
-WHERE random() < 0.5
-ON CONFLICT DO NOTHING;
-
-INSERT INTO user_chapter_views (user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
-SELECT
-  1000000 + u,
-  1000000 + ((c - 1) * :chapters_per_course + ch),
-  1000000 + c,
-  v.first_viewed_at,
-  -- 初回閲覧から now() までの間で最終閲覧を決める。両者を独立に生成すると
-  -- last < first の行ができ、閲覧期間を扱う集計が壊れる。
-  v.first_viewed_at
-    + (random() * extract(epoch FROM now() - v.first_viewed_at))::int * interval '1 second',
-  1 + (random() * 9)::int
-FROM generate_series(1, :n_users) AS u,
-     generate_series(1, LEAST(3, :n_courses)) AS c,
-     generate_series(1, :chapters_per_course) AS ch,
-     LATERAL (SELECT now() - (random() * 180)::int * interval '1 day' AS first_viewed_at) AS v
-WHERE random() < 0.7
-ON CONFLICT DO NOTHING;
-
 INSERT INTO user_daily_activities (user_id, activity_date, exercise_count, correct_count,
                                    chapter_count, note_count)
 SELECT
@@ -286,9 +231,7 @@ COMMIT;
 -- ---- 統計の更新 ------------------------------------------------------------
 -- ANALYZE を忘れるとプランナが古い統計で判断し、実行計画の比較が無意味になる。
 \echo '=== ANALYZE 実行中 ...'
-ANALYZE users, profiles, courses, course_chapters, master_exercises,
-        exercise_submissions, user_chapter_progress, user_chapter_views,
-        user_daily_activities;
+ANALYZE users, profiles, master_exercises, exercise_submissions, user_daily_activities;
 
 -- 規模の受け渡しに使った一時テーブルは、この後の集計に混ざらないよう捨てる。
 DROP TABLE _cfg;

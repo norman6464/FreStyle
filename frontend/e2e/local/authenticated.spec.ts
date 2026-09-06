@@ -48,7 +48,7 @@ test.describe('認証ガード', () => {
       })
     );
 
-    await page.goto('/notes');
+    await page.goto('/kb');
 
     await expect(page).toHaveURL(/\/login/);
   });
@@ -67,11 +67,11 @@ test.describe('認証ガード', () => {
 });
 
 test.describe('認証済み導線（ログイン後の主要画面）', () => {
-  test('ノート画面はログインに飛ばされず描画される', async ({ page }) => {
+  test('ナレッジ画面はログインに飛ばされず描画される', async ({ page }) => {
     await mockAuthenticated(page);
-    await page.goto('/notes');
+    await page.goto('/kb');
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page).toHaveURL(/\/notes/);
+    await expect(page).toHaveURL(/\/kb/);
   });
 
   test('AI チャット画面はログインに飛ばされず描画される', async ({ page }) => {
@@ -89,12 +89,12 @@ test.describe('認証済み導線（ログイン後の主要画面）', () => {
   });
 });
 
-test.describe('ノート作成導線（POST モック）', () => {
+test.describe('ナレッジ作成導線（POST モック）', () => {
   test('所属が無ければワークスペース作成フォームが出て、名前だけで作れる', async ({ page }) => {
     await mockAuthenticated(page);
 
     let postBody: unknown = null;
-    // /notes はナレッジ基盤（/api/v2/kb/…）ベース。所属一覧が空 → 作成フォーム表示 →
+    // /kb はナレッジ基盤（/api/v2/kb/…）ベース。所属一覧が空 → 作成フォーム表示 →
     // POST /kb/workspaces（名前のみ。slug はサーバーが自動採番）という導線を検証する。
     // mockAuthenticated の後に登録するためこの handler が優先される。
     await page.route('**/api/v2/kb/workspaces', (route) => {
@@ -114,11 +114,11 @@ test.describe('ノート作成導線（POST モック）', () => {
       return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     });
 
-    await page.goto('/notes');
-    await expect(page).toHaveURL(/\/notes/);
+    await page.goto('/kb');
+    await expect(page).toHaveURL(/\/kb/);
 
     // SecondaryPanel はモバイル用・デスクトップ用の DOM を両方持ち、CSS で表示を
-    // 切り替える（NoteSidebar もその分だけ複製される）。Desktop Chrome では
+    // 切り替える（KbSidebar もその分だけ複製される）。Desktop Chrome では
     // デスクトップ側だけが見えるが、ロケータ自体は両方に一致するため visible な
     // 方だけに絞る（絞らないと strict mode 違反で落ちる）。
     const visible = page.locator(':visible');
@@ -184,7 +184,7 @@ test.describe('スペース追加導線（POST モック）', () => {
       });
     });
 
-    await page.goto('/notes');
+    await page.goto('/kb');
     // 見出し・行の＋・⋯ が同名を含むので exact で見出しだけを掴む。
     await expect(page.getByRole('button', { name: 'バックエンド定例', exact: true })).toBeVisible();
 

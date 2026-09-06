@@ -39,7 +39,7 @@ type Config struct {
 
 // S3Config は profile / リッチテキスト画像 upload の presign 発行に必要な設定。
 type S3Config struct {
-	Region           string
+	Region       string
 	ImagesBucket string
 }
 
@@ -129,7 +129,7 @@ func Load() (*Config, error) {
 			AdminRole:      getEnvOrDefault("OIDC_ADMIN_ROLE", "admin"),
 		},
 		S3: S3Config{
-			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			Region:       getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
 			ImagesBucket: os.Getenv("IMAGES_BUCKET"),
 		},
 		SES: SESConfig{

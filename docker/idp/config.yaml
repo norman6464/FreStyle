@@ -27,7 +27,7 @@ staticClients:
       - http://localhost:5173/login/callback
 
 staticPasswords:
-  - email: "admin@example.test"
+  - email: "admin@example.com"
     # bcrypt('password')。backend/scripts/seed-local.sql の管理者ユーザーと同じ資格情報。
     # python:3-alpine の bcrypt で実際に生成し直したハッシュ(docker run --rm python:3-alpine
     # sh -c "pip install bcrypt -q; python3 -c \"import bcrypt; print(bcrypt.hashpw(b'password', bcrypt.gensalt(10)).decode())\"")。

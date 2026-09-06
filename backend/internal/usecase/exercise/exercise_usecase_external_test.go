@@ -1,4 +1,4 @@
-package usecase_test
+package exercise_test
 
 import (
 	"context"
@@ -6,11 +6,72 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/exercise"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeCodeRunner は CodeRunner を満たすテスト用 fake。
+type fakeCodeRunner struct {
+	gotInput  domain.CodeExecutionInput
+	gotWarmup string
+	result    *domain.CodeExecutionResult
+	runErr    error
+	warmupErr error
+}
+
+func (f *fakeCodeRunner) Run(_ context.Context, in domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	f.gotInput = in
+	if f.runErr != nil {
+		return nil, f.runErr
+	}
+	return f.result, nil
+}
+
+func (f *fakeCodeRunner) Warmup(_ context.Context, language string) error {
+	f.gotWarmup = language
+	return f.warmupErr
+}
+
+func Test_コード実行_ランナーへ委譲(t *testing.T) {
+	fake := &fakeCodeRunner{result: &domain.CodeExecutionResult{Stdout: "ok", ExitCode: 0}}
+	uc := exercise.NewExecuteCodeUseCase(fake)
+
+	out, err := uc.Execute(context.Background(), domain.CodeExecutionInput{
+		Code:     `<?php echo "ok";`,
+		Language: "php",
+		Stdin:    "x",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "ok", out.Stdout)
+	// 入力がそのまま runner に渡る。
+	assert.Equal(t, "php", fake.gotInput.Language)
+	assert.Equal(t, "x", fake.gotInput.Stdin)
+}
+
+func Test_コード実行_ランナーエラーを伝播(t *testing.T) {
+	fake := &fakeCodeRunner{runErr: errors.New("boom")}
+	uc := exercise.NewExecuteCodeUseCase(fake)
+
+	_, err := uc.Execute(context.Background(), domain.CodeExecutionInput{Language: "go"})
+	assert.Error(t, err)
+}
+
+func Test_コードウォームアップ_言語を委譲(t *testing.T) {
+	fake := &fakeCodeRunner{}
+	uc := exercise.NewWarmupCodeUseCase(fake)
+
+	require.NoError(t, uc.Execute(context.Background(), "go"))
+	assert.Equal(t, "go", fake.gotWarmup)
+}
+
+func Test_コードウォームアップ_エラーを伝播(t *testing.T) {
+	fake := &fakeCodeRunner{warmupErr: errors.New("warm failed")}
+	uc := exercise.NewWarmupCodeUseCase(fake)
+
+	assert.Error(t, uc.Execute(context.Background(), "go"))
+}
 
 // fakeMasterExerciseRepo は SubmitMasterExerciseUseCase テスト用のスタブ。
 type fakeMasterExerciseRepo struct {
@@ -114,8 +175,8 @@ func Test_演習提出_全テスト成功(t *testing.T) {
 		"x": "x",
 	}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "php-7", Code: "<?php echo 'Hello';",
 	})
 	require.NoError(t, err)
@@ -148,8 +209,8 @@ func Test_演習提出_一部失敗(t *testing.T) {
 		"2": "2",
 	}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "php-7", Code: "<?php",
 	})
 	require.NoError(t, err)
@@ -175,8 +236,8 @@ func Test_演習提出_出力を正規化(t *testing.T) {
 	// 末尾に \r\n を含めても normalize で吸収される。
 	executor := &fakeExecutor{stdinToOut: map[string]string{"": "42\r\n"}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "s", Code: "<?php",
 	})
 	require.NoError(t, err)
@@ -196,8 +257,8 @@ func Test_演習提出_非ゼロ終了は失敗(t *testing.T) {
 		failExit:   map[string]int{"": 1},
 	}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "s", Code: "<?php",
 	})
 	require.NoError(t, err)
@@ -219,8 +280,8 @@ func Test_演習提出_例なしは期待出力にフォールバック(t *testi
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{stdinToOut: map[string]string{"": "Hello, Linux!\n"}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "linux-1", Code: `echo "Hello, Linux!"`,
 	})
 	require.NoError(t, err)
@@ -243,8 +304,8 @@ func Test_演習提出_演習の言語を渡す(t *testing.T) {
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{stdinToOut: map[string]string{"": "Hello, Go!\n"}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
-	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	_, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "go-1", Code: "package main",
 	})
 	require.NoError(t, err)
@@ -263,8 +324,8 @@ func Test_演習提出_QA_正解(t *testing.T) {
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "docker-1", Code: "docker run hello-world",
 	})
 	require.NoError(t, err)
@@ -288,8 +349,8 @@ func Test_演習提出_QA_不正解(t *testing.T) {
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "docker-1", Code: "docker run nginx",
 	})
 	require.NoError(t, err)
@@ -308,8 +369,8 @@ func Test_演習提出_QA_末尾空白を正規化(t *testing.T) {
 		},
 	}
 	submissions := &fakeSubmissionRepo{}
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, &fakeExecutor{})
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, &fakeExecutor{})
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "docker-1", Code: "git init   \n",
 	})
 	require.NoError(t, err)
@@ -318,24 +379,24 @@ func Test_演習提出_QA_末尾空白を正規化(t *testing.T) {
 
 func Test_演習提出_演習が見つからない(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{err: errors.New("record not found")}
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
-	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
+	_, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "missing", Code: "<?php",
 	})
 	require.Error(t, err)
 }
 
 func Test_演習提出_入力が必須(t *testing.T) {
-	uc := usecase.NewSubmitMasterExerciseUseCase(&fakeMasterExerciseRepo{}, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
-	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(&fakeMasterExerciseRepo{}, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
+	_, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 0, Slug: "s", Code: "x",
 	})
 	require.Error(t, err)
-	_, err = uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	_, err = uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "", Code: "x",
 	})
 	require.Error(t, err)
-	_, err = uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	_, err = uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "s", Code: "  ",
 	})
 	require.Error(t, err)
@@ -349,8 +410,8 @@ func Test_演習提出_previewモードは実行せずセルフチェック完�
 	// executor が呼ばれたら失敗にする(preview はサーバー実行しないことの検証)。
 	executor := &fakeExecutor{stdinToOut: map[string]string{}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
-	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+	uc := exercise.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	out, err := uc.Execute(context.Background(), exercise.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "html-1", Code: "<h1>HELLO WORLD</h1>",
 	})
 	require.NoError(t, err)

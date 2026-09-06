@@ -1,4 +1,4 @@
-package usecase
+package exercise
 
 import (
 	"context"
@@ -9,6 +9,179 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
+
+// CodeRunner は php / go / bash のコード実行とウォームアップを抽象化する port。
+// in-process 実装（infra/sandbox.Runner）か HTTP クライアント（infra/coderunner.Client）を
+// router が CODE_RUNNER_URL の有無で注入する。テストでは fake を差し替える。
+type CodeRunner interface {
+	Run(ctx context.Context, in domain.CodeExecutionInput) (*domain.CodeExecutionResult, error)
+	Warmup(ctx context.Context, language string) error
+}
+
+// ExecuteCodeUseCase は学習者コードをサンドボックスで実行する。実行自体は CodeRunner に委譲し、
+// usecase は実行系（in-process / sidecar）に依存しない。
+type ExecuteCodeUseCase struct {
+	runner CodeRunner
+}
+
+// NewExecuteCodeUseCase は CodeRunner を注入して ExecuteCodeUseCase を返す。
+func NewExecuteCodeUseCase(runner CodeRunner) *ExecuteCodeUseCase {
+	return &ExecuteCodeUseCase{runner: runner}
+}
+
+// Execute は入力コードを CodeRunner で実行し結果を返す。
+func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, in domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	return uc.runner.Run(ctx, in)
+}
+
+// WarmupCodeUseCase は指定言語の実行環境を事前に温める。学習者がコードエディタ
+// （演習詳細）ページに入った時点で呼び、最初の Run を即時化する用途。
+type WarmupCodeUseCase struct {
+	runner CodeRunner
+}
+
+// NewWarmupCodeUseCase は CodeRunner を注入して WarmupCodeUseCase を返す。
+func NewWarmupCodeUseCase(runner CodeRunner) *WarmupCodeUseCase {
+	return &WarmupCodeUseCase{runner: runner}
+}
+
+// Execute は language の実行環境を温める（Go はコンパイルキャッシュ、php/bash は no-op）。
+func (uc *WarmupCodeUseCase) Execute(ctx context.Context, language string) error {
+	return uc.runner.Warmup(ctx, language)
+}
+
+type GetExerciseLanguageSummaryUseCase struct {
+	exercises repository.MasterExerciseRepository
+}
+
+// NewGetExerciseLanguageSummaryUseCase は GetExerciseLanguageSummaryUseCase を生成する。
+func NewGetExerciseLanguageSummaryUseCase(exercises repository.MasterExerciseRepository) *GetExerciseLanguageSummaryUseCase {
+	return &GetExerciseLanguageSummaryUseCase{exercises: exercises}
+}
+
+// Execute は言語別の集計を返す。userID=0（未ログイン）は solved が 0 になる。
+func (u *GetExerciseLanguageSummaryUseCase) Execute(ctx context.Context, userID uint64) ([]repository.ExerciseLanguageSummary, error) {
+	return u.exercises.SummaryByLanguage(ctx, userID)
+}
+
+// GetMasterExerciseDetailOutput は詳細ページに渡す問題本体 + 入出力例セット。
+type GetMasterExerciseDetailOutput struct {
+	Exercise *domain.MasterExercise         `json:"exercise"`
+	Examples []domain.MasterExerciseExample `json:"examples"`
+}
+
+// GetMasterExerciseUseCase は slug 指定で運営マスタ演習 + 入出力例を返す（ID 指定は Execute で互換維持）。
+type GetMasterExerciseUseCase struct {
+	repo     repository.MasterExerciseRepository
+	examples repository.MasterExerciseExampleRepository
+}
+
+func NewGetMasterExerciseUseCase(
+	repo repository.MasterExerciseRepository,
+	examples repository.MasterExerciseExampleRepository,
+) *GetMasterExerciseUseCase {
+	return &GetMasterExerciseUseCase{repo: repo, examples: examples}
+}
+
+// Execute は ID 指定で取得する旧 API 互換。 examples は付かない。
+func (uc *GetMasterExerciseUseCase) Execute(ctx context.Context, id uint64) (*domain.MasterExercise, error) {
+	return uc.repo.GetByID(ctx, id)
+}
+
+// ExecuteBySlug は slug ベースの詳細ページ向けに examples を含めて返す。
+// NotFound は handler で 404 に分岐できるようそのまま伝搬し、ex == nil は defensive に弾く。
+func (uc *GetMasterExerciseUseCase) ExecuteBySlug(ctx context.Context, slug string) (*GetMasterExerciseDetailOutput, error) {
+	ex, err := uc.repo.GetBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	if ex == nil {
+		return nil, fmt.Errorf("exercise not found: %s", slug)
+	}
+	examples, err := uc.examples.ListByExerciseID(ctx, ex.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &GetMasterExerciseDetailOutput{Exercise: ex, Examples: examples}, nil
+}
+
+// ListMasterExercisesUseCase は指定言語の運営マスタ演習問題一覧を返す。
+type ListMasterExercisesUseCase struct {
+	repo repository.MasterExerciseRepository
+}
+
+func NewListMasterExercisesUseCase(repo repository.MasterExerciseRepository) *ListMasterExercisesUseCase {
+	return &ListMasterExercisesUseCase{repo: repo}
+}
+
+// Execute は language 指定があれば該当言語のみ、空文字なら全言語の問題を返す。
+func (uc *ListMasterExercisesUseCase) Execute(ctx context.Context, language string) ([]domain.MasterExercise, error) {
+	return uc.repo.ListByLanguage(ctx, language)
+}
+
+// MasterExerciseWithStatus は read model（repository 定義）を handler / OpenAPI 向けに再エクスポートした別名。
+// 正準型は repository パッケージにあり、persistence はそちらを返す（層境界のため）。
+type MasterExerciseWithStatus = repository.MasterExerciseWithStatus
+
+// ListMasterExercisesWithStatusUseCase は問題一覧 + 各問題の current user 状態 + 集計を返す。
+// 取得は repository が 1 クエリ（master_exercises ⟕ exercise_submissions 集計）で行い、N+1 / 多段往復を避ける。
+type ListMasterExercisesWithStatusUseCase struct {
+	exercises repository.MasterExerciseRepository
+}
+
+func NewListMasterExercisesWithStatusUseCase(
+	exercises repository.MasterExerciseRepository,
+) *ListMasterExercisesWithStatusUseCase {
+	return &ListMasterExercisesWithStatusUseCase{exercises: exercises}
+}
+
+// ListMasterExercisesWithStatusInput は入力。 UserID=0 は未ログイン扱いで status は全部 ""。
+// Offset/Limit はスクロール型ページネーション用。Limit=0 は全件取得。
+type ListMasterExercisesWithStatusInput struct {
+	UserID   uint64
+	Language string
+	Offset   int
+	Limit    int
+}
+
+func (uc *ListMasterExercisesWithStatusUseCase) Execute(ctx context.Context, in ListMasterExercisesWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
+	return uc.exercises.ListWithStatusByLanguage(ctx, repository.ListWithStatusInput{
+		UserID:   in.UserID,
+		Language: in.Language,
+		Offset:   in.Offset,
+		Limit:    in.Limit,
+	})
+}
+
+// ListUserMasterSubmissionsInput は履歴一覧 API への入力。
+type ListUserMasterSubmissionsInput struct {
+	UserID uint64
+	Slug   string
+}
+
+// ListUserMasterSubmissionsUseCase は current user の指定問題に対する提出履歴を新しい順で返す。
+type ListUserMasterSubmissionsUseCase struct {
+	exercises   repository.MasterExerciseRepository
+	submissions repository.ExerciseSubmissionRepository
+}
+
+func NewListUserMasterSubmissionsUseCase(
+	exercises repository.MasterExerciseRepository,
+	submissions repository.ExerciseSubmissionRepository,
+) *ListUserMasterSubmissionsUseCase {
+	return &ListUserMasterSubmissionsUseCase{exercises: exercises, submissions: submissions}
+}
+
+func (uc *ListUserMasterSubmissionsUseCase) Execute(ctx context.Context, in ListUserMasterSubmissionsInput) ([]domain.ExerciseSubmission, error) {
+	ex, err := uc.exercises.GetBySlug(ctx, in.Slug)
+	if err != nil {
+		return nil, err
+	}
+	if ex == nil {
+		return nil, fmt.Errorf("exercise not found: %s", in.Slug)
+	}
+	return uc.submissions.ListByUserAndExercise(ctx, in.UserID, ex.ID, domain.ExerciseKindMaster)
+}
 
 // CodeExecutor は ExecuteCodeUseCase を抽象化し、usecase 同士の直接依存を避ける。
 type CodeExecutor interface {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/exercise"
 )
 
 // fakeFullSubmissionRepo は提出ハンドラの統合テスト用フェイク。
@@ -60,8 +60,8 @@ func newSubmissionTestRouter(t *testing.T, ex *domain.MasterExercise, examples [
 	executor := &stubExecutorForHandlerTest{stdout: executorOut}
 
 	h := NewExerciseSubmissionHandler(
-		usecase.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor),
-		usecase.NewListUserMasterSubmissionsUseCase(exRepo, subRepo),
+		exercise.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor),
+		exercise.NewListUserMasterSubmissionsUseCase(exRepo, subRepo),
 	)
 	r := gin.New()
 	// テスト用に固定 user_id を context にセットしてから handler を呼ぶ。
@@ -122,8 +122,8 @@ func Test_演習提出ハンドラ_提出_未認証(t *testing.T) {
 	subRepo := &fakeFullSubmissionRepo{}
 	executor := &stubExecutorForHandlerTest{}
 	h := NewExerciseSubmissionHandler(
-		usecase.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor),
-		usecase.NewListUserMasterSubmissionsUseCase(exRepo, subRepo),
+		exercise.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor),
+		exercise.NewListUserMasterSubmissionsUseCase(exRepo, subRepo),
 	)
 	r2.POST("/exercises/:slug/submit", h.Submit)
 

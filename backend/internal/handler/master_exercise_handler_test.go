@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/exercise"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -88,10 +88,10 @@ func newMasterExerciseTestHandler(repo *fakeMasterExerciseRepo, examples *fakeEx
 		examples = &fakeExampleRepo{}
 	}
 	h := NewMasterExerciseHandler(
-		usecase.NewListMasterExercisesUseCase(repo),
-		usecase.NewListMasterExercisesWithStatusUseCase(repo),
-		usecase.NewGetMasterExerciseUseCase(repo, examples),
-		usecase.NewGetExerciseLanguageSummaryUseCase(repo),
+		exercise.NewListMasterExercisesUseCase(repo),
+		exercise.NewListMasterExercisesWithStatusUseCase(repo),
+		exercise.NewGetMasterExerciseUseCase(repo, examples),
+		exercise.NewGetExerciseLanguageSummaryUseCase(repo),
 	)
 	r := gin.New()
 	r.GET("/exercises", h.List)

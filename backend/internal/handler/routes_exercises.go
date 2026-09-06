@@ -5,7 +5,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/infra/coderunner"
 	"github.com/norman6464/FreStyle/backend/internal/infra/sandbox"
-	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/exercise"
 )
 
 // registerExerciseRoutes は運営マスタ演習問題の閲覧 + 提出 + 採点 + コード実行 API を登録する。
@@ -17,14 +17,14 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	// CODE_RUNNER_URL がセットされていれば別コンテナ（サイドカー）の code-runner へ HTTP 委譲、
 	// 未設定なら同プロセス内でサンドボックス実行する（ローカル / 単一イメージ運用）。
 	runner := codeRunner(deps.cfg.CodeRunnerURL)
-	executor := usecase.NewExecuteCodeUseCase(runner)
-	warmup := usecase.NewWarmupCodeUseCase(runner)
+	executor := exercise.NewExecuteCodeUseCase(runner)
+	warmup := exercise.NewWarmupCodeUseCase(runner)
 
 	exerciseHandler := NewMasterExerciseHandler(
-		usecase.NewListMasterExercisesUseCase(exerciseRepo),
-		usecase.NewListMasterExercisesWithStatusUseCase(exerciseRepo),
-		usecase.NewGetMasterExerciseUseCase(exerciseRepo, examplesRepo),
-		usecase.NewGetExerciseLanguageSummaryUseCase(exerciseRepo),
+		exercise.NewListMasterExercisesUseCase(exerciseRepo),
+		exercise.NewListMasterExercisesWithStatusUseCase(exerciseRepo),
+		exercise.NewGetMasterExerciseUseCase(exerciseRepo, examplesRepo),
+		exercise.NewGetExerciseLanguageSummaryUseCase(exerciseRepo),
 	)
 	g.GET("/exercises", exerciseHandler.List)
 	// 静的セグメントは :slug より優先して解決される（gin v1.12 で動作確認済）。
@@ -32,8 +32,8 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.GET("/exercises/:slug", exerciseHandler.GetBySlug)
 
 	submissionHandler := NewExerciseSubmissionHandler(
-		usecase.NewSubmitMasterExerciseUseCase(exerciseRepo, examplesRepo, submissionsRepo, executor),
-		usecase.NewListUserMasterSubmissionsUseCase(exerciseRepo, submissionsRepo),
+		exercise.NewSubmitMasterExerciseUseCase(exerciseRepo, examplesRepo, submissionsRepo, executor),
+		exercise.NewListUserMasterSubmissionsUseCase(exerciseRepo, submissionsRepo),
 	)
 	g.POST("/exercises/:slug/submit", submissionHandler.Submit)
 	g.GET("/exercises/:slug/submissions", submissionHandler.List)
@@ -44,7 +44,7 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 }
 
 // codeRunner は CODE_RUNNER_URL の有無で実行系（HTTP サイドカー / in-process）を選ぶ。
-func codeRunner(url string) usecase.CodeRunner {
+func codeRunner(url string) exercise.CodeRunner {
 	if url != "" {
 		return coderunner.NewClient(url)
 	}

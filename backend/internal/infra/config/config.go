@@ -37,10 +37,10 @@ type Config struct {
 	SMTP SMTPConfig
 }
 
-// S3Config は profile / note 画像 upload の presign 発行に必要な設定。
+// S3Config は profile / リッチテキスト画像 upload の presign 発行に必要な設定。
 type S3Config struct {
 	Region           string
-	NoteImagesBucket string
+	ImagesBucket string
 }
 
 // SESConfig は招待マジックリンクメール送信用の SES v2 設定。
@@ -130,7 +130,7 @@ func Load() (*Config, error) {
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			NoteImagesBucket: os.Getenv("NOTE_IMAGES_BUCKET"),
+			ImagesBucket: os.Getenv("IMAGES_BUCKET"),
 		},
 		SES: SESConfig{
 			Region:      getEnvOrDefault("SES_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),

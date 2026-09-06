@@ -10,12 +10,12 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-type NoteImageHandler struct {
-	issue *usecase.IssueNoteImageUploadURLUseCase
+type RichTextImageHandler struct {
+	issue *usecase.IssueRichTextImageUploadURLUseCase
 }
 
-func NewNoteImageHandler(i *usecase.IssueNoteImageUploadURLUseCase) *NoteImageHandler {
-	return &NoteImageHandler{issue: i}
+func NewRichTextImageHandler(i *usecase.IssueRichTextImageUploadURLUseCase) *RichTextImageHandler {
+	return &RichTextImageHandler{issue: i}
 }
 
 // issueUploadURLReq は body 受け取り。userId は受け取らず middleware の current user を使う（IDOR 対策）。
@@ -23,7 +23,7 @@ type issueUploadURLReq struct {
 	ContentType string `json:"contentType"`
 }
 
-func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
+func (h *RichTextImageHandler) IssueUploadURL(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})

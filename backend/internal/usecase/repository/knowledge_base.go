@@ -12,7 +12,7 @@ import (
 var ErrWorkspaceNotFound = errors.New("workspace not found")
 
 // ErrWorkspaceHasMembers は所属している人がいるワークスペースを消そうとしたときに返す。
-// そこには全員のノートが入るので、1 人の操作で消せてよいはずがない。
+// そこには全員のナレッジが入るので、1 人の操作で消せてよいはずがない。
 var ErrWorkspaceHasMembers = errors.New("workspace still has members")
 
 // ErrSpaceNotFound は対象スペースが存在しない（または別ワークスペースのもの）ときに返す。
@@ -68,7 +68,7 @@ type BlockWrite struct {
 	Inline *string
 }
 
-// KnowledgeBaseRepository はノート（workspaces / spaces / pages / blocks /
+// KnowledgeBaseRepository はナレッジ（workspaces / spaces / pages / blocks /
 // page_paths / page_snapshots）へのアクセスを提供する。
 //
 // 1 boundary = 1 fat interface（§2.6）。ページ・ブロック・closure・snapshot は

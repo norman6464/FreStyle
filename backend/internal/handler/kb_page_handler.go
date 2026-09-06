@@ -14,7 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// KnowledgeBasePageHandler はノートのページ操作を受ける。
+// KnowledgeBasePageHandler はナレッジのページ操作を受ける。
 //
 // ワークスペースはリクエストからは受け取らず、middleware.KnowledgeBaseWorkspace が
 // URL の slug と principals から確定させたものを context から取る。

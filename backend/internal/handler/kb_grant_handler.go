@@ -9,7 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// KnowledgeBaseGrantHandler はノートの「既定の権限（grant）」の読み書きを受ける。
+// KnowledgeBaseGrantHandler はナレッジの「既定の権限（grant）」の読み書きを受ける。
 //
 // 認可はすべて kbPermissionGate が持つ（このファイルには判定規則を書かない）。
 // なぜ handler 側で判定するのか / なぜ super_admin を特別扱いしないのか /
@@ -121,7 +121,7 @@ type kbGrantRoleRequest struct {
 //
 // # なぜ剥がせなくしたか
 //
-// ノートの権限は principals / grants だけで閉じていて、
+// ナレッジの権限は principals / grants だけで閉じていて、
 // アプリの super_admin による救済経路を意図的に持たない。ワークスペースの admin が
 // 0 人になると、そこから先は権限を張り直す手段が API に存在せず、
 // DB を直接触る以外に復旧できない。

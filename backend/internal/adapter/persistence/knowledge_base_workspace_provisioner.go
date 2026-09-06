@@ -11,7 +11,7 @@ import (
 )
 
 // workspaceProvisioner は [repository.WorkspaceProvisioner] の実装。
-// ノートは GORM を通さないので、sqlc 生成コード + 素の *sql.DB で書く。
+// ナレッジは GORM を通さないので、sqlc 生成コード + 素の *sql.DB で書く。
 type workspaceProvisioner struct {
 	baseRepository
 }

@@ -20,7 +20,7 @@ var ErrUserNotFound = errors.New("user not found")
 
 // ErrLastWorkspaceAdmin は「ユーザーの admin が 1 人も残らなくなる操作」を断ったときに返す。
 //
-// ノートの権限は principals / grants だけで閉じており、
+// ナレッジの権限は principals / grants だけで閉じており、
 // 「アプリの super_admin なら通る」という抜け道を意図的に持たない（domain/grant.go）。
 // その裏返しとして、ワークスペースの admin が 0 人になった瞬間、そのワークスペースの
 // 権限を変えられる人は API のどこにも居なくなる。**元 admin を含めて誰も復旧できず、
@@ -81,7 +81,7 @@ type SpaceWithScopeFacts struct {
 	Facts domain.ScopeFacts
 }
 
-// KnowledgeBasePermissionRepository はノートの権限モデル（principals /
+// KnowledgeBasePermissionRepository はナレッジの権限モデル（principals /
 // principal_members / workspace_grants / space_grants / page_grants）への
 // アクセスを提供する（share_links は [ShareLinkRepository] が持つ）。
 //
@@ -118,7 +118,7 @@ type KnowledgeBasePermissionRepository interface {
 	// ListMemberWorkspaces はそのユーザーが所属するワークスペースと、そこでの CanManage
 	// （DeleteWorkspace が要求する admin 権限と同じ）を返す（slug 順）。
 	// 所属は principals（kind='user'）の行が唯一の表現なので、その JOIN がそのまま答えになる。
-	// ノートで唯一テナントを跨いで読むメソッド（どのテナントに入れるかを答える口）で、
+	// ナレッジで唯一テナントを跨いで読むメソッド（どのテナントに入れるかを答える口）で、
 	// 絞り込みは user_id だけが行う。
 	ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error)
 

@@ -15,7 +15,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// KnowledgeBaseWorkspaceHandler はノートのワークスペース / スペースの操作を受ける。
+// KnowledgeBaseWorkspaceHandler はナレッジのワークスペース / スペースの操作を受ける。
 //
 // ページ操作（KnowledgeBasePageHandler）と分けているのは、テナントの確定の仕方が違うため。
 // 一覧と作成は URL に slug を持たず middleware.KnowledgeBaseWorkspace を通れない
@@ -102,7 +102,7 @@ func (h *KnowledgeBaseWorkspaceHandler) List(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	// 会社のワークスペースへは自動で入る。一覧はノートに入る最初の口なので、
+	// 会社のワークスペースへは自動で入る。一覧はナレッジに入る最初の口なので、
 	// ここで所属を用意しておけば以降の経路（木・ページ・検索）は既存のままで通る。
 	//
 	// 会社に属さないユーザー（運営管理者など）は入れる先が無いだけなので、
@@ -217,13 +217,13 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 //
 // 判定は repository（さらに SQL の WHERE）が持つ。認可と違って**誰であっても消しては
 // いけない**ものなので、入口ではなく最も内側で守る。会社のワークスペースには全員の
-// ノートが入るうえ、消しても起動時のバックフィルが作り直すため、中身だけが消えた
+// ナレッジが入るうえ、消しても起動時のバックフィルが作り直すため、中身だけが消えた
 // 空のワークスペースが残る。
 //
 // # 消えるもの
 //
 // 配下のスペース・ページ・本文・所属・権限・共有リンクがすべて消える（FK の CASCADE）。
-// ユーザー（users）は消えない — ノートの片付けで人を消さない。
+// ユーザー（users）は消えない — ナレッジの片付けで人を消さない。
 func (h *KnowledgeBaseWorkspaceHandler) Delete(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

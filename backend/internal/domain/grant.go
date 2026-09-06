@@ -5,7 +5,7 @@ import "time"
 // GrantRole は grant（既定の権限）で与える役割。workspace_grants と space_grants が共有する。
 //
 // 「この入れ物（ワークスペース / スペース）で何ができるか」を入れ物ごとに持つ、
-// グローバルなロールとは独立した権限モデル。ノートの権限は principals / grants だけで
+// グローバルなロールとは独立した権限モデル。ナレッジの権限は principals / grants だけで
 // 閉じており、「特権ロールなら全部見える」という抜け道は解決ロジックに持たせない。
 type GrantRole string
 

@@ -2,6 +2,7 @@ import axios from 'axios';
 import apiClient from '@/shared/api/axios';
 import { toArray } from '@/shared/lib/toArray';
 import { KB_API } from '@/shared/config/apiRoutes';
+import type { CommentAnchor } from '@/shared/ui/RichTextEditor';
 import type {
   KbComment,
   KbCommentThread,
@@ -51,6 +52,13 @@ function normalizeCommentThread(raw: KbCommentThreadWire): KbCommentThread {
     resolvedAt: raw.resolvedAt ?? null,
     resolvedBy: raw.resolvedBy ?? null,
     comments: toArray<KbComment>(raw.comments),
+    // 錨付きコメントだけが持つ4つ。page-level のスレッドは応答にキー自体が無く、
+    // raw.blockId 等は undefined になる（そのまま undefined を渡してよい —
+    // KbCommentThread 側も任意フィールドとして定義してある）。
+    blockId: raw.blockId,
+    anchorFrom: raw.anchorFrom,
+    anchorTo: raw.anchorTo,
+    quote: raw.quote,
   };
 }
 
@@ -435,15 +443,28 @@ const KbRepository = {
   /**
    * 新しいコメントスレッドを作る。body は ProseMirror のインラインノードの配列。
    * 作成した最初の 1 件を含むスレッドが返る。コメント権限が要る。**失敗は例外として投げる。**
+   *
+   * anchor を渡すと「錨付きコメント」（本文の特定ブロック・文字範囲へのコメント）になる。
+   * 渡さなければ従来通り page-level（ページ全体へのコメント）。4 つのフィールドは
+   * 揃うかどれも無いかのどちらかで送る（backend 側もその前提で受ける）。
    */
   async createCommentThread(
     workspaceSlug: string,
     pageId: string,
     body: unknown[],
+    anchor?: CommentAnchor,
   ): Promise<KbCommentThread> {
     const res = await apiClient.post<KbCommentThreadWire>(
       KB_API.commentThreads(workspaceSlug, pageId),
-      { body },
+      anchor
+        ? {
+            body,
+            blockId: anchor.blockId,
+            anchorFrom: anchor.anchorFrom,
+            anchorTo: anchor.anchorTo,
+            quote: anchor.quote,
+          }
+        : { body },
     );
     return normalizeCommentThread(res.data);
   },

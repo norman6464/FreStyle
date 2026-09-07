@@ -18,11 +18,16 @@ type mockCommentRepo struct{ mock.Mock }
 var _ repository.CommentRepository = (*mockCommentRepo)(nil)
 
 func (m *mockCommentRepo) CreateCommentThread(
-	ctx context.Context, workspaceID, pageID string, createdByUserID uint64,
+	ctx context.Context, workspaceID, pageID string, createdByUserID uint64, anchor repository.CommentAnchor,
 ) (*domain.CommentThread, error) {
-	args := m.Called(ctx, workspaceID, pageID, createdByUserID)
+	args := m.Called(ctx, workspaceID, pageID, createdByUserID, anchor)
 	t, _ := args.Get(0).(*domain.CommentThread)
 	return t, args.Error(1)
+}
+
+func (m *mockCommentRepo) BlockExistsInPage(ctx context.Context, workspaceID, pageID, blockID string) (bool, error) {
+	args := m.Called(ctx, workspaceID, pageID, blockID)
+	return args.Bool(0), args.Error(1)
 }
 
 func (m *mockCommentRepo) CreateComment(

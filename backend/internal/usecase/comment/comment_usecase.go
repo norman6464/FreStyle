@@ -1,10 +1,10 @@
-// Package comment はページ全体へのコメント（FRESTYLE-432 段 2）の usecase を持つ。
+// Package comment はページ全体へのコメント（FRESTYLE-432 段 2）と、
+// 錨付きコメント（同段 3・ブロック内の特定文字範囲へのコメント）の usecase を持つ。
 //
-// 錨付け（block_id / anchor_from / anchor_to / quote）の書き込み経路は段 3 の範囲で、
-// このパッケージの usecase はすべて「本文」だけを受け取る。認可（CanComment / CanView）は
-// ここでは判定しない — handler が kb.CheckPagePermissionUseCase を先に通す
-// （FreStyle のクリーンアーキテクチャ規約: usecase は handler を知らない。
-// comment パッケージは他の usecase サブパッケージ（kb 等）を import しない）。
+// 認可（CanComment / CanView）はここでは判定しない — handler が
+// kb.CheckPagePermissionUseCase を先に通す（FreStyle のクリーンアーキテクチャ規約:
+// usecase は handler を知らない。comment パッケージは他の usecase サブパッケージ
+// （kb 等）を import しない）。
 package comment
 
 import (
@@ -31,6 +31,9 @@ type CreateCommentThreadInput struct {
 	PageID       string
 	AuthorUserID uint64
 	Body         string
+	// Anchor はページ内の特定ブロック・特定文字範囲への錨付け（段 3）。ゼロ値
+	// （4 フィールドとも nil）なら page-level のスレッド（段 2 までと同じ）を意味する。
+	Anchor repository.CommentAnchor
 }
 
 // CreateCommentThreadOutput はスレッドと、その最初の発言（コメント）の組。
@@ -45,12 +48,28 @@ func (u *CreateCommentThreadUseCase) Execute(ctx context.Context, in CreateComme
 	if err := domain.ValidateCommentBody(in.Body); err != nil {
 		return nil, err
 	}
+	// 錨の形式検証（4つとも nil か 4つとも有効か）もトランザクションの外で行う。
+	if err := domain.ValidateCommentAnchor(in.Anchor.BlockID, in.Anchor.AnchorFrom, in.Anchor.AnchorTo, in.Anchor.Quote); err != nil {
+		return nil, err
+	}
+	// block_id が実在し、かつ本当にこのページに属するかは DB を引かないと分からない
+	// （block_id は blocks.id への単独 FK で page_id を含まない — PR1 の ErrBlockIDConflict と
+	// 同じ懸念）。これもトランザクションを開く前に確認する。無駄な開閉を避けるため。
+	if in.Anchor.BlockID != nil {
+		exists, err := u.repo.BlockExistsInPage(ctx, in.WorkspaceID, in.PageID, *in.Anchor.BlockID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, domain.ErrInvalidCommentAnchor
+		}
+	}
 	var out CreateCommentThreadOutput
 	// スレッド作成 → 最初の発言作成は 1 つのトランザクションに入れる。
 	// 片方だけ成功すると「発言の無いスレッド」または「存在しないスレッドを指す発言」という
 	// 中間状態が残ってしまうため。
 	err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
-		thread, err := u.repo.CreateCommentThread(ctx, in.WorkspaceID, in.PageID, in.AuthorUserID)
+		thread, err := u.repo.CreateCommentThread(ctx, in.WorkspaceID, in.PageID, in.AuthorUserID, in.Anchor)
 		if err != nil {
 			return err
 		}

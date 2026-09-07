@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import KbPage from '../KbPage';
 import { emitKbTreeEvent } from '@/entities/kb';
-import type { EditorCommand } from '@/shared/ui/RichTextEditor';
+import type { CommentAnchor, CommentBadgeCounts, EditorCommand } from '@/shared/ui/RichTextEditor';
 
 function blockIdConflictError(): AxiosError {
   return new AxiosError('Conflict', 'ERR_BAD_REQUEST', undefined, undefined, {
@@ -47,6 +47,9 @@ const hoisted = vi.hoisted(() => ({
       extraSlashCommands?: EditorCommand[];
       onImageUpload?: (file: File) => Promise<string>;
       resolveImageSrc?: (src: string) => Promise<string>;
+      onRequestComment?: (anchor: CommentAnchor) => void;
+      commentBadgeCounts?: CommentBadgeCounts;
+      onCommentBadgeClick?: (blockId: string) => void;
     },
   },
 }));
@@ -111,6 +114,9 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
       onImageUpload?: (file: File) => Promise<string>;
       resolveImageSrc?: (src: string) => Promise<string>;
       onChange?: (doc: { type: 'doc'; content: unknown[] }) => void;
+      onRequestComment?: (anchor: CommentAnchor) => void;
+      commentBadgeCounts?: CommentBadgeCounts;
+      onCommentBadgeClick?: (blockId: string) => void;
     }) => {
       hoisted.editorProps.current = props;
       return <div data-testid="editor" />;
@@ -630,7 +636,7 @@ describe('KbPage の共有', () => {
 });
 
 describe('KbPage のコメント', () => {
-  const thread = (id: string, resolvedAt: string | null = null) => ({
+  const thread = (id: string, resolvedAt: string | null = null, blockId?: string) => ({
     id,
     createdBy: { userId: 1, name: '田中 太郎' },
     resolvedAt,
@@ -645,21 +651,32 @@ describe('KbPage のコメント', () => {
         updatedAt: '2026-09-01T00:00:00Z',
       },
     ],
+    ...(blockId ? { blockId } : {}),
   });
 
-  it('開くまでコメントは取りに行かない。開くと未解決件数がバッジで出る', async () => {
-    hoisted.listCommentThreads.mockResolvedValue([thread('t1'), thread('t2', '2026-09-02T00:00:00Z')]);
+  it('パネルの開閉に関わらず常に取得する。未解決件数がコメントボタンとエディタ側の両方に出る', async () => {
+    hoisted.listCommentThreads.mockResolvedValue([
+      thread('t1', null, 'block-1'),
+      thread('t2', '2026-09-02T00:00:00Z', 'block-2'),
+    ]);
     renderPage();
+    await screen.findByTestId('editor');
 
-    const toggle = await screen.findByRole('button', { name: 'コメント' });
-    expect(hoisted.listCommentThreads).not.toHaveBeenCalled();
-
-    fireEvent.click(toggle);
+    // パネルを開く前から取得している（バッジ表示のため）。
     await waitFor(() => expect(hoisted.listCommentThreads).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
 
-    // 未解決 1 件（もう 1 件は解決済み）でバッジが出る。
+    // 未解決 1 件（もう 1 件は解決済み）でコメントボタンにバッジが出る。
     expect(await screen.findByRole('button', { name: 'コメント (未解決 1 件)' })).toBeInTheDocument();
-    expect(screen.getAllByText('未解決（1）').length).toBeGreaterThan(0);
+    // エディタ側へも、解決済みを除いたブロックIDごとの件数が渡る。
+    await waitFor(() =>
+      expect(hoisted.editorProps.current?.commentBadgeCounts).toEqual({ 'block-1': 1 }),
+    );
+
+    // まだパネル自体は開いていない。
+    expect(screen.queryAllByText('未解決（1）').length).toBe(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'コメント (未解決 1 件)' }));
+    await waitFor(() => expect(screen.getAllByText('未解決（1）').length).toBeGreaterThan(0));
     expect(screen.getAllByText('解決済み（1）').length).toBeGreaterThan(0);
   });
 
@@ -685,6 +702,71 @@ describe('KbPage のコメント', () => {
     await waitFor(() => expect(hoisted.listCommentThreads).toHaveBeenCalled());
 
     expect(screen.queryAllByPlaceholderText('コメントを書く…').length).toBe(0);
+  });
+
+  it('選択範囲からコメントを作る一連の流れ: onRequestComment → パネルが開いて引用文が出る → 送信で錨込みのスレッドを作る', async () => {
+    const anchor: CommentAnchor = { blockId: 'block-1', anchorFrom: 6, anchorTo: 11, quote: '選んだ文' };
+    hoisted.createCommentThread.mockResolvedValue({
+      id: 't-new',
+      createdBy: { userId: 1, name: '田中 太郎' },
+      resolvedAt: null,
+      resolvedBy: null,
+      createdAt: '2026-09-01T00:00:00Z',
+      comments: [],
+      ...anchor,
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+
+    // バブルメニューの「コメント」相当（本物の tiptap 選択は RichTextEditor 自体のテストで
+    // 担保済み。ここでは KbPage が onRequestComment を正しく受け止めるかを見る）。
+    act(() => {
+      hoisted.editorProps.current?.onRequestComment?.(anchor);
+    });
+
+    // パネルが（閉じていたのに）開き、引用文が見える。page-level の作成フォームは隠れる。
+    await waitFor(() => expect(screen.getAllByText('選択範囲へコメント').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('選んだ文').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('新しいスレッドを作成').length).toBe(0);
+
+    fireEvent.change(screen.getAllByPlaceholderText('コメントを書く…')[0], {
+      target: { value: 'ここは要修正です' },
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: '送信' })[0]);
+
+    await waitFor(() =>
+      expect(hoisted.createCommentThread).toHaveBeenCalledWith(
+        'w-3f2a9c',
+        'p1',
+        [{ type: 'text', text: 'ここは要修正です' }],
+        anchor,
+      ),
+    );
+    // 送信できたら「選択範囲へコメント」フォームが閉じる（pendingAnchor がクリアされる）。
+    await waitFor(() => expect(screen.queryAllByText('選択範囲へコメント').length).toBe(0));
+  });
+
+  it('バッジをクリックするとパネルが開き、該当スレッドまでスクロールする', async () => {
+    hoisted.listCommentThreads.mockResolvedValue([thread('t1', null, 'block-1')]);
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+    renderPage();
+    await screen.findByTestId('editor');
+    await waitFor(() =>
+      expect(hoisted.editorProps.current?.commentBadgeCounts).toEqual({ 'block-1': 1 }),
+    );
+
+    act(() => {
+      hoisted.editorProps.current?.onCommentBadgeClick?.('block-1');
+    });
+
+    await waitFor(() => expect(screen.getAllByText('未解決（1）').length).toBeGreaterThan(0));
+    // scrollIntoView は Element.prototype に spy を張っているので、呼ばれたことだけでは
+    // 「何か別の要素」が呼んだ可能性を排除できない。呼び出し元（this）が実際に
+    // comment-thread-t1 要素であることまで確かめる — CodeRabbit 指摘。
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    const calledOn = scrollIntoView.mock.instances[0] as unknown as HTMLElement;
+    expect(calledOn.id).toBe('comment-thread-t1');
+    scrollIntoView.mockRestore();
   });
 });
 

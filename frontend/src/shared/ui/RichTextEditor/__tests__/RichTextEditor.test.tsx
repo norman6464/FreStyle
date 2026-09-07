@@ -69,6 +69,20 @@ describe('RichTextEditor', () => {
     expect(pm).toHaveAttribute('contenteditable', 'false');
   });
 
+  // canComment は「コメントできる立場か」であって「編集できる立場か」ではない
+  // （domain.GrantRoleCommenter は編集権限を持たない）。canComment=true にしても
+  // 本文の編集可否（editable）に副作用が漏れないことを固定する — CodeRabbit 指摘の回帰確認。
+  // バブルメニュー自体の表示・「コメント」ボタンの可否は FormatMenuBar の単体テスト・
+  // story（選択が要り floating-ui の実描画に依るため jsdom では確かめにくい）で担保する。
+  it('canComment=trueでもeditable=falseなら本文は編集不可のまま', () => {
+    const { container } = render(
+      <RichTextEditor value={headingDoc} editable={false} canComment />,
+    );
+    const pm = container.querySelector('.ProseMirror');
+    expect(pm).not.toBeNull();
+    expect(pm).toHaveAttribute('contenteditable', 'false');
+  });
+
   it('saveStatus を渡すと保存状態を表示する', () => {
     render(<RichTextEditor value={emptyRichDoc()} saveStatus="saved" />);
     expect(screen.getByText('保存済み')).toBeInTheDocument();
@@ -385,5 +399,72 @@ describe('focusSignal（題名で Enter → 本文へ）', () => {
     const textbox = await screen.findByRole('textbox', { name: '本文' });
 
     expect(document.activeElement).not.toBe(textbox);
+  });
+});
+
+describe('コメント件数バッジ（commentBadges の Decoration.widget）', () => {
+  const blockId = '11111111-1111-4111-8111-111111111111';
+  const docWithBlockId: RichDocContent = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        attrs: { id: blockId },
+        content: [{ type: 'text', text: '本文' }],
+      },
+    ],
+  };
+
+  it('件数が1以上のブロックにだけバッジが実際にDOMへ挿入される', async () => {
+    const { container, rerender } = render(
+      <RichTextEditor value={docWithBlockId} commentBadgeCounts={{ [blockId]: 3 }} />,
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector('.rte-comment-badge')).toHaveTextContent('3'),
+    );
+
+    // 件数を渡さなければバッジも出ない。
+    rerender(<RichTextEditor value={docWithBlockId} commentBadgeCounts={{}} />);
+    await waitFor(() => expect(container.querySelector('.rte-comment-badge')).toBeNull());
+  });
+
+  it('件数が渡らない（commentBadgeCounts 未指定）ときはバッジを出さない', () => {
+    const { container } = render(<RichTextEditor value={docWithBlockId} />);
+    expect(container.querySelector('.rte-comment-badge')).toBeNull();
+  });
+
+  it('バッジをクリックすると onCommentBadgeClick にブロックIDが渡る', async () => {
+    const onCommentBadgeClick = vi.fn();
+    const { container } = render(
+      <RichTextEditor
+        value={docWithBlockId}
+        commentBadgeCounts={{ [blockId]: 1 }}
+        onCommentBadgeClick={onCommentBadgeClick}
+      />,
+    );
+
+    await waitFor(() => expect(container.querySelector('.rte-comment-badge')).not.toBeNull());
+    fireEvent.click(container.querySelector('.rte-comment-badge')!);
+
+    expect(onCommentBadgeClick).toHaveBeenCalledWith(blockId);
+  });
+
+  // React state（外部）の変化はエディタ自身の transaction では拾えないため、
+  // useCommentBadgeSync が meta 付き transaction を dispatch して再計算を強制する
+  // （commentBadges.ts のコメント参照）。この経路が生きているかをここで確かめる。
+  it('commentBadgeCounts が変わったら、再描画で既存エディタのバッジ件数も更新される', async () => {
+    const { container, rerender } = render(
+      <RichTextEditor value={docWithBlockId} commentBadgeCounts={{ [blockId]: 1 }} />,
+    );
+    await waitFor(() =>
+      expect(container.querySelector('.rte-comment-badge')).toHaveTextContent('1'),
+    );
+
+    rerender(<RichTextEditor value={docWithBlockId} commentBadgeCounts={{ [blockId]: 5 }} />);
+
+    await waitFor(() =>
+      expect(container.querySelector('.rte-comment-badge')).toHaveTextContent('5'),
+    );
   });
 });

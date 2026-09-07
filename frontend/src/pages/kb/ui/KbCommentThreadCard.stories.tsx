@@ -64,6 +64,16 @@ const resolvedThread: KbCommentThread = {
   comments: [unresolvedThread.comments[0]],
 };
 
+/** 錨付きコメント（本文の選択範囲から作られたスレッド）。quote を持つ。 */
+const anchoredThread: KbCommentThread = {
+  ...unresolvedThread,
+  id: 't-3',
+  blockId: 'block-1',
+  anchorFrom: 6,
+  anchorTo: 20,
+  quote: 'この段落の後半',
+};
+
 /** 未解決・コメントできる。返信欄と「解決」ボタンが出る。 */
 export const 未解決_コメントできる: Story = {
   args: { thread: unresolvedThread },
@@ -118,5 +128,22 @@ export const 解決済み_コメントできない: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText(/鈴木 花子 が解決済みにしました/)).toBeVisible();
     await expect(canvas.queryByRole('button', { name: '再開' })).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * 錨付きコメント（本文の選択範囲から作られたスレッド）。コメント本文の前に
+ * 引用文（quote）が blockquote 的な見た目で出る。
+ */
+export const 錨付き_引用文が出る: Story = {
+  args: { thread: anchoredThread },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const quote = canvas.getByText('この段落の後半');
+    await expect(quote).toBeVisible();
+    await expect(quote.tagName).toBe('BLOCKQUOTE');
+    // 引用文はコメント本文より前に出る。
+    const comment = canvas.getByText('この段落、もう少し具体例が欲しいです。');
+    expect(quote.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   },
 };

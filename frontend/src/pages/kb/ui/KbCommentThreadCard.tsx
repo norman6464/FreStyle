@@ -47,6 +47,8 @@ export default function KbCommentThreadCard({
     // 同じ投稿者から複数スレッドが立つと同じラベルの landmark が並んで a11y 検査に引っかかる
     // （landmark-unique）。article はそもそも landmark にならないので、一意なラベルが要らない。
     <article
+      // KbPage のバッジクリック→スクロールが scrollIntoView の対象を探すのに使う id。
+      id={`comment-thread-${thread.id}`}
       aria-label={`${thread.createdBy.name || '不明なユーザー'} のスレッド`}
       className="flex flex-col gap-2 rounded-lg border border-surface-3 bg-surface-1 p-3"
     >
@@ -70,6 +72,15 @@ export default function KbCommentThreadCard({
           </button>
         )}
       </div>
+
+      {/* 錨付きコメントだけ引用文（quote）を出す。編集で錨の位置がずれても、
+          「何に対するコメントだったか」の人が読める手がかりとして残る（スコープ外の
+          再アンカリングの代わり）。 */}
+      {thread.quote != null && (
+        <blockquote className="border-l-2 border-surface-3 pl-2 text-xs italic leading-relaxed text-[var(--color-text-muted)]">
+          {thread.quote}
+        </blockquote>
+      )}
 
       <div className="flex flex-col gap-2 border-t border-surface-3 pt-2">
         {thread.comments.map((comment) => (

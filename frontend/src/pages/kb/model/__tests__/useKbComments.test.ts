@@ -61,20 +61,20 @@ beforeEach(() => {
 });
 
 describe('useKbComments', () => {
-  it('閉じている間は取りに行かない', () => {
-    renderHook(() => useKbComments(SLUG, PAGE, false));
+  it('workspaceSlug/pageId のどちらかが欠けていれば取りに行かない', () => {
+    renderHook(() => useKbComments(undefined, undefined));
 
     expect(hoisted.listCommentThreads).not.toHaveBeenCalled();
   });
 
-  it('ページが決まっていなければ、開いていても取りに行かない', () => {
-    renderHook(() => useKbComments(undefined, undefined, true));
+  it('pageId だけ欠けていても取りに行かない', () => {
+    renderHook(() => useKbComments(SLUG, undefined));
 
     expect(hoisted.listCommentThreads).not.toHaveBeenCalled();
   });
 
-  it('開くと取得する', async () => {
-    const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+  it('workspaceSlug と pageId が揃うと、パネルの開閉に関わらず取得する', async () => {
+    const { result } = renderHook(() => useKbComments(SLUG, PAGE));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(hoisted.listCommentThreads).toHaveBeenCalledWith(SLUG, PAGE);
@@ -83,7 +83,7 @@ describe('useKbComments', () => {
 
   it('読み込みに失敗したら理由を出し、古いスレッドを残さない', async () => {
     hoisted.listCommentThreads.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+    const { result } = renderHook(() => useKbComments(SLUG, PAGE));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toMatch(/コメントを読み込めませんでした/);
@@ -92,7 +92,7 @@ describe('useKbComments', () => {
 
   describe('createThread', () => {
     it('成功したら応答のスレッドを末尾に足す', async () => {
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       const body = [{ type: 'text', text: '新しいスレッド' }];
@@ -100,13 +100,26 @@ describe('useKbComments', () => {
         await result.current.createThread(body);
       });
 
-      expect(hoisted.createCommentThread).toHaveBeenCalledWith(SLUG, PAGE, body);
+      expect(hoisted.createCommentThread).toHaveBeenCalledWith(SLUG, PAGE, body, undefined);
       expect(result.current.threads.map((t) => t.id)).toEqual(['t1', 't2']);
+    });
+
+    it('anchor を渡すと、そのまま KbRepository.createCommentThread へ転送する（錨付きコメント）', async () => {
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      const body = [{ type: 'text', text: '選んだ文への質問' }];
+      const anchor = { blockId: 'block-1', anchorFrom: 3, anchorTo: 9, quote: '選んだ文' };
+      await act(async () => {
+        await result.current.createThread(body, anchor);
+      });
+
+      expect(hoisted.createCommentThread).toHaveBeenCalledWith(SLUG, PAGE, body, anchor);
     });
 
     it('失敗は投げる。saving は元に戻り、一覧は変わらない', async () => {
       hoisted.createCommentThread.mockRejectedValue(new Error('forbidden'));
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       await expect(
@@ -123,7 +136,7 @@ describe('useKbComments', () => {
   describe('reply', () => {
     it('成功したら該当スレッドの comments に追加する（他のスレッドは変えない）', async () => {
       hoisted.listCommentThreads.mockResolvedValue([thread('t1'), thread('t2')]);
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.threads).toHaveLength(2));
 
       const body = [{ type: 'text', text: '返信です' }];
@@ -140,7 +153,7 @@ describe('useKbComments', () => {
 
     it('失敗は投げる', async () => {
       hoisted.addComment.mockRejectedValue(new Error('forbidden'));
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       await expect(
@@ -154,7 +167,7 @@ describe('useKbComments', () => {
 
   describe('resolve / reopen', () => {
     it('resolve は応答の解決状態（resolvedAt / resolvedBy）だけを該当スレッドへ差し込む', async () => {
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       await act(async () => {
@@ -170,7 +183,7 @@ describe('useKbComments', () => {
       hoisted.listCommentThreads.mockResolvedValue([
         thread('t1', { resolvedAt: '2026-09-02T00:00:00Z', resolvedBy: author('鈴木 花子', 2) }),
       ]);
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       await act(async () => {
@@ -192,7 +205,7 @@ describe('useKbComments', () => {
           comments: [],
         }),
       );
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.threads[0].comments).toHaveLength(1));
 
       await act(async () => {
@@ -205,7 +218,7 @@ describe('useKbComments', () => {
 
     it('失敗は投げる', async () => {
       hoisted.resolveCommentThread.mockRejectedValue(new Error('forbidden'));
-      const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+      const { result } = renderHook(() => useKbComments(SLUG, PAGE));
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       await expect(
@@ -219,31 +232,31 @@ describe('useKbComments', () => {
 });
 
 describe('useKbComments の宛先', () => {
-  it('宛先が無くなったら状態を畳む（次に開いたとき前のページのスレッドを出さない）', async () => {
+  it('宛先が無くなったら状態を畳む（次にページが決まったとき前のページのスレッドを出さない）', async () => {
     const { result, rerender } = renderHook(
-      ({ open }: { open: boolean }) => useKbComments(SLUG, PAGE, open),
-      { initialProps: { open: true } },
+      ({ pageId }: { pageId: string | undefined }) => useKbComments(SLUG, pageId),
+      { initialProps: { pageId: PAGE as string | undefined } },
     );
     await waitFor(() => expect(result.current.threads).toHaveLength(1));
 
-    rerender({ open: false });
+    rerender({ pageId: undefined });
 
     expect(result.current.threads).toHaveLength(0);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
   });
 
-  it('閉じたあとに着地した読み込み応答は捨てる', async () => {
+  it('ページ未確定へ戻ったあとに着地した読み込み応答は捨てる', async () => {
     let settle: (value: unknown) => void = () => {};
     hoisted.listCommentThreads.mockImplementationOnce(
       () => new Promise((resolve) => { settle = resolve; }),
     );
 
     const { result, rerender } = renderHook(
-      ({ open }: { open: boolean }) => useKbComments(SLUG, PAGE, open),
-      { initialProps: { open: true } },
+      ({ pageId }: { pageId: string | undefined }) => useKbComments(SLUG, pageId),
+      { initialProps: { pageId: PAGE as string | undefined } },
     );
-    rerender({ open: false });
+    rerender({ pageId: undefined });
 
     await act(async () => {
       settle([thread('t1')]);
@@ -253,14 +266,14 @@ describe('useKbComments の宛先', () => {
     expect(result.current.loading).toBe(false);
   });
 
-  it('速く開き直したとき、古い応答で新しい結果を上書きしない（別ページへの移動）', async () => {
+  it('速く別ページへ移ったとき、古い応答で新しい結果を上書きしない', async () => {
     let settleFirst: (value: unknown) => void = () => {};
     hoisted.listCommentThreads.mockImplementationOnce(
       () => new Promise((resolve) => { settleFirst = resolve; }),
     );
 
     const { result, rerender } = renderHook(
-      ({ page }: { page: string }) => useKbComments(SLUG, page, true),
+      ({ page }: { page: string }) => useKbComments(SLUG, page),
       { initialProps: { page: 'p-old' } },
     );
 
@@ -276,23 +289,26 @@ describe('useKbComments の宛先', () => {
     expect(result.current.threads.map((t) => t.id)).toEqual(['t-new']);
   });
 
-  it('書き込み中に宛先が変わったら、応答が返っても状態に反映しない', async () => {
+  it('書き込み中に別のページへ切り替わったら、応答が返っても状態に反映しない', async () => {
     let finishResolve: (value: unknown) => void = () => {};
     hoisted.resolveCommentThread.mockImplementationOnce(
       () => new Promise((resolve) => { finishResolve = resolve; }),
     );
+    hoisted.listCommentThreads.mockResolvedValue([thread('t1')]);
 
     const { result, rerender } = renderHook(
-      ({ open }: { open: boolean }) => useKbComments(SLUG, PAGE, open),
-      { initialProps: { open: true } },
+      ({ pageId }: { pageId: string }) => useKbComments(SLUG, pageId),
+      { initialProps: { pageId: PAGE } },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const resolving = result.current.resolve('t1');
     await waitFor(() => expect(result.current.saving).toBe(true));
 
-    // 応答が返る前にパネルを閉じる。
-    rerender({ open: false });
+    // 応答が返る前に別のページへ移る。
+    hoisted.listCommentThreads.mockResolvedValue([thread('t-other')]);
+    rerender({ pageId: 'p-other' });
+    await waitFor(() => expect(result.current.threads.map((t) => t.id)).toEqual(['t-other']));
 
     await act(async () => {
       finishResolve(
@@ -301,8 +317,8 @@ describe('useKbComments の宛先', () => {
       await resolving;
     });
 
-    // 畳んだあとの状態には触れていない。
-    expect(result.current.threads).toHaveLength(0);
+    // 別ページへ移った後の一覧には触れていない。
+    expect(result.current.threads.map((t) => t.id)).toEqual(['t-other']);
     expect(result.current.saving).toBe(false);
   });
 
@@ -313,14 +329,16 @@ describe('useKbComments の宛先', () => {
     );
 
     const { result, rerender } = renderHook(
-      ({ open }: { open: boolean }) => useKbComments(SLUG, PAGE, open),
-      { initialProps: { open: true } },
+      ({ pageId }: { pageId: string | undefined }) => useKbComments(SLUG, pageId),
+      { initialProps: { pageId: PAGE as string | undefined } },
     );
 
-    // 1 本目が飛んでいる間に、いったん閉じてまた開く（2 本目を起こす）。
-    rerender({ open: false });
+    // 1 本目が飛んでいる間に、いったんページ未確定へ戻してまた同じページを開き直す
+    //（2 本目を起こす。key は workspaceSlug + pageId だけで決まるので、開き直した後も
+    // 1 本目と同じ key になる — その状態で seq が古い応答を正しく弾けるかを見る）。
+    rerender({ pageId: undefined });
     hoisted.listCommentThreads.mockResolvedValue([thread('t-second')]);
-    rerender({ open: true });
+    rerender({ pageId: PAGE });
     await waitFor(() => expect(result.current.threads).toHaveLength(1));
     expect(result.current.threads[0].id).toBe('t-second');
 
@@ -331,26 +349,26 @@ describe('useKbComments の宛先', () => {
     expect(result.current.threads.map((t) => t.id)).toEqual(['t-second']);
   });
 
-  // CodeRabbit 指摘: key（workspaceSlug + pageId）だけでは、パネルを閉じてすぐ同じページを
-  // 開き直したケースを見分けられない（同じページなので key が同じまま）。書き込みが飛んで
-  // いる間に閉じて開き直すと、古い書き込み応答が新しい閲覧セッションの一覧へ紛れ込み、
+  // CodeRabbit 指摘: key（workspaceSlug + pageId）だけでは、ページを離れてすぐ同じページへ
+  // 戻ったケースを見分けられない（同じページなので key が同じまま）。書き込みが飛んで
+  // いる間に離れて戻ると、古い書き込み応答が新しい閲覧セッションの一覧へ紛れ込み、
   // スレッド・返信が二重に増える。
-  it('書き込みが飛んでいる間にパネルを閉じて同じページを開き直すと、古い書き込み応答は反映しない', async () => {
+  it('書き込みが飛んでいる間にページを離れてすぐ同じページへ戻ると、古い書き込み応答は反映しない', async () => {
     let resolveCreate: (t: ReturnType<typeof thread>) => void = () => {};
     hoisted.createCommentThread.mockImplementation(
       () => new Promise((resolve) => { resolveCreate = resolve; }),
     );
     const { result, rerender } = renderHook(
-      ({ open }: { open: boolean }) => useKbComments(SLUG, PAGE, open),
-      { initialProps: { open: true } },
+      ({ pageId }: { pageId: string | undefined }) => useKbComments(SLUG, pageId),
+      { initialProps: { pageId: PAGE as string | undefined } },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const createPromise = result.current.createThread([{ type: 'text', text: '新規' }]);
 
-    // 応答が返る前にパネルを閉じて、同じページをすぐ開き直す。
-    rerender({ open: false });
-    rerender({ open: true });
+    // 応答が返る前にページを離れて、同じページへすぐ戻る。
+    rerender({ pageId: undefined });
+    rerender({ pageId: PAGE });
     await waitFor(() => expect(result.current.threads.map((t) => t.id)).toEqual(['t1']));
 
     // ここで古い作成応答が着地しても、開き直し後の一覧を汚さない。
@@ -369,7 +387,7 @@ describe('useKbComments の宛先', () => {
     hoisted.listCommentThreads.mockImplementation(
       () => new Promise((resolve) => { resolveList = resolve; }),
     );
-    const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+    const { result } = renderHook(() => useKbComments(SLUG, PAGE));
 
     // 初回取得がまだ飛んでいる間にスレッドを作成する（active は同期的に設定済みなので進める）。
     await act(async () => {

@@ -11,6 +11,8 @@ import { fillMissingBlockIdsInDoc } from './stableBlockId';
 import BubbleFormatMenu from './BubbleFormatMenu';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
 import type { RichDocContent } from './emptyRichDoc';
+import type { CommentAnchor } from './commentAnchor';
+import { useCommentBadgeSync, createCommentBadgesExtension, type CommentBadgeCounts } from './commentBadges';
 import './richTextEditor.css';
 
 export interface RichTextEditorProps {
@@ -60,6 +62,25 @@ export interface RichTextEditorProps {
    * （渡さなければ素の遷移）。外部リンクは常に新しいタブで開く。
    */
   onNavigateToPage?: (path: string) => void;
+  /**
+   * 選択範囲からコメントを作りたいときに呼ばれる（バブルメニューの「コメント」ボタン）。
+   * 渡さなければボタン自体を出さない（CommentFormatControl 側の約束）。
+   */
+  onRequestComment?: (anchor: CommentAnchor) => void;
+  /**
+   * コメントできる立場か（domain.PagePermission.CanComment）。editable とは別軸 —
+   * 編集権限は無いがコメントだけできる立場（GrantRoleCommenter）が実在するため、
+   * editable=false でもこれが true ならバブルメニューを出し「コメント」ボタンだけ使える
+   * ようにする（書式ボタン・リンクは editable=false のままなら出さない — CodeRabbit 指摘）。
+   */
+  canComment?: boolean;
+  /**
+   * ブロックIDごとの未解決コメント件数。渡したブロックの右肩に件数バッジを出す
+   * （commentBadges.ts の Decoration.widget）。未指定なら {} 扱い（バッジ無し）。
+   */
+  commentBadgeCounts?: CommentBadgeCounts;
+  /** コメント件数バッジをクリックしたときに呼ばれる。渡さなければバッジはクリックできても何もしない。 */
+  onCommentBadgeClick?: (blockId: string) => void;
   /** 増えたら本文の先頭へフォーカスを移す合図（題名で Enter → 本文へ、のため）。 */
   focusSignal?: number;
   /** 外枠に付与する追加クラス。 */
@@ -146,6 +167,10 @@ export default function RichTextEditor({
   onCreate,
   extraSlashCommands,
   onNavigateToPage,
+  onRequestComment,
+  canComment = false,
+  commentBadgeCounts,
+  onCommentBadgeClick,
   focusSignal = 0,
   className = '',
 }: RichTextEditorProps) {
@@ -169,6 +194,25 @@ export default function RichTextEditor({
   const editorRef = useRef<Editor | null>(null);
   // '/image' から開くファイル選択（キーボード/クリックでも画像を挿入できる経路）。
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // onCommentBadgeClick も extension（生成時に固定）から呼ぶので ref 越しに最新を参照する
+  // （onImageUploadRef と同じ理由）。
+  const onCommentBadgeClickRef = useRef(onCommentBadgeClick);
+  useEffect(() => {
+    onCommentBadgeClickRef.current = onCommentBadgeClick;
+  }, [onCommentBadgeClick]);
+
+  // コメント件数バッジの decoration へ渡す ref。useEditor() より前に呼ぶ必要がある
+  // （extensions 配列の組み立てに使うため）。この時点では editorRef.current はまだ
+  // 前回描画時点の値（初回は null）だが、それで問題ない — decoration の初期値は
+  // 下の commentBadgeCountsRef.current（この呼び出しで同期済み）から組み立てるので、
+  // 初回描画から正しい件数が出る。件数の更新（2 回目以降の描画）を editor へ伝える
+  // dispatch は、editorRef.current が実体を指す次の描画以降で効く
+  // （commentBadges.ts の useCommentBadgeSync のコメント参照）。
+  const commentBadgeCountsRef = useCommentBadgeSync(editorRef.current, commentBadgeCounts ?? {});
+  const handleCommentBadgeClick = useCallback((blockId: string) => {
+    onCommentBadgeClickRef.current?.(blockId);
+  }, []);
 
   // アンマウント（別ページへ切替）後にアップロードが完了しても挿入しないための番人。
   const mountedRef = useRef(true);
@@ -228,7 +272,12 @@ export default function RichTextEditor({
 
   const editor = useEditor({
     editable,
-    extensions: createEditorExtensions({ placeholder, slashItems, resolveImageSrc }),
+    extensions: [
+      ...createEditorExtensions({ placeholder, slashItems, resolveImageSrc }),
+      // コメント件数バッジ（decoration）。extensions は生成時に固定されるため、件数・クリック
+      // ハンドラは ref 越しに渡す（commentBadgeCountsRef は上の useCommentBadgeSync が返す）。
+      createCommentBadgesExtension(commentBadgeCountsRef, handleCommentBadgeClick),
+    ],
     // 読み込み側のリンク洗浄。doc JSON は API から丸ごと差し込めるので、エディタの入力・貼り付けを
     // どれだけ固めても「危険な href がすでに入った doc」はここから入ってくる。開いた時点で落とす。
     // id の穴埋めも同じ「editor へ渡す前に doc を整える」経路（stableBlockId.ts のコメント参照。
@@ -320,7 +369,9 @@ export default function RichTextEditor({
       <div className="rte-content prose max-w-none">
         <EditorContent editor={editor} />
       </div>
-      {editable && editor && <BubbleFormatMenu editor={editor} />}
+      {(editable || canComment) && editor && (
+        <BubbleFormatMenu editor={editor} editable={editable} onRequestComment={onRequestComment} />
+      )}
       {onImageUpload && (
         // '/image' から開く隠しファイル入力（DnD/貼り付けと同じ挿入経路へ流す）。
         <input

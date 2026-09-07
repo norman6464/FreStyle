@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -53,4 +54,93 @@ func Test_コメントスレッド_Resolved(t *testing.T) {
 	resolvedAt := unresolved.CreatedAt
 	resolved := domain.CommentThread{ResolvedAt: &resolvedAt}
 	assert.True(t, resolved.Resolved())
+}
+
+// Test_錨検証 は ValidateCommentAnchor の境界を固定する（FRESTYLE-432 段 3）。
+//
+// 変異確認: 「4つとも非nilのときだけ検証する」分岐 (present != 4 の早期リターン) を
+// 外すと、blockIDだけ指定・anchorFromだけ欠落のケースが nil 参照でパニックするか、
+// 中途半端な組み合わせを誤って通してしまう — このテストがそれを捕まえる。
+func Test_錨検証(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	intPtr := func(i int) *int { return &i }
+
+	// ASCII で作る — len() はバイト数なので、マルチバイト文字で作ると「上限ちょうど」の
+	// 境界を正確に踏めない（"あ"は3バイトなので rune数と一致しない）— CodeRabbit 指摘。
+	quoteAtLimit := strings.Repeat("a", domain.CommentAnchorMaxQuoteLen)
+	longQuote := strings.Repeat("a", domain.CommentAnchorMaxQuoteLen+1)
+
+	cases := []struct {
+		name       string
+		blockID    *string
+		anchorFrom *int
+		anchorTo   *int
+		quote      *string
+		wantErr    bool
+	}{
+		{
+			name: "4つともnilはOK（page-level）",
+		},
+		{
+			name:    "4つとも有効な値はOK",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: strPtr("引用文"),
+		},
+		{
+			name:    "blockIDだけ指定はNG",
+			blockID: strPtr("block-1"),
+			wantErr: true,
+		},
+		{
+			name:    "anchorFromだけ欠落はNG",
+			blockID: strPtr("block-1"), anchorTo: intPtr(5), quote: strPtr("引用文"),
+			wantErr: true,
+		},
+		{
+			name:    "anchorFromが負はNG",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(-1), anchorTo: intPtr(5), quote: strPtr("引用文"),
+			wantErr: true,
+		},
+		{
+			name:    "anchorFrom>=anchorToはNG",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(5), anchorTo: intPtr(5), quote: strPtr("引用文"),
+			wantErr: true,
+		},
+		{
+			name:    "blockIDが空文字はNG",
+			blockID: strPtr(""), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: strPtr("引用文"),
+			wantErr: true,
+		},
+		{
+			name:    "quoteが空白のみはNG",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: strPtr("   "),
+			wantErr: true,
+		},
+		{
+			name:    "quoteがちょうど上限バイト数はOK（境界は上限を含む）",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: &quoteAtLimit,
+			wantErr: false,
+		},
+		{
+			name:    "quoteが上限を1バイト超えるはNG",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: &longQuote,
+			wantErr: true,
+		},
+		{
+			// DB上 anchor_from/anchor_to は int32。ここで弾かないと persistence 層の
+			// 縮小キャストが符号ごと丸め込んだ値を保存してしまう（500ではなく400で拒否したい）。
+			name:    "anchorToがint32の範囲を超えるはNG",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(1 << 32), quote: strPtr("引用文"),
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := domain.ValidateCommentAnchor(tc.blockID, tc.anchorFrom, tc.anchorTo, tc.quote)
+			if tc.wantErr {
+				assert.ErrorIs(t, err, domain.ErrInvalidCommentAnchor)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
 }

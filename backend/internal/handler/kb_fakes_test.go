@@ -1607,15 +1607,19 @@ type kbFakeComments struct {
 	threads     map[string]domain.CommentThread // threadID -> thread
 	threadOrder []string                        // 作成順（ListCommentThreadsByPage の並びを保つ）
 	comments    map[string][]domain.Comment     // threadID -> 返信（作成順）
-	nextID      int
+	// existingBlocks は BlockExistsInPage が実在すると答える block_id -> それが属する pageID。
+	// 錨付きスレッドの handler テストが addBlock で登録する（実 DB の blocks は持たない）。
+	existingBlocks map[string]string
+	nextID         int
 }
 
 var _ repository.CommentRepository = (*kbFakeComments)(nil)
 
 func newKbFakeComments() *kbFakeComments {
 	return &kbFakeComments{
-		threads:  map[string]domain.CommentThread{},
-		comments: map[string][]domain.Comment{},
+		threads:        map[string]domain.CommentThread{},
+		comments:       map[string][]domain.Comment{},
+		existingBlocks: map[string]string{},
 	}
 }
 
@@ -1624,14 +1628,28 @@ func (f *kbFakeComments) newID(prefix string) string {
 	return prefix + "-" + strconv.Itoa(f.nextID)
 }
 
+// addBlock は blockID が pageID に実在することにする（BlockExistsInPage 用のテスト下ごしらえ）。
+func (f *kbFakeComments) addBlock(pageID, blockID string) {
+	f.existingBlocks[blockID] = pageID
+}
+
+func (f *kbFakeComments) BlockExistsInPage(_ context.Context, _, pageID, blockID string) (bool, error) {
+	p, ok := f.existingBlocks[blockID]
+	return ok && p == pageID, nil
+}
+
 func (f *kbFakeComments) CreateCommentThread(
-	_ context.Context, workspaceID, pageID string, createdByUserID uint64,
+	_ context.Context, workspaceID, pageID string, createdByUserID uint64, anchor repository.CommentAnchor,
 ) (*domain.CommentThread, error) {
 	now := time.Now()
 	t := domain.CommentThread{
 		ID:              f.newID("thread"),
 		WorkspaceID:     workspaceID,
 		PageID:          pageID,
+		BlockID:         anchor.BlockID,
+		AnchorFrom:      anchor.AnchorFrom,
+		AnchorTo:        anchor.AnchorTo,
+		Quote:           anchor.Quote,
 		CreatedByUserID: createdByUserID,
 		CreatedAt:       now,
 		UpdatedAt:       now,

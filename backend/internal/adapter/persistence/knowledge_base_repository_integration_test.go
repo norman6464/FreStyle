@@ -5,10 +5,12 @@ package persistence_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -96,6 +98,42 @@ func treeShape(nodes []*kb.PageTreeNode) string {
 		}
 	}
 	return s
+}
+
+// stripBlockIDsFromAttrs / requireJSONEqIgnoringBlockIDs は internal/usecase/kb の
+// package kb（page_usecase_test.go）にある同名ヘルパーの package persistence_test 版。
+// renderPageDoc は常に attrs.id を出力するようになったため（新規ブロックは呼び出しの
+// たびに新しい UUID が採番される）、ここでは正規化前の入力 doc をそのまま厳密比較すると
+// 落ちる。id を無視して構造だけ比較する。
+func stripBlockIDsFromAttrs(v any) {
+	switch val := v.(type) {
+	case map[string]any:
+		if attrsRaw, ok := val["attrs"]; ok {
+			if attrsMap, ok := attrsRaw.(map[string]any); ok {
+				delete(attrsMap, "id")
+				if len(attrsMap) == 0 {
+					delete(val, "attrs")
+				}
+			}
+		}
+		for _, child := range val {
+			stripBlockIDsFromAttrs(child)
+		}
+	case []any:
+		for _, child := range val {
+			stripBlockIDsFromAttrs(child)
+		}
+	}
+}
+
+func requireJSONEqIgnoringBlockIDs(t *testing.T, want, got string, msgAndArgs ...any) {
+	t.Helper()
+	var w, g any
+	require.NoError(t, json.Unmarshal([]byte(want), &w))
+	require.NoError(t, json.Unmarshal([]byte(got), &g))
+	stripBlockIDsFromAttrs(w)
+	stripBlockIDsFromAttrs(g)
+	assert.Equal(t, w, g, msgAndArgs...)
 }
 
 func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
@@ -406,24 +444,24 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		]}`
 		snap1, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc1, EditorUserID: 1})
 		require.NoError(t, err)
-		assert.JSONEq(t, doc1, snap1.Doc)
+		requireJSONEqIgnoringBlockIDs(t, doc1, snap1.Doc)
 
 		got, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: page.ID})
 		require.NoError(t, err)
-		assert.JSONEq(t, doc1, got.Doc, "保存した doc と取得した doc が同値")
+		requireJSONEqIgnoringBlockIDs(t, doc1, got.Doc, "保存した doc と取得した doc が同値")
 
 		// snapshot を消しても blocks から同じ doc が組み上がる（正本は blocks 側）。
 		_, err = sqlDB.Exec(`DELETE FROM page_snapshots WHERE page_id = $1`, page.ID)
 		require.NoError(t, err)
 		got, err = uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: page.ID})
 		require.NoError(t, err)
-		assert.JSONEq(t, doc1, got.Doc, "blocks からの組み立てでも同値")
+		requireJSONEqIgnoringBlockIDs(t, doc1, got.Doc, "blocks からの組み立てでも同値")
 
 		// 書き換えると blocks / snapshot が置き換わる。
 		doc2 := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"書き換え後"}]}]}`
 		snap2, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc2, EditorUserID: 1})
 		require.NoError(t, err)
-		assert.JSONEq(t, doc2, snap2.Doc, "snapshot が焼き直される")
+		requireJSONEqIgnoringBlockIDs(t, doc2, snap2.Doc, "snapshot が焼き直される")
 
 		var blockCount int
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&blockCount))
@@ -562,12 +600,12 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 	t.Run("文書順が壊れたBlockWriteは保存を拒否する", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		page := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "broken-rows")
-		// ParentIndex が自分より後 = 「親が先」の前提違反。
+		// 存在しない ID を指す ParentID = dangling 参照。fk_blocks_parent が拒否する。
+		danglingParent := "00000000-0000-0000-0000-000000000099"
 		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
-			{ParentIndex: 1, Position: "a0", Type: domain.BlockTypeListItem, Attrs: "{}"},
-			{ParentIndex: -1, Position: "a0", Type: domain.BlockTypeBulletList, Attrs: "{}"},
+			{ID: uuid.NewString(), ParentID: &danglingParent, Position: "a0", Type: domain.BlockTypeListItem, Attrs: "{}"},
 		}, `{"type":"doc","content":[]}`)
-		require.Error(t, err)
+		require.Error(t, err) // fk_blocks_parent 制約違反で失敗するはず
 		var blockCount int
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&blockCount))
 		assert.Equal(t, 0, blockCount, "途中まで書いた行がロールバックで残らない")
@@ -801,7 +839,8 @@ func TestKnowledgeBasePageReferencesImageKey_Integration(t *testing.T) {
 // rows での ReplacePageBlocks を同じ DoInTx でくくり、失敗後に両方とも元の状態のまま
 // （last_edited_by_user_id が NULL のまま・blocks が 0 行のまま）であることを見る
 // —— knowledgeBaseRepository.runInTx が外側の tx に相乗りしている直接の証拠になる
-// （相乗りしていなければ、Touch や DeletePageBlocks が別トランザクションで commit されて残る）。
+// （相乗りしていなければ、Touch や差分 UPSERT の DELETE/UPSERT が別トランザクションで
+// commit されて残る）。
 func TestKnowledgeBaseReplaceBlocksTransaction_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
@@ -815,12 +854,13 @@ func TestKnowledgeBaseReplaceBlocksTransaction_Integration(t *testing.T) {
 	page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ")
 
 	const editorID = uint64(11)
-	// ParentIndex が自分より後ろ（存在しない文書順）を指す壊れた行。
-	// knowledgeBaseRepository.ReplacePageBlocks が DB へ触る前に Go 側で検出して失敗する
-	// （fmt.Errorf("blocks[%d] の ParentIndex ...")）が、それでも DoInTx の外側の
+	// 存在しない ID を指す ParentID = dangling 参照。knowledgeBaseRepository.ReplacePageBlocks
+	// は ParentID の dangling 参照を Go 側で事前検証しない（fk_blocks_parent の FK 制約が
+	// INSERT 時点で自然に拒否するので、そちらに任せる設計）。それでも DoInTx の外側の
 	// トランザクションに乗っている限り、直前の Touch も道連れでロールバックされるはず。
+	danglingParent := "00000000-0000-0000-0000-000000000098"
 	broken := []repository.BlockWrite{
-		{ParentIndex: 99, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}"},
+		{ID: uuid.NewString(), ParentID: &danglingParent, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}"},
 	}
 	err := txManager.DoInTx(ctx, func(ctx context.Context) error {
 		if err := repo.TouchPageLastEditedBy(ctx, ws, page.ID, editorID); err != nil {
@@ -836,7 +876,160 @@ func TestKnowledgeBaseReplaceBlocksTransaction_Integration(t *testing.T) {
 
 	blocks, err := repo.ListBlocksByPage(ctx, ws, page.ID)
 	require.NoError(t, err)
-	assert.Empty(t, blocks, "本文も書き込まれない（DeletePageBlocks もロールバックされる）")
+	assert.Empty(t, blocks, "本文も書き込まれない（差分 UPSERT の UpsertBlock もロールバックされる）")
+}
+
+// TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration は差分 UPSERT（ReplacePageBlocks の
+// 「消えた id だけ DELETE・生き残る id は UPDATE・新しい id だけ INSERT」という書き換え方式）の
+// 正しさを実 PostgreSQL で固定する。全消し全入れに戻っていないことの直接証拠になる。
+func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	uc := newKbUseCases(sqlDB)
+	ctx := context.Background()
+
+	setup := func(t *testing.T) (ws, space string) {
+		t.Helper()
+		testsupport.TruncateAll(t, sqlDB, kbTables...)
+		ws = createWorkspace(t, sqlDB, "ws-diff-upsert")
+		space = createSpace(t, sqlDB, ws, "eng")
+		return ws, space
+	}
+
+	// blockCreatedAt はテスト内で「同じ行が保たれているか（created_at が変わっていないか）」を
+	// 確かめるための直接 SELECT。
+	blockCreatedAt := func(t *testing.T, id string) time.Time {
+		t.Helper()
+		var createdAt time.Time
+		require.NoError(t, sqlDB.QueryRow(`SELECT created_at FROM blocks WHERE id = $1`, id).Scan(&createdAt))
+		return createdAt
+	}
+	blockExists := func(t *testing.T, id string) bool {
+		t.Helper()
+		var count int
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE id = $1`, id).Scan(&count))
+		return count > 0
+	}
+
+	t.Run("本文を書き換えても既存ブロックのidは保たれる", func(t *testing.T) {
+		ws, space := setup(t)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "diff-upsert-page")
+
+		fixedID := newID()
+		inline1 := `[{"type":"text","text":"最初の内容"}]`
+		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
+			{ID: fixedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline1},
+		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, fixedID, inline1))
+		require.NoError(t, err)
+		createdAt1 := blockCreatedAt(t, fixedID)
+
+		// 同じ id・少し変えた内容（inline のテキスト）で再保存する。
+		inline2 := `[{"type":"text","text":"書き換え後の内容"}]`
+		err = repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
+			{ID: fixedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline2},
+		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, fixedID, inline2))
+		require.NoError(t, err)
+
+		var count int
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&count))
+		assert.Equal(t, 1, count, "同じ id の行が 1 つだけ残っている（別行の delete/insert ではない）")
+
+		var gotInline []byte
+		require.NoError(t, sqlDB.QueryRow(`SELECT inline FROM blocks WHERE id = $1`, fixedID).Scan(&gotInline))
+		assert.Contains(t, string(gotInline), "書き換え後の内容", "中身は書き換わっている")
+
+		createdAt2 := blockCreatedAt(t, fixedID)
+		assert.Equal(t, createdAt1, createdAt2, "行そのものは UPDATE されるだけで created_at は変わらない（同一行である証拠）")
+	})
+
+	t.Run("ページから消えたブロックのidは本当に削除される", func(t *testing.T) {
+		ws, space := setup(t)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "diff-upsert-delete-page")
+
+		id1, id2 := newID(), newID()
+		inline := `[{"type":"text","text":"x"}]`
+		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
+			{ID: id1, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
+			{ID: id2, Position: "a1", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
+		}, `{"type":"doc","content":[]}`)
+		require.NoError(t, err)
+		require.True(t, blockExists(t, id1))
+		require.True(t, blockExists(t, id2))
+
+		// id2 を含まない doc で再保存する。
+		err = repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
+			{ID: id1, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
+		}, `{"type":"doc","content":[]}`)
+		require.NoError(t, err)
+
+		assert.True(t, blockExists(t, id1), "残った id は消えない")
+		assert.False(t, blockExists(t, id2), "ページから消えた id は本当に削除される")
+	})
+
+	t.Run("他ページのidを乗っ取ろうとすると拒否される", func(t *testing.T) {
+		ws, space := setup(t)
+		pageA := mustCreatePage(ctx, t, uc, ws, space, nil, "page-a")
+		pageB := mustCreatePage(ctx, t, uc, ws, space, nil, "page-b")
+
+		sharedID := newID()
+		inline := `[{"type":"text","text":"page-aの内容"}]`
+		err := repo.ReplacePageBlocks(ctx, ws, pageA.ID, []repository.BlockWrite{
+			{ID: sharedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
+		}, `{"type":"doc","content":[]}`)
+		require.NoError(t, err)
+		createdAtBefore := blockCreatedAt(t, sharedID)
+		var inlineBefore []byte
+		require.NoError(t, sqlDB.QueryRow(`SELECT inline FROM blocks WHERE id = $1`, sharedID).Scan(&inlineBefore))
+
+		// ページ B の保存で、ページ A に既に存在する id を新規ブロックとして送る。
+		hijackInline := `[{"type":"text","text":"乗っ取ろうとした内容"}]`
+		err = repo.ReplacePageBlocks(ctx, ws, pageB.ID, []repository.BlockWrite{
+			{ID: sharedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &hijackInline},
+		}, `{"type":"doc","content":[]}`)
+		require.ErrorIs(t, err, repository.ErrBlockIDConflict)
+
+		var countInB int
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, pageB.ID).Scan(&countInB))
+		assert.Zero(t, countInB, "ページ B 側に id の行が作られない")
+
+		var pageIDOfShared string
+		require.NoError(t, sqlDB.QueryRow(`SELECT page_id::text FROM blocks WHERE id = $1`, sharedID).Scan(&pageIDOfShared))
+		assert.Equal(t, pageA.ID, pageIDOfShared, "ページ A 側の行は乗っ取られていない")
+		var inlineAfter []byte
+		require.NoError(t, sqlDB.QueryRow(`SELECT inline FROM blocks WHERE id = $1`, sharedID).Scan(&inlineAfter))
+		assert.Equal(t, string(inlineBefore), string(inlineAfter), "ページ A 側の中身も変更されていない")
+		assert.Equal(t, createdAtBefore, blockCreatedAt(t, sharedID))
+	})
+
+	t.Run("同じ内容を繰り返し保存してもpositionの一意制約に落ちない", func(t *testing.T) {
+		ws, space := setup(t)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "diff-upsert-repeat-page")
+
+		ids := []string{newID(), newID(), newID(), newID()}
+		positions := []string{"a0", "a1", "a2", "a3"}
+		inline := `[{"type":"text","text":"兄弟"}]`
+		buildRows := func() []repository.BlockWrite {
+			rows := make([]repository.BlockWrite, 0, len(ids))
+			for i, id := range ids {
+				rows = append(rows, repository.BlockWrite{
+					ID: id, Position: positions[i], Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline,
+				})
+			}
+			return rows
+		}
+
+		// ParkBlockPositions が無いと、生存行の position をゼロから振り直す過程で
+		// 「まだ古い position を持つ別の生存行」と一時的に衝突しうる（uq_blocks_page_position）。
+		// 同じ id・同じ position で 3 回連続保存してもエラーにならないことがその素通りの証拠。
+		for i := 0; i < 3; i++ {
+			err := repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(), `{"type":"doc","content":[]}`)
+			require.NoError(t, err, "%d 回目の保存", i+1)
+		}
+
+		var count int
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&count))
+		assert.Equal(t, len(ids), count)
+	})
 }
 
 // TestKnowledgeBaseSimpleProtocol_Integration は simple query protocol（本番の
@@ -862,11 +1055,11 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	]}`
 	snap, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc, EditorUserID: 1})
 	require.NoError(t, err)
-	assert.JSONEq(t, doc, snap.Doc)
+	requireJSONEqIgnoringBlockIDs(t, doc, snap.Doc)
 
 	got, err := uc.get.Execute(ctx, kb.GetPageInput{WorkspaceID: ws, PageID: page.ID})
 	require.NoError(t, err)
-	assert.JSONEq(t, doc, got.Doc)
+	requireJSONEqIgnoringBlockIDs(t, doc, got.Doc)
 
 	// 行レベルでも inline の NULL / 非 NULL が意図どおり保存されていること。
 	blocks, err := repo.ListBlocksByPage(ctx, ws, page.ID)

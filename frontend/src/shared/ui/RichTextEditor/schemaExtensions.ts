@@ -1,15 +1,49 @@
 import { Node } from '@tiptap/core';
-import type { Extensions } from '@tiptap/core';
+import type { AnyExtension, Extensions } from '@tiptap/core';
+import Blockquote from '@tiptap/extension-blockquote';
 import Code from '@tiptap/extension-code';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Heading from '@tiptap/extension-heading';
+import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import Image from '@tiptap/extension-image';
 import { Link } from '@tiptap/extension-link';
-import { TaskItem, TaskList } from '@tiptap/extension-list';
-import { TableKit } from '@tiptap/extension-table';
+import { BulletList, ListItem, OrderedList, TaskItem, TaskList } from '@tiptap/extension-list';
+import Paragraph from '@tiptap/extension-paragraph';
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
 import { isAllowedLinkHref, isInternalPageLinkHref, sanitizeLinkHref } from './linkSafety';
+
+/**
+ * withBlockId は「blocks テーブルの1行になるノード」に安定した id attribute を足す。
+ *
+ * サーバー（backend/internal/usecase/kb/page_usecase.go の parseBlockNode）は保存のたびに
+ * attrs.id を読み、有効な UUID ならそのまま使い、無ければ新規採番する。id を保つことで、
+ * 同じブロックを編集して保存し直しても DB 上の行（と将来のコメントの紐付け）が保たれる。
+ * DOM 上には data-block-id として出す（style/表示に影響しない、id 抽出専用の属性）。
+ */
+function withBlockId<T extends AnyExtension>(ext: T): T {
+  // Extendable（AnyExtension の実体）の extend() は Options/Storage/Config を汎用のまま持つため、
+  // 素の T のままだと addAttributes() の this に parent が現れない（Node/Mark/Extension の
+  // どれかに絞られていれば NodeConfig 等が this.parent を提供するが、T は汎用のまま）。
+  // 対象は常に Node 系拡張（見出し・段落・表など）なので Node として extend() を呼び、
+  // 戻り値だけ T へ戻す（withImageView と同じ「型がうまく収まらない箇所だけ丸める」前例）。
+  return (ext as unknown as Node).extend({
+    addAttributes() {
+      return {
+        ...this.parent?.(),
+        id: {
+          default: null,
+          parseHTML: (element: HTMLElement) => element.getAttribute('data-block-id'),
+          renderHTML: (attributes: Record<string, unknown>) =>
+            typeof attributes.id === 'string' && attributes.id
+              ? { 'data-block-id': attributes.id }
+              : {},
+        },
+      };
+    },
+  }) as unknown as T;
+}
 
 /**
  * lowlight のインスタンス（highlight.js の common 言語 37 種を登録）。
@@ -216,26 +250,53 @@ export function createSchemaExtensions(
   const extensions: Extensions = [
     // StarterKit の code は排他指定、heading は levels 無制限、codeBlock はハイライトなし、
     // link は許可スキームが tiptap 既定任せのため、それぞれ無効化してこちらの拡張へ差し替える。
-    StarterKit.configure({ heading: false, code: false, codeBlock: false, link: false }),
+    // paragraph/blockquote/bulletList/orderedList/listItem/horizontalRule は StarterKit に
+    // バンドルされていて addAttributes() で id を上書きできないため、個別 import を
+    // withBlockId でラップしたものに差し替える（下の各行）。
+    StarterKit.configure({
+      heading: false,
+      code: false,
+      codeBlock: false,
+      link: false,
+      paragraph: false,
+      blockquote: false,
+      bulletList: false,
+      orderedList: false,
+      listItem: false,
+      horizontalRule: false,
+    }),
     CombinableCode,
     // リンク。href の許可スキームを明示した SafeLink（エディタと教材変換器で同じ判定を使う）。
     SafeLink,
     // 見出しは 1〜3 のみ（エディタ UI・教材の章構造とも 3 段で揃える）。
-    Heading.configure({ levels: [1, 2, 3] }),
+    withBlockId(Heading).configure({ levels: [1, 2, 3] }),
     // 構文ハイライト付きコードブロック。ノード名は 'codeBlock' のまま既存 doc と互換。
-    CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'plaintext' }),
+    withBlockId(CodeBlockLowlight).configure({ lowlight, defaultLanguage: 'plaintext' }),
+    // StarterKit から切り離した基本ブロック。configure オプションは既定のまま、id だけ足す。
+    withBlockId(Paragraph),
+    withBlockId(Blockquote),
+    withBlockId(BulletList),
+    withBlockId(OrderedList),
+    withBlockId(ListItem),
+    withBlockId(HorizontalRule),
     // 表（GFM テーブル相当）。教材の本文とナレッジの両方で使う。
     // resizable は列幅ドラッグ UI が必要になるため、まずは固定幅で表現力を優先する。
-    TableKit.configure({ table: { resizable: false } }),
+    // TableKit ではなく個別 import: table/tableRow/tableHeader/tableCell それぞれに
+    // withBlockId を適用する必要があるため。
+    withBlockId(Table).configure({ resizable: false }),
+    withBlockId(TableRow),
+    withBlockId(TableHeader),
+    withBlockId(TableCell),
     // タスクリスト（チェックボックス）。教材のチェックリスト章とナレッジの TODO で使う。
-    TaskList,
-    TaskItem.configure({ nested: true }),
-    // ページ参照（インラインの atom）。題名はサーバーが読み出し時に解決する。
+    withBlockId(TaskList),
+    withBlockId(TaskItem).configure({ nested: true }),
+    // ページ参照（インラインの atom）。題名はサーバーが読み出し時に解決する。id は不要
+    // （blocks テーブルの行にならない）。
     PageRef,
   ];
 
   if (image) {
-    extensions.push(Image.configure({ inline: false, allowBase64: false }));
+    extensions.push(withBlockId(Image).configure({ inline: false, allowBase64: false }));
   }
 
   return extensions;

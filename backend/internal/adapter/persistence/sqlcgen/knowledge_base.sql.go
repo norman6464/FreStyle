@@ -64,6 +64,30 @@ func (q *Queries) AttachPageSubtreePaths(ctx context.Context, arg AttachPageSubt
 	return err
 }
 
+const deleteBlocksByIDs = `-- name: DeleteBlocksByIDs :exec
+DELETE FROM blocks
+WHERE workspace_id = $1 AND page_id = $2
+  AND id IN (
+    SELECT value::uuid FROM json_array_elements_text($3::json) AS t(value)
+  )
+`
+
+type DeleteBlocksByIDsParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	Ids         json.RawMessage
+}
+
+// 新しい doc から消えた id だけを削除する（生き残る id は UPDATE に回すため触らない）。
+// comment_threads.block_id の ON DELETE SET NULL は将来ここで意図通りに発火する
+// （ブロックが本当に消えたときだけ引用を残して NULL に落ちる）。
+//
+// id 群を json 配列で渡す理由は ListExistingBlockIDsAmong のコメントと同じ。
+func (q *Queries) DeleteBlocksByIDs(ctx context.Context, arg DeleteBlocksByIDsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBlocksByIDs, arg.WorkspaceID, arg.PageID, arg.Ids)
+	return err
+}
+
 const deletePage = `-- name: DeletePage :execrows
 DELETE FROM pages
 WHERE workspace_id = $1 AND id = $2
@@ -84,22 +108,6 @@ func (q *Queries) DeletePage(ctx context.Context, arg DeletePageParams) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const deletePageBlocks = `-- name: DeletePageBlocks :exec
-DELETE FROM blocks
-WHERE workspace_id = $1 AND page_id = $2
-`
-
-type DeletePageBlocksParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-}
-
-// ページの全ブロック削除（本文の書き換えは「全消し全入れ」。差分更新は将来の最適化）。
-func (q *Queries) DeletePageBlocks(ctx context.Context, arg DeletePageBlocksParams) error {
-	_, err := q.db.ExecContext(ctx, deletePageBlocks, arg.WorkspaceID, arg.PageID)
-	return err
 }
 
 const deleteWorkspace = `-- name: DeleteWorkspace :execrows
@@ -400,37 +408,6 @@ func (q *Queries) HasActiveSiblingPosition(ctx context.Context, arg HasActiveSib
 	var conflicted bool
 	err := row.Scan(&conflicted)
 	return conflicted, err
-}
-
-const insertBlock = `-- name: InsertBlock :exec
-INSERT INTO blocks (id, workspace_id, page_id, parent_id, "position", type, attrs, inline)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-`
-
-type InsertBlockParams struct {
-	ID          uuid.UUID
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	ParentID    uuid.NullUUID
-	Position    string
-	Type        string
-	Attrs       json.RawMessage
-	Inline      *json.RawMessage
-}
-
-// ブロック 1 行の挿入（全入れ替えの一括 INSERT で使う）。
-func (q *Queries) InsertBlock(ctx context.Context, arg InsertBlockParams) error {
-	_, err := q.db.ExecContext(ctx, insertBlock,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.PageID,
-		arg.ParentID,
-		arg.Position,
-		arg.Type,
-		arg.Attrs,
-		arg.Inline,
-	)
-	return err
 }
 
 const insertPage = `-- name: InsertPage :one
@@ -736,6 +713,46 @@ func (q *Queries) ListChildPages(ctx context.Context, arg ListChildPagesParams) 
 	return items, nil
 }
 
+const listExistingBlockIDsAmong = `-- name: ListExistingBlockIDsAmong :many
+SELECT id FROM blocks
+WHERE id IN (
+  SELECT value::uuid FROM json_array_elements_text($1::json) AS t(value)
+)
+`
+
+// 与えた id 群のうち、blocks に実在するものだけを返す（ページを問わない）。
+// 「そのページに新しく現れた id」がこの表に既にある＝別ページの行を乗っ取ろうとしている
+// （攻撃 or バグ）ので、ReplacePageBlocks はこれを検出して保存ごと拒否する。
+//
+// id 群は json 配列 1 個のパラメータで渡し、json_array_elements_text で展開する
+// （= ANY(sqlc.arg(ids)::uuid[]) にすると database/sql モードの sqlc がパラメータを
+// pq.Array() で包む生成になり、このリポジトリが依存していない github.com/lib/pq を
+// import してビルドが壊れる。禁止は sqlc.yaml の no-array-param vet ルール、
+// 同じ理由での実例は master_exercise_example.sql の
+// ListMasterExerciseExamplesByExerciseIDs を参照）。
+func (q *Queries) ListExistingBlockIDsAmong(ctx context.Context, ids json.RawMessage) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listExistingBlockIDsAmong, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPageAncestorIDs = `-- name: ListPageAncestorIDs :many
 SELECT pp.ancestor_id
 FROM page_paths pp
@@ -764,6 +781,40 @@ func (q *Queries) ListPageAncestorIDs(ctx context.Context, arg ListPageAncestorI
 			return nil, err
 		}
 		items = append(items, ancestor_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPageBlockIDs = `-- name: ListPageBlockIDs :many
+SELECT id FROM blocks
+WHERE workspace_id = $1 AND page_id = $2
+`
+
+type ListPageBlockIDsParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+}
+
+// ページの現在のブロック id 一覧（差分 UPSERT で「消えた行」を判定するため）。
+func (q *Queries) ListPageBlockIDs(ctx context.Context, arg ListPageBlockIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listPageBlockIDs, arg.WorkspaceID, arg.PageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -898,6 +949,35 @@ func (q *Queries) PageReferencesImageKey(ctx context.Context, arg PageReferences
 	var referenced bool
 	err := row.Scan(&referenced)
 	return referenced, err
+}
+
+const parkBlockPositions = `-- name: ParkBlockPositions :exec
+UPDATE blocks
+SET position = chr(127) || id::text
+WHERE workspace_id = $1 AND page_id = $2
+  AND id IN (
+    SELECT value::uuid FROM json_array_elements_text($3::json) AS t(value)
+  )
+`
+
+type ParkBlockPositionsParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	Ids         json.RawMessage
+}
+
+// 生き残る行の position を id 由来の一時値へ退避する。flattenPageDoc は毎回 position を
+// ゼロから振り直すため、そのまま UPDATE すると「まだ古い position を持つ別の生存行」と
+// 衝突しうる（uq_blocks_parent_position / uq_blocks_page_position）。id は一意なので、
+// id 由来の値へ全行いったん退避してから本来値を書けば、退避後は元の position を持つ行が
+// 存在しなくなり衝突しない。先頭に chr(127)（DEL 制御文字）を付けるのは、fracindex が
+// 使う文字集合（英数字中心）にこの文字が絶対に出てこないため、本来の position 値域と
+// 重ならないことを保証するため。
+//
+// id 群を json 配列で渡す理由は ListExistingBlockIDsAmong のコメントと同じ。
+func (q *Queries) ParkBlockPositions(ctx context.Context, arg ParkBlockPositionsParams) error {
+	_, err := q.db.ExecContext(ctx, parkBlockPositions, arg.WorkspaceID, arg.PageID, arg.Ids)
+	return err
 }
 
 const setPagePosition = `-- name: SetPagePosition :execrows
@@ -1196,6 +1276,56 @@ func (q *Queries) UpdateSpaceName(ctx context.Context, arg UpdateSpaceNameParams
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const upsertBlock = `-- name: UpsertBlock :exec
+INSERT INTO blocks (id, workspace_id, page_id, parent_id, "position", type, attrs, inline)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (id) DO UPDATE SET
+  parent_id = EXCLUDED.parent_id,
+  "position" = EXCLUDED."position",
+  type = EXCLUDED.type,
+  attrs = EXCLUDED.attrs,
+  inline = EXCLUDED.inline,
+  updated_at = now()
+WHERE blocks.workspace_id = EXCLUDED.workspace_id AND blocks.page_id = EXCLUDED.page_id
+`
+
+type UpsertBlockParams struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	ParentID    uuid.NullUUID
+	Position    string
+	Type        string
+	Attrs       json.RawMessage
+	Inline      *json.RawMessage
+}
+
+// ブロック 1 行の挿入または更新。id が生き残る限り行そのものは delete/insert されないため、
+// comment_threads.block_id の FK 参照は保存のたびに外れない（差分 UPSERT の要）。
+//
+// 衝突キー (id) には所有者列 workspace_id が入っていない（id は PK 単独で一意なので入れられない）。
+// 呼び出し元の ReplacePageBlocks は「新しく現れる id が他ページ/他ワークスペースに実在しないか」を
+// 保存のたびに事前検証してから UpsertBlock を呼ぶ（ListExistingBlockIDsAmong → ErrBlockIDConflict）
+// ので、正しく動いている限りここで他人の行に衝突することは無い。それでも
+// queries_static_check_test.go の Test_upsertの衝突キーに所有者列が入っていること が求める
+// とおり、DO UPDATE の WHERE で workspace_id / page_id を絞っておく（上の事前検証にバグが
+// あっても、衝突した行が別ワークスペース・別ページのものなら UPDATE 自体が素通りで失敗する
+// 多層防御。page_id まで絞るのは、ブロックの所有者が実質「同じワークスペースの同じページ」
+// という単位だから）。
+func (q *Queries) UpsertBlock(ctx context.Context, arg UpsertBlockParams) error {
+	_, err := q.db.ExecContext(ctx, upsertBlock,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.PageID,
+		arg.ParentID,
+		arg.Position,
+		arg.Type,
+		arg.Attrs,
+		arg.Inline,
+	)
+	return err
 }
 
 const upsertPageSnapshot = `-- name: UpsertPageSnapshot :exec

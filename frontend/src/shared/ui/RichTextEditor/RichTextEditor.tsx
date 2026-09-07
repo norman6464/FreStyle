@@ -7,6 +7,7 @@ import { buildSlashItems } from './slashItems';
 import { acceptedImageFiles, insertUploadedImages } from './imageInsertion';
 import { sanitizeDocLinks } from './linkSafety';
 import { openClickedLink } from './linkClick';
+import { fillMissingBlockIdsInDoc } from './stableBlockId';
 import BubbleFormatMenu from './BubbleFormatMenu';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
 import type { RichDocContent } from './emptyRichDoc';
@@ -83,19 +84,39 @@ export interface RichTextEditorProps {
  * キーがアルファベット順になる。tiptap の getJSON() は type が先なので、素の比較だと
  * 開いただけで onChange が発火し、閲覧しただけの人が本文の保存（全置換）を発行して
  * 同時編集者の直近の書き込みを潰しうる。比較のためだけに使い、値そのものは変えない。
+ *
+ * ブロックの `id` attribute（stableBlockId.ts）は比較から除外する。id は crypto.randomUUID()
+ * で穴埋めするたびに新しい値になるので、素の値まで比較すると「同じ内容なのに id 生成が
+ * 別タイミングで走っただけ」で不一致（＝内容が変わった）と誤判定してしまう
+ * （例: マウント時に埋めた id と、直後に同じ doc をもう一度整える経路とで別の乱数になる）。
+ * id 自体は保存のたびにバックエンドが確定させるので、比較対象から外しても安全。
+ * id を除いた結果 attrs が空 object になったノード（＝ id だけを持っていたノード）は
+ * 「attrs キー自体を持たない」ノードと同一視する（tiptap の getJSON() は attrs を
+ * 1 つも宣言していないノードでは attrs キー自体を出さないため、id 属性を新設した
+ * paragraph/blockquote 等はここを揃えないと「id 抜きの入力 doc」と「id 補充後の doc」が
+ * 常に不一致になってしまう）。
  */
-function stableDocString(node: unknown): string {
-  if (Array.isArray(node)) {
-    return `[${node.map(stableDocString).join(',')}]`;
+function stableValueString(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => stableValueString(v) ?? 'null').join(',')}]`;
   }
-  if (node !== null && typeof node === 'object') {
-    const entries = Object.entries(node as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([k]) => k !== 'id')
+      .map(([k, v]) => [k, stableValueString(v)] as [string, string | undefined])
+      .filter((entry): entry is [string, string] => entry[1] !== undefined)
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([k, v]) => `${JSON.stringify(k)}:${stableDocString(v)}`);
+      .map(([k, v]) => `${JSON.stringify(k)}:${v}`);
+    // 中身が id だけ（＝除外後は空）だった object は「キーが無い」のと同一視する（上のコメント）。
+    if (entries.length === 0) return undefined;
     return `{${entries.join(',')}}`;
   }
-  return JSON.stringify(node) ?? 'null';
+  return JSON.stringify(value) ?? 'null';
+}
+
+function stableDocString(node: unknown): string {
+  return stableValueString(node) ?? '{}';
 }
 
 export default function RichTextEditor({
@@ -187,7 +208,10 @@ export default function RichTextEditor({
     extensions: createEditorExtensions({ placeholder, slashItems, resolveImageSrc }),
     // 読み込み側のリンク洗浄。doc JSON は API から丸ごと差し込めるので、エディタの入力・貼り付けを
     // どれだけ固めても「危険な href がすでに入った doc」はここから入ってくる。開いた時点で落とす。
-    content: sanitizeDocLinks(value),
+    // id の穴埋めも同じ「editor へ渡す前に doc を整える」経路（stableBlockId.ts のコメント参照。
+    // 生成直後に別途 transaction を dispatch する案は act() の外での再レンダーを誘発し
+    // テストで実際に不具合を起こしたため、ここで先に埋める形にした）。
+    content: fillMissingBlockIdsInDoc(sanitizeDocLinks(value)),
     editorProps: {
       attributes: {
         class: 'focus:outline-none',
@@ -230,7 +254,9 @@ export default function RichTextEditor({
     if (valueStr !== lastValueRef.current) {
       lastValueRef.current = valueStr;
       // 差し替えで入ってくる doc も読み込み時と同じ経路で洗う（別ドキュメントへの切り替え）。
-      editor.commands.setContent(sanitizeDocLinks(value), { emitUpdate: false });
+      editor.commands.setContent(fillMissingBlockIdsInDoc(sanitizeDocLinks(value)), {
+        emitUpdate: false,
+      });
     }
   }, [editor, value]);
 

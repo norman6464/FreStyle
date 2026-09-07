@@ -870,6 +870,14 @@ func (r *knowledgeBaseRepository) ListBlocksByPage(ctx context.Context, workspac
 	return blocks, nil
 }
 
+// ReplacePageBlocks は本文を差分 UPSERT で書き換える（全消し全入れではない）。
+//
+// 将来 comment_threads.block_id が blocks.id を ON DELETE SET NULL で参照する予定があり、
+// 「ブロックの中身を編集して保存し直しても、そのブロックに付いたコメントの紐付けは外れない」
+// ことが要る。PostgreSQL の ON DELETE SET NULL は DELETE 文が実行された瞬間に発火するため、
+// 全消し全入れを続ける限り保存のたびに全コメントの紐付けが外れてしまう。そのため、
+// 消えた id だけ DELETE し、生き残る id は UPDATE で中身を書き換え（行そのものは同一なので
+// FK は外れない）、新しい id だけ INSERT する。
 func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc string) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
@@ -883,31 +891,123 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspa
 		if _, err := findPageWith(ctx, qtx, workspaceID, pageID); err != nil {
 			return err
 		}
-		if err := qtx.DeletePageBlocks(ctx, sqlcgen.DeletePageBlocksParams{WorkspaceID: wsID, PageID: pgID}); err != nil {
+
+		// 1. 各 BlockWrite.ID を検証する。usecase 側（flattenPageDoc）が必ず有効な UUID を
+		// 埋めている前提なので、parse 失敗はバグの証拠としてそのままエラーを返す。
+		incomingIDs := make([]uuid.UUID, len(blocks))
+		for i, b := range blocks {
+			id, err := uuid.Parse(b.ID)
+			if err != nil {
+				return fmt.Errorf("blocks[%d].ID が不正な UUID です: %w", i, err)
+			}
+			incomingIDs[i] = id
+		}
+
+		// 2. このページの既存 id 集合を取得する。
+		existingRows, err := qtx.ListPageBlockIDs(ctx, sqlcgen.ListPageBlockIDsParams{WorkspaceID: wsID, PageID: pgID})
+		if err != nil {
 			return err
 		}
-		ids := make([]uuid.UUID, len(blocks))
-		for i, b := range blocks {
-			id, err := kbNewID()
+		existing := make(map[uuid.UUID]bool, len(existingRows))
+		for _, id := range existingRows {
+			existing[id] = true
+		}
+		incoming := make(map[uuid.UUID]bool, len(incomingIDs))
+		for _, id := range incomingIDs {
+			incoming[id] = true
+		}
+
+		// 3. incoming のうち existing に無いもの＝newIDs。他ページの行を乗っ取ろうとして
+		// いないかを確認し、1 件でも見つかれば保存ごと拒否する。
+		newIDs := make([]uuid.UUID, 0, len(incoming))
+		for id := range incoming {
+			if !existing[id] {
+				newIDs = append(newIDs, id)
+			}
+		}
+		if len(newIDs) > 0 {
+			idsJSON, err := json.Marshal(newIDs)
 			if err != nil {
 				return err
 			}
-			ids[i] = id
+			conflicting, err := qtx.ListExistingBlockIDsAmong(ctx, idsJSON)
+			if err != nil {
+				return err
+			}
+			if len(conflicting) > 0 {
+				return repository.ErrBlockIDConflict
+			}
+		}
+
+		// 4. existing にあって incoming に無いもの＝toDelete。ページから消えた行を削除する
+		// （comment_threads.block_id の ON DELETE SET NULL がここで初めて意図通りに発火する）。
+		toDelete := make([]uuid.UUID, 0, len(existing))
+		for id := range existing {
+			if !incoming[id] {
+				toDelete = append(toDelete, id)
+			}
+		}
+		if len(toDelete) > 0 {
+			idsJSON, err := json.Marshal(toDelete)
+			if err != nil {
+				return err
+			}
+			if err := qtx.DeleteBlocksByIDs(ctx, sqlcgen.DeleteBlocksByIDsParams{
+				WorkspaceID: wsID,
+				PageID:      pgID,
+				Ids:         idsJSON,
+			}); err != nil {
+				return err
+			}
+		}
+
+		// 5. existing と incoming の両方にあるもの＝kept。position を一時値へ退避してから
+		// 本来値を書く（flattenPageDoc が毎回振り直す position が、まだ古い position を
+		// 持つ別の生存行と衝突するのを避けるため。ParkBlockPositions のコメント参照）。
+		kept := make([]uuid.UUID, 0, len(existing))
+		for id := range existing {
+			if incoming[id] {
+				kept = append(kept, id)
+			}
+		}
+		if len(kept) > 0 {
+			idsJSON, err := json.Marshal(kept)
+			if err != nil {
+				return err
+			}
+			if err := qtx.ParkBlockPositions(ctx, sqlcgen.ParkBlockPositionsParams{
+				WorkspaceID: wsID,
+				PageID:      pgID,
+				Ids:         idsJSON,
+			}); err != nil {
+				return err
+			}
+		}
+
+		// 6. 入力の順序のまま（= flattenPageDoc が親を先に出す文書順のまま）1 件ずつ UPSERT する。
+		// 新規ブロックが新規の親を参照するケースでは、親が先に UPSERT 済みでないと
+		// fk_blocks_parent に落ちるため、この順序を変えてはいけない。
+		//
+		// ParentID の dangling 参照（flattenPageDoc の出力が壊れている場合）は Go 側で
+		// 事前検証しない。fk_blocks_parent の FK 制約が INSERT 時点で自然に拒否するので、
+		// そちらに任せる（ParentIndex 特有のパニック回避のための事前チェックは、
+		// ID ベースの新実装では不要）。
+		for i, b := range blocks {
 			var parent uuid.NullUUID
-			if b.ParentIndex >= 0 {
-				// 文書順（親が先）が前提。壊れた入力で別ページの行を親にしないよう添字を検証する。
-				if b.ParentIndex >= i {
-					return fmt.Errorf("blocks[%d] の ParentIndex %d が自分より後を指しています", i, b.ParentIndex)
+			if b.ParentID != nil {
+				pid, err := uuid.Parse(*b.ParentID)
+				if err != nil {
+					return fmt.Errorf("blocks[%d].ParentID が不正な UUID です: %w", i, err)
 				}
-				parent = uuid.NullUUID{UUID: ids[b.ParentIndex], Valid: true}
+				parent = uuid.NullUUID{UUID: pid, Valid: true}
 			}
 			var inline *json.RawMessage
 			if b.Inline != nil {
 				raw := json.RawMessage(*b.Inline)
 				inline = &raw
 			}
-			if err := qtx.InsertBlock(ctx, sqlcgen.InsertBlockParams{
-				ID:          id,
+			if err := qtx.UpsertBlock(ctx, sqlcgen.UpsertBlockParams{
+				ID:          incomingIDs[i],
 				WorkspaceID: wsID,
 				PageID:      pgID,
 				ParentID:    parent,
@@ -919,6 +1019,8 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspa
 				return err
 			}
 		}
+
+		// 7. snapshot を焼き直す。
 		return qtx.UpsertPageSnapshot(ctx, sqlcgen.UpsertPageSnapshotParams{
 			PageID: pgID,
 			Doc:    json.RawMessage(snapshotDoc),

@@ -1194,6 +1194,22 @@ func Test_ナレッジ画像ダウンロード_同一ワークスペースの他
 	assert.NotEmpty(t, resp.URL)
 }
 
+// Test_ナレッジAPI_本文保存でブロックID衝突は409 は、repository.ErrBlockIDConflict
+// （他ページ・他ワークスペースの block id を新規ブロックとして乗っ取ろうとする保存の拒否）を
+// handler が 409 block_id_conflict へ翻訳することを固定する。差分 UPSERT（ReplacePageBlocks）
+// が実 DB で検出するこのセンチネルの handler 側の写像はここでしか検証していない。
+func Test_ナレッジAPI_本文保存でブロックID衝突は409(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.pages.replaceBlocksErr = repository.ErrBlockIDConflict
+	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID
+
+	w := f.do(t, http.MethodPut, base+"/content", `{"doc":`+kbValidDoc+`}`)
+
+	assert.Equal(t, http.StatusConflict, w.Code,
+		"他人の行を乗っ取ろうとする保存はDB障害(500)ではなく業務上の衝突(409)")
+	assert.JSONEq(t, `{"error":"block_id_conflict"}`, w.Body.String())
+}
+
 // Test_ナレッジAPI_本文を保存した人が最終編集者になる は、本文を保存した人が
 // pages.last_edited_by_user_id として記録され、改名では変わらないことを固定する
 // （TouchPageLastEditedBy は ReplacePageBlocksUseCase だけが呼ぶ — 既知のリスク参照）。

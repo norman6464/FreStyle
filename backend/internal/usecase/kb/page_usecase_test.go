@@ -6,28 +6,27 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
-// writesToDomainBlocks は repository 実装の採番（ParentIndex → ID 解決）を模して、
-// 保存用の行を DB から読み出した形（domain.Block）へ変換する。往復テスト用。
+// writesToDomainBlocks は保存用の行（BlockWrite.ID / ParentID）を、
+// DB から読み出した形（domain.Block）へそのまま写す。往復テスト用。
+// ID は既に flattenPageDoc が確定させているので、配列添字→文字列 ID のような
+// 変換は不要（旧 ParentIndex 時代と違い repository 側の採番を模す必要が無い）。
 func writesToDomainBlocks(t *testing.T, rows []repository.BlockWrite) []domain.Block {
 	t.Helper()
 	blocks := make([]domain.Block, 0, len(rows))
-	for i, r := range rows {
+	for _, r := range rows {
 		b := domain.Block{
-			ID:       fmt.Sprintf("block-%04d", i),
+			ID:       r.ID,
+			ParentID: r.ParentID,
 			PageID:   "page-1",
 			Position: r.Position,
 			Type:     r.Type,
 			Attrs:    r.Attrs,
-		}
-		if r.ParentIndex >= 0 {
-			require.Less(t, r.ParentIndex, i, "親は文書順で自分より前にあること")
-			pid := fmt.Sprintf("block-%04d", r.ParentIndex)
-			b.ParentID = &pid
 		}
 		if r.Inline != nil {
 			s := *r.Inline
@@ -38,12 +37,43 @@ func writesToDomainBlocks(t *testing.T, rows []repository.BlockWrite) []domain.B
 	return blocks
 }
 
-// requireJSONEq は 2 つの JSON 文字列を意味的に比較する（キー順・空白の差を無視）。
-func requireJSONEq(t *testing.T, want, got string) {
+// stripBlockIDsFromAttrs は JSON 木（json.Unmarshal した any）を再帰的に走査し、
+// すべての "attrs" オブジェクトから "id" キーを取り除く（破壊的に変更する）。
+// 削除の結果 attrs が空 object になったら、attrs キー自体も取り除く
+// （renderBlockNode が付ける前の正規形＝「id を除いた属性が空なら attrs を出さない」に戻す）。
+func stripBlockIDsFromAttrs(v any) {
+	switch val := v.(type) {
+	case map[string]any:
+		if attrsRaw, ok := val["attrs"]; ok {
+			if attrsMap, ok := attrsRaw.(map[string]any); ok {
+				delete(attrsMap, "id")
+				if len(attrsMap) == 0 {
+					delete(val, "attrs")
+				}
+			}
+		}
+		for _, child := range val {
+			stripBlockIDsFromAttrs(child)
+		}
+	case []any:
+		for _, child := range val {
+			stripBlockIDsFromAttrs(child)
+		}
+	}
+}
+
+// requireJSONEqIgnoringBlockIDs は 2 つの JSON 文字列を意味的に比較する
+// （キー順・空白の差、および attrs.id の差を無視する）。
+//
+// 新規ブロック（attrs.id 無し入力）は保存のたび・呼び出しのたびに新しい UUID が
+// 採番されるため、id を無視せず厳密一致で比較すると常に落ちる。
+func requireJSONEqIgnoringBlockIDs(t *testing.T, want, got string) {
 	t.Helper()
 	var w, g any
 	require.NoError(t, json.Unmarshal([]byte(want), &w))
 	require.NoError(t, json.Unmarshal([]byte(got), &g))
+	stripBlockIDsFromAttrs(w)
+	stripBlockIDsFromAttrs(g)
 	require.Equal(t, w, g)
 }
 
@@ -142,12 +172,12 @@ func Test_doc往復_分解して組み立てると同値(t *testing.T) {
 			require.NoError(t, err)
 			got, err := renderPageDoc(rebuilt)
 			require.NoError(t, err)
-			requireJSONEq(t, tc.doc, got)
+			requireJSONEqIgnoringBlockIDs(t, tc.doc, got)
 
 			// 行を経由しない直接の組み立てでも同値であること。
 			direct, err := renderPageDoc(tree)
 			require.NoError(t, err)
-			requireJSONEq(t, tc.doc, direct)
+			requireJSONEqIgnoringBlockIDs(t, tc.doc, direct)
 		})
 	}
 }
@@ -189,19 +219,21 @@ func Test_doc分解_行の形が正しい(t *testing.T) {
 
 	// トップレベル: heading と bulletList（文書順・親なし）。
 	require.Equal(t, domain.BlockTypeHeading, rows[0].Type)
-	require.Equal(t, -1, rows[0].ParentIndex)
+	require.Nil(t, rows[0].ParentID)
 	require.JSONEq(t, `{"level":1}`, rows[0].Attrs)
 	require.NotNil(t, rows[0].Inline, "葉ノードは content を inline に持つ")
 	require.Equal(t, domain.BlockTypeBulletList, rows[1].Type)
-	require.Equal(t, -1, rows[1].ParentIndex)
+	require.Nil(t, rows[1].ParentID)
 	require.Nil(t, rows[1].Inline, "容器ノードの inline は NULL")
-	require.Equal(t, "{}", rows[1].Attrs, "属性なしは空 object（NULL と {} の二通りを作らない）")
+	require.Equal(t, "{}", rows[1].Attrs, "属性なしは空 object（NULL と {} の二通りを作らない、id は Attrs ではなく BlockWrite.ID に入る）")
 
 	// 入れ子: listItem の親は bulletList、paragraph の親は listItem。
 	require.Equal(t, domain.BlockTypeListItem, rows[2].Type)
-	require.Equal(t, 1, rows[2].ParentIndex)
+	require.NotNil(t, rows[2].ParentID)
+	require.Equal(t, rows[1].ID, *rows[2].ParentID, "listItem の親は bulletList")
 	require.Equal(t, domain.BlockTypeParagraph, rows[3].Type)
-	require.Equal(t, 2, rows[3].ParentIndex)
+	require.NotNil(t, rows[3].ParentID)
+	require.Equal(t, rows[2].ID, *rows[3].ParentID, "paragraph の親は listItem")
 
 	// 兄弟の position は辞書順で増える（トップレベルの 2 行）。
 	require.Less(t, rows[0].Position, rows[1].Position)
@@ -221,7 +253,7 @@ func Test_doc組み立て_兄弟をposition順に並べ直す(t *testing.T) {
 	require.Len(t, rows, 2)
 	doc, err := renderPageDoc(tree)
 	require.NoError(t, err)
-	requireJSONEq(t, `{"type":"doc","content":[
+	requireJSONEqIgnoringBlockIDs(t, `{"type":"doc","content":[
 		{"type":"paragraph","content":[{"type":"text","text":"x"}]},
 		{"type":"paragraph","content":[{"type":"text","text":"x"}]}
 	]}`, doc)
@@ -242,4 +274,95 @@ func Test_doc組み立て_未知のtypeの行はエラー(t *testing.T) {
 	}
 	_, err := treeFromBlocks(blocks)
 	require.True(t, errors.Is(err, ErrPageDocUnknownNodeType))
+}
+
+// Test_flattenPageDoc_明示的な有効idはそのまま使われる は、クライアントが attrs.id で
+// 送った有効な UUID が新規採番されずそのまま BlockWrite.ID になることを固定する
+// （差分 UPSERT で行を同一に保つための要）。
+func Test_flattenPageDoc_明示的な有効idはそのまま使われる(t *testing.T) {
+	fixedID := "11111111-1111-1111-1111-111111111111"
+	doc := fmt.Sprintf(`{"type":"doc","content":[
+		{"type":"paragraph","attrs":{"id":%q},"content":[{"type":"text","text":"x"}]}
+	]}`, fixedID)
+
+	tree, err := parsePageDoc(doc)
+	require.NoError(t, err)
+	rows, err := flattenPageDoc(tree)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, fixedID, rows[0].ID)
+}
+
+// Test_flattenPageDoc_idが無いか不正なら新規採番される は、attrs.id が欠けている・
+// UUID として parse できない場合に、有効な UUID が新規採番されることを固定する。
+func Test_flattenPageDoc_idが無いか不正なら新規採番される(t *testing.T) {
+	cases := []struct {
+		name string
+		doc  string
+	}{
+		{"idキー無し", `{"type":"doc","content":[{"type":"paragraph"}]}`},
+		{"attrs自体が空", `{"type":"doc","content":[{"type":"paragraph","attrs":{}}]}`},
+		{"idが文字列でない", `{"type":"doc","content":[{"type":"paragraph","attrs":{"id":123}}]}`},
+		{"idがUUIDとしてparseできない", `{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"not-a-uuid"}}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tree, err := parsePageDoc(tc.doc)
+			require.NoError(t, err)
+			rows, err := flattenPageDoc(tree)
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			_, err = uuid.Parse(rows[0].ID)
+			require.NoError(t, err, "新規採番された id は有効な UUID であること")
+		})
+	}
+}
+
+// Test_flattenPageDoc_明示idは呼び出しをまたいで安定するがid無しは変わりうる は、
+// 同じ doc を 2 回 parsePageDoc → flattenPageDoc しても、明示的な id を持つノードは
+// 両方の呼び出しで同じ id になり、id 無しのノードだけが呼び出しごとに変わることを固定する。
+func Test_flattenPageDoc_明示idは呼び出しをまたいで安定するがid無しは変わりうる(t *testing.T) {
+	fixedID := "22222222-2222-2222-2222-222222222222"
+	doc := fmt.Sprintf(`{"type":"doc","content":[
+		{"type":"paragraph","attrs":{"id":%q},"content":[{"type":"text","text":"固定"}]},
+		{"type":"paragraph","content":[{"type":"text","text":"未指定"}]}
+	]}`, fixedID)
+
+	tree1, err := parsePageDoc(doc)
+	require.NoError(t, err)
+	rows1, err := flattenPageDoc(tree1)
+	require.NoError(t, err)
+
+	tree2, err := parsePageDoc(doc)
+	require.NoError(t, err)
+	rows2, err := flattenPageDoc(tree2)
+	require.NoError(t, err)
+
+	require.Len(t, rows1, 2)
+	require.Len(t, rows2, 2)
+	require.Equal(t, fixedID, rows1[0].ID)
+	require.Equal(t, fixedID, rows2[0].ID, "明示的な id は呼び出しをまたいで安定する")
+	require.NotEqual(t, rows1[1].ID, rows2[1].ID, "id 無しは呼び出しごとに新規採番される")
+}
+
+// Test_renderPageDoc_常にattrs_idを出力する は、元々 attrs が空だったノードでも
+// render 後は必ず attrs.id が出ることを固定する（renderBlockNode のコメント参照）。
+func Test_renderPageDoc_常にattrs_idを出力する(t *testing.T) {
+	doc := `{"type":"doc","content":[{"type":"horizontalRule"}]}`
+	tree, err := parsePageDoc(doc)
+	require.NoError(t, err)
+	got, err := renderPageDoc(tree)
+	require.NoError(t, err)
+
+	var parsed struct {
+		Content []struct {
+			Attrs struct {
+				ID string `json:"id"`
+			} `json:"attrs"`
+		} `json:"content"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(got), &parsed))
+	require.Len(t, parsed.Content, 1)
+	_, err = uuid.Parse(parsed.Content[0].Attrs.ID)
+	require.NoError(t, err, "attrs が元々空だったノードでも render 後は id を持つ")
 }

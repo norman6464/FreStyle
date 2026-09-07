@@ -145,10 +145,15 @@ CREATE TABLE "public"."pages" (
   "archived_at" timestamptz NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
+  "icon" jsonb NULL,
+  "cover" jsonb NULL,
+  "last_edited_by_user_id" bigint NULL,
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_pages_workspace_id" UNIQUE ("workspace_id", "id"),
   CONSTRAINT "uq_pages_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
   CONSTRAINT "fk_pages_parent" FOREIGN KEY ("workspace_id", "space_id", "parent_id") REFERENCES "public"."pages" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_pages_cover_object" CHECK ((cover IS NULL) OR (jsonb_typeof(cover) = 'object'::text)),
+  CONSTRAINT "ck_pages_icon_object" CHECK ((icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text)),
   CONSTRAINT "ck_pages_parent_not_self" CHECK ((parent_id IS NULL) OR (parent_id <> id)),
   CONSTRAINT "ck_pages_position_not_empty" CHECK ("position" <> ''::text)
 );

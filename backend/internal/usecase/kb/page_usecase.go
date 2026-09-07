@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -33,6 +34,11 @@ var (
 	ErrPageAnchorNotSibling = errors.New("anchor page is not a sibling under the destination")
 	// ErrPageCycle は自分自身または自分の子孫の下への移動に返す（木が壊れる）。
 	ErrPageCycle = errors.New("cannot move a page under itself or its descendant")
+	// ErrInvalidPageIcon は domain.PageIcon.Valid() を満たさない値を設定しようとしたときに返す。
+	ErrInvalidPageIcon = errors.New("invalid page icon")
+	// ErrPageEditorRequired は本文書き換えの入力に編集者（EditorUserID）が無いときに返す。
+	// 最終編集者を記録できないまま保存を許すと、誰が書いたか分からないページができる。
+	ErrPageEditorRequired = errors.New("editor user id is required")
 )
 
 // kbPageTitleMaxLen は pages.title (varchar(200)) の上限。DB エラーの前に入口で弾く。
@@ -153,6 +159,10 @@ type GetPageOutput struct {
 	// Doc は ProseMirror ドキュメント（JSON 文字列）。API へは handler の response 型で
 	// json.RawMessage に変換して出す。
 	Doc string `json:"-"`
+	// BuiltAt は snapshot の焼き直し時刻（= 直近の本文保存と同じトランザクションの時刻）。
+	// snapshot がまだ無く blocks から都度組み立てた場合は nil
+	// （pages.updated_at は改名・アイコン変更でも動くので、最終編集の時刻にはこちらを使う）。
+	BuiltAt *time.Time `json:"-"`
 }
 
 func (u *GetPageUseCase) Execute(ctx context.Context, in GetPageInput) (*GetPageOutput, error) {
@@ -162,7 +172,8 @@ func (u *GetPageUseCase) Execute(ctx context.Context, in GetPageInput) (*GetPage
 	}
 	snap, err := u.repo.GetPageSnapshot(ctx, in.WorkspaceID, in.PageID)
 	if err == nil {
-		return &GetPageOutput{Page: *page, Doc: snap.Doc}, nil
+		builtAt := snap.BuiltAt
+		return &GetPageOutput{Page: *page, Doc: snap.Doc, BuiltAt: &builtAt}, nil
 	}
 	if !errors.Is(err, repository.ErrPageSnapshotNotFound) {
 		return nil, err
@@ -660,11 +671,12 @@ func BuildPageTree(pages []domain.Page, policy PageTreeOrphanPolicy) []*PageTree
 // 入力に行スキーマへ写せない情報（未知フィールド等）が混ざっていても
 // 「snapshot は必ず blocks から再生成できる」という不変条件が崩れないようにするため。
 type ReplacePageBlocksUseCase struct {
-	repo repository.KnowledgeBaseRepository
+	repo      repository.KnowledgeBaseRepository
+	txManager repository.TxManager
 }
 
-func NewReplacePageBlocksUseCase(r repository.KnowledgeBaseRepository) *ReplacePageBlocksUseCase {
-	return &ReplacePageBlocksUseCase{repo: r}
+func NewReplacePageBlocksUseCase(r repository.KnowledgeBaseRepository, txManager repository.TxManager) *ReplacePageBlocksUseCase {
+	return &ReplacePageBlocksUseCase{repo: r, txManager: txManager}
 }
 
 type ReplacePageBlocksInput struct {
@@ -672,9 +684,15 @@ type ReplacePageBlocksInput struct {
 	PageID      string
 	// Doc は ProseMirror ドキュメント（tiptap の getJSON() 相当の JSON 文字列）。
 	Doc string
+	// EditorUserID は本文を保存した人（users.id）。0（未指定）は拒否する — 記録できない
+	// まま保存を許すと、誰が最後に書いたか分からないページができてしまう。
+	EditorUserID uint64
 }
 
 func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBlocksInput) (*domain.PageSnapshot, error) {
+	if in.EditorUserID == 0 {
+		return nil, ErrPageEditorRequired
+	}
 	page, err := u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
 	if err != nil {
 		return nil, err
@@ -697,10 +715,76 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 	if err != nil {
 		return nil, err
 	}
-	if err := u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized); err != nil {
+	// 最終編集者の記録と本文の全消し全入れは同じトランザクションに入れる。
+	// Touch を先に呼ぶのは、UPDATE が pages の対象行を排他ロックするため
+	// （同じページへの同時保存がここで直列化される。TouchPageLastEditedBy の doc 参照）。
+	if err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
+		if err := u.repo.TouchPageLastEditedBy(ctx, in.WorkspaceID, in.PageID, in.EditorUserID); err != nil {
+			return err
+		}
+		return u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized)
+	}); err != nil {
 		return nil, err
 	}
 	return u.repo.GetPageSnapshot(ctx, in.WorkspaceID, in.PageID)
+}
+
+// SetPageIconUseCase はページのアイコンを設定・解除する（Input.Icon が nil なら解除）。
+type SetPageIconUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewSetPageIconUseCase(r repository.KnowledgeBaseRepository) *SetPageIconUseCase {
+	return &SetPageIconUseCase{repo: r}
+}
+
+type SetPageIconInput struct {
+	WorkspaceID string
+	PageID      string
+	// Icon は設定するアイコン。nil なら解除。
+	Icon *domain.PageIcon
+}
+
+func (u *SetPageIconUseCase) Execute(ctx context.Context, in SetPageIconInput) (*domain.Page, error) {
+	// 形の検証は repository を呼ぶ前に済ませる。不正な値で FindPage まで進めると
+	// 「値は捨てられたが読みには行った」という中途半端な副作用が残る。
+	if in.Icon != nil && !in.Icon.Valid() {
+		return nil, ErrInvalidPageIcon
+	}
+	page, err := u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
+	if err != nil {
+		return nil, err
+	}
+	if page.ArchivedAt != nil {
+		return nil, ErrPageArchived
+	}
+	return u.repo.UpdatePageIcon(ctx, in.WorkspaceID, in.PageID, in.Icon)
+}
+
+// LookupUserNameUseCase はユーザー ID から表示名を引く。
+//
+// kb パッケージと user パッケージは互いを import しない規約（usecase サブパッケージ同士は
+// import しない）のため、user.GetCurrentUserUseCase 等を再利用せず
+// repository.UserRepository を直接受け取ってここに置く。
+type LookupUserNameUseCase struct {
+	users repository.UserRepository
+}
+
+func NewLookupUserNameUseCase(users repository.UserRepository) *LookupUserNameUseCase {
+	return &LookupUserNameUseCase{users: users}
+}
+
+// Execute はユーザーの表示名を返す。見つからなければ空文字（「最終編集者」のような
+// 付随情報のために、本体の応答自体を失敗にはしない）。repository の失敗はそのまま伝える。
+func (u *LookupUserNameUseCase) Execute(ctx context.Context, userID uint64) (string, error) {
+	user, err := u.users.FindByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if user == nil {
+		return "", nil
+	}
+	return user.Name, nil
 }
 
 // MovePageUseCase はページ（とその子孫）を別の親・別のスペースへ移す。

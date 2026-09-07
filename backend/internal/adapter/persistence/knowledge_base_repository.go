@@ -16,10 +16,12 @@ import (
 )
 
 // knowledgeBaseRepository は [repository.KnowledgeBaseRepository] の実装。
-// ナレッジは GORM を通さない方針（スキーマの正本は infra/database/schema/knowledge_base.sql）
+// ナレッジは GORM を通さない方針（スキーマの正本は infra/database/schema/schema.hcl。
+// knowledge_base.sql は sqlc へ渡すクエリの置き場で、スキーマそのものではない）
 // のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
-// 複数テーブルにまたがる書き込み（ページ作成・移動・本文置き換え）は BeginTx で
-// この層に閉じたトランザクションにする（usecase に *sql.Tx を漏らさない）。
+// 複数テーブルにまたがる書き込み（ページ作成・移動・本文置き換え）は runInTx が
+// 自前のトランザクションで閉じるが、ctx に既に外側の TxManager.DoInTx が開いた
+// トランザクションがあればそちらへ相乗りする（usecase に *sql.Tx を漏らさない点は変わらない）。
 type knowledgeBaseRepository struct {
 	baseRepository
 }
@@ -155,6 +157,24 @@ func toDomainPage(row sqlcgen.Page) domain.Page {
 	if row.ArchivedAt.Valid {
 		t := row.ArchivedAt.Time
 		p.ArchivedAt = &t
+	}
+	if row.LastEditedByUserID.Valid {
+		id := uint64(row.LastEditedByUserID.Int64)
+		p.LastEditedByUserID = &id
+	}
+	// icon / cover は飾り（見た目）であって、壊れていてもページ本体の読み出しを止める理由には
+	// ならない。json.Unmarshal に失敗したら nil に倒し、タイトルや本文は普通に返す。
+	if row.Icon != nil {
+		var icon domain.PageIcon
+		if err := json.Unmarshal(*row.Icon, &icon); err == nil {
+			p.Icon = &icon
+		}
+	}
+	if row.Cover != nil {
+		var cover domain.PageCover
+		if err := json.Unmarshal(*row.Cover, &cover); err == nil {
+			p.Cover = &cover
+		}
 	}
 	return p
 }
@@ -593,6 +613,55 @@ func (r *knowledgeBaseRepository) UpdatePageTitle(ctx context.Context, workspace
 	}
 	p := toDomainPage(row)
 	return &p, nil
+}
+
+func (r *knowledgeBaseRepository) UpdatePageIcon(ctx context.Context, workspaceID, pageID string, icon *domain.PageIcon) (*domain.Page, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return nil, repository.ErrPageNotFound
+	}
+	var raw *json.RawMessage
+	if icon != nil {
+		// 正規形（domain.PageIcon を Marshal し直したもの）だけを書く。呼び出し側から
+		// 渡された値をそのまま書かないのは、フィールド順・空白の揺れを DB に持ち込まないため。
+		encoded, err := json.Marshal(icon)
+		if err != nil {
+			return nil, err
+		}
+		msg := json.RawMessage(encoded)
+		raw = &msg
+	}
+	row, err := r.queries(ctx).UpdatePageIcon(ctx, sqlcgen.UpdatePageIconParams{Icon: raw, WorkspaceID: wsID, ID: pgID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrPageNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	p := toDomainPage(row)
+	return &p, nil
+}
+
+func (r *knowledgeBaseRepository) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	uid, ok3 := toInt64ID(userID)
+	if !ok || !ok2 || !ok3 {
+		return repository.ErrPageNotFound
+	}
+	n, err := r.queries(ctx).TouchPageLastEditedBy(ctx, sqlcgen.TouchPageLastEditedByParams{
+		UserID:      uid,
+		WorkspaceID: wsID,
+		ID:          pgID,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrPageNotFound
+	}
+	return nil
 }
 
 func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error {

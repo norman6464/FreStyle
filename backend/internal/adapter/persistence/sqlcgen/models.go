@@ -79,16 +79,19 @@ type Notification struct {
 }
 
 type Page struct {
-	ID              uuid.UUID
-	WorkspaceID     uuid.UUID
-	SpaceID         uuid.UUID
-	ParentID        uuid.NullUUID
-	Position        string
-	Title           string
-	CreatedByUserID int64
-	ArchivedAt      sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	SpaceID            uuid.UUID
+	ParentID           uuid.NullUUID
+	Position           string
+	Title              string
+	CreatedByUserID    int64
+	ArchivedAt         sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Icon               *json.RawMessage
+	Cover              *json.RawMessage
+	LastEditedByUserID sql.NullInt64
 }
 
 type PageGrant struct {

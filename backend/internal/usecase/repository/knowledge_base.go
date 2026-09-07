@@ -75,7 +75,10 @@ type BlockWrite struct {
 // 「ページ作成 = pages + page_paths」「本文保存 = blocks + snapshot」のように
 // 複数テーブルを 1 トランザクションで書く操作が中心で、境界を分けると
 // トランザクション境界が interface をまたいでしまうため 1 つにまとめる。
-// トランザクションは実装内で完結させ、usecase に *sql.Tx を漏らさない。
+//
+// 複数メソッドを 1 単位にするときは usecase が TxManager.DoInTx で境界を引き、
+// 実装は ctx の tx に相乗りする（knowledgeBaseRepository.runInTx が getTx(ctx) を見て
+// 既存の tx へ乗るか自前で開くかを選ぶ）。どちらの経路でも usecase に *sql.Tx は漏れない。
 type KnowledgeBaseRepository interface {
 	// FindPageByIDAcrossWorkspaces はページを ID だけで引く（/p/{pageId} の解決用）。
 	// このリポジトリで唯一テナントを確定せずに読む口で、呼び出し側は結果を応答に使う前に
@@ -146,6 +149,17 @@ type KnowledgeBaseRepository interface {
 	CreatePage(ctx context.Context, page *domain.Page) error
 	// UpdatePageTitle はタイトルを変更し、更新後の行を返す。対象が無ければ ErrPageNotFound。
 	UpdatePageTitle(ctx context.Context, workspaceID, pageID, title string) (*domain.Page, error)
+	// UpdatePageIcon はアイコンを設定・解除し（icon が nil なら解除）、更新後の行を返す。
+	// 対象が無ければ ErrPageNotFound。入力の妥当性（domain.PageIcon.Valid()）は
+	// 呼び出し側（usecase）が保証済みという前提で、ここでは形の検証をしない。
+	UpdatePageIcon(ctx context.Context, workspaceID, pageID string, icon *domain.PageIcon) (*domain.Page, error)
+	// TouchPageLastEditedBy は最終編集者を記録する。対象が無ければ ErrPageNotFound。
+	//
+	// 呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより**先に**これを呼ぶ。
+	// UPDATE が pages の対象行を排他ロックするため、同じページへの同時保存はここで
+	// 直列化される（先に呼ばないと、2 つの保存が pages のロックを取らずに blocks へ
+	// 同時に触り、全消しと全入れが入り交じって本文が壊れる余地が残る）。
+	TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error
 	// MovePage はページを newParentID（nil はスペース直下）の末尾へ移す。
 	// pages の付け替え・スペースが変わる場合のサブツリー space_id 更新・closure の
 	// 付け替えを 1 トランザクションで行う。対象が無ければ ErrPageNotFound。

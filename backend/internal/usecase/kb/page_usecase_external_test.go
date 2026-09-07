@@ -343,6 +343,9 @@ func Test_ツリー組み立て_兄弟の並びは入力順のまま(t *testing.
 	assert.Equal(t, []string{"p-1", "p-2", "p-3"}, got)
 }
 
+// kbEditorUserID はこのファイルの本文書き換えテストで共通に使う「保存した人」の ID。
+const kbEditorUserID = uint64(7)
+
 func Test_本文書き換え_docを行に分解して全入れ替えする(t *testing.T) {
 	doc := `{"type":"doc","content":[
 		{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"見出し"}]},
@@ -350,6 +353,7 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 	]}`
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).Return(nil)
 	var gotRows []repository.BlockWrite
 	var gotSnapshot string
 	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything).
@@ -359,10 +363,10 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 		}).Return(nil)
 	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
 		Return(&domain.PageSnapshot{PageID: kbPage, Doc: doc}, nil)
-	uc := kb.NewReplacePageBlocksUseCase(repo)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
 
 	out, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
-		WorkspaceID: kbWS, PageID: kbPage, Doc: doc,
+		WorkspaceID: kbWS, PageID: kbPage, Doc: doc, EditorUserID: kbEditorUserID,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, out)
@@ -373,13 +377,65 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 	assert.JSONEq(t, doc, gotSnapshot, "snapshot は行から再生成した正規形の doc")
 }
 
+// Test_本文書き換え_ブロック置換と最終編集者の記録は同じトランザクションで行う は
+// TouchPageLastEditedBy と ReplacePageBlocks が **同じ** DoInTx の呼び出し 1 回の中で
+// 行われることを固定する（既知のリスク: Touch を先に呼ぶことで同じページへの同時保存が
+// 直列化される。片方だけ tx の外で呼ばれる回帰はここで捕まえる）。
+func Test_本文書き換え_ブロック置換と最終編集者の記録は同じトランザクションで行う(t *testing.T) {
+	doc := `{"type":"doc","content":[]}`
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("TouchPageLastEditedBy", mock.MatchedBy(inTx), kbWS, kbPage, kbEditorUserID).Return(nil)
+	repo.On("ReplacePageBlocks", mock.MatchedBy(inTx), kbWS, kbPage, mock.Anything, mock.Anything).Return(nil)
+	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
+		Return(&domain.PageSnapshot{PageID: kbPage, Doc: doc}, nil)
+	tx := &fakeTxManager{}
+	uc := kb.NewReplacePageBlocksUseCase(repo, tx)
+
+	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: doc, EditorUserID: kbEditorUserID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, tx.calls, "DoInTx は 1 回だけ（Touch と ReplacePageBlocks を 1 つの単位にまとめる）")
+	repo.AssertExpectations(t)
+}
+
+// Test_本文書き換え_最終編集者の記録に失敗したら本文を書かない は、Touch が失敗したら
+// ReplacePageBlocks を呼ばずに tx ごと失敗として伝えることを固定する。
+func Test_本文書き換え_最終編集者の記録に失敗したら本文を書かない(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).
+		Return(repository.ErrPageNotFound)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+
+	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,
+	})
+	require.ErrorIs(t, err, repository.ErrPageNotFound)
+	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// Test_本文書き換え_編集者が未指定なら拒否 は EditorUserID の 0 値（未指定）を repository を
+// 一切呼ばずに拒否することを固定する。
+func Test_本文書き換え_編集者が未指定なら拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+
+	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`,
+	})
+	require.ErrorIs(t, err, kb.ErrPageEditorRequired)
+	repo.AssertNotCalled(t, "FindPage", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func Test_本文書き換え_不正なdocは保存せず失敗(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
-	uc := kb.NewReplacePageBlocksUseCase(repo)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
-		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[{"type":"iframe"}]}`,
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[{"type":"iframe"}]}`, EditorUserID: kbEditorUserID,
 	})
 	require.ErrorIs(t, err, kb.ErrPageDocUnknownNodeType)
 	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -388,10 +444,10 @@ func Test_本文書き換え_不正なdocは保存せず失敗(t *testing.T) {
 func Test_本文書き換え_アーカイブ済みページは拒否(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
-	uc := kb.NewReplacePageBlocksUseCase(repo)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
-		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`,
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,
 	})
 	require.ErrorIs(t, err, kb.ErrPageArchived)
 }
@@ -399,12 +455,106 @@ func Test_本文書き換え_アーカイブ済みページは拒否(t *testing.
 func Test_本文書き換え_無いページはそのまま失敗(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(nil, repository.ErrPageNotFound)
-	uc := kb.NewReplacePageBlocksUseCase(repo)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
-		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`,
+		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
+}
+
+// Test_ページアイコン_設定すると正規形で保存される は SetPageIconUseCase が
+// repository へ渡す値をそのまま固定する（正規形かどうかは domain.PageIcon.Valid() の責務で、
+// ここでは usecase が値を加工せず repository まで届けることだけを見る）。
+func Test_ページアイコン_設定すると正規形で保存される(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	icon := &domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"}
+	updated := kbActivePage(kbPage, kbSpace, nil)
+	updated.Icon = icon
+	repo.On("UpdatePageIcon", mock.Anything, kbWS, kbPage, icon).Return(updated, nil)
+	uc := kb.NewSetPageIconUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.SetPageIconInput{
+		WorkspaceID: kbWS, PageID: kbPage, Icon: icon,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got.Icon)
+	assert.Equal(t, *icon, *got.Icon)
+}
+
+// Test_ページアイコン_解除はnilを渡す は「外す」操作が UpdatePageIcon に nil を渡すことを固定する。
+func Test_ページアイコン_解除はnilを渡す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("UpdatePageIcon", mock.Anything, kbWS, kbPage, (*domain.PageIcon)(nil)).
+		Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewSetPageIconUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageIconInput{
+		WorkspaceID: kbWS, PageID: kbPage, Icon: nil,
+	})
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func Test_ページアイコン_アーカイブ済みは拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewSetPageIconUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageIconInput{
+		WorkspaceID: kbWS, PageID: kbPage, Icon: &domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"},
+	})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+}
+
+// Test_ページアイコン_不正な値は保存せず拒否 は、形の検証が repository を呼ぶ**前**に
+// 効いていることを固定する（FindPage すら呼ばれない — 中途半端な副作用を残さないため）。
+func Test_ページアイコン_不正な値は保存せず拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	uc := kb.NewSetPageIconUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageIconInput{
+		WorkspaceID: kbWS, PageID: kbPage, Icon: &domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: ""},
+	})
+	require.ErrorIs(t, err, kb.ErrInvalidPageIcon)
+	repo.AssertNotCalled(t, "FindPage", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "UpdatePageIcon", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// Test_編集者名_見つかれば名前_無ければ空文字_失敗は伝える は
+// LookupUserNameUseCase の 3 通りの挙動をまとめて固定する。
+func Test_編集者名_見つかれば名前_無ければ空文字_失敗は伝える(t *testing.T) {
+	t.Run("見つかれば名前", func(t *testing.T) {
+		users := &mockUserRepo{}
+		users.On("FindByID", mock.Anything, kbEditorUserID).
+			Return(&domain.User{ID: kbEditorUserID, Name: "山田太郎"}, nil)
+		uc := kb.NewLookupUserNameUseCase(users)
+
+		name, err := uc.Execute(context.Background(), kbEditorUserID)
+		require.NoError(t, err)
+		assert.Equal(t, "山田太郎", name)
+	})
+
+	t.Run("無ければ空文字", func(t *testing.T) {
+		users := &mockUserRepo{}
+		users.On("FindByID", mock.Anything, kbEditorUserID).Return(nil, nil)
+		uc := kb.NewLookupUserNameUseCase(users)
+
+		name, err := uc.Execute(context.Background(), kbEditorUserID)
+		require.NoError(t, err)
+		assert.Empty(t, name)
+	})
+
+	t.Run("失敗は伝える", func(t *testing.T) {
+		users := &mockUserRepo{}
+		users.On("FindByID", mock.Anything, kbEditorUserID).Return(nil, repository.ErrPageNotFound)
+		uc := kb.NewLookupUserNameUseCase(users)
+
+		_, err := uc.Execute(context.Background(), kbEditorUserID)
+		require.ErrorIs(t, err, repository.ErrPageNotFound)
+	})
 }
 
 func Test_ページ移動_自分自身の下には移せない(t *testing.T) {

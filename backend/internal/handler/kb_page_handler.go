@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -35,6 +36,8 @@ type KnowledgeBasePageHandler struct {
 	resolveRefs    *kb.ResolvePageRefTitlesUseCase
 	ancestors      *kb.ListViewableAncestorsUseCase
 	deletePage     *kb.DeletePageUseCase
+	setIcon        *kb.SetPageIconUseCase
+	userName       *kb.LookupUserNameUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -55,6 +58,8 @@ func NewKnowledgeBasePageHandler(
 	resolveRefs *kb.ResolvePageRefTitlesUseCase,
 	ancestors *kb.ListViewableAncestorsUseCase,
 	deletePage *kb.DeletePageUseCase,
+	setIcon *kb.SetPageIconUseCase,
+	userName *kb.LookupUserNameUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -73,6 +78,8 @@ func NewKnowledgeBasePageHandler(
 		resolveRefs:    resolveRefs,
 		ancestors:      ancestors,
 		deletePage:     deletePage,
+		setIcon:        setIcon,
+		userName:       userName,
 	}
 }
 
@@ -106,19 +113,43 @@ type kbPageResponse struct {
 	ArchivedAt      *time.Time `json:"archivedAt,omitempty"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	UpdatedAt       time.Time  `json:"updatedAt"`
+	// Icon はページの顔（絵文字のみ）。未設定は省く（cover は 1b まで返さない — API 契約参照）。
+	Icon *kbPageIconResponse `json:"icon,omitempty"`
+	// LastEditedByUserID は最終編集者。まだ誰も本文を保存していなければ省く。
+	// 名前が要る場面（解決 API・本文保存の応答）は lastEditedBy を別に持つ
+	// （一覧・木の応答まで毎回ユーザーを引くと N+1 になるため、ID だけをここに置く）。
+	LastEditedByUserID *uint64 `json:"lastEditedByUserId,omitempty" example:"42"`
+}
+
+// kbPageIconResponse はページアイコンの返却形（domain.PageIcon と同じ形）。
+type kbPageIconResponse struct {
+	Type  string `json:"type"  example:"emoji"`
+	Value string `json:"value" example:"📘"`
 }
 
 func toKbPageResponse(p *domain.Page) kbPageResponse {
-	return kbPageResponse{
-		ID:              p.ID,
-		SpaceID:         p.SpaceID,
-		ParentID:        p.ParentID,
-		Title:           p.Title,
-		CreatedByUserID: p.CreatedByUserID,
-		ArchivedAt:      p.ArchivedAt,
-		CreatedAt:       p.CreatedAt,
-		UpdatedAt:       p.UpdatedAt,
+	resp := kbPageResponse{
+		ID:                 p.ID,
+		SpaceID:            p.SpaceID,
+		ParentID:           p.ParentID,
+		Title:              p.Title,
+		CreatedByUserID:    p.CreatedByUserID,
+		ArchivedAt:         p.ArchivedAt,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
+		LastEditedByUserID: p.LastEditedByUserID,
 	}
+	if p.Icon != nil {
+		resp.Icon = &kbPageIconResponse{Type: string(p.Icon.Type), Value: p.Icon.Value}
+	}
+	return resp
+}
+
+// kbEditorRefResponse は最終編集者の ID と表示名の組。
+type kbEditorRefResponse struct {
+	UserID uint64 `json:"userId" example:"42"`
+	// Name は引けなければ空文字（LookupUserNameUseCase の doc 参照）。
+	Name string `json:"name" example:"山田太郎"`
 }
 
 // kbPageTreeResponse はツリーの 1 ノード（子を再帰的に含む）。
@@ -210,6 +241,8 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "anchor_not_sibling"})
 	case errors.Is(err, kb.ErrPageDocInvalid), errors.Is(err, kb.ErrPageDocUnknownNodeType):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_document"})
+	case errors.Is(err, kb.ErrInvalidPageIcon):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_icon"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
@@ -501,6 +534,68 @@ func (h *KnowledgeBasePageHandler) Rename(c *gin.Context) {
 	c.JSON(http.StatusOK, toKbPageResponse(page))
 }
 
+// kbSetIconRequest はアイコン設定の入力。Value は空文字・不正な形も一旦受け取り、
+// domain.PageIcon.Valid() の判定結果をそのまま 400 invalid_icon として返す
+// （空文字を binding:"required" で弾くと invalid_request になり、他の不正値と応答が割れる）。
+type kbSetIconRequest struct {
+	Type  string `json:"type" binding:"required" example:"emoji"`
+	Value string `json:"value" example:"📘"`
+}
+
+// SetIcon はページのアイコンを設定する（編集権限が要る）。
+func (h *KnowledgeBasePageHandler) SetIcon(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	limitKnowledgeBaseBody(c)
+	var req kbSetIconRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	page, err := h.setIcon.Execute(c.Request.Context(), kb.SetPageIconInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		Icon:        &domain.PageIcon{Type: domain.PageIconType(req.Type), Value: req.Value},
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toKbPageResponse(page))
+}
+
+// ClearIcon はページのアイコンを外す（編集権限が要る）。
+//
+// 204 ではなく **200 + ページ本体** を返す。木の更新イベント（page-updated）は
+// 確定後のページの値を持って発火する必要があり、204 だと呼び出し側が改めて GET しない限り
+// 「外した後の姿」を知る手段が無くなるため。
+func (h *KnowledgeBasePageHandler) ClearIcon(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	page, err := h.setIcon.Execute(c.Request.Context(), kb.SetPageIconInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		Icon:        nil,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toKbPageResponse(page))
+}
+
 // kbMovePageRequest はページ移動の入力。
 //
 // parentId が必須なのは作成と同じ理由。スペース直下へ移す操作は移動先スペースに対する
@@ -746,21 +841,48 @@ func (h *KnowledgeBasePageHandler) ReplaceContent(c *gin.Context) {
 		return
 	}
 	snap, err := h.replaceBlocks.Execute(c.Request.Context(), kb.ReplacePageBlocksInput{
-		WorkspaceID: scope.workspaceID,
-		PageID:      pageID,
-		Doc:         string(req.Doc),
+		WorkspaceID:  scope.workspaceID,
+		PageID:       pageID,
+		Doc:          string(req.Doc),
+		EditorUserID: scope.userID,
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, kbPageContentResponse{Doc: json.RawMessage(snap.Doc), BuiltAt: snap.BuiltAt})
+	// 保存した本人が最終編集者になる（scope.userID は kbScope が 0 でないことを保証済み）。
+	// 画面は現在ユーザーの名前を持っていないため、この応答で「最終編集」の表示を更新する。
+	editorID := scope.userID
+	builtAt := snap.BuiltAt
+	c.JSON(http.StatusOK, kbPageContentResponse{
+		Doc:          json.RawMessage(snap.Doc),
+		BuiltAt:      snap.BuiltAt,
+		LastEditedBy: h.kbLastEditedByResponse(c.Request.Context(), &editorID),
+		LastEditedAt: &builtAt,
+	})
+}
+
+// kbLastEditedByResponse は最終編集者の応答形を組み立てる。userID が nil なら
+// まだ誰も本文を保存していない（nil を返す）。名前の解決に失敗しても応答は止めない
+// （Get / ResolveByID の resolveRefs と同じ扱い。空文字で埋めてログだけ残す）。
+func (h *KnowledgeBasePageHandler) kbLastEditedByResponse(ctx context.Context, userID *uint64) *kbEditorRefResponse {
+	if userID == nil {
+		return nil
+	}
+	name, err := h.userName.Execute(ctx, *userID)
+	if err != nil {
+		slog.WarnContext(ctx, "kb: last edited by name resolve failed", "err", err)
+	}
+	return &kbEditorRefResponse{UserID: *userID, Name: name}
 }
 
 // kbPageContentResponse は本文置き換えの結果（保存された正規形と、その焼き直し時刻）。
 type kbPageContentResponse struct {
 	Doc     json.RawMessage `json:"doc"`
 	BuiltAt time.Time       `json:"builtAt"`
+	// LastEditedBy / LastEditedAt はこの保存で確定した最終編集者。
+	LastEditedBy *kbEditorRefResponse `json:"lastEditedBy,omitempty"`
+	LastEditedAt *time.Time           `json:"lastEditedAt,omitempty"`
 }
 
 // limitKnowledgeBaseBody は bind 前にボディサイズ上限を課す。
@@ -782,6 +904,11 @@ type kbResolvedPageResponse struct {
 	// 届いている役割が admin かどうかだけで決まる。
 	CanManage bool             `json:"canManage"`
 	Ancestors []kb.AncestorRef `json:"ancestors"`
+	// LastEditedBy はまだ誰も本文を保存していなければ null。name は引けなければ空文字。
+	LastEditedBy *kbEditorRefResponse `json:"lastEditedBy,omitempty"`
+	// LastEditedAt は page_snapshots.built_at（本文保存と同じトランザクションの時刻）。
+	// pages.updated_at は改名・アイコン変更でも動くのでここには使わない。
+	LastEditedAt *time.Time `json:"lastEditedAt,omitempty"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -848,5 +975,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		CanEdit:       perm.CanEdit,
 		CanManage:     perm.CanManage,
 		Ancestors:     ancestors,
+		LastEditedBy:  h.kbLastEditedByResponse(c.Request.Context(), out.Page.LastEditedByUserID),
+		LastEditedAt:  out.BuiltAt,
 	})
 }

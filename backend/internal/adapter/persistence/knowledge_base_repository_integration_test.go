@@ -28,9 +28,17 @@ type kbUseCases struct {
 	archive   *kb.ArchivePageUseCase
 	unarchive *kb.UnarchivePageUseCase
 	replace   *kb.ReplacePageBlocksUseCase
+	setIcon   *kb.SetPageIconUseCase
+	repo      repository.KnowledgeBaseRepository
+	txManager repository.TxManager
 }
 
-func newKbUseCases(repo repository.KnowledgeBaseRepository) kbUseCases {
+// newKbUseCases は sqlDB から本物の repository / TxManager を組み立てて usecase 一式を作る。
+// ReplacePageBlocksUseCase が TxManager を要るようになったため、repository だけでなく
+// *sql.DB を受け取り、この中で両方を組む（呼び出し側に TxManager の組み立てを分散させない）。
+func newKbUseCases(sqlDB *sql.DB) kbUseCases {
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	txManager := persistence.NewTxManager(sqlDB)
 	return kbUseCases{
 		create:    kb.NewCreatePageUseCase(repo),
 		get:       kb.NewGetPageUseCase(repo),
@@ -39,7 +47,10 @@ func newKbUseCases(repo repository.KnowledgeBaseRepository) kbUseCases {
 		move:      kb.NewMovePageUseCase(repo),
 		archive:   kb.NewArchivePageUseCase(repo),
 		unarchive: kb.NewUnarchivePageUseCase(repo),
-		replace:   kb.NewReplacePageBlocksUseCase(repo),
+		replace:   kb.NewReplacePageBlocksUseCase(repo, txManager),
+		setIcon:   kb.NewSetPageIconUseCase(repo),
+		repo:      repo,
+		txManager: txManager,
 	}
 }
 
@@ -90,7 +101,7 @@ func treeShape(nodes []*kb.PageTreeNode) string {
 func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
-	uc := newKbUseCases(repo)
+	uc := newKbUseCases(sqlDB)
 	ctx := context.Background()
 
 	// setup は各サブテストの冒頭で呼ぶ共通初期化（ワークスペース + スペース 2 つ）。
@@ -129,7 +140,8 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		_ = mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
 		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
 			WorkspaceID: ws, PageID: child.ID,
-			Doc: `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`,
+			Doc:          `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`,
+			EditorUserID: 1,
 		})
 		require.NoError(t, err)
 
@@ -392,7 +404,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 				{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","marks":[{"type":"bold"}],"text":"太字"}]}]}
 			]}
 		]}`
-		snap1, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc1})
+		snap1, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc1, EditorUserID: 1})
 		require.NoError(t, err)
 		assert.JSONEq(t, doc1, snap1.Doc)
 
@@ -409,7 +421,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 		// 書き換えると blocks / snapshot が置き換わる。
 		doc2 := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"書き換え後"}]}]}`
-		snap2, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc2})
+		snap2, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc2, EditorUserID: 1})
 		require.NoError(t, err)
 		assert.JSONEq(t, doc2, snap2.Doc, "snapshot が焼き直される")
 
@@ -419,7 +431,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 		// 空 doc で全消しできる。
 		empty := `{"type":"doc","content":[]}`
-		snap3, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: empty})
+		snap3, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: empty, EditorUserID: 1})
 		require.NoError(t, err)
 		assert.JSONEq(t, empty, snap3.Doc)
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&blockCount))
@@ -468,7 +480,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		_, err = uc.unarchive.Execute(ctx, kb.UnarchivePageInput{WorkspaceID: ws, PageID: victim.ID})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
 		_, err = uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
-			WorkspaceID: ws, PageID: victim.ID, Doc: `{"type":"doc","content":[]}`,
+			WorkspaceID: ws, PageID: victim.ID, Doc: `{"type":"doc","content":[]}`, EditorUserID: 1,
 		})
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
 
@@ -589,6 +601,118 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 	})
 }
 
+// TestKnowledgeBasePageLastEditedBy_Integration は本文保存で最終編集者が記録され、
+// 改名では変わらないことを実 PostgreSQL で固定する（ReplacePageBlocksUseCase 経由）。
+func TestKnowledgeBasePageLastEditedBy_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	uc := newKbUseCases(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-last-edited")
+	space := createSpace(t, sqlDB, ws, "eng")
+	page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ")
+
+	before, err := repo.FindPage(ctx, ws, page.ID)
+	require.NoError(t, err)
+	assert.Nil(t, before.LastEditedByUserID, "作成直後は誰も本文を保存していない")
+
+	const editorID = uint64(9)
+	_, err = uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+		WorkspaceID: ws, PageID: page.ID, Doc: `{"type":"doc","content":[]}`, EditorUserID: editorID,
+	})
+	require.NoError(t, err)
+
+	after, err := repo.FindPage(ctx, ws, page.ID)
+	require.NoError(t, err)
+	require.NotNil(t, after.LastEditedByUserID)
+	assert.Equal(t, editorID, *after.LastEditedByUserID)
+
+	// 改名では最終編集者は変わらない（RenamePageUseCase は Touch を呼ばない）。
+	_, err = uc.rename.Execute(ctx, kb.RenamePageInput{WorkspaceID: ws, PageID: page.ID, Title: "改名後"})
+	require.NoError(t, err)
+	afterRename, err := repo.FindPage(ctx, ws, page.ID)
+	require.NoError(t, err)
+	require.NotNil(t, afterRename.LastEditedByUserID)
+	assert.Equal(t, editorID, *afterRename.LastEditedByUserID, "改名では最終編集者は変わらない")
+}
+
+// TestKnowledgeBasePageIcon_Integration はアイコンの設定と解除が jsonb を往復することを固定する。
+// jsonb はキー順を並べ替えるため、文字列一致ではなく struct で比較する。
+func TestKnowledgeBasePageIcon_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-icon")
+	space := createSpace(t, sqlDB, ws, "eng")
+	pageID := createPage(t, sqlDB, ws, space, nil, "a0")
+
+	icon := &domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"}
+	updated, err := repo.UpdatePageIcon(ctx, ws, pageID, icon)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Icon)
+	assert.Equal(t, *icon, *updated.Icon)
+
+	got, err := repo.FindPage(ctx, ws, pageID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Icon, "設定したアイコンが読み出しにも往復する")
+	assert.Equal(t, *icon, *got.Icon)
+
+	cleared, err := repo.UpdatePageIcon(ctx, ws, pageID, nil)
+	require.NoError(t, err)
+	assert.Nil(t, cleared.Icon, "nil を渡すと解除される")
+
+	gotAfterClear, err := repo.FindPage(ctx, ws, pageID)
+	require.NoError(t, err)
+	assert.Nil(t, gotAfterClear.Icon)
+}
+
+// TestKnowledgeBaseReplaceBlocksTransaction_Integration は「最終編集者の記録と本文置換は
+// 外側のトランザクションで一体になる」ことを固定する。TouchPageLastEditedBy → 壊れた
+// rows での ReplacePageBlocks を同じ DoInTx でくくり、失敗後に両方とも元の状態のまま
+// （last_edited_by_user_id が NULL のまま・blocks が 0 行のまま）であることを見る
+// —— knowledgeBaseRepository.runInTx が外側の tx に相乗りしている直接の証拠になる
+// （相乗りしていなければ、Touch や DeletePageBlocks が別トランザクションで commit されて残る）。
+func TestKnowledgeBaseReplaceBlocksTransaction_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	txManager := persistence.NewTxManager(sqlDB)
+	uc := newKbUseCases(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-tx-boundary")
+	space := createSpace(t, sqlDB, ws, "eng")
+	page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ")
+
+	const editorID = uint64(11)
+	// ParentIndex が自分より後ろ（存在しない文書順）を指す壊れた行。
+	// knowledgeBaseRepository.ReplacePageBlocks が DB へ触る前に Go 側で検出して失敗する
+	// （fmt.Errorf("blocks[%d] の ParentIndex ...")）が、それでも DoInTx の外側の
+	// トランザクションに乗っている限り、直前の Touch も道連れでロールバックされるはず。
+	broken := []repository.BlockWrite{
+		{ParentIndex: 99, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}"},
+	}
+	err := txManager.DoInTx(ctx, func(ctx context.Context) error {
+		if err := repo.TouchPageLastEditedBy(ctx, ws, page.ID, editorID); err != nil {
+			return err
+		}
+		return repo.ReplacePageBlocks(ctx, ws, page.ID, broken, `{"type":"doc","content":[]}`)
+	})
+	require.Error(t, err, "壊れた行で ReplacePageBlocks が失敗する")
+
+	got, err := repo.FindPage(ctx, ws, page.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.LastEditedByUserID, "Touch も同じトランザクションでロールバックされる")
+
+	blocks, err := repo.ListBlocksByPage(ctx, ws, page.ID)
+	require.NoError(t, err)
+	assert.Empty(t, blocks, "本文も書き込まれない（DeletePageBlocks もロールバックされる）")
+}
+
 // TestKnowledgeBaseSimpleProtocol_Integration は simple query protocol（本番の
 // transaction pooler と同じ経路）で blocks.inline（NULL 可 jsonb）の INSERT / SELECT が
 // 通ることを固定する回帰テスト。extended protocol では型の取り違えが OID で救われてしまい、
@@ -596,7 +720,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDBSimpleProtocol(t)
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
-	uc := newKbUseCases(repo)
+	uc := newKbUseCases(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, sqlDB, kbTables...)
@@ -610,7 +734,7 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 		{"type":"horizontalRule"},
 		{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"項目"}]}]}]}
 	]}`
-	snap, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc})
+	snap, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page.ID, Doc: doc, EditorUserID: 1})
 	require.NoError(t, err)
 	assert.JSONEq(t, doc, snap.Doc)
 
@@ -629,6 +753,14 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	require.NotNil(t, byType[domain.BlockTypeParagraph].Inline, "葉ノードは inline を持つ")
 	require.Nil(t, byType[domain.BlockTypeHorizontalRule].Inline, "content の無いノードは inline NULL")
 	require.Nil(t, byType[domain.BlockTypeBulletList].Inline, "容器ノードは inline NULL")
+
+	// icon（NULL 可 jsonb）も simple protocol で往復すること。sqlc.yaml の *json.RawMessage
+	// override が守っているのはまさにこの経路 — []byte のままだと本番の simple protocol で
+	// bytea リテラルへ埋め込まれ jsonb 列に対して 22P02 になる（このテストの本題）。
+	updated, err := repo.UpdatePageIcon(ctx, ws, page.ID, &domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"})
+	require.NoError(t, err)
+	require.NotNil(t, updated.Icon)
+	assert.Equal(t, domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"}, *updated.Icon)
 }
 
 // TestKnowledgeBaseDeleteWorkspace_Integration は DeleteWorkspace が人の居るワークスペースを

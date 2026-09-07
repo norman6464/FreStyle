@@ -36,7 +36,10 @@ export default function KbCommentsPanel({
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      {canComment && (
+      {/* 一覧の取得中は作成フォームを出さない（useKbComments 側で取得と書き込みの競合は
+          解消済みだが、それでも「まだ読めていない一覧の上に新規作成を重ねさせない」という
+          最低限の防御として残す — CodeRabbit 指摘）。 */}
+      {canComment && !loading && (
         <div className="rounded-lg border border-surface-3 bg-surface-1 p-3">
           <h3 className="mb-1.5 text-[0.6875rem] font-bold tracking-wide text-[var(--color-text-muted)]">
             新しいスレッドを作成

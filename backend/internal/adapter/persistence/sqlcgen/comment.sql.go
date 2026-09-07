@@ -123,7 +123,7 @@ func (q *Queries) GetCommentThread(ctx context.Context, arg GetCommentThreadPara
 const listCommentThreadsByPage = `-- name: ListCommentThreadsByPage :many
 SELECT id, workspace_id, page_id, block_id, anchor_from, anchor_to, quote, resolved_at, resolved_by_user_id, created_by_user_id, created_at, updated_at FROM comment_threads
 WHERE workspace_id = $1 AND page_id = $2
-ORDER BY created_at ASC
+ORDER BY created_at ASC, id ASC
 `
 
 type ListCommentThreadsByPageParams struct {
@@ -172,7 +172,7 @@ SELECT id, thread_id, author_user_id, body, created_at, updated_at FROM comments
 WHERE thread_id IN (
   SELECT value::uuid FROM json_array_elements_text($1::json) AS t(value)
 )
-ORDER BY created_at ASC
+ORDER BY created_at ASC, id ASC
 `
 
 // id 群は json 配列 1 個のパラメータで渡し、json_array_elements_text で展開する

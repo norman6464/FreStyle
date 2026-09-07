@@ -330,4 +330,58 @@ describe('useKbComments の宛先', () => {
     });
     expect(result.current.threads.map((t) => t.id)).toEqual(['t-second']);
   });
+
+  // CodeRabbit 指摘: key（workspaceSlug + pageId）だけでは、パネルを閉じてすぐ同じページを
+  // 開き直したケースを見分けられない（同じページなので key が同じまま）。書き込みが飛んで
+  // いる間に閉じて開き直すと、古い書き込み応答が新しい閲覧セッションの一覧へ紛れ込み、
+  // スレッド・返信が二重に増える。
+  it('書き込みが飛んでいる間にパネルを閉じて同じページを開き直すと、古い書き込み応答は反映しない', async () => {
+    let resolveCreate: (t: ReturnType<typeof thread>) => void = () => {};
+    hoisted.createCommentThread.mockImplementation(
+      () => new Promise((resolve) => { resolveCreate = resolve; }),
+    );
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) => useKbComments(SLUG, PAGE, open),
+      { initialProps: { open: true } },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const createPromise = result.current.createThread([{ type: 'text', text: '新規' }]);
+
+    // 応答が返る前にパネルを閉じて、同じページをすぐ開き直す。
+    rerender({ open: false });
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.threads.map((t) => t.id)).toEqual(['t1']));
+
+    // ここで古い作成応答が着地しても、開き直し後の一覧を汚さない。
+    await act(async () => {
+      resolveCreate(thread('t2'));
+      await createPromise;
+    });
+    expect(result.current.threads.map((t) => t.id)).toEqual(['t1']);
+  });
+
+  // CodeRabbit 指摘: 取得が飛んでいる間に書き込みが成功すると、書き込みが state.threads へ
+  // 反映される。その後に届く取得結果は書き込み前のスナップショットなので、丸ごと
+  // 上書きすると作成済みのスレッドが画面から消える。
+  it('取得中に書き込みが成功したら、後から着地する古い取得結果で上書きしない', async () => {
+    let resolveList: (threads: ReturnType<typeof thread>[]) => void = () => {};
+    hoisted.listCommentThreads.mockImplementation(
+      () => new Promise((resolve) => { resolveList = resolve; }),
+    );
+    const { result } = renderHook(() => useKbComments(SLUG, PAGE, true));
+
+    // 初回取得がまだ飛んでいる間にスレッドを作成する（active は同期的に設定済みなので進める）。
+    await act(async () => {
+      await result.current.createThread([{ type: 'text', text: '新規' }]);
+    });
+    expect(result.current.threads.map((t) => t.id)).toEqual(['t2']);
+
+    // 遅れて着地する初回取得（作成前のスナップショット = 空）で上書きしない。
+    await act(async () => {
+      resolveList([]);
+    });
+    expect(result.current.threads.map((t) => t.id)).toEqual(['t2']);
+    expect(result.current.loading).toBe(false);
+  });
 });

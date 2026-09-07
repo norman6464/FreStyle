@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -47,12 +48,26 @@ type Comment struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// ValidateCommentBody は comments.body に保存してよい形かを検証する
-// （JSON 配列であること。空配列は「本文の無いコメント」なので拒否する）。
+// commentInlineNode は comments.body の要素 1 つの最小限の形。ProseMirror インライン
+// ノードは type を必ず持ち、text ノードは非空の text を持つ、という 2 点だけを見る
+// （marks の中身までは検証しない。過検証で将来のノード種別を締め出さないため）。
+type commentInlineNode struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// ValidateCommentBody は comments.body に保存してよい形かを検証する。
 //
-// 中身（各ノードの type 等）までは検証しない — blocks.inline の parseBlockNode 相当の
-// 検証は無いが、これは既存の本文（blocks.inline）自体が個々のインラインノードの型を
-// 厳密検証していないのと同じ水準（parseBlockNode は「JSON 配列であること」しか見ていない）。
+//   - JSON 配列であること。空配列は「本文の無いコメント」なので拒否する
+//   - 各要素は object で、type を持つこと（null・{} はここで弾かれる。json.Unmarshal は
+//     JSON の null を非ポインタの struct へ当てても無効化しない = ゼロ値のままなので、
+//     type=="" のチェックで null 要素も {} 要素も同じ理由で弾ける）
+//   - type=="text" の要素は、空白のみでない text を持つこと（"" や空白だけの text は
+//     見た目上「本文の無い発言」になり、KbCommentItem が text を持たないノードを
+//     無視するため、保存後に空のコメントとして残ってしまう — CodeRabbit 指摘）
+//
+// これ以上（marks の中身・type の許可リスト等）は検証しない。blocks.inline の
+// parseBlockNode も同じ水準（JSON 配列であること）までしか見ておらず、それに揃える。
 func ValidateCommentBody(raw string) error {
 	var items []json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &items); err != nil {
@@ -60,6 +75,18 @@ func ValidateCommentBody(raw string) error {
 	}
 	if len(items) == 0 {
 		return ErrInvalidCommentBody
+	}
+	for _, item := range items {
+		var node commentInlineNode
+		if err := json.Unmarshal(item, &node); err != nil {
+			return ErrInvalidCommentBody
+		}
+		if node.Type == "" {
+			return ErrInvalidCommentBody
+		}
+		if node.Type == "text" && strings.TrimSpace(node.Text) == "" {
+			return ErrInvalidCommentBody
+		}
 	}
 	return nil
 }

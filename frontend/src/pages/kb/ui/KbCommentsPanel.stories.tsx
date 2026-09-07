@@ -110,12 +110,16 @@ export const コメントできない人には作成フォームが出ない: St
   },
 };
 
-/** 読み込み中。 */
+/**
+ * 読み込み中。canComment=true でも作成フォームは出さない（最低限の防御として、
+ * まだ読めていない一覧の上に新規作成を重ねさせない — CodeRabbit 指摘）。
+ */
 export const 読み込み中: Story = {
   args: { loading: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('status', { name: 'コメントを読み込み中' })).toBeVisible();
+    await expect(canvas.queryByPlaceholderText('コメントを書く…')).not.toBeInTheDocument();
   },
 };
 

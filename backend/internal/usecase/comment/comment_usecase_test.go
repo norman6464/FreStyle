@@ -63,17 +63,36 @@ func Test_スレッド作成_DoInTxが1回だけ呼ばれ両方がtxの中で行
 	repo.AssertExpectations(t)
 }
 
+// invalidCommentBodies は境界値・異常系の不正な本文の一覧。スレッド作成・返信の
+// 両方で同じ表を使う（CodeRabbit 指摘: 個別に [] や `not json` だけを見ていて
+// {}・null・空入力等の境界値が無かった）。
+var invalidCommentBodies = []struct {
+	name string
+	body string
+}{
+	{name: "空配列（本文の無いコメント）", body: `[]`},
+	{name: "不正なJSON", body: `not json`},
+	{name: "空文字", body: ``},
+	{name: "配列でないJSON（object）", body: `{"type":"text"}`},
+	{name: "null要素を含む配列", body: `[null]`},
+	{name: "typeの無いobject要素", body: `[{}]`},
+}
+
 func Test_スレッド作成_本文が不正ならrepoを一切呼ばずに拒否(t *testing.T) {
-	repo := &mockCommentRepo{}
-	uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
+	for _, tc := range invalidCommentBodies {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &mockCommentRepo{}
+			uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
 
-	_, err := uc.Execute(context.Background(), comment.CreateCommentThreadInput{
-		WorkspaceID: cWS, PageID: cPage, AuthorUserID: cAuthor, Body: `[]`,
-	})
+			_, err := uc.Execute(context.Background(), comment.CreateCommentThreadInput{
+				WorkspaceID: cWS, PageID: cPage, AuthorUserID: cAuthor, Body: tc.body,
+			})
 
-	require.ErrorIs(t, err, domain.ErrInvalidCommentBody)
-	repo.AssertNotCalled(t, "CreateCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-	repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			require.ErrorIs(t, err, domain.ErrInvalidCommentBody)
+			repo.AssertNotCalled(t, "CreateCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
 }
 
 // --- AddCommentUseCase ---
@@ -110,15 +129,20 @@ func Test_返信_スレッドが見つからなければ伝播しCreateComment�
 }
 
 func Test_返信_本文が不正ならスレッド確認すら行わずに拒否(t *testing.T) {
-	repo := &mockCommentRepo{}
-	uc := comment.NewAddCommentUseCase(repo)
+	for _, tc := range invalidCommentBodies {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &mockCommentRepo{}
+			uc := comment.NewAddCommentUseCase(repo)
 
-	_, err := uc.Execute(context.Background(), comment.AddCommentInput{
-		WorkspaceID: cWS, PageID: cPage, ThreadID: cThread, AuthorUserID: cAuthor, Body: `not json`,
-	})
+			_, err := uc.Execute(context.Background(), comment.AddCommentInput{
+				WorkspaceID: cWS, PageID: cPage, ThreadID: cThread, AuthorUserID: cAuthor, Body: tc.body,
+			})
 
-	require.ErrorIs(t, err, domain.ErrInvalidCommentBody)
-	repo.AssertNotCalled(t, "GetCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			require.ErrorIs(t, err, domain.ErrInvalidCommentBody)
+			repo.AssertNotCalled(t, "GetCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
 }
 
 // --- ListCommentThreadsUseCase ---

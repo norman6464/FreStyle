@@ -22,7 +22,7 @@ WHERE workspace_id = $1 AND page_id = $2 AND id = $3;
 -- name: ListCommentThreadsByPage :many
 SELECT * FROM comment_threads
 WHERE workspace_id = $1 AND page_id = $2
-ORDER BY created_at ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: ListCommentsByThreadIDs :many
 -- id 群は json 配列 1 個のパラメータで渡し、json_array_elements_text で展開する
@@ -33,7 +33,7 @@ SELECT * FROM comments
 WHERE thread_id IN (
   SELECT value::uuid FROM json_array_elements_text(sqlc.arg(thread_ids)::json) AS t(value)
 )
-ORDER BY created_at ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: ResolveCommentThread :one
 UPDATE comment_threads

@@ -10,9 +10,13 @@ import (
 type stubPresigner struct {
 	url *domain.RichTextImageUploadURL
 	err error
+	// gotSize は Generate に実際に渡された size を記録する（Execute の転送を検証するため。
+	// 破棄すると size を渡し忘れても気づけないテストになる — CodeRabbit 指摘）。
+	gotSize int64
 }
 
-func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string, _ int64) (*domain.RichTextImageUploadURL, error) {
+func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string, size int64) (*domain.RichTextImageUploadURL, error) {
+	s.gotSize = size
 	return s.url, s.err
 }
 
@@ -24,11 +28,15 @@ func Test_リッチテキスト画像アップロードURL発行_ユーザーID�
 }
 
 func Test_リッチテキスト画像アップロードURL発行_URLを返す(t *testing.T) {
-	uc := NewIssueRichTextImageUploadURLUseCase(&stubPresigner{
+	presigner := &stubPresigner{
 		url: &domain.RichTextImageUploadURL{URL: "https://example", Key: "k", ExpiresIn: 60},
-	})
+	}
+	uc := NewIssueRichTextImageUploadURLUseCase(presigner)
 	got, err := uc.Execute(context.Background(), 1, "image/png", 1024)
 	if err != nil || got.URL == "" {
 		t.Fatalf("unexpected: %+v err=%v", got, err)
+	}
+	if presigner.gotSize != 1024 {
+		t.Fatalf("size が Generate に転送されていない: got=%d want=1024", presigner.gotSize)
 	}
 }

@@ -51,9 +51,16 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 }
 
-// newKbImagePresignerOrFallback は本番では real な presigner、IMAGES_BUCKET 未設定や
-// 初期化失敗時は stub にフォールバックする（fail open。rich-text 画像・profile 画像と
-// 同じバケットを kb/ prefix で共有する — newRichTextImagePresignerOrFallback / の形をそのまま写す）。
+// newKbImagePresignerOrFallback は IMAGES_BUCKET 未設定なら stub にフォールバックする
+// （bucket が最初から無い = 明示的にローカル開発用と分かる状態なので安全。rich-text 画像・
+// profile 画像と同じバケットを kb/ prefix で共有する）。
+//
+// bucket が設定されているのに infraS3.NewPresigner が失敗する場合は fallback しない
+// （CodeRabbit 指摘・段1b）。この場合は「本物の S3 を使うつもりだった」ことが bucket 名の
+// 存在から明らかなので、黙って stub（未署名 URL）へ倒すと IssueImageUploadURL が 200 を
+// 返し続け、クライアントは成功と誤認したまま S3 PUT だけが失敗する。config.Load の OIDC
+// 必須化（「起動時に止める。通す側に倒すと誰も気づかない」）と同じ考え方で、ここも
+// 起動を失敗させる。
 func newKbImagePresignerOrFallback(deps *routeDeps) repository.KbImagePresigner {
 	bucket := deps.cfg.S3.ImagesBucket
 	if bucket == "" {
@@ -62,8 +69,7 @@ func newKbImagePresignerOrFallback(deps *routeDeps) repository.KbImagePresigner 
 	}
 	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)
 	if err != nil {
-		log.Printf("[kb-image] failed to init S3 presigner (%v) — falling back to stub", err)
-		return persistence.NewStubKbImagePresigner(bucket)
+		log.Fatalf("[kb-image] IMAGES_BUCKET=%q is set but S3 presigner init failed: %v", bucket, err)
 	}
 	return persistence.NewKbImagePresigner(pre)
 }

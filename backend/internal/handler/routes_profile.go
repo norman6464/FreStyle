@@ -33,6 +33,10 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.POST("/profile/:userId/image/presigned-url", profileImageHandler.IssueUploadURL)
 }
 
+// newProfileImagePresignerOrFallback は IMAGES_BUCKET 未設定なら stub にフォールバックする
+// （明示的にローカル開発用と分かる状態なので安全）。bucket が設定されているのに
+// infraS3.NewPresigner が失敗する場合は fallback しない（CodeRabbit 指摘・段1b で発見。
+// kb_page_handler 側の newKbImagePresignerOrFallback の doc も参照）。
 func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImagePresigner {
 	bucket := deps.cfg.S3.ImagesBucket
 	if bucket == "" {
@@ -41,8 +45,7 @@ func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImage
 	}
 	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)
 	if err != nil {
-		log.Printf("[profile] failed to init S3 presigner (%v) — falling back to stub", err)
-		return persistence.NewStubProfileImagePresigner(bucket)
+		log.Fatalf("[profile] IMAGES_BUCKET=%q is set but S3 presigner init failed: %v", bucket, err)
 	}
 	return persistence.NewProfileImagePresigner(pre)
 }

@@ -11,6 +11,10 @@ const hoisted = vi.hoisted(() => ({
   renamePage: vi.fn(),
   setPageIcon: vi.fn(),
   clearPageIcon: vi.fn(),
+  uploadPageImage: vi.fn(),
+  issuePageImageDownloadURL: vi.fn(),
+  setPageCover: vi.fn(),
+  clearPageCover: vi.fn(),
   createPage: vi.fn(),
   listPageGrants: vi.fn(),
   listGrantablePrincipals: vi.fn(),
@@ -22,7 +26,13 @@ const hoisted = vi.hoisted(() => ({
   showToast: vi.fn(),
   navigate: vi.fn(),
   useParams: vi.fn(() => ({ pageId: 'p1' }) as { pageId?: string }),
-  editorProps: { current: null as null | { extraSlashCommands?: EditorCommand[] } },
+  editorProps: {
+    current: null as null | {
+      extraSlashCommands?: EditorCommand[];
+      onImageUpload?: (file: File) => Promise<string>;
+      resolveImageSrc?: (src: string) => Promise<string>;
+    },
+  },
 }));
 
 vi.mock('@/entities/kb', async (importOriginal) => {
@@ -35,6 +45,10 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       renamePage: hoisted.renamePage,
       setPageIcon: hoisted.setPageIcon,
       clearPageIcon: hoisted.clearPageIcon,
+      uploadPageImage: hoisted.uploadPageImage,
+      issuePageImageDownloadURL: hoisted.issuePageImageDownloadURL,
+      setPageCover: hoisted.setPageCover,
+      clearPageCover: hoisted.clearPageCover,
       createPage: hoisted.createPage,
       listPageGrants: hoisted.listPageGrants,
       listGrantablePrincipals: hoisted.listGrantablePrincipals,
@@ -71,7 +85,11 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/shared/ui/RichTextEditor')>();
   return {
     ...actual,
-    RichTextEditor: (props: { extraSlashCommands?: EditorCommand[] }) => {
+    RichTextEditor: (props: {
+      extraSlashCommands?: EditorCommand[];
+      onImageUpload?: (file: File) => Promise<string>;
+      resolveImageSrc?: (src: string) => Promise<string>;
+    }) => {
       hoisted.editorProps.current = props;
       return <div data-testid="editor" />;
     },
@@ -343,6 +361,177 @@ describe('KbPage のアイコン・最終編集', () => {
     expect(img).toHaveTextContent('📘');
     expect(screen.queryByRole('button', { name: 'アイコンを追加' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'ページのアイコンを変更' })).not.toBeInTheDocument();
+  });
+});
+
+describe('KbPage の画像配線（本文の画像アップロード・遅延解決）', () => {
+  it('onImageUpload が配線され、KbRepository.uploadPageImage を呼ぶ（編集できるとき）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    hoisted.uploadPageImage.mockResolvedValue('kb/w-3f2a9c/p1/1.bin');
+    renderPage();
+    await screen.findByTestId('editor');
+
+    const onImageUpload = hoisted.editorProps.current?.onImageUpload;
+    expect(onImageUpload).toBeTypeOf('function');
+
+    const file = new File(['x'], 'a.png', { type: 'image/png' });
+    const key = await onImageUpload!(file);
+
+    expect(hoisted.uploadPageImage).toHaveBeenCalledWith('w-3f2a9c', 'p1', file);
+    // durable な保存形式は key であって公開 URL ではない。
+    expect(key).toBe('kb/w-3f2a9c/p1/1.bin');
+  });
+
+  it('編集できないページには onImageUpload を渡さない', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    renderPage();
+    await screen.findByTestId('editor');
+
+    expect(hoisted.editorProps.current?.onImageUpload).toBeUndefined();
+  });
+
+  it('resolveImageSrc が配線され、"kb/" の src を KbRepository.issuePageImageDownloadURL で解決する', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    hoisted.issuePageImageDownloadURL.mockResolvedValue({
+      url: 'https://s3.example.com/get?sig=1',
+      expiresIn: 600,
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+
+    const resolveImageSrc = hoisted.editorProps.current?.resolveImageSrc;
+    expect(resolveImageSrc).toBeTypeOf('function');
+
+    const url = await resolveImageSrc!('kb/w-3f2a9c/p1/1.bin');
+
+    expect(hoisted.issuePageImageDownloadURL).toHaveBeenCalledWith(
+      'w-3f2a9c',
+      'p1',
+      'kb/w-3f2a9c/p1/1.bin',
+    );
+    expect(url).toBe('https://s3.example.com/get?sig=1');
+  });
+
+  it('resolveImageSrc は "kb/" で始まらない src には触れない', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    renderPage();
+    await screen.findByTestId('editor');
+
+    const resolveImageSrc = hoisted.editorProps.current?.resolveImageSrc;
+    await expect(resolveImageSrc!('https://cdn.example.com/a.png')).resolves.toBe(
+      'https://cdn.example.com/a.png',
+    );
+    expect(hoisted.issuePageImageDownloadURL).not.toHaveBeenCalled();
+  });
+});
+
+describe('KbPage のカバー画像', () => {
+  /** カバー画像用の隠しファイル入力は「カバー画像を追加/変更」ボタンと同じ行に居る。 */
+  function coverFileInput(button: HTMLElement): HTMLInputElement {
+    const input = button.parentElement?.querySelector('input[type="file"]');
+    if (!input) throw new Error('カバー画像の file input が見つかりません');
+    return input as HTMLInputElement;
+  }
+
+  it('ファイルを選ぶとアップロードして設定する（未設定 → 設定済みの表示に変わる）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    hoisted.uploadPageImage.mockResolvedValue('kb/w-3f2a9c/p1/1.bin');
+    hoisted.setPageCover.mockResolvedValue({
+      page: resolved(true).page,
+      cover: { type: 'file', url: 'https://s3.example.com/get?sig=1' },
+    });
+    renderPage();
+
+    const addButton = await screen.findByRole('button', { name: 'カバー画像を追加' });
+    const file = new File(['x'], 'cover.png', { type: 'image/png' });
+    fireEvent.change(coverFileInput(addButton), { target: { files: [file] } });
+
+    await waitFor(() =>
+      expect(hoisted.uploadPageImage).toHaveBeenCalledWith('w-3f2a9c', 'p1', file),
+    );
+    await waitFor(() =>
+      expect(hoisted.setPageCover).toHaveBeenCalledWith('w-3f2a9c', 'p1', 'kb/w-3f2a9c/p1/1.bin'),
+    );
+    expect(await screen.findByRole('button', { name: 'カバー画像を変更' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'カバー画像を外す' })).toBeInTheDocument();
+  });
+
+  it('カバー画像を外す', async () => {
+    hoisted.resolvePage.mockResolvedValue({
+      ...resolved(true),
+      cover: { type: 'file', url: 'https://s3.example.com/get?sig=1' },
+    });
+    hoisted.clearPageCover.mockResolvedValue({ page: resolved(true).page, cover: null });
+    renderPage();
+
+    const removeButton = await screen.findByRole('button', { name: 'カバー画像を外す' });
+    fireEvent.click(removeButton);
+
+    await waitFor(() => expect(hoisted.clearPageCover).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+    expect(await screen.findByRole('button', { name: 'カバー画像を追加' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'カバー画像を外す' })).not.toBeInTheDocument();
+  });
+
+  it('アップロードに失敗したら知らせを出す', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    hoisted.uploadPageImage.mockRejectedValue(new Error('boom'));
+    renderPage();
+
+    const addButton = await screen.findByRole('button', { name: 'カバー画像を追加' });
+    const file = new File(['x'], 'cover.png', { type: 'image/png' });
+    fireEvent.change(coverFileInput(addButton), { target: { files: [file] } });
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'カバー画像を変更できませんでした'),
+    );
+    expect(hoisted.setPageCover).not.toHaveBeenCalled();
+  });
+
+  it('p1でアップロード中にp2へ移動したら、p1向けのカバー設定は送らない', async () => {
+    let resolveUpload: ((key: string) => void) | undefined;
+    hoisted.resolvePage.mockImplementation((pageId: string) =>
+      Promise.resolve({ ...resolved(true), page: { ...resolved(true).page, id: pageId } }),
+    );
+    hoisted.uploadPageImage.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+    const view = renderPage();
+
+    const addButton = await screen.findByRole('button', { name: 'カバー画像を追加' });
+    const file = new File(['x'], 'cover.png', { type: 'image/png' });
+    fireEvent.change(coverFileInput(addButton), { target: { files: [file] } });
+    await waitFor(() => expect(hoisted.uploadPageImage).toHaveBeenCalledWith('w-3f2a9c', 'p1', file));
+
+    // アップロードが終わる前に p2 へ移動する。
+    hoisted.useParams.mockReturnValue({ pageId: 'p2' });
+    view.rerender(
+      <MemoryRouter initialEntries={['/kb/p2']}>
+        <KbPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('button', { name: 'カバー画像を追加' });
+
+    // p1 向けのアップロードがいま完了しても、p2 の cover API へは送らない。
+    await act(async () => {
+      resolveUpload?.('kb/w-3f2a9c/p1/1.bin');
+    });
+    expect(hoisted.setPageCover).not.toHaveBeenCalled();
+    expect(hoisted.showToast).not.toHaveBeenCalled();
+  });
+
+  it('カバー画像は読むだけの人には出さない', async () => {
+    hoisted.resolvePage.mockResolvedValue({
+      ...resolved(false),
+      cover: { type: 'file', url: 'https://s3.example.com/get?sig=1' },
+    });
+    renderPage();
+
+    await screen.findByRole('heading', { name: '親ページ' });
+    expect(screen.queryByRole('button', { name: 'カバー画像を追加' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'カバー画像を変更' })).not.toBeInTheDocument();
   });
 });
 

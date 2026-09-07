@@ -17,9 +17,9 @@ func NewIssueRichTextImageUploadURLUseCase(p repository.RichTextImagePresigner) 
 	return &IssueRichTextImageUploadURLUseCase{presigner: p}
 }
 
-func (u *IssueRichTextImageUploadURLUseCase) Execute(ctx context.Context, userID uint64, contentType string) (*domain.RichTextImageUploadURL, error) {
+func (u *IssueRichTextImageUploadURLUseCase) Execute(ctx context.Context, userID uint64, contentType string, size int64) (*domain.RichTextImageUploadURL, error) {
 	if userID == 0 {
 		return nil, errors.New("userID is required")
 	}
-	return u.presigner.Generate(ctx, userID, contentType)
+	return u.presigner.Generate(ctx, userID, contentType, size)
 }

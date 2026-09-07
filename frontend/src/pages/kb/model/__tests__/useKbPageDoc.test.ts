@@ -8,6 +8,8 @@ const hoisted = vi.hoisted(() => ({
   renamePage: vi.fn(),
   setPageIcon: vi.fn(),
   clearPageIcon: vi.fn(),
+  setPageCover: vi.fn(),
+  clearPageCover: vi.fn(),
   emit: vi.fn(),
   rememberVisitedPage: vi.fn(),
   forgetVisitedPageIfMatches: vi.fn(),
@@ -20,6 +22,8 @@ vi.mock('@/entities/kb', () => ({
     renamePage: hoisted.renamePage,
     setPageIcon: hoisted.setPageIcon,
     clearPageIcon: hoisted.clearPageIcon,
+    setPageCover: hoisted.setPageCover,
+    clearPageCover: hoisted.clearPageCover,
   },
   emitKbTreeEvent: hoisted.emit,
   rememberVisitedPage: hoisted.rememberVisitedPage,
@@ -361,6 +365,61 @@ describe('useKbPageDoc', () => {
       result.current.changeIcon({ type: 'emoji', value: 'x' }),
     ).rejects.toThrow();
     expect(result.current.data?.page.icon).toBeUndefined();
+    expect(hoisted.emit).not.toHaveBeenCalled();
+  });
+
+  it('changeCover は key を設定すると page・cover を確定後の値へ差し替え、木にも知らせる', async () => {
+    const page = {
+      id: 'p1',
+      spaceId: 's1',
+      title: '設計メモ',
+      createdByUserId: 1,
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+    };
+    const cover = { type: 'file' as const, url: 'https://s3/signed?sig=1' };
+    hoisted.setPageCover.mockResolvedValue({ page, cover });
+    const { result } = renderHook(() => useKbPageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.changeCover('kb/w-1/p1/1.bin');
+    });
+
+    expect(hoisted.setPageCover).toHaveBeenCalledWith('w-3f2a9c', 'p1', 'kb/w-1/p1/1.bin');
+    expect(result.current.data?.cover).toEqual(cover);
+    expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-updated', page });
+  });
+
+  it('changeCover は null で解除する（clearPageCover を呼ぶ）', async () => {
+    const page = {
+      id: 'p1',
+      spaceId: 's1',
+      title: '設計メモ',
+      createdByUserId: 1,
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+    };
+    hoisted.clearPageCover.mockResolvedValue({ page, cover: null });
+    const { result } = renderHook(() => useKbPageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.changeCover(null);
+    });
+
+    expect(hoisted.clearPageCover).toHaveBeenCalledWith('w-3f2a9c', 'p1');
+    expect(hoisted.setPageCover).not.toHaveBeenCalled();
+    expect(result.current.data?.cover).toBeNull();
+  });
+
+  it('changeCover の失敗は投げ、画面のカバーは変えない', async () => {
+    hoisted.setPageCover.mockRejectedValue(new Error('invalid_cover'));
+    const { result } = renderHook(() => useKbPageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await expect(result.current.changeCover('kb/w-1/p1/1.bin')).rejects.toThrow();
+    expect(result.current.data?.cover).toBeUndefined();
     expect(hoisted.emit).not.toHaveBeenCalled();
   });
 

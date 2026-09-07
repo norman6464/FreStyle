@@ -128,9 +128,29 @@
   display: block;
 }
 
-.rte-content .ProseMirror img.ProseMirror-selectednode {
+/*
+ * 選択時の枠。素の Image（NodeView 無し）は img 自身に選択クラスが付くが、
+ * ImageView（NodeView）では ProseMirror がラッパー div（.rte-image）へクラスを付ける
+ * ため、両方の形を当てておく。
+ */
+.rte-content .ProseMirror img.ProseMirror-selectednode,
+.rte-content .ProseMirror .rte-image.ProseMirror-selectednode img {
   outline: 2px solid var(--color-brand, #3b82f6);
   outline-offset: 2px;
+}
+
+/* 画像 NodeView のプレースホルダ（"kb/" の key を解決中・解決に失敗したとき）。 */
+.rte-content .ProseMirror .rte-image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  margin: 0.5rem 0;
+  border: 1px dashed var(--color-surface-3);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
 }
 
 /*

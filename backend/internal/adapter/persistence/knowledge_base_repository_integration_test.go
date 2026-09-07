@@ -695,6 +695,107 @@ func TestKnowledgeBasePageIcon_Integration(t *testing.T) {
 	assert.Nil(t, gotAfterClear.Icon)
 }
 
+// TestKnowledgeBasePageCover_Integration はカバー画像の設定と解除が jsonb を往復することを
+// 固定する（TestKnowledgeBasePageIcon_Integration と同じ形）。
+func TestKnowledgeBasePageCover_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-cover")
+	space := createSpace(t, sqlDB, ws, "eng")
+	pageID := createPage(t, sqlDB, ws, space, nil, "a0")
+
+	cover := &domain.PageCover{Type: domain.PageCoverTypeFile, Key: "kb/" + ws + "/" + pageID + "/1.bin"}
+	updated, err := repo.UpdatePageCover(ctx, ws, pageID, cover)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Cover)
+	assert.Equal(t, *cover, *updated.Cover)
+
+	got, err := repo.FindPage(ctx, ws, pageID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Cover, "設定したカバーが読み出しにも往復する")
+	assert.Equal(t, *cover, *got.Cover)
+
+	cleared, err := repo.UpdatePageCover(ctx, ws, pageID, nil)
+	require.NoError(t, err)
+	assert.Nil(t, cleared.Cover, "nil を渡すと解除される")
+
+	gotAfterClear, err := repo.FindPage(ctx, ws, pageID)
+	require.NoError(t, err)
+	assert.Nil(t, gotAfterClear.Cover)
+}
+
+// TestKnowledgeBaseUpdatePageCoverRejectsArchived_Integration は、UpdatePageIcon には無い
+// archived_at IS NULL の絞り込みを UpdatePageCover が最初から持つことを固定する
+// （段 1a の TouchPageLastEditedBy で見つかった「アーカイブ後の競合」の教訓 — SQL コメント参照）。
+// アーカイブ済みページへの更新は 0 行 = sql.ErrNoRows = repository.ErrPageNotFound になる。
+func TestKnowledgeBaseUpdatePageCoverRejectsArchived_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-cover-archived")
+	space := createSpace(t, sqlDB, ws, "eng")
+	archivedAt := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	pageID := newID()
+	require.NoError(t, insertPage(sqlDB, pageID, ws, space, nil, "a0", &archivedAt))
+
+	cover := &domain.PageCover{Type: domain.PageCoverTypeFile, Key: "kb/" + ws + "/" + pageID + "/1.bin"}
+	_, err := repo.UpdatePageCover(ctx, ws, pageID, cover)
+	require.ErrorIs(t, err, repository.ErrPageNotFound,
+		"アーカイブ済みは archived_at IS NULL で 0 行になり ErrPageNotFound になる")
+
+	got, err := repo.FindPage(ctx, ws, pageID)
+	require.NoError(t, err)
+	assert.Nil(t, got.Cover, "拒否されているのでカバーは設定されない")
+}
+
+// TestKnowledgeBasePageReferencesImageKey_Integration は PageReferencesImageKey が
+// blocks 経由（画像ノードの attrs.src）・cover 経由のどちらでも一致行を見つけ、
+// どちらにも無ければ false を返すことを固定する。
+func TestKnowledgeBasePageReferencesImageKey_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-ref-image")
+	space := createSpace(t, sqlDB, ws, "eng")
+	pageID := createPage(t, sqlDB, ws, space, nil, "a0")
+
+	imageKey := "kb/" + ws + "/" + pageID + "/1.bin"
+	coverKey := "kb/" + ws + "/" + pageID + "/2.bin"
+	unrelatedKey := "kb/" + ws + "/" + pageID + "/3.bin"
+
+	require.NoError(t, insertBlock(sqlDB, newID(), ws, pageID, nil, "a0",
+		domain.BlockTypeImage, `{"src":"`+imageKey+`","alt":""}`, nil))
+
+	cover := &domain.PageCover{Type: domain.PageCoverTypeFile, Key: coverKey}
+	_, err := repo.UpdatePageCover(ctx, ws, pageID, cover)
+	require.NoError(t, err)
+
+	t.Run("blocksの画像ノード経由で見つかる", func(t *testing.T) {
+		got, err := repo.PageReferencesImageKey(ctx, ws, pageID, imageKey)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
+
+	t.Run("pages.cover経由で見つかる", func(t *testing.T) {
+		got, err := repo.PageReferencesImageKey(ctx, ws, pageID, coverKey)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
+
+	t.Run("どちらにも無ければfalse", func(t *testing.T) {
+		got, err := repo.PageReferencesImageKey(ctx, ws, pageID, unrelatedKey)
+		require.NoError(t, err)
+		assert.False(t, got)
+	})
+}
+
 // TestKnowledgeBaseReplaceBlocksTransaction_Integration は「最終編集者の記録と本文置換は
 // 外側のトランザクションで一体になる」ことを固定する。TouchPageLastEditedBy → 壊れた
 // rows での ReplacePageBlocks を同じ DoInTx でくくり、失敗後に両方とも元の状態のまま

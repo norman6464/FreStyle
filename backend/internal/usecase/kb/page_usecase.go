@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -39,6 +40,15 @@ var (
 	// ErrPageEditorRequired は本文書き換えの入力に編集者（EditorUserID）が無いときに返す。
 	// 最終編集者を記録できないまま保存を許すと、誰が書いたか分からないページができる。
 	ErrPageEditorRequired = errors.New("editor user id is required")
+	// ErrInvalidImageKey はダウンロード URL 発行で key が空のときに返す。
+	ErrInvalidImageKey = errors.New("invalid image key")
+	// ErrInvalidCoverKey は、カバーに設定しようとした key がそのページ自身へアップロードした
+	// ものではない（"kb/<workspaceId>/<pageId>/" 接頭辞と完全一致しない）ときに返す。
+	//
+	// カバーはダウンロードと違い「他ページからの貼り付け」という正当な利用シーンが無いため、
+	// ダウンロード URL 発行にある「同一ワークスペース内ならフォールバックで許す」を持たない
+	// （SetPageCoverUseCase の doc 参照）。
+	ErrInvalidCoverKey = errors.New("invalid cover key")
 )
 
 // kbPageTitleMaxLen は pages.title (varchar(200)) の上限。DB エラーの前に入口で弾く。
@@ -759,6 +769,207 @@ func (u *SetPageIconUseCase) Execute(ctx context.Context, in SetPageIconInput) (
 		return nil, ErrPageArchived
 	}
 	return u.repo.UpdatePageIcon(ctx, in.WorkspaceID, in.PageID, in.Icon)
+}
+
+// kbImageKeyPrefix はページ 1 枚に閉じた画像 key の接頭辞（"kb/<workspaceId>/<pageId>/"）を返す。
+// アップロードで採番する key、カバー・ダウンロードで照合する key の両方がこの形に従う。
+func kbImageKeyPrefix(workspaceID, pageID string) string {
+	return "kb/" + workspaceID + "/" + pageID + "/"
+}
+
+// kbWorkspaceImageKeyPrefix はワークスペース 1 つに閉じた画像 key の接頭辞（"kb/<workspaceId>/"）を返す。
+// ダウンロード URL 発行で「別テナントの key かどうか」を、ページの実在確認より先に振り分けるために使う。
+func kbWorkspaceImageKeyPrefix(workspaceID string) string {
+	return "kb/" + workspaceID + "/"
+}
+
+// IssuePageImageUploadURLUseCase はページに閉じた画像（本文・カバー共通）の S3 PUT presigned URL を
+// 発行する。key は "kb/<workspaceId>/<pageId>/<epochNs>.bin" の形で採番する
+// （rich-text の rich-text/{userId}/{epochNs}.bin と同じ発想。ページを名指しする経路なので、
+// ページ ID を混ぜて後から「どのページ由来か」が分かる形にしてある）。
+type IssuePageImageUploadURLUseCase struct {
+	repo      repository.KnowledgeBaseRepository
+	presigner repository.KbImagePresigner
+}
+
+func NewIssuePageImageUploadURLUseCase(r repository.KnowledgeBaseRepository, p repository.KbImagePresigner) *IssuePageImageUploadURLUseCase {
+	return &IssuePageImageUploadURLUseCase{repo: r, presigner: p}
+}
+
+type IssuePageImageUploadURLInput struct {
+	WorkspaceID string
+	PageID      string
+	ContentType string
+	Size        int64
+}
+
+type IssuePageImageUploadURLOutput struct {
+	URL       string
+	Key       string
+	ExpiresIn int
+}
+
+func (u *IssuePageImageUploadURLUseCase) Execute(ctx context.Context, in IssuePageImageUploadURLInput) (*IssuePageImageUploadURLOutput, error) {
+	// SetPageIconUseCase と同じく、形の検証は repository を呼ぶ前に済ませる。不正な値で
+	// FindPage まで進めると「値は捨てられたが読みには行った」という中途半端な副作用が残る
+	// （不正な contentType / size は repository を一切呼ばずに拒否することをテストで固定する）。
+	if err := domain.ValidateImageUpload(in.ContentType, in.Size); err != nil {
+		return nil, err
+	}
+	page, err := u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
+	if err != nil {
+		return nil, err
+	}
+	if page.ArchivedAt != nil {
+		return nil, ErrPageArchived
+	}
+	key := fmt.Sprintf("%s%d.bin", kbImageKeyPrefix(in.WorkspaceID, in.PageID), time.Now().UnixNano())
+	url, expiresIn, err := u.presigner.PresignUpload(ctx, key, in.ContentType, in.Size)
+	if err != nil {
+		return nil, err
+	}
+	return &IssuePageImageUploadURLOutput{URL: url, Key: key, ExpiresIn: expiresIn}, nil
+}
+
+// IssuePageImageDownloadURLUseCase はページに閉じた画像の S3 GET（ダウンロード）presigned URL を発行する。
+//
+// 認可（このページを閲覧できるか）は handler 側の requirePagePermission が済ませている前提で、
+// ここで見るのは「この key がこのページに結びついているか」だけ。
+type IssuePageImageDownloadURLUseCase struct {
+	repo      repository.KnowledgeBaseRepository
+	presigner repository.KbImagePresigner
+}
+
+func NewIssuePageImageDownloadURLUseCase(r repository.KnowledgeBaseRepository, p repository.KbImagePresigner) *IssuePageImageDownloadURLUseCase {
+	return &IssuePageImageDownloadURLUseCase{repo: r, presigner: p}
+}
+
+type IssuePageImageDownloadURLInput struct {
+	WorkspaceID string
+	PageID      string
+	Key         string
+}
+
+type IssuePageImageDownloadURLOutput struct {
+	URL       string
+	ExpiresIn int
+}
+
+func (u *IssuePageImageDownloadURLUseCase) Execute(ctx context.Context, in IssuePageImageDownloadURLInput) (*IssuePageImageDownloadURLOutput, error) {
+	if in.Key == "" {
+		return nil, ErrInvalidImageKey
+	}
+	// 自ページ由来の key（このページのアップロードで採番された形）は無条件で許可する。
+	if strings.HasPrefix(in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
+		return u.presignDownload(ctx, in.Key)
+	}
+	// ここから下は「自ページ由来ではない key」。まず別テナントの key かどうかを、
+	// ページ本文の中身を見に行く（PageReferencesImageKey の DB 問い合わせ）より先に振り分ける。
+	//
+	// **ここが本チケット原文には無い追加の防御。** blocks.attrs は ProseMirror の attrs を
+	// そのまま持つ jsonb で、backend は image 特有のフィールド名を一切パースせず素通しする設計
+	// のため、本文に他ページの key 文字列を書き込むだけなら誰でもできてしまう
+	// （書き込む本人はそのページの編集権限を持つ）。ワークスペースの境界を越える漏洩だけは
+	// 絶対に通さないため、別ワークスペースの key は存在の有無に関わらずここで
+	// repository.ErrPageNotFound にし、PageReferencesImageKey 自体を呼ばない。
+	if !strings.HasPrefix(in.Key, kbWorkspaceImageKeyPrefix(in.WorkspaceID)) {
+		return nil, repository.ErrPageNotFound
+	}
+	// 同一ワークスペース内で prefix だけ違う（他ページ由来）場合だけ、その key が実際に
+	// このページの本文またはカバーに使われているかを確かめる。
+	//
+	// **この「同一ワークスペース限定のフォールバック」もチケット原文には無い設計選択**
+	// （原文がそもそも許している「本文に他ページの画像を貼れば読める」という動作の範囲を、
+	// ワークスペースの境界の内側だけに絞ったもの）。同じワークスペース内の他ページからの
+	// 参照はチケットの元の設計どおり許容する — 「そのワークスペースの画像を本文に貼れる人は、
+	// 貼った画像を読める」という前提を崩さないため。塞いでいるのはワークスペースを
+	// 越える漏洩だけで、同じワークスペース内の他ページ参照は意図して許している。
+	referenced, err := u.repo.PageReferencesImageKey(ctx, in.WorkspaceID, in.PageID, in.Key)
+	if err != nil {
+		return nil, err
+	}
+	if !referenced {
+		return nil, repository.ErrPageNotFound
+	}
+	return u.presignDownload(ctx, in.Key)
+}
+
+func (u *IssuePageImageDownloadURLUseCase) presignDownload(ctx context.Context, key string) (*IssuePageImageDownloadURLOutput, error) {
+	url, expiresIn, err := u.presigner.PresignDownload(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return &IssuePageImageDownloadURLOutput{URL: url, ExpiresIn: expiresIn}, nil
+}
+
+// SetPageCoverUseCase はページのカバー画像を設定・解除する（Input.Key が nil なら解除）。
+type SetPageCoverUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewSetPageCoverUseCase(r repository.KnowledgeBaseRepository) *SetPageCoverUseCase {
+	return &SetPageCoverUseCase{repo: r}
+}
+
+type SetPageCoverInput struct {
+	WorkspaceID string
+	PageID      string
+	// Key は設定するカバーの S3 key。nil なら解除。
+	Key *string
+}
+
+func (u *SetPageCoverUseCase) Execute(ctx context.Context, in SetPageCoverInput) (*domain.Page, error) {
+	var cover *domain.PageCover
+	if in.Key != nil {
+		// key の形の検証は repository を呼ぶ前に済ませる（SetPageIconUseCase と同じ理由）。
+		// カバーはそのページ自身へアップロードした画像だけを許す — ダウンロードにある
+		// 「同一ワークスペースならフォールバックで許可」を、カバーには持たせない
+		// （フォールバック無し）。カバーは「他ページからの貼り付け」という正当な利用シーンが
+		// 無く、キーの偽装を許す理由も無いため（ErrInvalidCoverKey の doc も参照）。
+		if !strings.HasPrefix(*in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
+			return nil, ErrInvalidCoverKey
+		}
+		cover = &domain.PageCover{Type: domain.PageCoverTypeFile, Key: *in.Key}
+	}
+	page, err := u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
+	if err != nil {
+		return nil, err
+	}
+	if page.ArchivedAt != nil {
+		return nil, ErrPageArchived
+	}
+	return u.repo.UpdatePageCover(ctx, in.WorkspaceID, in.PageID, cover)
+}
+
+// ResolveCoverURLUseCase はページのカバー（S3 key）をダウンロード presigned URL へ解決する。
+// SetCover / ClearCover のレスポンス作成と、ResolveByID（/p/{pageId}）ハンドラの両方から呼ばれる。
+type ResolveCoverURLUseCase struct {
+	presigner repository.KbImagePresigner
+}
+
+func NewResolveCoverURLUseCase(p repository.KbImagePresigner) *ResolveCoverURLUseCase {
+	return &ResolveCoverURLUseCase{presigner: p}
+}
+
+// ResolvedCover はカバーの表示に要る形（種類 + 解決済みの URL）。
+type ResolvedCover struct {
+	Type      string
+	URL       string
+	ExpiresIn int
+}
+
+// Execute は cover が nil なら (nil, nil) を返す（「カバーが無い」を表す）。
+// presigner の失敗はそのまま呼び出し側へ伝える。失敗時に応答全体を止めるか、
+// LookupUserNameUseCase のように空のまま続けるかは呼び出し側（handler）の判断に委ねる。
+func (u *ResolveCoverURLUseCase) Execute(ctx context.Context, cover *domain.PageCover) (*ResolvedCover, error) {
+	if cover == nil {
+		return nil, nil
+	}
+	url, expiresIn, err := u.presigner.PresignDownload(ctx, cover.Key)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolvedCover{Type: string(cover.Type), URL: url, ExpiresIn: expiresIn}, nil
 }
 
 // LookupUserNameUseCase はユーザー ID から表示名を引く。

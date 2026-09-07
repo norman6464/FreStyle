@@ -1021,3 +1021,267 @@ func Test_パンくず_祖先が無ければ空のsliceを返す(t *testing.T) {
 	assert.Empty(t, got)
 	perms.AssertNotCalled(t, "ListWorkspacePageViewFactsByIDs")
 }
+
+// =====================================================================================
+// ページ画像アップロード URL 発行（IssuePageImageUploadURLUseCase）
+// =====================================================================================
+
+func Test_ページ画像アップロード_アーカイブ済みは拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	presigner := &mockKbImagePresigner{}
+	uc := kb.NewIssuePageImageUploadURLUseCase(repo, presigner)
+
+	_, err := uc.Execute(context.Background(), kb.IssuePageImageUploadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, ContentType: "image/png", Size: 1024,
+	})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+	presigner.AssertNotCalled(t, "PresignUpload", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// Test_ページ画像アップロード_不正なcontentTypeやsizeはrepositoryを呼ばず拒否 は、形の検証が
+// repository を呼ぶ**前**に効いていることを固定する（SetPageIconUseCase の
+// Test_ページアイコン_不正な値は保存せず拒否 と同じ形）。
+//
+// 変異確認: domain.ValidateImageUpload の許可リストチェックを外すと、「許可リスト外の
+// ContentType」ケースが緑のまま落ちなくなる（ErrUnsupportedImageContentType を返さなくなるため）。
+func Test_ページ画像アップロード_不正なcontentTypeやsizeはrepositoryを呼ばず拒否(t *testing.T) {
+	cases := []struct {
+		name        string
+		contentType string
+		size        int64
+	}{
+		{"許可リスト外のContentType", "image/svg+xml", 1024},
+		{"サイズ超過", "image/png", domain.MaxImageUploadBytes + 1},
+		{"サイズ0", "image/png", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			repo := &mockKnowledgeBaseRepo{}
+			presigner := &mockKbImagePresigner{}
+			uc := kb.NewIssuePageImageUploadURLUseCase(repo, presigner)
+
+			_, err := uc.Execute(context.Background(), kb.IssuePageImageUploadURLInput{
+				WorkspaceID: kbWS, PageID: kbPage, ContentType: c.contentType, Size: c.size,
+			})
+			require.Error(t, err)
+			repo.AssertNotCalled(t, "FindPage", mock.Anything, mock.Anything, mock.Anything)
+			presigner.AssertNotCalled(t, "PresignUpload", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func Test_ページ画像アップロード_正常系はページに閉じたキーを採番してpresignする(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	wantPrefix := "kb/" + kbWS + "/" + kbPage + "/"
+	presigner := &mockKbImagePresigner{}
+	presigner.On("PresignUpload", mock.Anything, mock.MatchedBy(func(key string) bool {
+		return strings.HasPrefix(key, wantPrefix) && strings.HasSuffix(key, ".bin")
+	}), "image/png", int64(1024)).Return("https://example/upload", 600, nil)
+	uc := kb.NewIssuePageImageUploadURLUseCase(repo, presigner)
+
+	got, err := uc.Execute(context.Background(), kb.IssuePageImageUploadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, ContentType: "image/png", Size: 1024,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://example/upload", got.URL)
+	assert.Equal(t, 600, got.ExpiresIn)
+	assert.True(t, strings.HasPrefix(got.Key, wantPrefix), "採番した key はこのページに閉じた形であること: %s", got.Key)
+}
+
+// =====================================================================================
+// ページ画像ダウンロード URL 発行（IssuePageImageDownloadURLUseCase）
+// =====================================================================================
+
+func Test_ページ画像ダウンロード_キー空文字は専用エラー(t *testing.T) {
+	uc := kb.NewIssuePageImageDownloadURLUseCase(&mockKnowledgeBaseRepo{}, &mockKbImagePresigner{})
+
+	_, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: "",
+	})
+	require.ErrorIs(t, err, kb.ErrInvalidImageKey)
+}
+
+// Test_ページ画像ダウンロード_自ページのキーは無条件で許可 は、そのページ自身がアップロードした
+// key（"kb/<workspaceId>/<pageId>/..." に完全一致する prefix）なら PageReferencesImageKey
+// （DB 問い合わせ）を経由せずに許可することを固定する。
+func Test_ページ画像ダウンロード_自ページのキーは無条件で許可(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	presigner := &mockKbImagePresigner{}
+	key := "kb/" + kbWS + "/" + kbPage + "/1.bin"
+	presigner.On("PresignDownload", mock.Anything, key).Return("https://example/download", 600, nil)
+	uc := kb.NewIssuePageImageDownloadURLUseCase(repo, presigner)
+
+	got, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: key,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://example/download", got.URL)
+	repo.AssertNotCalled(t, "PageReferencesImageKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// Test_ページ画像ダウンロード_別ワークスペースのキーはPageReferencesImageKeyを呼ばず404 は、
+// ワークスペースの境界を越える key を DB 問い合わせより前に弾くことを固定する
+// （usecase 側のコメント参照 — ページの本文は呼び出し側が自由に書ける値なので、
+// このチェックが無いと他ページの key 文字列を本文に書き込むだけで別テナントの画像が
+// 読めてしまう）。
+//
+// 変異確認: 同一ワークスペース限定の prefix チェックを外すと、このテストの
+// 「PageReferencesImageKey が呼ばれない」検証が落ちる（別テナントの key 漏洩を検出できなくなる）。
+func Test_ページ画像ダウンロード_別ワークスペースのキーはPageReferencesImageKeyを呼ばず404(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	presigner := &mockKbImagePresigner{}
+	otherWS := "0198a000-0000-7000-8000-0000000000ff"
+	key := "kb/" + otherWS + "/" + kbPage + "/1.bin"
+	uc := kb.NewIssuePageImageDownloadURLUseCase(repo, presigner)
+
+	_, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: key,
+	})
+	require.ErrorIs(t, err, repository.ErrPageNotFound)
+	repo.AssertNotCalled(t, "PageReferencesImageKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	presigner.AssertNotCalled(t, "PresignDownload", mock.Anything, mock.Anything)
+}
+
+// Test_ページ画像ダウンロード_同一ワークスペースの他ページ参照は問い合わせて許可 は、
+// 同一ワークスペース内で prefix だけ違う（他ページ由来の）key を、本文またはカバーに
+// 実際に使われているか PageReferencesImageKey で確かめたうえで許可することを固定する。
+func Test_ページ画像ダウンロード_同一ワークスペースの他ページ参照は問い合わせて許可(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	presigner := &mockKbImagePresigner{}
+	otherPage := "0198a000-0000-7000-8000-0000000000ee"
+	key := "kb/" + kbWS + "/" + otherPage + "/1.bin"
+	repo.On("PageReferencesImageKey", mock.Anything, kbWS, kbPage, key).Return(true, nil)
+	presigner.On("PresignDownload", mock.Anything, key).Return("https://example/download", 600, nil)
+	uc := kb.NewIssuePageImageDownloadURLUseCase(repo, presigner)
+
+	got, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: key,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://example/download", got.URL)
+}
+
+func Test_ページ画像ダウンロード_参照されていないキーは404(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	presigner := &mockKbImagePresigner{}
+	otherPage := "0198a000-0000-7000-8000-0000000000ee"
+	key := "kb/" + kbWS + "/" + otherPage + "/1.bin"
+	repo.On("PageReferencesImageKey", mock.Anything, kbWS, kbPage, key).Return(false, nil)
+	uc := kb.NewIssuePageImageDownloadURLUseCase(repo, presigner)
+
+	_, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: key,
+	})
+	require.ErrorIs(t, err, repository.ErrPageNotFound)
+	presigner.AssertNotCalled(t, "PresignDownload", mock.Anything, mock.Anything)
+}
+
+// =====================================================================================
+// ページカバー設定（SetPageCoverUseCase）
+// =====================================================================================
+
+// Test_ページカバー設定_自ページ以外のキーは拒否 は、同一ワークスペース内の他ページの key でも
+// フォールバック無しで拒否することを固定する（ダウンロードと違い、カバーには
+// 「同一ワークスペースなら許可」を持たせない。ErrInvalidCoverKey の doc 参照）。
+//
+// 変異確認: SetPageCoverUseCase の prefix チェックを外すと、この「他ページの key を拒否する」
+// 検証が落ちる。
+func Test_ページカバー設定_自ページ以外のキーは拒否(t *testing.T) {
+	otherPage := "0198a000-0000-7000-8000-0000000000ee"
+	key := "kb/" + kbWS + "/" + otherPage + "/1.bin"
+	repo := &mockKnowledgeBaseRepo{}
+	uc := kb.NewSetPageCoverUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageCoverInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: &key,
+	})
+	require.ErrorIs(t, err, kb.ErrInvalidCoverKey)
+	repo.AssertNotCalled(t, "FindPage", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "UpdatePageCover", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_ページカバー設定_別ワークスペースのキーも拒否(t *testing.T) {
+	otherWS := "0198a000-0000-7000-8000-0000000000ff"
+	key := "kb/" + otherWS + "/" + kbPage + "/1.bin"
+	repo := &mockKnowledgeBaseRepo{}
+	uc := kb.NewSetPageCoverUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageCoverInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: &key,
+	})
+	require.ErrorIs(t, err, kb.ErrInvalidCoverKey)
+}
+
+func Test_ページカバー設定_自ページのキーは保存される(t *testing.T) {
+	key := "kb/" + kbWS + "/" + kbPage + "/1.bin"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	cover := &domain.PageCover{Type: domain.PageCoverTypeFile, Key: key}
+	updated := kbActivePage(kbPage, kbSpace, nil)
+	updated.Cover = cover
+	repo.On("UpdatePageCover", mock.Anything, kbWS, kbPage, cover).Return(updated, nil)
+	uc := kb.NewSetPageCoverUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.SetPageCoverInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: &key,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got.Cover)
+	assert.Equal(t, *cover, *got.Cover)
+}
+
+func Test_ページカバー設定_アーカイブ済みは拒否(t *testing.T) {
+	key := "kb/" + kbWS + "/" + kbPage + "/1.bin"
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewSetPageCoverUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageCoverInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: &key,
+	})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+}
+
+// Test_ページカバー解除_nilを渡す は「外す」操作が UpdatePageCover に nil を渡すことを固定する
+// （SetPageIconUseCase の Test_ページアイコン_解除はnilを渡す と同じ形）。
+func Test_ページカバー解除_nilを渡す(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("UpdatePageCover", mock.Anything, kbWS, kbPage, (*domain.PageCover)(nil)).
+		Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewSetPageCoverUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageCoverInput{
+		WorkspaceID: kbWS, PageID: kbPage, Key: nil,
+	})
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+// =====================================================================================
+// カバー URL 解決（ResolveCoverURLUseCase）
+// =====================================================================================
+
+func Test_カバーURL解決_nilならnilを返す(t *testing.T) {
+	uc := kb.NewResolveCoverURLUseCase(&mockKbImagePresigner{})
+
+	got, err := uc.Execute(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
+
+func Test_カバーURL解決_presignして返す(t *testing.T) {
+	presigner := &mockKbImagePresigner{}
+	cover := &domain.PageCover{Type: domain.PageCoverTypeFile, Key: "kb/x/y/1.bin"}
+	presigner.On("PresignDownload", mock.Anything, cover.Key).Return("https://example/dl", 600, nil)
+	uc := kb.NewResolveCoverURLUseCase(presigner)
+
+	got, err := uc.Execute(context.Background(), cover)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "file", got.Type)
+	assert.Equal(t, "https://example/dl", got.URL)
+	assert.Equal(t, 600, got.ExpiresIn)
+}

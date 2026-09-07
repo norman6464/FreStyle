@@ -24,15 +24,17 @@ func NewStubRichTextImagePresigner(bucket string) repository.RichTextImagePresig
 	return &richTextImagePresigner{pre: &stubPresigner{bucket: bucket}}
 }
 
-func (p *richTextImagePresigner) Generate(ctx context.Context, userID uint64, contentType string) (*domain.RichTextImageUploadURL, error) {
+func (p *richTextImagePresigner) Generate(ctx context.Context, userID uint64, contentType string, size int64) (*domain.RichTextImageUploadURL, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("userID is required")
 	}
-	if contentType == "" {
-		contentType = "image/png"
+	// Content-Type とサイズの検証は presign より前に済ませる（FRESTYLE-9: 以前はここが
+	// 素通しで、上限の無い PUT presigned URL をいくらでも発行できた）。
+	if err := domain.ValidateImageUpload(contentType, size); err != nil {
+		return nil, err
 	}
 	key := fmt.Sprintf("rich-text/%d/%d.bin", userID, time.Now().UnixNano())
-	url, ttl, err := p.pre.PresignPut(ctx, key, contentType)
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, size)
 	if err != nil {
 		return nil, err
 	}

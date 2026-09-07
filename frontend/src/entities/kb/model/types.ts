@@ -148,12 +148,27 @@ export interface KbResolvedPage {
   lastEditedBy?: KbEditorRef | null;
   /** 最終編集の日時（= page_snapshots.built_at）。lastEditedBy と対になる。 */
   lastEditedAt?: string | null;
+  /**
+   * カバー画像。未設定は null（明示的に外した）と undefined（旧応答）の両方があり得る
+   * （KbIcon と同じ約束）。**一覧・木の KbPage には出てこない**（N+1 回避のため、
+   * backend は一覧応答では解決しない — このページ単体の解決応答でだけ入る）。
+   */
+  cover?: KbResolvedCover | null;
 }
 
 /** パンくず 1 段分（ページ ID と現在の題名）。 */
 export interface KbAncestorRef {
   id: string;
   title: string;
+}
+
+/**
+ * 解決済みのカバー画像。durable な保存形式は S3 の key（"kb/…"）だが、ここに来るのは
+ * サーバーが既に署名して解決した後の一時 URL — そのまま `<img src>` に使ってよい。
+ */
+export interface KbResolvedCover {
+  type: 'file';
+  url: string;
 }
 
 /** 既定の役割。強い順に admin > editor > commenter > viewer。 */

@@ -643,6 +643,44 @@ func (r *knowledgeBaseRepository) UpdatePageIcon(ctx context.Context, workspaceI
 	return &p, nil
 }
 
+func (r *knowledgeBaseRepository) UpdatePageCover(ctx context.Context, workspaceID, pageID string, cover *domain.PageCover) (*domain.Page, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return nil, repository.ErrPageNotFound
+	}
+	var raw *json.RawMessage
+	if cover != nil {
+		// UpdatePageIcon と同じく、正規形（domain.PageCover を Marshal し直したもの）だけを書く。
+		encoded, err := json.Marshal(cover)
+		if err != nil {
+			return nil, err
+		}
+		msg := json.RawMessage(encoded)
+		raw = &msg
+	}
+	row, err := r.queries(ctx).UpdatePageCover(ctx, sqlcgen.UpdatePageCoverParams{Cover: raw, WorkspaceID: wsID, ID: pgID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrPageNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	p := toDomainPage(row)
+	return &p, nil
+}
+
+func (r *knowledgeBaseRepository) PageReferencesImageKey(ctx context.Context, workspaceID, pageID, key string) (bool, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return false, repository.ErrPageNotFound
+	}
+	return r.queries(ctx).PageReferencesImageKey(ctx, sqlcgen.PageReferencesImageKeyParams{
+		WorkspaceID: wsID, PageID: pgID, Key: key,
+	})
+}
+
 func (r *knowledgeBaseRepository) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)

@@ -34,7 +34,8 @@ func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fil
 	}
 	ext := guessExt(fileName, contentType)
 	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UnixNano(), ext)
-	url, ttl, err := p.pre.PresignPut(ctx, key, contentType)
+	// サイズ制限は本チケットのスコープ外（動作は変えない）。0 は「制約しない」の意味。
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -45,6 +45,7 @@ type kbFixture struct {
 	perms       *kbFakePerms
 	provisioner *kbFakeProvisioner
 	users       *kbFakeUsers
+	presigner   *kbFakeImagePresigner
 	router      *gin.Engine
 }
 
@@ -86,12 +87,13 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
 	users := newKbFakeUsers()
-	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, fakeTxManager{})
+	presigner := &kbFakeImagePresigner{}
+	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, fakeTxManager{}, presigner)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
-	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, users: users, router: r}
+	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, users: users, presigner: presigner, router: r}
 }
 
 func (f kbFixture) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
@@ -181,6 +183,32 @@ var kbEndpoints = []kbEndpoint{
 		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/icon",
 		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
 	},
+	{
+		name: "画像アップロードURL発行", method: http.MethodPost,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/images/upload-url",
+		body:       `{"contentType":"image/png","size":1024}`,
+		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
+	},
+	{
+		// key はこのページ自身のもの（kb/<workspaceId>/{page}/...）に固定してある。
+		// 別ワークスペースの slug で叩くテストは、この key の workspace 部分と食い違うために
+		// なる 404 ではなく、requirePagePermission がページ不在で 404 にする側で通る
+		// （テナントが変われば {page} 自体がそのワークスペースには実在しないため）。
+		name: "画像ダウンロードURL発行", method: http.MethodGet,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/images/download-url?key=kb/" + kbWorkspaceID + "/{page}/test.bin",
+		capability: domain.CapabilityView, okStatus: http.StatusOK,
+	},
+	{
+		name: "カバー設定", method: http.MethodPut,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/cover",
+		body:       `{"type":"file","key":"kb/` + kbWorkspaceID + `/{page}/test.bin"}`,
+		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
+	},
+	{
+		name: "カバー解除", method: http.MethodDelete,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/cover",
+		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
+	},
 }
 
 // kbTreePath はツリー取得のパス（単一ページを名指ししないので kbEndpoints とは別扱い）。
@@ -211,7 +239,12 @@ func (e kbEndpoint) request(f kbFixture, t *testing.T, slug, pageID string) *htt
 }
 
 // kbRoutePattern は表のパスを gin に登録されるパターンへ戻す（照合用）。
+// クエリ文字列（? 以降）は gin のルート表に出てこないので、比較の前に切り落とす
+// （画像ダウンロード URL 発行が ?key=... を持つため）。
 func kbRoutePattern(p string) string {
+	if i := strings.IndexByte(p, '?'); i != -1 {
+		p = p[:i]
+	}
 	return strings.NewReplacer(
 		"{slug}", ":workspaceSlug",
 		"{page}", ":pageId",
@@ -931,6 +964,80 @@ func Test_ナレッジAPI_入力の検証(t *testing.T) {
 			status:    http.StatusBadRequest,
 			errorCode: "invalid_request",
 		},
+		{
+			name: "画像アップロードURL発行でsizeが欠落していればinvalid_request", method: http.MethodPost,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/upload-url",
+			body:      `{"contentType":"image/png"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "画像アップロードURL発行でsizeが数値でなければinvalid_request", method: http.MethodPost,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/upload-url",
+			body:      `{"contentType":"image/png","size":"1024"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "画像アップロードURL発行でcontentTypeが欠落していればinvalid_request", method: http.MethodPost,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/upload-url",
+			body:      `{"size":1024}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "画像アップロードURL発行で許可リスト外のcontentTypeはunsupported_content_type", method: http.MethodPost,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/upload-url",
+			body:      `{"contentType":"image/svg+xml","size":1024}`,
+			status:    http.StatusBadRequest,
+			errorCode: "unsupported_content_type",
+		},
+		{
+			name: "画像アップロードURL発行でサイズ超過はimage_too_large", method: http.MethodPost,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/upload-url",
+			body:      `{"contentType":"image/png","size":99999999}`,
+			status:    http.StatusBadRequest,
+			errorCode: "image_too_large",
+		},
+		{
+			name: "画像ダウンロードURL発行でkeyが無ければinvalid_request", method: http.MethodGet,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/download-url",
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "画像ダウンロードURL発行で他ページのkeyは404", method: http.MethodGet,
+			path:   "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/images/download-url?key=kb/" + kbWorkspaceID + "/" + kbRootPageID + "/x.bin",
+			status: http.StatusNotFound,
+		},
+		{
+			name: "カバー設定でtypeが欠落していればinvalid_request", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/cover",
+			body:      `{"key":"kb/` + kbWorkspaceID + `/` + kbChildPageID + `/x.bin"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "カバー設定でkeyが欠落していればinvalid_request", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/cover",
+			body:      `{"type":"file"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "カバー設定でtypeがfile以外ならinvalid_request", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/cover",
+			body:      `{"type":"url","key":"kb/` + kbWorkspaceID + `/` + kbChildPageID + `/x.bin"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "カバー設定で他ページのkeyはinvalid_cover_key", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/cover",
+			body:      `{"type":"file","key":"kb/` + kbWorkspaceID + `/` + kbRootPageID + `/x.bin"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_cover_key",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1004,6 +1111,87 @@ func Test_ナレッジアイコン_設定と解除が取得に映る(t *testing.
 	var docAfterClear kbPageDocResponse
 	require.NoError(t, json.Unmarshal(gotAfterClear.Body.Bytes(), &docAfterClear))
 	assert.Nil(t, docAfterClear.Page.Icon, "解除が取得にも映る")
+}
+
+// Test_ナレッジ画像_アップロードURL発行からカバー設定解除までの一連の流れ は、
+// FRESTYLE-368 段 1b の読み取り経路（アップロード URL 発行 → そのキーでカバー設定 →
+// ダウンロード URL 発行 → 解除）を端から端まで固定する。
+func Test_ナレッジ画像_アップロードURL発行からカバー設定解除までの一連の流れ(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID
+
+	// 1. アップロード URL 発行。key はこのページに閉じた形（kb/<workspaceId>/<pageId>/...）。
+	upload := f.do(t, http.MethodPost, base+"/images/upload-url", `{"contentType":"image/png","size":1024}`)
+	require.Equal(t, http.StatusOK, upload.Code)
+	var uploadResp kbImageUploadURLResponse
+	require.NoError(t, json.Unmarshal(upload.Body.Bytes(), &uploadResp))
+	assert.NotEmpty(t, uploadResp.URL)
+	assert.True(t, strings.HasPrefix(uploadResp.Key, "kb/"+kbWorkspaceID+"/"+kbChildPageID+"/"), "key はこのページに閉じた形: %s", uploadResp.Key)
+	assert.Greater(t, uploadResp.ExpiresIn, 0)
+
+	// 2. そのキーでダウンロード URL も発行できる（自ページの key は無条件で許可）。
+	download := f.do(t, http.MethodGet, base+"/images/download-url?key="+uploadResp.Key, "")
+	require.Equal(t, http.StatusOK, download.Code)
+	var downloadResp kbImageDownloadURLResponse
+	require.NoError(t, json.Unmarshal(download.Body.Bytes(), &downloadResp))
+	assert.NotEmpty(t, downloadResp.URL)
+
+	// 3. そのキーをカバーに設定する。応答にページ本体と解決済みカバー URL の両方が載る。
+	setCover := f.do(t, http.MethodPut, base+"/cover", `{"type":"file","key":"`+uploadResp.Key+`"}`)
+	require.Equal(t, http.StatusOK, setCover.Code, "body=%s", setCover.Body.String())
+	var setCoverResp kbPageWithCoverResponse
+	require.NoError(t, json.Unmarshal(setCover.Body.Bytes(), &setCoverResp))
+	assert.Equal(t, kbChildPageID, setCoverResp.Page.ID)
+	require.NotNil(t, setCoverResp.Cover)
+	assert.Equal(t, "file", setCoverResp.Cover.Type)
+	assert.NotEmpty(t, setCoverResp.Cover.URL)
+
+	// 4. GET / ResolveByID の両方にカバーが映る。
+	got := f.do(t, http.MethodGet, base, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	var doc kbPageDocResponse
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &doc))
+	assert.NotContains(t, got.Body.String(), `"cover"`, "kbPageResponse（Get）にはカバーを含めない — N+1 回避のため")
+
+	resolved := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+	require.Equal(t, http.StatusOK, resolved.Code)
+	var resolvedResp kbResolvedPageResponse
+	require.NoError(t, json.Unmarshal(resolved.Body.Bytes(), &resolvedResp))
+	require.NotNil(t, resolvedResp.Cover, "ResolveByID にはカバーが解決済みで載る")
+	assert.Equal(t, "file", resolvedResp.Cover.Type)
+	assert.NotEmpty(t, resolvedResp.Cover.URL)
+
+	// 5. 解除すると cover は null になる。
+	cleared := f.do(t, http.MethodDelete, base+"/cover", "")
+	require.Equal(t, http.StatusOK, cleared.Code)
+	var clearedResp kbPageWithCoverResponse
+	require.NoError(t, json.Unmarshal(cleared.Body.Bytes(), &clearedResp))
+	assert.Nil(t, clearedResp.Cover)
+
+	resolvedAfterClear := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+	require.Equal(t, http.StatusOK, resolvedAfterClear.Code)
+	var resolvedAfterClearResp kbResolvedPageResponse
+	require.NoError(t, json.Unmarshal(resolvedAfterClear.Body.Bytes(), &resolvedAfterClearResp))
+	assert.Nil(t, resolvedAfterClearResp.Cover, "解除が ResolveByID にも映る")
+}
+
+// Test_ナレッジ画像ダウンロード_同一ワークスペースの他ページ参照は本文にあれば許可 は、
+// 別ページ由来の key でも、開いているページの本文に実際に貼られていれば許可することを
+// HTTP 経路の端から端まで固定する（usecase 単体のテストと違い、fake の
+// PageReferencesImageKey まで実際に通す）。
+func Test_ナレッジ画像ダウンロード_同一ワークスペースの他ページ参照は本文にあれば許可(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// kbRootPageID がアップロードした体で key を作り、それを kbChildPageID の本文に
+	// 貼ったことにする。
+	key := "kb/" + kbWorkspaceID + "/" + kbRootPageID + "/1.bin"
+	f.pages.addBlockImageKey(kbChildPageID, key)
+
+	w := f.do(t, http.MethodGet,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/images/download-url?key="+key, "")
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	var resp kbImageDownloadURLResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.NotEmpty(t, resp.URL)
 }
 
 // Test_ナレッジAPI_本文を保存した人が最終編集者になる は、本文を保存した人が
@@ -1367,6 +1555,10 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewDeletePageUseCase(pages),
 		kb.NewSetPageIconUseCase(pages),
 		kb.NewLookupUserNameUseCase(users),
+		kb.NewIssuePageImageUploadURLUseCase(pages, &kbFakeImagePresigner{}),
+		kb.NewIssuePageImageDownloadURLUseCase(pages, &kbFakeImagePresigner{}),
+		kb.NewSetPageCoverUseCase(pages),
+		kb.NewResolveCoverURLUseCase(&kbFakeImagePresigner{}),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

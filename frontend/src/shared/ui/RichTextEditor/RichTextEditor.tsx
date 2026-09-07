@@ -32,6 +32,12 @@ export interface RichTextEditorProps {
    */
   onImageUpload?: (file: File) => Promise<string>;
   /**
+   * "kb/" で始まる画像 src（S3 の key）を表示用の一時 URL へ解決する。
+   * 渡さなければ画像ノードは解決を試みず src をそのまま使う（story・他画面との後方互換）。
+   * エディタ生成時に固定される（extraSlashCommands と同じ契約）。
+   */
+  resolveImageSrc?: (src: string) => Promise<string>;
+  /**
    * エディタ生成直後に一度だけ呼ばれるライフサイクルフック。
    * 生成直後にフォーカスしたい・外部から editor を参照して拡張したい、といった用途の拡張点。
    */
@@ -100,6 +106,7 @@ export default function RichTextEditor({
   ariaLabel = '本文',
   saveStatus,
   onImageUpload,
+  resolveImageSrc,
   onCreate,
   extraSlashCommands,
   onNavigateToPage,
@@ -177,7 +184,7 @@ export default function RichTextEditor({
 
   const editor = useEditor({
     editable,
-    extensions: createEditorExtensions({ placeholder, slashItems }),
+    extensions: createEditorExtensions({ placeholder, slashItems, resolveImageSrc }),
     // 読み込み側のリンク洗浄。doc JSON は API から丸ごと差し込めるので、エディタの入力・貼り付けを
     // どれだけ固めても「危険な href がすでに入った doc」はここから入ってくる。開いた時点で落とす。
     content: sanitizeDocLinks(value),

@@ -31,16 +31,17 @@ var kbIntegrationTables = []string{
 
 // kbEnv は本物の PostgreSQL・本物の repository・本番と同じルートで組んだ検証環境。
 type kbEnv struct {
-	pages       repository.KnowledgeBaseRepository
-	permissions repository.KnowledgeBasePermissionRepository
-	shareLinks  repository.ShareLinkRepository
-	provisioner repository.WorkspaceProvisioner
-	users       repository.UserRepository
-	txManager   repository.TxManager
-	workspaceID string
-	slug        string
-	spaceID     string
-	router      *gin.Engine
+	pages            repository.KnowledgeBaseRepository
+	permissions      repository.KnowledgeBasePermissionRepository
+	shareLinks       repository.ShareLinkRepository
+	provisioner      repository.WorkspaceProvisioner
+	users            repository.UserRepository
+	txManager        repository.TxManager
+	kbImagePresigner repository.KbImagePresigner
+	workspaceID      string
+	slug             string
+	spaceID          string
+	router           *gin.Engine
 }
 
 func newKbEnv(t *testing.T, sqlDB *sql.DB, slug string) *kbEnv {
@@ -48,13 +49,14 @@ func newKbEnv(t *testing.T, sqlDB *sql.DB, slug string) *kbEnv {
 	testsupport.TruncateAll(t, sqlDB, kbIntegrationTables...)
 
 	env := &kbEnv{
-		pages:       persistence.NewKnowledgeBaseRepository(sqlDB),
-		permissions: persistence.NewKnowledgeBasePermissionRepository(sqlDB),
-		shareLinks:  persistence.NewShareLinkRepository(sqlDB),
-		provisioner: persistence.NewWorkspaceProvisioner(sqlDB),
-		users:       persistence.NewUserRepository(sqlDB),
-		txManager:   persistence.NewTxManager(sqlDB),
-		slug:        slug,
+		pages:            persistence.NewKnowledgeBaseRepository(sqlDB),
+		permissions:      persistence.NewKnowledgeBasePermissionRepository(sqlDB),
+		shareLinks:       persistence.NewShareLinkRepository(sqlDB),
+		provisioner:      persistence.NewWorkspaceProvisioner(sqlDB),
+		users:            persistence.NewUserRepository(sqlDB),
+		txManager:        persistence.NewTxManager(sqlDB),
+		kbImagePresigner: persistence.NewStubKbImagePresigner("stub-bucket"),
+		slug:             slug,
 	}
 	env.workspaceID = kbInsertWorkspace(t, sqlDB, slug)
 	env.spaceID = kbInsertSpace(t, sqlDB, env.workspaceID, "eng")
@@ -70,7 +72,7 @@ func (e *kbEnv) as(userID uint64) *kbEnv {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.shareLinks, e.provisioner, e.users, e.txManager)
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.shareLinks, e.provisioner, e.users, e.txManager, e.kbImagePresigner)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じ位置関係にしないと「未認証でも通ること」を確かめられない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), e.pages, e.permissions, e.shareLinks)

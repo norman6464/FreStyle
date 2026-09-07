@@ -38,6 +38,10 @@ type KnowledgeBasePageHandler struct {
 	deletePage     *kb.DeletePageUseCase
 	setIcon        *kb.SetPageIconUseCase
 	userName       *kb.LookupUserNameUseCase
+	issueImageUp   *kb.IssuePageImageUploadURLUseCase
+	issueImageDown *kb.IssuePageImageDownloadURLUseCase
+	setCover       *kb.SetPageCoverUseCase
+	resolveCover   *kb.ResolveCoverURLUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -60,6 +64,10 @@ func NewKnowledgeBasePageHandler(
 	deletePage *kb.DeletePageUseCase,
 	setIcon *kb.SetPageIconUseCase,
 	userName *kb.LookupUserNameUseCase,
+	issueImageUp *kb.IssuePageImageUploadURLUseCase,
+	issueImageDown *kb.IssuePageImageDownloadURLUseCase,
+	setCover *kb.SetPageCoverUseCase,
+	resolveCover *kb.ResolveCoverURLUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -80,6 +88,10 @@ func NewKnowledgeBasePageHandler(
 		deletePage:     deletePage,
 		setIcon:        setIcon,
 		userName:       userName,
+		issueImageUp:   issueImageUp,
+		issueImageDown: issueImageDown,
+		setCover:       setCover,
+		resolveCover:   resolveCover,
 	}
 }
 
@@ -243,6 +255,16 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_document"})
 	case errors.Is(err, kb.ErrInvalidPageIcon):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_icon"})
+	case errors.Is(err, kb.ErrInvalidImageKey):
+		// key = c.Query("key") が空文字のときは IssueImageDownloadURL が呼ぶ前に弾くが、
+		// usecase 側にも同じ検証がある（防御の二重化）ので、ここにも同じ応答を用意しておく。
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+	case errors.Is(err, kb.ErrInvalidCoverKey):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_cover_key"})
+	case errors.Is(err, domain.ErrUnsupportedImageContentType):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "unsupported_content_type"})
+	case errors.Is(err, domain.ErrImageTooLarge):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "image_too_large"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
@@ -596,6 +618,176 @@ func (h *KnowledgeBasePageHandler) ClearIcon(c *gin.Context) {
 	c.JSON(http.StatusOK, toKbPageResponse(page))
 }
 
+// kbIssueImageUploadURLRequest はページ画像アップロード URL 発行の入力。
+type kbIssueImageUploadURLRequest struct {
+	ContentType string `json:"contentType" binding:"required"`
+	// Size はバイト数。0 以下は domain.ValidateImageUpload が ErrImageTooLarge で弾く。
+	Size int64 `json:"size" binding:"required"`
+}
+
+// kbImageUploadURLResponse はページ画像アップロード URL 発行の応答形。
+type kbImageUploadURLResponse struct {
+	URL       string `json:"url"`
+	Key       string `json:"key"`
+	ExpiresIn int    `json:"expiresIn"`
+}
+
+// IssueImageUploadURL はページに閉じた画像（本文・カバー共通）の S3 PUT presigned URL を
+// 発行する（編集権限が要る）。
+func (h *KnowledgeBasePageHandler) IssueImageUploadURL(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	limitKnowledgeBaseBody(c)
+	var req kbIssueImageUploadURLRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	out, err := h.issueImageUp.Execute(c.Request.Context(), kb.IssuePageImageUploadURLInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		ContentType: req.ContentType,
+		Size:        req.Size,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, kbImageUploadURLResponse{URL: out.URL, Key: out.Key, ExpiresIn: out.ExpiresIn})
+}
+
+// kbImageDownloadURLResponse はページ画像ダウンロード URL 発行の応答形。
+type kbImageDownloadURLResponse struct {
+	URL       string `json:"url"`
+	ExpiresIn int    `json:"expiresIn"`
+}
+
+// IssueImageDownloadURL はページに閉じた画像の S3 GET（ダウンロード）presigned URL を
+// 発行する（閲覧権限が要る）。
+func (h *KnowledgeBasePageHandler) IssueImageDownloadURL(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityView) {
+		return
+	}
+	key := c.Query("key")
+	if key == "" {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	out, err := h.issueImageDown.Execute(c.Request.Context(), kb.IssuePageImageDownloadURLInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		Key:         key,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, kbImageDownloadURLResponse{URL: out.URL, ExpiresIn: out.ExpiresIn})
+}
+
+// kbPageCoverResponse はカバーの返却形（解決済みの表示 URL を持つ。保存形の key は返さない —
+// key は S3 のオブジェクト名で、表示に使うのは presign 済みの url の方のため）。
+type kbPageCoverResponse struct {
+	Type string `json:"type" example:"file"`
+	URL  string `json:"url"`
+}
+
+// kbPageWithCoverResponse は SetCover / ClearCover の応答形（ページ本体 + 解決済みカバー）。
+type kbPageWithCoverResponse struct {
+	Page  kbPageResponse       `json:"page"`
+	Cover *kbPageCoverResponse `json:"cover"`
+}
+
+// kbSetCoverRequest はカバー設定の入力。Type は "file" 固定（domain.PageCoverTypeFile 以外は
+// 現状定義が無い）。
+type kbSetCoverRequest struct {
+	Type string `json:"type" binding:"required"`
+	Key  string `json:"key"  binding:"required"`
+}
+
+// resolveCoverResponse は usecase の ResolvedCover を応答形へ落とす。cover が無ければ nil。
+func (h *KnowledgeBasePageHandler) resolveCoverResponse(ctx context.Context, cover *domain.PageCover) (*kbPageCoverResponse, error) {
+	resolved, err := h.resolveCover.Execute(ctx, cover)
+	if err != nil {
+		return nil, err
+	}
+	if resolved == nil {
+		return nil, nil
+	}
+	return &kbPageCoverResponse{Type: resolved.Type, URL: resolved.URL}, nil
+}
+
+// SetCover はページのカバー画像を設定する（編集権限が要る）。
+func (h *KnowledgeBasePageHandler) SetCover(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	limitKnowledgeBaseBody(c)
+	var req kbSetCoverRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	if req.Type != string(domain.PageCoverTypeFile) {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	page, err := h.setCover.Execute(c.Request.Context(), kb.SetPageCoverInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		Key:         &req.Key,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	coverResp, err := h.resolveCoverResponse(c.Request.Context(), page.Cover)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, kbPageWithCoverResponse{Page: toKbPageResponse(page), Cover: coverResp})
+}
+
+// ClearCover はページのカバー画像を外す（編集権限が要る）。ClearIcon と同じく
+// 204 ではなく 200 + ページ本体を返す（理由は ClearIcon の doc 参照）。
+func (h *KnowledgeBasePageHandler) ClearCover(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	page, err := h.setCover.Execute(c.Request.Context(), kb.SetPageCoverInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		Key:         nil,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, kbPageWithCoverResponse{Page: toKbPageResponse(page), Cover: nil})
+}
+
 // kbMovePageRequest はページ移動の入力。
 //
 // parentId が必須なのは作成と同じ理由。スペース直下へ移す操作は移動先スペースに対する
@@ -909,6 +1101,12 @@ type kbResolvedPageResponse struct {
 	// LastEditedAt は page_snapshots.built_at（本文保存と同じトランザクションの時刻）。
 	// pages.updated_at は改名・アイコン変更でも動くのでここには使わない。
 	LastEditedAt *time.Time `json:"lastEditedAt,omitempty"`
+	// Cover は解決済みのカバー（表示 URL 付き）。未設定・解決失敗のいずれも null。
+	//
+	// kbPageResponse（ツリー・一覧で使う型）には**持たせない** — LastEditedByUserID の
+	// 既存コメントと同じ理由で、一覧・木の応答まで毎回 presign すると N+1 になるため。
+	// カバーの presign が要るのは 1 ページを開くこの経路だけに閉じる。
+	Cover *kbPageCoverResponse `json:"cover,omitempty"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -967,6 +1165,13 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		slog.WarnContext(c.Request.Context(), "kb: ancestors resolve failed", "err", ancErr)
 		ancestors = []kb.AncestorRef{}
 	}
+	// カバーの presign も、ancestors / refs と同じく失敗してもページは開く
+	// （画像 1 枚出せないだけのために本文ごと見せない理由が無い）。空のまま出し、記録だけ残す。
+	coverResp, coverErr := h.resolveCoverResponse(c.Request.Context(), out.Page.Cover)
+	if coverErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: cover resolve failed", "err", coverErr)
+		coverResp = nil
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug: loc.Workspace.Slug,
 		WorkspaceName: loc.Workspace.Name,
@@ -977,5 +1182,6 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		Ancestors:     ancestors,
 		LastEditedBy:  h.kbLastEditedByResponse(c.Request.Context(), out.Page.LastEditedByUserID),
 		LastEditedAt:  out.BuiltAt,
+		Cover:         coverResp,
 	})
 }

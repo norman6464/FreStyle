@@ -69,6 +69,25 @@ export const 書ける_未設定: Story = {
   },
 };
 
+/**
+ * 書ける + 未設定。開いた直後に Escape を押すとピッカーが閉じる
+ * （document への mousedown リスナーだけでは、直後の Escape で閉じない回帰の固定）。
+ */
+export const 書ける_未設定_Escapeで閉じる: Story = {
+  args: { canEdit: true, icon: null },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole('button', { name: 'アイコンを追加' });
+
+    await userEvent.click(button);
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.keyboard('{Escape}');
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await expect(canvas.queryByRole('dialog')).toBeNull();
+  },
+};
+
 /** 書ける + 設定済み。絵文字そのものが aria-expanded なボタンになる。 */
 export const 書ける_設定済み: Story = {
   args: { canEdit: true, icon: { type: 'emoji', value: '📘' } },

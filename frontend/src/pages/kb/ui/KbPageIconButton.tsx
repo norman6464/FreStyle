@@ -44,8 +44,15 @@ export default function KbPageIconButton({ icon, canEdit, onChange }: KbPageIcon
       }
       setOpen(false);
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', onDocumentMouseDown);
-    return () => document.removeEventListener('mousedown', onDocumentMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocumentMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   if (!canEdit) {

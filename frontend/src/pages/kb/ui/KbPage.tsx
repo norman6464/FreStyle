@@ -43,6 +43,14 @@ export default function KbPage() {
   const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
 
+  // handleChangeCover がアップロード完了後に「まだ同じページを開いているか」を確かめるための、
+  // 常に最新のページを指す ref（data はクロージャに古い値が残るため state 変数の直接比較では
+  // 判定できない）。
+  const currentPageRef = useRef<{ workspaceSlug: string; pageId: string } | null>(null);
+  useEffect(() => {
+    currentPageRef.current = data ? { workspaceSlug: data.workspaceSlug, pageId: data.page.id } : null;
+  }, [data]);
+
   // ページ未選択(素の /kb)のときだけ動く。続きのページが決まり次第そこへ移るので、
   // 「まだページがありません」を出すのは resolveEntryPageId が null を返したときだけ。
   const [entryResolving, setEntryResolving] = useState(false);
@@ -97,13 +105,28 @@ export default function KbPage() {
    * handleChangeCover は「ファイルを渡されたらアップロードしてから設定する・null なら外す」を
    * まとめて担う（changeCover 自身は既にアップロード済みの key しか受け取らない）。
    * アップロード → 設定の一連の API 呼び出しをここ 1 箇所にまとめる。
+   *
+   * アップロード先は呼び出し時点のページ（uploadTarget）に固定する。アップロードが終わる
+   * までに別ページへ移っていたら、そのページの key を新しいページの cover API へ送ることに
+   * なってしまう（key の接頭辞が食い違い backend には invalid_cover_key で拒否されるだけだが、
+   * 移動先のページに無関係な失敗トーストが出て、元のページの変更も失われる）。
+   * currentPageRef と食い違っていたら黙って結果を捨てる（CodeRabbit 指摘）。
    */
   const handleChangeCover = useCallback(
     async (file: File | null) => {
       if (!data) return;
+      const uploadTarget = { workspaceSlug: data.workspaceSlug, pageId: data.page.id };
       try {
         if (file) {
-          const key = await KbRepository.uploadPageImage(data.workspaceSlug, data.page.id, file);
+          const key = await KbRepository.uploadPageImage(uploadTarget.workspaceSlug, uploadTarget.pageId, file);
+          const current = currentPageRef.current;
+          if (
+            !current ||
+            current.workspaceSlug !== uploadTarget.workspaceSlug ||
+            current.pageId !== uploadTarget.pageId
+          ) {
+            return;
+          }
           await changeCover(key);
         } else {
           await changeCover(null);

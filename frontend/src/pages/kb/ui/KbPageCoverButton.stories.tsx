@@ -150,3 +150,25 @@ export const 外す: Story = {
     await waitFor(() => expect(args.onChange).toHaveBeenCalledWith(null));
   },
 };
+
+/**
+ * 不正なファイルを選んで検証エラーを出した後に「外す」を押すと、そのエラーは消える
+ * （外す自体はファイルの検証を経ないので、放置すると解除後も残ってしまう）。
+ */
+export const 不正なファイルの後に外すとエラーが消える: Story = {
+  args: { canEdit: true, cover, onChange: fn(async () => {}) },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const svg = new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' });
+    const input = fileInputOf(canvasElement);
+
+    await userEvent.upload(input, svg, { applyAccept: false });
+    await waitFor(() => {
+      expect(canvas.getByRole('alert')).toHaveTextContent('対応していない画像形式');
+    });
+
+    await userEvent.click(canvas.getByRole('button', { name: 'カバー画像を外す' }));
+    await waitFor(() => expect(args.onChange).toHaveBeenCalledWith(null));
+    await waitFor(() => expect(canvas.queryByRole('alert')).toBeNull());
+  },
+};

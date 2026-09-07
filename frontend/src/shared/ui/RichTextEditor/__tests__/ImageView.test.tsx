@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, waitFor, fireEvent, act, within } from '@testing-library/react';
 import RichTextEditor from '../RichTextEditor';
 import type { RichDocContent } from '../emptyRichDoc';
 
@@ -15,12 +15,14 @@ const docWithImage = (src: string, alt = '写真'): RichDocContent => ({
   ],
 });
 
-async function findImg(container: HTMLElement) {
-  return waitFor(() => {
-    const img = container.querySelector('img');
-    expect(img).not.toBeNull();
-    return img as HTMLImageElement;
-  });
+/**
+ * アクセシブルな role + name（alt）で取得する（querySelector('img') は role・name を
+ * 検証しないので alt の回帰を見逃す — CodeRabbit 指摘）。読み込み中/失敗のプレースホルダも
+ * role="img" だが aria-label が別文言（例: "写真（読み込み中）"）なので、name の完全一致で
+ * 実際の <img alt> とは区別できる。
+ */
+async function findImg(container: HTMLElement, name = '写真') {
+  return (await within(container).findByRole('img', { name })) as HTMLImageElement;
 }
 
 describe('ImageView', () => {
@@ -127,5 +129,31 @@ describe('ImageView', () => {
     await waitFor(() =>
       expect(container.querySelector('[data-state="failed"]')).not.toBeNull(),
     );
+  });
+
+  it('src が別の画像に変わったら改めて解決する（NodeViewは使い回されるため）', async () => {
+    // Tiptap の ReactNodeViewRenderer は同じ位置・同じ型のノードなら NodeView の
+    // React コンポーネントを再マウントせず、新しい node だけを渡す。value の外部差し替え
+    // （setContent）でも同じことが起きるため、古い画像の解決結果が新しい画像に
+    // 残らないことをここで固定する。
+    const resolveImageSrc = vi
+      .fn()
+      .mockResolvedValueOnce('https://s3.example.com/a-resolved')
+      .mockResolvedValueOnce('https://s3.example.com/b-resolved');
+    const { container, rerender } = render(
+      <RichTextEditor value={docWithImage('kb/w-1/p-1/a.bin', '画像A')} resolveImageSrc={resolveImageSrc} />,
+    );
+
+    const imgA = await findImg(container, '画像A');
+    expect(imgA).toHaveAttribute('src', 'https://s3.example.com/a-resolved');
+    expect(resolveImageSrc).toHaveBeenCalledWith('kb/w-1/p-1/a.bin');
+
+    rerender(
+      <RichTextEditor value={docWithImage('kb/w-1/p-1/b.bin', '画像A')} resolveImageSrc={resolveImageSrc} />,
+    );
+
+    await waitFor(() => expect(resolveImageSrc).toHaveBeenCalledWith('kb/w-1/p-1/b.bin'));
+    const imgB = await findImg(container, '画像A');
+    await waitFor(() => expect(imgB).toHaveAttribute('src', 'https://s3.example.com/b-resolved'));
   });
 });

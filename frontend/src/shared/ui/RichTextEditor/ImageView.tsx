@@ -39,12 +39,23 @@ export default function ImageView({ node, extension }: NodeViewProps) {
   const [state, setState] = useState<ViewState>(
     shouldResolve ? { kind: 'loading' } : { kind: 'ready', src },
   );
-  // 期限切れ対策の再解決は 1 回だけ（無限ループ防止）。
+  // 期限切れ対策の再解決は 1 回だけ（無限ループ防止）。src が変われば新しい画像として
+  // 改めて 1 回だけ許す（下の useEffect でリセットする）。
   const retriedRef = useRef(false);
 
+  // ReactNodeViewRenderer は NodeView の React コンポーネントを維持したまま、node の
+  // 属性が変わると新しい node を渡すだけで再マウントしない（Tiptap の仕様）。そのため
+  // src が別の画像に変わっても、依存配列が空だとここが 1 回しか走らず、古い画像の
+  // 解決結果・読み込み中/失敗の表示が新しい画像にそのまま残ってしまう
+  // （CodeRabbit 指摘）。src・shouldResolve・resolveImageSrc の変更を deps に含める。
   useEffect(() => {
-    if (!shouldResolve || !resolveImageSrc) return undefined;
+    retriedRef.current = false;
+    if (!shouldResolve || !resolveImageSrc) {
+      setState({ kind: 'ready', src });
+      return undefined;
+    }
     let cancelled = false;
+    setState({ kind: 'loading' });
     resolveImageSrc(src)
       .then((url) => {
         if (!cancelled) setState({ kind: 'ready', src: url });
@@ -55,10 +66,7 @@ export default function ImageView({ node, extension }: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-    // src・resolveImageSrc はこの NodeView の生涯で変わらない前提（src は doc 側で
-    // 書き換えないため実質固定）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [src, shouldResolve, resolveImageSrc]);
 
   const handleError = () => {
     // 解決が要らない（素の URL）ときはブラウザの既定の壊れた画像表示に任せる。

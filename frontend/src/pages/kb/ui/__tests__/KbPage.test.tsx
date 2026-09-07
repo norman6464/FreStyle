@@ -487,6 +487,41 @@ describe('KbPage のカバー画像', () => {
     expect(hoisted.setPageCover).not.toHaveBeenCalled();
   });
 
+  it('p1でアップロード中にp2へ移動したら、p1向けのカバー設定は送らない', async () => {
+    let resolveUpload: ((key: string) => void) | undefined;
+    hoisted.resolvePage.mockImplementation((pageId: string) =>
+      Promise.resolve({ ...resolved(true), page: { ...resolved(true).page, id: pageId } }),
+    );
+    hoisted.uploadPageImage.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+    const view = renderPage();
+
+    const addButton = await screen.findByRole('button', { name: 'カバー画像を追加' });
+    const file = new File(['x'], 'cover.png', { type: 'image/png' });
+    fireEvent.change(coverFileInput(addButton), { target: { files: [file] } });
+    await waitFor(() => expect(hoisted.uploadPageImage).toHaveBeenCalledWith('w-3f2a9c', 'p1', file));
+
+    // アップロードが終わる前に p2 へ移動する。
+    hoisted.useParams.mockReturnValue({ pageId: 'p2' });
+    view.rerender(
+      <MemoryRouter initialEntries={['/kb/p2']}>
+        <KbPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('button', { name: 'カバー画像を追加' });
+
+    // p1 向けのアップロードがいま完了しても、p2 の cover API へは送らない。
+    await act(async () => {
+      resolveUpload?.('kb/w-3f2a9c/p1/1.bin');
+    });
+    expect(hoisted.setPageCover).not.toHaveBeenCalled();
+    expect(hoisted.showToast).not.toHaveBeenCalled();
+  });
+
   it('カバー画像は読むだけの人には出さない', async () => {
     hoisted.resolvePage.mockResolvedValue({
       ...resolved(false),

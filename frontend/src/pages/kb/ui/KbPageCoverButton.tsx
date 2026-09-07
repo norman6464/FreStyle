@@ -67,6 +67,9 @@ export default function KbPageCoverButton({ cover, canEdit, onChange }: KbPageCo
 
   const clear = async () => {
     if (saving) return;
+    // 不正なファイルを選んだ後に「外す」を押した場合に備え、古い検証エラーを消す
+    // （外す操作自体は検証を経ないので、cover が更新されても消えずに残ってしまう）。
+    setValidationError(null);
     setSaving(true);
     try {
       await onChange(null);

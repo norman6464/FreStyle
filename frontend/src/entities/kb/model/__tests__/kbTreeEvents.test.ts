@@ -20,7 +20,7 @@ describe('kbTreeEvents', () => {
     expect(listener).toHaveBeenCalledWith({ type: 'page-created', page });
 
     unsubscribe();
-    emitKbTreeEvent({ type: 'page-renamed', page });
+    emitKbTreeEvent({ type: 'page-updated', page });
     expect(listener).toHaveBeenCalledTimes(1);
   });
 

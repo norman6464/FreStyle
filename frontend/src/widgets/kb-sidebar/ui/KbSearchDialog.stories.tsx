@@ -91,6 +91,29 @@ export const 見つかった: Story = {
   },
 };
 
+/** 絵文字のアイコンを設定したページは、結果でも絵文字で出る。 */
+export const 結果に絵文字: Story = {
+  decorators: [
+    withApi({
+      '/search': [{ ...page('p-1', 's-1', '設計メモ'), icon: { type: 'emoji', value: '📘' } }],
+    }),
+  ],
+  args: { spaces },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByRole('combobox'), '設計');
+    await waitFor(
+      async () => {
+        await expect(canvas.getByText('設計メモ')).toBeVisible();
+      },
+      { timeout: 5000 },
+    );
+    const glyph = canvasElement.querySelector('[data-icon="emoji"]');
+    await expect(glyph).not.toBeNull();
+    await expect(glyph).toHaveTextContent('📘');
+  },
+};
+
 /** 見つからなかったとき。空欄にせず、その旨を出す。 */
 export const 見つからない: Story = {
   decorators: [withApi({ '/search': [] })],

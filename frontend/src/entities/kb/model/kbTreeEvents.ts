@@ -16,7 +16,8 @@ import type { KbPage, KbWorkspace } from './types';
  */
 export type KbTreeEvent =
   | { type: 'page-created'; page: KbPage }
-  | { type: 'page-renamed'; page: KbPage }
+  /** 題名・アイコンなど、ページの値そのものが変わったとき（差し替え先は KbPage 丸ごと）。 */
+  | { type: 'page-updated'; page: KbPage }
   /** 物理削除（子孫ごと消えた）。開いている画面が「消えた場所」かはページ側が判定する。 */
   | { type: 'page-deleted'; pageId: string }
   | { type: 'workspace-created'; workspace: KbWorkspace }

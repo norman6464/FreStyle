@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
-import { KbPageGroupIcon, KbPageGroupOpenIcon, KbPageIcon } from '@/shared/ui/icons/kb';
 import { kbMoveActions, type KbDropTarget, type KbPageTreeNode } from '@/entities/kb';
 import KbRowActions from './KbRowActions';
 import KbInlineRename from './KbInlineRename';
+import KbPageGlyph from './KbPageGlyph';
 import { dropZoneFromEvent, type KbDropZone } from '../model/dropZone';
 
 /** 1 段下がるごとの字下げ幅（px）。三角の幅とほぼ同じにして、段が目で追えるようにする。 */
@@ -93,15 +93,14 @@ export default function KbPageRow({
   // 右クリックでメニューを開く合図（増えるたびに KbRowActions が開く）。
   const [contextOpenSignal, setContextOpenSignal] = useState(0);
   const { page } = node;
-  const hasChildren = node.children.length > 0;
-
-  // 子を持つページはフォルダ、持たないページは紙。フォルダは開いている間だけ
-  // 開いた形になる（三角は段の折り畳み、アイコンは行の性質。両方が同じ状態を指す）。
+  // 子を持つページはフォルダ、持たないページは紙（絵文字が無ければ）。フォルダは
+  // 開いている間だけ開いた形になる（三角は段の折り畳み、アイコンは行の性質。
+  // 両方が同じ状態を指す）。
   //
   // 見える子が居るかで選ぶので、**伏せた子しか居ないページは紙のまま**になる。
   // ここでフォルダにすると、開閉の三角が無いのにフォルダ、という食い違った行になり、
   // さらに「この下に何かある」ことを形からも二重に漏らす。
-  const Icon = hasChildren ? (expanded ? KbPageGroupOpenIcon : KbPageGroupIcon) : KbPageIcon;
+  const hasChildren = node.children.length > 0;
 
   // 落下先を線と枠で描き分ける。並べ替え（上下の線）と入れ子（枠）は別の操作なので、
   // 見た目でも別にする。同じ強調にすると、どちらになるのか落とすまで分からない。
@@ -187,7 +186,12 @@ export default function KbPageRow({
 
       {renaming ? (
         <div className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
-          <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+          <KbPageGlyph
+            page={page}
+            hasChildren={hasChildren}
+            expanded={expanded}
+            className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]"
+          />
           <KbInlineRename
             initialTitle={page.title}
             onCommit={(title) => onCommitRename(page.id, title)}
@@ -206,7 +210,12 @@ export default function KbPageRow({
                 : 'text-[var(--color-text-primary)]'
             }`}
           >
-            <Icon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+            <KbPageGlyph
+              page={page}
+              hasChildren={hasChildren}
+              expanded={expanded}
+              className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]"
+            />
             <span className="truncate">{page.title}</span>
           </Link>
           {archivedMode ? (

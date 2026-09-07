@@ -6,6 +6,8 @@ const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
   replaceContent: vi.fn(),
   renamePage: vi.fn(),
+  setPageIcon: vi.fn(),
+  clearPageIcon: vi.fn(),
   emit: vi.fn(),
   rememberVisitedPage: vi.fn(),
   forgetVisitedPageIfMatches: vi.fn(),
@@ -16,6 +18,8 @@ vi.mock('@/entities/kb', () => ({
     resolvePage: hoisted.resolvePage,
     replaceContent: hoisted.replaceContent,
     renamePage: hoisted.renamePage,
+    setPageIcon: hoisted.setPageIcon,
+    clearPageIcon: hoisted.clearPageIcon,
   },
   emitKbTreeEvent: hoisted.emit,
   rememberVisitedPage: hoisted.rememberVisitedPage,
@@ -144,6 +148,80 @@ describe('useKbPageDoc', () => {
     }
   });
 
+  it('本文保存の応答で lastEditedBy / lastEditedAt を更新する（画面は現在ユーザーの名前を持たない）', async () => {
+    vi.useFakeTimers();
+    try {
+      hoisted.replaceContent.mockResolvedValue({
+        doc: { type: 'doc', content: [] },
+        builtAt: '2026-09-06T00:00:00Z',
+        lastEditedBy: { userId: 1, name: '田中 太郎' },
+        lastEditedAt: '2026-09-06T00:00:00Z',
+      });
+      const { result } = renderHook(() => useKbPageDoc('p1'));
+      await act(async () => {});
+
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(result.current.data?.lastEditedBy).toEqual({ userId: 1, name: '田中 太郎' });
+      expect(result.current.data?.lastEditedAt).toBe('2026-09-06T00:00:00Z');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('離れたページの保存応答は、いま見ているページに反映しない', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolvePut: (value: unknown) => void = () => {};
+      hoisted.replaceContent.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePut = resolve;
+          }),
+      );
+
+      const { result, rerender } = renderHook(({ id }) => useKbPageDoc(id), {
+        initialProps: { id: 'p1' },
+      });
+      await act(async () => {});
+
+      // p1 で書く → PUT(p1) が飛ぶ（保留のまま）。
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // p2 へ移る。
+      hoisted.resolvePage.mockResolvedValue({
+        ...resolved('子ページ'),
+        page: { ...resolved('子ページ').page, id: 'p2' },
+      });
+      rerender({ id: 'p2' });
+      await act(async () => {});
+
+      // PUT(p1) の応答がいま届いても、p2 の lastEditedBy は変わらない。
+      await act(async () => {
+        resolvePut({
+          doc: { type: 'doc', content: [] },
+          builtAt: '2026-09-06T00:00:00Z',
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-06T00:00:00Z',
+        });
+      });
+      expect(result.current.data?.page.id).toBe('p2');
+      expect(result.current.data?.lastEditedBy).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('前の保存が終わるまで次の PUT を送らない（丸ごと置換なので順序が命）', async () => {
     // 並行に送ると、後から書いた本文の PUT が先に完了し、古い本文の PUT が
     // 後から着地して上書きし得る。送信は必ず 1 本ずつ・編集順で。
@@ -212,7 +290,7 @@ describe('useKbPageDoc', () => {
 
     expect(hoisted.renamePage).toHaveBeenCalledWith('w-3f2a9c', 'p1', '設計メモ v2');
     expect(result.current.data?.page.title).toBe('設計メモ v2');
-    expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-renamed', page: renamed });
+    expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-updated', page: renamed });
   });
 
   it('renameTitle の失敗は投げ、画面の題名は変えない', async () => {
@@ -222,6 +300,67 @@ describe('useKbPageDoc', () => {
 
     await expect(result.current.renameTitle('だめな改名')).rejects.toThrow();
     expect(result.current.data?.page.title).toBe('設計メモ');
+    expect(hoisted.emit).not.toHaveBeenCalled();
+  });
+
+  it('changeIcon は設定すると page.icon を確定後の値へ差し替え、木にも知らせる', async () => {
+    const withIcon = {
+      id: 'p1',
+      spaceId: 's1',
+      title: '設計メモ',
+      createdByUserId: 1,
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+      icon: { type: 'emoji', value: '📘' },
+    };
+    hoisted.setPageIcon.mockResolvedValue(withIcon);
+    const { result } = renderHook(() => useKbPageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.changeIcon({ type: 'emoji', value: '📘' });
+    });
+
+    expect(hoisted.setPageIcon).toHaveBeenCalledWith('w-3f2a9c', 'p1', {
+      type: 'emoji',
+      value: '📘',
+    });
+    expect(result.current.data?.page.icon).toEqual({ type: 'emoji', value: '📘' });
+    expect(hoisted.emit).toHaveBeenCalledWith({ type: 'page-updated', page: withIcon });
+  });
+
+  it('changeIcon は null で解除する（clearPageIcon を呼ぶ）', async () => {
+    const cleared = {
+      id: 'p1',
+      spaceId: 's1',
+      title: '設計メモ',
+      createdByUserId: 1,
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+      icon: null,
+    };
+    hoisted.clearPageIcon.mockResolvedValue(cleared);
+    const { result } = renderHook(() => useKbPageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.changeIcon(null);
+    });
+
+    expect(hoisted.clearPageIcon).toHaveBeenCalledWith('w-3f2a9c', 'p1');
+    expect(hoisted.setPageIcon).not.toHaveBeenCalled();
+    expect(result.current.data?.page.icon).toBeNull();
+  });
+
+  it('changeIcon の失敗は投げ、画面のアイコンは変えない', async () => {
+    hoisted.setPageIcon.mockRejectedValue(new Error('invalid_icon'));
+    const { result } = renderHook(() => useKbPageDoc('p1'));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await expect(
+      result.current.changeIcon({ type: 'emoji', value: 'x' }),
+    ).rejects.toThrow();
+    expect(result.current.data?.page.icon).toBeUndefined();
     expect(hoisted.emit).not.toHaveBeenCalled();
   });
 
@@ -314,7 +453,7 @@ describe('useKbPageDoc', () => {
     expect(result.current.data?.page.title).toBe('別ページ');
     // 改名自体はサーバーで成立しているので、木への知らせは出す。
     expect(hoisted.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'page-renamed' }),
+      expect.objectContaining({ type: 'page-updated' }),
     );
   });
 

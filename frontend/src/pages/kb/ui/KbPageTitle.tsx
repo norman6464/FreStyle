@@ -27,7 +27,7 @@ export default function KbPageTitle({ title, canEdit, onRename, onEnter }: KbPag
 
   if (!canEdit) {
     return (
-      <h1 className="mb-4 text-3xl font-bold text-[var(--color-text-primary)] md:text-4xl">
+      <h1 className="mb-1 text-3xl font-bold text-[var(--color-text-primary)] md:text-4xl">
         {title}
       </h1>
     );
@@ -81,7 +81,7 @@ export default function KbPageTitle({ title, canEdit, onRename, onEnter }: KbPag
           event.currentTarget.blur();
         }
       }}
-      className="mb-4 w-full border-none bg-transparent p-0 text-3xl font-bold text-[var(--color-text-primary)] outline-none focus:ring-0 md:text-4xl"
+      className="mb-1 w-full border-none bg-transparent p-0 text-3xl font-bold text-[var(--color-text-primary)] outline-none focus:ring-0 md:text-4xl"
     />
   );
 }

@@ -6,9 +6,6 @@
  *   ワークスペース  会社の境界。同時に 2 つ見る場面が無いので UI では「切り替え」で表す
  *     └ スペース    部署や個人の区画。同時に見たいので UI では「見出し」で並べる
  *         └ ページ  木。親を持ち、兄弟の並び順は配列の順序で表される
- *
- * リッチ文書（entities/document）とは別系統であることに注意。あちらは所有者スコープの
- * 平らな一覧で、こちらは付与（grant）だけで解決する木。当面は並存する。
  */
 
 /** ワークスペース 1 件。内部 UUID は外に出さず、URL も API も slug で指す。 */
@@ -31,6 +28,26 @@ export interface KbSpace {
 }
 
 /**
+ * ページのアイコン。いまは絵文字だけ（`type` を持たせておくのは、いつか他の種類
+ * （アップロード画像など）が増えたときに判別できるようにするため）。
+ */
+export interface KbIcon {
+  type: 'emoji';
+  value: string;
+}
+
+/**
+ * 「最終編集者」の参照 1 件。
+ *
+ * name は表示名で、**引けなければ空文字**（backend が行を落とさずそう返す。
+ * KbGrantablePrincipal と同じ約束）。
+ */
+export interface KbEditorRef {
+  userId: number;
+  name: string;
+}
+
+/**
  * ページ 1 件（本文は含まない）。
  *
  * **並び順のキー（position）は入っていない。** backend が意図的に返していない。
@@ -48,6 +65,9 @@ export interface KbPage {
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
+  /** 未設定は null（明示的に外した）と undefined（旧応答）の両方であり得る。 */
+  icon?: KbIcon | null;
+  lastEditedByUserId?: number;
 }
 
 /**
@@ -115,8 +135,8 @@ export interface KbResolvedPage {
   /**
    * このページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
    *
-   * canEdit と違い、**経路上の例外を見ない**。自分を deny したページでも true のまま返る。
-   * そうしないと、締め出しを張った本人がその例外を自分で戻せなくなる。
+   * ナレッジは付与（grant）だけで解決する木で、打ち消す層を持たない。したがって
+   * canEdit を弱める例外も無く、canManage は上位から届く権限をそのまま見る値になる。
    */
   canManage: boolean;
   /**
@@ -124,6 +144,10 @@ export interface KbResolvedPage {
    * 見えない祖先は行ごと無い — 木と同じ規則で、穴があき得る。
    */
   ancestors: KbAncestorRef[];
+  /** 本文を最後に保存した人。旧応答（デプロイ順）や不明なユーザーでは無い/空文字。 */
+  lastEditedBy?: KbEditorRef | null;
+  /** 最終編集の日時（= page_snapshots.built_at）。lastEditedBy と対になる。 */
+  lastEditedAt?: string | null;
 }
 
 /** パンくず 1 段分（ページ ID と現在の題名）。 */

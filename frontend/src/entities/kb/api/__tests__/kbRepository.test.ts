@@ -8,6 +8,7 @@ const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
 const mockPatch = vi.mocked(apiClient.patch);
 const mockPut = vi.mocked(apiClient.put);
+const mockDelete = vi.mocked(apiClient.delete);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -256,5 +257,61 @@ describe('KbRepository', () => {
     mockPut.mockRejectedValue(new Error('conflict'));
 
     await expect(KbRepository.replaceContent('acme', 'p-1', {})).rejects.toThrow();
+  });
+
+  it('replaceContent は応答の lastEditedBy / lastEditedAt もそのまま返す', async () => {
+    const withEditor = {
+      doc: { type: 'doc', content: [] },
+      builtAt: '2026-09-06T00:00:00Z',
+      lastEditedBy: { userId: 1, name: '田中 太郎' },
+      lastEditedAt: '2026-09-06T00:00:00Z',
+    };
+    mockPut.mockResolvedValue({ data: withEditor });
+
+    const got = await KbRepository.replaceContent('acme', 'p-1', { type: 'doc', content: [] });
+
+    expect(got.lastEditedBy).toEqual({ userId: 1, name: '田中 太郎' });
+    expect(got.lastEditedAt).toBe('2026-09-06T00:00:00Z');
+  });
+
+  describe('setPageIcon', () => {
+    it('PUT /pages/:id/icon に icon を送り、確定後のページを返す', async () => {
+      const page = { id: 'p-1', icon: { type: 'emoji', value: '📘' } };
+      mockPut.mockResolvedValue({ data: page });
+
+      const got = await KbRepository.setPageIcon('acme', 'p-1', { type: 'emoji', value: '📘' });
+
+      expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/icon', {
+        type: 'emoji',
+        value: '📘',
+      });
+      expect(got).toEqual(page);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPut.mockRejectedValue(new Error('invalid_icon'));
+
+      await expect(
+        KbRepository.setPageIcon('acme', 'p-1', { type: 'emoji', value: '📘' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('clearPageIcon', () => {
+    it('DELETE /pages/:id/icon を叩き、確定後のページを返す（204 ではなく 200 + ページ）', async () => {
+      const page = { id: 'p-1', icon: null };
+      mockDelete.mockResolvedValue({ data: page });
+
+      const got = await KbRepository.clearPageIcon('acme', 'p-1');
+
+      expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/icon');
+      expect(got).toEqual(page);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockDelete.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.clearPageIcon('acme', 'p-1')).rejects.toThrow();
+    });
   });
 });

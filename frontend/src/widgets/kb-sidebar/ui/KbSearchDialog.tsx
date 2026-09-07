@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { KbRepository, type KbPage, type KbSpace } from '@/entities/kb';
 import { buildSearchView } from '../model/searchView';
-import { KbPageIcon } from '@/shared/ui/icons/kb';
+import KbPageGlyph from './KbPageGlyph';
 
 export interface KbSearchDialogProps {
   workspaceSlug: string;
@@ -119,7 +119,7 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
           : 'text-[var(--color-text-primary)] hover:bg-surface-2'
       }`}
     >
-      <KbPageIcon className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+      <KbPageGlyph page={page} className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
       <span className="truncate">{page.title}</span>
     </div>
   );

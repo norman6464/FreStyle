@@ -2,8 +2,10 @@ import apiClient from '@/shared/api/axios';
 import { toArray } from '@/shared/lib/toArray';
 import { KB_API } from '@/shared/config/apiRoutes';
 import type {
+  KbEditorRef,
   KbGrantablePrincipal,
   KbGrantRole,
+  KbIcon,
   KbPage,
   KbPageDoc,
   KbPageGrant,
@@ -269,11 +271,37 @@ const KbRepository = {
     workspaceSlug: string,
     pageId: string,
     doc: unknown,
-  ): Promise<{ doc: unknown; builtAt: string }> {
-    const res = await apiClient.put<{ doc: unknown; builtAt: string }>(
-      KB_API.pageContent(workspaceSlug, pageId),
-      { doc },
-    );
+  ): Promise<{
+    doc: unknown;
+    builtAt: string;
+    lastEditedBy?: KbEditorRef | null;
+    lastEditedAt?: string | null;
+  }> {
+    const res = await apiClient.put<{
+      doc: unknown;
+      builtAt: string;
+      lastEditedBy?: KbEditorRef | null;
+      lastEditedAt?: string | null;
+    }>(KB_API.pageContent(workspaceSlug, pageId), { doc });
+    return res.data;
+  },
+
+  /**
+   * ページのアイコンを設定する（絵文字）。編集権限が要る。**失敗は例外として投げる。**
+   */
+  async setPageIcon(workspaceSlug: string, pageId: string, icon: KbIcon): Promise<KbPage> {
+    const res = await apiClient.put<KbPage>(KB_API.pageIcon(workspaceSlug, pageId), icon);
+    return res.data;
+  },
+
+  /**
+   * ページのアイコンを外す。編集権限が要る。**失敗は例外として投げる。**
+   *
+   * 200 で確定後のページ本体が返る（204 にしないのは、木の更新イベントに確定後の
+   * ページが要るため — backend 側の判断で、応答の形はそれに合わせてある）。
+   */
+  async clearPageIcon(workspaceSlug: string, pageId: string): Promise<KbPage> {
+    const res = await apiClient.delete<KbPage>(KB_API.pageIcon(workspaceSlug, pageId));
     return res.data;
   },
 };

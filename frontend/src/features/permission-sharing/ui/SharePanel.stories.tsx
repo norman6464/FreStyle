@@ -4,7 +4,7 @@ import SharePanel from './SharePanel';
 import type { ShareRow } from '../model/types';
 
 /**
- * 対象ごとの共有パネル（ナレッジのページ / コース / 教材で共用）。設計の記録は
+ * 対象ごとの共有パネル（いまはナレッジのページで使う）。設計の記録は
  * https://claude.ai/code/artifact/7a173249-210b-4042-8bc4-d24ccacd303c
  *
  * いちばん大事なのは **出さないものの扱い**。一覧に並ぶのはこのページ自身に張った行だけで、
@@ -152,27 +152,5 @@ export const 書き込み中: Story = {
     await expect(canvas.getByLabelText('田中 太郎 の役割')).toBeDisabled();
     await expect(canvas.getByLabelText('田中 太郎 を外す')).toBeDisabled();
     await expect(canvas.getByLabelText('足す相手')).toBeDisabled();
-  },
-};
-
-/**
- * 教材（コース）で使ったところ。段の呼び名が違うだけで、見え方と操作は同じ。
- *
- * 部品を 1 つにしている理由がここにある。ナレッジと教材で別々に作ると、
- * 「空の意味を書く」という約束が片方だけ守られなくなる。
- */
-export const コースで使う: Story = {
-  args: {
-    targetTitle: 'Git 入門',
-    inheritedNote: 'ワークスペースの管理者はここには出ません。',
-    emptyNote:
-      'このコースではまだ誰にも権限を足していません。ワークスペースの管理者は、ここが空でもこのコースを扱えます。',
-    rows: [{ principalId: 'p-tanaka', role: 'editor', name: '田中 太郎', kind: 'user' }],
-    candidates: CANDIDATES,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByText('Git 入門')).toBeVisible();
-    await expect(canvas.getByText(/ワークスペースの管理者はここには出ません/)).toBeVisible();
   },
 };

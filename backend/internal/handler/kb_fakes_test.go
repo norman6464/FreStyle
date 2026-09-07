@@ -394,6 +394,30 @@ func (f *kbFakePages) UpdatePageTitle(_ context.Context, workspaceID, pageID, ti
 	return copyPage(p), nil
 }
 
+func (f *kbFakePages) UpdatePageIcon(_ context.Context, workspaceID, pageID string, icon *domain.PageIcon) (*domain.Page, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	p, ok := f.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return nil, repository.ErrPageNotFound
+	}
+	p.Icon = icon
+	return copyPage(p), nil
+}
+
+func (f *kbFakePages) TouchPageLastEditedBy(_ context.Context, workspaceID, pageID string, userID uint64) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	p, ok := f.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return repository.ErrPageNotFound
+	}
+	p.LastEditedByUserID = &userID
+	return nil
+}
+
 func (f *kbFakePages) MovePage(_ context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error {
 	if f.moveErr != nil {
 		return f.moveErr
@@ -1039,12 +1063,19 @@ func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]
 type kbFakeUsers struct {
 	// userWorkspaces は users.workspace_id の写し（その人の所属ワークスペース）。
 	userWorkspaces map[uint64]string
+	// names は users.name の写し（LookupUserNameUseCase のテスト用の設定口）。
+	// userWorkspaces と別の map にしてあるのは、名前だけ・所属だけを別々に設定できるようにするため
+	// （最終編集者の名前解決テストは所属を要らない）。
+	names map[uint64]string
+	// failWith は次の FindByID 呼び出しを失敗させる（LookupUserNameUseCase の
+	// 「失敗は伝える」を確かめるため）。
+	failWith error
 }
 
 var _ repository.UserRepository = (*kbFakeUsers)(nil)
 
 func newKbFakeUsers() *kbFakeUsers {
-	return &kbFakeUsers{userWorkspaces: map[uint64]string{}}
+	return &kbFakeUsers{userWorkspaces: map[uint64]string{}, names: map[uint64]string{}}
 }
 
 // setUserWorkspace はそのユーザーの所属ワークスペースを決める（本番の users.workspace_id）。
@@ -1052,12 +1083,25 @@ func (f *kbFakeUsers) setUserWorkspace(userID uint64, workspaceID string) {
 	f.userWorkspaces[userID] = workspaceID
 }
 
+// setUserName はそのユーザーの表示名を決める（本番の users.name）。
+func (f *kbFakeUsers) setUserName(userID uint64, name string) {
+	f.names[userID] = name
+}
+
 func (f *kbFakeUsers) FindByID(_ context.Context, userID uint64) (*domain.User, error) {
-	ws, ok := f.userWorkspaces[userID]
-	if !ok {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	ws, hasWS := f.userWorkspaces[userID]
+	name, hasName := f.names[userID]
+	if !hasWS && !hasName {
 		return nil, nil
 	}
-	return &domain.User{ID: userID, WorkspaceID: &ws}, nil
+	u := &domain.User{ID: userID, Name: name}
+	if hasWS {
+		u.WorkspaceID = &ws
+	}
+	return u, nil
 }
 
 func (f *kbFakeUsers) FindByCognitoSub(context.Context, string) (*domain.User, error) {

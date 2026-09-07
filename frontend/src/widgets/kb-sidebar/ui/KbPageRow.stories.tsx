@@ -133,6 +133,40 @@ export const 伏せた子だけを持つ: Story = {
   },
 };
 
+/** 絵文字を設定したページ。開閉の見た目（紙）より絵文字を優先する。 */
+export const 絵文字のアイコン: Story = {
+  args: {
+    ...base,
+    node: { ...leaf, page: { ...leaf.page, icon: { type: 'emoji', value: '📘' } } },
+  },
+  play: async ({ canvasElement }) => {
+    const glyph = canvasElement.querySelector('[data-icon="emoji"]');
+    await expect(glyph).not.toBeNull();
+    await expect(glyph).toHaveTextContent('📘');
+    await expect(canvasElement.querySelector('[data-icon="page"]')).toBeNull();
+  },
+};
+
+/**
+ * 子を持つページに絵文字を設定したとき。フォルダの絵より絵文字を優先する
+ * ―― 開閉は三角が別に伝えるので、絵文字に差し替えても「開いているか」は消えない。
+ */
+export const 子を持つページの絵文字: Story = {
+  args: {
+    ...base,
+    node: { ...parent, page: { ...parent.page, icon: { type: 'emoji', value: '📘' } } },
+    siblings: [parent],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('[data-icon="emoji"]')).not.toBeNull();
+    await expect(canvasElement.querySelector('[data-icon="page-group"]')).toBeNull();
+    // 三角は変わらず出る（開閉の情報は消えない）。
+    await expect(
+      within(canvasElement).getByRole('button', { name: '開発の決まりごと を開く' }),
+    ).toBeInTheDocument();
+  },
+};
+
 /** いま開いているページ。強調される。 */
 export const いま開いている行: Story = {
   args: { ...base, node: leaf, active: true },

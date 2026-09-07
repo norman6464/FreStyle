@@ -36,6 +36,7 @@ type kbEnv struct {
 	shareLinks  repository.ShareLinkRepository
 	provisioner repository.WorkspaceProvisioner
 	users       repository.UserRepository
+	txManager   repository.TxManager
 	workspaceID string
 	slug        string
 	spaceID     string
@@ -52,6 +53,7 @@ func newKbEnv(t *testing.T, sqlDB *sql.DB, slug string) *kbEnv {
 		shareLinks:  persistence.NewShareLinkRepository(sqlDB),
 		provisioner: persistence.NewWorkspaceProvisioner(sqlDB),
 		users:       persistence.NewUserRepository(sqlDB),
+		txManager:   persistence.NewTxManager(sqlDB),
 		slug:        slug,
 	}
 	env.workspaceID = kbInsertWorkspace(t, sqlDB, slug)
@@ -68,7 +70,7 @@ func (e *kbEnv) as(userID uint64) *kbEnv {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.shareLinks, e.provisioner, e.users)
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.shareLinks, e.provisioner, e.users, e.txManager)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じ位置関係にしないと「未認証でも通ること」を確かめられない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), e.pages, e.permissions, e.shareLinks)
@@ -250,6 +252,41 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		require.Len(t, nodes, 1)
 		require.Len(t, nodes[0].Children, 1)
 		assert.Equal(t, page.ID, nodes[0].Children[0].Page.ID)
+	})
+
+	t.Run("本文保存で最終編集者の名前が解決に載り、アイコンの設定が取得に映る", func(t *testing.T) {
+		env := newKbEnv(t, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleEditor)
+		root := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "root")
+		e := env.as(alice)
+
+		saved := e.do(t, http.MethodPut, e.pagePath(root)+"/content",
+			`{"doc":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}}`)
+		require.Equal(t, http.StatusOK, saved.Code, saved.Body.String())
+		var content kbPageContentResponse
+		require.NoError(t, json.Unmarshal(saved.Body.Bytes(), &content))
+		require.NotNil(t, content.LastEditedBy)
+		assert.Equal(t, alice, content.LastEditedBy.UserID)
+		assert.Equal(t, "alice", content.LastEditedBy.Name)
+
+		resolved := e.do(t, http.MethodGet, "/api/v2/kb/pages/"+root, "")
+		require.Equal(t, http.StatusOK, resolved.Code, resolved.Body.String())
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(resolved.Body.Bytes(), &res))
+		require.NotNil(t, res.LastEditedBy)
+		assert.Equal(t, "alice", res.LastEditedBy.Name, "解決 API にも保存した人の名前が載る")
+		require.NotNil(t, res.LastEditedAt)
+
+		iconSet := e.do(t, http.MethodPut, e.pagePath(root)+"/icon", `{"type":"emoji","value":"📘"}`)
+		require.Equal(t, http.StatusOK, iconSet.Code, iconSet.Body.String())
+
+		got := e.do(t, http.MethodGet, e.pagePath(root), "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var doc kbPageDocResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &doc))
+		require.NotNil(t, doc.Page.Icon, "設定したアイコンが取得に映る")
+		assert.Equal(t, "📘", doc.Page.Icon.Value)
 	})
 
 	t.Run("閲覧だけの役割は書き込みが403で読み取りは通る", func(t *testing.T) {

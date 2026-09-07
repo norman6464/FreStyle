@@ -1,7 +1,7 @@
 import type { KbGrantRole } from '@/entities/kb';
 
 /**
- * 付与で与える役割。ナレッジも教材も同じ 4 つで、backend の domain.GrantRole と対応する。
+ * 付与で与える役割。backend の domain.GrantRole と対応する 4 つ。
  *
  * ナレッジ側の型を再輸出しているのは、**同じものが 2 つあると必ずずれる**ため。
  * 役割が増えたときに片方だけ増える、という壊れ方を型で防ぐ。
@@ -33,8 +33,8 @@ export interface SharePrincipal {
 /**
  * 共有パネルが必要とする状態と操作。
  *
- * 取得の仕方（どの API を叩くか）は持たない。ナレッジはページ単位、教材はコース / 章単位で
- * 口が違うが、**画面の見え方と操作は同じ**なので、この形だけを共通にする。
+ * 取得の仕方（どの API を叩くか）は持たない。対象ごとに口が変わり得ることを見越し、
+ * **画面の見え方と操作**だけをこの形で共通にする。
  */
 export interface ShareState {
   rows: ShareRow[];

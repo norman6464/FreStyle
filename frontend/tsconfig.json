@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // Intl.Segmenter の型は ES2022 の lib にしか無い（実行環境は Node 22・常緑ブラウザで
+    // 既に対応済みなので、ここは型のためだけの引き上げで target は変えない）。
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     /* Vitest globals (describe / it / expect / vi) を test ファイルで型認識させるため。 */
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "module": "ESNext",

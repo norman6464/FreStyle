@@ -454,8 +454,9 @@ export function useKbTree(options: UseKnowledgeBaseTreeOptions = {}) {
     });
   }, []);
 
-  // ページ画面（/p）での作成・改名を木に映す。作成は木ごと取り直し（親子関係の
-  // 差し込み位置をこちらで計算しない — サーバーの並び順が正）、改名は 1 枚差し替え。
+  // ページ画面（/p）での作成・更新（改名・アイコン）を木に映す。作成は木ごと取り直し
+  // （親子関係の差し込み位置をこちらで計算しない — サーバーの並び順が正）、
+  // 更新は値が変わっただけなので 1 枚差し替えで足りる。
   //
   // ワークスペースの作成・削除も同じ購読で映す。SecondaryPanel が同時にマウントする
   // もう一方の KbSidebar（別インスタンスの useKbTree）や、自分自身が発行した
@@ -471,7 +472,7 @@ export function useKbTree(options: UseKnowledgeBaseTreeOptions = {}) {
         loadSpaceTree(event.page.spaceId);
         return;
       }
-      if (event.type === 'page-renamed') {
+      if (event.type === 'page-updated') {
         setSpaceStates((prev) => {
           const current = prev[event.page.spaceId];
           if (!current?.tree) return prev;

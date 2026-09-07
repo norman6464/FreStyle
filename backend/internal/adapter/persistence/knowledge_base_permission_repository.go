@@ -723,16 +723,19 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 	out := make([]repository.PageWithViewFacts, 0, len(rows))
 	for _, row := range rows {
 		page := toDomainPage(sqlcgen.Page{
-			ID:              row.ID,
-			WorkspaceID:     row.WorkspaceID,
-			SpaceID:         row.SpaceID,
-			ParentID:        row.ParentID,
-			Position:        row.Position,
-			Title:           row.Title,
-			CreatedByUserID: row.CreatedByUserID,
-			ArchivedAt:      row.ArchivedAt,
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
+			ID:                 row.ID,
+			WorkspaceID:        row.WorkspaceID,
+			SpaceID:            row.SpaceID,
+			ParentID:           row.ParentID,
+			Position:           row.Position,
+			Title:              row.Title,
+			CreatedByUserID:    row.CreatedByUserID,
+			ArchivedAt:         row.ArchivedAt,
+			CreatedAt:          row.CreatedAt,
+			UpdatedAt:          row.UpdatedAt,
+			Icon:               row.Icon,
+			Cover:              row.Cover,
+			LastEditedByUserID: row.LastEditedByUserID,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page:           page,
@@ -774,16 +777,19 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 	out := make([]repository.PageWithViewFacts, 0, len(rows))
 	for _, row := range rows {
 		page := toDomainPage(sqlcgen.Page{
-			ID:              row.ID,
-			WorkspaceID:     row.WorkspaceID,
-			SpaceID:         row.SpaceID,
-			ParentID:        row.ParentID,
-			Position:        row.Position,
-			Title:           row.Title,
-			CreatedByUserID: row.CreatedByUserID,
-			ArchivedAt:      row.ArchivedAt,
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
+			ID:                 row.ID,
+			WorkspaceID:        row.WorkspaceID,
+			SpaceID:            row.SpaceID,
+			ParentID:           row.ParentID,
+			Position:           row.Position,
+			Title:              row.Title,
+			CreatedByUserID:    row.CreatedByUserID,
+			ArchivedAt:         row.ArchivedAt,
+			CreatedAt:          row.CreatedAt,
+			UpdatedAt:          row.UpdatedAt,
+			Icon:               row.Icon,
+			Cover:              row.Cover,
+			LastEditedByUserID: row.LastEditedByUserID,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
@@ -831,16 +837,19 @@ func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
 	out := make([]repository.PageWithViewFacts, 0, len(rows))
 	for _, row := range rows {
 		page := toDomainPage(sqlcgen.Page{
-			ID:              row.ID,
-			WorkspaceID:     row.WorkspaceID,
-			SpaceID:         row.SpaceID,
-			ParentID:        row.ParentID,
-			Position:        row.Position,
-			Title:           row.Title,
-			CreatedByUserID: row.CreatedByUserID,
-			ArchivedAt:      row.ArchivedAt,
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
+			ID:                 row.ID,
+			WorkspaceID:        row.WorkspaceID,
+			SpaceID:            row.SpaceID,
+			ParentID:           row.ParentID,
+			Position:           row.Position,
+			Title:              row.Title,
+			CreatedByUserID:    row.CreatedByUserID,
+			ArchivedAt:         row.ArchivedAt,
+			CreatedAt:          row.CreatedAt,
+			UpdatedAt:          row.UpdatedAt,
+			Icon:               row.Icon,
+			Cover:              row.Cover,
+			LastEditedByUserID: row.LastEditedByUserID,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,

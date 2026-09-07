@@ -132,9 +132,8 @@ export const CODE = {
 /**
  * ナレッジ（workspaces → spaces → pages の木）。
  *
- * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧で、
- * UI は撤去済み（データは残っているが、フロントからはもう呼ばない）。
- * こちらは付与（grant）だけで解決する木（打ち消す層は持たない）。
+ * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧だったが、
+ * 退役済み（移送なしで撤去）。こちらは付与（grant）だけで解決する木（打ち消す層は持たない）。
  *
  * ワークスペースは URL の slug で指す（内部 UUID は外に出さない）。slug から所属を確定する
  * middleware を backend 側の group が通しているので、slug を含まないパスは一覧と作成だけ。
@@ -150,13 +149,17 @@ export const KB_API = {
    * GET(ツリー) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/pages
    *
    * ツリーは閲覧できるページだけを返し、見えない親の配下は現れない。
-   * 代わりに各段の hiddenChildCount に伏せた件数が入る（題名は返らない）。
+   * 代わりに各段の hasHiddenChildren に「見えないページが在るか」の有無だけが入る
+   * （枚数も題名も返らない）。
    */
   pages: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/pages`,
   /** GET(本文込み) / PATCH(改名) — /api/v2/kb/workspaces/:slug/pages/:pageId */
   page: (workspaceSlug: string, pageId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}`,
+  /** PUT(設定) / DELETE(解除) — /api/v2/kb/workspaces/:slug/pages/:pageId/icon */
+  pageIcon: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/icon`,
   /**
    * GET — /api/v2/kb/pages/:pageId
    *

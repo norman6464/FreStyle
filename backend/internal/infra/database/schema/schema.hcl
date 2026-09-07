@@ -622,6 +622,23 @@ table "pages" {
     type    = timestamptz
     default = sql("now()")
   }
+  # アイコンとカバーは種類が複数ある（絵文字 / アップロードした画像 / 外部 URL）ので構造で持つ。
+  # 例: {"type":"emoji","value":"📘"} / {"type":"file","key":"notes/…/cover.png"}
+  # NULL は「付けていない」。空オブジェクトは入れない（NULL と {} の二通りを作らない）。
+  column "icon" {
+    null = true
+    type = jsonb
+  }
+  column "cover" {
+    null = true
+    type = jsonb
+  }
+  # 最終編集者。created_by_user_id と同じく users への FK は張らない（ナレッジの骨格に閉じるため）。
+  # NULL は「作成後まだ誰も本文を保存していない」。本文の保存経路が書く。
+  column "last_edited_by_user_id" {
+    null = true
+    type = bigint
+  }
   primary_key {
     columns = [column.id]
   }
@@ -698,6 +715,14 @@ table "pages" {
   # position は空文字だと順序として意味を持たない（fracindex は空文字を返さない）。
   check "ck_pages_position_not_empty" {
     expr = "position <> ''::text"
+  }
+  # icon / cover は種類ごとの構造を持つオブジェクトに限る。配列や文字列を許すと
+  # 応答の型（kbPageIconResponse 等）が「object のはず」という前提で読めなくなる。
+  check "ck_pages_icon_object" {
+    expr = "(icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text AND icon <> '{}'::jsonb)"
+  }
+  check "ck_pages_cover_object" {
+    expr = "(cover IS NULL) OR (jsonb_typeof(cover) = 'object'::text AND cover <> '{}'::jsonb)"
   }
 }
 

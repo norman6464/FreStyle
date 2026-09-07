@@ -16,6 +16,8 @@ export { rememberVisitedPage, getLastVisitedPageId, forgetVisitedPageIfMatches }
 export type {
   KbWorkspace,
   KbSpace,
+  KbIcon,
+  KbEditorRef,
   KbPage,
   KbPageTreeNode,
   KbPageTree,

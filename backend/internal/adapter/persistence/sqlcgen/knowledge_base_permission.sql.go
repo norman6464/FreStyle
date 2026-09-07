@@ -739,7 +739,7 @@ page_grant_rank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    p.id, p.workspace_id, p.space_id, p.parent_id, p.position, p.title, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at,
+    p.id, p.workspace_id, p.space_id, p.parent_id, p.position, p.title, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at, p.icon, p.cover, p.last_edited_by_user_id,
     -- 既定の役割の強さ。意味と 0 の扱いは ResolvePagePermissionFacts と同じ。
     -- 所属（is_member）は返さない。役割が 1 つも無ければ強さ 0 で「何もできない」に
     -- なるため閲覧の判定には要らず、使われない事実を返すと編集可否にも答えられる顔をする。
@@ -782,18 +782,21 @@ type ListSpacePageViewFactsParams struct {
 }
 
 type ListSpacePageViewFactsRow struct {
-	ID              uuid.UUID
-	WorkspaceID     uuid.UUID
-	SpaceID         uuid.UUID
-	ParentID        uuid.NullUUID
-	Position        string
-	Title           string
-	CreatedByUserID int64
-	ArchivedAt      sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	GrantRank       int32
-	ParentArchived  bool
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	SpaceID            uuid.UUID
+	ParentID           uuid.NullUUID
+	Position           string
+	Title              string
+	CreatedByUserID    int64
+	ArchivedAt         sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Icon               *json.RawMessage
+	Cover              *json.RawMessage
+	LastEditedByUserID sql.NullInt64
+	GrantRank          int32
+	ParentArchived     bool
 }
 
 // スペース配下のページ全件と、それぞれの「閲覧の事実」を 1 回のクエリで返す。
@@ -841,6 +844,9 @@ func (q *Queries) ListSpacePageViewFacts(ctx context.Context, arg ListSpacePageV
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
 			&i.GrantRank,
 			&i.ParentArchived,
 		); err != nil {
@@ -1138,7 +1144,7 @@ space_allp AS (
       AND EXISTS (SELECT 1 FROM me)
 ),
 cand AS (
-    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at
+    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at, pg.icon, pg.cover, pg.last_edited_by_user_id
     FROM pages pg
     WHERE pg.workspace_id = $1
       AND pg.id IN (
@@ -1180,7 +1186,7 @@ pgrank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
@@ -1200,17 +1206,20 @@ type ListWorkspacePageViewFactsByIDsParams struct {
 }
 
 type ListWorkspacePageViewFactsByIDsRow struct {
-	ID              uuid.UUID
-	WorkspaceID     uuid.UUID
-	SpaceID         uuid.UUID
-	ParentID        uuid.NullUUID
-	Position        string
-	Title           string
-	CreatedByUserID int64
-	ArchivedAt      sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	GrantRank       int32
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	SpaceID            uuid.UUID
+	ParentID           uuid.NullUUID
+	Position           string
+	Title              string
+	CreatedByUserID    int64
+	ArchivedAt         sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Icon               *json.RawMessage
+	Cover              *json.RawMessage
+	LastEditedByUserID sql.NullInt64
+	GrantRank          int32
 }
 
 // 指定した ID 群の**現役**ページについて「閲覧の事実」を 1 回のクエリで返す
@@ -1252,6 +1261,9 @@ func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListW
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
 			&i.GrantRank,
 		); err != nil {
 			return nil, err
@@ -1673,7 +1685,7 @@ space_allp AS (
       AND EXISTS (SELECT 1 FROM me)
 ),
 cand AS (
-    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at
+    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at, pg.icon, pg.cover, pg.last_edited_by_user_id
     FROM pages pg
     WHERE pg.workspace_id = $1
       AND pg.archived_at IS NULL
@@ -1715,7 +1727,7 @@ pgrank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at,
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
     -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
     -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
     GREATEST(
@@ -1737,17 +1749,20 @@ type SearchWorkspacePageViewFactsParams struct {
 }
 
 type SearchWorkspacePageViewFactsRow struct {
-	ID              uuid.UUID
-	WorkspaceID     uuid.UUID
-	SpaceID         uuid.UUID
-	ParentID        uuid.NullUUID
-	Position        string
-	Title           string
-	CreatedByUserID int64
-	ArchivedAt      sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	GrantRank       int32
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	SpaceID            uuid.UUID
+	ParentID           uuid.NullUUID
+	Position           string
+	Title              string
+	CreatedByUserID    int64
+	ArchivedAt         sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Icon               *json.RawMessage
+	Cover              *json.RawMessage
+	LastEditedByUserID sql.NullInt64
+	GrantRank          int32
 }
 
 // ワークスペース全体から、題名が部分一致する**現役**ページを候補にして、
@@ -1806,6 +1821,9 @@ func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWo
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
 			&i.GrantRank,
 		); err != nil {
 			return nil, err

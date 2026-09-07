@@ -181,7 +181,7 @@ func (q *Queries) GetLastActiveSiblingPosition(ctx context.Context, arg GetLastA
 }
 
 const getPage = `-- name: GetPage :one
-SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at FROM pages
+SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id FROM pages
 WHERE workspace_id = $1 AND id = $2
 `
 
@@ -205,12 +205,15 @@ func (q *Queries) GetPage(ctx context.Context, arg GetPageParams) (Page, error) 
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Cover,
+		&i.LastEditedByUserID,
 	)
 	return i, err
 }
 
 const getPageAcrossWorkspaces = `-- name: GetPageAcrossWorkspaces :one
-SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at FROM pages
+SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id FROM pages
 WHERE id = $1
 `
 
@@ -233,6 +236,9 @@ func (q *Queries) GetPageAcrossWorkspaces(ctx context.Context, id uuid.UUID) (Pa
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Cover,
+		&i.LastEditedByUserID,
 	)
 	return i, err
 }
@@ -430,7 +436,7 @@ func (q *Queries) InsertBlock(ctx context.Context, arg InsertBlockParams) error 
 const insertPage = `-- name: InsertPage :one
 INSERT INTO pages (id, workspace_id, space_id, parent_id, "position", title, created_by_user_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id
 `
 
 type InsertPageParams struct {
@@ -467,6 +473,9 @@ func (q *Queries) InsertPage(ctx context.Context, arg InsertPageParams) (Page, e
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Cover,
+		&i.LastEditedByUserID,
 	)
 	return i, err
 }
@@ -581,7 +590,7 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 }
 
 const listActivePagesBySpace = `-- name: ListActivePagesBySpace :many
-SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at FROM pages
+SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id FROM pages
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
 ORDER BY "position"
 `
@@ -613,6 +622,9 @@ func (q *Queries) ListActivePagesBySpace(ctx context.Context, arg ListActivePage
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
 		); err != nil {
 			return nil, err
 		}
@@ -676,7 +688,7 @@ func (q *Queries) ListBlocksByPage(ctx context.Context, arg ListBlocksByPagePara
 }
 
 const listChildPages = `-- name: ListChildPages :many
-SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at FROM pages
+SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id FROM pages
 WHERE workspace_id = $1 AND parent_id = $2 AND archived_at IS NULL
 ORDER BY "position"
 `
@@ -707,6 +719,9 @@ func (q *Queries) ListChildPages(ctx context.Context, arg ListChildPagesParams) 
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
 		); err != nil {
 			return nil, err
 		}
@@ -957,6 +972,34 @@ func (q *Queries) SiblingPositionsAround(ctx context.Context, arg SiblingPositio
 	return i, err
 }
 
+const touchPageLastEditedBy = `-- name: TouchPageLastEditedBy :execrows
+UPDATE pages
+SET last_edited_by_user_id = $1::bigint, updated_at = now()
+WHERE workspace_id = $2 AND id = $3 AND archived_at IS NULL
+`
+
+type TouchPageLastEditedByParams struct {
+	UserID      int64
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+// 最終編集者の記録。呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより
+// **先に**これを呼ぶ。UPDATE が pages の対象行を排他ロックするため、同じページへの
+// 同時保存はここで直列化される（先着が blocks を消し終えるまで後着はここで待つ）。
+// 先に呼ばないと、2 つの保存が pages のロックを取らずに blocks へ同時に触り、
+// 「片方の全消しの後にもう片方の全入れ」のような順序で本文が混ざり得る。
+// archived_at IS NULL も見るのは、呼び出し側の FindPage によるアーカイブ確認から
+// ここまでの間に別トランザクションがアーカイブを commit する競合を塞ぐため。
+// 該当 0 行なら既存の ErrPageNotFound 経路で保存トランザクション全体を中止する。
+func (q *Queries) TouchPageLastEditedBy(ctx context.Context, arg TouchPageLastEditedByParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, touchPageLastEditedBy, arg.UserID, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const unarchivePageSubtree = `-- name: UnarchivePageSubtree :execrows
 UPDATE pages
 SET archived_at = NULL, updated_at = now()
@@ -987,11 +1030,48 @@ func (q *Queries) UnarchivePageSubtree(ctx context.Context, arg UnarchivePageSub
 	return result.RowsAffected()
 }
 
+const updatePageIcon = `-- name: UpdatePageIcon :one
+UPDATE pages
+SET icon = $1, updated_at = now()
+WHERE workspace_id = $2 AND id = $3
+RETURNING id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id
+`
+
+type UpdatePageIconParams struct {
+	Icon        *json.RawMessage
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+// アイコンの設定・解除（icon に NULL を渡せば解除）。RETURNING で更新後の行を返す。
+// 正規形（domain.PageIcon を json.Marshal したもの）だけを書く前提で、入力の妥当性は
+// usecase / domain 側（Valid()）が保証する。ここでは形の検証をしない。
+func (q *Queries) UpdatePageIcon(ctx context.Context, arg UpdatePageIconParams) (Page, error) {
+	row := q.db.QueryRowContext(ctx, updatePageIcon, arg.Icon, arg.WorkspaceID, arg.ID)
+	var i Page
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpaceID,
+		&i.ParentID,
+		&i.Position,
+		&i.Title,
+		&i.CreatedByUserID,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Icon,
+		&i.Cover,
+		&i.LastEditedByUserID,
+	)
+	return i, err
+}
+
 const updatePageTitle = `-- name: UpdatePageTitle :one
 UPDATE pages
 SET title = $3, updated_at = now()
 WHERE workspace_id = $1 AND id = $2
-RETURNING id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id
 `
 
 type UpdatePageTitleParams struct {
@@ -1015,6 +1095,9 @@ func (q *Queries) UpdatePageTitle(ctx context.Context, arg UpdatePageTitleParams
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Cover,
+		&i.LastEditedByUserID,
 	)
 	return i, err
 }

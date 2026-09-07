@@ -188,6 +188,28 @@ SET title = $3, updated_at = now()
 WHERE workspace_id = $1 AND id = $2
 RETURNING *;
 
+-- name: UpdatePageIcon :one
+-- アイコンの設定・解除（icon に NULL を渡せば解除）。RETURNING で更新後の行を返す。
+-- 正規形（domain.PageIcon を json.Marshal したもの）だけを書く前提で、入力の妥当性は
+-- usecase / domain 側（Valid()）が保証する。ここでは形の検証をしない。
+UPDATE pages
+SET icon = sqlc.narg(icon), updated_at = now()
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id)
+RETURNING *;
+
+-- name: TouchPageLastEditedBy :execrows
+-- 最終編集者の記録。呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより
+-- **先に**これを呼ぶ。UPDATE が pages の対象行を排他ロックするため、同じページへの
+-- 同時保存はここで直列化される（先着が blocks を消し終えるまで後着はここで待つ）。
+-- 先に呼ばないと、2 つの保存が pages のロックを取らずに blocks へ同時に触り、
+-- 「片方の全消しの後にもう片方の全入れ」のような順序で本文が混ざり得る。
+-- archived_at IS NULL も見るのは、呼び出し側の FindPage によるアーカイブ確認から
+-- ここまでの間に別トランザクションがアーカイブを commit する競合を塞ぐため。
+-- 該当 0 行なら既存の ErrPageNotFound 経路で保存トランザクション全体を中止する。
+UPDATE pages
+SET last_edited_by_user_id = sqlc.arg(user_id)::bigint, updated_at = now()
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id) AND archived_at IS NULL;
+
 -- name: SetPagePosition :execrows
 -- position の振り直し（アーカイブ復帰で衝突したときの末尾再採番用）。
 UPDATE pages

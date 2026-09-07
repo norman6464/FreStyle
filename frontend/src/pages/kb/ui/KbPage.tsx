@@ -11,8 +11,10 @@ import { DocumentTextIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useKbPageDoc } from '../model/useKbPageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { resolveEntryPageId } from '../model/resolveEntryPage';
-import { subscribeKbTreeEvents } from '@/entities/kb';
+import { subscribeKbTreeEvents, type KbIcon } from '@/entities/kb';
 import KbPageTitle from './KbPageTitle';
+import KbPageIconButton from './KbPageIconButton';
+import KbPageMeta from './KbPageMeta';
 import { SharePanel } from '@/features/permission-sharing';
 import { useKbShare } from '../model/useKbShare';
 
@@ -31,7 +33,7 @@ export default function KbPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const { data, loading, error, saveStatus, onDocChange, renameTitle } = useKbPageDoc(pageId);
+  const { data, loading, error, saveStatus, onDocChange, renameTitle, changeIcon } = useKbPageDoc(pageId);
   // ヘッダー/サイドバーのワークスペース切替から来たときだけ渡ってくる。
   // ページを開いているときは data.workspaceSlug が正なのでそちらを優先する。
   const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
@@ -72,6 +74,19 @@ export default function KbPage() {
       }
     },
     [renameTitle, showToast],
+  );
+
+  const handleChangeIcon = useCallback(
+    async (icon: KbIcon | null) => {
+      try {
+        await changeIcon(icon);
+      } catch (cause) {
+        showToast('error', icon ? 'アイコンを変更できませんでした' : 'アイコンを外せませんでした');
+        // ピッカーを開いたままにするため、握り潰さず投げ直す（KbPageIconPicker 側の約束）。
+        throw cause;
+      }
+    },
+    [changeIcon, showToast],
   );
 
   // 自分か祖先が物理削除されたら一覧へ戻る（消えた場所に立ち続けない）。
@@ -251,14 +266,25 @@ export default function KbPage() {
                 </div>
               )}
               </div>
-              {/* ページごとに作り直す（別ページへ移った瞬間、打ちかけの下書きを持ち越さない） */}
-              <KbPageTitle
-                key={data.page.id}
-                title={data.page.title}
-                canEdit={data.canEdit}
-                onRename={handleRename}
-                onEnter={() => setBodyFocusSignal((prev) => prev + 1)}
-              />
+              {/*
+                アイコン → 題名の順（Notion 等と同じ、上に乗るものから読む並び）。
+                group はアイコン追加ボタンのホバー表示に使う（KbPageIconButton 側の約束）。
+                ページごとに作り直す（別ページへ移った瞬間、打ちかけの下書きを持ち越さない）。
+              */}
+              <div className="group" key={data.page.id}>
+                <KbPageIconButton
+                  icon={data.page.icon}
+                  canEdit={data.canEdit}
+                  onChange={handleChangeIcon}
+                />
+                <KbPageTitle
+                  title={data.page.title}
+                  canEdit={data.canEdit}
+                  onRename={handleRename}
+                  onEnter={() => setBodyFocusSignal((prev) => prev + 1)}
+                />
+              </div>
+              <KbPageMeta lastEditedBy={data.lastEditedBy} lastEditedAt={data.lastEditedAt} />
               <RichTextEditor
                 // doc は API から来る任意の JSON。形が違えば空の本文として扱い、画面を落とさない。
                 value={isRichDoc(data.doc) ? data.doc : emptyRichDoc()}

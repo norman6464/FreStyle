@@ -171,6 +171,16 @@ func (m *mockKnowledgeBaseRepo) UpdatePageTitle(ctx context.Context, workspaceID
 	return p, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) UpdatePageIcon(ctx context.Context, workspaceID, pageID string, icon *domain.PageIcon) (*domain.Page, error) {
+	args := m.Called(ctx, workspaceID, pageID, icon)
+	p, _ := args.Get(0).(*domain.Page)
+	return p, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
+	return m.Called(ctx, workspaceID, pageID, userID).Error(0)
+}
+
 func (m *mockKnowledgeBaseRepo) MovePage(ctx context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error {
 	return m.Called(ctx, workspaceID, pageID, newParentID, newSpaceID, newPosition).Error(0)
 }
@@ -395,4 +405,33 @@ func (m *mockShareLinkRepo) ListByPage(ctx context.Context, workspaceID, pageID 
 	args := m.Called(ctx, workspaceID, pageID)
 	rows, _ := args.Get(0).([]domain.ShareLink)
 	return rows, args.Error(1)
+}
+
+// --- fake: TxManager ---
+
+// txMarkerKey は fakeTxManager が DoInTx の中で ctx に埋め込む印。
+// 本物の *sql.Tx を持たないテストで「repository がトランザクションの中で呼ばれたか」を
+// mock.MatchedBy(inTx) で確かめられるようにするためだけの値。
+type txMarkerKeyType struct{}
+
+var txMarkerKey = txMarkerKeyType{}
+
+// inTx は mock.MatchedBy に渡す述語。ctx に txMarkerKey が乗っていれば
+// fakeTxManager.DoInTx の fn の中（＝トランザクションの中）から呼ばれたことを意味する。
+func inTx(ctx context.Context) bool {
+	v, _ := ctx.Value(txMarkerKey).(bool)
+	return v
+}
+
+// fakeTxManager は repository.TxManager のテスト用実装。実 DB もトランザクションも
+// 介さず fn(ctx) をそのまま呼ぶが、呼び出し回数と「tx の中で呼んだ」印だけは残す。
+type fakeTxManager struct {
+	calls int
+}
+
+var _ repository.TxManager = (*fakeTxManager)(nil)
+
+func (f *fakeTxManager) DoInTx(ctx context.Context, fn func(context.Context) error) error {
+	f.calls++
+	return fn(context.WithValue(ctx, txMarkerKey, true))
 }

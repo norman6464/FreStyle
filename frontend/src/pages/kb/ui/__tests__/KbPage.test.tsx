@@ -9,6 +9,8 @@ const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
   replaceContent: vi.fn(),
   renamePage: vi.fn(),
+  setPageIcon: vi.fn(),
+  clearPageIcon: vi.fn(),
   createPage: vi.fn(),
   listPageGrants: vi.fn(),
   listGrantablePrincipals: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       resolvePage: hoisted.resolvePage,
       replaceContent: hoisted.replaceContent,
       renamePage: hoisted.renamePage,
+      setPageIcon: hoisted.setPageIcon,
+      clearPageIcon: hoisted.clearPageIcon,
       createPage: hoisted.createPage,
       listPageGrants: hoisted.listPageGrants,
       listGrantablePrincipals: hoisted.listGrantablePrincipals,
@@ -258,6 +262,87 @@ describe('KbPage の配線', () => {
     expect(hoisted.editorProps.current?.extraSlashCommands).toBeUndefined();
     // 題名も入力欄ではなく見出しで出る。
     expect(screen.getByRole('heading', { name: '親ページ' })).toBeInTheDocument();
+  });
+});
+
+describe('KbPage のアイコン・最終編集', () => {
+  it('アイコンを付ける: 一覧から選ぶと保存され、頭部の絵文字に変わる', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    hoisted.setPageIcon.mockResolvedValue({
+      ...resolved(true).page,
+      icon: { type: 'emoji', value: '📘' },
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'アイコンを追加' }));
+    const dialog = await screen.findByRole('dialog', { name: 'ページのアイコンを選ぶ' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'アイコンを 📘 にする' }));
+
+    await waitFor(() =>
+      expect(hoisted.setPageIcon).toHaveBeenCalledWith('w-3f2a9c', 'p1', {
+        type: 'emoji',
+        value: '📘',
+      }),
+    );
+    // 保存が成功すると、頭部の行が絵文字のボタンに差し替わる。
+    expect(await screen.findByRole('button', { name: 'ページのアイコンを変更' })).toBeInTheDocument();
+    expect(document.querySelector('[data-icon="emoji"]')).toHaveTextContent('📘');
+  });
+
+  it('アイコンを外す', async () => {
+    hoisted.resolvePage.mockResolvedValue({
+      ...resolved(true),
+      page: { ...resolved(true).page, icon: { type: 'emoji', value: '📘' } },
+    });
+    hoisted.clearPageIcon.mockResolvedValue({ ...resolved(true).page, icon: null });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ページのアイコンを変更' }));
+    const dialog = await screen.findByRole('dialog', { name: 'ページのアイコンを選ぶ' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'アイコンを外す' }));
+
+    await waitFor(() => expect(hoisted.clearPageIcon).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+    expect(await screen.findByRole('button', { name: 'アイコンを追加' })).toBeInTheDocument();
+  });
+
+  it('アイコンの変更に失敗したら知らせを出し、ピッカーは開いたまま', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true));
+    hoisted.setPageIcon.mockRejectedValue(new Error('invalid_icon'));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'アイコンを追加' }));
+    const dialog = await screen.findByRole('dialog', { name: 'ページのアイコンを選ぶ' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'アイコンを 📘 にする' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'アイコンを変更できませんでした'),
+    );
+    // 失敗時は閉じない — 何が悪かったのか分からないまま消えるのを避ける。
+    expect(screen.getByRole('dialog', { name: 'ページのアイコンを選ぶ' })).toBeInTheDocument();
+  });
+
+  it('最終編集が名前・日時つきで出る（名前が引けなければ不明なユーザー）', async () => {
+    hoisted.resolvePage.mockResolvedValue({
+      ...resolved(true),
+      lastEditedBy: { userId: 1, name: '' },
+      lastEditedAt: '2026-09-06T10:30:00',
+    });
+    renderPage();
+
+    expect(await screen.findByText(/最終編集 不明なユーザー/)).toBeInTheDocument();
+  });
+
+  it('読むだけの人にはアイコンは img として出て、押せない', async () => {
+    hoisted.resolvePage.mockResolvedValue({
+      ...resolved(false),
+      page: { ...resolved(false).page, icon: { type: 'emoji', value: '📘' } },
+    });
+    renderPage();
+
+    const img = await screen.findByRole('img', { name: 'ページのアイコン' });
+    expect(img).toHaveTextContent('📘');
+    expect(screen.queryByRole('button', { name: 'アイコンを追加' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ページのアイコンを変更' })).not.toBeInTheDocument();
   });
 });
 

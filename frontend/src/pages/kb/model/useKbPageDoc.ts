@@ -4,6 +4,7 @@ import {
   emitKbTreeEvent,
   rememberVisitedPage,
   forgetVisitedPageIfMatches,
+  type KbIcon,
   type KbResolvedPage,
 } from '@/entities/kb';
 import type { SaveStatus } from '@/shared/ui/RichTextEditor';
@@ -63,8 +64,18 @@ export function useKbPageDoc(pageId: string | undefined) {
     saveInFlight.current = true;
     setSaveStatus('saving');
     KbRepository.replaceContent(pending.workspaceSlug, pending.pageId, pending.doc)
-      .then(() => {
+      .then((res) => {
         saveInFlight.current = false;
+        // 画面は現在ユーザーの名前を持っていないので、保存後の「最終編集」はこの応答で
+        // 更新する。移った先で戻ってきた応答（pending.pageId が古い画面のページ）は
+        // 反映しない — 反映すると、いま見ているページの最終編集が別ページのものになる。
+        setState((prev) => {
+          if (!prev.data || prev.data.page.id !== pending.pageId) return prev;
+          return {
+            ...prev,
+            data: { ...prev.data, lastEditedBy: res.lastEditedBy, lastEditedAt: res.lastEditedAt },
+          };
+        });
         if (pendingSaves.current.size === 0) {
           setSaveStatus('saved');
         } else {
@@ -137,7 +148,26 @@ export function useKbPageDoc(pageId: string | undefined) {
     if (token === generation.current) {
       setState((prev) => (prev.data ? { ...prev, data: { ...prev.data, page } } : prev));
     }
-    emitKbTreeEvent({ type: 'page-renamed', page });
+    emitKbTreeEvent({ type: 'page-updated', page });
+  }, []);
+
+  /**
+   * changeIcon はページのアイコンを設定・解除する（`icon` が null なら解除）。
+   * **失敗は投げる**（renameTitle と同じ理由 — 呼び出し側がトーストで知らせる）。
+   * 成功したら画面の状態を確定後の値で差し替え、サイドバーの木にも知らせる。
+   */
+  const changeIcon = useCallback(async (icon: KbIcon | null): Promise<void> => {
+    const target = saveTarget.current;
+    if (!target) return;
+    const token = generation.current;
+    const page = icon
+      ? await KbRepository.setPageIcon(target.workspaceSlug, target.pageId, icon)
+      : await KbRepository.clearPageIcon(target.workspaceSlug, target.pageId);
+    // 応答が返る前に別ページへ移っていたら、画面の状態には触らない（renameTitle と同じ守り）。
+    if (token === generation.current) {
+      setState((prev) => (prev.data ? { ...prev, data: { ...prev.data, page } } : prev));
+    }
+    emitKbTreeEvent({ type: 'page-updated', page });
   }, []);
 
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
@@ -157,5 +187,5 @@ export function useKbPageDoc(pageId: string | undefined) {
     [flushSave],
   );
 
-  return { ...state, saveStatus, onDocChange, renameTitle };
+  return { ...state, saveStatus, onDocChange, renameTitle, changeIcon };
 }

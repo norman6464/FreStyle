@@ -1406,7 +1406,7 @@ describe('ページ画面からの通知に木が追従する', () => {
     expect(await screen.findByText('p1-child')).toBeInTheDocument();
   });
 
-  it('page-renamed が未読込のスペース宛でも壊れない（何も起きない）', async () => {
+  it('page-updated が未読込のスペース宛でも壊れない（何も起きない）', async () => {
     hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部'), space('space-2', '営業部')]);
     renderSidebar();
     await screen.findByText('設計メモ');
@@ -1414,7 +1414,7 @@ describe('ページ画面からの通知に木が追従する', () => {
     // space-2 は開いておらず木が無い。宛先の state が無くても落ちず、取りにも行かない。
     act(() => {
       emitKbTreeEvent({
-        type: 'page-renamed',
+        type: 'page-updated',
         page: { ...page('px', 'よそのページ'), spaceId: 'space-2' },
       });
     });
@@ -1423,12 +1423,12 @@ describe('ページ画面からの通知に木が追従する', () => {
     expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
   });
 
-  it('page-renamed で木の題名が差し替わる', async () => {
+  it('page-updated で木の題名が差し替わる', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');
 
     act(() => {
-      emitKbTreeEvent({ type: 'page-renamed', page: page('p1', '設計メモ v2') });
+      emitKbTreeEvent({ type: 'page-updated', page: page('p1', '設計メモ v2') });
     });
 
     expect(await screen.findByText('設計メモ v2')).toBeInTheDocument();

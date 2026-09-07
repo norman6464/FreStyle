@@ -131,7 +131,7 @@ func TestKnowledgeBase_存在しないページのアーカイブ操作はnot_fo
 	ws := createWorkspace(t, sqlDB, "ws-missing-row")
 	space := createSpace(t, sqlDB, ws, "mrw")
 	// 実在するページを 1 枚だけ作る。存在する経路が壊れていないことも同時に見る。
-	uc := newKbUseCases(repo)
+	uc := newKbUseCases(sqlDB)
 	live := mustCreatePage(ctx, t, uc, ws, space, nil, "生きているページ")
 
 	// 形式は正しいが、このワークスペースに存在しないページ ID。

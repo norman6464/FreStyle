@@ -71,7 +71,7 @@ func setupKBPermission(t *testing.T, sqlDB *sql.DB) kbPermFixture {
 		perm:       persistence.NewKnowledgeBasePermissionRepository(sqlDB),
 		shareLinks: persistence.NewShareLinkRepository(sqlDB),
 		pages:      persistence.NewKnowledgeBaseRepository(sqlDB),
-		pageUC:     newKbUseCases(persistence.NewKnowledgeBaseRepository(sqlDB)),
+		pageUC:     newKbUseCases(sqlDB),
 	}
 	f.ws = createWorkspace(t, sqlDB, "perm-main")
 	f.otherWS = createWorkspace(t, sqlDB, "perm-other")
@@ -890,6 +890,35 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		foreign, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.otherSpc, f.alice, false)
 		require.NoError(t, err)
 		assert.Empty(t, foreign, "テナント越えの spaceID では 0 件")
+	})
+
+	// ListSpacePageViewFacts は knowledge_base_permission_repository.go の 3 箇所ある
+	// 手組みの sqlcgen.Page{} リテラルの 1 つを通る。Icon / Cover / LastEditedByUserID の
+	// 列挙し忘れは「木・検索・参照解決だけアイコンが抜ける」形でコンパイルは通ってしまうため、
+	// この結合テストで固定する。
+	t.Run("ListSpacePageViewFacts はアイコンと最終編集者を返す", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "顔のあるページ")
+		f.grantSpace(ctx, t, f.spaceA, f.everyoneOf(ctx, t, f.spaceA).ID, domain.GrantRoleViewer)
+
+		icon := &domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"}
+		_, err := f.pages.UpdatePageIcon(ctx, f.ws, page.ID, icon)
+		require.NoError(t, err)
+		require.NoError(t, f.pages.TouchPageLastEditedBy(ctx, f.ws, page.ID, f.alice))
+
+		rows, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.spaceA, f.alice, false)
+		require.NoError(t, err)
+		var got *repository.PageWithViewFacts
+		for i := range rows {
+			if rows[i].Page.ID == page.ID {
+				got = &rows[i]
+			}
+		}
+		require.NotNil(t, got, "対象ページが一覧に含まれる")
+		require.NotNil(t, got.Page.Icon, "手組みの Page リテラルに Icon が抜けていない")
+		assert.Equal(t, *icon, *got.Page.Icon)
+		require.NotNil(t, got.Page.LastEditedByUserID)
+		assert.Equal(t, f.alice, *got.Page.LastEditedByUserID)
 	})
 
 	t.Run("スペース全員宛てのページ付与は別スペースへの移動で失効しない", func(t *testing.T) {

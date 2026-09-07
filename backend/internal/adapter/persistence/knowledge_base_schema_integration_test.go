@@ -377,6 +377,34 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		requirePgError(t, err, sqlStateCheckViolation, "ck_blocks_position_not_empty")
 	})
 
+	// icon / cover は種類ごとの構造を持つオブジェクトに限る（NULL は「付けていない」で許可）。
+	// 配列や文字列を許すと、応答の型（kbPageIconResponse 等）が「object のはず」という
+	// 前提で読めなくなる。
+	t.Run("pages.icon / cover は object に限られる", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, kbTables...)
+		ws := createWorkspace(t, db, "ws-icon")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "a0")
+
+		_, err := db.Exec(`UPDATE pages SET icon = '"📘"'::jsonb WHERE id = $1`, page)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_icon_object")
+
+		_, err = db.Exec(`UPDATE pages SET cover = '[]'::jsonb WHERE id = $1`, page)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_cover_object")
+
+		// 空 object も弾く。型は object のままなので jsonb_typeof だけでは通ってしまい、
+		// toDomainPage が {"type":"","value":""} というゼロ値の非 nil PageIcon を作ってしまう。
+		_, err = db.Exec(`UPDATE pages SET icon = '{}'::jsonb WHERE id = $1`, page)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_icon_object")
+
+		_, err = db.Exec(`UPDATE pages SET cover = '{}'::jsonb WHERE id = $1`, page)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_cover_object")
+
+		// NULL（未設定）と正しい object 形は通ること。
+		_, err = db.Exec(`UPDATE pages SET icon = '{"type":"emoji","value":"📘"}'::jsonb WHERE id = $1`, page)
+		require.NoError(t, err)
+	})
+
 	t.Run("blocks の attrs は既定 {} で object に限られる", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")

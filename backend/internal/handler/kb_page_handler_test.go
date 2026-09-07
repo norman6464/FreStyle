@@ -86,7 +86,7 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
 	users := newKbFakeUsers()
-	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users)
+	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, fakeTxManager{})
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
@@ -168,6 +168,17 @@ var kbEndpoints = []kbEndpoint{
 		name: "本文置き換え", method: http.MethodPut,
 		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/content",
 		body:       `{"doc":` + kbValidDoc + `}`,
+		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
+	},
+	{
+		name: "アイコン設定", method: http.MethodPut,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/icon",
+		body:       `{"type":"emoji","value":"📘"}`,
+		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
+	},
+	{
+		name: "アイコン解除", method: http.MethodDelete,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/icon",
 		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
 	},
 }
@@ -824,6 +835,7 @@ func Test_ナレッジAPI_アーカイブ済みページの変更は409(t *testi
 	}{
 		{"改名", http.MethodPatch, "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID, `{"title":"改訂"}`},
 		{"本文置き換え", http.MethodPut, "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/content", `{"doc":` + kbValidDoc + `}`},
+		{"アイコン設定", http.MethodPut, "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/icon", `{"type":"emoji","value":"📘"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -857,6 +869,9 @@ func Test_ナレッジAPI_入力の検証(t *testing.T) {
 		path   string
 		body   string
 		status int
+		// errorCode は応答の "error" フィールド。空なら status だけを見る
+		// （invalid_icon と invalid_request のように、同じ 400 でも理由を撃ち分けたい場合に使う）。
+		errorCode string
 	}{
 		{
 			name: "作成にtitleが無ければ400", method: http.MethodPost,
@@ -888,12 +903,43 @@ func Test_ナレッジAPI_入力の検証(t *testing.T) {
 			body:   `{"doc":{"type":"doc","content":[{"type":"未知のノード"}]}}`,
 			status: http.StatusBadRequest,
 		},
+		{
+			name: "アイコンが空文字ならinvalid_icon", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/icon",
+			body:      `{"type":"emoji","value":""}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_icon",
+		},
+		{
+			name: "アイコンの種類がemoji以外ならinvalid_icon", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/icon",
+			body:      `{"type":"url","value":"📘"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_icon",
+		},
+		{
+			name: "アイコンが17runeならinvalid_icon", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/icon",
+			body:      `{"type":"emoji","value":"` + strings.Repeat("a", 17) + `"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_icon",
+		},
+		{
+			name: "アイコンのtypeが欠落していればinvalid_request", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/icon",
+			body:      `{"value":"📘"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newKbFixture(kbCanEdit, kbUserID)
 			w := f.do(t, tc.method, tc.path, tc.body)
 			assert.Equal(t, tc.status, w.Code, "body=%s", w.Body.String())
+			if tc.errorCode != "" {
+				assert.JSONEq(t, `{"error":"`+tc.errorCode+`"}`, w.Body.String())
+			}
 		})
 	}
 }
@@ -925,6 +971,69 @@ func Test_ナレッジAPI_取得は本文と作成したページを返す(t *te
 	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &doc))
 	assert.Equal(t, page.ID, doc.Page.ID)
 	assert.Contains(t, string(doc.Doc), "本文")
+}
+
+// Test_ナレッジアイコン_設定と解除が取得に映る は PUT/DELETE icon の結果がその後の
+// GET に反映されることを固定する（handler の応答と再取得の両方で見る）。
+func Test_ナレッジアイコン_設定と解除が取得に映る(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID
+
+	set := f.do(t, http.MethodPut, base+"/icon", `{"type":"emoji","value":"📘"}`)
+	require.Equal(t, http.StatusOK, set.Code)
+	var setResp kbPageResponse
+	require.NoError(t, json.Unmarshal(set.Body.Bytes(), &setResp))
+	require.NotNil(t, setResp.Icon)
+	assert.Equal(t, "📘", setResp.Icon.Value)
+
+	got := f.do(t, http.MethodGet, base, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	var doc kbPageDocResponse
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &doc))
+	require.NotNil(t, doc.Page.Icon, "設定したアイコンが取得にも映る")
+	assert.Equal(t, "📘", doc.Page.Icon.Value)
+
+	cleared := f.do(t, http.MethodDelete, base+"/icon", "")
+	require.Equal(t, http.StatusOK, cleared.Code, "204 ではなく 200 + ページ本体を返す")
+	var clearedResp kbPageResponse
+	require.NoError(t, json.Unmarshal(cleared.Body.Bytes(), &clearedResp))
+	assert.Nil(t, clearedResp.Icon, "解除後は icon が省かれる")
+
+	gotAfterClear := f.do(t, http.MethodGet, base, "")
+	require.Equal(t, http.StatusOK, gotAfterClear.Code)
+	var docAfterClear kbPageDocResponse
+	require.NoError(t, json.Unmarshal(gotAfterClear.Body.Bytes(), &docAfterClear))
+	assert.Nil(t, docAfterClear.Page.Icon, "解除が取得にも映る")
+}
+
+// Test_ナレッジAPI_本文を保存した人が最終編集者になる は、本文を保存した人が
+// pages.last_edited_by_user_id として記録され、改名では変わらないことを固定する
+// （TouchPageLastEditedBy は ReplacePageBlocksUseCase だけが呼ぶ — 既知のリスク参照）。
+func Test_ナレッジAPI_本文を保存した人が最終編集者になる(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID
+
+	saved := f.do(t, http.MethodPut, base+"/content", `{"doc":`+kbValidDoc+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+	var content kbPageContentResponse
+	require.NoError(t, json.Unmarshal(saved.Body.Bytes(), &content))
+	require.NotNil(t, content.LastEditedBy, "保存の応答に最終編集者が載る")
+	assert.Equal(t, kbUserID, content.LastEditedBy.UserID)
+	require.NotNil(t, content.LastEditedAt)
+
+	got := f.do(t, http.MethodGet, base, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	var doc kbPageDocResponse
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &doc))
+	require.NotNil(t, doc.Page.LastEditedByUserID)
+	assert.Equal(t, kbUserID, *doc.Page.LastEditedByUserID)
+
+	renamed := f.do(t, http.MethodPatch, base, `{"title":"改訂"}`)
+	require.Equal(t, http.StatusOK, renamed.Code)
+	var renamedPage kbPageResponse
+	require.NoError(t, json.Unmarshal(renamed.Body.Bytes(), &renamedPage))
+	require.NotNil(t, renamedPage.LastEditedByUserID, "改名では最終編集者は変わらない（消えない）")
+	assert.Equal(t, kbUserID, *renamedPage.LastEditedByUserID)
 }
 
 // ページ参照（pageRef）は本文のインライン内容として往復し、読み出し時に
@@ -1108,6 +1217,46 @@ func Test_ナレッジAPI_IDだけの解決にパンくずが載る(t *testing.T
 	// 並びが closure の順であることは usecase の単体テストが固定する。
 }
 
+// Test_ナレッジAPI_IDだけの解決に最終編集者の名前が載る は ResolveByID の応答に
+// lastEditedBy.name が載ることを固定する（LookupUserNameUseCase 経由）。
+func Test_ナレッジAPI_IDだけの解決に最終編集者の名前が載る(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.users.setUserName(kbUserID, "山田太郎")
+
+	saved := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/content",
+		`{"doc":`+kbValidDoc+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+	require.Equal(t, http.StatusOK, got.Code)
+	var res kbResolvedPageResponse
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+	require.NotNil(t, res.LastEditedBy)
+	assert.Equal(t, kbUserID, res.LastEditedBy.UserID)
+	assert.Equal(t, "山田太郎", res.LastEditedBy.Name)
+	require.NotNil(t, res.LastEditedAt)
+}
+
+// Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字 は、名前が引けなくても
+// 200 のまま返し、name だけが空文字に落ちることを固定する（LookupUserNameUseCase の doc）。
+func Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// 名前を設定しない（kbFakeUsers に登録が無い = 引けないユーザー）。
+
+	saved := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/content",
+		`{"doc":`+kbValidDoc+`}`)
+	require.Equal(t, http.StatusOK, saved.Code)
+
+	got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+	require.Equal(t, http.StatusOK, got.Code, "名前が引けなくても 200 のまま")
+	var res kbResolvedPageResponse
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+	require.NotNil(t, res.LastEditedBy)
+	assert.Empty(t, res.LastEditedBy.Name)
+}
+
 // ResolveByID（/p の入口）は Get と別経路で WorkspaceID / UserID を組み立てるため、
 // 題名解決が挟まっていることをこちらでも独立に固定する。
 func Test_ナレッジAPI_IDだけの解決でも参照の題名が現在の値になる(t *testing.T) {
@@ -1198,6 +1347,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 	gin.SetMode(gin.TestMode)
 	pages := newKbFakePages()
 	perms := newKbFakePerms(pages, kbCanEdit)
+	users := newKbFakeUsers()
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(perms),
 		kb.NewResolvePageLocationUseCase(pages),
@@ -1211,10 +1361,12 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewMovePageUseCase(pages),
 		kb.NewArchivePageUseCase(pages),
 		kb.NewUnarchivePageUseCase(pages),
-		kb.NewReplacePageBlocksUseCase(pages),
+		kb.NewReplacePageBlocksUseCase(pages, fakeTxManager{}),
 		kb.NewResolvePageRefTitlesUseCase(perms),
 		kb.NewListViewableAncestorsUseCase(pages, perms),
 		kb.NewDeletePageUseCase(pages),
+		kb.NewSetPageIconUseCase(pages),
+		kb.NewLookupUserNameUseCase(users),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, waitFor, within } from 'storybook/test';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { withApi, withToast, routerWithParam } from '../../../../.storybook/decorators';
 import KbPage from './KbPage';
 
@@ -73,9 +73,22 @@ const resolved = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/**
+ * PUT(設定) / DELETE(解除) を method で撃ち分ける。
+ *
+ * withApi は URL の**部分一致**で見本を選び、method は見ない。icon の宛先
+ * （`/kb/workspaces/…/pages/p-1/icon`）は `/kb/workspaces` を部分文字列として含むので、
+ * この宛先を `/kb/workspaces` より**前**に置かないと、そちらの見本（一覧）に取られる。
+ */
+const iconStub = (config: { method?: string }) =>
+  config.method === 'delete'
+    ? { ...page, icon: null }
+    : { ...page, icon: { type: 'emoji', value: '📘' } };
+
 // 突き合わせは前から順。細かい宛先を先に書く。
 const api = (over: Record<string, unknown> = {}) => ({
   '/kb/pages/p-1': resolved(),
+  '/pages/p-1/icon': iconStub,
   '/spaces/s-1/pages': tree,
   '/spaces': spaces,
   '/kb/workspaces': workspaces,
@@ -96,15 +109,119 @@ export const ページを開く: Story = {
   },
 };
 
-/** 読むだけの人が開いたとき。題名も本文も打ち替えられない。 */
+/** 読むだけの人が開いたとき。題名も本文も打ち替えられない。アイコンも押せない。 */
 export const 読むだけ: Story = {
   decorators: [
     routerWithParam('/kb/:pageId', '/kb/p-1'),
-    withApi(api({ '/kb/pages/p-1': resolved({ canEdit: false, canManage: false }) })),
+    withApi(
+      api({
+        '/kb/pages/p-1': resolved({
+          canEdit: false,
+          canManage: false,
+          page: { ...page, icon: { type: 'emoji', value: '📘' } },
+        }),
+      }),
+    ),
   ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole('heading', { name: '設計メモ' })).toBeInTheDocument();
+    // アイコンは img として出るだけで、押せるボタンにはならない。
+    await expect(canvas.getByRole('img', { name: 'ページのアイコン' })).toHaveTextContent('📘');
+    await expect(canvas.queryByRole('button', { name: 'アイコンを追加' })).toBeNull();
+    await expect(canvas.queryByRole('button', { name: 'ページのアイコンを変更' })).toBeNull();
+  },
 };
 
 /** 見られないページ・存在しないページ。どちらも同じ見え方にする（実在を読ませない）。 */
 export const 見られないページ: Story = {
   decorators: [routerWithParam('/kb/:pageId', '/kb/p-404'), withApi(api())],
+};
+
+/** アイコンを付ける。一覧から選ぶと保存され、頭部の絵文字に変わる。 */
+export const アイコンを付ける: Story = {
+  decorators: [routerWithParam('/kb/:pageId', '/kb/p-1'), withApi(api())],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const addButton = await canvas.findByRole('button', { name: 'アイコンを追加' });
+    await userEvent.click(addButton);
+
+    const dialog = await canvas.findByRole('dialog', { name: 'ページのアイコンを選ぶ' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'アイコンを 📘 にする' }));
+
+    await waitFor(async () => {
+      await expect(canvas.getByRole('button', { name: 'ページのアイコンを変更' })).toBeInTheDocument();
+    });
+    await expect(canvasElement.querySelector('[data-icon="emoji"]')).toHaveTextContent('📘');
+  },
+};
+
+/** アイコンを外す。 */
+export const アイコンを外す: Story = {
+  decorators: [
+    routerWithParam('/kb/:pageId', '/kb/p-1'),
+    withApi(
+      api({
+        '/kb/pages/p-1': resolved({ page: { ...page, icon: { type: 'emoji', value: '📘' } } }),
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const iconButton = await canvas.findByRole('button', { name: 'ページのアイコンを変更' });
+    await userEvent.click(iconButton);
+
+    const dialog = await canvas.findByRole('dialog', { name: 'ページのアイコンを選ぶ' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'アイコンを外す' }));
+
+    await waitFor(async () => {
+      await expect(canvas.getByRole('button', { name: 'アイコンを追加' })).toBeInTheDocument();
+    });
+  },
+};
+
+/** アイコンの変更に失敗。トーストで知らせ、ピッカーは開いたまま。 */
+export const アイコンの変更に失敗: Story = {
+  decorators: [
+    routerWithParam('/kb/:pageId', '/kb/p-1'),
+    withApi(
+      api({
+        '/pages/p-1/icon': () => {
+          throw new Error('invalid_icon');
+        },
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'アイコンを追加' }));
+    const dialog = await canvas.findByRole('dialog', { name: 'ページのアイコンを選ぶ' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'アイコンを 📘 にする' }));
+
+    await waitFor(async () => {
+      await expect(canvas.getByRole('alert')).toHaveTextContent('アイコンを変更できませんでした');
+    });
+    // 失敗したのでピッカーは開いたまま。
+    await expect(canvas.getByRole('dialog', { name: 'ページのアイコンを選ぶ' })).toBeInTheDocument();
+  },
+};
+
+/** 最終編集が出る。 */
+export const 最終編集が出る: Story = {
+  decorators: [
+    routerWithParam('/kb/:pageId', '/kb/p-1'),
+    withApi(
+      api({
+        '/kb/pages/p-1': resolved({
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-01T10:00:00',
+        }),
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByText(/最終編集 田中 太郎/),
+    ).toBeVisible();
+  },
 };

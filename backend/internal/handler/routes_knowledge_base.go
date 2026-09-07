@@ -42,6 +42,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewShareLinkRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
 		persistence.NewUserRepository(deps.db),
+		persistence.NewTxManager(deps.db),
 	)
 }
 
@@ -68,6 +69,7 @@ func registerKnowledgeBaseRoutesWith(
 	shareLinks repository.ShareLinkRepository,
 	provisioner repository.WorkspaceProvisioner,
 	users repository.UserRepository,
+	txManager repository.TxManager,
 ) {
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(permissions),
@@ -82,10 +84,12 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewMovePageUseCase(pages),
 		kb.NewArchivePageUseCase(pages),
 		kb.NewUnarchivePageUseCase(pages),
-		kb.NewReplacePageBlocksUseCase(pages),
+		kb.NewReplacePageBlocksUseCase(pages, txManager),
 		kb.NewResolvePageRefTitlesUseCase(permissions),
 		kb.NewListViewableAncestorsUseCase(pages, permissions),
 		kb.NewDeletePageUseCase(pages),
+		kb.NewSetPageIconUseCase(pages),
+		kb.NewLookupUserNameUseCase(users),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
@@ -184,6 +188,8 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/archive", h.Archive)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/unarchive", h.Unarchive)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content", h.ReplaceContent)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.SetIcon)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.ClearIcon)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。

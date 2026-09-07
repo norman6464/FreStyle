@@ -1,18 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { useEditor } from '@tiptap/react';
 import FormatMenuBar from '../FormatMenuBar';
 import { createEditorExtensions } from '../editorExtensions';
 import { emptyRichDoc } from '../emptyRichDoc';
+import type { CommentAnchor } from '../commentAnchor';
 
 // FormatMenuBar は実 editor を必要とするので、useEditor で用意した editor を渡す薄いハーネスで包む。
-function Harness() {
+function Harness({ onRequestComment }: { onRequestComment?: (anchor: CommentAnchor) => void } = {}) {
   const editor = useEditor({
     extensions: createEditorExtensions(),
     content: emptyRichDoc(),
   });
   if (!editor) return null;
-  return <FormatMenuBar editor={editor} />;
+  return <FormatMenuBar editor={editor} onRequestComment={onRequestComment} />;
 }
 
 describe('FormatMenuBar', () => {
@@ -37,4 +38,18 @@ describe('FormatMenuBar', () => {
       await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'true'));
     },
   );
+
+  it('onRequestComment を渡していなければ「コメント」ボタンは出ない', () => {
+    render(<Harness />);
+    expect(screen.queryByRole('button', { name: 'コメント' })).not.toBeInTheDocument();
+  });
+
+  it('onRequestComment を渡すと「コメント」ボタンがリンクの隣（末尾）に出る', () => {
+    render(<Harness onRequestComment={vi.fn()} />);
+    const toolbar = screen.getByRole('toolbar', { name: '書式メニュー' });
+    const buttons = within(toolbar).getAllByRole('button');
+    // リンク → コメント の順で並ぶ（末尾 2 つ）。
+    expect(buttons.at(-2)).toHaveAccessibleName('リンク');
+    expect(buttons.at(-1)).toHaveAccessibleName('コメント');
+  });
 });

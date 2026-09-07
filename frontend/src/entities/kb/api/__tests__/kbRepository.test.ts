@@ -486,6 +486,48 @@ describe('KbRepository', () => {
 
       await expect(KbRepository.listCommentThreads('acme', 'p-1')).rejects.toThrow();
     });
+
+    it('blockId/anchorFrom/anchorTo/quote を持つ応答（錨付きコメント）はそのまま通す', async () => {
+      const anchoredThread = {
+        id: 't-2',
+        createdBy: { userId: 1, name: '田中 太郎' },
+        resolvedAt: null,
+        resolvedBy: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        comments: [],
+        blockId: 'block-1',
+        anchorFrom: 3,
+        anchorTo: 9,
+        quote: '選んだ文',
+      };
+      mockGet.mockResolvedValue({ data: { threads: [anchoredThread] } });
+
+      const [thread] = await KbRepository.listCommentThreads('acme', 'p-1');
+
+      expect(thread).toMatchObject({
+        blockId: 'block-1',
+        anchorFrom: 3,
+        anchorTo: 9,
+        quote: '選んだ文',
+      });
+    });
+
+    it('4つのキーが無い応答（page-level）は blockId 等が undefined のまま', async () => {
+      const pageLevelThread = {
+        id: 't-1',
+        createdBy: { userId: 1, name: '田中 太郎' },
+        resolvedAt: null,
+        resolvedBy: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        comments: [],
+      };
+      mockGet.mockResolvedValue({ data: { threads: [pageLevelThread] } });
+
+      const [thread] = await KbRepository.listCommentThreads('acme', 'p-1');
+
+      expect(thread.blockId).toBeUndefined();
+      expect(thread.quote).toBeUndefined();
+    });
   });
 
   describe('createCommentThread', () => {
@@ -524,6 +566,35 @@ describe('KbRepository', () => {
       await expect(
         KbRepository.createCommentThread('acme', 'p-1', [{ type: 'text', text: 'x' }]),
       ).rejects.toThrow();
+    });
+
+    it('anchor を渡すと body に4つのフィールドを展開して送る（錨付きコメント）', async () => {
+      const body = [{ type: 'text', text: '選んだ文への質問' }];
+      const anchor = { blockId: 'block-1', anchorFrom: 3, anchorTo: 9, quote: '選んだ文' };
+      const thread = {
+        id: 't-1',
+        createdBy: { userId: 1, name: '田中 太郎' },
+        resolvedAt: null,
+        resolvedBy: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        comments: [],
+        ...anchor,
+      };
+      mockPost.mockResolvedValue({ data: thread });
+
+      const got = await KbRepository.createCommentThread('acme', 'p-1', body, anchor);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/comment-threads',
+        {
+          body,
+          blockId: 'block-1',
+          anchorFrom: 3,
+          anchorTo: 9,
+          quote: '選んだ文',
+        },
+      );
+      expect(got).toMatchObject(anchor);
     });
   });
 

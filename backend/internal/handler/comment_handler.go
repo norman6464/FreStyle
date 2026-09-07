@@ -11,12 +11,12 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/comment"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CommentHandler はページ全体へのコメント（FRESTYLE-432 段 2）を受ける。
-//
-// 錨付け（block_id / anchor_from / anchor_to / quote）の書き込み経路は段 3 の範囲で、
-// ここに置く 5 つの操作はいずれも「本文」だけを受け取る。
+// CommentHandler はページ全体へのコメント（FRESTYLE-432 段 2）と、
+// 錨付きコメント（同段 3）を受ける。錨付け（block_id / anchor_from / anchor_to / quote）を
+// 受け取るのは CreateThread だけ（返信・解決・再開はスレッド単位の操作で錨を持たない）。
 type CommentHandler struct {
 	check        *kb.CheckPagePermissionUseCase
 	createThread *comment.CreateCommentThreadUseCase
@@ -94,9 +94,16 @@ type commentResponse struct {
 }
 
 // commentThreadResponse はスレッド 1 件と、その発言（最初の発言 + 返信）の返却形。
+//
+// BlockID/AnchorFrom/AnchorTo/Quote は錨付きスレッド（段 3）だけ値を持つ。page-level の
+// スレッドでは 4 つとも省略される（omitempty）。
 type commentThreadResponse struct {
 	ID         string                    `json:"id"`
 	CreatedBy  commentAuthorRefResponse  `json:"createdBy"`
+	BlockID    *string                   `json:"blockId,omitempty"`
+	AnchorFrom *int                      `json:"anchorFrom,omitempty"`
+	AnchorTo   *int                      `json:"anchorTo,omitempty"`
+	Quote      *string                   `json:"quote,omitempty"`
 	ResolvedAt *time.Time                `json:"resolvedAt,omitempty"`
 	ResolvedBy *commentAuthorRefResponse `json:"resolvedBy,omitempty"`
 	CreatedAt  time.Time                 `json:"createdAt"`
@@ -143,6 +150,10 @@ func (h *CommentHandler) toCommentThreadResponse(
 	resp := commentThreadResponse{
 		ID:         t.ID,
 		CreatedBy:  h.resolveAuthorRef(ctx, t.CreatedByUserID, cache),
+		BlockID:    t.BlockID,
+		AnchorFrom: t.AnchorFrom,
+		AnchorTo:   t.AnchorTo,
+		Quote:      t.Quote,
 		ResolvedAt: t.ResolvedAt,
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
@@ -158,11 +169,22 @@ func (h *CommentHandler) toCommentThreadResponse(
 	return resp
 }
 
-// kbCommentBodyRequest は発言（スレッド作成 / 返信）共通の入力。
+// kbCommentBodyRequest は発言（返信）の入力。
 type kbCommentBodyRequest struct {
 	// Body は ProseMirror インラインノードの配列（JSON）。中身の検証は
 	// domain.ValidateCommentBody（usecase 経由）が行う。
 	Body json.RawMessage `json:"body" binding:"required"`
+}
+
+// kbCreateThreadRequest は新しいスレッドの入力。本文に加え、錨（段 3）を任意で受け取る。
+// BlockID/AnchorFrom/AnchorTo/Quote は 4 つとも揃うか 4 つとも無いかのどちらかで、
+// その検証は domain.ValidateCommentAnchor（usecase 経由）が行う。
+type kbCreateThreadRequest struct {
+	Body       json.RawMessage `json:"body" binding:"required"`
+	BlockID    *string         `json:"blockId,omitempty"`
+	AnchorFrom *int            `json:"anchorFrom,omitempty"`
+	AnchorTo   *int            `json:"anchorTo,omitempty"`
+	Quote      *string         `json:"quote,omitempty"`
 }
 
 // CreateThread はページに新しいコメントスレッドを立てる（CanComment が要る）。
@@ -176,7 +198,7 @@ func (h *CommentHandler) CreateThread(c *gin.Context) {
 		return
 	}
 	limitKnowledgeBaseBody(c)
-	var req kbCommentBodyRequest
+	var req kbCreateThreadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
@@ -186,6 +208,12 @@ func (h *CommentHandler) CreateThread(c *gin.Context) {
 		PageID:       pageID,
 		AuthorUserID: scope.userID,
 		Body:         string(req.Body),
+		Anchor: repository.CommentAnchor{
+			BlockID:    req.BlockID,
+			AnchorFrom: req.AnchorFrom,
+			AnchorTo:   req.AnchorTo,
+			Quote:      req.Quote,
+		},
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)

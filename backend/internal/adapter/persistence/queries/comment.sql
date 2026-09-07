@@ -1,11 +1,14 @@
--- ページ全体へのコメント（comment_threads / comments）のクエリ。FRESTYLE-432 段 2。
+-- ページ全体へのコメント（comment_threads / comments）のクエリ。FRESTYLE-432 段 2・段 3。
 --
--- 段 2 の時点では書き込み経路が「本文」だけを受け取るので、block_id / anchor_from /
--- anchor_to / quote への INSERT は無い（常に NULL のまま作られる。段 3 で足す）。
+-- 段 3 で block_id / anchor_from / anchor_to / quote への書き込みが加わった。4 つとも
+-- NULL（page-level）か、4 つとも値ありのどちらか — その組み合わせの検証は
+-- domain.ValidateCommentAnchor（usecase 経由）が行い、block_id が実際にそのページに
+-- 属するかは repository.BlockExistsInPage（usecase 経由）が確認する。ここではもう検証済みの
+-- 値をそのまま挿入するだけ。
 
 -- name: CreateCommentThread :one
-INSERT INTO comment_threads (id, workspace_id, page_id, created_by_user_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO comment_threads (id, workspace_id, page_id, block_id, anchor_from, anchor_to, quote, created_by_user_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: CreateComment :one

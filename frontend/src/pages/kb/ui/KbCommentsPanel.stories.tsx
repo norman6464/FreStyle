@@ -21,6 +21,8 @@ const meta = {
     loading: false,
     error: null,
     canComment: true,
+    pendingAnchor: null,
+    onCancelPendingAnchor: fn(),
     onCreateThread: fn(async () => {}),
     onReply: fn(async () => {}),
     onResolve: fn(async () => {}),
@@ -120,6 +122,38 @@ export const 読み込み中: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('status', { name: 'コメントを読み込み中' })).toBeVisible();
     await expect(canvas.queryByPlaceholderText('コメントを書く…')).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * 選択範囲からコメントを作る途中（バブルメニューの「コメント」経由）。
+ * 引用文が出て、「新しいスレッドを作成」（page-level）フォームは隠れる。
+ */
+export const 選択範囲へコメント: Story = {
+  args: {
+    threads: [thread('t-1')],
+    pendingAnchor: { blockId: 'block-1', anchorFrom: 6, anchorTo: 11, quote: '選んだ文章' },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('選択範囲へコメント')).toBeVisible();
+    await expect(canvas.getByText('選んだ文章')).toBeVisible();
+    // page-level の作成フォームは隠れる（見出しが重複しない）。
+    await expect(canvas.queryByText('新しいスレッドを作成')).not.toBeInTheDocument();
+
+    // 「送信」ボタンは既存スレッドの返信欄にも出るので、この作成フォーム（textarea の
+    // 直近の親）に絞って押す（複数ヒットの曖昧さを避ける）。
+    const textarea = canvas.getByPlaceholderText('コメントを書く…');
+    await userEvent.type(textarea, 'ここは要修正です');
+    const composer = within(textarea.closest('div')!);
+    await userEvent.click(composer.getByRole('button', { name: '送信' }));
+    await expect(args.onCreateThread).toHaveBeenCalledWith(
+      [{ type: 'text', text: 'ここは要修正です' }],
+      { blockId: 'block-1', anchorFrom: 6, anchorTo: 11, quote: '選んだ文章' },
+    );
+
+    await userEvent.click(canvas.getByRole('button', { name: 'キャンセル' }));
+    await expect(args.onCancelPendingAnchor).toHaveBeenCalled();
   },
 };
 

@@ -271,6 +271,8 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 	case errors.Is(err, domain.ErrInvalidCommentBody):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+	case errors.Is(err, domain.ErrInvalidCommentAnchor):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_comment_anchor"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}

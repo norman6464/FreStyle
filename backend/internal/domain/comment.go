@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"time"
 )
@@ -12,11 +13,20 @@ import (
 // handler は 400 invalid_request へマップする。
 var ErrInvalidCommentBody = errors.New("invalid comment body")
 
-// CommentThread はページ（または将来ブロック）に付いたコメントのスレッド。
+// ErrInvalidCommentAnchor は錨（block_id / anchor_from / anchor_to / quote）の組み合わせが
+// 不正なときに返す（段 3・錨付きコメント）。usecase はこれをそのまま呼び出し元へ伝播させ、
+// handler は 400 invalid_comment_anchor へマップする。
+var ErrInvalidCommentAnchor = errors.New("invalid comment anchor")
+
+// CommentAnchorMaxQuoteLen は quote に許す最大バイト数。バブルメニューから送られる引用文は
+// 通常短いが、極端に長い選択をそのまま保存させないための上限。
+const CommentAnchorMaxQuoteLen = 2000
+
+// CommentThread はページ全体、またはページ内の特定ブロック・特定文字範囲（錨）に
+// 付いたコメントのスレッド。
 //
-// BlockID / AnchorFrom / AnchorTo / Quote は段 3（錨付きコメント）のための列で、
-// このPR（段 2・ページ全体へのコメント）の書き込み経路は「本文」だけを受け取るため
-// 常に nil のまま作られる。
+// BlockID / AnchorFrom / AnchorTo / Quote は 4 つとも nil（page-level）か、4 つとも
+// 非 nil（錨付き）のどちらか — ValidateCommentAnchor がこの不変条件を守る。
 type CommentThread struct {
 	ID          string  `json:"id"`
 	WorkspaceID string  `json:"-"`
@@ -87,6 +97,55 @@ func ValidateCommentBody(raw string) error {
 		if node.Type == "text" && strings.TrimSpace(node.Text) == "" {
 			return ErrInvalidCommentBody
 		}
+	}
+	return nil
+}
+
+// ValidateCommentAnchor は錨（block_id / anchor_from / anchor_to / quote）の組み合わせが
+// 保存してよい形かを検証する。
+//
+//   - 4 つとも nil なら有効（page-level のコメント）
+//   - 4 つとも非 nil なら、以下をすべて満たすときだけ有効:
+//     blockID が空文字でない／anchorFrom が 0 以上／anchorFrom < anchorTo／
+//     quote が空白のみでなく CommentAnchorMaxQuoteLen バイト以下
+//   - それ以外（一部だけ非 nil の中途半端な組み合わせ）は無効
+//
+// blockID が実際にそのページに属するか（他ページ・他テナントのブロックでないか）は
+// ここでは見ない。DB を引く必要があるため repository 層（BlockExistsInPage）の責務。
+func ValidateCommentAnchor(blockID *string, anchorFrom, anchorTo *int, quote *string) error {
+	present := 0
+	for _, v := range []bool{blockID != nil, anchorFrom != nil, anchorTo != nil, quote != nil} {
+		if v {
+			present++
+		}
+	}
+	if present == 0 {
+		return nil
+	}
+	if present != 4 {
+		return ErrInvalidCommentAnchor
+	}
+	if *blockID == "" {
+		return ErrInvalidCommentAnchor
+	}
+	if *anchorFrom < 0 {
+		return ErrInvalidCommentAnchor
+	}
+	if *anchorFrom >= *anchorTo {
+		return ErrInvalidCommentAnchor
+	}
+	// comment_threads.anchor_from/anchor_to は DB 上 int（32bit）。ここで弾いておかないと
+	// persistence 層で int32(v) への縮小キャストが符号ごと丸め込まれた値のまま保存されてしまう
+	// （ORM 移行で踏んだ「縮小キャストの無言失敗」と同種の罠）。ここは「形」の検証なので domain の責務。
+	if *anchorFrom < math.MinInt32 || *anchorFrom > math.MaxInt32 ||
+		*anchorTo < math.MinInt32 || *anchorTo > math.MaxInt32 {
+		return ErrInvalidCommentAnchor
+	}
+	if strings.TrimSpace(*quote) == "" {
+		return ErrInvalidCommentAnchor
+	}
+	if len(*quote) > CommentAnchorMaxQuoteLen {
+		return ErrInvalidCommentAnchor
 	}
 	return nil
 }

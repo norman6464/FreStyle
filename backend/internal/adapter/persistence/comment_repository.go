@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -77,7 +78,7 @@ func toDomainComment(row sqlcgen.Comment) domain.Comment {
 }
 
 func (r *commentRepository) CreateCommentThread(
-	ctx context.Context, workspaceID, pageID string, createdByUserID uint64,
+	ctx context.Context, workspaceID, pageID string, createdByUserID uint64, anchor repository.CommentAnchor,
 ) (*domain.CommentThread, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
@@ -88,6 +89,22 @@ func (r *commentRepository) CreateCommentThread(
 	if !ok3 {
 		return nil, outOfRangeIDError("created_by_user_id", createdByUserID)
 	}
+	// anchor.BlockID は blocks.id への単独 FK（page_id を含まない）なので、ここでは
+	// 文字列を uuid へ変換するだけ。実際にそのページへ属するかは呼び出し元の usecase が
+	// BlockExistsInPage で先に確認済みという前提（PR1 の ErrBlockIDConflict と同じ役割分担）。
+	blockID, ok4 := kbNullID(anchor.BlockID)
+	if !ok4 {
+		return nil, repository.ErrCommentThreadNotFound
+	}
+	// comment_threads.anchor_from/anchor_to は DB 上 int（32bit）。domain.ValidateCommentAnchor
+	// は 0 以上・from<to しか見ておらず int32 の範囲は見ていないので、素朴に int32(v) すると
+	// 範囲外の値が符号ごと丸め込まれて別の値のまま保存されてしまう（ORM 移行で踏んだ
+	// 「縮小キャストの無言失敗」と同種の罠）。ここで範囲を確認し、収まらなければ諦める。
+	anchorFrom, ok5 := nullInt32(anchor.AnchorFrom)
+	anchorTo, ok6 := nullInt32(anchor.AnchorTo)
+	if !ok5 || !ok6 {
+		return nil, errCommentAnchorOutOfRange
+	}
 	id, err := kbNewID()
 	if err != nil {
 		return nil, err
@@ -96,6 +113,10 @@ func (r *commentRepository) CreateCommentThread(
 		ID:              id,
 		WorkspaceID:     wsID,
 		PageID:          pgID,
+		BlockID:         blockID,
+		AnchorFrom:      anchorFrom,
+		AnchorTo:        anchorTo,
+		Quote:           nullString(anchor.Quote),
 		CreatedByUserID: createdBy,
 	})
 	if err != nil {
@@ -103,6 +124,36 @@ func (r *commentRepository) CreateCommentThread(
 	}
 	t := toDomainCommentThread(row)
 	return &t, nil
+}
+
+// errCommentAnchorOutOfRange は anchor_from/anchor_to が DB の int（32bit）に収まらないときに返す。
+var errCommentAnchorOutOfRange = errors.New("comment anchor position out of int32 range")
+
+// nullInt32 は *int を sql.NullInt32 へ変換する（anchor_from / anchor_to 用）。
+// Go の int は 64bit 環境が前提のため、int32 の範囲外の値は ok=false を返す
+// （呼び出し元は toInt64ID/outOfRangeIDError と同じ役割分担で書き込みを諦める）。
+func nullInt32(v *int) (sql.NullInt32, bool) {
+	if v == nil {
+		return sql.NullInt32{}, true
+	}
+	if *v < math.MinInt32 || *v > math.MaxInt32 {
+		return sql.NullInt32{}, false
+	}
+	return sql.NullInt32{Int32: int32(*v), Valid: true}, true
+}
+
+func (r *commentRepository) BlockExistsInPage(ctx context.Context, workspaceID, pageID, blockID string) (bool, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	blkID, ok3 := kbParseID(blockID)
+	if !ok || !ok2 || !ok3 {
+		return false, nil
+	}
+	return r.queries(ctx).BlockExistsInPage(ctx, sqlcgen.BlockExistsInPageParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+		ID:          blkID,
+	})
 }
 
 func (r *commentRepository) CreateComment(

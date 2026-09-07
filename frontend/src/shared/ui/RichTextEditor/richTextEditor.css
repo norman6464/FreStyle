@@ -518,3 +518,46 @@
 .rte-content .ProseMirror ul[data-type='taskList'] ul[data-type='taskList'] {
   margin: 0.25rem 0 0;
 }
+
+/*
+ * コメント件数バッジ（commentBadges.ts の Decoration.widget）。ブロックの右肩に
+ * 小さな丸い数字を出す。CodeBlockView の右上オーバーレイ（.rte-codeblock-bar）と
+ * 同じ考え方 — バッジ自身は position: absolute、基準になる親要素へ position: relative
+ * を足す。挿入先はブロックノードの DOM（p / h1-3 / blockquote / li）の最後の子になる
+ * ため、その並びへ position: relative を足す（表セルの th/td は既に position: relative
+ * を持つのでそのまま使う。上の .rte-codeblock も同様に持っている）。
+ */
+.rte-content .ProseMirror p,
+.rte-content .ProseMirror h1,
+.rte-content .ProseMirror h2,
+.rte-content .ProseMirror h3,
+.rte-content .ProseMirror blockquote,
+.rte-content .ProseMirror li {
+  position: relative;
+}
+
+.rte-comment-badge {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--color-surface-1);
+  border-radius: 9999px;
+  background: var(--color-brand, #3b82f6);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  /* 本文の行送りに巻き込まれない（インライン要素の並びに乗る幅として計算されない）。 */
+  vertical-align: top;
+}
+
+.rte-comment-badge:hover {
+  filter: brightness(1.1);
+}

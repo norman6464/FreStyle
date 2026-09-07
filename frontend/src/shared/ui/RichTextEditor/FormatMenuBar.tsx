@@ -1,6 +1,8 @@
 import { type Editor, useEditorState } from '@tiptap/react';
 import { getEditorCommands, type EditorCommand } from './editorCommands';
 import LinkFormatControl from './LinkFormatControl';
+import CommentFormatControl from './CommentFormatControl';
+import type { CommentAnchor } from './commentAnchor';
 
 // バブルメニューが出す操作はマーク（太字…）とブロック変換（見出し・リスト…）に絞る。
 // 挿入系・履歴系はスラッシュメニュー / キーボードに委ねる（後続）。
@@ -59,7 +61,14 @@ function MenuButton({
  * EDITOR_COMMANDS（レジストリ）から描画し、editor の現在状態を useEditorState で購読して
  * 各ボタンの active / disabled を更新する。バブルメニュー等の入れ物からフローティング表示する。
  */
-export default function FormatMenuBar({ editor }: { editor: Editor }) {
+export default function FormatMenuBar({
+  editor,
+  onRequestComment,
+}: {
+  editor: Editor;
+  /** 選択範囲からコメントを作りたいときに呼ばれる。渡さなければ「コメント」ボタンを出さない。 */
+  onRequestComment?: (anchor: CommentAnchor) => void;
+}) {
   // 各コマンドの active/enabled だけを取り出して購読する（過剰な再描画を避ける）。
   const states = useEditorState({
     editor,
@@ -86,6 +95,8 @@ export default function FormatMenuBar({ editor }: { editor: Editor }) {
         マーク操作の並びの末尾に、入力欄を持つ専用コントロールとして置く。
       */}
       <LinkFormatControl editor={editor} />
+      {/* コメントも記述子に載せず、リンクの隣に専用コントロールとして置く（画面側の業務ロジックを呼ぶため）。 */}
+      <CommentFormatControl editor={editor} onRequestComment={onRequestComment} />
     </div>
   );
 }

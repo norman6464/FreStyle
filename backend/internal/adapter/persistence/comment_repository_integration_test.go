@@ -9,6 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/comment"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func TestCommentRepository_Integration(t *testing.T) {
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "a0")
 
-		thread, err := repo.CreateCommentThread(ctx, ws, page, 42)
+		thread, err := repo.CreateCommentThread(ctx, ws, page, 42, repository.CommentAnchor{})
 		require.NoError(t, err)
 		assert.Equal(t, ws, thread.WorkspaceID)
 		assert.Equal(t, page, thread.PageID)
@@ -77,7 +78,7 @@ func TestCommentRepository_Integration(t *testing.T) {
 		spaceB := createSpace(t, db, wsB, "eng")
 		pageB := createPage(t, db, wsB, spaceB, nil, "a0")
 
-		thread, err := repo.CreateCommentThread(ctx, wsA, pageA, 1)
+		thread, err := repo.CreateCommentThread(ctx, wsA, pageA, 1, repository.CommentAnchor{})
 		require.NoError(t, err)
 
 		// 別ワークスペースの workspace_id で引く。
@@ -108,7 +109,7 @@ func TestCommentRepository_Integration(t *testing.T) {
 		page1 := createPage(t, db, ws, space, nil, "a0")
 		page2 := createPage(t, db, ws, space, nil, "a1")
 
-		thread, err := repo.CreateCommentThread(ctx, ws, page1, 1)
+		thread, err := repo.CreateCommentThread(ctx, ws, page1, 1, repository.CommentAnchor{})
 		require.NoError(t, err)
 
 		_, err = repo.GetCommentThread(ctx, ws, page2, thread.ID)
@@ -211,7 +212,7 @@ func TestCommentRepository_Integration(t *testing.T) {
 		ws := createWorkspace(t, db, "ws-comment-6")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "a0")
-		thread, err := repo.CreateCommentThread(ctx, ws, page, 1)
+		thread, err := repo.CreateCommentThread(ctx, ws, page, 1, repository.CommentAnchor{})
 		require.NoError(t, err)
 
 		resolved, err := repo.ResolveCommentThread(ctx, ws, page, thread.ID, 99)
@@ -248,7 +249,7 @@ func TestCommentRepository_Integration(t *testing.T) {
 		ws := createWorkspace(t, db, "ws-comment-8")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "a0")
-		thread, err := repo.CreateCommentThread(ctx, ws, page, 1)
+		thread, err := repo.CreateCommentThread(ctx, ws, page, 1, repository.CommentAnchor{})
 		require.NoError(t, err)
 		_, err = repo.CreateComment(ctx, thread.ID, 1, `[{"type":"text","text":"hi"}]`)
 		require.NoError(t, err)
@@ -262,4 +263,140 @@ func TestCommentRepository_Integration(t *testing.T) {
 		assert.Zero(t, threadCount, "ページが消えたら comment_threads も CASCADE で消える")
 		assert.Zero(t, commentCount, "スレッドが消えたら comments も CASCADE で消える")
 	})
+
+	// ここから FRESTYLE-432 段 3（錨付きコメント）。書き込み経路（CreateCommentThread への
+	// anchor 引数）が今回のPRで開くので、以降のテストは repo 経由でスレッドを作る
+	// （上の「ブロック削除でblock_idがNULLに落ちる」テストのように SQL を直接叩く必要がない）。
+
+	t.Run("錨付きスレッドを作成して取得すると4フィールドが正しく往復する", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, commentTables...)
+		repo := persistence.NewCommentRepository(db)
+		ws := createWorkspace(t, db, "ws-comment-anchor-1")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "a0")
+		block := createBlock(t, db, ws, page, nil, "a0", domain.BlockTypeParagraph)
+
+		from, to := 3, 12
+		quote := "錨付けされた引用文"
+		anchor := repository.CommentAnchor{BlockID: &block, AnchorFrom: &from, AnchorTo: &to, Quote: &quote}
+
+		created, err := repo.CreateCommentThread(ctx, ws, page, 7, anchor)
+		require.NoError(t, err)
+		require.NotNil(t, created.BlockID)
+		assert.Equal(t, block, *created.BlockID)
+		require.NotNil(t, created.AnchorFrom)
+		assert.Equal(t, from, *created.AnchorFrom)
+		require.NotNil(t, created.AnchorTo)
+		assert.Equal(t, to, *created.AnchorTo)
+		require.NotNil(t, created.Quote)
+		assert.Equal(t, quote, *created.Quote)
+
+		got, err := repo.GetCommentThread(ctx, ws, page, created.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got.BlockID)
+		assert.Equal(t, block, *got.BlockID)
+		require.NotNil(t, got.AnchorFrom)
+		assert.Equal(t, from, *got.AnchorFrom)
+		require.NotNil(t, got.AnchorTo)
+		assert.Equal(t, to, *got.AnchorTo)
+		require.NotNil(t, got.Quote)
+		assert.Equal(t, quote, *got.Quote)
+	})
+
+	t.Run("BlockExistsInPageは同じworkspace_id_page_idのブロックだけtrueを返す", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, commentTables...)
+		repo := persistence.NewCommentRepository(db)
+		wsA := createWorkspace(t, db, "ws-comment-anchor-2a")
+		spaceA := createSpace(t, db, wsA, "eng")
+		pageA := createPage(t, db, wsA, spaceA, nil, "a0")
+		blockA := createBlock(t, db, wsA, pageA, nil, "a0", domain.BlockTypeParagraph)
+
+		wsB := createWorkspace(t, db, "ws-comment-anchor-2b")
+		spaceB := createSpace(t, db, wsB, "eng")
+		pageB := createPage(t, db, wsB, spaceB, nil, "a0")
+
+		exists, err := repo.BlockExistsInPage(ctx, wsA, pageA, blockA)
+		require.NoError(t, err)
+		assert.True(t, exists, "自分のworkspace/pageに実在するブロックはtrue")
+
+		exists, err = repo.BlockExistsInPage(ctx, wsB, pageB, blockA)
+		require.NoError(t, err)
+		assert.False(t, exists, "別ページに実在するブロックはfalse（id単独では実在扱いにしない）")
+
+		exists, err = repo.BlockExistsInPage(ctx, wsA, pageA, newID())
+		require.NoError(t, err)
+		assert.False(t, exists, "存在しないIDはfalse")
+	})
+
+	// 他ページの実在する block_id を錨に指定した書き込みが拒否されることは、PR1の
+	// ErrBlockIDConflict（ListExistingBlockIDsAmong）と同種のテナント越え防止で、この
+	// PR の核心。BlockExistsInPage を repo 単体で見るだけでなく、usecase まで通して
+	// domain.ErrInvalidCommentAnchor が実際に返ることを確認する（存在しないIDでの拒否とは
+	// 別物 — こちらは「実在するが持ち主が違う」ケース）。
+	t.Run("他ページの実在するblock_idを錨に指定するとErrInvalidCommentAnchorで拒否される", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, commentTables...)
+		repo := persistence.NewCommentRepository(db)
+		txManager := persistence.NewTxManager(db)
+		uc := comment.NewCreateCommentThreadUseCase(repo, txManager)
+
+		ws := createWorkspace(t, db, "ws-comment-anchor-3")
+		space := createSpace(t, db, ws, "eng")
+		pageOwner := createPage(t, db, ws, space, nil, "a0")
+		blockOnOtherPage := createBlock(t, db, ws, pageOwner, nil, "a0", domain.BlockTypeParagraph)
+		pageVictim := createPage(t, db, ws, space, nil, "a1")
+
+		from, to := 0, 5
+		quote := "他ページのブロックを乗っ取ろうとする"
+		_, err := uc.Execute(ctx, comment.CreateCommentThreadInput{
+			WorkspaceID:  ws,
+			PageID:       pageVictim,
+			AuthorUserID: 1,
+			Body:         `[{"type":"text","text":"hi"}]`,
+			Anchor: repository.CommentAnchor{
+				BlockID: &blockOnOtherPage, AnchorFrom: &from, AnchorTo: &to, Quote: &quote,
+			},
+		})
+		require.ErrorIs(t, err, domain.ErrInvalidCommentAnchor)
+
+		var count int
+		require.NoError(t, db.QueryRow(`SELECT count(*) FROM comment_threads WHERE page_id = $1`, pageVictim).Scan(&count))
+		assert.Zero(t, count, "拒否されたので pageVictim にスレッドは作られない")
+	})
+
+	t.Run("ブロック削除でblock_idがNULLに落ちても実際にAPI経由で作った錨付きスレッドのquoteは残る", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, commentTables...)
+		repo := persistence.NewCommentRepository(db)
+		txManager := persistence.NewTxManager(db)
+		uc := comment.NewCreateCommentThreadUseCase(repo, txManager)
+
+		ws := createWorkspace(t, db, "ws-comment-anchor-4")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "a0")
+		block := createBlock(t, db, ws, page, nil, "a0", domain.BlockTypeParagraph)
+
+		from, to := 0, 4
+		const quote = "実際に書き込み経路を通した引用文"
+		out, err := uc.Execute(ctx, comment.CreateCommentThreadInput{
+			WorkspaceID:  ws,
+			PageID:       page,
+			AuthorUserID: 1,
+			Body:         `[{"type":"text","text":"hi"}]`,
+			Anchor: repository.CommentAnchor{
+				BlockID: &block, AnchorFrom: &from, AnchorTo: &to, Quote: strPtr(quote),
+			},
+		})
+		require.NoError(t, err)
+		threadID := out.Thread.ID
+
+		_, err = db.Exec(`DELETE FROM blocks WHERE id = $1`, block)
+		require.NoError(t, err)
+
+		got, err := repo.GetCommentThread(ctx, ws, page, threadID)
+		require.NoError(t, err)
+		assert.Nil(t, got.BlockID, "ブロックが消えたら block_id は NULL に落ちる")
+		require.NotNil(t, got.Quote)
+		assert.Equal(t, quote, *got.Quote, "quote はブロック削除で触られない")
+	})
 }
+
+func strPtr(s string) *string { return &s }

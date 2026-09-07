@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -75,7 +76,7 @@ func (e kbCommentEndpoint) request(f kbFixture, t *testing.T, slug, pageID strin
 	t.Helper()
 	threadID := "0198a000-0000-7000-8000-0000000000ff" // {thread} を使わない経路では無視される
 	if strings.Contains(e.path, "{thread}") {
-		th, err := f.comments.CreateCommentThread(context.Background(), kbWorkspaceID, pageID, kbUserID)
+		th, err := f.comments.CreateCommentThread(context.Background(), kbWorkspaceID, pageID, kbUserID, repository.CommentAnchor{})
 		require.NoError(t, err)
 		threadID = th.ID
 	}
@@ -135,7 +136,7 @@ func Test_コメントAPI_本文が空配列なら400(t *testing.T) {
 
 	t.Run("返信", func(t *testing.T) {
 		f := newKbFixture(domain.PagePermission{CanView: true, CanComment: true}, kbUserID)
-		th, err := f.comments.CreateCommentThread(context.Background(), kbWorkspaceID, kbChildPageID, kbUserID)
+		th, err := f.comments.CreateCommentThread(context.Background(), kbWorkspaceID, kbChildPageID, kbUserID, repository.CommentAnchor{})
 		require.NoError(t, err)
 		path := strings.NewReplacer(
 			"{slug}", kbWorkspaceSlug, "{page}", kbChildPageID, "{thread}", th.ID,
@@ -157,4 +158,50 @@ func Test_コメントAPI_スレッド作成のレスポンス形(t *testing.T) 
 	assert.Contains(t, w.Body.String(), `"id"`)
 	assert.Contains(t, w.Body.String(), `"createdBy"`)
 	assert.Contains(t, w.Body.String(), `"comments"`)
+}
+
+// Test_コメントAPI_錨付きスレッド作成のレスポンス形 は FRESTYLE-432 段 3 の実例固定。
+// page-level（上のテスト）と違い blockId/anchorFrom/anchorTo/quote が応答に乗ることを確認する。
+func Test_コメントAPI_錨付きスレッド作成のレスポンス形(t *testing.T) {
+	f := newKbFixture(domain.PagePermission{CanView: true, CanComment: true}, kbUserID)
+	f.comments.addBlock(kbChildPageID, "block-1")
+	const body = `{"body":[{"type":"text","text":"hello"}],"blockId":"block-1","anchorFrom":3,"anchorTo":12,"quote":"錨付けされた引用文"}`
+
+	w := f.do(t, http.MethodPost, kbFill(kbCommentThreadsPath, kbWorkspaceSlug, kbChildPageID), body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	t.Logf("CreateThread(anchored) response: %s", w.Body.String())
+
+	assert.Contains(t, w.Body.String(), `"blockId":"block-1"`)
+	assert.Contains(t, w.Body.String(), `"anchorFrom":3`)
+	assert.Contains(t, w.Body.String(), `"anchorTo":12`)
+	assert.Contains(t, w.Body.String(), `"quote":"錨付けされた引用文"`)
+}
+
+// Test_コメントAPI_錨が不正な組み合わせなら400 は、一部だけ非nilの中途半端な入力
+// （ここでは blockId だけ）を domain.ErrInvalidCommentAnchor 経由で 400 invalid_comment_anchor に
+// マップすることを確認する。
+func Test_コメントAPI_錨が不正な組み合わせなら400(t *testing.T) {
+	f := newKbFixture(domain.PagePermission{CanView: true, CanComment: true}, kbUserID)
+	const body = `{"body":[{"type":"text","text":"hello"}],"blockId":"block-1"}`
+
+	w := f.do(t, http.MethodPost, kbFill(kbCommentThreadsPath, kbWorkspaceSlug, kbChildPageID), body)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"invalid_comment_anchor"}`, w.Body.String())
+}
+
+// Test_コメントAPI_他ページの実在するblockIdは400 は、handler越しでも他ページのブロックへ
+// 錨を張ろうとする書き込みが拒否されることを確認する（usecase/repositoryの検証がhandlerまで
+// きちんと配線されていることの確認）。
+func Test_コメントAPI_他ページの実在するblockIdは400(t *testing.T) {
+	f := newKbFixture(domain.PagePermission{CanView: true, CanComment: true}, kbUserID)
+	// kbRootPageID に実在することにしたブロックを、別ページ kbChildPageID への
+	// スレッド作成で錨として指定する。
+	f.comments.addBlock(kbRootPageID, "block-on-root")
+	const body = `{"body":[{"type":"text","text":"hello"}],"blockId":"block-on-root","anchorFrom":0,"anchorTo":5,"quote":"乗っ取り"}`
+
+	w := f.do(t, http.MethodPost, kbFill(kbCommentThreadsPath, kbWorkspaceSlug, kbChildPageID), body)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"invalid_comment_anchor"}`, w.Body.String())
 }

@@ -5,3 +5,6 @@ export { default as SaveStatusIndicator } from './SaveStatusIndicator';
 export type { SaveStatus } from './SaveStatusIndicator';
 export { emptyRichDoc, isRichDoc } from './emptyRichDoc';
 export type { RichDocContent } from './emptyRichDoc';
+export { resolveCommentAnchor } from './commentAnchor';
+export type { CommentAnchor } from './commentAnchor';
+export type { CommentBadgeCounts } from './commentBadges';

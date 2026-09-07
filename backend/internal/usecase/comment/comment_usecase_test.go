@@ -27,7 +27,7 @@ func Test_スレッド作成_成功時にスレッドとコメントが返る(t 
 	repo := &mockCommentRepo{}
 	thread := &domain.CommentThread{ID: cThread, WorkspaceID: cWS, PageID: cPage, CreatedByUserID: cAuthor}
 	c := &domain.Comment{ID: "comment-1", ThreadID: cThread, AuthorUserID: cAuthor, Body: validBody}
-	repo.On("CreateCommentThread", mock.Anything, cWS, cPage, cAuthor).Return(thread, nil)
+	repo.On("CreateCommentThread", mock.Anything, cWS, cPage, cAuthor, repository.CommentAnchor{}).Return(thread, nil)
 	repo.On("CreateComment", mock.Anything, cThread, cAuthor, validBody).Return(c, nil)
 	uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
 
@@ -49,7 +49,7 @@ func Test_スレッド作成_DoInTxが1回だけ呼ばれ両方がtxの中で行
 	repo := &mockCommentRepo{}
 	thread := &domain.CommentThread{ID: cThread, WorkspaceID: cWS, PageID: cPage, CreatedByUserID: cAuthor}
 	c := &domain.Comment{ID: "comment-1", ThreadID: cThread, AuthorUserID: cAuthor, Body: validBody}
-	repo.On("CreateCommentThread", mock.MatchedBy(inTx), cWS, cPage, cAuthor).Return(thread, nil)
+	repo.On("CreateCommentThread", mock.MatchedBy(inTx), cWS, cPage, cAuthor, repository.CommentAnchor{}).Return(thread, nil)
 	repo.On("CreateComment", mock.MatchedBy(inTx), cThread, cAuthor, validBody).Return(c, nil)
 	tx := &fakeTxManager{}
 	uc := comment.NewCreateCommentThreadUseCase(repo, tx)
@@ -60,6 +60,105 @@ func Test_スレッド作成_DoInTxが1回だけ呼ばれ両方がtxの中で行
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, tx.calls, "DoInTx は 1 回だけ（スレッド作成とコメント作成を 1 つの単位にまとめる）")
+	repo.AssertExpectations(t)
+}
+
+// --- CreateCommentThreadUseCase: 錨付き（FRESTYLE-432 段 3） ---
+
+// validAnchor は domain.ValidateCommentAnchor を通る最小の有効な錨。
+func validAnchor() repository.CommentAnchor {
+	blockID := "block-1"
+	from, to := 0, 5
+	quote := "引用文"
+	return repository.CommentAnchor{BlockID: &blockID, AnchorFrom: &from, AnchorTo: &to, Quote: &quote}
+}
+
+// 錨付きで成功: BlockExistsInPage=true のとき CreateCommentThread に Anchor が正しく渡ることを確認する。
+func Test_スレッド作成_錨付きで成功しAnchorがそのままCreateCommentThreadへ渡る(t *testing.T) {
+	repo := &mockCommentRepo{}
+	anchor := validAnchor()
+	thread := &domain.CommentThread{
+		ID: cThread, WorkspaceID: cWS, PageID: cPage, CreatedByUserID: cAuthor,
+		BlockID: anchor.BlockID, AnchorFrom: anchor.AnchorFrom, AnchorTo: anchor.AnchorTo, Quote: anchor.Quote,
+	}
+	c := &domain.Comment{ID: "comment-1", ThreadID: cThread, AuthorUserID: cAuthor, Body: validBody}
+	repo.On("BlockExistsInPage", mock.Anything, cWS, cPage, *anchor.BlockID).Return(true, nil)
+	repo.On("CreateCommentThread", mock.Anything, cWS, cPage, cAuthor, anchor).Return(thread, nil)
+	repo.On("CreateComment", mock.Anything, cThread, cAuthor, validBody).Return(c, nil)
+	uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
+
+	out, err := uc.Execute(context.Background(), comment.CreateCommentThreadInput{
+		WorkspaceID: cWS, PageID: cPage, AuthorUserID: cAuthor, Body: validBody, Anchor: anchor,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	assert.Equal(t, *thread, out.Thread)
+	repo.AssertExpectations(t)
+}
+
+// invalidAnchors は ValidateCommentAnchor が拒否する不正な形の一覧
+// （一部だけ非 nil の中途半端な組み合わせ）。usecase はこれらを repo を一切呼ばずに拒否する。
+var invalidAnchors = []struct {
+	name   string
+	anchor repository.CommentAnchor
+}{
+	{
+		name: "blockIDだけ指定",
+		anchor: func() repository.CommentAnchor {
+			id := "block-1"
+			return repository.CommentAnchor{BlockID: &id}
+		}(),
+	},
+	{
+		name: "anchorFromだけ欠落",
+		anchor: func() repository.CommentAnchor {
+			id := "block-1"
+			to := 5
+			quote := "引用"
+			return repository.CommentAnchor{BlockID: &id, AnchorTo: &to, Quote: &quote}
+		}(),
+	},
+}
+
+func Test_スレッド作成_錨が不正な形式ならrepoを一切呼ばずに拒否(t *testing.T) {
+	for _, tc := range invalidAnchors {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &mockCommentRepo{}
+			uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
+
+			_, err := uc.Execute(context.Background(), comment.CreateCommentThreadInput{
+				WorkspaceID: cWS, PageID: cPage, AuthorUserID: cAuthor, Body: validBody, Anchor: tc.anchor,
+			})
+
+			require.ErrorIs(t, err, domain.ErrInvalidCommentAnchor)
+			repo.AssertNotCalled(t, "BlockExistsInPage", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// BlockExistsInPage が false なら ErrInvalidCommentAnchor を返し、CreateCommentThread・
+// CreateComment は呼ばれない。
+//
+// 変異確認: comment_usecase.go の「in.Anchor.BlockID != nil のとき BlockExistsInPage を呼び
+// false なら拒否する」ブロックを一時的に削除すると、このテストは repo.AssertNotCalled で
+// 落ちる（BlockExistsInPage=false を無視して CreateCommentThread まで進んでしまうため）。
+// 削除後に元へ戻して green を確認済み。
+func Test_スレッド作成_BlockExistsInPageがfalseならErrInvalidCommentAnchorで拒否(t *testing.T) {
+	repo := &mockCommentRepo{}
+	anchor := validAnchor()
+	repo.On("BlockExistsInPage", mock.Anything, cWS, cPage, *anchor.BlockID).Return(false, nil)
+	uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
+
+	_, err := uc.Execute(context.Background(), comment.CreateCommentThreadInput{
+		WorkspaceID: cWS, PageID: cPage, AuthorUserID: cAuthor, Body: validBody, Anchor: anchor,
+	})
+
+	require.ErrorIs(t, err, domain.ErrInvalidCommentAnchor)
+	repo.AssertNotCalled(t, "CreateCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertExpectations(t)
 }
 

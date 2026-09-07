@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KbRepository, type KbCommentThread } from '@/entities/kb';
+import type { CommentAnchor } from '@/shared/ui/RichTextEditor';
 
 export interface KbCommentsState {
   threads: KbCommentThread[];
@@ -20,7 +21,7 @@ const EMPTY: KbCommentsState = {
 const LOAD_FAILED =
   'コメントを読み込めませんでした。通信が切れたか、このページを見る立場でなくなっています。開き直すと最新の状態が出ます。';
 
-/** どのページのコメントを、パネルが開いている状態で見ているか。応答が着地してよいかの判定にこれを使う。 */
+/** どのページのコメントを見ているか。応答が着地してよいかの判定にこれを使う。 */
 interface CommentsTarget {
   key: string;
   workspaceSlug: string;
@@ -30,10 +31,9 @@ interface CommentsTarget {
 function targetOf(
   workspaceSlug: string | undefined,
   pageId: string | undefined,
-  open: boolean,
 ): CommentsTarget | null {
-  // 閉じている間は取りに行かない（開いていないパネルのために毎ページ引かない。useKbShare と同じ思想）。
-  if (!open || !workspaceSlug || !pageId) return null;
+  // ページが決まっていなければ取りに行かない（未確定のページに対して引く意味が無い）。
+  if (!workspaceSlug || !pageId) return null;
   // 区切りに全角空白を使うのは、slug にも ID にも現れないため（useKbShare と同じ理由）。
   return { key: `${workspaceSlug} ${pageId}`, workspaceSlug, pageId };
 }
@@ -56,28 +56,29 @@ function applyResolutionState(
 /**
  * useKbComments はページ 1 枚のコメントスレッド（未解決・解決済み込み）を読み書きする。
  *
- * 設計は useKbShare と同じ思想 — パネルが開いている間だけ取りに行き、応答は
- * **要求を始めたときの宛先**（workspaceSlug + pageId + open の組）が今も見られている
- * ときだけ反映する。応答より先にページが変わったり、パネルを閉じたりしても、
- * 古い応答で新しい画面を上書きしない。宛先が無くなったら（閉じた・ページ未確定）
- * 状態も畳む — 残しておくと、次に開いた瞬間に前のページのスレッドが一瞬出る。
+ * **workspaceSlug と pageId が両方揃っていれば、パネルの開閉に関わらず常に取得する**
+ * （useKbPageDoc と同じ思想）。コメントが付いているブロックへ件数バッジ（RichTextEditor 側）
+ * を常時表示する都合上、パネルを開いていない間もスレッド一覧を保持しておく必要があるため
+ * — かつては「パネルが開いている間だけ取りに行く」設計だった（コメントを使わない人のために
+ * 毎ページ引かない最適化）が、バッジがエディタ側に出る以上その最適化は成り立たなくなった。
+ *
+ * 応答は **要求を始めたときの宛先**（workspaceSlug + pageId の組）が今も見られている
+ * ときだけ反映する。応答より先に別ページへ移っていたら、古い応答で新しい画面を
+ * 上書きしない。宛先が無くなったら（ページ未確定に戻った）状態も畳む — 残しておくと、
+ * 次にページが決まった瞬間に前のページのスレッドが一瞬出る。
  *
  * 作成・返信・解決・再開は、**成功した応答をそのまま使って該当箇所だけ更新する**
  * （一覧を丸ごと引き直さない）。すべて **失敗を投げる** — 知らせ（トースト）は
  * 呼び出し側（KbPage）が出す。
  */
-export function useKbComments(
-  workspaceSlug: string | undefined,
-  pageId: string | undefined,
-  open: boolean,
-) {
+export function useKbComments(workspaceSlug: string | undefined, pageId: string | undefined) {
   const [state, setState] = useState<KbCommentsState>(EMPTY);
 
   // いま見ている宛先。応答が着地してよいかをこれで判定する。
   const active = useRef<CommentsTarget | null>(null);
   // 要求の連番。宛先だけでは、同じ宛先への 2 本目が飛んでいる最中に 1 本目が着地して
   // 古い一覧で上書きされる取り違えを見分けられない（useKbShare と同じ理由）。
-  // パネルを閉じて同じページをすぐ開き直した場合も key は変わらないが、seq は
+  // ページを離れてすぐ同じページへ戻った場合も key は変わらないが、seq は
   // load() 自身の呼び出しで必ず進むため、mutate（後述）が古い書き込み応答を
   // 弾く判定にも流用できる（CodeRabbit 指摘: key の一致だけでは開き直しを見分けられない）。
   const seq = useRef(0);
@@ -86,7 +87,7 @@ export function useKbComments(
   // （CodeRabbit 指摘: 作成成功後に古い一覧応答が着地すると、作成済みスレッドが
   // 画面から消えてしまう。取得を丸ごと state に反映する前に、割り込みが無かったかを見る）。
   const writeCount = useRef(0);
-  const target = targetOf(workspaceSlug, pageId, open);
+  const target = targetOf(workspaceSlug, pageId);
   const targetKey = target?.key ?? null;
 
   const load = useCallback(async (to: CommentsTarget) => {
@@ -116,8 +117,8 @@ export function useKbComments(
   useEffect(() => {
     active.current = target;
     if (!target) {
-      // 閉じた・ページが決まっていない。連番を進めて、飛んでいる応答を無効にする
-      // （同じページをすぐ開き直しても、前回の応答は着地しない）。
+      // ページが決まっていない（未選択 or workspaceSlug/pageId のどちらかが欠けている）。
+      // 連番を進めて、飛んでいる応答を無効にする（同じページへすぐ戻っても、前回の応答は着地しない）。
       seq.current += 1;
       setState(EMPTY);
       return;
@@ -164,10 +165,12 @@ export function useKbComments(
     [],
   );
 
+  // anchor を渡すと「選択範囲へのコメント」（錨付き）になる。渡さなければ従来通り
+  // page-level のスレッドを作る（KbCommentsPanel の「新しいスレッドを作成」フォーム）。
   const createThread = useCallback(
-    (body: unknown[]) =>
+    (body: unknown[], anchor?: CommentAnchor) =>
       mutate(
-        (to) => KbRepository.createCommentThread(to.workspaceSlug, to.pageId, body),
+        (to) => KbRepository.createCommentThread(to.workspaceSlug, to.pageId, body, anchor),
         (prev, thread) => ({ ...prev, threads: [...prev.threads, thread] }),
       ),
     [mutate],

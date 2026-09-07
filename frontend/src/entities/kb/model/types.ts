@@ -241,6 +241,11 @@ export interface KbComment {
  *
  * resolvedAt が null なら未解決。解決済みでも resolvedBy が null なことはあり得る
  * （解決した本人が引けなくなった場合。行は落とさず ID 側の情報が空で来る想定）。
+ *
+ * blockId / anchorFrom / anchorTo / quote は「錨付きコメント」（本文の特定ブロック・
+ * 文字範囲を指すコメント）だけが持つ。4 つとも省略されている（キー自体が応答に無い）
+ * スレッドは page-level（ページ全体へのコメント）。backend は 4 つとも揃うかどれも
+ * 無いかのどちらかでしか返さない（片方だけ、という中間状態は無い）。
  */
 export interface KbCommentThread {
   id: string;
@@ -249,4 +254,12 @@ export interface KbCommentThread {
   resolvedBy: KbCommentAuthorRef | null;
   createdAt: string;
   comments: KbComment[];
+  /** 錨が指すブロックの安定 id（stableBlockId.ts が保証する attrs.id）。page-level には無い。 */
+  blockId?: string;
+  /** ブロックの内容開始位置からの相対オフセット（開始側）。commentAnchor.ts 参照。 */
+  anchorFrom?: number;
+  /** ブロックの内容開始位置からの相対オフセット（終了側）。 */
+  anchorTo?: number;
+  /** 錨を張った時点で選択されていた文字列。編集で錨がずれても人が読める手がかりとして残る。 */
+  quote?: string;
 }

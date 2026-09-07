@@ -64,6 +64,34 @@ func (q *Queries) AttachPageSubtreePaths(ctx context.Context, arg AttachPageSubt
 	return err
 }
 
+const blockExistsInPage = `-- name: BlockExistsInPage :one
+SELECT EXISTS (
+    SELECT 1 FROM blocks
+    WHERE workspace_id = $1 AND page_id = $2 AND id = $3
+) AS block_exists
+`
+
+type BlockExistsInPageParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	ID          uuid.UUID
+}
+
+// 与えた block_id が、本当にその workspace/page のブロックとして実在するかを 1 件返す。
+// 錨付きコメント（FRESTYLE-432 段 3）が comment_threads.block_id へ書き込む前に呼ぶ。
+//
+// block_id は blocks.id への単独 FK（PR1 参照）で page_id を含まない。そのため、
+// 「id が実在する」だけを確認しても、他ページ・他テナントのブロック id をそのまま
+// 錨として渡されると通ってしまう。ListExistingBlockIDsAmong → ErrBlockIDConflict と
+// 同じ種類の懸念（id 単独では所有者を保証できない）で、ここでは workspace_id / page_id
+// まで一致するかをまとめて確認することでそれを塞ぐ。
+func (q *Queries) BlockExistsInPage(ctx context.Context, arg BlockExistsInPageParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, blockExistsInPage, arg.WorkspaceID, arg.PageID, arg.ID)
+	var block_exists bool
+	err := row.Scan(&block_exists)
+	return block_exists, err
+}
+
 const deleteBlocksByIDs = `-- name: DeleteBlocksByIDs :exec
 DELETE FROM blocks
 WHERE workspace_id = $1 AND page_id = $2

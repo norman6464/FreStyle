@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { KbSidebar } from '@/widgets/kb-sidebar';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
-import { RichTextEditor, emptyRichDoc, isRichDoc, type EditorCommand } from '@/shared/ui/RichTextEditor';
+import {
+  RichTextEditor,
+  emptyRichDoc,
+  isRichDoc,
+  type EditorCommand,
+  type CommentAnchor,
+  type CommentBadgeCounts,
+} from '@/shared/ui/RichTextEditor';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/lib/hooks/useToast';
@@ -205,18 +212,29 @@ export default function KbPage() {
     shareOpen ? data?.page.id : undefined,
   );
 
-  // コメントパネルの開閉。共有パネルと同じ理由でページを移ったら必ず閉じる。
+  // コメントパネルの開閉。あくまで「パネルの見た目を出すかどうか」の UI 状態で、データ取得の
+  // トリガーではない（useKbComments はバッジ表示のため、開閉に関わらず常に取得する）。
+  // 共有パネルと同じ理由でページを移ったら必ず閉じる。
   const [commentsOpen, setCommentsOpen] = useState(false);
   useEffect(() => {
     setCommentsOpen(false);
   }, [pageId]);
-  const comments = useKbComments(data?.workspaceSlug, data?.page.id, commentsOpen);
+  const comments = useKbComments(data?.workspaceSlug, data?.page.id);
   const unresolvedCommentCount = comments.threads.filter((thread) => !thread.resolvedAt).length;
 
+  // 本文の選択範囲から作りかけの錨（バブルメニューの「コメント」ボタン経由）。
+  // ページを移ったら、前のページの選択に基づく作りかけを持ち越さない。
+  const [pendingAnchor, setPendingAnchor] = useState<CommentAnchor | null>(null);
+  useEffect(() => {
+    setPendingAnchor(null);
+  }, [pageId]);
+
   const handleCreateThread = useCallback(
-    async (body: unknown[]) => {
+    async (body: unknown[], anchor?: CommentAnchor) => {
       try {
-        await comments.createThread(body);
+        await comments.createThread(body, anchor);
+        // 送信できたら作りかけの錨を消す（同じ選択に対して二重に作れてしまわないように）。
+        setPendingAnchor(null);
       } catch (cause) {
         showToast('error', 'コメントを送信できませんでした');
         throw cause;
@@ -224,6 +242,10 @@ export default function KbPage() {
     },
     [comments, showToast],
   );
+
+  const handleCancelPendingAnchor = useCallback(() => {
+    setPendingAnchor(null);
+  }, []);
 
   const handleReplyToThread = useCallback(
     async (threadId: string, body: unknown[]) => {
@@ -260,6 +282,37 @@ export default function KbPage() {
     },
     [comments, showToast],
   );
+
+  // ブロックIDごとの未解決コメント件数（RichTextEditor 側の件数バッジ用）。解決済みは
+  // 数えない — バッジは「見に行く価値がある未解決」の目印であって、履歴の表示ではない。
+  const commentBadgeCounts = useMemo<CommentBadgeCounts>(() => {
+    const counts: CommentBadgeCounts = {};
+    for (const thread of comments.threads) {
+      if (thread.resolvedAt || !thread.blockId) continue;
+      counts[thread.blockId] = (counts[thread.blockId] ?? 0) + 1;
+    }
+    return counts;
+  }, [comments.threads]);
+
+  // バッジをクリックしたら、パネルを開いて該当スレッドまでスクロールする。パネルが
+  // 閉じていた場合、KbCommentsPanel（と中のスレッドカード）はこの後の再描画で初めて
+  // DOM に現れるため、スクロールは「パネルが開いた（＝commentsOpen）」と「まだ果たして
+  // いないスクロール先が有る」の両方が揃ってから行う（下の useEffect）。
+  const [scrollToThreadId, setScrollToThreadId] = useState<string | null>(null);
+  const handleCommentBadgeClick = useCallback(
+    (blockId: string) => {
+      const target = comments.threads.find((thread) => thread.blockId === blockId && !thread.resolvedAt);
+      setCommentsOpen(true);
+      setScrollToThreadId(target?.id ?? null);
+    },
+    [comments.threads],
+  );
+  useEffect(() => {
+    if (!commentsOpen || !scrollToThreadId) return;
+    // 凝ったハイライトは持たせない（最低限、見える位置まで運ぶだけで十分）。
+    document.getElementById(`comment-thread-${scrollToThreadId}`)?.scrollIntoView({ behavior: 'smooth' });
+    setScrollToThreadId(null);
+  }, [commentsOpen, scrollToThreadId]);
 
   const extraSlashCommands = useMemo<EditorCommand[]>(
     () => [
@@ -451,6 +504,12 @@ export default function KbPage() {
                 ariaLabel={`${data.page.title} の本文`}
                 extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
                 onNavigateToPage={(path) => navigate(path)}
+                onRequestComment={(anchor) => {
+                  setPendingAnchor(anchor);
+                  setCommentsOpen(true);
+                }}
+                commentBadgeCounts={commentBadgeCounts}
+                onCommentBadgeClick={handleCommentBadgeClick}
                 focusSignal={bodyFocusSignal}
                 onImageUpload={
                   data.canEdit
@@ -482,6 +541,8 @@ export default function KbPage() {
             loading={comments.loading}
             error={comments.error}
             canComment={data?.canComment ?? false}
+            pendingAnchor={pendingAnchor}
+            onCancelPendingAnchor={handleCancelPendingAnchor}
             onCreateThread={handleCreateThread}
             onReply={handleReplyToThread}
             onResolve={handleResolveThread}

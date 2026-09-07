@@ -22,6 +22,13 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
   Element.prototype.scrollTo = () => {};
 }
 
+// jsdom は Element.prototype.scrollIntoView も実装していない（呼ぶと
+// "... is not a function" で落ちる）。コメントバッジのクリック→該当スレッドまで
+// スクロール（KbPage）で使うため、同じ理由で no-op スタブを差し込む。
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // jsdom は Range/Element の getClientRects（と Range.getBoundingClientRect）を実装せず、
 // ProseMirror（tiptap）の scrollToSelection → coordsAtPos が非同期の unhandled error を起こす
 // （テスト自体は全部 pass するのに Vitest が exit 1 になる flaky の原因）。

@@ -220,6 +220,23 @@ export const KB_API = {
    */
   pagePrincipals: (workspaceSlug: string, pageId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/principals`,
+  /**
+   * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/comment-threads
+   *
+   * 一覧は作成日時昇順で、各スレッドは comments 配列を持つ。作成（POST）の応答も
+   * 同じ形（comments に作った最初の 1 件が入ったスレッド 1 件）。
+   */
+  commentThreads: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads`,
+  /** POST(返信の追加) — /api/v2/kb/workspaces/:slug/pages/:pageId/comment-threads/:threadId/comments */
+  comments: (workspaceSlug: string, pageId: string, threadId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/comments`,
+  /** POST(解決) — .../comment-threads/:threadId/resolve。更新後のスレッドを返す */
+  resolveCommentThread: (workspaceSlug: string, pageId: string, threadId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/resolve`,
+  /** POST(再開) — .../comment-threads/:threadId/reopen。更新後のスレッドを返す */
+  reopenCommentThread: (workspaceSlug: string, pageId: string, threadId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/reopen`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

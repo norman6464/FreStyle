@@ -28,6 +28,15 @@ interface SecondaryPanelProps {
   peekable?: boolean;
   /** peekable の表示モードを保存する localStorage キー（画面ごとに分ける）。 */
   storageKey?: string;
+  /**
+   * モバイルの固定パネルがどちら側からスライドインするか（既定 'left'）。
+   *
+   * デスクトップの表示（peekable / collapsible / 通常）は呼び出し側の DOM 順（flex の並び）
+   * で位置が決まるのでこの prop の影響を受けない。**モバイルだけ** 'fixed inset-y-0 left-0'
+   * に固定されていたので、右側の面（コメント等）を追加すると左のサイドバーと見分けが
+   * つかず両方「左からスライドイン」してしまう問題への対処。
+   */
+  side?: 'left' | 'right';
 }
 
 /** PanelTooltip は «/»/☰ に付けるホバー説明（ラベル＋ショートカット）。 */
@@ -190,7 +199,15 @@ export default function SecondaryPanel({
   onToggleCollapsed,
   peekable = false,
   storageKey,
+  side = 'left',
 }: SecondaryPanelProps) {
+  // モバイル固定パネルの位置・境界線・開閉時のスライド方向。左は既定（従来どおり）、
+  // 右は開いた面（コメント等）が右から出てくるようにする。
+  const mobileSide =
+    side === 'right'
+      ? { edge: 'right-0', border: 'border-l', closed: 'translate-x-full' }
+      : { edge: 'left-0', border: 'border-r', closed: '-translate-x-full' };
+
   return (
     <>
       {/* モバイルオーバーレイ */}
@@ -203,8 +220,8 @@ export default function SecondaryPanel({
 
       {/* モバイルパネル */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[var(--color-nav)] border-r border-surface-3 flex flex-col transform transition-transform duration-200 md:hidden ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 ${mobileSide.edge} z-50 w-72 bg-[var(--color-nav)] ${mobileSide.border} border-surface-3 flex flex-col transform transition-transform duration-200 md:hidden ${
+          mobileOpen ? 'translate-x-0' : mobileSide.closed
         }`}
       >
         <div className="px-4 py-3 border-b border-surface-3 flex items-center justify-between">

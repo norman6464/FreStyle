@@ -44,6 +44,9 @@ type PagePermission struct {
 	CanEdit bool `json:"canEdit"`
 	// CanManage はそのページの権限（grant / 共有リンク）を変えられるか。
 	CanManage bool `json:"canManage"`
+	// CanComment はコメントできるか（閲覧できて役割が commenter 以上。
+	// 共有リンク経由では常に false）。
+	CanComment bool `json:"canComment"`
 }
 
 // defaultAllows は届いた既定が指定のケイパビリティを許すかを返す。
@@ -107,7 +110,13 @@ func ResolvePagePermission(f PagePermissionFacts) PagePermission {
 	// （リンクの主体 ID は一覧の応答に載っている）。閲覧と編集はリンク自身のケイパビリティで
 	// 頭打ちになるが、管理だけは defaultAllows を通らないのでそこだけ抜けていた。
 	canManage := f.ShareLinkCapability == nil && f.Role != nil && f.Role.CanManage()
-	return PagePermission{CanView: canView, CanEdit: canEdit, CanManage: canManage}
+	// コメントも管理と同じく defaultAllows（Capability ベース）を通らない別軸の判定。
+	// **共有リンク経由では必ず false にする。** 共有リンクの来訪者は最初はコメント不可という
+	// 設計（domain.Capability に 'comment' を持たせていない理由と同じ）。
+	// canView と組み合わせるのは canEdit と同じ防御的な書き方の踏襲
+	// （いまの役割の並びでは commenter 以上は必ず view も持つので、結果は変わらない）。
+	canComment := canView && f.ShareLinkCapability == nil && f.Role != nil && f.Role.CanComment()
+	return PagePermission{CanView: canView, CanEdit: canEdit, CanManage: canManage, CanComment: canComment}
 }
 
 // Allows は実効権限が指定のケイパビリティを満たすかを返す。

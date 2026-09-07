@@ -154,6 +154,14 @@ export interface KbResolvedPage {
    * backend は一覧応答では解決しない — このページ単体の解決応答でだけ入る）。
    */
   cover?: KbResolvedCover | null;
+  /**
+   * このページにコメントできるか（新規スレッド作成・返信・解決・再開）。
+   *
+   * canEdit とは別の軸 — 編集はできないが読める・コメントできる相手が居る想定
+   * （既定の役割 commenter はコメントだけできて本文は編集できない）。
+   * false でもコメントパネル自体（読むこと）は誰でも見られる。書き込み系の UI だけを隠す。
+   */
+  canComment: boolean;
 }
 
 /** パンくず 1 段分（ページ ID と現在の題名）。 */
@@ -200,4 +208,45 @@ export interface KbGrantablePrincipal {
   id: string;
   kind: 'user' | 'group' | 'space_all';
   name: string;
+}
+
+/**
+ * コメントの投稿者・解決者などの参照 1 件。
+ *
+ * name は表示名で、**引けなければ空文字**（KbEditorRef / KbGrantablePrincipal と同じ約束）。
+ */
+export interface KbCommentAuthorRef {
+  userId: number;
+  name: string;
+}
+
+/**
+ * コメント 1 件。
+ *
+ * body は ProseMirror のインラインノードの配列（本文の RichDocContent とは別の、
+ * 段落 1 つぶんの中身だけを持つ軽い形）。装飾込みの描画は今回のスコープ外で、
+ * 各ノードの text フィールドだけを繋げてプレーンテキストとして表示すればよい。
+ */
+export interface KbComment {
+  id: string;
+  author: KbCommentAuthorRef;
+  body: unknown[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * コメントスレッド 1 件。comments は作成した最初の 1 件を含む（POST 直後の応答も
+ * GET 一覧の各要素も、この形で comments 配列を持つ）。
+ *
+ * resolvedAt が null なら未解決。解決済みでも resolvedBy が null なことはあり得る
+ * （解決した本人が引けなくなった場合。行は落とさず ID 側の情報が空で来る想定）。
+ */
+export interface KbCommentThread {
+  id: string;
+  createdBy: KbCommentAuthorRef;
+  resolvedAt: string | null;
+  resolvedBy: KbCommentAuthorRef | null;
+  createdAt: string;
+  comments: KbComment[];
 }

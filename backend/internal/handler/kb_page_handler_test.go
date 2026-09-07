@@ -45,6 +45,7 @@ type kbFixture struct {
 	perms       *kbFakePerms
 	provisioner *kbFakeProvisioner
 	users       *kbFakeUsers
+	comments    *kbFakeComments
 	presigner   *kbFakeImagePresigner
 	router      *gin.Engine
 }
@@ -87,13 +88,14 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
 	users := newKbFakeUsers()
+	comments := newKbFakeComments()
 	presigner := &kbFakeImagePresigner{}
-	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, fakeTxManager{}, presigner)
+	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, comments, fakeTxManager{}, presigner)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
-	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, users: users, presigner: presigner, router: r}
+	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, users: users, comments: comments, presigner: presigner, router: r}
 }
 
 func (f kbFixture) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
@@ -248,6 +250,7 @@ func kbRoutePattern(p string) string {
 	return strings.NewReplacer(
 		"{slug}", ":workspaceSlug",
 		"{page}", ":pageId",
+		"{thread}", ":threadId",
 		kbSpaceID, ":spaceId",
 	).Replace(p)
 }
@@ -299,6 +302,12 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 	// 表を分けてある。足したら kbPermissionEndpoints 側に足す。
 	for _, e := range kbPermissionEndpoints {
 		covered[e.method+" "+e.pattern] = true
+	}
+	// コメント API も判定の軸が違う（domain.Capability の view/edit ではなく
+	// domain.PagePermission.CanComment）ので表を分けてある。足したら
+	// comment_handler_test.go の kbCommentEndpoints 側に足す。
+	for _, e := range kbCommentEndpoints {
+		covered[e.method+" "+kbRoutePattern(e.path)] = true
 	}
 	covered[http.MethodPost+" "+kbShareLinkVerifyPath] = true
 
@@ -1440,6 +1449,32 @@ func Test_ナレッジAPI_IDだけの解決に最終編集者の名前が載る(
 	assert.Equal(t, kbUserID, res.LastEditedBy.UserID)
 	assert.Equal(t, "山田太郎", res.LastEditedBy.Name)
 	require.NotNil(t, res.LastEditedAt)
+}
+
+// Test_ナレッジAPI_IDだけの解決にcanCommentが載る は ResolveByID の応答の canComment が
+// domain.PagePermission.CanComment をそのまま映すことを固定する（フロントの書き込み系 UI
+// の出し分けが依存するフィールド。CheckPagePermissionUseCase が計算する値と handler が
+// JSON へ出す値がずれていないかをここで確かめる）。
+func Test_ナレッジAPI_IDだけの解決にcanCommentが載る(t *testing.T) {
+	t.Run("editor(CanEdit) は commenter 以上なので true で出る", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+
+		got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+		assert.True(t, res.CanComment)
+	})
+
+	t.Run("viewer(CanView だけ) は commenter 未満なので false で出る", func(t *testing.T) {
+		f := newKbFixture(kbCanView, kbUserID)
+
+		got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+		assert.False(t, res.CanComment)
+	})
 }
 
 // Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字 は、名前が引けなくても

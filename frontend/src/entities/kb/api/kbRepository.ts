@@ -3,6 +3,8 @@ import apiClient from '@/shared/api/axios';
 import { toArray } from '@/shared/lib/toArray';
 import { KB_API } from '@/shared/config/apiRoutes';
 import type {
+  KbComment,
+  KbCommentThread,
   KbEditorRef,
   KbGrantablePrincipal,
   KbGrantRole,
@@ -27,6 +29,31 @@ import type {
  * 「無い」と「見えない」はどちらも 404 で返る（撃ち分けると ID の総当たりで実在が分かるため）。
  * したがって 404 を「あなたには見えません」と表示してはいけない。存在しないかもしれない。
  */
+/**
+ * comment-threads 系エンドポイントの生の応答形。
+ *
+ * backend は resolvedAt / resolvedBy を Go の `*time.Time` / ポインタ + `omitempty` で
+ * 返すため、**未解決のスレッドではキー自体が応答に無い**（`null` ではなく丸ごと欠ける）。
+ * entities/kb の KbCommentThread は `string | null` / `… | null` で固定しているので、
+ * ここで正規化する（呼び出し側が `=== null` で判定できるようにするため）。
+ */
+type KbCommentThreadWire = Omit<KbCommentThread, 'resolvedAt' | 'resolvedBy' | 'comments'> & {
+  resolvedAt?: string | null;
+  resolvedBy?: KbCommentThread['resolvedBy'];
+  comments?: KbComment[];
+};
+
+function normalizeCommentThread(raw: KbCommentThreadWire): KbCommentThread {
+  return {
+    id: raw.id,
+    createdBy: raw.createdBy,
+    createdAt: raw.createdAt,
+    resolvedAt: raw.resolvedAt ?? null,
+    resolvedBy: raw.resolvedBy ?? null,
+    comments: toArray<KbComment>(raw.comments),
+  };
+}
+
 const KbRepository = {
   /** 自分が所属しているワークスペースの一覧。所属が無ければ空配列。 */
   async fetchWorkspaces(): Promise<KbWorkspace[]> {
@@ -391,6 +418,82 @@ const KbRepository = {
       KB_API.pageCover(workspaceSlug, pageId),
     );
     return res.data;
+  },
+
+  /**
+   * ページに張られたコメントスレッドの一覧（作成日時昇順）。各スレッドは comments 配列
+   * 込みで返る。読むことは canComment に関わらず誰でもできる（書き込み系だけが絞られる）。
+   * **失敗は例外として投げる。**
+   */
+  async listCommentThreads(workspaceSlug: string, pageId: string): Promise<KbCommentThread[]> {
+    const res = await apiClient.get<{ threads: KbCommentThreadWire[] }>(
+      KB_API.commentThreads(workspaceSlug, pageId),
+    );
+    return toArray<KbCommentThreadWire>(res.data?.threads).map(normalizeCommentThread);
+  },
+
+  /**
+   * 新しいコメントスレッドを作る。body は ProseMirror のインラインノードの配列。
+   * 作成した最初の 1 件を含むスレッドが返る。コメント権限が要る。**失敗は例外として投げる。**
+   */
+  async createCommentThread(
+    workspaceSlug: string,
+    pageId: string,
+    body: unknown[],
+  ): Promise<KbCommentThread> {
+    const res = await apiClient.post<KbCommentThreadWire>(
+      KB_API.commentThreads(workspaceSlug, pageId),
+      { body },
+    );
+    return normalizeCommentThread(res.data);
+  },
+
+  /**
+   * スレッドへ返信を 1 件足す。追加した comment 自身（スレッド全体ではない）が返る。
+   * コメント権限が要る。**失敗は例外として投げる。**
+   */
+  async addComment(
+    workspaceSlug: string,
+    pageId: string,
+    threadId: string,
+    body: unknown[],
+  ): Promise<KbComment> {
+    const res = await apiClient.post<KbComment>(
+      KB_API.comments(workspaceSlug, pageId, threadId),
+      { body },
+    );
+    return res.data;
+  },
+
+  /**
+   * スレッドを解決済みにする。更新後のスレッドを返す。**comments は空で返る**
+   * （backend の Resolve/Reopen ハンドラは発言を引き直さない設計 — 呼び出し側で
+   * 手元の comments を上書きしないこと）。**失敗は例外として投げる。**
+   */
+  async resolveCommentThread(
+    workspaceSlug: string,
+    pageId: string,
+    threadId: string,
+  ): Promise<KbCommentThread> {
+    const res = await apiClient.post<KbCommentThreadWire>(
+      KB_API.resolveCommentThread(workspaceSlug, pageId, threadId),
+    );
+    return normalizeCommentThread(res.data);
+  },
+
+  /**
+   * 解決済みのスレッドを未解決へ戻す。更新後のスレッドを返す。**comments は空で返る**
+   * （resolveCommentThread と同じ注意）。**失敗は例外として投げる。**
+   */
+  async reopenCommentThread(
+    workspaceSlug: string,
+    pageId: string,
+    threadId: string,
+  ): Promise<KbCommentThread> {
+    const res = await apiClient.post<KbCommentThreadWire>(
+      KB_API.reopenCommentThread(workspaceSlug, pageId, threadId),
+    );
+    return normalizeCommentThread(res.data);
   },
 };
 

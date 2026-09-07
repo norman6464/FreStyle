@@ -29,6 +29,11 @@ const hoisted = vi.hoisted(() => ({
   createPage: vi.fn(),
   listPageGrants: vi.fn(),
   listGrantablePrincipals: vi.fn(),
+  listCommentThreads: vi.fn(),
+  createCommentThread: vi.fn(),
+  addComment: vi.fn(),
+  resolveCommentThread: vi.fn(),
+  reopenCommentThread: vi.fn(),
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
   fetchPageTree: vi.fn(),
@@ -63,6 +68,11 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       createPage: hoisted.createPage,
       listPageGrants: hoisted.listPageGrants,
       listGrantablePrincipals: hoisted.listGrantablePrincipals,
+      listCommentThreads: hoisted.listCommentThreads,
+      createCommentThread: hoisted.createCommentThread,
+      addComment: hoisted.addComment,
+      resolveCommentThread: hoisted.resolveCommentThread,
+      reopenCommentThread: hoisted.reopenCommentThread,
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
       fetchPageTree: hoisted.fetchPageTree,
@@ -108,7 +118,7 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
   };
 });
 
-const resolved = (canEdit: boolean, canManage = false) => ({
+const resolved = (canEdit: boolean, canManage = false, canComment = true) => ({
   workspaceSlug: 'w-3f2a9c',
   workspaceName: '開発チーム',
   ancestors: [{ id: 'anc-1', title: '親ページの親' }],
@@ -123,6 +133,7 @@ const resolved = (canEdit: boolean, canManage = false) => ({
   doc: { type: 'doc', content: [] },
   canEdit,
   canManage,
+  canComment,
 });
 
 /** /page の run に渡す最小のエディタ（createSubpage が使う形だけ）。 */
@@ -148,6 +159,7 @@ beforeEach(() => {
   hoisted.resolvePage.mockResolvedValue(resolved(true));
   hoisted.listPageGrants.mockResolvedValue([]);
   hoisted.listGrantablePrincipals.mockResolvedValue([]);
+  hoisted.listCommentThreads.mockResolvedValue([]);
 });
 
 describe('KbPage の配線', () => {
@@ -614,6 +626,65 @@ describe('KbPage の共有', () => {
     fireEvent.click(within(panel).getByLabelText('共有を閉じる'));
 
     await waitFor(() => expect(screen.queryByRole('region', { name: '共有' })).not.toBeInTheDocument());
+  });
+});
+
+describe('KbPage のコメント', () => {
+  const thread = (id: string, resolvedAt: string | null = null) => ({
+    id,
+    createdBy: { userId: 1, name: '田中 太郎' },
+    resolvedAt,
+    resolvedBy: resolvedAt ? { userId: 2, name: '鈴木 花子' } : null,
+    createdAt: '2026-09-01T00:00:00Z',
+    comments: [
+      {
+        id: `${id}-c1`,
+        author: { userId: 1, name: '田中 太郎' },
+        body: [{ type: 'text', text: 'これは何ですか？' }],
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+      },
+    ],
+  });
+
+  it('開くまでコメントは取りに行かない。開くと未解決件数がバッジで出る', async () => {
+    hoisted.listCommentThreads.mockResolvedValue([thread('t1'), thread('t2', '2026-09-02T00:00:00Z')]);
+    renderPage();
+
+    const toggle = await screen.findByRole('button', { name: 'コメント' });
+    expect(hoisted.listCommentThreads).not.toHaveBeenCalled();
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(hoisted.listCommentThreads).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+
+    // 未解決 1 件（もう 1 件は解決済み）でバッジが出る。
+    expect(await screen.findByRole('button', { name: 'コメント (未解決 1 件)' })).toBeInTheDocument();
+    expect(screen.getAllByText('未解決（1）').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('解決済み（1）').length).toBeGreaterThan(0);
+  });
+
+  it('もう一度押すと閉じる', async () => {
+    renderPage();
+    const toggle = await screen.findByRole('button', { name: 'コメント' });
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(hoisted.listCommentThreads).toHaveBeenCalled());
+    expect(screen.getAllByText('まだコメントはありません。').length).toBeGreaterThan(0);
+
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(screen.queryAllByText('まだコメントはありません。').length).toBe(0),
+    );
+  });
+
+  it('コメント権限が無ければ読めるが、作成フォームは出ない', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true, false, false));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'コメント' }));
+    await waitFor(() => expect(hoisted.listCommentThreads).toHaveBeenCalled());
+
+    expect(screen.queryAllByPlaceholderText('コメントを書く…').length).toBe(0);
   });
 });
 

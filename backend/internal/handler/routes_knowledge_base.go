@@ -9,6 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
 	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/comment"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -46,6 +47,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewShareLinkRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
 		persistence.NewUserRepository(deps.db),
+		persistence.NewCommentRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 		newKbImagePresignerOrFallback(deps),
 	)
@@ -97,6 +99,7 @@ func registerKnowledgeBaseRoutesWith(
 	shareLinks repository.ShareLinkRepository,
 	provisioner repository.WorkspaceProvisioner,
 	users repository.UserRepository,
+	comments repository.CommentRepository,
 	txManager repository.TxManager,
 	kbImagePresigner repository.KbImagePresigner,
 ) {
@@ -123,6 +126,19 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewIssuePageImageDownloadURLUseCase(pages, kbImagePresigner),
 		kb.NewSetPageCoverUseCase(pages),
 		kb.NewResolveCoverURLUseCase(kbImagePresigner),
+	)
+
+	// ページ全体へのコメント（FRESTYLE-432 段 2）。認可は CommentHandler 内で
+	// CheckPagePermissionUseCase を直接使う（CanComment / CanView の判定は
+	// requireCommentPermission / requirePagePermissionWith を参照）。
+	ch := NewCommentHandler(
+		kb.NewCheckPagePermissionUseCase(permissions),
+		comment.NewCreateCommentThreadUseCase(comments, txManager),
+		comment.NewAddCommentUseCase(comments),
+		comment.NewListCommentThreadsUseCase(comments),
+		comment.NewResolveCommentThreadUseCase(comments),
+		comment.NewReopenCommentThreadUseCase(comments),
+		kb.NewLookupUserNameUseCase(users),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
@@ -228,6 +244,14 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/images/download-url", h.IssueImageDownloadURL)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.SetCover)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.ClearCover)
+
+	// ページ全体へのコメント（FRESTYLE-432 段 2）。一覧は CanView だけで許可し、
+	// 作成・返信・解決・再開は CanComment を要求する（CommentHandler.requireCommentPermission）。
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads", ch.CreateThread)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads", ch.ListThreads)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/comments", ch.AddComment)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/resolve", ch.Resolve)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/reopen", ch.Reopen)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。

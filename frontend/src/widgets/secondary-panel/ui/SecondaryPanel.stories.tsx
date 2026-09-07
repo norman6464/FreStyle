@@ -101,3 +101,31 @@ export const 折りたたみ式: Story = {
     children: <PanelBody />,
   },
 };
+
+/**
+ * モバイルで `side="right"` にすると、固定パネルが右からスライドインする。
+ *
+ * 既定（'left'）のままだと、コメントのような右側の面を追加したとき、モバイルでは
+ * 左サイドバーと見分けがつかず両方「左から」出てしまう。右側の面はこちらを指定する。
+ */
+export const モバイルで右から出る: Story = {
+  args: {
+    title: 'コメント',
+    mobileOpen: true,
+    side: 'right',
+    children: <PanelBody />,
+  },
+  globals: { viewport: { value: 'mobile1', isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 閉じるボタンはどちら側でも同じ（位置だけが変わる）。デスクトップ表示は
+    // この幅では隠れているので、実際に見えているのはモバイル固定パネルの 1 つだけ。
+    await expect(canvas.getByLabelText('パネルを閉じる')).toBeVisible();
+
+    // 右からスライドインしている（既定の left-0 ではなく right-0）。
+    const mobilePanel = canvasElement.querySelector('.inset-y-0');
+    await expect(mobilePanel).not.toBeNull();
+    await expect(mobilePanel?.className).toContain('right-0');
+    await expect(mobilePanel?.className).not.toContain('left-0');
+  },
+};

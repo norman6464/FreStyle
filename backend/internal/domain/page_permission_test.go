@@ -299,3 +299,51 @@ func Test_ページ権限_管理は役割だけで決まる(t *testing.T) {
 		assert.False(t, domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true}).CanManage)
 	})
 }
+
+// コメントできるかは commenter 以上の役割 + 共有リンク経由ではないこと、で決まる
+// （役割は必ず閲覧も含むので canView との掛け合わせは結果を変えないが、canEdit と同じ
+// 防御的な書き方を踏襲している）。
+func Test_ページ権限_コメントできるか(t *testing.T) {
+	cases := []struct {
+		name string
+		role *domain.GrantRole
+		want bool
+	}{
+		{name: "commenter はコメントできる", role: role(domain.GrantRoleCommenter), want: true},
+		{name: "editor はコメントできる", role: role(domain.GrantRoleEditor), want: true},
+		{name: "admin はコメントできる", role: role(domain.GrantRoleAdmin), want: true},
+		{name: "viewer はコメントできない", role: role(domain.GrantRoleViewer), want: false},
+		{name: "役割が無ければコメントできない", role: nil, want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true, Role: tc.role})
+			assert.Equal(t, tc.want, got.CanComment)
+		})
+	}
+
+	t.Run("共有リンク経由は役割に関わらずコメントできない", func(t *testing.T) {
+		for _, cap := range domain.ValidCapabilities {
+			c := cap
+			got := domain.ResolvePagePermission(domain.PagePermissionFacts{ShareLinkCapability: &c})
+			assert.False(t, got.CanComment, "capability=%s", c)
+		}
+	})
+
+	// ResolvePagePermission 自身のコメント（付与の口は主体の実在しか確かめず種類を見ないので、
+	// リンクの主体へ admin 相当の役割が実際に張れる）が挙げる、まさにその状態を作って確かめる。
+	// 上の「共有リンク経由は…」のケースは Role が常に nil なので、
+	// `f.Role != nil` の判定だけで既に false になり、`f.ShareLinkCapability == nil` の
+	// 判定が本当に効いているかはそれだけでは分からない（無くても通ってしまう）。
+	// ここは Role と ShareLinkCapability を **両方** 立てて、その判定が実際に効いていることを
+	// 固定する（CanManage も同じ形の防御を持つ・同じ理由でここに書ける）。
+	t.Run("共有リンクの主体にadmin役割が届いていてもコメントできない", func(t *testing.T) {
+		admin := domain.GrantRoleAdmin
+		editCap := domain.CapabilityEdit
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{
+			Role: &admin, ShareLinkCapability: &editCap,
+		})
+		assert.False(t, got.CanComment)
+		assert.False(t, got.CanManage, "同じ理由でCanManageも道連れで確かめる")
+	})
+}

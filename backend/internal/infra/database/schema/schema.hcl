@@ -944,6 +944,151 @@ table "page_snapshots" {
   }
 }
 
+# comment_threads: ページ（または将来ブロック）に付いたコメントのスレッド。
+# FRESTYLE-432 段 2 の時点では「ページ全体へのコメント」だけを作る経路しか無く、
+# block_id / anchor_from / anchor_to / quote は常に NULL のまま作られる
+# （書き込み経路は段 3・錨付きコメントで足す）。
+table "comment_threads" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  # 単独 FK（block_id だけを参照列にする）。もし workspace_id/page_id も含めた複合 FK に
+  # すると、ON DELETE SET NULL が発火したとき workspace_id/page_id まで NULL になってしまう
+  # （このスレッドがどのページのものか分からなくなる）。block_id が「本当に同じページの
+  # ブロックか」はこの FK だけでは保証されない（アプリ側で検証する）。段3（錨付きコメント）で
+  # 書き込み経路ができるまで、block_id は常に NULL（このPRでは NULL しか作らない）。
+  column "block_id" {
+    null = true
+    type = uuid
+  }
+  # 文字範囲での錨付け（段3）。両方あるか両方無いかを CHECK で縛る。
+  column "anchor_from" {
+    null = true
+    type = int
+  }
+  column "anchor_to" {
+    null = true
+    type = int
+  }
+  # 錨付けした時点の引用文。ブロックが消えて block_id が NULL に落ちても quote だけは残す
+  # （段3）。
+  column "quote" {
+    null = true
+    type = text
+  }
+  # 解決済みなら resolved_at/resolved_by_user_id の両方が入る（両方あるか両方無いかを CHECK）。
+  column "resolved_at" {
+    null = true
+    type = timestamptz
+  }
+  column "resolved_by_user_id" {
+    null = true
+    type = bigint
+  }
+  # pages.created_by_user_id と同じ理由で users への FK は張らない（users への FK 有無は
+  # このリポジトリで表ごとに割れており、pages 側の慣習に合わせる）。
+  column "created_by_user_id" {
+    null = false
+    type = bigint
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  foreign_key "fk_comment_threads_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_comment_threads_block" {
+    columns     = [column.block_id]
+    ref_columns = [table.blocks.column.id]
+    on_update   = NO_ACTION
+    on_delete   = SET_NULL
+  }
+  index "idx_comment_threads_page" {
+    columns = [column.workspace_id, column.page_id]
+  }
+  index "idx_comment_threads_block" {
+    columns = [column.block_id]
+  }
+  check "ck_comment_threads_anchor_pair" {
+    expr = "(anchor_from IS NULL) = (anchor_to IS NULL)"
+  }
+  check "ck_comment_threads_resolved_pair" {
+    expr = "(resolved_at IS NULL) = (resolved_by_user_id IS NULL)"
+  }
+}
+
+# comments: スレッドに付いた 1 件の発言（スレッドを開いた最初の発言も返信も同じ形で持つ）。
+table "comments" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "thread_id" {
+    null = false
+    type = uuid
+  }
+  column "author_user_id" {
+    null = false
+    type = bigint
+  }
+  # blocks.inline と同じ形（ProseMirror インラインノードの配列）。段落 1 つぶんの本文。
+  column "body" {
+    null = false
+    type = jsonb
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  # スレッドが消えれば返信も消える（スレッド削除 API はこの PR には無いが、将来の
+  # 管理操作・掃除のための安全網として付けておく）。
+  foreign_key "fk_comments_thread" {
+    columns     = [column.thread_id]
+    ref_columns = [table.comment_threads.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_comments_thread" {
+    columns = [column.thread_id]
+  }
+  check "ck_comments_body_array" {
+    expr = "jsonb_typeof(body) = 'array'::text"
+  }
+}
+
 # =====================================================================
 # ナレッジの権限（principals / grants / share_links）
 # =====================================================================

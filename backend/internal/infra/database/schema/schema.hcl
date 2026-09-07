@@ -719,10 +719,10 @@ table "pages" {
   # icon / cover は種類ごとの構造を持つオブジェクトに限る。配列や文字列を許すと
   # 応答の型（kbPageIconResponse 等）が「object のはず」という前提で読めなくなる。
   check "ck_pages_icon_object" {
-    expr = "(icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text)"
+    expr = "(icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text AND icon <> '{}'::jsonb)"
   }
   check "ck_pages_cover_object" {
-    expr = "(cover IS NULL) OR (jsonb_typeof(cover) = 'object'::text)"
+    expr = "(cover IS NULL) OR (jsonb_typeof(cover) = 'object'::text AND cover <> '{}'::jsonb)"
   }
 }
 

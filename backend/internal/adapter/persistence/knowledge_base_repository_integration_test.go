@@ -638,6 +638,31 @@ func TestKnowledgeBasePageLastEditedBy_Integration(t *testing.T) {
 	assert.Equal(t, editorID, *afterRename.LastEditedByUserID, "改名では最終編集者は変わらない")
 }
 
+// TestKnowledgeBaseTouchLastEditedByRejectsArchived_Integration は、アーカイブ済みページへの
+// TouchPageLastEditedBy が repository.ErrPageNotFound で拒否されることを固定する
+// （CodeRabbit 指摘: ReplacePageBlocksUseCase の ArchivedAt 確認と DoInTx の間で別トランザクションが
+// アーカイブを commit する競合を、SQL の WHERE 句 archived_at IS NULL で塞ぐ）。
+func TestKnowledgeBaseTouchLastEditedByRejectsArchived_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	uc := newKbUseCases(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
+
+	ws := createWorkspace(t, sqlDB, "ws-touch-archived")
+	space := createSpace(t, sqlDB, ws, "eng")
+	page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ")
+
+	require.NoError(t, uc.archive.Execute(ctx, kb.ArchivePageInput{WorkspaceID: ws, PageID: page.ID}))
+
+	err := repo.TouchPageLastEditedBy(ctx, ws, page.ID, 9)
+	require.ErrorIs(t, err, repository.ErrPageNotFound, "アーカイブ済みは archived_at IS NULL で 0 行になり ErrPageNotFound になる")
+
+	got, err := repo.FindPage(ctx, ws, page.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.LastEditedByUserID, "拒否されているので最終編集者は記録されない")
+}
+
 // TestKnowledgeBasePageIcon_Integration はアイコンの設定と解除が jsonb を往復することを固定する。
 // jsonb はキー順を並べ替えるため、文字列一致ではなく struct で比較する。
 func TestKnowledgeBasePageIcon_Integration(t *testing.T) {

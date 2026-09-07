@@ -975,7 +975,7 @@ func (q *Queries) SiblingPositionsAround(ctx context.Context, arg SiblingPositio
 const touchPageLastEditedBy = `-- name: TouchPageLastEditedBy :execrows
 UPDATE pages
 SET last_edited_by_user_id = $1::bigint, updated_at = now()
-WHERE workspace_id = $2 AND id = $3
+WHERE workspace_id = $2 AND id = $3 AND archived_at IS NULL
 `
 
 type TouchPageLastEditedByParams struct {
@@ -989,6 +989,9 @@ type TouchPageLastEditedByParams struct {
 // 同時保存はここで直列化される（先着が blocks を消し終えるまで後着はここで待つ）。
 // 先に呼ばないと、2 つの保存が pages のロックを取らずに blocks へ同時に触り、
 // 「片方の全消しの後にもう片方の全入れ」のような順序で本文が混ざり得る。
+// archived_at IS NULL も見るのは、呼び出し側の FindPage によるアーカイブ確認から
+// ここまでの間に別トランザクションがアーカイブを commit する競合を塞ぐため。
+// 該当 0 行なら既存の ErrPageNotFound 経路で保存トランザクション全体を中止する。
 func (q *Queries) TouchPageLastEditedBy(ctx context.Context, arg TouchPageLastEditedByParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, touchPageLastEditedBy, arg.UserID, arg.WorkspaceID, arg.ID)
 	if err != nil {

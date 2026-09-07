@@ -203,9 +203,12 @@ RETURNING *;
 -- 同時保存はここで直列化される（先着が blocks を消し終えるまで後着はここで待つ）。
 -- 先に呼ばないと、2 つの保存が pages のロックを取らずに blocks へ同時に触り、
 -- 「片方の全消しの後にもう片方の全入れ」のような順序で本文が混ざり得る。
+-- archived_at IS NULL も見るのは、呼び出し側の FindPage によるアーカイブ確認から
+-- ここまでの間に別トランザクションがアーカイブを commit する競合を塞ぐため。
+-- 該当 0 行なら既存の ErrPageNotFound 経路で保存トランザクション全体を中止する。
 UPDATE pages
 SET last_edited_by_user_id = sqlc.arg(user_id)::bigint, updated_at = now()
-WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id) AND archived_at IS NULL;
 
 -- name: SetPagePosition :execrows
 -- position の振り直し（アーカイブ復帰で衝突したときの末尾再採番用）。

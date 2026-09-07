@@ -414,6 +414,7 @@ func Test_本文書き換え_最終編集者の記録に失敗したら本文を
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
 	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
 }
 
 // Test_本文書き換え_編集者が未指定なら拒否 は EditorUserID の 0 値（未指定）を repository を

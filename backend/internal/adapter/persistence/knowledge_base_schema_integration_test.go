@@ -392,6 +392,14 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		_, err = db.Exec(`UPDATE pages SET cover = '[]'::jsonb WHERE id = $1`, page)
 		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_cover_object")
 
+		// 空 object も弾く。型は object のままなので jsonb_typeof だけでは通ってしまい、
+		// toDomainPage が {"type":"","value":""} というゼロ値の非 nil PageIcon を作ってしまう。
+		_, err = db.Exec(`UPDATE pages SET icon = '{}'::jsonb WHERE id = $1`, page)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_icon_object")
+
+		_, err = db.Exec(`UPDATE pages SET cover = '{}'::jsonb WHERE id = $1`, page)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_cover_object")
+
 		// NULL（未設定）と正しい object 形は通ること。
 		_, err = db.Exec(`UPDATE pages SET icon = '{"type":"emoji","value":"📘"}'::jsonb WHERE id = $1`, page)
 		require.NoError(t, err)

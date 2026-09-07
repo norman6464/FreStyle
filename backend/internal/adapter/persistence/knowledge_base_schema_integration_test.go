@@ -31,7 +31,10 @@ const (
 var kbTables = []string{
 	"share_links", "page_grants", "space_grants", "workspace_grants",
 	"principal_members", "principals",
-	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
+	// page_search / page_links（FRESTYLE-434 段 4）は blocks / pages への CASCADE FK を
+	// 持つため、blocks・pages を TRUNCATE ... CASCADE すれば自動的に一緒に空になるが、
+	// page_snapshots と同じく明示しておく（この表の作法に揃える）。
+	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "pages", "spaces", "workspaces",
 }
 
 // TestKnowledgeBaseSchema_Integration は明示 DDL（infra/database/schema/knowledge_base.sql）が
@@ -490,9 +493,11 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
-		createBlock(t, db, ws, page, nil, "V", domain.BlockTypeParagraph)
+		block := createBlock(t, db, ws, page, nil, "V", domain.BlockTypeParagraph)
 		createPagePath(t, db, ws, page, page, 0)
 		createPageSnapshot(t, db, page)
+		createPageSearch(t, db, ws, page)
+		createPageLink(t, db, block, page)
 		seedPermissionRows(t, db, ws, space, page)
 		for _, table := range kbTables {
 			require.NotZerof(t, countRows(t, db, table), "%s に検証用の行が入っていること", table)
@@ -676,6 +681,36 @@ func insertPageSnapshot(db *sql.DB, pageID, doc string) error {
 func createPageSnapshot(t *testing.T, db *sql.DB, pageID string) {
 	t.Helper()
 	require.NoError(t, insertPageSnapshot(db, pageID, `{"type":"doc","content":[]}`))
+}
+
+// insertPageSearch / createPageSearch は page_search（FRESTYLE-434 段 4）へ検証用の行を入れる。
+// UpsertPageSearch と同じ形（page_id, workspace_id, title, body）で、TruncateAll の
+// 掃除漏れを見つけるためだけに使う（本物の抽出ロジックは usecase/kb 側で検証する）。
+func insertPageSearch(db *sql.DB, workspaceID, pageID string) error {
+	_, err := db.Exec(
+		`INSERT INTO page_search (page_id, workspace_id, title, body) VALUES ($1, $2, $3, $4)`,
+		pageID, workspaceID, "検証用ページ", "検証用の本文",
+	)
+	return err
+}
+
+func createPageSearch(t *testing.T, db *sql.DB, workspaceID, pageID string) {
+	t.Helper()
+	require.NoError(t, insertPageSearch(db, workspaceID, pageID))
+}
+
+// insertPageLink / createPageLink は page_links（FRESTYLE-434 段 4）へ検証用の行を入れる。
+func insertPageLink(db *sql.DB, sourceBlockID, targetPageID string) error {
+	_, err := db.Exec(
+		`INSERT INTO page_links (source_block_id, target_page_id) VALUES ($1, $2)`,
+		sourceBlockID, targetPageID,
+	)
+	return err
+}
+
+func createPageLink(t *testing.T, db *sql.DB, sourceBlockID, targetPageID string) {
+	t.Helper()
+	require.NoError(t, insertPageLink(db, sourceBlockID, targetPageID))
 }
 
 func countRows(t *testing.T, db *sql.DB, table string) int {

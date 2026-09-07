@@ -71,6 +71,24 @@ export interface KbPage {
 }
 
 /**
+ * 検索結果 1 件（KbPage に一致箇所の情報を足したもの）。
+ *
+ * matchField が "title" なら題名の一致（従来の検索と同じ）。"body" なら本文中の一致で、
+ * このときだけ excerpt（一致箇所の前後 30 文字程度の抜粋）・matchStart・matchLen が付く。
+ * matchStart / matchLen は **excerpt 文字列内での**一致開始位置と長さ（ページ本文全体での
+ * 位置ではない）— 抜粋の中の一致箇所を `<mark>` 等で強調するために使う。
+ *
+ * 4 つとも任意（omitempty 相当）。バックエンドの実装がまだ揺れている段階のフィールドで、
+ * 旧応答（4 つとも無い）でも画面が落ちないようにする。
+ */
+export interface KbSearchResult extends KbPage {
+  matchField?: 'title' | 'body';
+  excerpt?: string;
+  matchStart?: number;
+  matchLen?: number;
+}
+
+/**
  * ツリーの 1 ノード。
  *
  * hasHiddenChildren は「この段の直下に、自分には見えないページが在るか」。

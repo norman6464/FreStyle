@@ -288,7 +288,36 @@ func (u *CanEditPageSubtreeUseCase) Execute(ctx context.Context, in CanEditPageS
 	return true, nil
 }
 
-// SearchViewablePagesUseCase はワークスペース全体を題名で検索し、閲覧できるページだけを返す。
+// SearchMatchFieldTitle / SearchMatchFieldBody は SearchViewablePageResult.MatchField の値。
+// どちらでヒットしたかをフロントが区別する（題名一致は抜粋を出さない・本文一致は
+// 抜粋とヒット位置を出す）。
+const (
+	SearchMatchFieldTitle = "title"
+	SearchMatchFieldBody  = "body"
+)
+
+// searchExcerptWindowRunes は本文一致の抜粋で、ヒット位置の前後に残す rune 数。
+// 日本語を含む本文を想定するため rune 単位（バイト単位ではない）。
+const searchExcerptWindowRunes = 30
+
+// SearchViewablePageResult は検索結果 1 件（ページ本体 + どこにヒットしたか）。
+type SearchViewablePageResult struct {
+	Page domain.Page
+	// MatchField はヒットした場所（SearchMatchFieldTitle | SearchMatchFieldBody）。
+	// 題名が一致していれば常に "title"（本文も一致していたとしても、利用者にとって
+	// 分かりやすいのは題名一致であるほうなので、そちらを優先する）。
+	MatchField string
+	// Excerpt は MatchField が "body" のときだけ非空。ヒット周辺を rune 境界を壊さずに
+	// 切り出した抜粋文字列（前後 searchExcerptWindowRunes 文字程度の窓）。
+	Excerpt string
+	// MatchStart / MatchLen は **Excerpt の中での** ヒット位置・長さ（rune 単位。
+	// フロントが mark で囲むための材料）。MatchField が "title" のときは両方ゼロ。
+	MatchStart int
+	MatchLen   int
+}
+
+// SearchViewablePagesUseCase はワークスペース全体を題名 **または本文** で検索し、
+// 閲覧できるページだけを返す（FRESTYLE-434 段 4 で本文検索に対応）。
 //
 // ふるいは一覧（ListViewablePages）とまったく同じ domain.ResolvePageView。
 // 検索だけ別の判定を持つと「一覧には出ないのに検索では出る」というずれ方をして、
@@ -306,13 +335,13 @@ func NewSearchViewablePagesUseCase(r repository.KnowledgeBasePermissionRepositor
 type SearchViewablePagesInput struct {
 	WorkspaceID string
 	UserID      uint64
-	// Query は題名の部分一致（大文字小文字は区別しない）。空白だけは呼び出し側で弾く。
+	// Query は題名 / 本文の部分一致（大文字小文字は区別しない）。空白だけは呼び出し側で弾く。
 	Query string
 	// Limit は返す最大件数。0 以下なら既定の 20。上限 50。
 	Limit int
 }
 
-func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewablePagesInput) ([]domain.Page, error) {
+func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewablePagesInput) ([]SearchViewablePageResult, error) {
 	if in.WorkspaceID == "" {
 		return nil, errors.New("workspaceID is required")
 	}
@@ -336,15 +365,141 @@ func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewa
 	}
 	// 確保量は行数（SQL 側の天井 200 以下）で決める。利用者由来の limit を確保量に
 	// 使わない — 上で挟んでいても、確保だけ大きくする余地を入力に持たせない。
+	results := make([]SearchViewablePageResult, 0, len(rows))
+	for _, row := range rows {
+		if !domain.ResolvePageView(row.Role) {
+			continue
+		}
+		results = append(results, buildSearchViewablePageResult(row, query))
+		if len(results) >= limit {
+			break
+		}
+	}
+	return results, nil
+}
+
+// buildSearchViewablePageResult は 1 行の検索候補（題名 + 本文）と query から、
+// どこにヒットしたか（MatchField）と本文一致なら抜粋を組み立てる。
+//
+// 題名一致を優先する。SQL 側の候補（cand）は「題名一致 OR 本文一致」で絞っているため、
+// 両方一致することもある — その場合は利用者にとって分かりやすい題名一致として返す
+// （本文の抜粋よりも一致した題名そのものの方が判断材料として明確なため）。
+func buildSearchViewablePageResult(row repository.PageSearchViewFact, query string) SearchViewablePageResult {
+	if strings.Contains(strings.ToLower(row.Page.Title), strings.ToLower(query)) {
+		return SearchViewablePageResult{Page: row.Page, MatchField: SearchMatchFieldTitle}
+	}
+	excerpt, start, length, found := computeSearchExcerpt(row.Body, query)
+	if !found {
+		// SQL 側は ILIKE で一致したはずだが、Go 側の判定（大文字小文字とレンダリング上の
+		// 揺れ）とずれて見つからない場合の安全弁。抜粋なしの本文一致として返す —
+		// 「一致した」という事実自体は SQL が保証しているので、ここで隠さない。
+		return SearchViewablePageResult{Page: row.Page, MatchField: SearchMatchFieldBody}
+	}
+	return SearchViewablePageResult{
+		Page:       row.Page,
+		MatchField: SearchMatchFieldBody,
+		Excerpt:    excerpt,
+		MatchStart: start,
+		MatchLen:   length,
+	}
+}
+
+// computeSearchExcerpt は body の中から query に大文字小文字を無視して部分一致する最初の
+// 位置を探し、その前後 searchExcerptWindowRunes rune の窓を切り出す。
+//
+// rune 単位で処理するのは、本文が日本語を含むため。byte 単位でスライスすると
+// マルチバイト文字の途中で切れて壊れた文字列になり得る（rune 境界を壊さない）。
+//
+// 戻り値の start / length は **切り出した excerpt の中での** rune 位置・長さ
+// （フロントが mark で囲む用）。見つからなければ found=false。
+func computeSearchExcerpt(body, query string) (excerpt string, start, length int, found bool) {
+	bodyRunes := []rune(body)
+	lowerBody := []rune(strings.ToLower(body))
+	lowerQuery := []rune(strings.ToLower(query))
+	if len(lowerQuery) == 0 || len(lowerBody) == 0 {
+		return "", 0, 0, false
+	}
+	idx := runeIndex(lowerBody, lowerQuery)
+	if idx < 0 {
+		return "", 0, 0, false
+	}
+	winStart := idx - searchExcerptWindowRunes
+	if winStart < 0 {
+		winStart = 0
+	}
+	winEnd := idx + len(lowerQuery) + searchExcerptWindowRunes
+	if winEnd > len(bodyRunes) {
+		winEnd = len(bodyRunes)
+	}
+	return string(bodyRunes[winStart:winEnd]), idx - winStart, len(lowerQuery), true
+}
+
+// runeIndex は needle が haystack の中で最初に現れる位置を rune 単位で返す
+// （大文字小文字の変換は呼び出し側が済ませている前提）。見つからなければ -1。
+func runeIndex(haystack, needle []rune) int {
+	if len(needle) == 0 || len(needle) > len(haystack) {
+		return -1
+	}
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		match := true
+		for j := range needle {
+			if haystack[i+j] != needle[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
+// ListPageBacklinksUseCase は、対象ページを参照している（page_links.target_page_id =
+// 対象ページ）ページのうち、閲覧できるものだけを返す（逆リンク。FRESTYLE-434 段 4）。
+//
+// 検索・逆リンクは kb パッケージ内の usecase として新設する（別パッケージにしない）。
+// ページ本文に密結合した機能で、新しい権限軸を持たないため。ふるいは検索・一覧と同じ
+// domain.ResolvePageView — 見えない参照元は存在も題名も一切出さない。
+//
+// 対象ページ自体を見られるかどうかの判定（CapabilityView）はここでは行わない。
+// handler が requirePagePermission（CheckPagePermissionUseCase）で先に確かめる
+// （他のページ名指し系エンドポイントと同じ形）。
+type ListPageBacklinksUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListPageBacklinksUseCase(r repository.KnowledgeBasePermissionRepository) *ListPageBacklinksUseCase {
+	return &ListPageBacklinksUseCase{repo: r}
+}
+
+type ListPageBacklinksInput struct {
+	WorkspaceID string
+	UserID      uint64
+	// PageID は逆リンクを求める対象（参照先）ページ。
+	PageID string
+}
+
+func (u *ListPageBacklinksUseCase) Execute(ctx context.Context, in ListPageBacklinksInput) ([]domain.Page, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.UserID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	if in.PageID == "" {
+		return nil, errors.New("pageID is required")
+	}
+	rows, err := u.repo.ListPageLinkSourcePageViewFacts(ctx, in.WorkspaceID, in.UserID, in.PageID)
+	if err != nil {
+		return nil, err
+	}
 	pages := make([]domain.Page, 0, len(rows))
 	for _, row := range rows {
 		if !domain.ResolvePageView(row.Role) {
 			continue
 		}
 		pages = append(pages, row.Page)
-		if len(pages) >= limit {
-			break
-		}
 	}
 	return pages, nil
 }

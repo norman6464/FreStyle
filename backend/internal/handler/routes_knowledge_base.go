@@ -132,6 +132,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewIssuePageImageDownloadURLUseCase(pages, kbImagePresigner),
 		kb.NewSetPageCoverUseCase(pages),
 		kb.NewResolveCoverURLUseCase(kbImagePresigner),
+		kb.NewListPageBacklinksUseCase(permissions),
 	)
 
 	// ページ全体へのコメント（FRESTYLE-432 段 2）。認可は CommentHandler 内で
@@ -261,6 +262,8 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/images/download-url", h.IssueImageDownloadURL)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.SetCover)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.ClearCover)
+	// 逆リンク（FRESTYLE-434 段 4）: このページを参照しているページの一覧。
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/backlinks", h.Backlinks)
 
 	// ページ全体へのコメント（FRESTYLE-432 段 2）。一覧は CanView だけで許可し、
 	// 作成・返信・解決・再開は CanComment を要求する（CommentHandler.requireCommentPermission）。

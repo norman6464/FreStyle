@@ -364,7 +364,39 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 	c.JSON(http.StatusOK, toKbSpaceResponse(space))
 }
 
-// SearchPages はワークスペース全体を題名で検索する（閲覧できるページだけが返る）。
+// kbSearchPageResponse は検索結果 1 件の返却形。kbPageResponse に「どこにヒットしたか」
+// を足したもの（FRESTYLE-434 段 4・本文検索）。
+//
+// kbPageResponse を埋め込むのは、ページとしての形（id / title / icon …）は既存のツリー・
+// 一覧の応答と完全に同じにするため。フロントは検索結果もページ一覧と同じ描画に流用できる。
+type kbSearchPageResponse struct {
+	kbPageResponse
+	// MatchField はヒットした場所（"title" | "body"）。
+	MatchField string `json:"matchField" example:"title"`
+	// Excerpt は MatchField が "body" のときだけ返す、ヒット周辺の抜粋
+	// （前後 30 文字程度。rune 境界を壊さずに切り出してある）。
+	Excerpt string `json:"excerpt,omitempty" example:"…この段落には設計メモが含まれている…"`
+	// MatchStart / MatchLen は **Excerpt の中での** ヒット位置・長さ（rune 単位。
+	// フロントが mark で囲むための材料）。MatchField が "title" のときは出さない。
+	MatchStart int `json:"matchStart,omitempty" example:"6"`
+	MatchLen   int `json:"matchLen,omitempty" example:"4"`
+}
+
+func toKbSearchPageResponse(r *kb.SearchViewablePageResult) kbSearchPageResponse {
+	resp := kbSearchPageResponse{
+		kbPageResponse: toKbPageResponse(&r.Page),
+		MatchField:     r.MatchField,
+	}
+	if r.MatchField == kb.SearchMatchFieldBody {
+		resp.Excerpt = r.Excerpt
+		resp.MatchStart = r.MatchStart
+		resp.MatchLen = r.MatchLen
+	}
+	return resp
+}
+
+// SearchPages はワークスペース全体を題名 **または本文** で検索する
+// （閲覧できるページだけが返る。FRESTYLE-434 段 4 で本文検索に対応）。
 func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -383,7 +415,7 @@ func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 			limit = n
 		}
 	}
-	pages, err := h.searchPages.Execute(c.Request.Context(), kb.SearchViewablePagesInput{
+	results, err := h.searchPages.Execute(c.Request.Context(), kb.SearchViewablePagesInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
 		Query:       q,
@@ -394,9 +426,9 @@ func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 		return
 	}
 	// 0 件でも [] を返す（null だとフロントの .map が落ちる）。
-	out := make([]kbPageResponse, 0, len(pages))
-	for i := range pages {
-		out = append(out, toKbPageResponse(&pages[i]))
+	out := make([]kbSearchPageResponse, 0, len(results))
+	for i := range results {
+		out = append(out, toKbSearchPageResponse(&results[i]))
 	}
 	c.JSON(http.StatusOK, out)
 }

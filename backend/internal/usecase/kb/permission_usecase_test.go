@@ -503,13 +503,13 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 
 	repo := &mockKBPermissionRepo{}
 	repo.On("SearchWorkspacePageViewFacts", mock.Anything, "ws-1", uint64(7), "docker").
-		Return([]repository.PageWithViewFacts{
-			{Page: visible, Role: kbGrantRole(domain.GrantRoleViewer)},
+		Return([]repository.PageSearchViewFact{
+			{PageWithViewFacts: repository.PageWithViewFacts{Page: visible, Role: kbGrantRole(domain.GrantRoleViewer)}},
 			// 検索はワークスペース全体を候補にするので、自分が入っていない private スペースの
 			// ページも行として返る。役割が届いていないその行が、一覧と同じ判定
 			// （ResolvePageView）で落ちること。
-			{Page: hidden, Role: nil},
-			{Page: visible2, Role: kbGrantRole(domain.GrantRoleViewer)},
+			{PageWithViewFacts: repository.PageWithViewFacts{Page: hidden, Role: nil}},
+			{PageWithViewFacts: repository.PageWithViewFacts{Page: visible2, Role: kbGrantRole(domain.GrantRoleViewer)}},
 		}, nil)
 
 	uc := kb.NewSearchViewablePagesUseCase(repo)
@@ -520,8 +520,8 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 		})
 		require.NoError(t, err)
 		require.Len(t, pages, 2)
-		assert.Equal(t, "p-1", pages[0].ID)
-		assert.Equal(t, "p-2", pages[1].ID)
+		assert.Equal(t, "p-1", pages[0].Page.ID)
+		assert.Equal(t, "p-2", pages[1].Page.ID)
 	})
 
 	t.Run("Limit は可視でふるった後に効き、範囲外は既定・上限へ畳まれる", func(t *testing.T) {
@@ -543,7 +543,7 @@ func Test_題名検索_見えないページを落とし件数を切る(t *testi
 				})
 				require.NoError(t, err)
 				require.Len(t, pages, tc.want)
-				assert.Equal(t, "p-1", pages[0].ID, "並びは repo の返した順（題名順）を保つ")
+				assert.Equal(t, "p-1", pages[0].Page.ID, "並びは repo の返した順（題名順）を保つ")
 			})
 		}
 	})

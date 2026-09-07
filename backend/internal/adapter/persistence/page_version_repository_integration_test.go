@@ -252,7 +252,7 @@ func TestPageVersionRepository_RollbackOnFailure_Integration(t *testing.T) {
 		if err := kbRepo.TouchPageLastEditedBy(ctx, ws, page, editorID); err != nil {
 			return err
 		}
-		if err := kbRepo.ReplacePageBlocks(ctx, ws, page, rows, pageVersionTestDoc); err != nil {
+		if err := kbRepo.ReplacePageBlocks(ctx, ws, page, rows, pageVersionTestDoc, "", "", nil); err != nil {
 			return err
 		}
 		_, _, err := versionRepo.CreateVersionIfDue(ctx, ws, page, brokenDoc, editorID, nil, true)

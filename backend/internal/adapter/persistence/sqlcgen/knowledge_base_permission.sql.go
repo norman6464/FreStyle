@@ -605,6 +605,171 @@ func (q *Queries) ListPageGrants(ctx context.Context, arg ListPageGrantsParams) 
 	return items, nil
 }
 
+const listPageLinkSourcePageViewFacts = `-- name: ListPageLinkSourcePageViewFacts :many
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = $1
+      AND pr.kind = 'user' AND pr.user_id = $2
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pmb.group_principal_id
+    FROM principal_members pmb
+    JOIN me ON me.id = pmb.member_principal_id
+    WHERE pmb.workspace_id = $1
+),
+space_allp AS (
+    -- private のスペースには space_all を届かせない（Search 側と同じ規則）。
+    SELECT spx.space_id, spx.id
+    FROM principals spx
+    JOIN spaces svz ON svz.workspace_id = $1 AND svz.id = spx.space_id
+     AND svz.visibility = 'workspace'
+    WHERE spx.workspace_id = $1
+      AND spx.kind = 'space_all'
+      AND EXISTS (SELECT 1 FROM me)
+),
+cand AS (
+    SELECT DISTINCT src.id, src.workspace_id, src.space_id, src.parent_id, src.position, src.title, src.created_by_user_id, src.archived_at, src.created_at, src.updated_at, src.icon, src.cover, src.last_edited_by_user_id
+    FROM page_links pl
+    JOIN blocks blk ON blk.id = pl.source_block_id
+    JOIN pages src ON src.workspace_id = blk.workspace_id AND src.id = blk.page_id
+    WHERE pl.target_page_id = $3
+      AND src.workspace_id = $1
+),
+wsrank AS (
+    SELECT COALESCE(max(CASE wg."role"
+                          WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                          WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END), 0) AS v
+    FROM workspace_grants wg
+    WHERE wg.workspace_id = $1
+      AND wg.principal_id IN (SELECT id FROM mine)
+),
+sgrank AS (
+    SELECT sg.space_id,
+           max(CASE sg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM space_grants sg
+    LEFT JOIN space_allp sap2 ON sap2.space_id = sg.space_id
+    WHERE sg.workspace_id = $1
+      AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
+    GROUP BY sg.space_id
+),
+pgrank AS (
+    SELECT pp.page_id,
+           max(CASE pgt."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM page_paths pp
+    JOIN cand c ON c.id = pp.page_id
+    JOIN page_grants pgt
+      ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    LEFT JOIN space_allp sap3 ON sap3.space_id = c.space_id
+    WHERE pp.workspace_id = $1
+      AND (pgt.principal_id IN (SELECT id FROM mine) OR pgt.principal_id = sap3.id)
+    GROUP BY pp.page_id
+)
+SELECT
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0),
+      COALESCE(pgr.v, 0)
+    )::integer AS grant_rank
+FROM cand cnd
+JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
+LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
+ORDER BY cnd.title, cnd.id
+`
+
+type ListPageLinkSourcePageViewFactsParams struct {
+	WorkspaceID  uuid.UUID
+	UserID       sql.NullInt64
+	TargetPageID uuid.UUID
+}
+
+type ListPageLinkSourcePageViewFactsRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	SpaceID            uuid.UUID
+	ParentID           uuid.NullUUID
+	Position           string
+	Title              string
+	CreatedByUserID    int64
+	ArchivedAt         sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Icon               *json.RawMessage
+	Cover              *json.RawMessage
+	LastEditedByUserID sql.NullInt64
+	GrantRank          int32
+}
+
+// 指定ページ（target_page_id）を参照している「参照元ページ」全件と、それぞれの
+// 「閲覧の事実」を 1 回のクエリで返す（逆リンク用・FRESTYLE-434 段 4）。
+//
+// 事実の組み立ては SearchWorkspacePageViewFacts と全く同じ見方（届いた中で最も強い役割）
+// で、判定は呼び出し側（usecase）が domain.ResolvePageView で行う。違いは候補の絞り方だけ:
+// 題名 / 本文の部分一致ではなく、page_links.target_page_id = 対象ページを起点に
+// source_block_id → blocks → pages と辿って参照元ページを求める。
+//
+// page_links は workspace_id を持たない（schema.hcl の page_links コメント参照 —
+// テナント境界は source_block_id → blocks → pages の JOIN で決まる）。ここで
+// src.workspace_id = 引数の workspace_id を要求することで、他ワークスペースのページが
+// 参照元候補に混ざることを防ぐ（page_links の書き込み経路自体はテナント越えの参照を
+// 禁じていない設計なので、読み取り側のこの条件が唯一の防波堤）。
+//
+// アーカイブ済みの参照元ページも候補から外さない。ListWorkspacePageViewFactsByIDs
+// （パンくず用）と同じ考え方で、アーカイブ済みでも閲覧できるページは経路として存在し
+// 続ける。検索が現役だけを対象にするのとは違い、逆リンクは「このページを指している
+// ページ」という事実の一覧なので、参照元が現役かどうかでふるい落とす理由が無い。
+//
+// 同じ参照元ページから対象ページへの複数のリンク（複数ブロック）は 1 行に畳む（DISTINCT）。
+//
+// 表の別名はクエリ全体で一意にしてある（SearchWorkspacePageViewFacts と同じ理由 —
+// CTE をまたいで同じ別名を使い回すと sqlc の列解決が混線する）。
+// ページ付与。候補に絞ってから経路を辿る（意味は検索側と同じ）。
+func (q *Queries) ListPageLinkSourcePageViewFacts(ctx context.Context, arg ListPageLinkSourcePageViewFactsParams) ([]ListPageLinkSourcePageViewFactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPageLinkSourcePageViewFacts, arg.WorkspaceID, arg.UserID, arg.TargetPageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPageLinkSourcePageViewFactsRow{}
+	for rows.Next() {
+		var i ListPageLinkSourcePageViewFactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpaceID,
+			&i.ParentID,
+			&i.Position,
+			&i.Title,
+			&i.CreatedByUserID,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
+			&i.GrantRank,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPageShareLinks = `-- name: ListPageShareLinks :many
 SELECT id, workspace_id, page_id, principal_id, principal_kind, capability, token_hash, password_hash, expires_at, revoked_at, created_by_user_id, created_at, updated_at FROM share_links
 WHERE workspace_id = $1 AND page_id = $2
@@ -1689,7 +1854,13 @@ cand AS (
     FROM pages pg
     WHERE pg.workspace_id = $1
       AND pg.archived_at IS NULL
-      AND pg.title ILIKE ('%' || $3::text || '%')
+      AND (
+        pg.title ILIKE ('%' || $3::text || '%')
+        OR EXISTS (
+          SELECT 1 FROM page_search ps
+          WHERE ps.page_id = pg.id AND ps.body ILIKE ('%' || $3::text || '%')
+        )
+      )
     ORDER BY pg.title, pg.id
     LIMIT 200
 ),
@@ -1734,11 +1905,16 @@ SELECT
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
       COALESCE(pgr.v, 0)
-    )::integer AS grant_rank
+    )::integer AS grant_rank,
+    -- 本文一致の抜粋を Go 側（usecase）で計算するための材料。page_search がまだ無ければ
+    -- 空文字（NULL ではなく COALESCE で text に倒す — driver が NULL を string へ Scan
+    -- できずに落ちることを避けるため。ListMemberWorkspaces の is_admin と同じ理由）。
+    COALESCE(ps.body, '')::text AS body
 FROM cand cnd
 JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
+LEFT JOIN page_search ps ON ps.page_id = cnd.id
 ORDER BY cnd.title, cnd.id
 `
 
@@ -1763,6 +1939,7 @@ type SearchWorkspacePageViewFactsRow struct {
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
 	GrantRank          int32
+	Body               string
 }
 
 // ワークスペース全体から、題名が部分一致する**現役**ページを候補にして、
@@ -1791,6 +1968,14 @@ type SearchWorkspacePageViewFactsRow struct {
 // 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c …）。CTE ごとに同じ
 // 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
 // 「column ... does not exist」で生成が落ちる（実測）。
+// FRESTYLE-434 段 4: 題名だけでなく本文（page_search.body）も検索対象にする。
+// page_search は 1 ページ 1 行の派生キャッシュ（正本は blocks）なので、まだ同期されて
+// いない行（新規ページ・再構築前）は EXISTS が単に偽になるだけで、候補から漏れるだけ
+// ＝ フェイルセーフ（誤って見せることはない）。
+//
+// pg_trgm の GIN 索引は使わない（schema.hcl の page_search コメント参照 — Atlas v1.3.0 の
+// `extension` ブロックがログイン必須の Pro 限定機能で使えなかった）。ILIKE の中間一致は
+// 索引が効かず全表走査になるが、結果は正しい。現状の規模では許容する。
 // ページ付与は経路（自分と祖先）を辿るので page_id ごとに値が変わる。
 // 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
 //
@@ -1825,6 +2010,7 @@ func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWo
 			&i.Cover,
 			&i.LastEditedByUserID,
 			&i.GrantRank,
+			&i.Body,
 		); err != nil {
 			return nil, err
 		}

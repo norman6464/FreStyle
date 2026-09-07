@@ -264,6 +264,27 @@ func (f *kbFakePages) ListActivePagesBySpace(_ context.Context, workspaceID, spa
 	return f.activePages(workspaceID, spaceID), nil
 }
 
+// ListAllWorkspaceIDs / ListActivePageIDsByWorkspace は cmd/rebuildsearchindex 専用
+// （FRESTYLE-434 段 4）。この handler パッケージの単体テストでは使わないが、interface を
+// 満たすために最小限の実装を用意する。
+func (f *kbFakePages) ListAllWorkspaceIDs(_ context.Context) ([]string, error) {
+	ids := make([]string, 0, len(f.workspaces))
+	for _, ws := range f.workspaces {
+		ids = append(ids, ws.ID)
+	}
+	return ids, nil
+}
+
+func (f *kbFakePages) ListActivePageIDsByWorkspace(_ context.Context, workspaceID string) ([]string, error) {
+	ids := make([]string, 0)
+	for _, p := range f.pages {
+		if p.WorkspaceID == workspaceID && p.ArchivedAt == nil {
+			ids = append(ids, p.ID)
+		}
+	}
+	return ids, nil
+}
+
 // activePages は position 順に並んだ現役ページを返す（本番の ORDER BY "position" と同じ並び）。
 func (f *kbFakePages) activePages(workspaceID, spaceID string) []domain.Page {
 	return f.pagesInSpace(workspaceID, spaceID, false)
@@ -517,7 +538,9 @@ func (f *kbFakePages) ListBlocksByPage(_ context.Context, _, _ string) ([]domain
 	return []domain.Block{}, nil
 }
 
-func (f *kbFakePages) ReplacePageBlocks(_ context.Context, workspaceID, pageID string, _ []repository.BlockWrite, snapshotDoc string) error {
+func (f *kbFakePages) ReplacePageBlocks(
+	_ context.Context, workspaceID, pageID string, _ []repository.BlockWrite, snapshotDoc, _, _ string, _ []repository.PageLinkWrite,
+) error {
 	p, ok := f.pages[pageID]
 	if !ok || p.WorkspaceID != workspaceID {
 		return repository.ErrPageNotFound
@@ -526,6 +549,16 @@ func (f *kbFakePages) ReplacePageBlocks(_ context.Context, workspaceID, pageID s
 		return f.replaceBlocksErr
 	}
 	f.snapshots[pageID] = snapshotDoc
+	return nil
+}
+
+// RebuildPageSearchAndLinks はこのパッケージの handler テストでは使わない
+// （page_search / page_links は結合テストが実 PostgreSQL で確かめる）。
+func (f *kbFakePages) RebuildPageSearchAndLinks(_ context.Context, workspaceID, pageID string) error {
+	p, ok := f.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return repository.ErrPageNotFound
+	}
 	return nil
 }
 
@@ -870,12 +903,17 @@ func (f *kbFakePerms) pageGrantRoles(workspaceID, pageID string, mine map[string
 // 事実（届いた中で最も強い役割）は一覧（ListSpacePageViewFacts）と同じ作り方にする —
 // 検索だけ別の作り方をすると、届かないスペースのページが検索でだけ見える fake になり、
 // 本番との差がテストの穴になる。判定（ふるい）は usecase が行う。
+//
+// この fake は page_search（本文の派生キャッシュ）を持たないため、本文一致
+// （FRESTYLE-434 段 4）は模していない — Body は常に空文字で返す。本文検索そのものの
+// 確認は本物の PostgreSQL を使う結合テストが行う（knowledge_base_permission_repository_
+// integration_test.go）。
 func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 	_ context.Context, workspaceID string, userID uint64, query string,
-) ([]repository.PageWithViewFacts, error) {
+) ([]repository.PageSearchViewFact, error) {
 	f.countPermRead("SearchWorkspacePageViewFacts")
 	needle := strings.ToLower(query)
-	out := make([]repository.PageWithViewFacts, 0)
+	out := make([]repository.PageSearchViewFact, 0)
 	if f.userPrincipal(workspaceID, userID) == nil {
 		return out, nil
 	}
@@ -886,14 +924,25 @@ func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 		if !strings.Contains(strings.ToLower(p.Title), needle) {
 			continue
 		}
-		out = append(out, repository.PageWithViewFacts{
-			Page: *p,
-			Role: f.roleForPage(workspaceID, p, userID),
+		out = append(out, repository.PageSearchViewFact{
+			PageWithViewFacts: repository.PageWithViewFacts{
+				Page: *p,
+				Role: f.roleForPage(workspaceID, p, userID),
+			},
 		})
 	}
 	// map の巡回順に依存しない並び（本番は題名順）。
 	sort.Slice(out, func(i, j int) bool { return out[i].Page.Title < out[j].Page.Title })
 	return out, nil
+}
+
+// ListPageLinkSourcePageViewFacts はこの fake では使わない
+// （逆リンクは page_links を必要とし、この in-memory fake は持たない。逆リンクの確認は
+// 本物の PostgreSQL を使う結合テストが行う）。呼ばれたら空を返す。
+func (f *kbFakePerms) ListPageLinkSourcePageViewFacts(
+	_ context.Context, _ string, _ uint64, _ string,
+) ([]repository.PageWithViewFacts, error) {
+	return []repository.PageWithViewFacts{}, nil
 }
 
 // ListWorkspacePageViewFactsByIDs は ID 群の可視事実。事実の作り方は検索と同一

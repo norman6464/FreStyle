@@ -38,6 +38,7 @@ const hoisted = vi.hoisted(() => ({
   getPageVersion: vi.fn(),
   createPageVersion: vi.fn(),
   restorePageVersion: vi.fn(),
+  listBacklinks: vi.fn(),
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
   fetchPageTree: vi.fn(),
@@ -87,6 +88,7 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       getPageVersion: hoisted.getPageVersion,
       createPageVersion: hoisted.createPageVersion,
       restorePageVersion: hoisted.restorePageVersion,
+      listBacklinks: hoisted.listBacklinks,
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
       fetchPageTree: hoisted.fetchPageTree,
@@ -110,9 +112,15 @@ vi.mock('react-router-dom', async (importOriginal) => {
 });
 
 // サイドバーは自前のテストで検証済み。ここでは画面の配線だけを見る。
-vi.mock('@/widgets/kb-sidebar', () => ({
-  KbSidebar: () => <nav aria-label="サイドバーの偽物" />,
-}));
+// KbPageGlyph は KbBacklinksSection が使う実物のまま残す（丸ごと偽物にすると、
+// KbBacklinksSection が展開したときに未定義のコンポーネントで落ちる）。
+vi.mock('@/widgets/kb-sidebar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/widgets/kb-sidebar')>();
+  return {
+    ...actual,
+    KbSidebar: () => <nav aria-label="サイドバーの偽物" />,
+  };
+});
 
 // エディタは重い（tiptap 実体）ので、渡された props を捕まえる薄い偽物に差し替える。
 // /page の run は本物の createSubpage を通る（そこが配線の検査対象）。
@@ -181,6 +189,7 @@ beforeEach(() => {
   hoisted.listGrantablePrincipals.mockResolvedValue([]);
   hoisted.listCommentThreads.mockResolvedValue([]);
   hoisted.listPageVersions.mockResolvedValue([]);
+  hoisted.listBacklinks.mockResolvedValue([]);
 });
 
 describe('KbPage の配線', () => {
@@ -1002,6 +1011,60 @@ describe('KbPage の履歴', () => {
     await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
     expect(screen.queryByRole('button', { name: 'この版に戻す' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '現在の版に戻る' })).toBeInTheDocument();
+  });
+});
+
+describe('KbPage の逆リンク（このページを参照しているページ）', () => {
+  const referrer = (id: string, title: string) => ({
+    id,
+    spaceId: 's1',
+    title,
+    createdByUserId: 1,
+    createdAt: '2026-09-01T00:00:00Z',
+    updatedAt: '2026-09-01T00:00:00Z',
+  });
+
+  it('折りたたみの開閉に関わらず、ページを開いたら常に取得する（見出しの件数表示のため）', async () => {
+    renderPage();
+    await screen.findByTestId('editor');
+
+    await waitFor(() => expect(hoisted.listBacklinks).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+  });
+
+  it('0 件なら逆リンクセクションを出さない', async () => {
+    hoisted.listBacklinks.mockResolvedValue([]);
+    renderPage();
+    await screen.findByTestId('editor');
+
+    await waitFor(() => expect(hoisted.listBacklinks).toHaveBeenCalled());
+    expect(screen.queryByText(/このページを参照しているページ/)).not.toBeInTheDocument();
+  });
+
+  it('逆リンクセクションが件数とともに出る。展開すると一覧が見え、行を押すとそのページへ遷移する', async () => {
+    hoisted.listBacklinks.mockResolvedValue([
+      referrer('p-ref-1', '週次定例のメモ'),
+      referrer('p-ref-2', '設計レビューの議事録'),
+    ]);
+    renderPage();
+    await screen.findByTestId('editor');
+
+    const toggle = await screen.findByRole('button', {
+      name: 'このページを参照しているページ（2）',
+    });
+    // 閉じている間は行が見えない（毎回閉じた状態から始まる）。
+    expect(screen.queryByRole('link', { name: /週次定例のメモ/ })).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    const link = await screen.findByRole('link', { name: /週次定例のメモ/ });
+    expect(link).toHaveAttribute('href', '/kb/p-ref-1');
+    expect(screen.getByRole('link', { name: /設計レビューの議事録/ })).toHaveAttribute(
+      'href',
+      '/kb/p-ref-2',
+    );
+
+    // 実際に押しても落ちない（Link 自体の遷移は react-router の実装に委ねている）。
+    fireEvent.click(link);
   });
 });
 

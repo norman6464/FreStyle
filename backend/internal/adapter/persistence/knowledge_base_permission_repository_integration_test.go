@@ -1622,10 +1622,14 @@ func TestKnowledgeBaseSearchViewFacts_Integration(t *testing.T) {
 
 	searchFor := func(f kbPermFixture, t *testing.T, userID uint64, query string) []string {
 		t.Helper()
-		pages, err := kb.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
+		results, err := kb.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
 			kb.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: userID, Query: query})
 		require.NoError(t, err)
-		return pageIDs(pages)
+		ids := make([]string, 0, len(results))
+		for _, r := range results {
+			ids = append(ids, r.Page.ID)
+		}
+		return ids
 	}
 
 	t.Run("題名の部分一致でスペースを跨いで返り、届いていないページは出ない", func(t *testing.T) {

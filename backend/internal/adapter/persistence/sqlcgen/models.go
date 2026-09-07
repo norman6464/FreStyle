@@ -127,11 +127,24 @@ type PageGrant struct {
 	UpdatedAt   time.Time
 }
 
+type PageLink struct {
+	SourceBlockID uuid.UUID
+	TargetPageID  uuid.UUID
+}
+
 type PagePath struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID
 	AncestorID  uuid.UUID
 	Depth       int32
+}
+
+type PageSearch struct {
+	PageID      uuid.UUID
+	WorkspaceID uuid.UUID
+	Title       string
+	Body        string
+	UpdatedAt   time.Time
 }
 
 type PageSnapshot struct {

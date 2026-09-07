@@ -394,7 +394,7 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 	repo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).Return(nil)
 	var gotRows []repository.BlockWrite
 	var gotSnapshot string
-	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything).
+	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			gotRows = args.Get(3).([]repository.BlockWrite)
 			gotSnapshot = args.String(4)
@@ -439,7 +439,7 @@ func Test_本文書き換え_ブロック置換と最終編集者の記録と版
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
 	repo.On("TouchPageLastEditedBy", mock.MatchedBy(inTx), kbWS, kbPage, kbEditorUserID).Return(nil)
-	repo.On("ReplacePageBlocks", mock.MatchedBy(inTx), kbWS, kbPage, mock.Anything, mock.Anything).Return(nil)
+	repo.On("ReplacePageBlocks", mock.MatchedBy(inTx), kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
 		Return(&domain.PageSnapshot{PageID: kbPage, Doc: doc}, nil)
 	versionRepo := &mockPageVersionRepo{}
@@ -470,7 +470,7 @@ func Test_本文書き換え_版の記録に失敗したら本文の書き込み
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
 	repo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).Return(nil)
-	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything).Return(nil)
+	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	versionRepoErr := errors.New("db down")
 	versionRepo := &mockPageVersionRepo{}
 	versionRepo.On("CreateVersionIfDue", mock.Anything, kbWS, kbPage, mock.Anything, kbEditorUserID, (*string)(nil), false).
@@ -499,7 +499,7 @@ func Test_本文書き換え_最終編集者の記録に失敗したら本文を
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
-	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertExpectations(t)
 	versionRepo.AssertNotCalled(t, "CreateVersionIfDue",
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -527,7 +527,7 @@ func Test_本文書き換え_不正なdocは保存せず失敗(t *testing.T) {
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[{"type":"iframe"}]}`, EditorUserID: kbEditorUserID,
 	})
 	require.ErrorIs(t, err, kb.ErrPageDocUnknownNodeType)
-	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_本文書き換え_アーカイブ済みページは拒否(t *testing.T) {

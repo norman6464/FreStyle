@@ -147,6 +147,14 @@ CREATE TABLE "public"."page_grants" (
 );
 -- Create index "idx_page_grants_principal" to table: "page_grants"
 CREATE INDEX "idx_page_grants_principal" ON "public"."page_grants" ("workspace_id", "principal_id");
+-- Create "page_links" table
+CREATE TABLE "public"."page_links" (
+  "source_block_id" uuid NOT NULL,
+  "target_page_id" uuid NOT NULL,
+  PRIMARY KEY ("source_block_id", "target_page_id")
+);
+-- Create index "idx_page_links_target_page_id" to table: "page_links"
+CREATE INDEX "idx_page_links_target_page_id" ON "public"."page_links" ("target_page_id");
 -- Create "page_paths" table
 CREATE TABLE "public"."page_paths" (
   "workspace_id" uuid NOT NULL,
@@ -160,6 +168,15 @@ CREATE TABLE "public"."page_paths" (
 CREATE INDEX "idx_page_paths_ancestor_id" ON "public"."page_paths" ("ancestor_id");
 -- Create index "idx_page_paths_workspace_id" to table: "page_paths"
 CREATE INDEX "idx_page_paths_workspace_id" ON "public"."page_paths" ("workspace_id");
+-- Create "page_search" table
+CREATE TABLE "public"."page_search" (
+  "page_id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "title" text NOT NULL,
+  "body" text NOT NULL,
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("page_id")
+);
 -- Create "page_snapshots" table
 CREATE TABLE "public"."page_snapshots" (
   "page_id" uuid NOT NULL,
@@ -393,8 +410,12 @@ ALTER TABLE "public"."comment_threads" ADD CONSTRAINT "fk_comment_threads_block"
 ALTER TABLE "public"."comments" ADD CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_grants" table
 ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "page_links" table
+ALTER TABLE "public"."page_links" ADD CONSTRAINT "fk_page_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_links_target_page" FOREIGN KEY ("target_page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_paths" table
 ALTER TABLE "public"."page_paths" ADD CONSTRAINT "fk_page_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_paths_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "page_search" table
+ALTER TABLE "public"."page_search" ADD CONSTRAINT "fk_page_search_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_snapshots" table
 ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_versions" table

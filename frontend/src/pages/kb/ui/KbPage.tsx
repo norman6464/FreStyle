@@ -34,10 +34,12 @@ import KbPageCoverButton from './KbPageCoverButton';
 import KbCommentsPanel from './KbCommentsPanel';
 import KbVersionsPanel from './KbVersionsPanel';
 import KbVersionPreviewBanner from './KbVersionPreviewBanner';
+import KbBacklinksSection from './KbBacklinksSection';
 import { SharePanel } from '@/features/permission-sharing';
 import { useKbShare } from '../model/useKbShare';
 import { useKbComments } from '../model/useKbComments';
 import { useKbPageVersions } from '../model/useKbPageVersions';
+import { useKbBacklinks } from '../model/useKbBacklinks';
 
 /**
  * KbPage はナレッジの画面（左にサイドバー、右に本文）。
@@ -334,6 +336,10 @@ export default function KbPage() {
     setHistoryOpen(false);
   }, [pageId]);
   const versions = useKbPageVersions(data?.workspaceSlug, data?.page.id, historyOpen);
+
+  // 「このページを参照しているページ」（逆リンク）。折りたたみの開閉には依存せず、
+  // ページを開いたら常に取得する（見出しの件数表示に使うため — useKbComments と同じ考え方）。
+  const backlinks = useKbBacklinks(data?.workspaceSlug, data?.page.id);
 
   // 「この版に戻す」の確認ダイアログ。KbRowActions の削除確認と同じ形 —
   // 確定した瞬間に閉じ、実行(失敗時の知らせ)は非同期のまま進める。
@@ -633,6 +639,11 @@ export default function KbPage() {
                   resolveImageSrc={resolveImageSrc}
                 />
               )}
+              {/*
+                本文そのものの末尾（コメントパネル等とは別の場所）。通常の読了後に
+                スクロールして辿り着く位置に、逆リンクの折りたたみを置く。
+              */}
+              <KbBacklinksSection pages={backlinks.pages} loading={backlinks.loading} />
             </article>
           )}
 

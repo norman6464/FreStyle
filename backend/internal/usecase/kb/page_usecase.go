@@ -798,6 +798,16 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 	if err != nil {
 		return nil, err
 	}
+	// 本文検索・逆リンクの材料を抽出する（FRESTYLE-434 段 4）。flattenPageDoc の**後**に
+	// 呼ぶこと — flattenPageDoc は木の中の重複 id を新規 UUID へ採番し直すため
+	// （flattenPageDoc の doc 参照）、先に呼ばないと抽出した SourceBlockID が実際に
+	// UPSERT される blocks.id とずれてしまう。
+	body := extractPageBodyText(tree)
+	linkRefs := extractPageLinks(tree)
+	pageLinks := make([]repository.PageLinkWrite, len(linkRefs))
+	for i, l := range linkRefs {
+		pageLinks[i] = repository.PageLinkWrite{SourceBlockID: l.SourceBlockID, TargetPageID: l.TargetPageID}
+	}
 	// 最終編集者の記録・本文の全消し全入れ・版の記録は同じトランザクションに入れる。
 	// Touch を先に呼ぶのは、UPDATE が pages の対象行を排他ロックするため
 	// （同じページへの同時保存がここで直列化される。TouchPageLastEditedBy の doc 参照）。
@@ -809,7 +819,7 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 		if err := u.repo.TouchPageLastEditedBy(ctx, in.WorkspaceID, in.PageID, in.EditorUserID); err != nil {
 			return err
 		}
-		if err := u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized); err != nil {
+		if err := u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized, page.Title, body, pageLinks); err != nil {
 			return err
 		}
 		_, _, err := u.versionRepo.CreateVersionIfDue(
@@ -1510,6 +1520,148 @@ func canonicalPageRefID(id string) (string, bool) {
 		return "", false
 	}
 	return parsed.String(), true
+}
+
+// kbInlineTextNodeType は本文プレーンテキストに寄与するインラインノードの type 名。
+const kbInlineTextNodeType = "text"
+
+// kbInlineTextNode は inline 配列（葉ブロックの inline JSON）の 1 要素を最小限に読むための
+// 型。text ノードは .text を、pageRef ノードは .attrs.pageId を持つ（他のフィールド・
+// 他の type は無視する。マークの有無は本文プレーンテキストの抽出に関係ない）。
+type kbInlineTextNode struct {
+	Type  string `json:"type"`
+	Text  string `json:"text"`
+	Attrs struct {
+		PageID string `json:"pageId"`
+	} `json:"attrs"`
+}
+
+// extractPageBodyText は本文検索用のプレーンテキストを抽出する（FRESTYLE-434 段 4）。
+// 各葉ブロックの inline 内の "text" 型ノードの .text を連結し、ブロックの境目は改行
+// （"\n"）で区切る。pageRef ノードは寄与しない — 参照先の題名は読み手ごとに解決される
+// 派生値（StripPageRefTitles / ResolvePageRefTitlesUseCase の doc 参照）で、保存する本文に
+// 含めると「閲覧できない読み手のページも、その題名を通じて検索でヒットする」抜け道になる。
+//
+// 木は parsePageDoc が返す kbDocNode（保存直前・正規化済みの木）を対象にする。
+// flattenPageDoc を呼んだ**後**の木を渡すこと（ReplacePageBlocksUseCase.Execute 参照 —
+// ここで見る n.ID が最終的に blocks.id として保存される値と一致している必要は無いが、
+// 呼び出し順は extractPageLinks と揃えてある）。
+//
+// 容器ノード（kbContainerBlockTypes）は子を辿るだけで自身は何も出さない。中身が空の
+// 葉ブロック（Inline が nil）はスキップする（空行のためだけに区切りを増やさない）。
+func extractPageBodyText(nodes []*kbDocNode) string {
+	var buf strings.Builder
+	var walk func(nodes []*kbDocNode)
+	walk = func(nodes []*kbDocNode) {
+		for _, n := range nodes {
+			if len(n.Children) > 0 {
+				walk(n.Children)
+				continue
+			}
+			if n.Inline == nil {
+				continue
+			}
+			text := extractInlineText(*n.Inline)
+			if text == "" {
+				continue
+			}
+			if buf.Len() > 0 {
+				buf.WriteByte('\n')
+			}
+			buf.WriteString(text)
+		}
+	}
+	walk(nodes)
+	return buf.String()
+}
+
+// extractInlineText は葉ブロック 1 つの inline JSON 配列から "text" 型ノードの .text を
+// そのまま連結する（マークは無視。区切りは呼び出し側 extractPageBodyText が持つ）。
+// 壊れた JSON（本来 parsePageDoc を通った直後の値なので起きない想定）は空文字にする。
+func extractInlineText(inline string) string {
+	var items []kbInlineTextNode
+	if err := json.Unmarshal([]byte(inline), &items); err != nil {
+		return ""
+	}
+	var buf strings.Builder
+	for _, it := range items {
+		if it.Type != kbInlineTextNodeType {
+			continue
+		}
+		buf.WriteString(it.Text)
+	}
+	return buf.String()
+}
+
+// pageLinkRef は 1 本のページ内リンク候補（page_links の 1 行に対応する材料）。
+// TargetPageID の実在確認はしていない — repository.ReplacePageBlocks が保存の直前に
+// まとめて確認し、存在しない参照先は黙って除外する（リンク切れ 1 つのために本文の
+// 保存自体を失敗させないため。repository.PageLinkWrite の doc 参照）。
+type pageLinkRef struct {
+	SourceBlockID string
+	TargetPageID  string
+}
+
+// extractPageLinks は本文中の pageRef ノードから (ブロック id, 参照先ページ id) の組を
+// 集める（FRESTYLE-434 段 4）。pageRefCollector と同じ考え方（UUID の正規形へ寄せる・
+// kbPageRefMaxResolve=100 を参照先ページの**種類数**の天井にする — 1 ページから参照できる
+// リンク先の上限として妥当）だが、こちらは「どのブロックが参照しているか」を
+// page_links.source_block_id として残す必要があるため、pageRefCollector をそのまま
+// 使い回さず、kbDocNode の木を対象に書き直してある。
+//
+// 天井に達した後も走査そのものは止めない（pageRefCollector は「新しい種類を 1 つも
+// 増やせなくなった時点で走査ごと打ち切る」が、ここでは「新しい**種類**の参照先はもう
+// 増やさない」だけに留める）。理由: 既に種類として数えた参照先への追加のリンク
+// （別のブロックからの再参照）まで取りこぼすと、逆リンクの一覧が保存するたびに
+// 部分的にしか更新されない不安定な挙動になる。天井は「参照先ページの種類数」を
+// 絞るためのもので、「そのページへの合計リンク本数」を絞るものではない。
+//
+// 同じブロックが同じページを複数回参照する場合は、ここで 1 行に畳む（呼び出し側の
+// repository.ReplacePageBlocks / InsertPageLink の ON CONFLICT DO NOTHING でも畳まれるが、
+// 無駄な書き込みを事前に減らす）。
+func extractPageLinks(nodes []*kbDocNode) []pageLinkRef {
+	var links []pageLinkRef
+	seenTarget := map[string]struct{}{}
+	seenPair := map[[2]string]struct{}{}
+	var walk func(nodes []*kbDocNode)
+	walk = func(nodes []*kbDocNode) {
+		for _, n := range nodes {
+			if len(n.Children) > 0 {
+				walk(n.Children)
+				continue
+			}
+			if n.Inline == nil {
+				continue
+			}
+			var items []kbInlineTextNode
+			if err := json.Unmarshal([]byte(*n.Inline), &items); err != nil {
+				continue
+			}
+			for _, it := range items {
+				if it.Type != kbPageRefNodeType {
+					continue
+				}
+				canonical, ok := canonicalPageRefID(it.Attrs.PageID)
+				if !ok {
+					continue
+				}
+				if _, known := seenTarget[canonical]; !known {
+					if len(seenTarget) >= kbPageRefMaxResolve {
+						continue
+					}
+					seenTarget[canonical] = struct{}{}
+				}
+				pair := [2]string{n.ID, canonical}
+				if _, dup := seenPair[pair]; dup {
+					continue
+				}
+				seenPair[pair] = struct{}{}
+				links = append(links, pageLinkRef{SourceBlockID: n.ID, TargetPageID: canonical})
+			}
+		}
+	}
+	walk(nodes)
+	return links
 }
 
 // AncestorRef はパンくず 1 段分（ページ ID と現在の題名）。

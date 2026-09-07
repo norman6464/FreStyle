@@ -273,6 +273,10 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, domain.ErrInvalidCommentAnchor):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_comment_anchor"})
+	case errors.Is(err, domain.ErrPageVersionNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+	case errors.Is(err, domain.ErrInvalidPageVersionNote):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_version_note"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
@@ -1076,10 +1080,18 @@ func (h *KnowledgeBasePageHandler) ReplaceContent(c *gin.Context) {
 // まだ誰も本文を保存していない（nil を返す）。名前の解決に失敗しても応答は止めない
 // （Get / ResolveByID の resolveRefs と同じ扱い。空文字で埋めてログだけ残す）。
 func (h *KnowledgeBasePageHandler) kbLastEditedByResponse(ctx context.Context, userID *uint64) *kbEditorRefResponse {
+	return kbLastEditedByResponseWith(ctx, h.userName, userID)
+}
+
+// kbLastEditedByResponseWith は kbLastEditedByResponse の実体。KnowledgeBasePageHandler と
+// PageVersionHandler の両方が「本文保存直後の応答」（PUT .../content と POST .../restore）を
+// 同じ形で返すために package レベルの関数へ切り出してある
+// （requirePagePermissionWith と同じ理由 — 書き直すとどちらか片方だけ直し忘れて食い違う）。
+func kbLastEditedByResponseWith(ctx context.Context, userName *kb.LookupUserNameUseCase, userID *uint64) *kbEditorRefResponse {
 	if userID == nil {
 		return nil
 	}
-	name, err := h.userName.Execute(ctx, *userID)
+	name, err := userName.Execute(ctx, *userID)
 	if err != nil {
 		slog.WarnContext(ctx, "kb: last edited by name resolve failed", "err", err)
 	}

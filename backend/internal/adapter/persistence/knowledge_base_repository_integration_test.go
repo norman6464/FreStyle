@@ -37,11 +37,12 @@ type kbUseCases struct {
 }
 
 // newKbUseCases は sqlDB から本物の repository / TxManager を組み立てて usecase 一式を作る。
-// ReplacePageBlocksUseCase が TxManager を要るようになったため、repository だけでなく
-// *sql.DB を受け取り、この中で両方を組む（呼び出し側に TxManager の組み立てを分散させない）。
+// ReplacePageBlocksUseCase が TxManager / PageVersionRepository を要るようになったため、
+// repository だけでなく *sql.DB を受け取り、この中で組む（呼び出し側に組み立てを分散させない）。
 func newKbUseCases(sqlDB *sql.DB) kbUseCases {
 	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
 	txManager := persistence.NewTxManager(sqlDB)
+	versions := persistence.NewPageVersionRepository(sqlDB)
 	return kbUseCases{
 		create:    kb.NewCreatePageUseCase(repo),
 		get:       kb.NewGetPageUseCase(repo),
@@ -50,7 +51,7 @@ func newKbUseCases(sqlDB *sql.DB) kbUseCases {
 		move:      kb.NewMovePageUseCase(repo),
 		archive:   kb.NewArchivePageUseCase(repo),
 		unarchive: kb.NewUnarchivePageUseCase(repo),
-		replace:   kb.NewReplacePageBlocksUseCase(repo, txManager),
+		replace:   kb.NewReplacePageBlocksUseCase(repo, txManager, versions),
 		setIcon:   kb.NewSetPageIconUseCase(repo),
 		repo:      repo,
 		txManager: txManager,
@@ -1142,6 +1143,24 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, updated.Icon)
 	assert.Equal(t, domain.PageIcon{Type: domain.PageIconTypeEmoji, Value: "📘"}, *updated.Icon)
+
+	// page_versions.doc（NOT NULL jsonb）と note（nullable text）も simple protocol で往復する
+	// こと（FRESTYLE-433 段 3）。doc は page_snapshots.doc / blocks.attrs と同じ「素の
+	// json.RawMessage をそのまま渡す」経路なので、このテストの本題（icon の pointer 型
+	// override）とは別の懸念だが、page_versions で新しく増えた書き込み経路として確認しておく。
+	versionRepo := persistence.NewPageVersionRepository(sqlDB)
+	note := "simple protocol 経由のメモ"
+	created, versionDoc, err := versionRepo.CreateVersionIfDue(ctx, ws, page.ID, doc, 1, &note, true)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NotNil(t, versionDoc)
+	requireJSONEqIgnoringBlockIDs(t, doc, versionDoc.Doc)
+
+	gotVersion, err := versionRepo.GetVersion(ctx, ws, page.ID, versionDoc.Seq)
+	require.NoError(t, err)
+	requireJSONEqIgnoringBlockIDs(t, doc, gotVersion.Doc)
+	require.NotNil(t, gotVersion.Note)
+	assert.Equal(t, note, *gotVersion.Note)
 }
 
 // TestKnowledgeBaseDeleteWorkspace_Integration は DeleteWorkspace が人の居るワークスペースを

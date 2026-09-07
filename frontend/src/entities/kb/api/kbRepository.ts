@@ -6,14 +6,16 @@ import type { CommentAnchor } from '@/shared/ui/RichTextEditor';
 import type {
   KbComment,
   KbCommentThread,
-  KbEditorRef,
   KbGrantablePrincipal,
   KbGrantRole,
   KbIcon,
   KbPage,
+  KbPageContentSaveResult,
   KbPageDoc,
   KbPageGrant,
   KbPageTree,
+  KbPageVersion,
+  KbPageVersionDetail,
   KbResolvedCover,
   KbResolvedPage,
   KbSpace,
@@ -60,6 +62,30 @@ function normalizeCommentThread(raw: KbCommentThreadWire): KbCommentThread {
     anchorTo: raw.anchorTo,
     quote: raw.quote,
   };
+}
+
+/**
+ * 版（バージョン）一覧・単体取得・作成の生の応答形。
+ *
+ * backend は note を Go の `*string` + `omitempty` で返すため、**メモを付けていない版では
+ * キー自体が応答に無い**（`null` ではなく丸ごと欠ける — KbCommentThreadWire の
+ * resolvedAt/resolvedBy と同じ理由）。entities/kb の KbPageVersion は note を
+ * `string | null` で固定しているので、ここで正規化する。
+ */
+type KbPageVersionWire = Omit<KbPageVersion, 'note'> & { note?: string };
+type KbPageVersionDetailWire = Omit<KbPageVersionDetail, 'note'> & { note?: string };
+
+function normalizeVersion(raw: KbPageVersionWire): KbPageVersion {
+  return {
+    seq: raw.seq,
+    author: raw.author,
+    note: raw.note ?? null,
+    createdAt: raw.createdAt,
+  };
+}
+
+function normalizeVersionDetail(raw: KbPageVersionDetailWire): KbPageVersionDetail {
+  return { ...normalizeVersion(raw), doc: raw.doc };
 }
 
 const KbRepository = {
@@ -308,18 +334,11 @@ const KbRepository = {
     workspaceSlug: string,
     pageId: string,
     doc: unknown,
-  ): Promise<{
-    doc: unknown;
-    builtAt: string;
-    lastEditedBy?: KbEditorRef | null;
-    lastEditedAt?: string | null;
-  }> {
-    const res = await apiClient.put<{
-      doc: unknown;
-      builtAt: string;
-      lastEditedBy?: KbEditorRef | null;
-      lastEditedAt?: string | null;
-    }>(KB_API.pageContent(workspaceSlug, pageId), { doc });
+  ): Promise<KbPageContentSaveResult> {
+    const res = await apiClient.put<KbPageContentSaveResult>(
+      KB_API.pageContent(workspaceSlug, pageId),
+      { doc },
+    );
     return res.data;
   },
 
@@ -515,6 +534,65 @@ const KbRepository = {
       KB_API.reopenCommentThread(workspaceSlug, pageId, threadId),
     );
     return normalizeCommentThread(res.data);
+  },
+
+  /**
+   * ページの版（バージョン）の一覧を返す（新しい順）。doc は含まない
+   * （一覧で毎回本文込みを引くと重くなるため — 単体取得で必要なときだけ引く）。
+   * 閲覧できれば誰でもできる（canView）。**失敗は例外として投げる。**
+   */
+  async listPageVersions(workspaceSlug: string, pageId: string): Promise<KbPageVersion[]> {
+    const res = await apiClient.get<KbPageVersionWire[]>(KB_API.pageVersions(workspaceSlug, pageId));
+    return toArray<KbPageVersionWire>(res.data).map(normalizeVersion);
+  },
+
+  /**
+   * 版 1 件を doc 込みで取得する。閲覧できれば誰でもできる（canView）。
+   * **失敗は例外として投げる。**
+   */
+  async getPageVersion(
+    workspaceSlug: string,
+    pageId: string,
+    seq: number,
+  ): Promise<KbPageVersionDetail> {
+    const res = await apiClient.get<KbPageVersionDetailWire>(
+      KB_API.pageVersion(workspaceSlug, pageId, seq),
+    );
+    return normalizeVersionDetail(res.data);
+  },
+
+  /**
+   * 今の本文を明示的な版として残す。note は空でもよい（backend は空文字を送っても
+   * 未記入として null 相当に扱う想定 — note を渡さないときはキー自体を送らない）。
+   * 編集権限が要る。作った版そのもの（doc 込み）が返る。**失敗は例外として投げる。**
+   */
+  async createPageVersion(
+    workspaceSlug: string,
+    pageId: string,
+    note?: string,
+  ): Promise<KbPageVersionDetail> {
+    const res = await apiClient.post<KbPageVersionDetailWire>(
+      KB_API.pageVersions(workspaceSlug, pageId),
+      note ? { note } : {},
+    );
+    return normalizeVersionDetail(res.data);
+  },
+
+  /**
+   * 過去の版を今の本文として復元する（body 無し）。編集権限が要る。
+   * **復元自体も新しい版として残る**（backend 側の設計 — 呼び出し側は復元後に版一覧を
+   * 引き直すと、復元でできた版が先頭に増えて見える）。
+   * 応答は本文保存（replaceContent）と同じ形。**失敗は例外として投げる。**
+   */
+  async restorePageVersion(
+    workspaceSlug: string,
+    pageId: string,
+    seq: number,
+  ): Promise<KbPageContentSaveResult> {
+    const res = await apiClient.post<KbPageContentSaveResult>(
+      KB_API.restorePageVersion(workspaceSlug, pageId, seq),
+    );
+    return res.data;
   },
 };
 

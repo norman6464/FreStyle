@@ -140,6 +140,16 @@ type PageSnapshot struct {
 	BuiltAt time.Time
 }
 
+type PageVersion struct {
+	WorkspaceID  uuid.UUID
+	PageID       uuid.UUID
+	Seq          int64
+	Doc          json.RawMessage
+	AuthorUserID int64
+	Note         sql.NullString
+	CreatedAt    time.Time
+}
+
 type Principal struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

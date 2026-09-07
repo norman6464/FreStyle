@@ -1737,3 +1737,77 @@ func (f *kbFakeComments) ReopenCommentThread(_ context.Context, workspaceID, pag
 	c := t
 	return &c, nil
 }
+
+// kbFakePageVersions は repository.PageVersionRepository の in-memory fake（FRESTYLE-433 段 3）。
+//
+// 10 分規則・30 日掃除の正確な判定は実 DB の結合テスト（page_version_repository_integration_test.go）
+// が持つ。この fake は handler / DI 配線のテストが必要とする水準（呼ばれれば version を 1 件作る、
+// ページ単位で隔離されている、無いページ／無い seq は正しく失敗する）だけを満たす。
+type kbFakePageVersions struct {
+	pages *kbFakePages
+	// versions は "workspaceID|pageID" -> seq -> version。
+	versions map[string]map[int64]domain.PageVersion
+	nextSeq  map[string]int64
+	failWith error
+}
+
+var _ repository.PageVersionRepository = (*kbFakePageVersions)(nil)
+
+// newKbFakePageVersions は pages（同じ kbFixture が使うものと同一インスタンス）を共有する。
+// CreateVersionIfDue の「pages 行をロックしてから」の判定を、fake でも「対象ページが
+// pages に実在するか」で模すため。
+func newKbFakePageVersions(pages *kbFakePages) *kbFakePageVersions {
+	return &kbFakePageVersions{
+		pages:    pages,
+		versions: map[string]map[int64]domain.PageVersion{},
+		nextSeq:  map[string]int64{},
+	}
+}
+
+func kbFakeVersionKey(workspaceID, pageID string) string { return workspaceID + "|" + pageID }
+
+func (f *kbFakePageVersions) CreateVersionIfDue(
+	_ context.Context, workspaceID, pageID, doc string, authorUserID uint64, note *string, _ bool,
+) (bool, *domain.PageVersion, error) {
+	if f.failWith != nil {
+		return false, nil, f.failWith
+	}
+	p, ok := f.pages.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return false, nil, repository.ErrPageNotFound
+	}
+	// この fake は間引きをしない（force の値を問わず常に 1 件作る）。10 分規則そのものの
+	// 検証は本物の repository の結合テストが担う — handler / usecase レベルは
+	// 「呼ばれたか」「テナント・ページで隔離されているか」だけを見れば足りる。
+	key := kbFakeVersionKey(workspaceID, pageID)
+	f.nextSeq[key]++
+	seq := f.nextSeq[key]
+	v := domain.PageVersion{
+		PageID: pageID, Seq: seq, Doc: doc, AuthorUserID: authorUserID, Note: note, CreatedAt: time.Now(),
+	}
+	if f.versions[key] == nil {
+		f.versions[key] = map[int64]domain.PageVersion{}
+	}
+	f.versions[key][seq] = v
+	out := v
+	return true, &out, nil
+}
+
+func (f *kbFakePageVersions) ListVersions(_ context.Context, workspaceID, pageID string) ([]domain.PageVersion, error) {
+	rows := f.versions[kbFakeVersionKey(workspaceID, pageID)]
+	out := make([]domain.PageVersion, 0, len(rows))
+	for _, v := range rows {
+		out = append(out, v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Seq > out[j].Seq })
+	return out, nil
+}
+
+func (f *kbFakePageVersions) GetVersion(_ context.Context, workspaceID, pageID string, seq int64) (*domain.PageVersion, error) {
+	v, ok := f.versions[kbFakeVersionKey(workspaceID, pageID)][seq]
+	if !ok {
+		return nil, domain.ErrPageVersionNotFound
+	}
+	out := v
+	return &out, nil
+}

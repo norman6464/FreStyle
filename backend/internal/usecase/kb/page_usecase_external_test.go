@@ -3,6 +3,7 @@ package kb_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -400,7 +401,19 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 		}).Return(nil)
 	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
 		Return(&domain.PageSnapshot{PageID: kbPage, Doc: doc}, nil)
-	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+	// versionRepo.CreateVersionIfDue が呼ばれ、渡す doc は ReplacePageBlocks の snapshotDoc と
+	// 同じ正規形（normalized）であること・通常の自動保存は force=false, note=nil であることを
+	// 引数の検証込みで固定する（FRESTYLE-433 段 3）。
+	versionRepo := &mockPageVersionRepo{}
+	var gotVersionDoc string
+	var gotForce bool
+	versionRepo.On("CreateVersionIfDue", mock.Anything, kbWS, kbPage, mock.Anything, kbEditorUserID, (*string)(nil), false).
+		Run(func(args mock.Arguments) {
+			gotVersionDoc = args.String(3)
+			gotForce = args.Bool(6)
+		}).
+		Return(false, nil, nil)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, versionRepo)
 
 	out, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: doc, EditorUserID: kbEditorUserID,
@@ -412,13 +425,16 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 	assert.Equal(t, domain.BlockTypeBulletList, gotRows[1].Type)
 	assert.Equal(t, gotRows[1].ID, *gotRows[2].ParentID, "listItem の親は bulletList")
 	requireJSONEqIgnoringBlockIDs(t, doc, gotSnapshot)
+	assert.False(t, gotForce, "通常の自動保存は ForceVersion のゼロ値のまま")
+	assert.Equal(t, gotSnapshot, gotVersionDoc, "versionRepo に渡す doc は snapshot と同じ正規形")
+	versionRepo.AssertExpectations(t)
 }
 
-// Test_本文書き換え_ブロック置換と最終編集者の記録は同じトランザクションで行う は
-// TouchPageLastEditedBy と ReplacePageBlocks が **同じ** DoInTx の呼び出し 1 回の中で
-// 行われることを固定する（既知のリスク: Touch を先に呼ぶことで同じページへの同時保存が
-// 直列化される。片方だけ tx の外で呼ばれる回帰はここで捕まえる）。
-func Test_本文書き換え_ブロック置換と最終編集者の記録は同じトランザクションで行う(t *testing.T) {
+// Test_本文書き換え_ブロック置換と最終編集者の記録と版の記録は同じトランザクションで行う は
+// TouchPageLastEditedBy / ReplacePageBlocks / versionRepo.CreateVersionIfDue が **同じ**
+// DoInTx の呼び出し 1 回の中で行われることを固定する（既知のリスク: Touch を先に呼ぶことで
+// 同じページへの同時保存が直列化される。どれか 1 つだけ tx の外で呼ばれる回帰はここで捕まえる）。
+func Test_本文書き換え_ブロック置換と最終編集者の記録と版の記録は同じトランザクションで行う(t *testing.T) {
 	doc := `{"type":"doc","content":[]}`
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
@@ -426,25 +442,58 @@ func Test_本文書き換え_ブロック置換と最終編集者の記録は同
 	repo.On("ReplacePageBlocks", mock.MatchedBy(inTx), kbWS, kbPage, mock.Anything, mock.Anything).Return(nil)
 	repo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
 		Return(&domain.PageSnapshot{PageID: kbPage, Doc: doc}, nil)
+	versionRepo := &mockPageVersionRepo{}
+	versionRepo.On(
+		"CreateVersionIfDue", mock.MatchedBy(inTx), kbWS, kbPage, mock.Anything, kbEditorUserID, (*string)(nil), false,
+	).Return(false, nil, nil)
 	tx := &fakeTxManager{}
-	uc := kb.NewReplacePageBlocksUseCase(repo, tx)
+	uc := kb.NewReplacePageBlocksUseCase(repo, tx, versionRepo)
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: doc, EditorUserID: kbEditorUserID,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 1, tx.calls, "DoInTx は 1 回だけ（Touch と ReplacePageBlocks を 1 つの単位にまとめる）")
+	assert.Equal(t, 1, tx.calls,
+		"DoInTx は 1 回だけ（Touch / ReplacePageBlocks / CreateVersionIfDue を 1 つの単位にまとめる）")
 	repo.AssertExpectations(t)
+	versionRepo.AssertExpectations(t)
+}
+
+// Test_本文書き換え_版の記録に失敗したら本文の書き込みごと失敗として返る は、
+// versionRepo.CreateVersionIfDue が失敗したら DoInTx 全体がエラーとして返り、
+// GetPageSnapshot（「保存できた」ことを前提にした読み出し）まで到達しないことを固定する。
+// 実際にトランザクションがロールバックされ本文が保存前の状態に戻ることは、
+// mock ではなく本物の PostgreSQL を使う結合テストが確認する
+// （page_version_repository_integration_test.go）。
+func Test_本文書き換え_版の記録に失敗したら本文の書き込みごと失敗として返る(t *testing.T) {
+	doc := `{"type":"doc","content":[]}`
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	repo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).Return(nil)
+	repo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything).Return(nil)
+	versionRepoErr := errors.New("db down")
+	versionRepo := &mockPageVersionRepo{}
+	versionRepo.On("CreateVersionIfDue", mock.Anything, kbWS, kbPage, mock.Anything, kbEditorUserID, (*string)(nil), false).
+		Return(false, nil, versionRepoErr)
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, versionRepo)
+
+	out, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
+		WorkspaceID: kbWS, PageID: kbPage, Doc: doc, EditorUserID: kbEditorUserID,
+	})
+	require.ErrorIs(t, err, versionRepoErr)
+	assert.Nil(t, out)
+	repo.AssertNotCalled(t, "GetPageSnapshot", mock.Anything, mock.Anything, mock.Anything)
 }
 
 // Test_本文書き換え_最終編集者の記録に失敗したら本文を書かない は、Touch が失敗したら
-// ReplacePageBlocks を呼ばずに tx ごと失敗として伝えることを固定する。
+// ReplacePageBlocks / versionRepo.CreateVersionIfDue を呼ばずに tx ごと失敗として伝えることを固定する。
 func Test_本文書き換え_最終編集者の記録に失敗したら本文を書かない(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
 	repo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).
 		Return(repository.ErrPageNotFound)
-	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+	versionRepo := &mockPageVersionRepo{}
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, versionRepo)
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,
@@ -452,13 +501,15 @@ func Test_本文書き換え_最終編集者の記録に失敗したら本文を
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
 	repo.AssertNotCalled(t, "ReplacePageBlocks", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertExpectations(t)
+	versionRepo.AssertNotCalled(t, "CreateVersionIfDue",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // Test_本文書き換え_編集者が未指定なら拒否 は EditorUserID の 0 値（未指定）を repository を
 // 一切呼ばずに拒否することを固定する。
 func Test_本文書き換え_編集者が未指定なら拒否(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
-	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, &mockPageVersionRepo{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`,
@@ -470,7 +521,7 @@ func Test_本文書き換え_編集者が未指定なら拒否(t *testing.T) {
 func Test_本文書き換え_不正なdocは保存せず失敗(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
-	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, &mockPageVersionRepo{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[{"type":"iframe"}]}`, EditorUserID: kbEditorUserID,
@@ -482,7 +533,7 @@ func Test_本文書き換え_不正なdocは保存せず失敗(t *testing.T) {
 func Test_本文書き換え_アーカイブ済みページは拒否(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
-	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, &mockPageVersionRepo{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,
@@ -493,7 +544,7 @@ func Test_本文書き換え_アーカイブ済みページは拒否(t *testing.
 func Test_本文書き換え_無いページはそのまま失敗(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(nil, repository.ErrPageNotFound)
-	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{})
+	uc := kb.NewReplacePageBlocksUseCase(repo, &fakeTxManager{}, &mockPageVersionRepo{})
 
 	_, err := uc.Execute(context.Background(), kb.ReplacePageBlocksInput{
 		WorkspaceID: kbWS, PageID: kbPage, Doc: `{"type":"doc","content":[]}`, EditorUserID: kbEditorUserID,

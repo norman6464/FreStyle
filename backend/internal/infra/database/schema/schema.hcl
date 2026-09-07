@@ -1040,6 +1040,74 @@ table "comment_threads" {
   }
 }
 
+# page_versions: ページ本文（doc）の明示的なスナップショット履歴（FRESTYLE-433 段 3）。
+# page_snapshots が「1 ページ 1 行の読み取りキャッシュ（正本は blocks）」なのに対し、
+# こちらは「複数行が積み上がる履歴」。本文保存のたびに毎回 1 行増やすのではなく、直近の版から
+# 10 分以上経っている場合だけ新しい版を切る（間引き。usecase/repository/page_version.go の
+# CreateVersionIfDue のコメント参照）。「版を残す」操作と復元は間引きを無視して必ず 1 行増やす。
+# 30 日より古い版は新しい版を作るのと同じトランザクションで掃除する（同ファイル参照）。
+#
+# PK をあえて id ではなく複合 (page_id, seq) にする。一覧は「そのページの seq 降順」しか
+# 引かないため、PK のインデックス（(page_id, seq) の btree）だけで素引きできる
+# （id 単独の PK だと (page_id, seq) 用の別インデックスをもう 1 本持つ必要がある）。
+table "page_versions" {
+  schema = schema.public
+  # テナント境界の複合 FK（fk_page_versions_page）用。単体の WHERE には使わない
+  # （版の検索は常に page_id とセットで行い、workspace_id だけで絞る使い方が無いため）。
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  # そのページの中での通し番号（1 始まり）。採番は Go 側（CreateVersionIfDue）が
+  # 直近の最大値 + 1 で行う。同時書き込みは pages 行の SELECT ... FOR UPDATE で直列化するため、
+  # ここに単独の UNIQUE 制約が無くても PK の複合キーで衝突は原理的に起きない
+  # （usecase/repository/page_version.go のコメント参照）。
+  column "seq" {
+    null = false
+    type = bigint
+  }
+  # tiptap の getJSON() そのまま。page_snapshots.doc と同じ形・同じ CHECK（下の
+  # ck_page_versions_doc）。
+  column "doc" {
+    null = false
+    type = jsonb
+  }
+  column "author_user_id" {
+    null = false
+    type = bigint
+  }
+  # 版に添える任意のメモ。空文字・空白のみは保存しない（domain.ValidateVersionNote が
+  # nil へ正規化してから渡す）。
+  column "note" {
+    null = true
+    type = text
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.page_id, column.seq]
+  }
+  # comment_threads.fk_comment_threads_page と全く同じ書き方（複合 FK でテナント越えを塞ぐ。
+  # pages.uq_pages_workspace_id が参照先として要る）。
+  foreign_key "fk_page_versions_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # page_snapshots.ck_page_snapshots_doc と同じ式（tiptap の doc 形式であることを入口で保証する）。
+  check "ck_page_versions_doc" {
+    expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
+  }
+}
+
 # comments: スレッドに付いた 1 件の発言（スレッドを開いた最初の発言も返信も同じ形で持つ）。
 table "comments" {
   schema = schema.public

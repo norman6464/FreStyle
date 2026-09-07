@@ -5,6 +5,7 @@ import {
   rememberVisitedPage,
   forgetVisitedPageIfMatches,
   type KbIcon,
+  type KbPageContentSaveResult,
   type KbResolvedPage,
 } from '@/entities/kb';
 import { getApiError } from '@/shared/lib/classifyApiError';
@@ -206,6 +207,31 @@ export function useKbPageDoc(pageId: string | undefined) {
     emitKbTreeEvent({ type: 'page-updated', page });
   }, []);
 
+  /**
+   * applyRestoredContent は版の復元（useKbPageVersions.restoreVersion）が成功した後、
+   * その応答をこのページの本文へ反映する。**API 呼び出しはここでは行わない**
+   * — 叩くのは useKbPageVersions.restoreVersion（版一覧・復元 API を持つのはあちら）。
+   * ここは flushSave の成功ハンドラと同じ安全策だけを担う。
+   *
+   * 宛先（pageId）は**呼び出し側（KbPage）が復元を開始した時点**のもの。応答が返る前に
+   * 別ページへ移っていたら、画面の状態には触らない（flushSave が pending.pageId で
+   * 見ているのと同じ理由 — 触ると、移った先の本文が前のページの復元結果で上書きされる）。
+   */
+  const applyRestoredContent = useCallback((pageId: string, result: KbPageContentSaveResult) => {
+    setState((prev) => {
+      if (!prev.data || prev.data.page.id !== pageId) return prev;
+      return {
+        ...prev,
+        data: {
+          ...prev.data,
+          doc: result.doc,
+          lastEditedBy: result.lastEditedBy,
+          lastEditedAt: result.lastEditedAt,
+        },
+      };
+    });
+  }, []);
+
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
   const onDocChange = useCallback(
     (doc: unknown) => {
@@ -231,5 +257,6 @@ export function useKbPageDoc(pageId: string | undefined) {
     renameTitle,
     changeIcon,
     changeCover,
+    applyRestoredContent,
   };
 }

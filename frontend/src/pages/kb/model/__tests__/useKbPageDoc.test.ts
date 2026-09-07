@@ -652,4 +652,54 @@ describe('useKbPageDoc', () => {
       vi.useRealTimers();
     }
   });
+
+  describe('applyRestoredContent（版の復元の反映）', () => {
+    it('doc / lastEditedBy / lastEditedAt を確定後の値へ差し替える（API 自体は呼ばない）', async () => {
+      const { result } = renderHook(() => useKbPageDoc('p1'));
+      await act(async () => {});
+
+      act(() => {
+        result.current.applyRestoredContent('p1', {
+          doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+          builtAt: '2026-09-06T00:00:00Z',
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-06T00:00:00Z',
+        });
+      });
+
+      expect(result.current.data?.doc).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] });
+      expect(result.current.data?.lastEditedBy).toEqual({ userId: 1, name: '田中 太郎' });
+      expect(result.current.data?.lastEditedAt).toBe('2026-09-06T00:00:00Z');
+      // 復元自体は本文保存 API（replaceContent）を呼ばない — 叩くのは
+      // useKbPageVersions.restoreVersion 側で、ここは応答を反映するだけ。
+      expect(hoisted.replaceContent).not.toHaveBeenCalled();
+    });
+
+    it('宛先が今のページと違えば何もしない（別ページへ移った後に届いた復元応答を反映しない）', async () => {
+      const { result, rerender } = renderHook(({ id }) => useKbPageDoc(id), {
+        initialProps: { id: 'p1' },
+      });
+      await act(async () => {});
+
+      hoisted.resolvePage.mockResolvedValue({
+        ...resolved('子ページ'),
+        page: { ...resolved('子ページ').page, id: 'p2' },
+      });
+      rerender({ id: 'p2' });
+      await act(async () => {});
+
+      act(() => {
+        // p1 で始まった復元が、p2 へ移った後に届いた想定。
+        result.current.applyRestoredContent('p1', {
+          doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+          builtAt: '2026-09-06T00:00:00Z',
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-06T00:00:00Z',
+        });
+      });
+
+      expect(result.current.data?.page.id).toBe('p2');
+      expect(result.current.data?.lastEditedBy).toBeUndefined();
+    });
+  });
 });

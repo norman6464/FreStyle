@@ -1,0 +1,48 @@
+import type { KbPageVersion } from '@/entities/kb';
+import { formatHourMinute, formatMonthDay } from '@/shared/lib/formatters';
+
+export interface KbVersionListItemProps {
+  version: KbPageVersion;
+  /** プレビュー中の版かどうか（一覧内でのハイライトに使う）。 */
+  selected: boolean;
+  onSelect: (seq: number) => void;
+}
+
+/**
+ * KbVersionListItem は版一覧の 1 行（時刻・著者名・note）。
+ *
+ * KbCommentThreadCard と同じ「行を消さない」約束 — 著者名が引けなければ
+ * 「不明なユーザー」に倒す（KbPageMeta / KbCommentThreadCard と同じ形）。
+ * 日時は KbPageMeta が最終編集時刻に使っているのと同じ整形関数
+ * （formatMonthDay + formatHourMinute）を使う — 画面内で日時の見え方を揃えるため。
+ */
+export default function KbVersionListItem({ version, selected, onSelect }: KbVersionListItemProps) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(version.seq)}
+        aria-current={selected ? 'true' : undefined}
+        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+          selected
+            ? 'border-brand-400 bg-brand-500/10'
+            : 'border-surface-3 bg-surface-1 hover:bg-surface-2'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+            {version.author.name || '不明なユーザー'}
+          </span>
+          <span className="text-[0.6875rem] text-[var(--color-text-muted)]">
+            {formatMonthDay(version.createdAt)} {formatHourMinute(version.createdAt)}
+          </span>
+        </div>
+        {version.note && (
+          <p className="mt-1 text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            {version.note}
+          </p>
+        )}
+      </button>
+    </li>
+  );
+}

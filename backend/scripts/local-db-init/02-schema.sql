@@ -168,6 +168,18 @@ CREATE TABLE "public"."page_snapshots" (
   PRIMARY KEY ("page_id"),
   CONSTRAINT "ck_page_snapshots_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
 );
+-- Create "page_versions" table
+CREATE TABLE "public"."page_versions" (
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "seq" bigint NOT NULL,
+  "doc" jsonb NOT NULL,
+  "author_user_id" bigint NOT NULL,
+  "note" text NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("page_id", "seq"),
+  CONSTRAINT "ck_page_versions_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
+);
 -- Create "pages" table
 CREATE TABLE "public"."pages" (
   "id" uuid NOT NULL,
@@ -385,6 +397,8 @@ ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN 
 ALTER TABLE "public"."page_paths" ADD CONSTRAINT "fk_page_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_paths_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_snapshots" table
 ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "page_versions" table
+ALTER TABLE "public"."page_versions" ADD CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "pages" table
 ALTER TABLE "public"."pages" ADD CONSTRAINT "fk_pages_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "principal_members" table

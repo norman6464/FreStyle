@@ -462,3 +462,38 @@ func (m *mockKbImagePresigner) PresignDownload(ctx context.Context, key string) 
 	args := m.Called(ctx, key)
 	return args.String(0), args.Int(1), args.Error(2)
 }
+
+// --- mock: PageVersionRepository ---
+
+type mockPageVersionRepo struct{ mock.Mock }
+
+var _ repository.PageVersionRepository = (*mockPageVersionRepo)(nil)
+
+func (m *mockPageVersionRepo) CreateVersionIfDue(
+	ctx context.Context, workspaceID, pageID, doc string, authorUserID uint64, note *string, force bool,
+) (bool, *domain.PageVersion, error) {
+	args := m.Called(ctx, workspaceID, pageID, doc, authorUserID, note, force)
+	var v *domain.PageVersion
+	if args.Get(1) != nil {
+		v = args.Get(1).(*domain.PageVersion)
+	}
+	return args.Bool(0), v, args.Error(2)
+}
+
+func (m *mockPageVersionRepo) ListVersions(ctx context.Context, workspaceID, pageID string) ([]domain.PageVersion, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	var v []domain.PageVersion
+	if args.Get(0) != nil {
+		v = args.Get(0).([]domain.PageVersion)
+	}
+	return v, args.Error(1)
+}
+
+func (m *mockPageVersionRepo) GetVersion(ctx context.Context, workspaceID, pageID string, seq int64) (*domain.PageVersion, error) {
+	args := m.Called(ctx, workspaceID, pageID, seq)
+	var v *domain.PageVersion
+	if args.Get(0) != nil {
+		v = args.Get(0).(*domain.PageVersion)
+	}
+	return v, args.Error(1)
+}

@@ -48,6 +48,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewWorkspaceProvisioner(deps.db),
 		persistence.NewUserRepository(deps.db),
 		persistence.NewCommentRepository(deps.db),
+		persistence.NewPageVersionRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 		newKbImagePresignerOrFallback(deps),
 	)
@@ -100,9 +101,14 @@ func registerKnowledgeBaseRoutesWith(
 	provisioner repository.WorkspaceProvisioner,
 	users repository.UserRepository,
 	comments repository.CommentRepository,
+	versions repository.PageVersionRepository,
 	txManager repository.TxManager,
 	kbImagePresigner repository.KbImagePresigner,
 ) {
+	// ReplacePageBlocksUseCase は本文保存の成功直後に versionRepo.CreateVersionIfDue を同じ
+	// トランザクションで呼ぶ（FRESTYLE-433 段 3）ので、PageVersionHandler と同じ 1 つの
+	// インスタンスを共有する（RestorePageVersionUseCase もこれをそのまま呼ぶ）。
+	replaceBlocks := kb.NewReplacePageBlocksUseCase(pages, txManager, versions)
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(permissions),
 		kb.NewResolvePageLocationUseCase(pages),
@@ -116,7 +122,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewMovePageUseCase(pages),
 		kb.NewArchivePageUseCase(pages),
 		kb.NewUnarchivePageUseCase(pages),
-		kb.NewReplacePageBlocksUseCase(pages, txManager),
+		replaceBlocks,
 		kb.NewResolvePageRefTitlesUseCase(permissions),
 		kb.NewListViewableAncestorsUseCase(pages, permissions),
 		kb.NewDeletePageUseCase(pages),
@@ -138,6 +144,17 @@ func registerKnowledgeBaseRoutesWith(
 		comment.NewListCommentThreadsUseCase(comments),
 		comment.NewResolveCommentThreadUseCase(comments),
 		comment.NewReopenCommentThreadUseCase(comments),
+		kb.NewLookupUserNameUseCase(users),
+	)
+
+	// ページ本文の版（FRESTYLE-433 段 3）。一覧・単体取得は CapabilityView、
+	// 作成（「版を残す」）・復元は CapabilityEdit（PageVersionHandler 内の各ハンドラ参照）。
+	vh := NewPageVersionHandler(
+		kb.NewCheckPagePermissionUseCase(permissions),
+		kb.NewCreateExplicitPageVersionUseCase(versions, pages),
+		kb.NewListPageVersionsUseCase(versions),
+		kb.NewGetPageVersionUseCase(versions),
+		kb.NewRestorePageVersionUseCase(versions, replaceBlocks),
 		kb.NewLookupUserNameUseCase(users),
 	)
 
@@ -252,6 +269,13 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/comments", ch.AddComment)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/resolve", ch.Resolve)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/reopen", ch.Reopen)
+
+	// ページ本文の版（FRESTYLE-433 段 3）。一覧・単体取得は CapabilityView（閲覧できれば
+	// 誰でも読める）、「版を残す」・復元は CapabilityEdit を要求する（PageVersionHandler 参照）。
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/versions", vh.List)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/versions/:seq", vh.Get)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/versions", vh.Create)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/versions/:seq/restore", vh.Restore)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。

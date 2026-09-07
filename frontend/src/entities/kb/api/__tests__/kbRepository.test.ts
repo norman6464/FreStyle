@@ -720,4 +720,153 @@ describe('KbRepository', () => {
       expect(thread.resolvedBy).toBeNull();
     });
   });
+
+  describe('listPageVersions', () => {
+    it('GET /versions を叩き、一覧を配列で返す', async () => {
+      const version = {
+        seq: 3,
+        author: { userId: 1, name: '田中 太郎' },
+        note: 'リリース前の状態',
+        createdAt: '2026-09-05T00:00:00Z',
+      };
+      mockGet.mockResolvedValue({ data: [version] });
+
+      const versions = await KbRepository.listPageVersions('acme', 'p-1');
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/versions');
+      expect(versions).toEqual([version]);
+    });
+
+    it('一覧が null で返っても空配列にする', async () => {
+      mockGet.mockResolvedValue({ data: null });
+
+      await expect(KbRepository.listPageVersions('acme', 'p-1')).resolves.toEqual([]);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockGet.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.listPageVersions('acme', 'p-1')).rejects.toThrow();
+    });
+  });
+
+  describe('getPageVersion', () => {
+    it('GET /versions/:seq に seq を埋め、doc 込みの1件を返す', async () => {
+      const detail = {
+        seq: 3,
+        author: { userId: 1, name: '田中 太郎' },
+        note: null,
+        createdAt: '2026-09-05T00:00:00Z',
+        doc: { type: 'doc', content: [] },
+      };
+      mockGet.mockResolvedValue({ data: detail });
+
+      const got = await KbRepository.getPageVersion('acme', 'p-1', 3);
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/versions/3');
+      expect(got).toEqual(detail);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockGet.mockRejectedValue(new Error('not found'));
+
+      await expect(KbRepository.getPageVersion('acme', 'p-1', 3)).rejects.toThrow();
+    });
+  });
+
+  describe('createPageVersion', () => {
+    it('note を渡すと POST /versions に { note } を送る', async () => {
+      const created = {
+        seq: 4,
+        author: { userId: 1, name: '田中 太郎' },
+        note: 'リリース前の状態',
+        createdAt: '2026-09-06T00:00:00Z',
+        doc: { type: 'doc', content: [] },
+      };
+      mockPost.mockResolvedValue({ data: created });
+
+      const got = await KbRepository.createPageVersion('acme', 'p-1', 'リリース前の状態');
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/versions', {
+        note: 'リリース前の状態',
+      });
+      expect(got).toEqual(created);
+    });
+
+    it('note を省くと空の body で送る（空のメモも作れる）', async () => {
+      mockPost.mockResolvedValue({
+        data: { seq: 5, author: { userId: 1, name: '田中 太郎' }, note: null, createdAt: '2026-09-06T00:00:00Z', doc: {} },
+      });
+
+      await KbRepository.createPageVersion('acme', 'p-1');
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/versions', {});
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.createPageVersion('acme', 'p-1', 'x')).rejects.toThrow();
+    });
+  });
+
+  describe('note が欠けた応答の正規化（メモを付けていない版）', () => {
+    // backend は note を Go の `*string` + `omitempty` で返す。メモを付けていない版では
+    // **キー自体が応答に無い**（null ではなく丸ごと欠ける — resolvedAt/resolvedBy と同じ理由）。
+    const versionWithoutNoteKey = {
+      seq: 7,
+      author: { userId: 1, name: '田中 太郎' },
+      createdAt: '2026-09-05T00:00:00Z',
+      // note キー自体が無い。
+    };
+
+    it('listPageVersions は欠けた note を null に正規化する', async () => {
+      mockGet.mockResolvedValue({ data: [versionWithoutNoteKey] });
+
+      const [version] = await KbRepository.listPageVersions('acme', 'p-1');
+
+      expect(version.note).toBeNull();
+    });
+
+    it('getPageVersion は欠けた note を null に正規化する', async () => {
+      mockGet.mockResolvedValue({ data: { ...versionWithoutNoteKey, doc: { type: 'doc', content: [] } } });
+
+      const detail = await KbRepository.getPageVersion('acme', 'p-1', 7);
+
+      expect(detail.note).toBeNull();
+    });
+
+    it('createPageVersion は欠けた note を null に正規化する', async () => {
+      mockPost.mockResolvedValue({ data: { ...versionWithoutNoteKey, doc: { type: 'doc', content: [] } } });
+
+      const created = await KbRepository.createPageVersion('acme', 'p-1');
+
+      expect(created.note).toBeNull();
+    });
+  });
+
+  describe('restorePageVersion', () => {
+    it('POST /versions/:seq/restore を body 無しで叩き、本文保存と同じ形の応答を返す', async () => {
+      const result = {
+        doc: { type: 'doc', content: [] },
+        builtAt: '2026-09-06T00:00:00Z',
+        lastEditedBy: { userId: 1, name: '田中 太郎' },
+        lastEditedAt: '2026-09-06T00:00:00Z',
+      };
+      mockPost.mockResolvedValue({ data: result });
+
+      const got = await KbRepository.restorePageVersion('acme', 'p-1', 3);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/versions/3/restore',
+      );
+      expect(got).toEqual(result);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.restorePageVersion('acme', 'p-1', 3)).rejects.toThrow();
+    });
+  });
 });

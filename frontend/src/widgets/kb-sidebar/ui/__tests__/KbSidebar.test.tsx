@@ -1108,7 +1108,7 @@ describe('題名で検索（モーダル）', () => {
     );
     await screen.findByText('設計メモ');
     fireEvent.click(screen.getByRole('button', { name: '検索' }));
-    return screen.getByRole('combobox', { name: 'ページを題名で検索' });
+    return screen.getByRole('combobox', { name: 'ページを題名・本文で検索' });
   }
 
   it('入口を押すとモーダルが開き、入力にフォーカスが移る', async () => {

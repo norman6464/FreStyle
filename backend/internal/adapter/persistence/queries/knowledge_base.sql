@@ -29,6 +29,13 @@ INSERT INTO workspaces (id, slug, name, personal_owner_user_id)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- name: ListAllWorkspaceIDs :many
+-- 全ワークスペースの id（slug 順）。cmd/rebuildsearchindex（一回限りの再構築）が
+-- 全ワークスペースを列挙するために使う。テナントを故意に跨ぐ唯一の
+-- 用途で、通常の API 経路（handler → usecase）からは呼ばない。
+SELECT id FROM workspaces
+ORDER BY slug;
+
 -- name: GetPersonalWorkspaceByOwner :one
 -- 個人ワークスペースを持ち主から引く。サインアップの「作る前に既に在るか見る」に使う
 -- （uq_workspaces_personal_owner が 1 人 1 つを守るので、あれば必ず 1 行）。
@@ -106,6 +113,15 @@ WHERE workspace_id = $1 AND id = $2;
 SELECT * FROM pages
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
 ORDER BY "position";
+
+-- name: ListActivePageIDsByWorkspace :many
+-- ワークスペース全体（スペースを問わない）の現役ページ id（アーカイブ済みは除く）。
+-- cmd/rebuildsearchindex（一回限りの再構築）が、ワークスペース 1 つの
+-- 中で再構築すべきページを列挙するために使う。並び順は id（安定した反復順が要るだけで、
+-- 表示順の意味は持たない）。
+SELECT id FROM pages
+WHERE workspace_id = sqlc.arg(workspace_id) AND archived_at IS NULL
+ORDER BY id;
 
 -- name: GetLastActiveSiblingPosition :one
 -- 兄弟（同じ親、ルートなら同じスペース直下）の末尾 position。末尾追加の採番
@@ -472,6 +488,65 @@ ON CONFLICT (page_id) DO UPDATE SET doc = EXCLUDED.doc, built_at = now();
 SELECT ps.* FROM page_snapshots ps
 JOIN pages p ON p.id = ps.page_id
 WHERE p.workspace_id = $1 AND ps.page_id = $2;
+
+-- name: UpsertPageSearch :exec
+-- page_search（本文検索の派生キャッシュ）の焼き直し。UpsertPageSnapshot の直後に、
+-- blocks の全入れ替えと同じトランザクションで呼び、「page_search は常に
+-- pages.title / blocks と同期している」を保つ。
+--
+-- 衝突キー (page_id) に所有者列（workspace_id）が入っていないため、UpsertBlock と同じ
+-- 多層防御で DO UPDATE の WHERE に所有者条件を足す（queries_static_check_test.go の
+-- Test_upsertの衝突キーに所有者列が入っていること が要求する）。事前に findPageWith で
+-- テナントを確認済みとはいえ、衝突キー自体にも条件を持たせておくことで、将来この
+-- クエリだけが単独で再利用されても同じ防御が効く。
+INSERT INTO page_search (page_id, workspace_id, title, body, updated_at)
+VALUES (sqlc.arg(page_id), sqlc.arg(workspace_id), sqlc.arg(title), sqlc.arg(body), now())
+ON CONFLICT (page_id) DO UPDATE SET
+  title = EXCLUDED.title,
+  body = EXCLUDED.body,
+  updated_at = now()
+WHERE page_search.workspace_id = EXCLUDED.workspace_id;
+
+-- name: DeletePageLinksBySourceBlockIDsInPage :exec
+-- ページ内リンクの張り替え（前半）: そのページのブロックが持っていたリンクを一旦すべて消す。
+-- 後半は InsertPageLink による再構築（ON CONFLICT DO NOTHING で 1 行に畳む）。
+--
+-- page_links.source_block_id は blocks への単独 FK（workspace_id / page_id を含まない）
+-- なので、ここで blocks 側から workspace_id / page_id を確認してから消す
+-- （schema.hcl の page_links コメント参照 — テナント確認は書き込み側の責務）。
+DELETE FROM page_links
+WHERE source_block_id IN (
+  SELECT id FROM blocks
+  WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id)
+);
+
+-- name: InsertPageLink :exec
+-- ページ内リンク 1 本を張る。主キー (source_block_id, target_page_id) との衝突は
+-- 無視するだけでよい（DO NOTHING）。衝突しうる相手は直前の
+-- DeletePageLinksBySourceBlockIDsInPage で自分が消した行と同じキーの再構築だけなので、
+-- 他人の行に当たる余地が無く、所有者列での絞り込みは不要
+-- （queries_static_check_test.go は DO NOTHING を検査の対象にしない）。
+INSERT INTO page_links (source_block_id, target_page_id)
+VALUES (sqlc.arg(source_block_id), sqlc.arg(target_page_id))
+ON CONFLICT (source_block_id, target_page_id) DO NOTHING;
+
+-- name: ListExistingPageIDsAmong :many
+-- 与えた id 群のうち、pages に実在するものだけを返す（ワークスペースを問わない）。
+-- ページ内リンクの参照先が実在するかを保存の直前にまとめて確認するために使う —
+-- 実在しない ID（リンク切れ）は黙って除外する。1 本のリンク切れのために本文の保存
+-- 自体を失敗させてはいけないため（page_links.target_page_id は pages への FK なので、
+-- 存在しない ID のまま INSERT すると外部キー違反で保存全体が落ちてしまう）。
+--
+-- workspace_id で絞らないのは page_links 自体がテナントを跨いだ参照を書き込み時に
+-- 禁じない設計のため（schema.hcl の page_links コメント参照。テナント・可視の判定は
+-- 読み取り側 = 逆リンク一覧 API の権限解決に委ねる）。
+--
+-- id 群は json 配列 1 個のパラメータで渡す（ListExistingBlockIDsAmong と同じ理由・
+-- 同じパターン。sqlc-vet の no-array-param ルール）。
+SELECT id FROM pages
+WHERE id IN (
+  SELECT value::uuid FROM json_array_elements_text(sqlc.arg(ids)::json) AS t(value)
+);
 
 -- name: ListPageAncestorIDs :many
 -- ページの祖先 ID を根から順（depth の大きい順）に返す。自分自身（depth=0）は含まない。

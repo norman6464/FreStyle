@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { KbRepository, type KbPage, type KbSpace } from '@/entities/kb';
+import { KbRepository, type KbSearchResult, type KbSpace } from '@/entities/kb';
 import { buildSearchView } from '../model/searchView';
-import KbPageGlyph from './KbPageGlyph';
+import KbSearchResultRow from './KbSearchResultRow';
 
 export interface KbSearchDialogProps {
   workspaceSlug: string;
@@ -14,20 +14,23 @@ export interface KbSearchDialogProps {
 
 
 /**
- * KbSearchDialog はワークスペース全体の題名検索のモーダル。
+ * KbSearchDialog はワークスペース全体の題名・本文検索のモーダル。
  *
  * サイドバー本体は場所（木）を示すことに徹し、検索は入口だけを置いてここで行う
  * （常設の入力欄が場所の面を圧迫し、木と結果が同じ狭い面で入れ替わる形をやめた）。
  * 検索はサーバーが行い、返るのは木と同じ規則で閲覧できる現役ページだけ。
  * 入力から 250ms 待って問い合わせ、世代番号で古い応答を捨てる。
  * ↑↓ で選び Enter で開く。Esc・外側クリックで閉じる。
+ *
+ * 各結果は matchField で題名一致・本文一致を見分ける。本文一致の行は題名の下に
+ * 抜粋（excerpt）を添え、一致箇所を強調する（行の描画そのものは KbSearchResultRow）。
  */
 export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSearchDialogProps) {
   const navigate = useNavigate();
   const listboxId = useId();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [pages, setPages] = useState<KbPage[]>([]);
+  const [pages, setPages] = useState<KbSearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   // 速く打ったときに、古い応答が新しい結果を上書きしないための世代番号。
   const generation = useRef(0);
@@ -68,7 +71,7 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
 
   const view = buildSearchView(pages, spaces);
 
-  const open = (page: KbPage) => {
+  const open = (page: KbSearchResult) => {
     navigate(`/kb/${page.id}`);
     onClose();
   };
@@ -99,29 +102,23 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
     }
   };
 
-  const optionId = (page: KbPage) => `${listboxId}-${page.id}`;
+  const optionId = (page: KbSearchResult) => `${listboxId}-${page.id}`;
   const selectedPage = view.flat[selectedIndex];
 
-  // 押されるのは option である li 自身。option の中にボタンを入れない
+  // 押されるのは option である div 自身。option の中にボタンを入れない
   // （支援技術からは「押せるものの中に押せるものがある」壊れた形に見え、どちらを選んだのかが
   //  決まらない）。フォーカスは入力欄に残したまま、選択中の行は aria-activedescendant で伝える。
-  const renderRow = (page: KbPage) => (
-    <div
+  // 行そのものの描画（題名一致 / 本文一致の抜粋・強調）は KbSearchResultRow に分けてある。
+  const renderRow = (page: KbSearchResult) => (
+    <KbSearchResultRow
       key={page.id}
       id={optionId(page)}
-      role="option"
-      aria-selected={page.id === selectedPage?.id}
-      // mousedown での blur によりモーダルが振る舞いを変えないよう、click で開く。
-      onClick={() => open(page)}
-      className={`flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm ${
-        page.id === selectedPage?.id
-          ? 'bg-brand-500/10 font-medium text-[var(--color-text-primary)]'
-          : 'text-[var(--color-text-primary)] hover:bg-surface-2'
-      }`}
-    >
-      <KbPageGlyph page={page} className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-      <span className="truncate">{page.title}</span>
-    </div>
+      page={page}
+      selected={page.id === selectedPage?.id}
+      // mousedown での blur によりモーダルが振る舞いを変えないよう、click で開く
+      // （KbSearchResultRow 側は onClick をそのまま onSelect として受ける）。
+      onSelect={() => open(page)}
+    />
   );
 
   return (
@@ -148,8 +145,8 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="題名で検索..."
-            aria-label="ページを題名で検索"
+            placeholder="ページを検索..."
+            aria-label="ページを題名・本文で検索"
             role="combobox"
             aria-expanded={view.flat.length > 0}
             aria-controls={listboxId}
@@ -164,7 +161,7 @@ export default function KbSearchDialog({ workspaceSlug, spaces, onClose }: KbSea
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {status === 'idle' && (
             <p className="px-2 py-6 text-center text-xs text-[var(--color-text-muted)]">
-              ワークスペース全体から題名で探します
+              ワークスペース全体から題名・本文で探します
             </p>
           )}
           {status === 'loading' && (

@@ -177,13 +177,21 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "消す根")
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "消える子")
-		_ = mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
+		survivor := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
 		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
 			WorkspaceID: ws, PageID: child.ID,
-			Doc:          `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`,
+			// pageRef を含めて page_links に行ができる状態を作る（下の CASCADE 確認のため）。
+			Doc: `{"type":"doc","content":[{"type":"paragraph","content":[` +
+				`{"type":"text","text":"本文"},{"type":"pageRef","attrs":{"pageId":"` + survivor.ID + `"}}` +
+				`]}]}`,
 			EditorUserID: 1,
 		})
 		require.NoError(t, err)
+		var linkCountBefore int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_links pl JOIN blocks b ON b.id = pl.source_block_id
+			 WHERE b.page_id = $1`, child.ID).Scan(&linkCountBefore))
+		require.Equal(t, 1, linkCountBefore, "前提: 削除前はpage_linksが1行ある")
 
 		require.NoError(t, repo.DeletePageSubtree(ctx, ws, root.ID))
 
@@ -203,6 +211,13 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		assert.Zero(t, count)
 		require.NoError(t, sqlDB.QueryRowContext(ctx,
 			`SELECT count(*) FROM page_snapshots WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_search WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_links pl JOIN blocks b ON b.id = pl.source_block_id
+			 WHERE b.page_id = $1`, child.ID).Scan(&count))
 		assert.Zero(t, count)
 
 		// 実在しないページの削除は ErrPageNotFound（冪等にしない — 押した相手が
@@ -585,7 +600,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		blocks, err := repo.ListBlocksByPage(ctx, ws, bad)
 		require.NoError(t, err)
 		assert.Empty(t, blocks)
-		err = repo.ReplacePageBlocks(ctx, ws, bad, nil, `{"type":"doc","content":[]}`)
+		err = repo.ReplacePageBlocks(ctx, ws, bad, nil, `{"type":"doc","content":[]}`, "", "", nil)
 		require.ErrorIs(t, err, repository.ErrPageNotFound)
 		_, err = repo.GetPageSnapshot(ctx, ws, bad)
 		require.ErrorIs(t, err, repository.ErrPageSnapshotNotFound)
@@ -606,7 +621,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		danglingParent := "00000000-0000-0000-0000-000000000099"
 		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
 			{ID: uuid.NewString(), ParentID: &danglingParent, Position: "a0", Type: domain.BlockTypeListItem, Attrs: "{}"},
-		}, `{"type":"doc","content":[]}`)
+		}, `{"type":"doc","content":[]}`, "", "", nil)
 		require.Error(t, err) // fk_blocks_parent 制約違反で失敗するはず
 		var blockCount int
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&blockCount))
@@ -868,7 +883,7 @@ func TestKnowledgeBaseReplaceBlocksTransaction_Integration(t *testing.T) {
 		if err := repo.TouchPageLastEditedBy(ctx, ws, page.ID, editorID); err != nil {
 			return err
 		}
-		return repo.ReplacePageBlocks(ctx, ws, page.ID, broken, `{"type":"doc","content":[]}`)
+		return repo.ReplacePageBlocks(ctx, ws, page.ID, broken, `{"type":"doc","content":[]}`, "", "", nil)
 	})
 	require.Error(t, err, "壊れた行で ReplacePageBlocks が失敗する")
 
@@ -921,7 +936,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		inline1 := `[{"type":"text","text":"最初の内容"}]`
 		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
 			{ID: fixedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline1},
-		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, fixedID, inline1))
+		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, fixedID, inline1), "", "", nil)
 		require.NoError(t, err)
 		createdAt1 := blockCreatedAt(t, fixedID)
 
@@ -929,7 +944,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		inline2 := `[{"type":"text","text":"書き換え後の内容"}]`
 		err = repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
 			{ID: fixedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline2},
-		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, fixedID, inline2))
+		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, fixedID, inline2), "", "", nil)
 		require.NoError(t, err)
 
 		var count int
@@ -953,7 +968,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
 			{ID: id1, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
 			{ID: id2, Position: "a1", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
-		}, `{"type":"doc","content":[]}`)
+		}, `{"type":"doc","content":[]}`, "", "", nil)
 		require.NoError(t, err)
 		require.True(t, blockExists(t, id1))
 		require.True(t, blockExists(t, id2))
@@ -961,7 +976,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		// id2 を含まない doc で再保存する。
 		err = repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
 			{ID: id1, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
-		}, `{"type":"doc","content":[]}`)
+		}, `{"type":"doc","content":[]}`, "", "", nil)
 		require.NoError(t, err)
 
 		assert.True(t, blockExists(t, id1), "残った id は消えない")
@@ -977,7 +992,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		inline := `[{"type":"text","text":"page-aの内容"}]`
 		err := repo.ReplacePageBlocks(ctx, ws, pageA.ID, []repository.BlockWrite{
 			{ID: sharedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline},
-		}, `{"type":"doc","content":[]}`)
+		}, `{"type":"doc","content":[]}`, "", "", nil)
 		require.NoError(t, err)
 		createdAtBefore := blockCreatedAt(t, sharedID)
 		var inlineBefore []byte
@@ -987,7 +1002,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		hijackInline := `[{"type":"text","text":"乗っ取ろうとした内容"}]`
 		err = repo.ReplacePageBlocks(ctx, ws, pageB.ID, []repository.BlockWrite{
 			{ID: sharedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &hijackInline},
-		}, `{"type":"doc","content":[]}`)
+		}, `{"type":"doc","content":[]}`, "", "", nil)
 		require.ErrorIs(t, err, repository.ErrBlockIDConflict)
 
 		var countInB int
@@ -1026,7 +1041,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		// 実際に検証するには、id と position の対応が入れ替わるケースが要る
 		// （CodeRabbit 指摘: このケースは元々 ParkBlockPositions を削除しても通ってしまう）。
 		for i := 0; i < 3; i++ {
-			err := repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(ids), `{"type":"doc","content":[]}`)
+			err := repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(ids), `{"type":"doc","content":[]}`, "", "", nil)
 			require.NoError(t, err, "%d 回目の保存", i+1)
 		}
 
@@ -1035,7 +1050,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		// （uq_blocks_page_position）。エラーにならないことがその素通りの証拠。
 		reversed := []string{ids[3], ids[2], ids[1], ids[0]}
 		require.NoError(t,
-			repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(reversed), `{"type":"doc","content":[]}`),
+			repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(reversed), `{"type":"doc","content":[]}`, "", "", nil),
 			"id と position の対応を入れ替えた保存")
 
 		var count int
@@ -1063,7 +1078,7 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		inlineA := `[{"type":"text","text":"page A の内容"}]`
 		require.NoError(t, repo.ReplacePageBlocks(ctx, wsA, pageA.ID, []repository.BlockWrite{
 			{ID: sharedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inlineA},
-		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, sharedID, inlineA)))
+		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, sharedID, inlineA), "", "", nil))
 
 		id, err := uuid.Parse(sharedID)
 		require.NoError(t, err)

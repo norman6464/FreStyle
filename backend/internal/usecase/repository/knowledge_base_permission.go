@@ -65,6 +65,24 @@ type PageWithPermissionFacts struct {
 	Facts  domain.PagePermissionFacts
 }
 
+// PageSearchViewFact は検索結果 1 件（PageWithViewFacts）と、その本文一致の材料の組。
+// SearchWorkspacePageViewFacts が返す（本文検索と逆リンク）。
+//
+// Body を PageWithViewFacts に足さず別の型にしているのは、ListSpacePageViewFacts /
+// ListWorkspacePageViewFactsByIDs のような他の呼び口には本文一致の抜粋を計算する材料が
+// 要らないため（それらの型に無関係なフィールドを持たせない）。
+type PageSearchViewFact struct {
+	PageWithViewFacts
+	// Body はそのページの page_search.body（本文の素テキスト）。まだ page_search が
+	// 同期されていないページ（新規作成直後・再構築前）では空文字（NULL ではない —
+	// LEFT JOIN + COALESCE で SQL 側が空文字に倒す）。
+	//
+	// 抜粋（excerpt）の計算は usecase 側（SearchViewablePagesUseCase）が行う —
+	// 「titleが一致していればmatchField=title」「titleが一致せずbodyが一致していれば
+	// matchField=body」の判定に Query の値が要り、repository はそれを知らないため。
+	Body string
+}
+
 // SpaceWithScopeFacts は 1 スペースと、その入れ物に対する実効権限を決める事実の組。
 // ListWorkspaceSpaceScopeFacts が返す（判定は domain.ResolveScopePermission が行う）。
 //
@@ -189,12 +207,19 @@ type KnowledgeBasePermissionRepository interface {
 	// 1 回のクエリで返す（ページごとに問い合わせない）。編集の事実は集めないので、
 	// 編集可否をここから出さないこと（返す型がそれを表している）。
 	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]PageWithViewFacts, error)
-	// SearchWorkspacePageViewFacts はワークスペース全体から題名が部分一致する現役ページを
-	// 候補にし、その閲覧の事実を返す（サイドバーの題名検索用）。判定は呼び出し側が
-	// domain.ResolvePageView で行う。query はエスケープ前の生の文字列を渡す
-	// （% _ \ のエスケープは実装が行う — 呼び出し側に SQL の都合を漏らさない）。
-	// ParentArchived は常に false（検索は現役だけを対象にするため集めない）。
-	SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]PageWithViewFacts, error)
+	// SearchWorkspacePageViewFacts はワークスペース全体から題名 **または本文** が部分一致する
+	// 現役ページを候補にし、その閲覧の事実を返す（サイドバーの検索用。
+	// 本文検索に対応）。判定は呼び出し側が domain.ResolvePageView で行う。query は
+	// エスケープ前の生の文字列を渡す（% _ \ のエスケープは実装が行う — 呼び出し側に
+	// SQL の都合を漏らさない）。ParentArchived は常に false（検索は現役だけを対象にするため
+	// 集めない）。
+	SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]PageSearchViewFact, error)
+	// ListPageLinkSourcePageViewFacts は targetPageID を参照している「参照元ページ」全件と、
+	// その閲覧の事実を返す（逆リンク用）。事実の組み立ては
+	// SearchWorkspacePageViewFacts と同じ見方で、判定は呼び出し側が domain.ResolvePageView
+	// で行う。アーカイブ済みの参照元も候補から外さない（ListWorkspacePageViewFactsByIDs と
+	// 同じ考え方 — パンくずと同じく、参照元が現役かどうかでふるい落とす理由が無い）。
+	ListPageLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string) ([]PageWithViewFacts, error)
 	// ListWorkspacePageViewFactsByIDs は指定 ID 群のページの閲覧の事実を返す
 	// （ページ参照の題名解決とパンくずが使う）。事実の見方は検索と同一で、判定は
 	// 呼び出し側が domain.ResolvePageView で行う。UUID として読めない ID・

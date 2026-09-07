@@ -89,6 +89,10 @@ const iconStub = (config: { method?: string }) =>
 const api = (over: Record<string, unknown> = {}) => ({
   '/kb/pages/p-1': resolved(),
   '/pages/p-1/icon': iconStub,
+  // 逆リンクの宛先（.../pages/p-1/backlinks）は `/kb/workspaces` を部分文字列として
+  // 含むため、iconStub と同じ理由でそちらより前に置く（後ろだと workspaces の一覧が
+  // 誤って backlinks の応答として使われ、意図しない逆リンクセクションが出てしまう）。
+  '/pages/p-1/backlinks': [],
   '/spaces/s-1/pages': tree,
   '/spaces': spaces,
   '/kb/workspaces': workspaces,

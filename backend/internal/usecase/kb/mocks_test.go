@@ -139,6 +139,18 @@ func (m *mockKnowledgeBaseRepo) ListActivePagesBySpace(ctx context.Context, work
 	return rows, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) ListAllWorkspaceIDs(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	ids, _ := args.Get(0).([]string)
+	return ids, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) ListActivePageIDsByWorkspace(ctx context.Context, workspaceID string) ([]string, error) {
+	args := m.Called(ctx, workspaceID)
+	ids, _ := args.Get(0).([]string)
+	return ids, args.Error(1)
+}
+
 func (m *mockKnowledgeBaseRepo) SiblingPositionsAround(
 	ctx context.Context, workspaceID, spaceID string, parentID *string, anchorPageID, movingPageID string,
 ) (bool, string, string, string, error) {
@@ -210,14 +222,20 @@ func (m *mockKnowledgeBaseRepo) ListBlocksByPage(ctx context.Context, workspaceI
 	return rows, args.Error(1)
 }
 
-func (m *mockKnowledgeBaseRepo) ReplacePageBlocks(ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc string) error {
-	return m.Called(ctx, workspaceID, pageID, blocks, snapshotDoc).Error(0)
+func (m *mockKnowledgeBaseRepo) ReplacePageBlocks(
+	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string, pageLinks []repository.PageLinkWrite,
+) error {
+	return m.Called(ctx, workspaceID, pageID, blocks, snapshotDoc, title, body, pageLinks).Error(0)
 }
 
 func (m *mockKnowledgeBaseRepo) GetPageSnapshot(ctx context.Context, workspaceID, pageID string) (*domain.PageSnapshot, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	s, _ := args.Get(0).(*domain.PageSnapshot)
 	return s, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) RebuildPageSearchAndLinks(ctx context.Context, workspaceID, pageID string) error {
+	return m.Called(ctx, workspaceID, pageID).Error(0)
 }
 
 // --- mock: KnowledgeBasePermissionRepository ---
@@ -358,8 +376,16 @@ func (m *mockKBPermissionRepo) PagePermissionFactsForPrincipal(ctx context.Conte
 	return f, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]repository.PageWithViewFacts, error) {
+func (m *mockKBPermissionRepo) SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]repository.PageSearchViewFact, error) {
 	args := m.Called(ctx, workspaceID, userID, query)
+	rows, _ := args.Get(0).([]repository.PageSearchViewFact)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListPageLinkSourcePageViewFacts(
+	ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string,
+) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, viewerUserID, targetPageID)
 	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
 	return rows, args.Error(1)
 }

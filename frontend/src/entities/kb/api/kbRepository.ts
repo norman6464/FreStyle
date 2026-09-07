@@ -18,6 +18,7 @@ import type {
   KbPageVersionDetail,
   KbResolvedCover,
   KbResolvedPage,
+  KbSearchResult,
   KbSpace,
   KbWorkspace,
 } from '../model/types';
@@ -171,13 +172,31 @@ const KbRepository = {
   },
 
   /**
-   * ワークスペース全体を題名で検索する。返るのは閲覧できる現役ページだけ。
-   * 見える範囲の判定はツリーと同じ規則をサーバーが持つ。**失敗は例外として投げる。**
+   * ワークスペース全体を題名・本文で検索する。返るのは閲覧できる現役ページだけ。
+   * 見える範囲の判定はツリーと同じ規則をサーバーが持つ。
+   *
+   * 各要素の matchField で題名一致("title")か本文一致("body")かが分かる。本文一致のときだけ
+   * excerpt（抜粋）・matchStart・matchLen（excerpt 文字列内での一致位置）が付く。
+   * **失敗は例外として投げる。**
    */
-  async searchPages(workspaceSlug: string, query: string, limit?: number): Promise<KbPage[]> {
-    const res = await apiClient.get<KbPage[]>(KB_API.search(workspaceSlug), {
+  async searchPages(
+    workspaceSlug: string,
+    query: string,
+    limit?: number,
+  ): Promise<KbSearchResult[]> {
+    const res = await apiClient.get<KbSearchResult[]>(KB_API.search(workspaceSlug), {
       params: { q: query, ...(limit ? { limit } : {}) },
     });
+    return toArray(res.data);
+  },
+
+  /**
+   * このページを参照している（本文からリンクしている）ページの一覧を返す（逆リンク）。
+   * 応答は KbPage[] と同じ形（追加フィールドなし）。見える範囲の判定は検索・ツリーと
+   * 同じ規則をサーバーが持つ。**失敗は例外として投げる。**
+   */
+  async listBacklinks(workspaceSlug: string, pageId: string): Promise<KbPage[]> {
+    const res = await apiClient.get<KbPage[]>(KB_API.pageBacklinks(workspaceSlug, pageId));
     return toArray(res.data);
   },
 

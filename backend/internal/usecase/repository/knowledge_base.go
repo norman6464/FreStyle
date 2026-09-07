@@ -55,6 +55,21 @@ var ErrPageSnapshotNotFound = errors.New("page snapshot not found")
 // 本来なら他ページの行を書き換えられてしまうところを、保存ごと拒否して塞ぐ）。
 var ErrBlockIDConflict = errors.New("block id conflict")
 
+// PageLinkWrite は ReplacePageBlocks に渡す 1 件のページ内リンク候補
+// （本文検索と逆リンク）。
+//
+// TargetPageID の実在確認はしていない。呼び出し元の usecase（extractPageLinks）は
+// 本文中の pageRef ノードをそのまま渡すだけで、存在しない参照先（リンク切れ）は
+// repository 側が保存の直前にまとめて確認し、黙って除外する。1 本のリンク切れの
+// ために本文の保存自体を失敗させてはいけないため（page_links.target_page_id は
+// pages への FK なので、存在しない ID のまま書けば外部キー違反で保存全体が落ちる）。
+type PageLinkWrite struct {
+	// SourceBlockID は参照元のブロック（page_links.source_block_id）。
+	SourceBlockID string
+	// TargetPageID は参照先のページ（page_links.target_page_id）。
+	TargetPageID string
+}
+
 // BlockWrite は ReplacePageBlocks に渡す 1 ブロック行。
 //
 // ID は usecase 側（flattenPageDoc）が必ず埋める。クライアントが attrs.id で送った有効な
@@ -127,6 +142,13 @@ type KnowledgeBaseRepository interface {
 	FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error)
 	// ListActivePagesBySpace はスペース配下の現役ページ全件を position 順で返す（ツリー構築用）。
 	ListActivePagesBySpace(ctx context.Context, workspaceID, spaceID string) ([]domain.Page, error)
+	// ListAllWorkspaceIDs は全ワークスペースの id を返す（slug 順）。cmd/rebuildsearchindex
+	// （一回限りの再構築）専用。テナントを故意に跨ぐ唯一の口で、
+	// 通常の API 経路（handler → usecase）からは呼ばない。
+	ListAllWorkspaceIDs(ctx context.Context) ([]string, error)
+	// ListActivePageIDsByWorkspace はワークスペース全体（スペースを問わない）の現役ページ id
+	// を返す（アーカイブ済みは除く）。cmd/rebuildsearchindex 専用。
+	ListActivePageIDsByWorkspace(ctx context.Context, workspaceID string) ([]string, error)
 	// LastActiveSiblingPosition は兄弟（parentID が nil ならスペース直下）の末尾 position を返す。
 	// 兄弟がいなければ空文字（fracindex.Between の「端」表現）。
 	LastActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string) (string, error)
@@ -199,8 +221,23 @@ type KnowledgeBaseRepository interface {
 	ListBlocksByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Block, error)
 	// ReplacePageBlocks はページの全ブロックを blocks で置き換え、snapshot を snapshotDoc で
 	// 焼き直す（全消し全入れ + UPSERT を 1 トランザクションで）。対象ページが無ければ ErrPageNotFound。
-	ReplacePageBlocks(ctx context.Context, workspaceID, pageID string, blocks []BlockWrite, snapshotDoc string) error
+	//
+	// snapshot の焼き直しに続けて、同じトランザクションで page_search（title / body）を
+	// UPSERT し、page_links を張り替える（本文検索と逆リンク）。
+	// title / body は呼び出し元（ReplacePageBlocksUseCase）が渡す — title は既に取得済みの
+	// page.Title をそのまま流すことで、repository 側の余計な SELECT を増やさない。
+	// pageLinks は本文中の pageRef ノードから抽出した候補で、実在しない参照先は
+	// repository が黙って除外する（PageLinkWrite の doc 参照）。
+	ReplacePageBlocks(
+		ctx context.Context, workspaceID, pageID string, blocks []BlockWrite, snapshotDoc, title, body string, pageLinks []PageLinkWrite,
+	) error
 	// GetPageSnapshot はページの snapshot を返す。無ければ ErrPageSnapshotNotFound、
 	// ページ自体が別ワークスペースなら ErrPageSnapshotNotFound と同じ「無い」に落ちる。
 	GetPageSnapshot(ctx context.Context, workspaceID, pageID string) (*domain.PageSnapshot, error)
+	// RebuildPageSearchAndLinks は既存ページ 1 件について、その時点の blocks から
+	// page_search / page_links を同期し直す。一回限りの再構築
+	// （cmd/rebuildsearchindex）が使う口で、通常の保存経路（ReplacePageBlocks）とは別に
+	// 独立して呼べる。DELETE + UPSERT で書き直すため冪等（同じページに何度呼んでも
+	// 結果は同じ）。対象ページが無ければ ErrPageNotFound。
+	RebuildPageSearchAndLinks(ctx context.Context, workspaceID, pageID string) error
 }

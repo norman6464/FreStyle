@@ -138,6 +138,30 @@ func (q *Queries) DeletePage(ctx context.Context, arg DeletePageParams) (int64, 
 	return result.RowsAffected()
 }
 
+const deletePageLinksBySourceBlockIDsInPage = `-- name: DeletePageLinksBySourceBlockIDsInPage :exec
+DELETE FROM page_links
+WHERE source_block_id IN (
+  SELECT id FROM blocks
+  WHERE workspace_id = $1 AND page_id = $2
+)
+`
+
+type DeletePageLinksBySourceBlockIDsInPageParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+}
+
+// ページ内リンクの張り替え（前半）: そのページのブロックが持っていたリンクを一旦すべて消す。
+// 後半は InsertPageLink による再構築（ON CONFLICT DO NOTHING で 1 行に畳む）。
+//
+// page_links.source_block_id は blocks への単独 FK（workspace_id / page_id を含まない）
+// なので、ここで blocks 側から workspace_id / page_id を確認してから消す
+// （schema.hcl の page_links コメント参照 — テナント確認は書き込み側の責務）。
+func (q *Queries) DeletePageLinksBySourceBlockIDsInPage(ctx context.Context, arg DeletePageLinksBySourceBlockIDsInPageParams) error {
+	_, err := q.db.ExecContext(ctx, deletePageLinksBySourceBlockIDsInPage, arg.WorkspaceID, arg.PageID)
+	return err
+}
+
 const deleteWorkspace = `-- name: DeleteWorkspace :execrows
 DELETE FROM workspaces w
 WHERE w.id = $1
@@ -485,6 +509,27 @@ func (q *Queries) InsertPage(ctx context.Context, arg InsertPageParams) (Page, e
 	return i, err
 }
 
+const insertPageLink = `-- name: InsertPageLink :exec
+INSERT INTO page_links (source_block_id, target_page_id)
+VALUES ($1, $2)
+ON CONFLICT (source_block_id, target_page_id) DO NOTHING
+`
+
+type InsertPageLinkParams struct {
+	SourceBlockID uuid.UUID
+	TargetPageID  uuid.UUID
+}
+
+// ページ内リンク 1 本を張る。主キー (source_block_id, target_page_id) との衝突は
+// 無視するだけでよい（DO NOTHING）。衝突しうる相手は直前の
+// DeletePageLinksBySourceBlockIDsInPage で自分が消した行と同じキーの再構築だけなので、
+// 他人の行に当たる余地が無く、所有者列での絞り込みは不要
+// （queries_static_check_test.go は DO NOTHING を検査の対象にしない）。
+func (q *Queries) InsertPageLink(ctx context.Context, arg InsertPageLinkParams) error {
+	_, err := q.db.ExecContext(ctx, insertPageLink, arg.SourceBlockID, arg.TargetPageID)
+	return err
+}
+
 const insertPagePathAncestors = `-- name: InsertPagePathAncestors :exec
 INSERT INTO page_paths (workspace_id, page_id, ancestor_id, depth)
 SELECT pp.workspace_id, $1::uuid, pp.ancestor_id, pp.depth + 1
@@ -594,6 +639,39 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 	return i, err
 }
 
+const listActivePageIDsByWorkspace = `-- name: ListActivePageIDsByWorkspace :many
+SELECT id FROM pages
+WHERE workspace_id = $1 AND archived_at IS NULL
+ORDER BY id
+`
+
+// ワークスペース全体（スペースを問わない）の現役ページ id（アーカイブ済みは除く）。
+// cmd/rebuildsearchindex（一回限りの再構築）が、ワークスペース 1 つの
+// 中で再構築すべきページを列挙するために使う。並び順は id（安定した反復順が要るだけで、
+// 表示順の意味は持たない）。
+func (q *Queries) ListActivePageIDsByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listActivePageIDsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActivePagesBySpace = `-- name: ListActivePagesBySpace :many
 SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id FROM pages
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
@@ -634,6 +712,37 @@ func (q *Queries) ListActivePagesBySpace(ctx context.Context, arg ListActivePage
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllWorkspaceIDs = `-- name: ListAllWorkspaceIDs :many
+SELECT id FROM workspaces
+ORDER BY slug
+`
+
+// 全ワークスペースの id（slug 順）。cmd/rebuildsearchindex（一回限りの再構築）が
+// 全ワークスペースを列挙するために使う。テナントを故意に跨ぐ唯一の
+// 用途で、通常の API 経路（handler → usecase）からは呼ばない。
+func (q *Queries) ListAllWorkspaceIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listAllWorkspaceIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -760,6 +869,48 @@ WHERE id IN (
 // ListMasterExerciseExamplesByExerciseIDs を参照）。
 func (q *Queries) ListExistingBlockIDsAmong(ctx context.Context, ids json.RawMessage) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, listExistingBlockIDsAmong, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExistingPageIDsAmong = `-- name: ListExistingPageIDsAmong :many
+SELECT id FROM pages
+WHERE id IN (
+  SELECT value::uuid FROM json_array_elements_text($1::json) AS t(value)
+)
+`
+
+// 与えた id 群のうち、pages に実在するものだけを返す（ワークスペースを問わない）。
+// ページ内リンクの参照先が実在するかを保存の直前にまとめて確認するために使う —
+// 実在しない ID（リンク切れ）は黙って除外する。1 本のリンク切れのために本文の保存
+// 自体を失敗させてはいけないため（page_links.target_page_id は pages への FK なので、
+// 存在しない ID のまま INSERT すると外部キー違反で保存全体が落ちてしまう）。
+//
+// workspace_id で絞らないのは page_links 自体がテナントを跨いだ参照を書き込み時に
+// 禁じない設計のため（schema.hcl の page_links コメント参照。テナント・可視の判定は
+// 読み取り側 = 逆リンク一覧 API の権限解決に委ねる）。
+//
+// id 群は json 配列 1 個のパラメータで渡す（ListExistingBlockIDsAmong と同じ理由・
+// 同じパターン。sqlc-vet の no-array-param ルール）。
+func (q *Queries) ListExistingPageIDsAmong(ctx context.Context, ids json.RawMessage) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listExistingPageIDsAmong, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -1360,6 +1511,42 @@ func (q *Queries) UpsertBlock(ctx context.Context, arg UpsertBlockParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const upsertPageSearch = `-- name: UpsertPageSearch :exec
+INSERT INTO page_search (page_id, workspace_id, title, body, updated_at)
+VALUES ($1, $2, $3, $4, now())
+ON CONFLICT (page_id) DO UPDATE SET
+  title = EXCLUDED.title,
+  body = EXCLUDED.body,
+  updated_at = now()
+WHERE page_search.workspace_id = EXCLUDED.workspace_id
+`
+
+type UpsertPageSearchParams struct {
+	PageID      uuid.UUID
+	WorkspaceID uuid.UUID
+	Title       string
+	Body        string
+}
+
+// page_search（本文検索の派生キャッシュ）の焼き直し。UpsertPageSnapshot の直後に、
+// blocks の全入れ替えと同じトランザクションで呼び、「page_search は常に
+// pages.title / blocks と同期している」を保つ。
+//
+// 衝突キー (page_id) に所有者列（workspace_id）が入っていないため、UpsertBlock と同じ
+// 多層防御で DO UPDATE の WHERE に所有者条件を足す（queries_static_check_test.go の
+// Test_upsertの衝突キーに所有者列が入っていること が要求する）。事前に findPageWith で
+// テナントを確認済みとはいえ、衝突キー自体にも条件を持たせておくことで、将来この
+// クエリだけが単独で再利用されても同じ防御が効く。
+func (q *Queries) UpsertPageSearch(ctx context.Context, arg UpsertPageSearchParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPageSearch,
+		arg.PageID,
+		arg.WorkspaceID,
+		arg.Title,
+		arg.Body,
+	)
+	return err
 }
 
 const upsertPageSnapshot = `-- name: UpsertPageSnapshot :exec

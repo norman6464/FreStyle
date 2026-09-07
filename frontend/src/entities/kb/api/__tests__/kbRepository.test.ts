@@ -208,6 +208,96 @@ describe('KbRepository', () => {
     });
   });
 
+  describe('searchPages の一致情報（matchField / excerpt / matchStart / matchLen）', () => {
+    it('題名一致の要素はそのまま通す（matchField 以外の追加フィールドは無い）', async () => {
+      const hit = {
+        id: 'p-1',
+        spaceId: 's1',
+        title: '設計メモ',
+        createdByUserId: 1,
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+        matchField: 'title' as const,
+      };
+      mockGet.mockResolvedValue({ data: [hit] });
+
+      const [got] = await KbRepository.searchPages('acme', '設計');
+
+      expect(got).toEqual(hit);
+    });
+
+    it('本文一致の要素は excerpt / matchStart / matchLen を持ったまま通す', async () => {
+      const hit = {
+        id: 'p-2',
+        spaceId: 's1',
+        title: '無関係な題名',
+        createdByUserId: 1,
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+        matchField: 'body' as const,
+        excerpt: '…この段落には docker の使い方が書かれている…',
+        matchStart: 8,
+        matchLen: 6,
+      };
+      mockGet.mockResolvedValue({ data: [hit] });
+
+      const [got] = await KbRepository.searchPages('acme', 'docker');
+
+      expect(got).toEqual(hit);
+      expect(got.excerpt).toBe('…この段落には docker の使い方が書かれている…');
+      expect(got.matchStart).toBe(8);
+      expect(got.matchLen).toBe(6);
+    });
+
+    it('旧応答（matchField 等が無い）でも画面が落ちない形でそのまま通す', async () => {
+      const legacy = {
+        id: 'p-3',
+        spaceId: 's1',
+        title: '旧仕様の結果',
+        createdByUserId: 1,
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+      };
+      mockGet.mockResolvedValue({ data: [legacy] });
+
+      const [got] = await KbRepository.searchPages('acme', 'x');
+
+      expect(got.matchField).toBeUndefined();
+      expect(got.excerpt).toBeUndefined();
+    });
+  });
+
+  describe('listBacklinks', () => {
+    it('GET /pages/:id/backlinks を叩き、一覧を配列で返す', async () => {
+      const page = {
+        id: 'p-referrer',
+        spaceId: 's1',
+        title: '参照元ページ',
+        createdByUserId: 1,
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+      };
+      mockGet.mockResolvedValue({ data: [page] });
+
+      const backlinks = await KbRepository.listBacklinks('acme', 'p-1');
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/backlinks');
+      expect(backlinks).toEqual([page]);
+    });
+
+    it('一覧が null で返っても空配列にする', async () => {
+      mockGet.mockResolvedValue({ data: null });
+
+      await expect(KbRepository.listBacklinks('acme', 'p-1')).resolves.toEqual([]);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockGet.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.listBacklinks('acme', 'p-1')).rejects.toThrow();
+    });
+  });
+
   it('renameSpace は PATCH /spaces/:id に name だけを送る', async () => {
     mockPatch.mockResolvedValue({
       data: { id: 'sp-1', key: 'eng', name: '技術部', createdAt: '2026-08-01T00:00:00Z' },

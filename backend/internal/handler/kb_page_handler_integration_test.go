@@ -28,7 +28,10 @@ var kbIntegrationTables = []string{
 	"principal_members", "principals",
 	"comments", "comment_threads",
 	"page_versions",
-	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
+	// page_search / page_links は blocks / pages への CASCADE FK が
+	// あるので TRUNCATE ... CASCADE で自動的に一緒に空になるが、明示しておく
+	// （internal/adapter/persistence の kbTables と同じ作法）。
+	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "pages", "spaces", "workspaces",
 }
 
 // kbEnv は本物の PostgreSQL・本物の repository・本番と同じルートで組んだ検証環境。

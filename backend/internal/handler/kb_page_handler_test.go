@@ -147,6 +147,11 @@ var kbEndpoints = []kbEndpoint{
 		capability: domain.CapabilityView, okStatus: http.StatusOK,
 	},
 	{
+		name: "逆リンク", method: http.MethodGet,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/backlinks",
+		capability: domain.CapabilityView, okStatus: http.StatusOK,
+	},
+	{
 		name: "ページ削除", method: http.MethodDelete,
 		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}",
 		capability: domain.CapabilityEdit, okStatus: http.StatusNoContent,
@@ -1622,6 +1627,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewIssuePageImageDownloadURLUseCase(pages, &kbFakeImagePresigner{}),
 		kb.NewSetPageCoverUseCase(pages),
 		kb.NewResolveCoverURLUseCase(&kbFakeImagePresigner{}),
+		kb.NewListPageBacklinksUseCase(perms),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

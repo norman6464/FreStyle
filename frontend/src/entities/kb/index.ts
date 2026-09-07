@@ -19,6 +19,7 @@ export type {
   KbIcon,
   KbEditorRef,
   KbPage,
+  KbSearchResult,
   KbPageTreeNode,
   KbPageTree,
   KbPageDoc,

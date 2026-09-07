@@ -266,6 +266,20 @@ func (r *knowledgeBaseRepository) FindPersonalWorkspaceByOwner(ctx context.Conte
 	return &ws, nil
 }
 
+// ListAllWorkspaceIDs は全ワークスペースの id を返す（cmd/rebuildsearchindex 専用。
+// repository.KnowledgeBaseRepository の doc 参照）。
+func (r *knowledgeBaseRepository) ListAllWorkspaceIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.queries(ctx).ListAllWorkspaceIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, id := range rows {
+		ids = append(ids, id.String())
+	}
+	return ids, nil
+}
+
 func (r *knowledgeBaseRepository) FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error) {
 	if slug == "" {
 		return nil, repository.ErrWorkspaceNotFound
@@ -451,6 +465,24 @@ func (r *knowledgeBaseRepository) ListActivePagesBySpace(ctx context.Context, wo
 		pages = append(pages, toDomainPage(row))
 	}
 	return pages, nil
+}
+
+// ListActivePageIDsByWorkspace はワークスペース全体の現役ページ id を返す
+// （cmd/rebuildsearchindex 専用。repository.KnowledgeBaseRepository の doc 参照）。
+func (r *knowledgeBaseRepository) ListActivePageIDsByWorkspace(ctx context.Context, workspaceID string) ([]string, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []string{}, nil
+	}
+	rows, err := r.queries(ctx).ListActivePageIDsByWorkspace(ctx, wsID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, id := range rows {
+		ids = append(ids, id.String())
+	}
+	return ids, nil
 }
 
 func (r *knowledgeBaseRepository) SiblingPositionsAround(
@@ -878,7 +910,9 @@ func (r *knowledgeBaseRepository) ListBlocksByPage(ctx context.Context, workspac
 // 全消し全入れを続ける限り保存のたびに全コメントの紐付けが外れてしまう。そのため、
 // 消えた id だけ DELETE し、生き残る id は UPDATE で中身を書き換え（行そのものは同一なので
 // FK は外れない）、新しい id だけ INSERT する。
-func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc string) error {
+func (r *knowledgeBaseRepository) ReplacePageBlocks(
+	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string, pageLinks []repository.PageLinkWrite,
+) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
 	if !ok || !ok2 {
@@ -1031,10 +1065,16 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspa
 		}
 
 		// 7. snapshot を焼き直す。
-		return qtx.UpsertPageSnapshot(ctx, sqlcgen.UpsertPageSnapshotParams{
+		if err := qtx.UpsertPageSnapshot(ctx, sqlcgen.UpsertPageSnapshotParams{
 			PageID: pgID,
 			Doc:    json.RawMessage(snapshotDoc),
-		})
+		}); err != nil {
+			return err
+		}
+
+		// 8. page_search / page_links を同期する。書き込みの中核ロジックは
+		// RebuildPageSearchAndLinks と共有する（writePageSearchAndLinks の doc 参照）。
+		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, title, body, pageLinks)
 	})
 }
 

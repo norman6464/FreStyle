@@ -202,7 +202,11 @@ func TestPageGrant_スペース全員宛ての付与が全経路で一致する_
 	found, err := kb.NewSearchViewablePagesUseCase(f.perm).Execute(ctx,
 		kb.SearchViewablePagesInput{WorkspaceID: f.ws, UserID: f.alice, Query: "全員"})
 	require.NoError(t, err)
-	assert.True(t, containsPageID(found, page), "検索でも出る（開けるのに検索に出ないのは経路のずれ）")
+	foundPages := make([]domain.Page, 0, len(found))
+	for _, r := range found {
+		foundPages = append(foundPages, r.Page)
+	}
+	assert.True(t, containsPageID(foundPages, page), "検索でも出る（開けるのに検索に出ないのは経路のずれ）")
 
 	// ID 指定でも同じ。
 	rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice, []string{page})

@@ -1108,6 +1108,113 @@ table "page_versions" {
   }
 }
 
+# page_search: ページ本文検索のための派生キャッシュ（本文検索と逆リンク）。
+# 1 ページ 1 行で、保存のたびに ReplacePageBlocks の最終ステップとして張り替える
+# （page_snapshots と同じ立て付け。UpsertPageSnapshot の直後に続けて UPSERT する）。
+# 正本はあくまで pages.title / blocks の本文で、この行は失っても
+# knowledgeBaseRepository.RebuildPageSearchAndLinks で blocks から作り直せる。
+#
+# title は pages.title の写し（保存のたびに同期する）。body は全ブロックの素テキストを
+# 連結したもの（pageRef ノードは寄与しない — text 型インラインノードの .text だけを
+# 繋げる。抽出は usecase/kb/page_usecase.go の extractPageSearchAndLinks を参照）。
+#
+# pg_trgm の GIN トライグラム索引は採用しなかった。Atlas v1.3.0（ログイン無しの OSS 版
+# CLI）の `extension` ブロックは Pro 限定機能で、`atlas schema inspect` が
+# "extensions are available to logged-in users only. Use `atlas login` to access this
+# feature" で弾く（実測。backend/Makefile の ATLAS_VERSION 参照）。ログイン資格情報を
+# 持たないため、schema.hcl だけで pg_trgm を有効化する手段が無い。手書きの初期化 SQL で
+# 拡張だけ側路から当てる案は、正本（schema.hcl）と実 DB の状態が乖離する即席のインフラに
+# なるため採らない（その場しのぎの妥協をしない方針）。body への ILIKE '%needle%' は索引が
+# 効かず全表走査になるが、結果は正しい。現状はローカル開発中心の小規模運用
+# （CLAUDE.md §1）なので、機能の正しさを優先し、索引無しの素朴な ILIKE で進める。
+table "page_search" {
+  schema = schema.public
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  # テナント境界の複合 FK（fk_page_search_page）用。
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "title" {
+    null = false
+    type = text
+  }
+  column "body" {
+    null = false
+    type = text
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.page_id]
+  }
+  # comment_threads.fk_comment_threads_page と全く同じ書き方（複合 FK でテナント越えを塞ぐ。
+  # pages.uq_pages_workspace_id が参照先として要る）。
+  foreign_key "fk_page_search_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+}
+
+# page_links: 本文中の pageRef（ページ内リンク）ノードの抽出結果。
+# 「このページを参照しているページ」（逆リンク）を求めるための派生データ。正本は blocks の
+# 本文（pageRef ノード）で、この表も失えば RebuildPageSearchAndLinks で作り直せる。
+#
+# 主キーを (source_block_id, target_page_id) にするのは、同じブロックが同じページを
+# 複数回参照しても 1 行に畳むため（本文中に同じ pageRef を 2 回貼っても逆リンクの一覧では
+# 1 件として数えたい）。
+#
+# **workspace_id 列は持たない。** 逆リンクのテナント・可視判定は source_block_id → blocks →
+# pages の JOIN で行う（persistence の ListPageLinkSourcePageViewFacts 参照）。このテーブル
+# 単独の FK では、テナントを跨いだ target_page_id の参照そのものは防がない —
+# これは意図した設計判断: pageRef 自体が本文の保存時にテナントを跨いだ参照を禁じていない
+# （StripPageRefTitles / pageRefCollector の doc 参照。参照先の実在確認はするが、
+# ワークスペースの一致までは見ない）ため、それに揃えている。書き込み時にテナントを
+# 確認しない代わり、読み取り時（逆リンク一覧 API）に既存の権限解決を必ず通すことで
+# 「見えないページの存在を漏らさない」を担保する。
+table "page_links" {
+  schema = schema.public
+  column "source_block_id" {
+    null = false
+    type = uuid
+  }
+  column "target_page_id" {
+    null = false
+    type = uuid
+  }
+  primary_key {
+    columns = [column.source_block_id, column.target_page_id]
+  }
+  # 単独 FK（comment_threads.block_id と同じ理由）。ブロックが消えたら、そのブロックが
+  # 持っていたページ内リンクも消えてよい。
+  foreign_key "fk_page_links_source_block" {
+    columns     = [column.source_block_id]
+    ref_columns = [table.blocks.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 参照先ページが消えたらリンクも消える。
+  foreign_key "fk_page_links_target_page" {
+    columns     = [column.target_page_id]
+    ref_columns = [table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 逆リンク一覧（target_page_id からの検索）用の索引。主キーは (source_block_id,
+  # target_page_id) なので target_page_id 単独では効かない。
+  index "idx_page_links_target_page_id" {
+    columns = [column.target_page_id]
+  }
+}
+
 # comments: スレッドに付いた 1 件の発言（スレッドを開いた最初の発言も返信も同じ形で持つ）。
 table "comments" {
   schema = schema.public

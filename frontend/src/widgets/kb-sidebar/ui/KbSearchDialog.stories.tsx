@@ -91,6 +91,100 @@ export const 見つかった: Story = {
   },
 };
 
+/** 本文一致の結果は、題名の下に抜粋を添え、一致箇所を <mark> で強調する。 */
+export const 本文一致の抜粋と強調: Story = {
+  decorators: [
+    withApi({
+      '/search': [
+        {
+          ...page('p-1', 's-1', '週次定例のメモ'),
+          matchField: 'body',
+          excerpt: '…この段落には docker の使い方が書かれている…',
+          matchStart: 8,
+          matchLen: 6,
+        },
+      ],
+    }),
+  ],
+  args: { spaces },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByRole('combobox'), 'docker');
+    await waitFor(
+      async () => {
+        await expect(canvas.getByText('週次定例のメモ')).toBeVisible();
+      },
+      { timeout: 5000 },
+    );
+    // 一致箇所（"docker"）が <mark> で強調されている。
+    const mark = canvasElement.querySelector('mark');
+    await expect(mark).not.toBeNull();
+    await expect(mark).toHaveTextContent('docker');
+    // 抜粋の残りの文字列も（強調の前後に分かれて）そのまま読める。
+    await expect(canvas.getByText(/この段落には/)).toBeVisible();
+    await expect(canvas.getByText(/の使い方が書かれている/)).toBeVisible();
+  },
+};
+
+/**
+ * 抜粋に `<` `&` 等の HTML として解釈され得る文字が含まれていても、そのまま安全に
+ * テキストとして描画される（dangerouslySetInnerHTML を使わず、React ノードとして
+ * 分けて描画しているため、実際の HTML タグとしては解釈されない）。
+ */
+export const 抜粋にHTMLとして解釈され得る文字を含む: Story = {
+  decorators: [
+    withApi({
+      '/search': [
+        {
+          ...page('p-1', 's-1', '条件分岐のメモ'),
+          matchField: 'body',
+          excerpt: '条件は a < b && c > d のとき成立する',
+          matchStart: 4,
+          matchLen: 5,
+        },
+      ],
+    }),
+  ],
+  args: { spaces },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByRole('combobox'), '条件分岐');
+    await waitFor(
+      async () => {
+        await expect(canvas.getByText('条件分岐のメモ')).toBeVisible();
+      },
+      { timeout: 5000 },
+    );
+    const mark = canvasElement.querySelector('mark');
+    await expect(mark).toHaveTextContent('a < b');
+    // 実際の HTML タグとしては解釈されていない（余計な要素が生成されていない）。
+    await expect(canvasElement.querySelector('script')).toBeNull();
+    await expect(canvasElement.querySelectorAll('mark').length).toBe(1);
+    await expect(canvas.getByText(/&& c > d/)).toBeVisible();
+  },
+};
+
+/** 題名一致の結果には抜粋を出さない（matchField が "title"）。 */
+export const 題名一致では抜粋を出さない: Story = {
+  decorators: [
+    withApi({
+      '/search': [{ ...page('p-1', 's-1', '設計メモ'), matchField: 'title' }],
+    }),
+  ],
+  args: { spaces },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByRole('combobox'), '設計');
+    await waitFor(
+      async () => {
+        await expect(canvas.getByText('設計メモ')).toBeVisible();
+      },
+      { timeout: 5000 },
+    );
+    await expect(canvasElement.querySelector('mark')).toBeNull();
+  },
+};
+
 /** 絵文字のアイコンを設定したページは、結果でも絵文字で出る。 */
 export const 結果に絵文字: Story = {
   decorators: [

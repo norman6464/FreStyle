@@ -42,6 +42,7 @@ type KnowledgeBasePageHandler struct {
 	issueImageDown *kb.IssuePageImageDownloadURLUseCase
 	setCover       *kb.SetPageCoverUseCase
 	resolveCover   *kb.ResolveCoverURLUseCase
+	backlinks      *kb.ListPageBacklinksUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -68,6 +69,7 @@ func NewKnowledgeBasePageHandler(
 	issueImageDown *kb.IssuePageImageDownloadURLUseCase,
 	setCover *kb.SetPageCoverUseCase,
 	resolveCover *kb.ResolveCoverURLUseCase,
+	backlinks *kb.ListPageBacklinksUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
@@ -92,6 +94,7 @@ func NewKnowledgeBasePageHandler(
 		issueImageDown: issueImageDown,
 		setCover:       setCover,
 		resolveCover:   resolveCover,
+		backlinks:      backlinks,
 	}
 }
 
@@ -544,6 +547,38 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 		Page: toKbPageResponse(&out.Page),
 		Doc:  json.RawMessage(doc),
 	})
+}
+
+// Backlinks は、このページを参照している（page_links.target_page_id = このページ）
+// ページのうち、閲覧できるものだけを返す（逆リンク）。
+//
+// 対象ページ自体を見られない場合は他のページ名指し系エンドポイントと同じ 404
+// （requirePagePermission が実在も伏せて畳む）。応答は既存の kbPageResponse の配列
+// （新しいフィールドは不要 — 逆リンクは「見えるページの一覧」以上の情報を持たない）。
+func (h *KnowledgeBasePageHandler) Backlinks(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityView) {
+		return
+	}
+	pages, err := h.backlinks.Execute(c.Request.Context(), kb.ListPageBacklinksInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+		PageID:      pageID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	// 0 件でも [] を返す（null だとフロントの .map が落ちる）。
+	out := make([]kbPageResponse, 0, len(pages))
+	for i := range pages {
+		out = append(out, toKbPageResponse(&pages[i]))
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 type kbRenamePageRequest struct {

@@ -1,10 +1,16 @@
 import type { KbPage, KbSpace } from '@/entities/kb';
 
-/** 表示順（スペースの並び → 見えるスペースに無いもの）に平坦化した検索結果 1 面分。 */
-export interface SearchView {
-  groups: { space: KbSpace; pages: KbPage[] }[];
-  orphan: KbPage[];
-  flat: KbPage[];
+/**
+ * 表示順（スペースの並び → 見えるスペースに無いもの）に平坦化した検索結果 1 面分。
+ *
+ * T は KbPage 自身、または検索結果（KbSearchResult — matchField/excerpt 等を持つ）。
+ * ジェネリクスにしているのは、束ねる際に一致箇所の情報（excerpt 等）を型ごと
+ * 消してしまわないため（KbPage 固定だと、呼び出し側で毎回 as で戻す必要が出る）。
+ */
+export interface SearchView<T extends KbPage = KbPage> {
+  groups: { space: KbSpace; pages: T[] }[];
+  orphan: T[];
+  flat: T[];
 }
 
 /**
@@ -16,8 +22,8 @@ export interface SearchView {
  * ページ等）は名前が引けないので、末尾に見出しなしで並べる（落とすと「検索では
  * 返ったのに画面に出ない」という消え方をする）。
  */
-export function buildSearchView(pages: KbPage[], spaces: KbSpace[]): SearchView {
-  const bySpace = new Map<string, KbPage[]>();
+export function buildSearchView<T extends KbPage>(pages: T[], spaces: KbSpace[]): SearchView<T> {
+  const bySpace = new Map<string, T[]>();
   for (const page of pages) {
     const list = bySpace.get(page.spaceId) ?? [];
     list.push(page);

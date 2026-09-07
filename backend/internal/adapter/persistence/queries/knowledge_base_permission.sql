@@ -740,8 +740,9 @@ ORDER BY s."key", r."role";
 --      space_allp（スペースごとの space_all 主体。自分が所属するときだけ行がある）を
 --      JOIN で当てる。集計の中に相関副問い合わせを書かない流儀は他のクエリと同じ。
 --
--- 候補の LIMIT 200 は「事実を計算する行数の天井」であって応答の件数ではない
--- （呼び出し側が可視でふるった後にさらに件数を切る）。
+-- 候補に SQL 側の LIMIT は掛けない。可視判定は呼び出し側（Go）が候補を受け取った後に
+-- 行うため、SQL側で先に絞ると非公開ページが先頭寄りに多い場合に本来見えるはずの一致が
+-- 切り捨てられ得る。応答の件数は呼び出し側の limit（既定 20・上限 50）だけで決める。
 --
 -- needle は呼び出し側（Go）が % _ とバックスラッシュをエスケープして渡す
 -- （LIKE の既定のエスケープ文字はバックスラッシュ）。生で渡すと「%」1 文字で全件一致になり、
@@ -781,14 +782,27 @@ space_allp AS (
       AND spx.kind = 'space_all'
       AND EXISTS (SELECT 1 FROM me)
 ),
+-- 題名だけでなく本文（page_search.body）も検索対象にする。
+-- page_search は 1 ページ 1 行の派生キャッシュ（正本は blocks）なので、まだ同期されて
+-- いない行（新規ページ・再構築前）は EXISTS が単に偽になるだけで、候補から漏れるだけ
+-- ＝ フェイルセーフ（誤って見せることはない）。
+--
+-- pg_trgm の GIN 索引は使わない（schema.hcl の page_search コメント参照 — Atlas v1.3.0 の
+-- `extension` ブロックがログイン必須の Pro 限定機能で使えなかった）。ILIKE の中間一致は
+-- 索引が効かず全表走査になるが、結果は正しい。現状の規模では許容する。
 cand AS (
     SELECT pg.*
     FROM pages pg
     WHERE pg.workspace_id = sqlc.arg(workspace_id)
       AND pg.archived_at IS NULL
-      AND pg.title ILIKE ('%' || sqlc.arg(needle)::text || '%')
+      AND (
+        pg.title ILIKE ('%' || sqlc.arg(needle)::text || '%')
+        OR EXISTS (
+          SELECT 1 FROM page_search ps
+          WHERE ps.page_id = pg.id AND ps.body ILIKE ('%' || sqlc.arg(needle)::text || '%')
+        )
+      )
     ORDER BY pg.title, pg.id
-    LIMIT 200
 ),
 wsrank AS (
     SELECT COALESCE(max(CASE wg."role"
@@ -840,9 +854,117 @@ SELECT
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
       COALESCE(pgr.v, 0)
-    )::integer AS grant_rank
+    )::integer AS grant_rank,
+    -- 本文一致の抜粋を Go 側（usecase）で計算するための材料。page_search がまだ無ければ
+    -- 空文字（NULL ではなく COALESCE で text に倒す — driver が NULL を string へ Scan
+    -- できずに落ちることを避けるため。ListMemberWorkspaces の is_admin と同じ理由）。
+    COALESCE(ps.body, '')::text AS body
 FROM cand cnd
 -- pages → spaces は複合 FK があるので必ず 1 行に当たる。
+JOIN spaces spvis ON spvis.workspace_id = sqlc.arg(workspace_id) AND spvis.id = cnd.space_id
+LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
+LEFT JOIN page_search ps ON ps.page_id = cnd.id
+ORDER BY cnd.title, cnd.id;
+
+-- name: ListPageLinkSourcePageViewFacts :many
+-- 指定ページ（target_page_id）を参照している「参照元ページ」全件と、それぞれの
+-- 「閲覧の事実」を 1 回のクエリで返す（逆リンク用）。
+--
+-- 事実の組み立ては SearchWorkspacePageViewFacts と全く同じ見方（届いた中で最も強い役割）
+-- で、判定は呼び出し側（usecase）が domain.ResolvePageView で行う。違いは候補の絞り方だけ:
+-- 題名 / 本文の部分一致ではなく、page_links.target_page_id = 対象ページを起点に
+-- source_block_id → blocks → pages と辿って参照元ページを求める。
+--
+-- page_links は workspace_id を持たない（schema.hcl の page_links コメント参照 —
+-- テナント境界は source_block_id → blocks → pages の JOIN で決まる）。ここで
+-- src.workspace_id = 引数の workspace_id を要求することで、他ワークスペースのページが
+-- 参照元候補に混ざることを防ぐ（page_links の書き込み経路自体はテナント越えの参照を
+-- 禁じていない設計なので、読み取り側のこの条件が唯一の防波堤）。
+--
+-- アーカイブ済みの参照元ページも候補から外さない。ListWorkspacePageViewFactsByIDs
+-- （パンくず用）と同じ考え方で、アーカイブ済みでも閲覧できるページは経路として存在し
+-- 続ける。検索が現役だけを対象にするのとは違い、逆リンクは「このページを指している
+-- ページ」という事実の一覧なので、参照元が現役かどうかでふるい落とす理由が無い。
+--
+-- 同じ参照元ページから対象ページへの複数のリンク（複数ブロック）は 1 行に畳む（DISTINCT）。
+--
+-- 表の別名はクエリ全体で一意にしてある（SearchWorkspacePageViewFacts と同じ理由 —
+-- CTE をまたいで同じ別名を使い回すと sqlc の列解決が混線する）。
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = sqlc.arg(workspace_id)
+      AND pr.kind = 'user' AND pr.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pmb.group_principal_id
+    FROM principal_members pmb
+    JOIN me ON me.id = pmb.member_principal_id
+    WHERE pmb.workspace_id = sqlc.arg(workspace_id)
+),
+space_allp AS (
+    -- private のスペースには space_all を届かせない（Search 側と同じ規則）。
+    SELECT spx.space_id, spx.id
+    FROM principals spx
+    JOIN spaces svz ON svz.workspace_id = sqlc.arg(workspace_id) AND svz.id = spx.space_id
+     AND svz.visibility = 'workspace'
+    WHERE spx.workspace_id = sqlc.arg(workspace_id)
+      AND spx.kind = 'space_all'
+      AND EXISTS (SELECT 1 FROM me)
+),
+cand AS (
+    SELECT DISTINCT src.*
+    FROM page_links pl
+    JOIN blocks blk ON blk.id = pl.source_block_id
+    JOIN pages src ON src.workspace_id = blk.workspace_id AND src.id = blk.page_id
+    WHERE pl.target_page_id = sqlc.arg(target_page_id)
+      AND src.workspace_id = sqlc.arg(workspace_id)
+),
+wsrank AS (
+    SELECT COALESCE(max(CASE wg."role"
+                          WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                          WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END), 0) AS v
+    FROM workspace_grants wg
+    WHERE wg.workspace_id = sqlc.arg(workspace_id)
+      AND wg.principal_id IN (SELECT id FROM mine)
+),
+sgrank AS (
+    SELECT sg.space_id,
+           max(CASE sg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM space_grants sg
+    LEFT JOIN space_allp sap2 ON sap2.space_id = sg.space_id
+    WHERE sg.workspace_id = sqlc.arg(workspace_id)
+      AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
+    GROUP BY sg.space_id
+),
+-- ページ付与。候補に絞ってから経路を辿る（意味は検索側と同じ）。
+pgrank AS (
+    SELECT pp.page_id,
+           max(CASE pgt."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM page_paths pp
+    JOIN cand c ON c.id = pp.page_id
+    JOIN page_grants pgt
+      ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    LEFT JOIN space_allp sap3 ON sap3.space_id = c.space_id
+    WHERE pp.workspace_id = sqlc.arg(workspace_id)
+      AND (pgt.principal_id IN (SELECT id FROM mine) OR pgt.principal_id = sap3.id)
+    GROUP BY pp.page_id
+)
+SELECT
+    cnd.*,
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0),
+      COALESCE(pgr.v, 0)
+    )::integer AS grant_rank
+FROM cand cnd
 JOIN spaces spvis ON spvis.workspace_id = sqlc.arg(workspace_id) AND spvis.id = cnd.space_id
 LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
 LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id

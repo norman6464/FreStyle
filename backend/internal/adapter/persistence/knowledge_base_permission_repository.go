@@ -756,20 +756,76 @@ func kbEscapeLike(s string) string {
 	return s
 }
 
-func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]repository.PageWithViewFacts, error) {
+func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]repository.PageSearchViewFact, error) {
 	wsID, ok := kbParseID(workspaceID)
 	if !ok {
-		return []repository.PageWithViewFacts{}, nil
+		return []repository.PageSearchViewFact{}, nil
 	}
 	// bigint に収まらない userID はどの主体にも一致しない（ListSpacePageViewFacts と同じ扱い）。
 	uid, uok := toInt64ID(userID)
 	if !uok {
-		return []repository.PageWithViewFacts{}, nil
+		return []repository.PageSearchViewFact{}, nil
 	}
 	rows, err := r.queries(ctx).SearchWorkspacePageViewFacts(ctx, sqlcgen.SearchWorkspacePageViewFactsParams{
 		WorkspaceID: wsID,
 		UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		Needle:      kbEscapeLike(query),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.PageSearchViewFact, 0, len(rows))
+	for _, row := range rows {
+		page := toDomainPage(sqlcgen.Page{
+			ID:                 row.ID,
+			WorkspaceID:        row.WorkspaceID,
+			SpaceID:            row.SpaceID,
+			ParentID:           row.ParentID,
+			Position:           row.Position,
+			Title:              row.Title,
+			CreatedByUserID:    row.CreatedByUserID,
+			ArchivedAt:         row.ArchivedAt,
+			CreatedAt:          row.CreatedAt,
+			UpdatedAt:          row.UpdatedAt,
+			Icon:               row.Icon,
+			Cover:              row.Cover,
+			LastEditedByUserID: row.LastEditedByUserID,
+		})
+		out = append(out, repository.PageSearchViewFact{
+			PageWithViewFacts: repository.PageWithViewFacts{
+				Page: page,
+				Role: domain.GrantRoleByRank(int(row.GrantRank)),
+				// ParentArchived は集めない（検索は現役だけが対象）。既定の false のまま。
+			},
+			Body: row.Body,
+		})
+	}
+	return out, nil
+}
+
+// ListPageLinkSourcePageViewFacts は targetPageID を参照している参照元ページ全件と、
+// その閲覧の事実を返す（逆リンク用）。組み立ては
+// SearchWorkspacePageViewFacts と同じ形（domain.GrantRoleByRank へ変換するだけ）。
+func (r *knowledgeBasePermissionRepository) ListPageLinkSourcePageViewFacts(
+	ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string,
+) ([]repository.PageWithViewFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	targetID, tok := kbParseID(targetPageID)
+	if !tok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	// bigint に収まらない userID はどの主体にも一致しない（他の口と同じ扱い）。
+	uid, uok := toInt64ID(viewerUserID)
+	if !uok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	rows, err := r.queries(ctx).ListPageLinkSourcePageViewFacts(ctx, sqlcgen.ListPageLinkSourcePageViewFactsParams{
+		WorkspaceID:  wsID,
+		UserID:       sql.NullInt64{Int64: uid, Valid: true},
+		TargetPageID: targetID,
 	})
 	if err != nil {
 		return nil, err
@@ -794,7 +850,7 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
 			Role: domain.GrantRoleByRank(int(row.GrantRank)),
-			// ParentArchived は集めない（検索は現役だけが対象）。既定の false のまま。
+			// ParentArchived は集めない（検索・パンくず以外の口と同じく既定の false）。
 		})
 	}
 	return out, nil

@@ -202,6 +202,14 @@ export const KB_API = {
    */
   search: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/search`,
   /**
+   * GET — /api/v2/kb/workspaces/:slug/pages/:pageId/backlinks
+   *
+   * このページを参照しているページの一覧（逆リンク）。応答は KbPage[] と同じ形
+   * （追加フィールドなし）。見える範囲の判定は木・検索と同じ規則をサーバーが持つ。
+   */
+  pageBacklinks: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/backlinks`,
+  /**
    * GET(一覧) — /api/v2/kb/workspaces/:slug/pages/:pageId/grants
    *
    * **返るのはそのページ自身に張った行だけ**で、上の段（ワークスペース / スペース /

@@ -112,6 +112,14 @@ func (r *pageVersionRepository) CreateVersionIfDue(
 			return err
 		}
 
+		// この操作全体を代表する時刻を 1 回だけ決め、10 分規則の判定・挿入する行の
+		// created_at・掃除の cutoff のすべてにこの同じ値を使う。PostgreSQL の now() は
+		// トランザクション開始時刻で固定されるため、列の DEFAULT に任せると「Go 側の
+		// time.Now()（10分規則の判定に使う）」と「DB 側の now()（created_at に入る値）」
+		// という 2 つの時刻の出どころが混ざってしまう（CodeRabbit 指摘）。ロックを取った
+		// 直後のこの瞬間を全工程の基準時刻にする。
+		now := time.Now()
+
 		// 2. 直近の版（seq 降順 1 件）。1 つも無ければ「間引く対象が無い」= 必ず切る。
 		latest, err := qtx.GetLatestPageVersion(ctx, sqlcgen.GetLatestPageVersionParams{
 			WorkspaceID: wsID, PageID: pgID,
@@ -126,7 +134,7 @@ func (r *pageVersionRepository) CreateVersionIfDue(
 
 		// 3. 間引きの判定。force（「版を残す」・復元）、直近が無い、10 分規則のいずれかで切る。
 		shouldCut := force || !hasLatest
-		if !shouldCut && time.Since(latest.CreatedAt) > pageVersionMinInterval {
+		if !shouldCut && now.Sub(latest.CreatedAt) > pageVersionMinInterval {
 			shouldCut = true
 		}
 		if !shouldCut {
@@ -146,15 +154,16 @@ func (r *pageVersionRepository) CreateVersionIfDue(
 			Doc:          json.RawMessage(doc),
 			AuthorUserID: authorID,
 			Note:         nullString(note),
+			CreatedAt:    now,
 		})
 		if err != nil {
 			return err
 		}
 
 		// 5. 挿入と同じトランザクションで 30 日より古い版を掃除する。今挿入した行の
-		// created_at は now() で cutoff より新しいため、この DELETE の対象にはならない。
+		// created_at（= now）は cutoff より新しいため、この DELETE の対象にはならない。
 		if err := qtx.DeleteOldPageVersions(ctx, sqlcgen.DeleteOldPageVersionsParams{
-			WorkspaceID: wsID, PageID: pgID, Cutoff: time.Now().Add(-pageVersionRetention),
+			WorkspaceID: wsID, PageID: pgID, Cutoff: now.Add(-pageVersionRetention),
 		}); err != nil {
 			return err
 		}
@@ -167,6 +176,25 @@ func (r *pageVersionRepository) CreateVersionIfDue(
 		return false, nil, err
 	}
 	return created, version, nil
+}
+
+func (r *pageVersionRepository) LockPage(ctx context.Context, workspaceID, pageID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return repository.ErrPageNotFound
+	}
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		if _, err := qtx.LockPageForVersioning(ctx, sqlcgen.LockPageForVersioningParams{
+			WorkspaceID: wsID, PageID: pgID,
+		}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return repository.ErrPageNotFound
+			}
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *pageVersionRepository) ListVersions(ctx context.Context, workspaceID, pageID string) ([]domain.PageVersion, error) {

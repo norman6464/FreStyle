@@ -874,6 +874,78 @@ describe('KbPage の履歴', () => {
     expect(screen.queryByText(/の版を表示中/)).not.toBeInTheDocument();
   });
 
+  // CodeRabbit 指摘の回帰確認。復元は API 呼び出しの経路が自動保存（PUT .../content）とは
+  // 別（POST .../versions/:seq/restore）なので、進行中の自動保存を待たずに復元だけ叩くと、
+  // 先に飛んでいた自動保存の応答が復元の後に着地して、復元した内容を打鍵済みの内容で
+  // 上書きしてしまう競合があった。waitForPendingSaveToSettle がこれを防ぐ。
+  it('進行中の自動保存を片づけてから復元する（後から自動保存の応答が復元結果を上書きしない）', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    let resolvePut: (value: unknown) => void = () => {};
+    hoisted.replaceContent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePut = resolve;
+        }),
+    );
+    hoisted.restorePageVersion.mockResolvedValue({
+      doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '戻した内容' }] }] },
+      builtAt: '2026-09-06T00:00:00Z',
+      lastEditedBy: { userId: 2, name: '鈴木 花子' },
+      lastEditedAt: '2026-09-06T00:00:00Z',
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+
+    // findBy*/waitFor のポーリングと fake timers が競合しないよう（本ファイル内の
+    // block_id_conflict テストと同じ理由）、デバウンス満了だけ fake timers で起こし、
+    // それ以降の DOM 操作は real timers に戻してから行う。
+    vi.useFakeTimers();
+    act(() => {
+      hoisted.editorProps.current?.onChange?.({ type: 'doc', content: [{ type: 'paragraph' }] });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    vi.useRealTimers();
+    expect(hoisted.replaceContent).toHaveBeenCalledTimes(1);
+
+    // 版を選んで「この版に戻す」を確定する。まだ PUT の応答が無いので、
+    // 復元 API はまだ呼ばれないはず。
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+    fireEvent.click(await screen.findByRole('button', { name: 'この版に戻す' }));
+    const dialog = await screen.findByRole('dialog', { name: 'この版に戻しますか' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'この版に戻す' }));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(hoisted.restorePageVersion).not.toHaveBeenCalled();
+
+    // PUT の応答が届く → 片づいたので、ここでようやく復元 API が呼ばれる。
+    await act(async () => {
+      resolvePut({
+        doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+        builtAt: '2026-09-06T00:00:00Z',
+        lastEditedBy: { userId: 1, name: '田中 太郎' },
+        lastEditedAt: '2026-09-06T00:00:00Z',
+      });
+    });
+    await waitFor(() => expect(hoisted.restorePageVersion).toHaveBeenCalledWith('w-3f2a9c', 'p1', 1));
+
+    // 復元の結果が最終的に反映され、片づいた自動保存の内容（田中太郎）で
+    // 上書きされていない。
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+    expect(hoisted.editorProps.current?.value).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: '戻した内容' }] }],
+    });
+    expect(await screen.findByText(/最終編集 鈴木 花子/)).toBeInTheDocument();
+  });
+
   it('復元に失敗したら知らせを出す。プレビューは終えない', async () => {
     hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
     hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));

@@ -65,6 +65,7 @@ export default function KbPage() {
     changeIcon,
     changeCover,
     applyRestoredContent,
+    waitForPendingSaveToSettle,
   } = useKbPageDoc(pageId);
   // ヘッダー/サイドバーのワークスペース切替から来たときだけ渡ってくる。
   // ページを開いているときは data.workspaceSlug が正なのでそちらを優先する。
@@ -362,12 +363,16 @@ export default function KbPage() {
     // (flushSave と同じ約束)。
     const targetPageId = data.page.id;
     try {
+      // 進行中/保留中の自動保存を先に片づけてから復元する。待たずに復元だけ叩くと、
+      // 先に飛んでいた自動保存の応答が復元の後に着地して、復元した内容を打鍵済みの
+      // 内容で上書きしてしまう競合がある（CodeRabbit 指摘・実バグ）。
+      await waitForPendingSaveToSettle(targetPageId);
       const result = await versions.restoreVersion(seq);
       applyRestoredContent(targetPageId, result);
     } catch {
       showToast('error', 'この版に戻せませんでした');
     }
-  }, [data, versions, applyRestoredContent, showToast]);
+  }, [data, versions, applyRestoredContent, waitForPendingSaveToSettle, showToast]);
 
   const extraSlashCommands = useMemo<EditorCommand[]>(
     () => [

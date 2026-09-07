@@ -25,8 +25,12 @@ LIMIT 1;
 -- 版を 1 件挿入する。seq は呼び出し側（Go）が LockPageForVersioning でロックした後に
 -- GetLatestPageVersion の結果 + 1（無ければ 1）で計算して渡す — SQL 側では採番しない
 -- （採番を SQL の DEFAULT やシーケンスに任せると、ロックの外で採番が起きて衝突しうる）。
-INSERT INTO page_versions (workspace_id, page_id, seq, doc, author_user_id, note)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(page_id), sqlc.arg(seq), sqlc.arg(doc), sqlc.arg(author_user_id), sqlc.narg(note))
+-- created_at も列の DEFAULT now()（トランザクション開始時刻で固定される）には頼らず、
+-- 呼び出し側が渡す time.Now() を明示的に書く。DeleteOldPageVersions の cutoff も同じ
+-- time.Now() 由来の値を使うため、両者の時刻の出どころを実際に揃えるにはここも Go 側で
+-- 決めた値でなければならない（列の DEFAULT はこの経路を通らない他の書き込みのための保険として残す）。
+INSERT INTO page_versions (workspace_id, page_id, seq, doc, author_user_id, note, created_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(page_id), sqlc.arg(seq), sqlc.arg(doc), sqlc.arg(author_user_id), sqlc.narg(note), sqlc.arg(created_at))
 RETURNING *;
 
 -- name: DeleteOldPageVersions :exec
@@ -38,13 +42,16 @@ DELETE FROM page_versions
 WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id) AND created_at < sqlc.arg(cutoff);
 
 -- name: ListPageVersions :many
--- 版一覧。seq 降順・上限 500 件（defensive な LIMIT。ページネーションは今回作らない。
--- 500 を超えるページでは 501 件目以降が一覧に出ない — repository.PageVersionRepository の
--- ListVersions のコメント参照）。
+-- 版一覧。seq 降順・上限 5000 件（defensive な LIMIT。ページネーションは今回作らない —
+-- CodeRabbit指摘だが、design ticketにも無い範囲であり、doc を含まない軽量な行なので
+-- 一旦この上限で様子を見る判断とした）。30日保持 × 10分規則の理論上の最大件数
+-- （24h/10min × 30日 = 4320）に余裕を持たせた値。これを超える書き込み頻度が実際に
+-- 観測されたらページネーションを足す — repository.PageVersionRepository の
+-- ListVersions のコメント参照。
 SELECT * FROM page_versions
 WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id)
 ORDER BY seq DESC
-LIMIT 500;
+LIMIT 5000;
 
 -- name: GetPageVersion :one
 -- 版 1 件の取得。workspace_id まで絞ることで、他ページ・他テナントの seq を渡されても

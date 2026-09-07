@@ -469,6 +469,11 @@ type mockPageVersionRepo struct{ mock.Mock }
 
 var _ repository.PageVersionRepository = (*mockPageVersionRepo)(nil)
 
+func (m *mockPageVersionRepo) LockPage(ctx context.Context, workspaceID, pageID string) error {
+	args := m.Called(ctx, workspaceID, pageID)
+	return args.Error(0)
+}
+
 func (m *mockPageVersionRepo) CreateVersionIfDue(
 	ctx context.Context, workspaceID, pageID, doc string, authorUserID uint64, note *string, force bool,
 ) (bool, *domain.PageVersion, error) {

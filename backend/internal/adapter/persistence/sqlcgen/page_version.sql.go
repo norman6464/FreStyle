@@ -15,8 +15,8 @@ import (
 )
 
 const createPageVersion = `-- name: CreatePageVersion :one
-INSERT INTO page_versions (workspace_id, page_id, seq, doc, author_user_id, note)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO page_versions (workspace_id, page_id, seq, doc, author_user_id, note, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING workspace_id, page_id, seq, doc, author_user_id, note, created_at
 `
 
@@ -27,11 +27,16 @@ type CreatePageVersionParams struct {
 	Doc          json.RawMessage
 	AuthorUserID int64
 	Note         sql.NullString
+	CreatedAt    time.Time
 }
 
 // 版を 1 件挿入する。seq は呼び出し側（Go）が LockPageForVersioning でロックした後に
 // GetLatestPageVersion の結果 + 1（無ければ 1）で計算して渡す — SQL 側では採番しない
 // （採番を SQL の DEFAULT やシーケンスに任せると、ロックの外で採番が起きて衝突しうる）。
+// created_at も列の DEFAULT now()（トランザクション開始時刻で固定される）には頼らず、
+// 呼び出し側が渡す time.Now() を明示的に書く。DeleteOldPageVersions の cutoff も同じ
+// time.Now() 由来の値を使うため、両者の時刻の出どころを実際に揃えるにはここも Go 側で
+// 決めた値でなければならない（列の DEFAULT はこの経路を通らない他の書き込みのための保険として残す）。
 func (q *Queries) CreatePageVersion(ctx context.Context, arg CreatePageVersionParams) (PageVersion, error) {
 	row := q.db.QueryRowContext(ctx, createPageVersion,
 		arg.WorkspaceID,
@@ -40,6 +45,7 @@ func (q *Queries) CreatePageVersion(ctx context.Context, arg CreatePageVersionPa
 		arg.Doc,
 		arg.AuthorUserID,
 		arg.Note,
+		arg.CreatedAt,
 	)
 	var i PageVersion
 	err := row.Scan(
@@ -136,7 +142,7 @@ const listPageVersions = `-- name: ListPageVersions :many
 SELECT workspace_id, page_id, seq, doc, author_user_id, note, created_at FROM page_versions
 WHERE workspace_id = $1 AND page_id = $2
 ORDER BY seq DESC
-LIMIT 500
+LIMIT 5000
 `
 
 type ListPageVersionsParams struct {
@@ -144,9 +150,12 @@ type ListPageVersionsParams struct {
 	PageID      uuid.UUID
 }
 
-// 版一覧。seq 降順・上限 500 件（defensive な LIMIT。ページネーションは今回作らない。
-// 500 を超えるページでは 501 件目以降が一覧に出ない — repository.PageVersionRepository の
-// ListVersions のコメント参照）。
+// 版一覧。seq 降順・上限 5000 件（defensive な LIMIT。ページネーションは今回作らない —
+// CodeRabbit指摘だが、design ticketにも無い範囲であり、doc を含まない軽量な行なので
+// 一旦この上限で様子を見る判断とした）。30日保持 × 10分規則の理論上の最大件数
+// （24h/10min × 30日 = 4320）に余裕を持たせた値。これを超える書き込み頻度が実際に
+// 観測されたらページネーションを足す — repository.PageVersionRepository の
+// ListVersions のコメント参照。
 func (q *Queries) ListPageVersions(ctx context.Context, arg ListPageVersionsParams) ([]PageVersion, error) {
 	rows, err := q.db.QueryContext(ctx, listPageVersions, arg.WorkspaceID, arg.PageID)
 	if err != nil {

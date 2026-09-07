@@ -151,7 +151,7 @@ func registerKnowledgeBaseRoutesWith(
 	// 作成（「版を残す」）・復元は CapabilityEdit（PageVersionHandler 内の各ハンドラ参照）。
 	vh := NewPageVersionHandler(
 		kb.NewCheckPagePermissionUseCase(permissions),
-		kb.NewCreateExplicitPageVersionUseCase(versions, pages),
+		kb.NewCreateExplicitPageVersionUseCase(versions, pages, txManager),
 		kb.NewListPageVersionsUseCase(versions),
 		kb.NewGetPageVersionUseCase(versions),
 		kb.NewRestorePageVersionUseCase(versions, replaceBlocks),

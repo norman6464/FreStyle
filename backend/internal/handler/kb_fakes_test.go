@@ -1766,6 +1766,17 @@ func newKbFakePageVersions(pages *kbFakePages) *kbFakePageVersions {
 
 func kbFakeVersionKey(workspaceID, pageID string) string { return workspaceID + "|" + pageID }
 
+func (f *kbFakePageVersions) LockPage(_ context.Context, workspaceID, pageID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	p, ok := f.pages.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return repository.ErrPageNotFound
+	}
+	return nil
+}
+
 func (f *kbFakePageVersions) CreateVersionIfDue(
 	_ context.Context, workspaceID, pageID, doc string, authorUserID uint64, note *string, _ bool,
 ) (bool, *domain.PageVersion, error) {

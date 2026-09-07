@@ -39,12 +39,13 @@ func currentPageDoc(ctx context.Context, repo repository.KnowledgeBaseRepository
 type CreateExplicitPageVersionUseCase struct {
 	versionRepo repository.PageVersionRepository
 	kbRepo      repository.KnowledgeBaseRepository
+	txManager   repository.TxManager
 }
 
 func NewCreateExplicitPageVersionUseCase(
-	versionRepo repository.PageVersionRepository, kbRepo repository.KnowledgeBaseRepository,
+	versionRepo repository.PageVersionRepository, kbRepo repository.KnowledgeBaseRepository, txManager repository.TxManager,
 ) *CreateExplicitPageVersionUseCase {
-	return &CreateExplicitPageVersionUseCase{versionRepo: versionRepo, kbRepo: kbRepo}
+	return &CreateExplicitPageVersionUseCase{versionRepo: versionRepo, kbRepo: kbRepo, txManager: txManager}
 }
 
 type CreateExplicitPageVersionInput struct {
@@ -56,17 +57,33 @@ type CreateExplicitPageVersionInput struct {
 }
 
 func (u *CreateExplicitPageVersionUseCase) Execute(ctx context.Context, in CreateExplicitPageVersionInput) (*domain.PageVersion, error) {
-	// メモの検証は先に行う。不正なメモのためだけに doc を読みに行く無駄を避ける。
+	// メモの検証は先に行う。不正なメモのためだけにトランザクションを開く無駄を避ける。
 	note, err := domain.ValidateVersionNote(in.Note)
 	if err != nil {
 		return nil, err
 	}
-	doc, err := currentPageDoc(ctx, u.kbRepo, in.WorkspaceID, in.PageID)
-	if err != nil {
-		return nil, err
-	}
-	// force=true — 10 分規則を無視して必ず切る（「版を残す」の定義そのもの）。
-	_, version, err := u.versionRepo.CreateVersionIfDue(ctx, in.WorkspaceID, in.PageID, doc, in.AuthorUserID, note, true)
+	var version *domain.PageVersion
+	// pages 行のロック → 今の内容を読む → 版を挿入、をこの順で 1 つのトランザクションに
+	// 入れる。ロックより先に読むと、読み取りと（CreateVersionIfDue 内部の）ロック取得の間に
+	// 本物の編集が割り込み、古い内容のまま版を切ってしまう競合があった（CodeRabbit 指摘・実バグ）。
+	err = u.txManager.DoInTx(ctx, func(ctx context.Context) error {
+		if err := u.versionRepo.LockPage(ctx, in.WorkspaceID, in.PageID); err != nil {
+			return err
+		}
+		doc, err := currentPageDoc(ctx, u.kbRepo, in.WorkspaceID, in.PageID)
+		if err != nil {
+			return err
+		}
+		// force=true — 10 分規則を無視して必ず切る（「版を残す」の定義そのもの）。
+		// CreateVersionIfDue は自身でも同じ行を再ロックするが、同一トランザクション内の
+		// FOR UPDATE は再入可能なので待ちにはならない（page_version_repository.go 参照）。
+		_, v, err := u.versionRepo.CreateVersionIfDue(ctx, in.WorkspaceID, in.PageID, doc, in.AuthorUserID, note, true)
+		if err != nil {
+			return err
+		}
+		version = v
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}

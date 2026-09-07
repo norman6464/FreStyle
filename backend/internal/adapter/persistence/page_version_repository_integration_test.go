@@ -117,7 +117,7 @@ func TestPageVersionRepository_ExplicitVersion_Integration(t *testing.T) {
 	txManager := persistence.NewTxManager(sqlDB)
 	versionRepo := persistence.NewPageVersionRepository(sqlDB)
 	replaceUC := kb.NewReplacePageBlocksUseCase(kbRepo, txManager, versionRepo)
-	createVersionUC := kb.NewCreateExplicitPageVersionUseCase(versionRepo, kbRepo)
+	createVersionUC := kb.NewCreateExplicitPageVersionUseCase(versionRepo, kbRepo, txManager)
 
 	doc := `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`
 	_, err := replaceUC.Execute(ctx, kb.ReplacePageBlocksInput{WorkspaceID: ws, PageID: page, Doc: doc, EditorUserID: 1})

@@ -31,4 +31,7 @@ export type {
   KbCommentAuthorRef,
   KbComment,
   KbCommentThread,
+  KbPageContentSaveResult,
+  KbPageVersion,
+  KbPageVersionDetail,
 } from './model/types';

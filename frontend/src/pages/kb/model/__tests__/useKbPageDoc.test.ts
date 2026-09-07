@@ -652,4 +652,149 @@ describe('useKbPageDoc', () => {
       vi.useRealTimers();
     }
   });
+
+  describe('applyRestoredContent（版の復元の反映）', () => {
+    it('doc / lastEditedBy / lastEditedAt を確定後の値へ差し替える（API 自体は呼ばない）', async () => {
+      const { result } = renderHook(() => useKbPageDoc('p1'));
+      await act(async () => {});
+
+      act(() => {
+        result.current.applyRestoredContent('p1', {
+          doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+          builtAt: '2026-09-06T00:00:00Z',
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-06T00:00:00Z',
+        });
+      });
+
+      expect(result.current.data?.doc).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] });
+      expect(result.current.data?.lastEditedBy).toEqual({ userId: 1, name: '田中 太郎' });
+      expect(result.current.data?.lastEditedAt).toBe('2026-09-06T00:00:00Z');
+      // 復元自体は本文保存 API（replaceContent）を呼ばない — 叩くのは
+      // useKbPageVersions.restoreVersion 側で、ここは応答を反映するだけ。
+      expect(hoisted.replaceContent).not.toHaveBeenCalled();
+    });
+
+    it('宛先が今のページと違えば何もしない（別ページへ移った後に届いた復元応答を反映しない）', async () => {
+      const { result, rerender } = renderHook(({ id }) => useKbPageDoc(id), {
+        initialProps: { id: 'p1' },
+      });
+      await act(async () => {});
+
+      hoisted.resolvePage.mockResolvedValue({
+        ...resolved('子ページ'),
+        page: { ...resolved('子ページ').page, id: 'p2' },
+      });
+      rerender({ id: 'p2' });
+      await act(async () => {});
+
+      act(() => {
+        // p1 で始まった復元が、p2 へ移った後に届いた想定。
+        result.current.applyRestoredContent('p1', {
+          doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+          builtAt: '2026-09-06T00:00:00Z',
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-06T00:00:00Z',
+        });
+      });
+
+      expect(result.current.data?.page.id).toBe('p2');
+      expect(result.current.data?.lastEditedBy).toBeUndefined();
+    });
+  });
+
+  describe('waitForPendingSaveToSettle（復元前に自動保存を片づける）', () => {
+    // CodeRabbit 指摘の回帰確認。復元は API 呼び出しの経路が自動保存（PUT .../content）とは
+    // 別（POST .../versions/:seq/restore）なので、待たずに復元だけ叩くと、先に飛んでいた
+    // 自動保存の応答が復元の**後**に着地して、復元した古い内容を打鍵済みの内容で
+    // 上書きしてしまう競合があった。waitForPendingSaveToSettle はこれを防ぐ。
+    it('進行中のPUTが終わるまで待つ（先に片づけてから復元するので、後から自動保存が上書きしない）', async () => {
+      vi.useFakeTimers();
+      try {
+        let resolvePut: (value: unknown) => void = () => {};
+        hoisted.replaceContent.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolvePut = resolve;
+            }),
+        );
+
+        const { result } = renderHook(() => useKbPageDoc('p1'));
+        await act(async () => {});
+
+        // 打鍵 → デバウンス満了で PUT(p1) が飛ぶ（まだ応答が無い＝進行中）。
+        act(() => {
+          result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(1000);
+        });
+        expect(result.current.saveStatus).toBe('saving');
+
+        // 復元の直前に呼ぶ想定。進行中の PUT が片づくまで待つ。
+        let settled = false;
+        const waitPromise = result.current.waitForPendingSaveToSettle('p1').then(() => {
+          settled = true;
+        });
+        // まだ PUT の応答を返していないので、待っている最中のはず。
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(settled).toBe(false);
+
+        // PUT の応答が届く → waitForPendingSaveToSettle が解決する。
+        await act(async () => {
+          resolvePut({
+            doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+            builtAt: '2026-09-08T00:00:00Z',
+            lastEditedBy: { userId: 1, name: '田中 太郎' },
+            lastEditedAt: '2026-09-08T00:00:00Z',
+          });
+          await waitPromise;
+        });
+        expect(settled).toBe(true);
+
+        // ここで復元の応答を反映しても、後から追いつく自動保存の応答が無い
+        // （待っている間に片づいた PUT がこの内容を上書きし得ない）。
+        act(() => {
+          result.current.applyRestoredContent('p1', {
+            doc: { type: 'doc', content: [] },
+            builtAt: '2026-09-08T00:01:00Z',
+            lastEditedBy: { userId: 2, name: '鈴木 花子' },
+            lastEditedAt: '2026-09-08T00:01:00Z',
+          });
+        });
+        expect(result.current.data?.doc).toEqual({ type: 'doc', content: [] });
+        expect(result.current.data?.lastEditedBy).toEqual({ userId: 2, name: '鈴木 花子' });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('デバウンス待ちの保留（まだPUTを送っていない書きかけ）は捨てる。復元後に勝手に送られない', async () => {
+      vi.useFakeTimers();
+      try {
+        const { result } = renderHook(() => useKbPageDoc('p1'));
+        await act(async () => {});
+
+        // 打鍵はしたが、デバウンス（800ms）が満了する前。まだ PUT は飛んでいない。
+        act(() => {
+          result.current.onDocChange({ type: 'doc', content: [{ type: 'paragraph' }] });
+        });
+        expect(hoisted.replaceContent).not.toHaveBeenCalled();
+
+        await act(async () => {
+          await result.current.waitForPendingSaveToSettle('p1');
+        });
+
+        // タイマーが満了しても、保留は既に捨てられているので PUT は飛ばない。
+        await act(async () => {
+          vi.advanceTimersByTime(1000);
+        });
+        expect(hoisted.replaceContent).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

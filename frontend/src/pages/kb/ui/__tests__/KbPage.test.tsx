@@ -34,6 +34,10 @@ const hoisted = vi.hoisted(() => ({
   addComment: vi.fn(),
   resolveCommentThread: vi.fn(),
   reopenCommentThread: vi.fn(),
+  listPageVersions: vi.fn(),
+  getPageVersion: vi.fn(),
+  createPageVersion: vi.fn(),
+  restorePageVersion: vi.fn(),
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
   fetchPageTree: vi.fn(),
@@ -44,10 +48,13 @@ const hoisted = vi.hoisted(() => ({
   useParams: vi.fn(() => ({ pageId: 'p1' }) as { pageId?: string }),
   editorProps: {
     current: null as null | {
+      value?: { type: 'doc'; content: unknown[] };
+      editable?: boolean;
       extraSlashCommands?: EditorCommand[];
       onImageUpload?: (file: File) => Promise<string>;
       resolveImageSrc?: (src: string) => Promise<string>;
       onRequestComment?: (anchor: CommentAnchor) => void;
+      canComment?: boolean;
       commentBadgeCounts?: CommentBadgeCounts;
       onCommentBadgeClick?: (blockId: string) => void;
     },
@@ -76,6 +83,10 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       addComment: hoisted.addComment,
       resolveCommentThread: hoisted.resolveCommentThread,
       reopenCommentThread: hoisted.reopenCommentThread,
+      listPageVersions: hoisted.listPageVersions,
+      getPageVersion: hoisted.getPageVersion,
+      createPageVersion: hoisted.createPageVersion,
+      restorePageVersion: hoisted.restorePageVersion,
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
       fetchPageTree: hoisted.fetchPageTree,
@@ -110,11 +121,14 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
   return {
     ...actual,
     RichTextEditor: (props: {
+      value?: { type: 'doc'; content: unknown[] };
+      editable?: boolean;
       extraSlashCommands?: EditorCommand[];
       onImageUpload?: (file: File) => Promise<string>;
       resolveImageSrc?: (src: string) => Promise<string>;
       onChange?: (doc: { type: 'doc'; content: unknown[] }) => void;
       onRequestComment?: (anchor: CommentAnchor) => void;
+      canComment?: boolean;
       commentBadgeCounts?: CommentBadgeCounts;
       onCommentBadgeClick?: (blockId: string) => void;
     }) => {
@@ -166,6 +180,7 @@ beforeEach(() => {
   hoisted.listPageGrants.mockResolvedValue([]);
   hoisted.listGrantablePrincipals.mockResolvedValue([]);
   hoisted.listCommentThreads.mockResolvedValue([]);
+  hoisted.listPageVersions.mockResolvedValue([]);
 });
 
 describe('KbPage の配線', () => {
@@ -767,6 +782,226 @@ describe('KbPage のコメント', () => {
     const calledOn = scrollIntoView.mock.instances[0] as unknown as HTMLElement;
     expect(calledOn.id).toBe('comment-thread-t1');
     scrollIntoView.mockRestore();
+  });
+});
+
+describe('KbPage の履歴', () => {
+  const version = (seq: number, note: string | null = null) => ({
+    seq,
+    author: { userId: 1, name: '田中 太郎' },
+    note,
+    createdAt: '2026-09-01T09:00:00Z',
+  });
+
+  const versionDetail = (seq: number, note: string | null = null) => ({
+    ...version(seq, note),
+    doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '過去の内容' }] }] },
+  });
+
+  it('開くと一覧を取得する。行を選ぶと読み取り専用になり本文がその版へ切り替わる', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(2), version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    renderPage();
+    await screen.findByTestId('editor');
+    expect(hoisted.editorProps.current?.editable).toBe(true);
+
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    await waitFor(() => expect(hoisted.listPageVersions).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+
+    const row = (await screen.findAllByRole('button', { name: /初版/ }))[0];
+    fireEvent.click(row);
+
+    await waitFor(() => expect(hoisted.getPageVersion).toHaveBeenCalledWith('w-3f2a9c', 'p1', 1));
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+    expect(hoisted.editorProps.current?.value).toEqual(versionDetail(1, '初版').doc);
+    // 版を表示中の帯が出る。
+    expect(await screen.findByText(/の版を表示中/)).toBeInTheDocument();
+  });
+
+  it('版プレビュー中はコメントのバブルメニュー・件数バッジ関連の props を渡さない', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    renderPage();
+    await screen.findByTestId('editor');
+
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+
+    // editable=false と組み合わせ、コメント関連 props はそもそも渡さない
+    // （RichTextEditor 自身が (editable || canComment) の判定でバブルメニューを
+    // 出さなくなるので、渡さないだけで十分安全 — 明示的に false を渡す必要は無い）。
+    expect(hoisted.editorProps.current?.canComment).toBeUndefined();
+    expect(hoisted.editorProps.current?.commentBadgeCounts).toBeUndefined();
+    expect(hoisted.editorProps.current?.onCommentBadgeClick).toBeUndefined();
+    expect(hoisted.editorProps.current?.onRequestComment).toBeUndefined();
+  });
+
+  it('この版に戻すを押すと確認ダイアログが出て、確定すると復元APIが呼ばれ、本文・最終編集が更新される', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    hoisted.restorePageVersion.mockResolvedValue({
+      doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '戻した内容' }] }] },
+      builtAt: '2026-09-06T00:00:00Z',
+      lastEditedBy: { userId: 2, name: '鈴木 花子' },
+      lastEditedAt: '2026-09-06T00:00:00Z',
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+
+    // まだ確定していないので復元 API は呼ばれていない。
+    fireEvent.click(await screen.findByRole('button', { name: 'この版に戻す' }));
+    expect(hoisted.restorePageVersion).not.toHaveBeenCalled();
+
+    const dialog = await screen.findByRole('dialog', { name: 'この版に戻しますか' });
+    expect(dialog).toHaveTextContent('現在の内容は上書きされますが');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'この版に戻す' }));
+
+    await waitFor(() =>
+      expect(hoisted.restorePageVersion).toHaveBeenCalledWith('w-3f2a9c', 'p1', 1),
+    );
+    // 復元成功: プレビューを終えて編集可能な表示へ戻り、本文・最終編集が更新される。
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+    expect(hoisted.editorProps.current?.value).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: '戻した内容' }] }],
+    });
+    expect(await screen.findByText(/最終編集 鈴木 花子/)).toBeInTheDocument();
+    expect(screen.queryByText(/の版を表示中/)).not.toBeInTheDocument();
+  });
+
+  // CodeRabbit 指摘の回帰確認。復元は API 呼び出しの経路が自動保存（PUT .../content）とは
+  // 別（POST .../versions/:seq/restore）なので、進行中の自動保存を待たずに復元だけ叩くと、
+  // 先に飛んでいた自動保存の応答が復元の後に着地して、復元した内容を打鍵済みの内容で
+  // 上書きしてしまう競合があった。waitForPendingSaveToSettle がこれを防ぐ。
+  it('進行中の自動保存を片づけてから復元する（後から自動保存の応答が復元結果を上書きしない）', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    let resolvePut: (value: unknown) => void = () => {};
+    hoisted.replaceContent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePut = resolve;
+        }),
+    );
+    hoisted.restorePageVersion.mockResolvedValue({
+      doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '戻した内容' }] }] },
+      builtAt: '2026-09-06T00:00:00Z',
+      lastEditedBy: { userId: 2, name: '鈴木 花子' },
+      lastEditedAt: '2026-09-06T00:00:00Z',
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+
+    // findBy*/waitFor のポーリングと fake timers が競合しないよう（本ファイル内の
+    // block_id_conflict テストと同じ理由）、デバウンス満了だけ fake timers で起こし、
+    // それ以降の DOM 操作は real timers に戻してから行う。
+    vi.useFakeTimers();
+    act(() => {
+      hoisted.editorProps.current?.onChange?.({ type: 'doc', content: [{ type: 'paragraph' }] });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    vi.useRealTimers();
+    expect(hoisted.replaceContent).toHaveBeenCalledTimes(1);
+
+    // 版を選んで「この版に戻す」を確定する。まだ PUT の応答が無いので、
+    // 復元 API はまだ呼ばれないはず。
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+    fireEvent.click(await screen.findByRole('button', { name: 'この版に戻す' }));
+    const dialog = await screen.findByRole('dialog', { name: 'この版に戻しますか' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'この版に戻す' }));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(hoisted.restorePageVersion).not.toHaveBeenCalled();
+
+    // PUT の応答が届く → 片づいたので、ここでようやく復元 API が呼ばれる。
+    await act(async () => {
+      resolvePut({
+        doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+        builtAt: '2026-09-06T00:00:00Z',
+        lastEditedBy: { userId: 1, name: '田中 太郎' },
+        lastEditedAt: '2026-09-06T00:00:00Z',
+      });
+    });
+    await waitFor(() => expect(hoisted.restorePageVersion).toHaveBeenCalledWith('w-3f2a9c', 'p1', 1));
+
+    // 復元の結果が最終的に反映され、片づいた自動保存の内容（田中太郎）で
+    // 上書きされていない。
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+    expect(hoisted.editorProps.current?.value).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: '戻した内容' }] }],
+    });
+    expect(await screen.findByText(/最終編集 鈴木 花子/)).toBeInTheDocument();
+  });
+
+  it('復元に失敗したら知らせを出す。プレビューは終えない', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    hoisted.restorePageVersion.mockRejectedValue(new Error('forbidden'));
+    renderPage();
+    await screen.findByTestId('editor');
+
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'この版に戻す' }));
+    const dialog = await screen.findByRole('dialog', { name: 'この版に戻しますか' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'この版に戻す' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'この版に戻せませんでした'),
+    );
+    expect(hoisted.editorProps.current?.editable).toBe(false);
+  });
+
+  it('現在の版に戻る（閉じる）を押すとプレビューを終え、パネルを閉じても帯は残る', async () => {
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    renderPage();
+    await screen.findByTestId('editor');
+
+    const historyToggle = await screen.findByRole('button', { name: '履歴' });
+    fireEvent.click(historyToggle);
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+
+    // 履歴パネルを閉じても、帯とプレビューは残る（明示的な「現在の版に戻る」だけが退出手段）。
+    fireEvent.click(historyToggle);
+    expect(hoisted.editorProps.current?.editable).toBe(false);
+    expect(screen.getByText(/の版を表示中/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '現在の版に戻る' }));
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+    expect(screen.queryByText(/の版を表示中/)).not.toBeInTheDocument();
+  });
+
+  it('編集できないページでは「版を残す」フォームも「この版に戻す」ボタンも出ない', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    hoisted.listPageVersions.mockResolvedValue([version(1, '初版')]);
+    hoisted.getPageVersion.mockResolvedValue(versionDetail(1, '初版'));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '履歴' }));
+    await waitFor(() => expect(hoisted.listPageVersions).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: '版を残す' })).not.toBeInTheDocument();
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /初版/ }))[0]);
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+    expect(screen.queryByRole('button', { name: 'この版に戻す' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '現在の版に戻る' })).toBeInTheDocument();
   });
 });
 

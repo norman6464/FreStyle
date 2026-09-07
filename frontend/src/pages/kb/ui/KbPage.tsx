@@ -12,9 +12,15 @@ import {
 } from '@/shared/ui/RichTextEditor';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
+import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
-import { DocumentTextIcon, Bars3Icon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import {
+  DocumentTextIcon,
+  Bars3Icon,
+  ChatBubbleLeftRightIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline';
 import { useKbPageDoc } from '../model/useKbPageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { resolveEntryPageId } from '../model/resolveEntryPage';
@@ -26,9 +32,12 @@ import KbPageMeta from './KbPageMeta';
 import KbPageCover from './KbPageCover';
 import KbPageCoverButton from './KbPageCoverButton';
 import KbCommentsPanel from './KbCommentsPanel';
+import KbVersionsPanel from './KbVersionsPanel';
+import KbVersionPreviewBanner from './KbVersionPreviewBanner';
 import { SharePanel } from '@/features/permission-sharing';
 import { useKbShare } from '../model/useKbShare';
 import { useKbComments } from '../model/useKbComments';
+import { useKbPageVersions } from '../model/useKbPageVersions';
 
 /**
  * KbPage はナレッジの画面（左にサイドバー、右に本文）。
@@ -55,6 +64,8 @@ export default function KbPage() {
     renameTitle,
     changeIcon,
     changeCover,
+    applyRestoredContent,
+    waitForPendingSaveToSettle,
   } = useKbPageDoc(pageId);
   // ヘッダー/サイドバーのワークスペース切替から来たときだけ渡ってくる。
   // ページを開いているときは data.workspaceSlug が正なのでそちらを優先する。
@@ -309,10 +320,59 @@ export default function KbPage() {
   );
   useEffect(() => {
     if (!commentsOpen || !scrollToThreadId) return;
-    // 凝ったハイライトは持たせない（最低限、見える位置まで運ぶだけで十分）。
+    // 凝ったハイライトは持たせない(最低限、見える位置まで運ぶだけで十分)。
     document.getElementById(`comment-thread-${scrollToThreadId}`)?.scrollIntoView({ behavior: 'smooth' });
     setScrollToThreadId(null);
   }, [commentsOpen, scrollToThreadId]);
+
+  // 履歴パネルの開閉。あくまで「パネルの見た目を出すかどうか」の UI 状態 — 一覧の取得は
+  // useKbPageVersions がこの open を見て自分でゲートする(useKbComments と違い、版一覧は
+  // 常設のバッジを持たないので開いている間だけ取りに行く)。共有・コメントと同じ理由で
+  // ページを移ったら必ず閉じる。
+  const [historyOpen, setHistoryOpen] = useState(false);
+  useEffect(() => {
+    setHistoryOpen(false);
+  }, [pageId]);
+  const versions = useKbPageVersions(data?.workspaceSlug, data?.page.id, historyOpen);
+
+  // 「この版に戻す」の確認ダイアログ。KbRowActions の削除確認と同じ形 —
+  // 確定した瞬間に閉じ、実行(失敗時の知らせ)は非同期のまま進める。
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  useEffect(() => {
+    setRestoreConfirmOpen(false);
+  }, [pageId]);
+
+  const handleCreateVersion = useCallback(
+    async (note?: string) => {
+      try {
+        await versions.createVersion(note);
+      } catch (cause) {
+        showToast('error', '版を残せませんでした');
+        // フォーム側(KbVersionSaveForm)にも入力を保ったまま知らせるため、再 throw する。
+        throw cause;
+      }
+    },
+    [versions, showToast],
+  );
+
+  const handleRestoreVersion = useCallback(async () => {
+    if (!data || !versions.selected) return;
+    const seq = versions.selected.seq;
+    // 宛先は**復元を始めた時点**のページ。応答が返る前に別ページへ移っていても、
+    // useKbPageDoc.applyRestoredContent 側で「今のページと違えば触らない」安全策を踏む
+    // (flushSave と同じ約束)。
+    const targetPageId = data.page.id;
+    try {
+      // 進行中/保留中の自動保存を先に片づけてから復元する。待たずに復元だけ叩くと、
+      // 先に飛んでいた自動保存の応答が復元の後に着地して、復元した内容を打鍵済みの
+      // 内容で上書きしてしまう競合がある（CodeRabbit 指摘・実バグ）。
+      await waitForPendingSaveToSettle(targetPageId);
+      const result = await versions.restoreVersion(seq);
+      applyRestoredContent(targetPageId, result);
+    } catch {
+      showToast('error', 'この版に戻せませんでした');
+    }
+  }, [data, versions, applyRestoredContent, waitForPendingSaveToSettle, showToast]);
 
   const extraSlashCommands = useMemo<EditorCommand[]>(
     () => [
@@ -389,6 +449,30 @@ export default function KbPage() {
 
           {pageId && !loading && !error && data && (
             <article>
+              {/*
+                版のプレビュー中の帯。ページ上部(カバー画像より前)に置く — パンくず・題名は
+                「今のページ」を指したまま変えず、変わるのは本文だけという設計を明確にする。
+                読み込み中・失敗はここで吸収し、揃うまで(下の)本文は出さない
+                (途中状態のまま編集可能な本文を触らせないため)。
+              */}
+              {versions.selected && versions.selected.loading && <Loading className="py-8" />}
+              {versions.selected && !versions.selected.loading && versions.selected.error && (
+                <EmptyState
+                  icon={ClockIcon}
+                  title="この版を開けません"
+                  description={versions.selected.error}
+                  action={{ label: '現在の版に戻る', onClick: versions.clearSelection }}
+                />
+              )}
+              {versions.selected && !versions.selected.loading && versions.selected.detail && (
+                <KbVersionPreviewBanner
+                  createdAt={versions.selected.detail.createdAt}
+                  canEdit={data.canEdit}
+                  restoring={versions.restoring}
+                  onRestore={() => setRestoreConfirmOpen(true)}
+                  onClose={versions.clearSelection}
+                />
+              )}
               {/* カバー画像（設定済みのときだけ）。頭部の最初に置く見せ場なので、パンくずより上。 */}
               <KbPageCover cover={data.cover} />
               {/*
@@ -438,6 +522,19 @@ export default function KbPage() {
                       {unresolvedCommentCount > 99 ? '99+' : unresolvedCommentCount}
                     </span>
                   )}
+                </button>
+                {/*
+                  履歴は閲覧できれば誰でも開ける(canView。canEdit に関わらず)。
+                  バッジ・件数表示は持たせない(画面設計の約束 — 版の有無を煽らない)。
+                */}
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen((open) => !open)}
+                  aria-expanded={historyOpen}
+                  aria-label="履歴"
+                  className="rounded border border-surface-3 p-1.5 text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
+                >
+                  <ClockIcon className="h-4 w-4" />
                 </button>
                 {/*
                   共有は canManage のときだけ出す。権限が無い相手に押せるボタンを出しても、
@@ -495,32 +592,65 @@ export default function KbPage() {
                 />
               </div>
               <KbPageMeta lastEditedBy={data.lastEditedBy} lastEditedAt={data.lastEditedAt} />
-              <RichTextEditor
-                // doc は API から来る任意の JSON。形が違えば空の本文として扱い、画面を落とさない。
-                value={isRichDoc(data.doc) ? data.doc : emptyRichDoc()}
-                editable={data.canEdit}
-                onChange={onDocChange}
-                saveStatus={data.canEdit ? saveStatus : 'idle'}
-                ariaLabel={`${data.page.title} の本文`}
-                extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
-                onNavigateToPage={(path) => navigate(path)}
-                onRequestComment={(anchor) => {
-                  setPendingAnchor(anchor);
-                  setCommentsOpen(true);
-                }}
-                canComment={data?.canComment ?? false}
-                commentBadgeCounts={commentBadgeCounts}
-                onCommentBadgeClick={handleCommentBadgeClick}
-                focusSignal={bodyFocusSignal}
-                onImageUpload={
-                  data.canEdit
-                    ? (file) => KbRepository.uploadPageImage(data.workspaceSlug, data.page.id, file)
-                    : undefined
-                }
-                resolveImageSrc={resolveImageSrc}
-              />
+              {versions.selected ? (
+                // 版のプレビュー中。揃うまで(取得中・失敗)は本文を出さない — 上の帯/読み込み/
+                // 失敗の表示に任せる。**コメント関連 props は渡さない**(editable=false と
+                // canComment 省略の組み合わせで RichTextEditor 自身がバブルメニュー自体を
+                // 出さなくなる — 過去の版に対しては、今のブロックIDに紐づく錨は意味を
+                // 持たないため)。
+                versions.selected.detail && (
+                  <RichTextEditor
+                    value={isRichDoc(versions.selected.detail.doc) ? versions.selected.detail.doc : emptyRichDoc()}
+                    editable={false}
+                    ariaLabel={`${data.page.title} の本文（読み取り専用・過去の版）`}
+                    onNavigateToPage={(path) => navigate(path)}
+                    resolveImageSrc={resolveImageSrc}
+                  />
+                )
+              ) : (
+                <RichTextEditor
+                  // doc は API から来る任意の JSON。形が違えば空の本文として扱い、画面を落とさない。
+                  value={isRichDoc(data.doc) ? data.doc : emptyRichDoc()}
+                  editable={data.canEdit}
+                  onChange={onDocChange}
+                  saveStatus={data.canEdit ? saveStatus : 'idle'}
+                  ariaLabel={`${data.page.title} の本文`}
+                  extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
+                  onNavigateToPage={(path) => navigate(path)}
+                  onRequestComment={(anchor) => {
+                    setPendingAnchor(anchor);
+                    setCommentsOpen(true);
+                  }}
+                  canComment={data?.canComment ?? false}
+                  commentBadgeCounts={commentBadgeCounts}
+                  onCommentBadgeClick={handleCommentBadgeClick}
+                  focusSignal={bodyFocusSignal}
+                  onImageUpload={
+                    data.canEdit
+                      ? (file) => KbRepository.uploadPageImage(data.workspaceSlug, data.page.id, file)
+                      : undefined
+                  }
+                  resolveImageSrc={resolveImageSrc}
+                />
+              )}
             </article>
           )}
+
+          {/* 「この版に戻す」の確認。ConfirmModal は isOpen=false のとき自分で null を返すので、
+              常に描画してよい(KbRowActions の削除確認と同じ形)。確定した瞬間に閉じ、
+              実行(失敗時の知らせ)は非同期のまま進める。 */}
+          <ConfirmModal
+            isOpen={restoreConfirmOpen}
+            title="この版に戻しますか"
+            message="現在の内容は上書きされますが、これも新しい版として残るので後から戻せます。"
+            confirmText="この版に戻す"
+            isDanger={false}
+            onConfirm={() => {
+              setRestoreConfirmOpen(false);
+              void handleRestoreVersion();
+            }}
+            onCancel={() => setRestoreConfirmOpen(false)}
+          />
         </div>
       </main>
 
@@ -548,6 +678,28 @@ export default function KbPage() {
             onReply={handleReplyToThread}
             onResolve={handleResolveThread}
             onReopen={handleReopenThread}
+          />
+        </SecondaryPanel>
+      )}
+
+      {/* 履歴パネル。コメントパネルと同じ流儀 — 閉じている間はレンダリングごとやめる。
+          プレビュー状態(versions.selected)自体はこのパネルの開閉と独立に生きるので、
+          閉じても帯(KbVersionPreviewBanner)は消えない。 */}
+      {historyOpen && (
+        <SecondaryPanel
+          title="履歴"
+          side="right"
+          mobileOpen={historyOpen}
+          onMobileClose={() => setHistoryOpen(false)}
+        >
+          <KbVersionsPanel
+            versions={versions.versions}
+            loading={versions.loading}
+            error={versions.error}
+            canEdit={data?.canEdit ?? false}
+            selectedSeq={versions.selected?.seq ?? null}
+            onCreateVersion={handleCreateVersion}
+            onSelectVersion={versions.selectVersion}
           />
         </SecondaryPanel>
       )}

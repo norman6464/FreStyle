@@ -263,3 +263,39 @@ export interface KbCommentThread {
   /** 錨を張った時点で選択されていた文字列。編集で錨がずれても人が読める手がかりとして残る。 */
   quote?: string;
 }
+
+/**
+ * 本文の保存の応答形。PUT .../content（置き換え）と POST .../versions/:seq/restore（過去の版を
+ * 今の本文として復元）の両方がこの形で返す — restore は「本文を丸ごと入れ替える」という
+ * 意味では置き換えと同じ操作で、backend 側も応答を共通の形にしている。
+ *
+ * page（題名・アイコン等）は含まない。**この操作では変わらない情報だからではなく**、
+ * 呼び出し側（useKbPageDoc）が既に持っている page をそのまま使い続ける設計のため
+ * （置き換え時からそうなっている。restore もその前提を崩さない）。
+ */
+export interface KbPageContentSaveResult {
+  doc: unknown;
+  builtAt: string;
+  lastEditedBy?: KbEditorRef | null;
+  lastEditedAt?: string | null;
+}
+
+/**
+ * 版（バージョン）1 件（一覧要素。doc は含まない）。
+ *
+ * seq はページ内で作られた順に振られる番号（大小関係だけを使い、1 始まり・連番であることには
+ * 依存しない — backend の採番方針が変わっても壊れないように）。note は「版を残す」で明示的に
+ * 書いたメモで、空でもよい（backend が null で返す）。author は KbEditorRef と同じ形
+ * （id が引けない・名前が空文字はここでも起こり得る）。
+ */
+export interface KbPageVersion {
+  seq: number;
+  author: KbEditorRef;
+  note: string | null;
+  createdAt: string;
+}
+
+/** 版 1 件 + その時点の本文（doc）。一覧では返らず、単体取得（GET .../versions/:seq）でだけ付く。 */
+export interface KbPageVersionDetail extends KbPageVersion {
+  doc: unknown;
+}

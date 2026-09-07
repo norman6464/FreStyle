@@ -46,6 +46,7 @@ type kbFixture struct {
 	provisioner *kbFakeProvisioner
 	users       *kbFakeUsers
 	comments    *kbFakeComments
+	versions    *kbFakePageVersions
 	presigner   *kbFakeImagePresigner
 	router      *gin.Engine
 }
@@ -89,13 +90,17 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	provisioner := newKbFakeProvisioner(pages, perms)
 	users := newKbFakeUsers()
 	comments := newKbFakeComments()
+	versions := newKbFakePageVersions(pages)
 	presigner := &kbFakeImagePresigner{}
-	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, comments, fakeTxManager{}, presigner)
+	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, comments, versions, fakeTxManager{}, presigner)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
-	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, users: users, comments: comments, presigner: presigner, router: r}
+	return kbFixture{
+		pages: pages, perms: perms, provisioner: provisioner, users: users,
+		comments: comments, versions: versions, presigner: presigner, router: r,
+	}
 }
 
 func (f kbFixture) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
@@ -251,6 +256,7 @@ func kbRoutePattern(p string) string {
 		"{slug}", ":workspaceSlug",
 		"{page}", ":pageId",
 		"{thread}", ":threadId",
+		"{seq}", ":seq",
 		kbSpaceID, ":spaceId",
 	).Replace(p)
 }
@@ -307,6 +313,12 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 	// domain.PagePermission.CanComment）ので表を分けてある。足したら
 	// comment_handler_test.go の kbCommentEndpoints 側に足す。
 	for _, e := range kbCommentEndpoints {
+		covered[e.method+" "+kbRoutePattern(e.path)] = true
+	}
+	// ページ本文の版 API（FRESTYLE-433 段 3）も判定の軸は domain.Capability だが、
+	// {seq} という kbEndpoints に無いプレースホルダを要るため表を分けてある
+	// （page_version_handler_test.go の kbVersionEndpoints）。足したらそちら側に足す。
+	for _, e := range kbVersionEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
 	}
 	covered[http.MethodPost+" "+kbShareLinkVerifyPath] = true
@@ -1600,7 +1612,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewMovePageUseCase(pages),
 		kb.NewArchivePageUseCase(pages),
 		kb.NewUnarchivePageUseCase(pages),
-		kb.NewReplacePageBlocksUseCase(pages, fakeTxManager{}),
+		kb.NewReplacePageBlocksUseCase(pages, fakeTxManager{}, newKbFakePageVersions(pages)),
 		kb.NewResolvePageRefTitlesUseCase(perms),
 		kb.NewListViewableAncestorsUseCase(pages, perms),
 		kb.NewDeletePageUseCase(pages),

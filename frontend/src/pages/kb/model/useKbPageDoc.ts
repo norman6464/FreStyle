@@ -5,6 +5,7 @@ import {
   rememberVisitedPage,
   forgetVisitedPageIfMatches,
   type KbIcon,
+  type KbPageContentSaveResult,
   type KbResolvedPage,
 } from '@/entities/kb';
 import { getApiError } from '@/shared/lib/classifyApiError';
@@ -60,15 +61,21 @@ export function useKbPageDoc(pageId: string | undefined) {
   //（丸ごと置換の API なので、順序が崩れる＝最後の入力が消える）。
   const saveInFlight = useRef(false);
 
-  const flushSave = useCallback(() => {
-    if (saveInFlight.current) return; // 完了ハンドラが残りを流す
+  // 進行中の PUT を、復元（waitForPendingSaveToSettle）が待てるように保持する。
+  // flushSave が「続けて送る」で自分自身を再帰的に呼ぶと、この ref は新しい PUT の
+  // promise で上書きされる — waitForPendingSaveToSettle 側は saveInFlight（真偽値）を
+  // 見て「まだ何か進行中か」を判定し、この ref はその「何か」を await する手段でしかない。
+  const saveInFlightPromise = useRef<Promise<void> | null>(null);
+
+  const flushSave = useCallback((): Promise<void> => {
+    if (saveInFlight.current) return saveInFlightPromise.current ?? Promise.resolve();
     const head = pendingSaves.current.entries().next();
-    if (head.done) return;
+    if (head.done) return Promise.resolve();
     const [key, pending] = head.value;
     pendingSaves.current.delete(key);
     saveInFlight.current = true;
     setSaveStatus('saving');
-    KbRepository.replaceContent(pending.workspaceSlug, pending.pageId, pending.doc)
+    const promise = KbRepository.replaceContent(pending.workspaceSlug, pending.pageId, pending.doc)
       .then((res) => {
         saveInFlight.current = false;
         // 画面は現在ユーザーの名前を持っていないので、保存後の「最終編集」はこの応答で
@@ -83,11 +90,12 @@ export function useKbPageDoc(pageId: string | undefined) {
         });
         if (pendingSaves.current.size === 0) {
           setSaveStatus('saved');
-        } else {
-          // 送信中にさらに書かれていた。次を続けて送る（書いた順を守る）。
-          setSaveStatus('unsaved');
-          flushSave();
+          return;
         }
+        // 送信中にさらに書かれていた。次を続けて送る（書いた順を守る）。
+        // 呼び出し元が最後まで待てるよう、続きの promise をそのまま返す（チェーン）。
+        setSaveStatus('unsaved');
+        return flushSave();
       })
       .catch((err) => {
         saveInFlight.current = false;
@@ -100,7 +108,34 @@ export function useKbPageDoc(pageId: string | undefined) {
           setContentConflictCount((n) => n + 1);
         }
       });
+    saveInFlightPromise.current = promise;
+    return promise;
   }, []);
+
+  /**
+   * waitForPendingSaveToSettle は、進行中/保留中の自動保存があれば片づくまで待つ。
+   *
+   * 版の復元（handleRestoreVersion）の直前に呼ぶ。復元は API 呼び出しの経路が自動保存
+   * （flushSave / PUT .../content）とは別（POST .../versions/:seq/restore）なので、
+   * 待たずに復元だけ叩くと、先に飛んでいた自動保存の応答が復元の**後**に着地して、
+   * 復元した古い内容を打鍵済みの内容で上書きしてしまう競合があった（CodeRabbit 指摘・実バグ）。
+   *
+   * 復元は今の内容を明示的に置き換える操作なので、まだ送っていない保留（デバウンス待ち）は
+   * ここで捨てる（flush はしない）。既に PUT が飛んでいる分だけ、その完了を待つ。
+   */
+  const waitForPendingSaveToSettle = useCallback(
+    async (pageId: string): Promise<void> => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      pendingSaves.current.delete(pageId);
+      if (saveInFlight.current) {
+        await flushSave();
+      }
+    },
+    [flushSave],
+  );
 
 
   useEffect(() => {
@@ -140,7 +175,7 @@ export function useKbPageDoc(pageId: string | undefined) {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
-        flushSave();
+        void flushSave();
       }
     };
   }, [pageId, flushSave]);
@@ -206,6 +241,31 @@ export function useKbPageDoc(pageId: string | undefined) {
     emitKbTreeEvent({ type: 'page-updated', page });
   }, []);
 
+  /**
+   * applyRestoredContent は版の復元（useKbPageVersions.restoreVersion）が成功した後、
+   * その応答をこのページの本文へ反映する。**API 呼び出しはここでは行わない**
+   * — 叩くのは useKbPageVersions.restoreVersion（版一覧・復元 API を持つのはあちら）。
+   * ここは flushSave の成功ハンドラと同じ安全策だけを担う。
+   *
+   * 宛先（pageId）は**呼び出し側（KbPage）が復元を開始した時点**のもの。応答が返る前に
+   * 別ページへ移っていたら、画面の状態には触らない（flushSave が pending.pageId で
+   * 見ているのと同じ理由 — 触ると、移った先の本文が前のページの復元結果で上書きされる）。
+   */
+  const applyRestoredContent = useCallback((pageId: string, result: KbPageContentSaveResult) => {
+    setState((prev) => {
+      if (!prev.data || prev.data.page.id !== pageId) return prev;
+      return {
+        ...prev,
+        data: {
+          ...prev.data,
+          doc: result.doc,
+          lastEditedBy: result.lastEditedBy,
+          lastEditedAt: result.lastEditedAt,
+        },
+      };
+    });
+  }, []);
+
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
   const onDocChange = useCallback(
     (doc: unknown) => {
@@ -217,7 +277,7 @@ export function useKbPageDoc(pageId: string | undefined) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         saveTimer.current = null;
-        flushSave();
+        void flushSave();
       }, SAVE_DEBOUNCE_MS);
     },
     [flushSave],
@@ -231,5 +291,7 @@ export function useKbPageDoc(pageId: string | undefined) {
     renameTitle,
     changeIcon,
     changeCover,
+    applyRestoredContent,
+    waitForPendingSaveToSettle,
   };
 }

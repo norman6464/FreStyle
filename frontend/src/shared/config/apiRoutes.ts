@@ -237,6 +237,22 @@ export const KB_API = {
   /** POST(再開) — .../comment-threads/:threadId/reopen。更新後のスレッドを返す */
   reopenCommentThread: (workspaceSlug: string, pageId: string, threadId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/reopen`,
+  /**
+   * GET(一覧・新しい順) / POST(明示的な版の作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/versions
+   *
+   * 一覧・単体取得は閲覧できれば誰でもできる（canView）。作成（版を残す）は編集権限が要る。
+   */
+  pageVersions: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions`,
+  /** GET(1件・doc込み) — /api/v2/kb/workspaces/:slug/pages/:pageId/versions/:seq */
+  pageVersion: (workspaceSlug: string, pageId: string, seq: number) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions/${seq}`,
+  /**
+   * POST(復元・body無し) — .../versions/:seq/restore。編集権限が要る。
+   * 応答は本文保存（PUT .../content）と同じ形（KbPageContentSaveResult）。
+   */
+  restorePageVersion: (workspaceSlug: string, pageId: string, seq: number) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions/${seq}/restore`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

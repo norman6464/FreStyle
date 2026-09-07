@@ -738,13 +738,20 @@ func BuildPageTree(pages []domain.Page, policy PageTreeOrphanPolicy) []*PageTree
 // 保存する snapshot は入力 doc そのものではなく、分解した木から組み立て直した正規形。
 // 入力に行スキーマへ写せない情報（未知フィールド等）が混ざっていても
 // 「snapshot は必ず blocks から再生成できる」という不変条件が崩れないようにするため。
+//
+// 本文の保存に続けて versionRepo.CreateVersionIfDue を同じトランザクションで呼ぶ
+// （FRESTYLE-433 段 3・版と履歴）。通常の自動保存は 10 分規則に従って間引かれ、
+// Input.ForceVersion が true のとき（「版を残す」・復元）だけ必ず 1 件切る。
 type ReplacePageBlocksUseCase struct {
-	repo      repository.KnowledgeBaseRepository
-	txManager repository.TxManager
+	repo        repository.KnowledgeBaseRepository
+	txManager   repository.TxManager
+	versionRepo repository.PageVersionRepository
 }
 
-func NewReplacePageBlocksUseCase(r repository.KnowledgeBaseRepository, txManager repository.TxManager) *ReplacePageBlocksUseCase {
-	return &ReplacePageBlocksUseCase{repo: r, txManager: txManager}
+func NewReplacePageBlocksUseCase(
+	r repository.KnowledgeBaseRepository, txManager repository.TxManager, versionRepo repository.PageVersionRepository,
+) *ReplacePageBlocksUseCase {
+	return &ReplacePageBlocksUseCase{repo: r, txManager: txManager, versionRepo: versionRepo}
 }
 
 type ReplacePageBlocksInput struct {
@@ -755,6 +762,14 @@ type ReplacePageBlocksInput struct {
 	// EditorUserID は本文を保存した人（users.id）。0（未指定）は拒否する — 記録できない
 	// まま保存を許すと、誰が最後に書いたか分からないページができてしまう。
 	EditorUserID uint64
+	// ForceVersion は versionRepo.CreateVersionIfDue の 10 分規則を無視して必ず版を切らせる
+	// （FRESTYLE-433 段 3）。通常の自動保存はゼロ値 false のまま — 「版を残す」相当の明示操作と
+	// 復元だけが true を渡す。
+	ForceVersion bool
+	// VersionNote は切る版に添えるメモ（任意）。通常の自動保存はゼロ値 nil のまま。
+	// domain.ValidateVersionNote による検証は versionRepo 側（CreateExplicitPageVersionUseCase /
+	// RestorePageVersionUseCase）が済ませた前提で、ここでは検証しない。
+	VersionNote *string
 }
 
 func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBlocksInput) (*domain.PageSnapshot, error) {
@@ -783,14 +798,24 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 	if err != nil {
 		return nil, err
 	}
-	// 最終編集者の記録と本文の全消し全入れは同じトランザクションに入れる。
+	// 最終編集者の記録・本文の全消し全入れ・版の記録は同じトランザクションに入れる。
 	// Touch を先に呼ぶのは、UPDATE が pages の対象行を排他ロックするため
 	// （同じページへの同時保存がここで直列化される。TouchPageLastEditedBy の doc 参照）。
+	// versionRepo.CreateVersionIfDue はこの後さらに pages 行をロックし直すが、同一
+	// トランザクション内の再ロックなので待たされない（pageVersionRepository の doc 参照）。
+	// CreateVersionIfDue が失敗したら、本文の書き換え（TouchPageLastEditedBy /
+	// ReplacePageBlocks）ごとロールバックする — 版だけ作れず本文だけ進む中間状態を作らない。
 	if err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
 		if err := u.repo.TouchPageLastEditedBy(ctx, in.WorkspaceID, in.PageID, in.EditorUserID); err != nil {
 			return err
 		}
-		return u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized)
+		if err := u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized); err != nil {
+			return err
+		}
+		_, _, err := u.versionRepo.CreateVersionIfDue(
+			ctx, in.WorkspaceID, in.PageID, normalized, in.EditorUserID, in.VersionNote, in.ForceVersion,
+		)
+		return err
 	}); err != nil {
 		return nil, err
 	}

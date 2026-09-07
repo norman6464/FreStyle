@@ -30,8 +30,8 @@ VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: ListAllWorkspaceIDs :many
--- 全ワークスペースの id（slug 順）。cmd/rebuildsearchindex（一回限りの再構築。
--- FRESTYLE-434 段 4）が全ワークスペースを列挙するために使う。テナントを故意に跨ぐ唯一の
+-- 全ワークスペースの id（slug 順）。cmd/rebuildsearchindex（一回限りの再構築）が
+-- 全ワークスペースを列挙するために使う。テナントを故意に跨ぐ唯一の
 -- 用途で、通常の API 経路（handler → usecase）からは呼ばない。
 SELECT id FROM workspaces
 ORDER BY slug;
@@ -116,7 +116,7 @@ ORDER BY "position";
 
 -- name: ListActivePageIDsByWorkspace :many
 -- ワークスペース全体（スペースを問わない）の現役ページ id（アーカイブ済みは除く）。
--- cmd/rebuildsearchindex（一回限りの再構築。FRESTYLE-434 段 4）が、ワークスペース 1 つの
+-- cmd/rebuildsearchindex（一回限りの再構築）が、ワークスペース 1 つの
 -- 中で再構築すべきページを列挙するために使う。並び順は id（安定した反復順が要るだけで、
 -- 表示順の意味は持たない）。
 SELECT id FROM pages
@@ -492,7 +492,7 @@ WHERE p.workspace_id = $1 AND ps.page_id = $2;
 -- name: UpsertPageSearch :exec
 -- page_search（本文検索の派生キャッシュ）の焼き直し。UpsertPageSnapshot の直後に、
 -- blocks の全入れ替えと同じトランザクションで呼び、「page_search は常に
--- pages.title / blocks と同期している」を保つ（FRESTYLE-434 段 4）。
+-- pages.title / blocks と同期している」を保つ。
 --
 -- 衝突キー (page_id) に所有者列（workspace_id）が入っていないため、UpsertBlock と同じ
 -- 多層防御で DO UPDATE の WHERE に所有者条件を足す（queries_static_check_test.go の

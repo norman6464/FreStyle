@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FRESTYLE-434 段 4: 本文検索・逆リンクの抽出ロジック（extractPageBodyText /
+// 本文検索・逆リンクの抽出ロジック（extractPageBodyText /
 // extractPageLinks）の単体テスト。どちらも parsePageDoc が返す kbDocNode の木を対象にする
 // （flattenPageDoc を経由しない — id の再採番は本文検索の抽出には関係が無いため）。
 

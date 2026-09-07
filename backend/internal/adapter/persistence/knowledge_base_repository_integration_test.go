@@ -177,13 +177,21 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "消す根")
 		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "消える子")
-		_ = mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
+		survivor := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "残る根")
 		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
 			WorkspaceID: ws, PageID: child.ID,
-			Doc:          `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`,
+			// pageRef を含めて page_links に行ができる状態を作る（下の CASCADE 確認のため）。
+			Doc: `{"type":"doc","content":[{"type":"paragraph","content":[` +
+				`{"type":"text","text":"本文"},{"type":"pageRef","attrs":{"pageId":"` + survivor.ID + `"}}` +
+				`]}]}`,
 			EditorUserID: 1,
 		})
 		require.NoError(t, err)
+		var linkCountBefore int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_links pl JOIN blocks b ON b.id = pl.source_block_id
+			 WHERE b.page_id = $1`, child.ID).Scan(&linkCountBefore))
+		require.Equal(t, 1, linkCountBefore, "前提: 削除前はpage_linksが1行ある")
 
 		require.NoError(t, repo.DeletePageSubtree(ctx, ws, root.ID))
 
@@ -203,6 +211,13 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		assert.Zero(t, count)
 		require.NoError(t, sqlDB.QueryRowContext(ctx,
 			`SELECT count(*) FROM page_snapshots WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_search WHERE page_id = $1`, child.ID).Scan(&count))
+		assert.Zero(t, count)
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM page_links pl JOIN blocks b ON b.id = pl.source_block_id
+			 WHERE b.page_id = $1`, child.ID).Scan(&count))
 		assert.Zero(t, count)
 
 		// 実在しないページの削除は ErrPageNotFound（冪等にしない — 押した相手が

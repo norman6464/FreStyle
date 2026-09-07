@@ -1072,7 +1072,7 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			return err
 		}
 
-		// 8. page_search / page_links を同期する（FRESTYLE-434 段 4）。書き込みの中核ロジックは
+		// 8. page_search / page_links を同期する。書き込みの中核ロジックは
 		// RebuildPageSearchAndLinks と共有する（writePageSearchAndLinks の doc 参照）。
 		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, title, body, pageLinks)
 	})

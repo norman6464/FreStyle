@@ -1108,7 +1108,7 @@ table "page_versions" {
   }
 }
 
-# page_search: ページ本文検索のための派生キャッシュ（FRESTYLE-434 段 4・本文検索と逆リンク）。
+# page_search: ページ本文検索のための派生キャッシュ（本文検索と逆リンク）。
 # 1 ページ 1 行で、保存のたびに ReplacePageBlocks の最終ステップとして張り替える
 # （page_snapshots と同じ立て付け。UpsertPageSnapshot の直後に続けて UPSERT する）。
 # 正本はあくまで pages.title / blocks の本文で、この行は失っても
@@ -1164,7 +1164,7 @@ table "page_search" {
   }
 }
 
-# page_links: 本文中の pageRef（ページ内リンク）ノードの抽出結果（FRESTYLE-434 段 4）。
+# page_links: 本文中の pageRef（ページ内リンク）ノードの抽出結果。
 # 「このページを参照しているページ」（逆リンク）を求めるための派生データ。正本は blocks の
 # 本文（pageRef ノード）で、この表も失えば RebuildPageSearchAndLinks で作り直せる。
 #

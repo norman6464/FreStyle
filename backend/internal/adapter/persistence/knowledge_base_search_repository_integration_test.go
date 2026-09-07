@@ -5,6 +5,7 @@ package persistence_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -17,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FRESTYLE-434 段 4（本文検索と逆リンク）の結合テスト。
+// 本文検索と逆リンクの結合テスト。
 //
 // page_search / page_links は blocks / pages.title から作り直せる派生データ
 // （schema.hcl のコメント参照）なので、ここでは「保存のたびに正しく張り替わるか」
@@ -168,9 +169,46 @@ func TestKnowledgeBasePageSearchAndLinksWrite_Integration(t *testing.T) {
 		assert.Equal(t, body0, body2)
 		assert.Equal(t, 1, countPageLinksForPage(t, sqlDB, ws, page.ID), "2回目の再構築後も重複せず1行のまま（冪等）")
 	})
+
+	t.Run("101個の有効な異なるpageRefを含むページは保存経路と再構築で同じ件数のpage_linksになる", func(t *testing.T) {
+		ws, space := setup(t)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "多数リンクページ")
+
+		const targetCount = 101
+		targetIDs := make([]string, targetCount)
+		for i := 0; i < targetCount; i++ {
+			target := mustCreatePage(ctx, t, uc, ws, space, nil, fmt.Sprintf("参照先%d", i))
+			targetIDs[i] = target.ID
+		}
+
+		content := []map[string]any{{"type": "text", "text": "本文"}}
+		for _, id := range targetIDs {
+			content = append(content, map[string]any{"type": "pageRef", "attrs": map[string]any{"pageId": id}})
+		}
+		doc := map[string]any{
+			"type": "doc",
+			"content": []map[string]any{
+				{"type": "paragraph", "content": content},
+			},
+		}
+		docJSON, err := json.Marshal(doc)
+		require.NoError(t, err)
+
+		_, err = uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID, Doc: string(docJSON), EditorUserID: 1,
+		})
+		require.NoError(t, err)
+
+		savedCount := countPageLinksForPage(t, sqlDB, ws, page.ID)
+		require.Equal(t, 100, savedCount, "参照先の種類数はkbPageRefMaxResolve=100件で打ち切られる")
+
+		require.NoError(t, repo.RebuildPageSearchAndLinks(ctx, ws, page.ID))
+		rebuiltCount := countPageLinksForPage(t, sqlDB, ws, page.ID)
+		assert.Equal(t, savedCount, rebuiltCount, "再構築でも同じ上限が掛かるため、保存経路と件数が一致する")
+	})
 }
 
-// TestKnowledgeBaseSearchBodyMatch_Integration は本文検索（FRESTYLE-434 段 4）の
+// TestKnowledgeBaseSearchBodyMatch_Integration は本文検索の
 // 日本語の部分一致・matchField/excerpt の判定・可視性のふるいを実 PostgreSQL で固定する。
 func TestKnowledgeBaseSearchBodyMatch_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
@@ -233,7 +271,7 @@ func TestKnowledgeBaseSearchBodyMatch_Integration(t *testing.T) {
 	})
 }
 
-// TestKnowledgeBaseBacklinks_Integration は逆リンク（FRESTYLE-434 段 4）の可視判定を
+// TestKnowledgeBaseBacklinks_Integration は逆リンクの可視判定を
 // 実 PostgreSQL で固定する。見えない参照元ページ（権限の無いスペース）からのリンクは
 // 一覧に出ないこと。
 func TestKnowledgeBaseBacklinks_Integration(t *testing.T) {

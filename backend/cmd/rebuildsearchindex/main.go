@@ -1,5 +1,5 @@
 // rebuildsearchindex は既存の全ページについて page_search / page_links を作り直す、
-// 一回限りの再構築コマンド（FRESTYLE-434 段 4・本文検索と逆リンク）。
+// 一回限りの再構築コマンド（本文検索と逆リンク）。
 //
 // 対象は「全ワークスペースの全アーカイブ済みでないページ」。ページ 1 件ごとに
 // knowledgeBaseRepository.RebuildPageSearchAndLinks を呼び、その時点の blocks から
@@ -67,15 +67,16 @@ func main() {
 	slog.Info("rebuildsearchindex: starting", slog.Int("workspaces", len(workspaceIDs)))
 
 	var (
-		totalPages int
-		totalOK    int
-		totalErr   int
+		totalPages           int
+		totalOK              int
+		totalErr             int
+		failedWorkspaceCount int
 	)
 	for _, workspaceID := range workspaceIDs {
 		pageIDs, err := repo.ListActivePageIDsByWorkspace(ctx, workspaceID)
 		if err != nil {
-			// 1 ワークスペースの列挙失敗で全体を止めない。件数を記録して次へ進む
-			// （ここで打ち切ると、後続の正常なワークスペースまで再構築されないまま終わる）。
+			// 1 ワークスペースの列挙失敗で全体を止めない。件数を記録して次へ進む。
+			failedWorkspaceCount++
 			slog.Error("rebuildsearchindex: list pages failed",
 				slog.String("workspaceId", workspaceID), slog.Any("error", err))
 			continue
@@ -105,9 +106,11 @@ func main() {
 
 	slog.Info("rebuildsearchindex: done",
 		slog.Int("workspaces", len(workspaceIDs)),
+		slog.Int("failedWorkspaces", failedWorkspaceCount),
 		slog.Int("pages", totalPages), slog.Int("ok", totalOK), slog.Int("failed", totalErr))
-	if totalErr > 0 {
-		// 1 件でも失敗したページがあれば、CI・運用のバッチ監視が気づけるよう非 0 で終了する。
+	if totalErr > 0 || failedWorkspaceCount > 0 {
+		// 1 件でも失敗したページ・ワークスペース列挙があれば、CI・運用のバッチ監視が
+		// 気づけるよう非 0 で終了する。
 		os.Exit(1)
 	}
 }

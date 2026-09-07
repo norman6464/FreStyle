@@ -264,8 +264,8 @@ func (f *kbFakePages) ListActivePagesBySpace(_ context.Context, workspaceID, spa
 	return f.activePages(workspaceID, spaceID), nil
 }
 
-// ListAllWorkspaceIDs / ListActivePageIDsByWorkspace は cmd/rebuildsearchindex 専用
-// （FRESTYLE-434 段 4）。この handler パッケージの単体テストでは使わないが、interface を
+// ListAllWorkspaceIDs / ListActivePageIDsByWorkspace は cmd/rebuildsearchindex 専用。
+// この handler パッケージの単体テストでは使わないが、interface を
 // 満たすために最小限の実装を用意する。
 func (f *kbFakePages) ListAllWorkspaceIDs(_ context.Context) ([]string, error) {
 	ids := make([]string, 0, len(f.workspaces))
@@ -905,7 +905,7 @@ func (f *kbFakePerms) pageGrantRoles(workspaceID, pageID string, mine map[string
 // 本番との差がテストの穴になる。判定（ふるい）は usecase が行う。
 //
 // この fake は page_search（本文の派生キャッシュ）を持たないため、本文一致
-// （FRESTYLE-434 段 4）は模していない — Body は常に空文字で返す。本文検索そのものの
+// は模していない — Body は常に空文字で返す。本文検索そのものの
 // 確認は本物の PostgreSQL を使う結合テストが行う（knowledge_base_permission_repository_
 // integration_test.go）。
 func (f *kbFakePerms) SearchWorkspacePageViewFacts(

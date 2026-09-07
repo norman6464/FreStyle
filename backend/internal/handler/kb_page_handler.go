@@ -550,7 +550,7 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 }
 
 // Backlinks は、このページを参照している（page_links.target_page_id = このページ）
-// ページのうち、閲覧できるものだけを返す（逆リンク。FRESTYLE-434 段 4）。
+// ページのうち、閲覧できるものだけを返す（逆リンク）。
 //
 // 対象ページ自体を見られない場合は他のページ名指し系エンドポイントと同じ 404
 // （requirePagePermission が実在も伏せて畳む）。応答は既存の kbPageResponse の配列

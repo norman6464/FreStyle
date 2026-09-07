@@ -317,13 +317,14 @@ type SearchViewablePageResult struct {
 }
 
 // SearchViewablePagesUseCase はワークスペース全体を題名 **または本文** で検索し、
-// 閲覧できるページだけを返す（FRESTYLE-434 段 4 で本文検索に対応）。
+// 閲覧できるページだけを返す（本文検索に対応）。
 //
 // ふるいは一覧（ListViewablePages）とまったく同じ domain.ResolvePageView。
 // 検索だけ別の判定を持つと「一覧には出ないのに検索では出る」というずれ方をして、
 // 伏せてあるページの実在が検索から漏れる。
 //
-// Limit は応答の件数。候補の計算量の天井（200 件）は SQL 側が持っていて別物。
+// Limit は応答の件数。SQL 側は候補に上限を掛けない（可視でふるう前に切ると
+// 本来見えるはずの一致を取りこぼす）。
 type SearchViewablePagesUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -363,8 +364,8 @@ func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewa
 	if err != nil {
 		return nil, err
 	}
-	// 確保量は行数（SQL 側の天井 200 以下）で決める。利用者由来の limit を確保量に
-	// 使わない — 上で挟んでいても、確保だけ大きくする余地を入力に持たせない。
+	// 確保量は行数で決める。利用者由来の limit を確保量に使わない — 上で挟んでいても、
+	// 確保だけ大きくする余地を入力に持たせない。
 	results := make([]SearchViewablePageResult, 0, len(rows))
 	for _, row := range rows {
 		if !domain.ResolvePageView(row.Role) {
@@ -413,50 +414,33 @@ func buildSearchViewablePageResult(row repository.PageSearchViewFact, query stri
 // 戻り値の start / length は **切り出した excerpt の中での** rune 位置・長さ
 // （フロントが mark で囲む用）。見つからなければ found=false。
 func computeSearchExcerpt(body, query string) (excerpt string, start, length int, found bool) {
+	lowerBody := strings.ToLower(body)
+	lowerQuery := strings.ToLower(query)
+	if lowerQuery == "" || lowerBody == "" {
+		return "", 0, 0, false
+	}
+	byteIdx := strings.Index(lowerBody, lowerQuery)
+	if byteIdx < 0 {
+		return "", 0, 0, false
+	}
+	// strings.Index はバイト位置を返す。以降の計算は rune 単位（マルチバイト文字を
+	// 含む本文の境界を壊さない）なので、ここで一度だけ rune 位置へ変換する。
+	idx := utf8.RuneCountInString(lowerBody[:byteIdx])
+	queryLen := utf8.RuneCountInString(lowerQuery)
 	bodyRunes := []rune(body)
-	lowerBody := []rune(strings.ToLower(body))
-	lowerQuery := []rune(strings.ToLower(query))
-	if len(lowerQuery) == 0 || len(lowerBody) == 0 {
-		return "", 0, 0, false
-	}
-	idx := runeIndex(lowerBody, lowerQuery)
-	if idx < 0 {
-		return "", 0, 0, false
-	}
 	winStart := idx - searchExcerptWindowRunes
 	if winStart < 0 {
 		winStart = 0
 	}
-	winEnd := idx + len(lowerQuery) + searchExcerptWindowRunes
+	winEnd := idx + queryLen + searchExcerptWindowRunes
 	if winEnd > len(bodyRunes) {
 		winEnd = len(bodyRunes)
 	}
-	return string(bodyRunes[winStart:winEnd]), idx - winStart, len(lowerQuery), true
-}
-
-// runeIndex は needle が haystack の中で最初に現れる位置を rune 単位で返す
-// （大文字小文字の変換は呼び出し側が済ませている前提）。見つからなければ -1。
-func runeIndex(haystack, needle []rune) int {
-	if len(needle) == 0 || len(needle) > len(haystack) {
-		return -1
-	}
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		match := true
-		for j := range needle {
-			if haystack[i+j] != needle[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
-	}
-	return -1
+	return string(bodyRunes[winStart:winEnd]), idx - winStart, queryLen, true
 }
 
 // ListPageBacklinksUseCase は、対象ページを参照している（page_links.target_page_id =
-// 対象ページ）ページのうち、閲覧できるものだけを返す（逆リンク。FRESTYLE-434 段 4）。
+// 対象ページ）ページのうち、閲覧できるものだけを返す（逆リンク）。
 //
 // 検索・逆リンクは kb パッケージ内の usecase として新設する（別パッケージにしない）。
 // ページ本文に密結合した機能で、新しい権限軸を持たないため。ふるいは検索・一覧と同じ
@@ -465,6 +449,11 @@ func runeIndex(haystack, needle []rune) int {
 // 対象ページ自体を見られるかどうかの判定（CapabilityView）はここでは行わない。
 // handler が requirePagePermission（CheckPagePermissionUseCase）で先に確かめる
 // （他のページ名指し系エンドポイントと同じ形）。
+//
+// SQL 側には LIMIT を掛けない。ここで可視判定より先に絞ると、search と同じ理由で
+// 本来見えるはずの参照元が取りこぼされる。代わりに、可視判定を終えた後の応答件数を
+// listPageBacklinksMaxResults で打ち切る（無制限に参照されるページの応答が
+// 際限なく膨らむのを防ぐ防御的な上限）。
 type ListPageBacklinksUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -472,6 +461,9 @@ type ListPageBacklinksUseCase struct {
 func NewListPageBacklinksUseCase(r repository.KnowledgeBasePermissionRepository) *ListPageBacklinksUseCase {
 	return &ListPageBacklinksUseCase{repo: r}
 }
+
+// listPageBacklinksMaxResults は応答に含める逆リンク元ページの上限。
+const listPageBacklinksMaxResults = 200
 
 type ListPageBacklinksInput struct {
 	WorkspaceID string
@@ -500,6 +492,9 @@ func (u *ListPageBacklinksUseCase) Execute(ctx context.Context, in ListPageBackl
 			continue
 		}
 		pages = append(pages, row.Page)
+		if len(pages) >= listPageBacklinksMaxResults {
+			break
+		}
 	}
 	return pages, nil
 }

@@ -709,7 +709,7 @@ type ListPageLinkSourcePageViewFactsRow struct {
 }
 
 // 指定ページ（target_page_id）を参照している「参照元ページ」全件と、それぞれの
-// 「閲覧の事実」を 1 回のクエリで返す（逆リンク用・FRESTYLE-434 段 4）。
+// 「閲覧の事実」を 1 回のクエリで返す（逆リンク用）。
 //
 // 事実の組み立ては SearchWorkspacePageViewFacts と全く同じ見方（届いた中で最も強い役割）
 // で、判定は呼び出し側（usecase）が domain.ResolvePageView で行う。違いは候補の絞り方だけ:
@@ -1862,7 +1862,6 @@ cand AS (
         )
       )
     ORDER BY pg.title, pg.id
-    LIMIT 200
 ),
 wsrank AS (
     SELECT COALESCE(max(CASE wg."role"
@@ -1953,8 +1952,9 @@ type SearchWorkspacePageViewFactsRow struct {
 //     space_allp（スペースごとの space_all 主体。自分が所属するときだけ行がある）を
 //     JOIN で当てる。集計の中に相関副問い合わせを書かない流儀は他のクエリと同じ。
 //
-// 候補の LIMIT 200 は「事実を計算する行数の天井」であって応答の件数ではない
-// （呼び出し側が可視でふるった後にさらに件数を切る）。
+// 候補に SQL 側の LIMIT は掛けない。可視判定は呼び出し側（Go）が候補を受け取った後に
+// 行うため、SQL側で先に絞ると非公開ページが先頭寄りに多い場合に本来見えるはずの一致が
+// 切り捨てられ得る。応答の件数は呼び出し側の limit（既定 20・上限 50）だけで決める。
 //
 // needle は呼び出し側（Go）が % _ とバックスラッシュをエスケープして渡す
 // （LIKE の既定のエスケープ文字はバックスラッシュ）。生で渡すと「%」1 文字で全件一致になり、
@@ -1968,7 +1968,7 @@ type SearchWorkspacePageViewFactsRow struct {
 // 表の別名はクエリ全体で一意にしてある（pr / pg / spx / c …）。CTE ごとに同じ
 // 別名（p 等）を使い回すと sqlc の列解決が別の CTE の表に混線して
 // 「column ... does not exist」で生成が落ちる（実測）。
-// FRESTYLE-434 段 4: 題名だけでなく本文（page_search.body）も検索対象にする。
+// 題名だけでなく本文（page_search.body）も検索対象にする。
 // page_search は 1 ページ 1 行の派生キャッシュ（正本は blocks）なので、まだ同期されて
 // いない行（新規ページ・再構築前）は EXISTS が単に偽になるだけで、候補から漏れるだけ
 // ＝ フェイルセーフ（誤って見せることはない）。

@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestKnowledgeBaseSearchAndBacklinksAPI_Integration は本文検索・逆リンク
-// （FRESTYLE-434 段 4）の入口を実 PostgreSQL・本番と同じ配線（registerKnowledgeBaseRoutesWith
+// TestKnowledgeBaseSearchAndBacklinksAPI_Integration は本文検索・逆リンクの
+// 入口を実 PostgreSQL・本番と同じ配線（registerKnowledgeBaseRoutesWith
 // 経由）で確かめる。GET .../search と GET .../pages/:pageId/backlinks を実際に叩き、
 // 応答の形（matchField / excerpt / matchStart / matchLen、逆リンクの一覧）を固定する。
 func TestKnowledgeBaseSearchAndBacklinksAPI_Integration(t *testing.T) {

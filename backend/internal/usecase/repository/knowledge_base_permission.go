@@ -66,7 +66,7 @@ type PageWithPermissionFacts struct {
 }
 
 // PageSearchViewFact は検索結果 1 件（PageWithViewFacts）と、その本文一致の材料の組。
-// SearchWorkspacePageViewFacts が返す（FRESTYLE-434 段 4・本文検索と逆リンク）。
+// SearchWorkspacePageViewFacts が返す（本文検索と逆リンク）。
 //
 // Body を PageWithViewFacts に足さず別の型にしているのは、ListSpacePageViewFacts /
 // ListWorkspacePageViewFactsByIDs のような他の呼び口には本文一致の抜粋を計算する材料が
@@ -208,14 +208,14 @@ type KnowledgeBasePermissionRepository interface {
 	// 編集可否をここから出さないこと（返す型がそれを表している）。
 	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]PageWithViewFacts, error)
 	// SearchWorkspacePageViewFacts はワークスペース全体から題名 **または本文** が部分一致する
-	// 現役ページを候補にし、その閲覧の事実を返す（サイドバーの検索用。FRESTYLE-434 段 4 で
+	// 現役ページを候補にし、その閲覧の事実を返す（サイドバーの検索用。
 	// 本文検索に対応）。判定は呼び出し側が domain.ResolvePageView で行う。query は
 	// エスケープ前の生の文字列を渡す（% _ \ のエスケープは実装が行う — 呼び出し側に
 	// SQL の都合を漏らさない）。ParentArchived は常に false（検索は現役だけを対象にするため
 	// 集めない）。
 	SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]PageSearchViewFact, error)
 	// ListPageLinkSourcePageViewFacts は targetPageID を参照している「参照元ページ」全件と、
-	// その閲覧の事実を返す（逆リンク用。FRESTYLE-434 段 4）。事実の組み立ては
+	// その閲覧の事実を返す（逆リンク用）。事実の組み立ては
 	// SearchWorkspacePageViewFacts と同じ見方で、判定は呼び出し側が domain.ResolvePageView
 	// で行う。アーカイブ済みの参照元も候補から外さない（ListWorkspacePageViewFactsByIDs と
 	// 同じ考え方 — パンくずと同じく、参照元が現役かどうかでふるい落とす理由が無い）。

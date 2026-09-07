@@ -365,7 +365,7 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 }
 
 // kbSearchPageResponse は検索結果 1 件の返却形。kbPageResponse に「どこにヒットしたか」
-// を足したもの（FRESTYLE-434 段 4・本文検索）。
+// を足したもの（本文検索）。
 //
 // kbPageResponse を埋め込むのは、ページとしての形（id / title / icon …）は既存のツリー・
 // 一覧の応答と完全に同じにするため。フロントは検索結果もページ一覧と同じ描画に流用できる。
@@ -396,7 +396,7 @@ func toKbSearchPageResponse(r *kb.SearchViewablePageResult) kbSearchPageResponse
 }
 
 // SearchPages はワークスペース全体を題名 **または本文** で検索する
-// （閲覧できるページだけが返る。FRESTYLE-434 段 4 で本文検索に対応）。
+// （閲覧できるページだけが返る。本文検索に対応）。
 func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

@@ -798,7 +798,7 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 	if err != nil {
 		return nil, err
 	}
-	// 本文検索・逆リンクの材料を抽出する（FRESTYLE-434 段 4）。flattenPageDoc の**後**に
+	// 本文検索・逆リンクの材料を抽出する。flattenPageDoc の**後**に
 	// 呼ぶこと — flattenPageDoc は木の中の重複 id を新規 UUID へ採番し直すため
 	// （flattenPageDoc の doc 参照）、先に呼ばないと抽出した SourceBlockID が実際に
 	// UPSERT される blocks.id とずれてしまう。
@@ -1536,7 +1536,7 @@ type kbInlineTextNode struct {
 	} `json:"attrs"`
 }
 
-// extractPageBodyText は本文検索用のプレーンテキストを抽出する（FRESTYLE-434 段 4）。
+// extractPageBodyText は本文検索用のプレーンテキストを抽出する。
 // 各葉ブロックの inline 内の "text" 型ノードの .text を連結し、ブロックの境目は改行
 // （"\n"）で区切る。pageRef ノードは寄与しない — 参照先の題名は読み手ごとに解決される
 // 派生値（StripPageRefTitles / ResolvePageRefTitlesUseCase の doc 参照）で、保存する本文に
@@ -1603,7 +1603,7 @@ type pageLinkRef struct {
 }
 
 // extractPageLinks は本文中の pageRef ノードから (ブロック id, 参照先ページ id) の組を
-// 集める（FRESTYLE-434 段 4）。pageRefCollector と同じ考え方（UUID の正規形へ寄せる・
+// 集める。pageRefCollector と同じ考え方（UUID の正規形へ寄せる・
 // kbPageRefMaxResolve=100 を参照先ページの**種類数**の天井にする — 1 ページから参照できる
 // リンク先の上限として妥当）だが、こちらは「どのブロックが参照しているか」を
 // page_links.source_block_id として残す必要があるため、pageRefCollector をそのまま

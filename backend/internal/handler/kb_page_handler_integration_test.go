@@ -28,7 +28,7 @@ var kbIntegrationTables = []string{
 	"principal_members", "principals",
 	"comments", "comment_threads",
 	"page_versions",
-	// page_search / page_links（FRESTYLE-434 段 4）。blocks / pages への CASCADE FK が
+	// page_search / page_links は blocks / pages への CASCADE FK が
 	// あるので TRUNCATE ... CASCADE で自動的に一緒に空になるが、明示しておく
 	// （internal/adapter/persistence の kbTables と同じ作法）。
 	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "pages", "spaces", "workspaces",

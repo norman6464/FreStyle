@@ -31,7 +31,7 @@ const (
 var kbTables = []string{
 	"share_links", "page_grants", "space_grants", "workspace_grants",
 	"principal_members", "principals",
-	// page_search / page_links（FRESTYLE-434 段 4）は blocks / pages への CASCADE FK を
+	// page_search / page_links は blocks / pages への CASCADE FK を
 	// 持つため、blocks・pages を TRUNCATE ... CASCADE すれば自動的に一緒に空になるが、
 	// page_snapshots と同じく明示しておく（この表の作法に揃える）。
 	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "pages", "spaces", "workspaces",
@@ -562,6 +562,8 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 			"blocks":         {"blocks_pkey", "ck_blocks_attrs_object", "ck_blocks_inline_array", "ck_blocks_parent_not_self", "ck_blocks_position_not_empty", "fk_blocks_page", "fk_blocks_parent", "uq_blocks_workspace_page_id"},
 			"page_paths":     {"ck_page_paths_depth", "fk_page_paths_ancestor", "fk_page_paths_page", "page_paths_pkey"},
 			"page_snapshots": {"ck_page_snapshots_doc", "fk_page_snapshots_page", "page_snapshots_pkey"},
+			"page_search":    {"fk_page_search_page", "page_search_pkey"},
+			"page_links":     {"fk_page_links_source_block", "fk_page_links_target_page", "page_links_pkey"},
 		} {
 			for _, name := range constraints {
 				var n int
@@ -683,7 +685,7 @@ func createPageSnapshot(t *testing.T, db *sql.DB, pageID string) {
 	require.NoError(t, insertPageSnapshot(db, pageID, `{"type":"doc","content":[]}`))
 }
 
-// insertPageSearch / createPageSearch は page_search（FRESTYLE-434 段 4）へ検証用の行を入れる。
+// insertPageSearch / createPageSearch は page_search へ検証用の行を入れる。
 // UpsertPageSearch と同じ形（page_id, workspace_id, title, body）で、TruncateAll の
 // 掃除漏れを見つけるためだけに使う（本物の抽出ロジックは usecase/kb 側で検証する）。
 func insertPageSearch(db *sql.DB, workspaceID, pageID string) error {
@@ -699,7 +701,7 @@ func createPageSearch(t *testing.T, db *sql.DB, workspaceID, pageID string) {
 	require.NoError(t, insertPageSearch(db, workspaceID, pageID))
 }
 
-// insertPageLink / createPageLink は page_links（FRESTYLE-434 段 4）へ検証用の行を入れる。
+// insertPageLink / createPageLink は page_links へ検証用の行を入れる。
 func insertPageLink(db *sql.DB, sourceBlockID, targetPageID string) error {
 	_, err := db.Exec(
 		`INSERT INTO page_links (source_block_id, target_page_id) VALUES ($1, $2)`,

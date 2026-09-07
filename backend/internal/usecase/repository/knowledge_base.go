@@ -56,7 +56,7 @@ var ErrPageSnapshotNotFound = errors.New("page snapshot not found")
 var ErrBlockIDConflict = errors.New("block id conflict")
 
 // PageLinkWrite は ReplacePageBlocks に渡す 1 件のページ内リンク候補
-// （FRESTYLE-434 段 4・本文検索と逆リンク）。
+// （本文検索と逆リンク）。
 //
 // TargetPageID の実在確認はしていない。呼び出し元の usecase（extractPageLinks）は
 // 本文中の pageRef ノードをそのまま渡すだけで、存在しない参照先（リンク切れ）は
@@ -143,7 +143,7 @@ type KnowledgeBaseRepository interface {
 	// ListActivePagesBySpace はスペース配下の現役ページ全件を position 順で返す（ツリー構築用）。
 	ListActivePagesBySpace(ctx context.Context, workspaceID, spaceID string) ([]domain.Page, error)
 	// ListAllWorkspaceIDs は全ワークスペースの id を返す（slug 順）。cmd/rebuildsearchindex
-	// （一回限りの再構築。FRESTYLE-434 段 4）専用。テナントを故意に跨ぐ唯一の口で、
+	// （一回限りの再構築）専用。テナントを故意に跨ぐ唯一の口で、
 	// 通常の API 経路（handler → usecase）からは呼ばない。
 	ListAllWorkspaceIDs(ctx context.Context) ([]string, error)
 	// ListActivePageIDsByWorkspace はワークスペース全体（スペースを問わない）の現役ページ id
@@ -223,7 +223,7 @@ type KnowledgeBaseRepository interface {
 	// 焼き直す（全消し全入れ + UPSERT を 1 トランザクションで）。対象ページが無ければ ErrPageNotFound。
 	//
 	// snapshot の焼き直しに続けて、同じトランザクションで page_search（title / body）を
-	// UPSERT し、page_links を張り替える（FRESTYLE-434 段 4・本文検索と逆リンク）。
+	// UPSERT し、page_links を張り替える（本文検索と逆リンク）。
 	// title / body は呼び出し元（ReplacePageBlocksUseCase）が渡す — title は既に取得済みの
 	// page.Title をそのまま流すことで、repository 側の余計な SELECT を増やさない。
 	// pageLinks は本文中の pageRef ノードから抽出した候補で、実在しない参照先は
@@ -235,7 +235,7 @@ type KnowledgeBaseRepository interface {
 	// ページ自体が別ワークスペースなら ErrPageSnapshotNotFound と同じ「無い」に落ちる。
 	GetPageSnapshot(ctx context.Context, workspaceID, pageID string) (*domain.PageSnapshot, error)
 	// RebuildPageSearchAndLinks は既存ページ 1 件について、その時点の blocks から
-	// page_search / page_links を同期し直す（FRESTYLE-434 段 4）。一回限りの再構築
+	// page_search / page_links を同期し直す。一回限りの再構築
 	// （cmd/rebuildsearchindex）が使う口で、通常の保存経路（ReplacePageBlocks）とは別に
 	// 独立して呼べる。DELETE + UPSERT で書き直すため冪等（同じページに何度呼んでも
 	// 結果は同じ）。対象ページが無ければ ErrPageNotFound。

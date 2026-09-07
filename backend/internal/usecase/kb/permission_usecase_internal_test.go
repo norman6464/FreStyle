@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FRESTYLE-434 段 4: 検索結果の抜粋計算（computeSearchExcerpt / runeIndex）と、
+// 検索結果の抜粋計算（computeSearchExcerpt）と、
 // title 一致・body 一致の判定（buildSearchViewablePageResult）の単体テスト。
 // どちらも unexported なのでこのパッケージ内（package kb）に置く。
 
@@ -89,29 +89,6 @@ func utf8Valid(s string) bool {
 		}
 	}
 	return true
-}
-
-func Test_runeIndex(t *testing.T) {
-	cases := []struct {
-		name     string
-		haystack string
-		needle   string
-		want     int
-	}{
-		{"先頭で一致", "abcdef", "abc", 0},
-		{"末尾で一致", "abcdef", "def", 3},
-		{"中間で一致", "abcdef", "cd", 2},
-		{"一致しない", "abcdef", "xyz", -1},
-		{"needleがhaystackより長い", "ab", "abc", -1},
-		{"needleが空", "abc", "", -1},
-		{"日本語", "設計メモの本文", "メモ", 2},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := runeIndex([]rune(tc.haystack), []rune(tc.needle))
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func Test_検索結果の一致判定(t *testing.T) {

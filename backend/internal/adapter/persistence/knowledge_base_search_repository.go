@@ -33,8 +33,8 @@ type pageSearchInlineNode struct {
 
 // writePageSearchAndLinks は page_search の UPSERT と page_links の張り替えを行う。
 // ReplacePageBlocks（本文保存の最終ステップ）と RebuildPageSearchAndLinks（一回限りの
-// 再構築）の両方から呼ぶ、書き込みの中核ロジック（コードの重複を避けるための共有関数。
-// FRESTYLE-434 段 4）。呼び出し元は同じトランザクションの qtx を渡すこと。
+// 再構築）の両方から呼ぶ、書き込みの中核ロジック（コードの重複を避けるための共有関数）。
+// 呼び出し元は同じトランザクションの qtx を渡すこと。
 //
 // 抽出（doc / blocks から body・pageLinks を作る部分）はここでは行わない。呼び出し元が
 // 用意した値をそのまま書き込むだけ — 抽出ロジックの置き場所が呼び出し元によって違うため:
@@ -217,13 +217,16 @@ func buildOrderedBlockForest(blocks []domain.Block) []*orderedBlockNode {
 // ノードの .text を連結する・pageRef ノードの attrs.pageId を集める）を、
 // buildOrderedBlockForest の doc に書いた理由でこのパッケージに閉じて独立に実装している。
 //
-// usecase/kb 側にある「参照先ページの種類数を kbPageRefMaxResolve=100 で打ち切る」天井は
-// ここでは掛けない。こちらは通常の保存経路（1 リクエストごとに必ず通る）ではなく、
-// 一回限りの再構築（cmd/rebuildsearchindex）専用の補助的な経路なので、同じコスト上限を
-// 課さなくても実害が小さい。
+// pageSearchMaxDistinctTargets は参照先ページの種類数の天井。usecase/kb.kbPageRefMaxResolve
+// と同じ値（100）——このパッケージからは import できないため値として独立して持つが、通常の
+// 保存経路（ReplacePageBlocks）と一回限りの再構築（RebuildPageSearchAndLinks）で同じページに
+// 対し異なる page_links が生成される食い違いを避けるため、揃えておく。
+const pageSearchMaxDistinctTargets = 100
+
 func extractPageSearchFromBlocks(blocks []domain.Block) (body string, pageLinks []repository.PageLinkWrite) {
 	roots := buildOrderedBlockForest(blocks)
 	var textBuf strings.Builder
+	seenTarget := map[string]struct{}{}
 	var walk func(nodes []*orderedBlockNode)
 	walk = func(nodes []*orderedBlockNode) {
 		for _, n := range nodes {
@@ -244,12 +247,21 @@ func extractPageSearchFromBlocks(blocks []domain.Block) (body string, pageLinks 
 				case pageSearchTextNodeType:
 					blockText.WriteString(it.Text)
 				case pageSearchPageRefNodeType:
-					if id, err := uuid.Parse(it.Attrs.PageID); err == nil {
-						pageLinks = append(pageLinks, repository.PageLinkWrite{
-							SourceBlockID: n.id,
-							TargetPageID:  id.String(),
-						})
+					id, err := uuid.Parse(it.Attrs.PageID)
+					if err != nil {
+						continue
 					}
+					target := id.String()
+					if _, known := seenTarget[target]; !known {
+						if len(seenTarget) >= pageSearchMaxDistinctTargets {
+							continue
+						}
+						seenTarget[target] = struct{}{}
+					}
+					pageLinks = append(pageLinks, repository.PageLinkWrite{
+						SourceBlockID: n.id,
+						TargetPageID:  target,
+					})
 				}
 			}
 			if blockText.Len() > 0 {

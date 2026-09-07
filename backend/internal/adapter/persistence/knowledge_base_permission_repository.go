@@ -804,7 +804,7 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 }
 
 // ListPageLinkSourcePageViewFacts は targetPageID を参照している参照元ページ全件と、
-// その閲覧の事実を返す（逆リンク用。FRESTYLE-434 段 4）。組み立ては
+// その閲覧の事実を返す（逆リンク用）。組み立ては
 // SearchWorkspacePageViewFacts と同じ形（domain.GrantRoleByRank へ変換するだけ）。
 func (r *knowledgeBasePermissionRepository) ListPageLinkSourcePageViewFacts(
 	ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string,

@@ -19,6 +19,7 @@ const ImageUploadRepository = {
   async upload(file: File): Promise<string> {
     const { data } = await apiClient.post<UploadUrlResponse>(IMAGES.uploadUrl, {
       contentType: file.type || 'image/png',
+      size: file.size,
     });
     await axios.put(data.url, file, {
       headers: { 'Content-Type': file.type || 'image/png' },

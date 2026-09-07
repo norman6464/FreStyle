@@ -23,6 +23,7 @@ export type {
   KbPageTree,
   KbPageDoc,
   KbResolvedPage,
+  KbResolvedCover,
   KbAncestorRef,
   KbGrantRole,
   KbPageGrant,

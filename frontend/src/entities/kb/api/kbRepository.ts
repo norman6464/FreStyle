@@ -1,3 +1,4 @@
+import axios from 'axios';
 import apiClient from '@/shared/api/axios';
 import { toArray } from '@/shared/lib/toArray';
 import { KB_API } from '@/shared/config/apiRoutes';
@@ -10,6 +11,7 @@ import type {
   KbPageDoc,
   KbPageGrant,
   KbPageTree,
+  KbResolvedCover,
   KbResolvedPage,
   KbSpace,
   KbWorkspace,
@@ -302,6 +304,92 @@ const KbRepository = {
    */
   async clearPageIcon(workspaceSlug: string, pageId: string): Promise<KbPage> {
     const res = await apiClient.delete<KbPage>(KB_API.pageIcon(workspaceSlug, pageId));
+    return res.data;
+  },
+
+  /**
+   * 画像アップロード用の S3 PUT 署名 URL を発行する（current user 名義。編集権限が要る）。
+   * **失敗は例外として投げる。**
+   */
+  async issuePageImageUploadURL(
+    workspaceSlug: string,
+    pageId: string,
+    contentType: string,
+    size: number,
+  ): Promise<{ url: string; key: string; expiresIn: number }> {
+    const res = await apiClient.post<{ url: string; key: string; expiresIn: number }>(
+      KB_API.pageImageUploadUrl(workspaceSlug, pageId),
+      { contentType, size },
+    );
+    return res.data;
+  },
+
+  /**
+   * doc に保存された S3 key を表示用の期限付き URL へ解決する。
+   * 存在しない/参照されていない key は 404 になり得る。**失敗は例外として投げる。**
+   */
+  async issuePageImageDownloadURL(
+    workspaceSlug: string,
+    pageId: string,
+    key: string,
+  ): Promise<{ url: string; expiresIn: number }> {
+    const res = await apiClient.get<{ url: string; expiresIn: number }>(
+      KB_API.pageImageDownloadUrl(workspaceSlug, pageId, key),
+    );
+    return res.data;
+  },
+
+  /**
+   * 画像ファイルを S3 へ直接アップロードし、durable な保存形式（key）を返す。
+   *
+   * 署名 URL の発行だけ自前の apiClient（Cookie 認証付き）で行い、実際の PUT は
+   * 素の axios で S3 へ直接送る（S3 は自前 API とは別オリジンで、Cookie 認証を
+   * 持ち込む必要も持ち込んではいけない理由も無い — entities/user/imageUploadRepository と同じ形）。
+   *
+   * **戻り値は key であって URL ではない**（publicUrl は無い — カバー画像・本文の画像は
+   * どちらも非公開バケットで、表示のたびに issuePageImageDownloadURL で期限付き URL に
+   * 解決する必要があるため）。**失敗は例外として投げる。**
+   */
+  async uploadPageImage(workspaceSlug: string, pageId: string, file: File): Promise<string> {
+    // this. ではなく const 名で呼ぶ（分割代入で単体の関数として渡されても壊れないように）。
+    const { url, key } = await KbRepository.issuePageImageUploadURL(
+      workspaceSlug,
+      pageId,
+      file.type || 'image/png',
+      file.size,
+    );
+    await axios.put(url, file, {
+      headers: { 'Content-Type': file.type || 'image/png' },
+    });
+    return key;
+  },
+
+  /**
+   * ページのカバー画像を設定する（アップロード済みの key を指す）。編集権限が要る。
+   * **失敗は例外として投げる。**
+   */
+  async setPageCover(
+    workspaceSlug: string,
+    pageId: string,
+    key: string,
+  ): Promise<{ page: KbPage; cover: KbResolvedCover | null }> {
+    const res = await apiClient.put<{ page: KbPage; cover: KbResolvedCover | null }>(
+      KB_API.pageCover(workspaceSlug, pageId),
+      { type: 'file', key },
+    );
+    return res.data;
+  },
+
+  /**
+   * ページのカバー画像を外す。編集権限が要る。**失敗は例外として投げる。**
+   */
+  async clearPageCover(
+    workspaceSlug: string,
+    pageId: string,
+  ): Promise<{ page: KbPage; cover: null }> {
+    const res = await apiClient.delete<{ page: KbPage; cover: null }>(
+      KB_API.pageCover(workspaceSlug, pageId),
+    );
     return res.data;
   },
 };

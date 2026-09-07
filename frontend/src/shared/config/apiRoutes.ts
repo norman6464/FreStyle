@@ -161,6 +161,27 @@ export const KB_API = {
   pageIcon: (workspaceSlug: string, pageId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/icon`,
   /**
+   * POST — /api/v2/kb/workspaces/:slug/pages/:pageId/images/upload-url
+   *
+   * ページ本文・カバー画像向けの S3 PUT 署名 URL を発行する（current user 名義）。
+   * body は {contentType, size}。durable な保存形式は応答の key そのもの
+   * （"kb/<workspaceId>/<pageId>/<epochNs>.bin"）で、doc にはこの key を保存する
+   * （presigned URL は期限があるので doc に書き込まない）。
+   */
+  pageImageUploadUrl: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/images/upload-url`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/pages/:pageId/images/download-url?key=…
+   *
+   * doc に保存された key を表示用の期限付き URL へ解決する。存在しない/参照されていない
+   * key は 404 になり得る。
+   */
+  pageImageDownloadUrl: (workspaceSlug: string, pageId: string, key: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/images/download-url?key=${encodeURIComponent(key)}`,
+  /** PUT(設定) / DELETE(解除) — /api/v2/kb/workspaces/:slug/pages/:pageId/cover */
+  pageCover: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/cover`,
+  /**
    * GET — /api/v2/kb/pages/:pageId
    *
    * /kb/{pageId} の URL からの解決。URL にワークスペースを出さないための口で、

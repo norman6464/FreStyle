@@ -1,0 +1,131 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, waitFor, fireEvent, act } from '@testing-library/react';
+import RichTextEditor from '../RichTextEditor';
+import type { RichDocContent } from '../emptyRichDoc';
+
+/**
+ * ImageView（画像ノードの NodeView）は単体で置けない部品なので、CodeBlockView と同じく
+ * RichTextEditor へ画像を含む doc を読ませて描画を見る。
+ */
+const docWithImage = (src: string, alt = '写真'): RichDocContent => ({
+  type: 'doc',
+  content: [
+    { type: 'paragraph', content: [{ type: 'text', text: '本文' }] },
+    { type: 'image', attrs: { src, alt } },
+  ],
+});
+
+async function findImg(container: HTMLElement) {
+  return waitFor(() => {
+    const img = container.querySelector('img');
+    expect(img).not.toBeNull();
+    return img as HTMLImageElement;
+  });
+}
+
+describe('ImageView', () => {
+  it('"kb/" で始まる src は resolveImageSrc に投げ、解決中はプレースホルダを出す', async () => {
+    // 解決のタイミングを自分で握るため、実装が内部でいつ微小タスクを消化していても
+    // 「解決前はプレースホルダ・解決後は img」の 2 状態を確実に見分けられるようにする。
+    let resolve: (url: string) => void = () => {};
+    const resolveImageSrc = vi.fn(
+      () =>
+        new Promise<string>((res) => {
+          resolve = res;
+        }),
+    );
+    const { container } = render(
+      <RichTextEditor value={docWithImage('kb/w-1/p-1/1.bin')} resolveImageSrc={resolveImageSrc} />,
+    );
+
+    await waitFor(() => expect(resolveImageSrc).toHaveBeenCalledWith('kb/w-1/p-1/1.bin'));
+    expect(resolveImageSrc).toHaveBeenCalledTimes(1);
+    // まだ解決していないので読み込み中のプレースホルダのまま。
+    expect(container.querySelector('[data-state="loading"]')).not.toBeNull();
+    expect(container.querySelector('img')).toBeNull();
+
+    await act(async () => {
+      resolve('https://s3.example.com/signed?sig=1');
+    });
+
+    const img = await findImg(container);
+    expect(img).toHaveAttribute('src', 'https://s3.example.com/signed?sig=1');
+    expect(img).toHaveAttribute('alt', '写真');
+    // doc の src 自体は書き換えない（key のまま）— NodeView の描画結果だけを見ている。
+    expect(container.querySelector('[data-state="loading"]')).toBeNull();
+  });
+
+  it('http(s):// の src は resolveImageSrc を呼ばずそのまま使う（既存互換）', async () => {
+    const resolveImageSrc = vi.fn();
+    const { container } = render(
+      <RichTextEditor
+        value={docWithImage('https://cdn.example.com/a.png')}
+        resolveImageSrc={resolveImageSrc}
+      />,
+    );
+
+    const img = await findImg(container);
+    expect(img).toHaveAttribute('src', 'https://cdn.example.com/a.png');
+    expect(resolveImageSrc).not.toHaveBeenCalled();
+  });
+
+  it('data: の src も resolveImageSrc を呼ばずそのまま使う', async () => {
+    const resolveImageSrc = vi.fn();
+    const src = 'data:image/png;base64,iVBORw0KGgo=';
+    const { container } = render(
+      <RichTextEditor value={docWithImage(src)} resolveImageSrc={resolveImageSrc} />,
+    );
+
+    const img = await findImg(container);
+    expect(img).toHaveAttribute('src', src);
+    expect(resolveImageSrc).not.toHaveBeenCalled();
+  });
+
+  it('resolveImageSrc が渡されなければ "kb/" の src も解決せずそのまま使う（story・他画面との後方互換）', async () => {
+    const { container } = render(<RichTextEditor value={docWithImage('kb/w-1/p-1/1.bin')} />);
+
+    const img = await findImg(container);
+    expect(img).toHaveAttribute('src', 'kb/w-1/p-1/1.bin');
+  });
+
+  it('onError で 1 回だけ再解決する（期限切れ対策・無限ループ防止）', async () => {
+    const resolveImageSrc = vi
+      .fn()
+      .mockResolvedValueOnce('https://s3.example.com/signed?sig=1')
+      .mockResolvedValueOnce('https://s3.example.com/signed?sig=2');
+    const { container } = render(
+      <RichTextEditor value={docWithImage('kb/w-1/p-1/1.bin')} resolveImageSrc={resolveImageSrc} />,
+    );
+
+    const img = await findImg(container);
+    expect(img).toHaveAttribute('src', 'https://s3.example.com/signed?sig=1');
+
+    // 1 回目のエラー: 再解決して新しい URL に差し替わる。
+    fireEvent.error(img);
+    await waitFor(() => expect(resolveImageSrc).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(img).toHaveAttribute('src', 'https://s3.example.com/signed?sig=2'),
+    );
+
+    // 2 回目のエラー: もう再解決しない（無限ループ防止）。失敗表示になる。
+    fireEvent.error(img);
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="failed"]')).not.toBeNull(),
+    );
+    expect(resolveImageSrc).toHaveBeenCalledTimes(2);
+  });
+
+  it('解決そのものに失敗したら失敗表示になる', async () => {
+    const resolveImageSrc = vi.fn().mockRejectedValue(new Error('404'));
+    const { container } = render(
+      <RichTextEditor
+        value={docWithImage('kb/w-1/p-1/missing.bin')}
+        resolveImageSrc={resolveImageSrc}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="failed"]')).not.toBeNull(),
+    );
+  });
+});

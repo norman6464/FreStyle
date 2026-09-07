@@ -11,10 +11,13 @@ import { DocumentTextIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useKbPageDoc } from '../model/useKbPageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { resolveEntryPageId } from '../model/resolveEntryPage';
-import { subscribeKbTreeEvents, type KbIcon } from '@/entities/kb';
+import { useKbImageResolver } from '../model/useKbImageResolver';
+import { KbRepository, subscribeKbTreeEvents, type KbIcon } from '@/entities/kb';
 import KbPageTitle from './KbPageTitle';
 import KbPageIconButton from './KbPageIconButton';
 import KbPageMeta from './KbPageMeta';
+import KbPageCover from './KbPageCover';
+import KbPageCoverButton from './KbPageCoverButton';
 import { SharePanel } from '@/features/permission-sharing';
 import { useKbShare } from '../model/useKbShare';
 
@@ -33,7 +36,8 @@ export default function KbPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const { data, loading, error, saveStatus, onDocChange, renameTitle, changeIcon } = useKbPageDoc(pageId);
+  const { data, loading, error, saveStatus, onDocChange, renameTitle, changeIcon, changeCover } =
+    useKbPageDoc(pageId);
   // ヘッダー/サイドバーのワークスペース切替から来たときだけ渡ってくる。
   // ページを開いているときは data.workspaceSlug が正なのでそちらを優先する。
   const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
@@ -88,6 +92,31 @@ export default function KbPage() {
     },
     [changeIcon, showToast],
   );
+
+  /**
+   * handleChangeCover は「ファイルを渡されたらアップロードしてから設定する・null なら外す」を
+   * まとめて担う（changeCover 自身は既にアップロード済みの key しか受け取らない）。
+   * アップロード → 設定の一連の API 呼び出しをここ 1 箇所にまとめる。
+   */
+  const handleChangeCover = useCallback(
+    async (file: File | null) => {
+      if (!data) return;
+      try {
+        if (file) {
+          const key = await KbRepository.uploadPageImage(data.workspaceSlug, data.page.id, file);
+          await changeCover(key);
+        } else {
+          await changeCover(null);
+        }
+      } catch (cause) {
+        showToast('error', file ? 'カバー画像を変更できませんでした' : 'カバー画像を外せませんでした');
+        throw cause;
+      }
+    },
+    [changeCover, data, showToast],
+  );
+
+  const { resolveImageSrc } = useKbImageResolver(data?.workspaceSlug, data?.page.id);
 
   // 自分か祖先が物理削除されたら一覧へ戻る（消えた場所に立ち続けない）。
   // 祖先はサーバー応答（ancestors — アーカイブ済みも含む）で知っているので、
@@ -204,6 +233,8 @@ export default function KbPage() {
 
           {pageId && !loading && !error && data && (
             <article>
+              {/* カバー画像（設定済みのときだけ）。頭部の最初に置く見せ場なので、パンくずより上。 */}
+              <KbPageCover cover={data.cover} />
               {/*
                 パンくず（場所の表示）。ワークスペース名 → 閲覧できる祖先 → 現在のページ。
                 見えない祖先は応答に含まれず、穴があいたまま出す（木と同じ見え方。
@@ -266,6 +297,8 @@ export default function KbPage() {
                 </div>
               )}
               </div>
+              {/* カバー画像の追加・変更・外す操作。読むだけの人には何も出さない（部品側の約束）。 */}
+              <KbPageCoverButton cover={data.cover} canEdit={data.canEdit} onChange={handleChangeCover} />
               {/*
                 アイコン → 題名の順（Notion 等と同じ、上に乗るものから読む並び）。
                 group はアイコン追加ボタンのホバー表示に使う（KbPageIconButton 側の約束）。
@@ -295,7 +328,12 @@ export default function KbPage() {
                 extraSlashCommands={data.canEdit ? extraSlashCommands : undefined}
                 onNavigateToPage={(path) => navigate(path)}
                 focusSignal={bodyFocusSignal}
-
+                onImageUpload={
+                  data.canEdit
+                    ? (file) => KbRepository.uploadPageImage(data.workspaceSlug, data.page.id, file)
+                    : undefined
+                }
+                resolveImageSrc={resolveImageSrc}
               />
             </article>
           )}

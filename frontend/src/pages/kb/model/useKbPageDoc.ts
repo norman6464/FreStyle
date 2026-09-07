@@ -170,6 +170,30 @@ export function useKbPageDoc(pageId: string | undefined) {
     emitKbTreeEvent({ type: 'page-updated', page });
   }, []);
 
+  /**
+   * changeCover はページのカバー画像を設定・解除する（`key` が null なら解除）。
+   *
+   * **アップロード自体はここでは行わない。** 渡す key は呼び出し側
+   * （KbPageCoverButton）が KbRepository.uploadPageImage で S3 へ上げ終えた後のもの
+   * — バリデーション・アップロード・設定の一連の流れは 1 箇所（呼び出し側）にまとめる。
+   *
+   * **失敗は投げる**（changeIcon と同じ理由 — 呼び出し側がトーストで知らせる）。
+   * 成功したら画面の状態を確定後の値（page・cover）で差し替え、サイドバーの木にも知らせる。
+   */
+  const changeCover = useCallback(async (key: string | null): Promise<void> => {
+    const target = saveTarget.current;
+    if (!target) return;
+    const token = generation.current;
+    const { page, cover } = key
+      ? await KbRepository.setPageCover(target.workspaceSlug, target.pageId, key)
+      : await KbRepository.clearPageCover(target.workspaceSlug, target.pageId);
+    // 応答が返る前に別ページへ移っていたら、画面の状態には触らない（changeIcon と同じ守り）。
+    if (token === generation.current) {
+      setState((prev) => (prev.data ? { ...prev, data: { ...prev.data, page, cover } } : prev));
+    }
+    emitKbTreeEvent({ type: 'page-updated', page });
+  }, []);
+
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
   const onDocChange = useCallback(
     (doc: unknown) => {
@@ -187,5 +211,5 @@ export function useKbPageDoc(pageId: string | undefined) {
     [flushSave],
   );
 
-  return { ...state, saveStatus, onDocChange, renameTitle, changeIcon };
+  return { ...state, saveStatus, onDocChange, renameTitle, changeIcon, changeCover };
 }

@@ -1,14 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import KbRepository from '../kbRepository';
 import apiClient from '@/shared/api/axios';
+import axios from 'axios';
 
 vi.mock('@/shared/api/axios');
+// S3 への直接 PUT は apiClient ではなく素の axios を使う（entities/user/imageUploadRepository と同じ形）。
+// put だけ差し替える — @/shared/api/axios.ts 自身が axios.create を実体で呼ぶため、
+// create ごと潰すとその読み込み自体が壊れる。
+vi.mock('axios', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('axios')>();
+  actual.default.put = vi.fn();
+  return actual;
+});
 
 const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
 const mockPatch = vi.mocked(apiClient.patch);
 const mockPut = vi.mocked(apiClient.put);
 const mockDelete = vi.mocked(apiClient.delete);
+const mockAxiosPut = vi.mocked(axios.put);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -312,6 +322,130 @@ describe('KbRepository', () => {
       mockDelete.mockRejectedValue(new Error('forbidden'));
 
       await expect(KbRepository.clearPageIcon('acme', 'p-1')).rejects.toThrow();
+    });
+  });
+
+  describe('issuePageImageUploadURL', () => {
+    it('POST /images/upload-url に contentType と size を送る', async () => {
+      mockPost.mockResolvedValue({
+        data: { url: 'https://s3/put?sig', key: 'kb/w-1/p-1/1.bin', expiresIn: 600 },
+      });
+
+      const got = await KbRepository.issuePageImageUploadURL('acme', 'p-1', 'image/png', 1234);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/images/upload-url',
+        { contentType: 'image/png', size: 1234 },
+      );
+      expect(got).toEqual({ url: 'https://s3/put?sig', key: 'kb/w-1/p-1/1.bin', expiresIn: 600 });
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        KbRepository.issuePageImageUploadURL('acme', 'p-1', 'image/png', 1),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('issuePageImageDownloadURL', () => {
+    it('GET /images/download-url に key を渡す（URL エンコードする）', async () => {
+      mockGet.mockResolvedValue({ data: { url: 'https://s3/get?sig', expiresIn: 600 } });
+
+      await KbRepository.issuePageImageDownloadURL('acme', 'p-1', 'kb/w-1/p-1/1.bin');
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/images/download-url?key=kb%2Fw-1%2Fp-1%2F1.bin',
+      );
+    });
+
+    it('存在しない/参照されていない key の 404 も含め、失敗は握り潰さず投げる', async () => {
+      mockGet.mockRejectedValue(new Error('404'));
+
+      await expect(
+        KbRepository.issuePageImageDownloadURL('acme', 'p-1', 'kb/missing.bin'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('uploadPageImage', () => {
+    it('署名 URL を発行し、S3 へ直接 PUT して key を返す（publicUrl ではない）', async () => {
+      mockPost.mockResolvedValue({
+        data: { url: 'https://s3/put?sig', key: 'kb/w-1/p-1/1.bin', expiresIn: 600 },
+      });
+      mockAxiosPut.mockResolvedValue({});
+      const file = new File(['x'], 'diagram.png', { type: 'image/png' });
+
+      const key = await KbRepository.uploadPageImage('acme', 'p-1', file);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/images/upload-url',
+        { contentType: 'image/png', size: file.size },
+      );
+      expect(mockAxiosPut).toHaveBeenCalledWith('https://s3/put?sig', file, {
+        headers: { 'Content-Type': 'image/png' },
+      });
+      expect(key).toBe('kb/w-1/p-1/1.bin');
+    });
+
+    it('署名発行の失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('boom'));
+      const file = new File(['x'], 'diagram.png', { type: 'image/png' });
+
+      await expect(KbRepository.uploadPageImage('acme', 'p-1', file)).rejects.toThrow();
+      expect(mockAxiosPut).not.toHaveBeenCalled();
+    });
+
+    it('S3 PUT の失敗は握り潰さず投げる', async () => {
+      mockPost.mockResolvedValue({
+        data: { url: 'https://s3/put?sig', key: 'kb/w-1/p-1/1.bin', expiresIn: 600 },
+      });
+      mockAxiosPut.mockRejectedValue(new Error('s3 down'));
+      const file = new File(['x'], 'diagram.png', { type: 'image/png' });
+
+      await expect(KbRepository.uploadPageImage('acme', 'p-1', file)).rejects.toThrow();
+    });
+  });
+
+  describe('setPageCover', () => {
+    it('PUT /cover に {type: "file", key} を送り、page と cover を返す', async () => {
+      const body = { page: { id: 'p-1' }, cover: { type: 'file', url: 'https://cdn/cover.png' } };
+      mockPut.mockResolvedValue({ data: body });
+
+      const got = await KbRepository.setPageCover('acme', 'p-1', 'kb/w-1/p-1/1.bin');
+
+      expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/cover', {
+        type: 'file',
+        key: 'kb/w-1/p-1/1.bin',
+      });
+      expect(got).toEqual(body);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPut.mockRejectedValue(new Error('forbidden'));
+
+      await expect(
+        KbRepository.setPageCover('acme', 'p-1', 'kb/w-1/p-1/1.bin'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('clearPageCover', () => {
+    it('DELETE /cover を叩き、page と null の cover を返す', async () => {
+      const body = { page: { id: 'p-1' }, cover: null };
+      mockDelete.mockResolvedValue({ data: body });
+
+      const got = await KbRepository.clearPageCover('acme', 'p-1');
+
+      expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/cover');
+      expect(got).toEqual(body);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockDelete.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.clearPageCover('acme', 'p-1')).rejects.toThrow();
     });
   });
 });

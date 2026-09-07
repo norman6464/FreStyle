@@ -8,15 +8,6 @@ infrastructure/
 
 frestyle-infrastructure/
 
-# ステージング環境の管理用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
-frestyle-staging/
-
-# PdM 用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
-frestyle-pdm/
-
-# 教材コンテンツ（Markdown 原本）の管理用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
-frestyle-teaching-materials/
-
 # Supabase CLI のローカルリンク状態（pooler-url 等を含むため追跡しない）
 supabase/
 

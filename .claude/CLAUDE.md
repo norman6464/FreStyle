@@ -6,7 +6,7 @@
 - **バックエンド**: Go 1.x / Gin / sqlc（`backend/`）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6。データアクセスは **sqlc**（SQL から型付き Go を生成）
-- **本番 ECS は現状停止中**（2026-09-07 確認: cluster `frestyle-prod` は `status: INACTIVE`、service `frestyle-prod-svc` は `MISSING`。夜間の desiredCount 0↔1 スケジュール停止とは別に、サービス自体が無い状態）。**開発はローカル環境（`docker compose up`）を前提に進める。** 本番デプロイ（ECS への反映）は都度ユーザーに確認してから実施する。PR のマージ・本番 DB スキーマ適用（`schema-apply`）と ECS デプロイは別の決定として切り離してよく、ローカル開発が主軸の間は ECS デプロイを急がない
+- **本番 ECS は現状撤去済み**（2026-09-07 確認: cluster `frestyle-prod` は `status: INACTIVE`、service `frestyle-prod-svc` は `MISSING`。`cd-backend.yml` 自身のコメントも「本番の ECS は撤去済み」と明記し、`target` job が repository 変数 `BACKEND_DEPLOY_TARGET` 未設定で必ず deploy を止める設計になっている）。**開発はローカル環境（`docker compose up`）を前提に進める。** 現状は「確認すれば ECS デプロイできる」状態ではない — 復活させるには infra リポの Terraform（`ecs.tf`）で ECS を作り直し、`BACKEND_DEPLOY_TARGET` を設定する事前作業が要る。ECS を復活させるかどうかもユーザー判断。PR のマージ・本番 DB スキーマ適用（`schema-apply`）は ECS の状態と切り離して進めてよい
 ---
 
 ## 2. クリーンアーキテクチャ規約（最重要）

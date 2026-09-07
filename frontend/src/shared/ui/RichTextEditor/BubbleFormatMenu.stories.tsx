@@ -38,7 +38,7 @@ const SAMPLE = {
 };
 
 /** 見本用の小さなエディタ。selectAll で「選んだ状態」から始められる。 */
-function BubbleHarness({ selectAll = false }: { selectAll?: boolean }) {
+function BubbleHarness({ selectAll = false, editable = true }: { selectAll?: boolean; editable?: boolean }) {
   const editor = useEditor({
     extensions: createEditorExtensions({}),
     content: SAMPLE,
@@ -58,7 +58,7 @@ function BubbleHarness({ selectAll = false }: { selectAll?: boolean }) {
   return (
     // 吹き出しは選択の上に浮くので、上側に余白が無いと画面の外に出て見えない。
     <div className="max-w-2xl pt-24">
-      <BubbleFormatMenu editor={editor as Editor} />
+      <BubbleFormatMenu editor={editor as Editor} editable={editable} />
       <div className="rounded border border-surface-3 p-3">
         <EditorContent editor={editor} />
       </div>

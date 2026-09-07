@@ -508,6 +508,7 @@ export default function KbPage() {
                   setPendingAnchor(anchor);
                   setCommentsOpen(true);
                 }}
+                canComment={data?.canComment ?? false}
                 commentBadgeCounts={commentBadgeCounts}
                 onCommentBadgeClick={handleCommentBadgeClick}
                 focusSignal={bodyFocusSignal}

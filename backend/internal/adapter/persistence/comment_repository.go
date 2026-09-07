@@ -120,6 +120,13 @@ func (r *commentRepository) CreateCommentThread(
 		CreatedByUserID: createdBy,
 	})
 	if err != nil {
+		// usecase 側の BlockExistsInPage チェックと、この INSERT の間にブロックが削除される
+		// レースが理論上ありうる（TOCTOU・CodeRabbit 指摘）。block_id は blocks.id への
+		// 単独 FK なので、そのときはここで外部キー違反になる。生の DB エラーを 500 として
+		// 漏らさず、他の錨不正と同じ 400 invalid_comment_anchor へ翻訳する。
+		if isForeignKeyViolation(err) {
+			return nil, domain.ErrInvalidCommentAnchor
+		}
 		return nil, err
 	}
 	t := toDomainCommentThread(row)

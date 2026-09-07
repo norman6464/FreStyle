@@ -63,9 +63,16 @@ function MenuButton({
  */
 export default function FormatMenuBar({
   editor,
+  editable,
   onRequestComment,
 }: {
   editor: Editor;
+  /**
+   * 書式ボタン（太字等）・リンクを出すか。false でも「コメント」ボタンは
+   * onRequestComment があれば出す — 編集権限は無くコメントだけできる立場
+   * （domain.GrantRoleCommenter）が実在するため、書式操作とコメント可否は別軸 — CodeRabbit 指摘。
+   */
+  editable: boolean;
   /** 選択範囲からコメントを作りたいときに呼ばれる。渡さなければ「コメント」ボタンを出さない。 */
   onRequestComment?: (anchor: CommentAnchor) => void;
 }) {
@@ -81,21 +88,28 @@ export default function FormatMenuBar({
 
   return (
     <div role="toolbar" aria-label="書式メニュー" className="flex items-center gap-0.5">
-      {BUBBLE_COMMANDS.map((command, index) => (
-        <MenuButton
-          key={command.id}
-          command={command}
-          editor={editor}
-          active={states[index].active}
-          disabled={!states[index].enabled}
-        />
-      ))}
+      {editable && (
+        <>
+          {BUBBLE_COMMANDS.map((command, index) => (
+            <MenuButton
+              key={command.id}
+              command={command}
+              editor={editor}
+              active={states[index].active}
+              disabled={!states[index].enabled}
+            />
+          ))}
+          {/*
+            リンクだけは URL の入力を伴うため記述子（EDITOR_COMMANDS）では表せない。
+            マーク操作の並びの末尾に、入力欄を持つ専用コントロールとして置く。
+          */}
+          <LinkFormatControl editor={editor} />
+        </>
+      )}
       {/*
-        リンクだけは URL の入力を伴うため記述子（EDITOR_COMMANDS）では表せない。
-        マーク操作の並びの末尾に、入力欄を持つ専用コントロールとして置く。
+        コメントは記述子に載せず、専用コントロールとして置く（画面側の業務ロジックを呼ぶため）。
+        editable の外に置く — 編集権限が無くコメントだけできる立場でも使える必要があるため。
       */}
-      <LinkFormatControl editor={editor} />
-      {/* コメントも記述子に載せず、リンクの隣に専用コントロールとして置く（画面側の業務ロジックを呼ぶため）。 */}
       <CommentFormatControl editor={editor} onRequestComment={onRequestComment} />
     </div>
   );

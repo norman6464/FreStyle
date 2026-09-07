@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -171,10 +172,19 @@ func Test_コメントAPI_錨付きスレッド作成のレスポンス形(t *te
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	t.Logf("CreateThread(anchored) response: %s", w.Body.String())
 
-	assert.Contains(t, w.Body.String(), `"blockId":"block-1"`)
-	assert.Contains(t, w.Body.String(), `"anchorFrom":3`)
-	assert.Contains(t, w.Body.String(), `"anchorTo":12`)
-	assert.Contains(t, w.Body.String(), `"quote":"錨付けされた引用文"`)
+	// 部分文字列一致（Contains）だと "anchorFrom":3 は "anchorFrom":30 のような値でも
+	// 素通りしてしまう。数値として正確に比較する — CodeRabbit 指摘。
+	var got struct {
+		BlockID    string `json:"blockId"`
+		AnchorFrom int    `json:"anchorFrom"`
+		AnchorTo   int    `json:"anchorTo"`
+		Quote      string `json:"quote"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got), "body=%s", w.Body.String())
+	assert.Equal(t, "block-1", got.BlockID)
+	assert.Equal(t, 3, got.AnchorFrom)
+	assert.Equal(t, 12, got.AnchorTo)
+	assert.Equal(t, "錨付けされた引用文", got.Quote)
 }
 
 // Test_コメントAPI_錨が不正な組み合わせなら400 は、一部だけ非nilの中途半端な入力

@@ -65,7 +65,10 @@ func Test_錨検証(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int) *int { return &i }
 
-	longQuote := strings.Repeat("あ", domain.CommentAnchorMaxQuoteLen+1)
+	// ASCII で作る — len() はバイト数なので、マルチバイト文字で作ると「上限ちょうど」の
+	// 境界を正確に踏めない（"あ"は3バイトなので rune数と一致しない）— CodeRabbit 指摘。
+	quoteAtLimit := strings.Repeat("a", domain.CommentAnchorMaxQuoteLen)
+	longQuote := strings.Repeat("a", domain.CommentAnchorMaxQuoteLen+1)
 
 	cases := []struct {
 		name       string
@@ -113,7 +116,12 @@ func Test_錨検証(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "quoteが上限を超えるはNG",
+			name:    "quoteがちょうど上限バイト数はOK（境界は上限を含む）",
+			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: &quoteAtLimit,
+			wantErr: false,
+		},
+		{
+			name:    "quoteが上限を1バイト超えるはNG",
 			blockID: strPtr("block-1"), anchorFrom: intPtr(0), anchorTo: intPtr(5), quote: &longQuote,
 			wantErr: true,
 		},

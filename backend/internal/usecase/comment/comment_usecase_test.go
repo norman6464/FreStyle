@@ -2,6 +2,7 @@ package comment_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -157,6 +158,28 @@ func Test_スレッド作成_BlockExistsInPageがfalseならErrInvalidCommentAnc
 	})
 
 	require.ErrorIs(t, err, domain.ErrInvalidCommentAnchor)
+	repo.AssertNotCalled(t, "CreateCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
+}
+
+// BlockExistsInPage 自体がエラーを返したら（DB 障害等）、その生のエラーをそのまま
+// 伝播させる（false=存在しないと混同して ErrInvalidCommentAnchor に丸めない）。
+// CreateCommentThread・CreateComment は呼ばれない — CodeRabbit 指摘（存在確認の
+// 「false」と「エラー」の2つの失敗経路のうち、エラー経路のテストが無かった）。
+func Test_スレッド作成_BlockExistsInPageがエラーを返したらそのまま伝播する(t *testing.T) {
+	repo := &mockCommentRepo{}
+	anchor := validAnchor()
+	boom := errors.New("db down")
+	repo.On("BlockExistsInPage", mock.Anything, cWS, cPage, *anchor.BlockID).Return(false, boom)
+	uc := comment.NewCreateCommentThreadUseCase(repo, &fakeTxManager{})
+
+	_, err := uc.Execute(context.Background(), comment.CreateCommentThreadInput{
+		WorkspaceID: cWS, PageID: cPage, AuthorUserID: cAuthor, Body: validBody, Anchor: anchor,
+	})
+
+	require.ErrorIs(t, err, boom)
+	require.NotErrorIs(t, err, domain.ErrInvalidCommentAnchor)
 	repo.AssertNotCalled(t, "CreateCommentThread", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "CreateComment", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertExpectations(t)

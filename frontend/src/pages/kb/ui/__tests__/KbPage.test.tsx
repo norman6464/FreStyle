@@ -760,7 +760,12 @@ describe('KbPage のコメント', () => {
     });
 
     await waitFor(() => expect(screen.getAllByText('未解決（1）').length).toBeGreaterThan(0));
+    // scrollIntoView は Element.prototype に spy を張っているので、呼ばれたことだけでは
+    // 「何か別の要素」が呼んだ可能性を排除できない。呼び出し元（this）が実際に
+    // comment-thread-t1 要素であることまで確かめる — CodeRabbit 指摘。
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    const calledOn = scrollIntoView.mock.instances[0] as unknown as HTMLElement;
+    expect(calledOn.id).toBe('comment-thread-t1');
     scrollIntoView.mockRestore();
   });
 });

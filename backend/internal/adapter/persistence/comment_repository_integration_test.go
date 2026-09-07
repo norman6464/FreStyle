@@ -301,6 +301,44 @@ func TestCommentRepository_Integration(t *testing.T) {
 		assert.Equal(t, to, *got.AnchorTo)
 		require.NotNil(t, got.Quote)
 		assert.Equal(t, quote, *got.Quote)
+
+		// 一覧経由（ListCommentThreadsByPage）でも同じ4フィールドが往復することを確かめる。
+		// GetCommentThread（1件）と ListCommentThreadsByPage（一覧）は別クエリなので、
+		// 一覧側だけ列の取りこぼしがあってもコンパイルは通る — CodeRabbit 指摘。
+		listed, err := repo.ListCommentThreadsByPage(ctx, ws, page)
+		require.NoError(t, err)
+		require.Len(t, listed, 1)
+		require.NotNil(t, listed[0].BlockID)
+		assert.Equal(t, block, *listed[0].BlockID)
+		require.NotNil(t, listed[0].AnchorFrom)
+		assert.Equal(t, from, *listed[0].AnchorFrom)
+		require.NotNil(t, listed[0].AnchorTo)
+		assert.Equal(t, to, *listed[0].AnchorTo)
+		require.NotNil(t, listed[0].Quote)
+		assert.Equal(t, quote, *listed[0].Quote)
+	})
+
+	t.Run("作成とほぼ同時にブロックが削除される競合はinvalid_comment_anchorに翻訳される", func(t *testing.T) {
+		// usecase の BlockExistsInPage チェックと、この INSERT の間でブロックが削除される
+		// レース（TOCTOU・CodeRabbit 指摘）を、実際の外部キー違反を踏んで確かめる。
+		// 事前チェックを経由しない repo 直呼びで「チェック通過後にブロックが消えた」状況を
+		// 再現する（存在しないIDへのすり替えではなく、実際に作って実際に消したブロック）。
+		testsupport.TruncateAll(t, db, commentTables...)
+		repo := persistence.NewCommentRepository(db)
+		ws := createWorkspace(t, db, "ws-comment-anchor-race")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "a0")
+		block := createBlock(t, db, ws, page, nil, "a0", domain.BlockTypeParagraph)
+
+		_, err := db.Exec(`DELETE FROM blocks WHERE id = $1`, block)
+		require.NoError(t, err)
+
+		from, to := 0, 5
+		quote := "消えた直後のブロックへの錨"
+		anchor := repository.CommentAnchor{BlockID: &block, AnchorFrom: &from, AnchorTo: &to, Quote: &quote}
+
+		_, err = repo.CreateCommentThread(ctx, ws, page, 7, anchor)
+		require.ErrorIs(t, err, domain.ErrInvalidCommentAnchor)
 	})
 
 	t.Run("BlockExistsInPageは同じworkspace_id_page_idのブロックだけtrueを返す", func(t *testing.T) {

@@ -68,6 +68,13 @@ export interface RichTextEditorProps {
    */
   onRequestComment?: (anchor: CommentAnchor) => void;
   /**
+   * コメントできる立場か（domain.PagePermission.CanComment）。editable とは別軸 —
+   * 編集権限は無いがコメントだけできる立場（GrantRoleCommenter）が実在するため、
+   * editable=false でもこれが true ならバブルメニューを出し「コメント」ボタンだけ使える
+   * ようにする（書式ボタン・リンクは editable=false のままなら出さない — CodeRabbit 指摘）。
+   */
+  canComment?: boolean;
+  /**
    * ブロックIDごとの未解決コメント件数。渡したブロックの右肩に件数バッジを出す
    * （commentBadges.ts の Decoration.widget）。未指定なら {} 扱い（バッジ無し）。
    */
@@ -161,6 +168,7 @@ export default function RichTextEditor({
   extraSlashCommands,
   onNavigateToPage,
   onRequestComment,
+  canComment = false,
   commentBadgeCounts,
   onCommentBadgeClick,
   focusSignal = 0,
@@ -361,8 +369,8 @@ export default function RichTextEditor({
       <div className="rte-content prose max-w-none">
         <EditorContent editor={editor} />
       </div>
-      {editable && editor && (
-        <BubbleFormatMenu editor={editor} onRequestComment={onRequestComment} />
+      {(editable || canComment) && editor && (
+        <BubbleFormatMenu editor={editor} editable={editable} onRequestComment={onRequestComment} />
       )}
       {onImageUpload && (
         // '/image' から開く隠しファイル入力（DnD/貼り付けと同じ挿入経路へ流す）。

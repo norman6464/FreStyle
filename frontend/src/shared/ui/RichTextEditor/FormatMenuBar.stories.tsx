@@ -49,6 +49,7 @@ const SAMPLE = {
 function MenuBarHarness({
   selectAll = false,
   selectBlockText = false,
+  editable = true,
   onRequestComment,
 }: {
   selectAll?: boolean;
@@ -59,6 +60,7 @@ function MenuBarHarness({
    * なる — 「コメント」ボタンの見本ではブロック内の選択が要る。
    */
   selectBlockText?: boolean;
+  editable?: boolean;
   onRequestComment?: (anchor: CommentAnchor) => void;
 }) {
   const editor = useEditor({
@@ -80,7 +82,7 @@ function MenuBarHarness({
   return (
     <div className="max-w-2xl space-y-3">
       <div className="rte-bubble inline-flex">
-        <FormatMenuBar editor={editor as Editor} onRequestComment={onRequestComment} />
+        <FormatMenuBar editor={editor as Editor} editable={editable} onRequestComment={onRequestComment} />
       </div>
       <div className="rounded border border-surface-3 p-3">
         <EditorContent editor={editor} />
@@ -152,5 +154,34 @@ export const 選択してコメントを付ける: Story = {
       anchorTo: 17,
       quote: 'ここの文字を選んで書式を変えます。',
     });
+  },
+};
+
+/**
+ * 編集権限は無いがコメントだけできる立場（domain.GrantRoleCommenter）。
+ * 太字等の書式ボタン・リンクは出さないが、「コメント」ボタンだけは出て使える
+ * （editable と canComment は別軸 — CodeRabbit 指摘の回帰確認）。
+ */
+export const 編集権限が無くてもコメントだけはできる: Story = {
+  render: () => (
+    <MenuBarHarness
+      selectBlockText
+      editable={false}
+      onRequestComment={(anchor) => {
+        requestedAnchor = anchor;
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    requestedAnchor = null;
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole('button', { name: '太字' })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole('button', { name: 'リンク' })).not.toBeInTheDocument();
+
+    const commentButton = await canvas.findByRole('button', { name: 'コメント' });
+    await waitFor(() => expect(commentButton).toBeEnabled());
+    await userEvent.click(commentButton);
+
+    await waitFor(() => expect(requestedAnchor).not.toBeNull());
   },
 };

@@ -69,6 +69,20 @@ describe('RichTextEditor', () => {
     expect(pm).toHaveAttribute('contenteditable', 'false');
   });
 
+  // canComment は「コメントできる立場か」であって「編集できる立場か」ではない
+  // （domain.GrantRoleCommenter は編集権限を持たない）。canComment=true にしても
+  // 本文の編集可否（editable）に副作用が漏れないことを固定する — CodeRabbit 指摘の回帰確認。
+  // バブルメニュー自体の表示・「コメント」ボタンの可否は FormatMenuBar の単体テスト・
+  // story（選択が要り floating-ui の実描画に依るため jsdom では確かめにくい）で担保する。
+  it('canComment=trueでもeditable=falseなら本文は編集不可のまま', () => {
+    const { container } = render(
+      <RichTextEditor value={headingDoc} editable={false} canComment />,
+    );
+    const pm = container.querySelector('.ProseMirror');
+    expect(pm).not.toBeNull();
+    expect(pm).toHaveAttribute('contenteditable', 'false');
+  });
+
   it('saveStatus を渡すと保存状態を表示する', () => {
     render(<RichTextEditor value={emptyRichDoc()} saveStatus="saved" />);
     expect(screen.getByText('保存済み')).toBeInTheDocument();

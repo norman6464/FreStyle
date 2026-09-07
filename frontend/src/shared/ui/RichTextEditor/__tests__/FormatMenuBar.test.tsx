@@ -7,13 +7,16 @@ import { emptyRichDoc } from '../emptyRichDoc';
 import type { CommentAnchor } from '../commentAnchor';
 
 // FormatMenuBar は実 editor を必要とするので、useEditor で用意した editor を渡す薄いハーネスで包む。
-function Harness({ onRequestComment }: { onRequestComment?: (anchor: CommentAnchor) => void } = {}) {
+function Harness({
+  editable = true,
+  onRequestComment,
+}: { editable?: boolean; onRequestComment?: (anchor: CommentAnchor) => void } = {}) {
   const editor = useEditor({
     extensions: createEditorExtensions(),
     content: emptyRichDoc(),
   });
   if (!editor) return null;
-  return <FormatMenuBar editor={editor} onRequestComment={onRequestComment} />;
+  return <FormatMenuBar editor={editor} editable={editable} onRequestComment={onRequestComment} />;
 }
 
 describe('FormatMenuBar', () => {
@@ -51,5 +54,21 @@ describe('FormatMenuBar', () => {
     // リンク → コメント の順で並ぶ（末尾 2 つ）。
     expect(buttons.at(-2)).toHaveAccessibleName('リンク');
     expect(buttons.at(-1)).toHaveAccessibleName('コメント');
+  });
+
+  // 編集権限は無いがコメントだけできる立場（domain.GrantRoleCommenter）がいるため、
+  // editable と「コメントボタンを出すか」は別軸でなければならない — CodeRabbit 指摘。
+  it('editable=falseでも onRequestComment があれば「コメント」ボタンだけは出る（書式ボタン・リンクは出ない）', () => {
+    render(<Harness editable={false} onRequestComment={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'コメント' })).toBeInTheDocument();
+    for (const name of ['太字', '斜体', '下線', '打ち消し線', 'インラインコード', '見出し1', '箇条書き', '引用', 'コードブロック', 'リンク']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it('editable=falseかつonRequestCommentも無ければボタンは一切出ない', () => {
+    render(<Harness editable={false} />);
+    const toolbar = screen.getByRole('toolbar', { name: '書式メニュー' });
+    expect(within(toolbar).queryAllByRole('button')).toHaveLength(0);
   });
 });

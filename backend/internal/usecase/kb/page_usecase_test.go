@@ -345,6 +345,45 @@ func Test_flattenPageDoc_明示idは呼び出しをまたいで安定するがid
 	require.NotEqual(t, rows1[1].ID, rows2[1].ID, "id 無しは呼び出しごとに新規採番される")
 }
 
+// Test_flattenPageDoc_同じidが複数ノードにあれば2件目以降を採番し直す は、コピー＆ペースト等で
+// attrs.id ごとノードが複製され、doc の中に同じ id を持つノードが複数現れた場合の固定。
+// 再採番しないと ReplacePageBlocks の UPSERT が同じ id へ複数回書き込み、最後に処理した
+// ノードの内容だけが残って前のノードの内容が無言で消える（CodeRabbit 指摘）。
+func Test_flattenPageDoc_同じidが複数ノードにあれば2件目以降を採番し直す(t *testing.T) {
+	dupID := "33333333-3333-3333-3333-333333333333"
+	doc := fmt.Sprintf(`{"type":"doc","content":[
+		{"type":"paragraph","attrs":{"id":%q},"content":[{"type":"text","text":"1つ目"}]},
+		{"type":"paragraph","attrs":{"id":%q},"content":[{"type":"text","text":"2つ目"}]}
+	]}`, dupID, dupID)
+
+	tree, err := parsePageDoc(doc)
+	require.NoError(t, err)
+	rows, err := flattenPageDoc(tree)
+	require.NoError(t, err)
+
+	require.Len(t, rows, 2)
+	require.Equal(t, dupID, rows[0].ID, "1件目は明示的な id をそのまま使う")
+	require.NotEqual(t, dupID, rows[1].ID, "2件目は衝突を避けて新規採番される")
+	_, err = uuid.Parse(rows[1].ID)
+	require.NoError(t, err, "採番し直された id も有効な UUID であること")
+
+	// renderPageDoc（snapshot 用）は flattenPageDoc と同じ木を見るので、採番し直した後の
+	// id が snapshot 側にも反映されていること（保存行と snapshot の id が食い違わない）。
+	rendered, err := renderPageDoc(tree)
+	require.NoError(t, err)
+	var parsed struct {
+		Content []struct {
+			Attrs struct {
+				ID string `json:"id"`
+			} `json:"attrs"`
+		} `json:"content"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(rendered), &parsed))
+	require.Len(t, parsed.Content, 2)
+	require.Equal(t, rows[0].ID, parsed.Content[0].Attrs.ID)
+	require.Equal(t, rows[1].ID, parsed.Content[1].Attrs.ID)
+}
+
 // Test_renderPageDoc_常にattrs_idを出力する は、元々 attrs が空だったノードでも
 // render 後は必ず attrs.id が出ることを固定する（renderBlockNode のコメント参照）。
 func Test_renderPageDoc_常にattrs_idを出力する(t *testing.T) {

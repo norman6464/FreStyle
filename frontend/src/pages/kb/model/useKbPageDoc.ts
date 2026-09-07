@@ -7,6 +7,7 @@ import {
   type KbIcon,
   type KbResolvedPage,
 } from '@/entities/kb';
+import { getApiError } from '@/shared/lib/classifyApiError';
 import type { SaveStatus } from '@/shared/ui/RichTextEditor';
 
 export interface KbPageDocState {
@@ -30,6 +31,10 @@ const SAVE_DEBOUNCE_MS = 800;
 export function useKbPageDoc(pageId: string | undefined) {
   const [state, setState] = useState<KbPageDocState>({ data: null, loading: false, error: null });
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  // 本文保存が block_id_conflict（409）で失敗した回数。0 は「まだ起きていない」。
+  // 呼び出し側（KbPage）はこの値が変わるたびに再読み込みを促す通知を出す
+  // （boolean だと同じ真値が続くだけで2回目以降の発火を検知できないため回数にする）。
+  const [contentConflictCount, setContentConflictCount] = useState(0);
 
   // 速く行き来したときに、古い応答が新しいページを上書きするのを防ぐ。
   const generation = useRef(0);
@@ -84,9 +89,16 @@ export function useKbPageDoc(pageId: string | undefined) {
           flushSave();
         }
       })
-      .catch(() => {
+      .catch((err) => {
         saveInFlight.current = false;
         setSaveStatus('unsaved');
+        // ブロック id の衝突（別ページの id を乗っ取ろうとした・他クライアントとの
+        // 並行編集で起きるレース）は、この画面の状態を書き換えても再送で直らない
+        // （エディタ側が古いページの block id を持ったままの可能性がある）。
+        // 呼び出し側で再読み込みを促す通知を出せるよう、原因を区別して伝える。
+        if (getApiError(err).serverCode === 'block_id_conflict') {
+          setContentConflictCount((n) => n + 1);
+        }
       });
   }, []);
 
@@ -211,5 +223,13 @@ export function useKbPageDoc(pageId: string | undefined) {
     [flushSave],
   );
 
-  return { ...state, saveStatus, onDocChange, renameTitle, changeIcon, changeCover };
+  return {
+    ...state,
+    saveStatus,
+    contentConflictCount,
+    onDocChange,
+    renameTitle,
+    changeIcon,
+    changeCover,
+  };
 }

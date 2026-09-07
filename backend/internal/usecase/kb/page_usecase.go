@@ -500,8 +500,19 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 
 // flattenPageDoc はブロック木を保存用の行（文書順・親が先）へ平坦化する。
 // 兄弟の position は fracindex の末尾追加で採番する（i 件目 = Between(直前, "")）。
+//
+// 同じ id が木の中に複数回現れたら、2 件目以降を新しい UUID へ採番し直す（n.ID を直接
+// 書き換える）。parseBlockNode は node 単体しか見ないため、attrs.id が有効な UUID なら
+// そのまま採用するだけで「木全体で一意か」までは検証しない。コピー＆ペーストや
+// ブロックの複製操作は ProseMirror の attrs をそのまま複製するため、id 込みで
+// 同じ値を持つ 2 つのノードが doc に混ざりうる。ここで再採番しないと、
+// ReplacePageBlocks の UPSERT が同じ id へ複数回書き込み、最後に処理したノードの内容
+// だけが残って前のノードの内容が無言で消える（エラーにならない）。n.ID をここで
+// 書き換えるのは、この後に呼ばれる renderPageDoc（snapshot 用）が同じ木を見るため、
+// 保存される行と snapshot の id を一致させるにはここで確定させる必要があるから。
 func flattenPageDoc(nodes []*kbDocNode) ([]repository.BlockWrite, error) {
 	out := make([]repository.BlockWrite, 0)
+	seen := make(map[string]struct{})
 	var walk func(nodes []*kbDocNode, parentID *string) error
 	walk = func(nodes []*kbDocNode, parentID *string) error {
 		prev := ""
@@ -511,6 +522,13 @@ func flattenPageDoc(nodes []*kbDocNode) ([]repository.BlockWrite, error) {
 				return err
 			}
 			prev = pos
+			for {
+				if _, dup := seen[n.ID]; !dup {
+					break
+				}
+				n.ID = uuid.NewString()
+			}
+			seen[n.ID] = struct{}{}
 			out = append(out, repository.BlockWrite{
 				ID:       n.ID,
 				ParentID: parentID,

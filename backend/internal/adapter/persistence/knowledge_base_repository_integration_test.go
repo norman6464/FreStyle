@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
@@ -1008,9 +1009,9 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 		ids := []string{newID(), newID(), newID(), newID()}
 		positions := []string{"a0", "a1", "a2", "a3"}
 		inline := `[{"type":"text","text":"兄弟"}]`
-		buildRows := func() []repository.BlockWrite {
-			rows := make([]repository.BlockWrite, 0, len(ids))
-			for i, id := range ids {
+		buildRows := func(order []string) []repository.BlockWrite {
+			rows := make([]repository.BlockWrite, 0, len(order))
+			for i, id := range order {
 				rows = append(rows, repository.BlockWrite{
 					ID: id, Position: positions[i], Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inline,
 				})
@@ -1018,17 +1019,78 @@ func TestKnowledgeBaseReplacePageBlocksDiffUpsert_Integration(t *testing.T) {
 			return rows
 		}
 
-		// ParkBlockPositions が無いと、生存行の position をゼロから振り直す過程で
-		// 「まだ古い position を持つ別の生存行」と一時的に衝突しうる（uq_blocks_page_position）。
-		// 同じ id・同じ position で 3 回連続保存してもエラーにならないことがその素通りの証拠。
+		// id と position の組が毎回同じ（flattenPageDoc は木の形が同じなら常に同じ position
+		// 列を返す）だけでは ParkBlockPositions を経由しなくても衝突しない（各 UPSERT が
+		// 自分自身と同じ行に同じ position を書くだけ）。ParkBlockPositions の必要性を
+		// 実際に検証するには、id と position の対応が入れ替わるケースが要る
+		// （CodeRabbit 指摘: このケースは元々 ParkBlockPositions を削除しても通ってしまう）。
 		for i := 0; i < 3; i++ {
-			err := repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(), `{"type":"doc","content":[]}`)
+			err := repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(ids), `{"type":"doc","content":[]}`)
 			require.NoError(t, err, "%d 回目の保存", i+1)
 		}
+
+		// ここが ParkBlockPositions の本題。id と position の対応を逆順に入れ替えると、
+		// 退避が無い限り「まだ古い position を持つ別の生存行」と一時的に衝突する
+		// （uq_blocks_page_position）。エラーにならないことがその素通りの証拠。
+		reversed := []string{ids[3], ids[2], ids[1], ids[0]}
+		require.NoError(t,
+			repo.ReplacePageBlocks(ctx, ws, page.ID, buildRows(reversed), `{"type":"doc","content":[]}`),
+			"id と position の対応を入れ替えた保存")
 
 		var count int
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM blocks WHERE page_id = $1`, page.ID).Scan(&count))
 		assert.Equal(t, len(ids), count)
+	})
+
+	t.Run("UpsertBlockのDO_UPDATEは所有者が食い違う行を素通りし影響行数0を返す", func(t *testing.T) {
+		// ReplacePageBlocks の事前チェック（ListExistingBlockIDsAmong）は行をロックしないため、
+		// 別ページ・別ワークスペースの保存が同じ id を先に INSERT するレースを塞ぎきれない
+		// 場合がある（CodeRabbit 指摘）。その最後の防衛線が UpsertBlock の
+		// ON CONFLICT (id) DO UPDATE ... WHERE workspace_id = ... AND page_id = ...。
+		// ここではその防衛線だけを、事前チェックを経由せず sqlcgen を直接呼んで検証する
+		// （実際の並行レースを再現するのは不安定なテストになるため、SQL レベルの
+		// 振る舞いを単体で固定する）。
+		wsA, spaceA := setup(t)
+		pageA := mustCreatePage(ctx, t, uc, wsA, spaceA, nil, "owner-guard-page-a")
+		// 2 つ目のワークスペースは setup を使わない（setup は TruncateAll するため、
+		// 呼び直すと直前に作った page A ごと消えてしまう）。
+		wsB := createWorkspace(t, sqlDB, "ws-diff-upsert-owner-guard-b")
+		spaceB := createSpace(t, sqlDB, wsB, "eng")
+		pageB := mustCreatePage(ctx, t, uc, wsB, spaceB, nil, "owner-guard-page-b")
+
+		sharedID := newID()
+		inlineA := `[{"type":"text","text":"page A の内容"}]`
+		require.NoError(t, repo.ReplacePageBlocks(ctx, wsA, pageA.ID, []repository.BlockWrite{
+			{ID: sharedID, Position: "a0", Type: domain.BlockTypeParagraph, Attrs: "{}", Inline: &inlineA},
+		}, fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","attrs":{"id":%q},"content":%s}]}`, sharedID, inlineA)))
+
+		id, err := uuid.Parse(sharedID)
+		require.NoError(t, err)
+		wsBUUID, err := uuid.Parse(wsB)
+		require.NoError(t, err)
+		pageBUUID, err := uuid.Parse(pageB.ID)
+		require.NoError(t, err)
+		inlineB := json.RawMessage(`[{"type":"text","text":"乗っ取りを試みる内容"}]`)
+
+		rows, err := sqlcgen.New(sqlDB).UpsertBlock(ctx, sqlcgen.UpsertBlockParams{
+			ID:          id,
+			WorkspaceID: wsBUUID,
+			PageID:      pageBUUID,
+			Position:    "a0",
+			Type:        string(domain.BlockTypeParagraph),
+			Attrs:       json.RawMessage("{}"),
+			Inline:      &inlineB,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), rows, "所有者(workspace_id/page_id)が食い違う衝突はDO UPDATEのWHEREで素通りする")
+
+		// page A 側の行は無傷のまま（別ページに乗っ取られていない）。
+		var gotWorkspaceID, gotPageID string
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT workspace_id::text, page_id::text FROM blocks WHERE id = $1`, sharedID,
+		).Scan(&gotWorkspaceID, &gotPageID))
+		assert.Equal(t, wsA, gotWorkspaceID)
+		assert.Equal(t, pageA.ID, gotPageID)
 	})
 }
 

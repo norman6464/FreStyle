@@ -1,9 +1,20 @@
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AxiosError, AxiosHeaders } from 'axios';
 import KbPage from '../KbPage';
 import { emitKbTreeEvent } from '@/entities/kb';
 import type { EditorCommand } from '@/shared/ui/RichTextEditor';
+
+function blockIdConflictError(): AxiosError {
+  return new AxiosError('Conflict', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status: 409,
+    statusText: 'Conflict',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data: { error: 'block_id_conflict' },
+  });
+}
 
 const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
@@ -89,6 +100,7 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
       extraSlashCommands?: EditorCommand[];
       onImageUpload?: (file: File) => Promise<string>;
       resolveImageSrc?: (src: string) => Promise<string>;
+      onChange?: (doc: { type: 'doc'; content: unknown[] }) => void;
     }) => {
       hoisted.editorProps.current = props;
       return <div data-testid="editor" />;
@@ -520,6 +532,38 @@ describe('KbPage のカバー画像', () => {
     });
     expect(hoisted.setPageCover).not.toHaveBeenCalled();
     expect(hoisted.showToast).not.toHaveBeenCalled();
+  });
+
+  // block_id_conflict は再送しても直らない失敗なので、「未保存」の表示だけでは
+  // 原因が伝わらない。再読み込みを促す通知を出す（CodeRabbit 指摘）。
+  it('本文保存がblock_id_conflictで失敗したら再読み込みを促す', async () => {
+    hoisted.replaceContent.mockRejectedValue(blockIdConflictError());
+    renderPage();
+    await screen.findByTestId('editor');
+
+    // findByTestId のポーリングと fake timers が競合しないよう、初期描画が
+    // 落ち着いてから fake timers に切り替える（useKbPageDoc.test.ts と違い、
+    // ここは実 DOM の非同期待ち（findBy*）を経由するため）。
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        hoisted.editorProps.current?.onChange?.({ type: 'doc', content: [] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(hoisted.showToast).toHaveBeenCalledWith(
+        'error',
+        '他の変更と競合したため本文を保存できませんでした。ページを再読み込みしてやり直してください。',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('カバー画像は読むだけの人には出さない', async () => {

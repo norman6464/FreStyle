@@ -1006,7 +1006,7 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspa
 				raw := json.RawMessage(*b.Inline)
 				inline = &raw
 			}
-			if err := qtx.UpsertBlock(ctx, sqlcgen.UpsertBlockParams{
+			rows, err := qtx.UpsertBlock(ctx, sqlcgen.UpsertBlockParams{
 				ID:          incomingIDs[i],
 				WorkspaceID: wsID,
 				PageID:      pgID,
@@ -1015,8 +1015,18 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(ctx context.Context, workspa
 				Type:        string(b.Type),
 				Attrs:       json.RawMessage(b.Attrs),
 				Inline:      inline,
-			}); err != nil {
+			})
+			if err != nil {
 				return err
+			}
+			if rows == 0 {
+				// 事前の ListExistingBlockIDsAmong は行をロックしない。別ページ/別
+				// ワークスペースの保存が同じ id を先に INSERT すると（事前検証をすり抜けた
+				// レース）、UpsertBlock の WHERE が偽になり 0 行のまま何も書かれない。
+				// :exec のままだとこれを検知できず、snapshot だけ更新されて保存が成功
+				// したことになってしまう（CodeRabbit 指摘）。ここで検知して同じ
+				// ErrBlockIDConflict に倒す。
+				return repository.ErrBlockIDConflict
 			}
 		}
 

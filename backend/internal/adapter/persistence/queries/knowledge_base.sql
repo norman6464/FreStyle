@@ -408,18 +408,21 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id)
     SELECT value::uuid FROM json_array_elements_text(sqlc.arg(ids)::json) AS t(value)
   );
 
--- name: UpsertBlock :exec
+-- name: UpsertBlock :execrows
 -- ブロック 1 行の挿入または更新。id が生き残る限り行そのものは delete/insert されないため、
 -- comment_threads.block_id の FK 参照は保存のたびに外れない（差分 UPSERT の要）。
 --
 -- 衝突キー (id) には所有者列 workspace_id が入っていない（id は PK 単独で一意なので入れられない）。
 -- 呼び出し元の ReplacePageBlocks は「新しく現れる id が他ページ/他ワークスペースに実在しないか」を
--- 保存のたびに事前検証してから UpsertBlock を呼ぶ（ListExistingBlockIDsAmong → ErrBlockIDConflict）
--- ので、正しく動いている限りここで他人の行に衝突することは無い。それでも
--- queries_static_check_test.go の Test_upsertの衝突キーに所有者列が入っていること が求める
--- とおり、DO UPDATE の WHERE で workspace_id / page_id を絞っておく（上の事前検証にバグが
--- あっても、衝突した行が別ワークスペース・別ページのものなら UPDATE 自体が素通りで失敗する
--- 多層防御。page_id まで絞るのは、ブロックの所有者が実質「同じワークスペースの同じページ」
+-- 保存のたびに事前検証してから UpsertBlock を呼ぶ（ListExistingBlockIDsAmong → ErrBlockIDConflict）が、
+-- この事前 SELECT は行をロックしない。別ページ/別ワークスペースの保存が同じ id を先に INSERT すると
+-- （事前検証をすり抜けたレース）、DO UPDATE の WHERE が偽になり blocks 行は作成も更新もされない。
+-- :execrows で影響行数を返し、呼び出し元が 0 行を検出して ErrBlockIDConflict を返せるようにする
+-- （:exec のままだと 0 行が握り潰され、snapshot だけ更新されて保存が成功したことになってしまう —
+-- CodeRabbit 指摘）。DO UPDATE の WHERE で workspace_id / page_id を絞るのは
+-- queries_static_check_test.go の Test_upsertの衝突キーに所有者列が入っていること が求める多層防御
+-- （事前検証にバグがあっても、衝突した行が別ワークスペース・別ページのものなら UPDATE 自体が
+-- 素通りで失敗する。page_id まで絞るのは、ブロックの所有者が実質「同じワークスペースの同じページ」
 -- という単位だから）。
 INSERT INTO blocks (id, workspace_id, page_id, parent_id, "position", type, attrs, inline)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

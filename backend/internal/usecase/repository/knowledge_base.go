@@ -50,14 +50,22 @@ var ErrPageMoveVoidsSpaceGrant = errors.New("page move would void a space-wide p
 // snapshot は派生データなので、呼び出し側はこれを受けて blocks から組み立てる。
 var ErrPageSnapshotNotFound = errors.New("page snapshot not found")
 
+// ErrBlockIDConflict は ReplacePageBlocks で、そのページに新しく現れるはずの block id が
+// 実は他のページに既に存在するときに返す（乗っ取り・バグの防止。id 単独の UPSERT では
+// 本来なら他ページの行を書き換えられてしまうところを、保存ごと拒否して塞ぐ）。
+var ErrBlockIDConflict = errors.New("block id conflict")
+
 // BlockWrite は ReplacePageBlocks に渡す 1 ブロック行。
 //
-// ID を持たないのは採番（UUIDv7）が repository の責務のため。親子関係は保存前に ID が
-// 決まらないので、同じスライス内の親の添字（ParentIndex）で表す。文書順に並べる
-// （親は必ず子より前 = ParentIndex < 自分の添字）ことが前提で、実装側はこれを検証する。
+// ID は usecase 側（flattenPageDoc）が必ず埋める。クライアントが attrs.id で送った有効な
+// UUID はそのまま使われ、無い・不正な場合だけ parsePageDoc が新規採番する。同じ id で保存を
+// 繰り返す限り blocks.id は変わらない（差分 UPSERT。comment_threads.block_id の FK が保存の
+// たびに外れないようにするための唯一の理由でこの id 化をしている）。
 type BlockWrite struct {
-	// ParentIndex は親ブロックの添字。-1 はページ直下（トップレベル）。
-	ParentIndex int
+	ID string
+	// ParentID は親ブロックの ID。nil はページ直下（トップレベル）。
+	// 文書順（親が先）で並んだスライスの中で解決できる ID を指すことが前提。
+	ParentID *string
 	// Position は兄弟内の並び順（分数インデックス）。
 	Position string
 	// Type は ProseMirror のノード名。

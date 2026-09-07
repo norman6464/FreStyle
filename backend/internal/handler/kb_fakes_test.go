@@ -29,6 +29,10 @@ type kbFakePages struct {
 	// moveErr は MovePage を指定のエラーで失敗させる。移動でしか起きないセンチネル
 	// （スペース全員宛ての例外が失効する移動）を handler 越しに見るために分けてある。
 	moveErr error
+	// replaceBlocksErr は ReplacePageBlocks を指定のエラーで失敗させる。本文保存でしか
+	// 起きないセンチネル（他ページの block id を乗っ取ろうとする保存の拒否）を
+	// handler 越しに見るために分けてある。
+	replaceBlocksErr error
 	// findPageCalls は FindPage が呼ばれた回数。権限の入口が「認可の前に対象を読む」形へ
 	// 戻っていないことをテストから確かめるために数える。
 	findPageCalls int
@@ -517,6 +521,9 @@ func (f *kbFakePages) ReplacePageBlocks(_ context.Context, workspaceID, pageID s
 	p, ok := f.pages[pageID]
 	if !ok || p.WorkspaceID != workspaceID {
 		return repository.ErrPageNotFound
+	}
+	if f.replaceBlocksErr != nil {
+		return f.replaceBlocksErr
 	}
 	f.snapshots[pageID] = snapshotDoc
 	return nil

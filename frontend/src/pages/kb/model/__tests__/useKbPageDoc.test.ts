@@ -1,6 +1,17 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { useKbPageDoc } from '../useKbPageDoc';
+
+function blockIdConflictError(): AxiosError {
+  return new AxiosError('Conflict', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status: 409,
+    statusText: 'Conflict',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data: { error: 'block_id_conflict' },
+  });
+}
 
 const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
@@ -595,6 +606,48 @@ describe('useKbPageDoc', () => {
       });
 
       expect(result.current.saveStatus).toBe('unsaved');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('保存がblock_id_conflictで失敗したらcontentConflictCountを増やす', async () => {
+    vi.useFakeTimers();
+    try {
+      hoisted.replaceContent.mockRejectedValue(blockIdConflictError());
+      const { result } = renderHook(() => useKbPageDoc('p1'));
+      await act(async () => {});
+      expect(result.current.contentConflictCount).toBe(0);
+
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(result.current.contentConflictCount).toBe(1);
+      expect(result.current.saveStatus).toBe('unsaved');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('block_id_conflict以外の失敗ではcontentConflictCountを増やさない', async () => {
+    vi.useFakeTimers();
+    try {
+      hoisted.replaceContent.mockRejectedValue(new Error('500'));
+      const { result } = renderHook(() => useKbPageDoc('p1'));
+      await act(async () => {});
+
+      act(() => {
+        result.current.onDocChange({ type: 'doc', content: [] });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(result.current.contentConflictCount).toBe(0);
     } finally {
       vi.useRealTimers();
     }

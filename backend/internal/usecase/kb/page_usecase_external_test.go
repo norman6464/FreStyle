@@ -22,6 +22,43 @@ const (
 	kbPage  = "0198a000-0000-7000-8000-000000000003"
 )
 
+// stripBlockIDsFromAttrs / requireJSONEqIgnoringBlockIDs は、internal/usecase/kb の
+// package kb（page_usecase_test.go）にある同名ヘルパーの package kb_test 版。
+// external test package からは internal のテストヘルパーを import できないため、
+// ここに小さな複製を置く。renderPageDoc は常に attrs.id を出力するようになったため
+// （新規ブロックは呼び出しのたびに新しい UUID が採番される）、doc の厳密一致比較は
+// id を無視しないと落ちる。
+func stripBlockIDsFromAttrs(v any) {
+	switch val := v.(type) {
+	case map[string]any:
+		if attrsRaw, ok := val["attrs"]; ok {
+			if attrsMap, ok := attrsRaw.(map[string]any); ok {
+				delete(attrsMap, "id")
+				if len(attrsMap) == 0 {
+					delete(val, "attrs")
+				}
+			}
+		}
+		for _, child := range val {
+			stripBlockIDsFromAttrs(child)
+		}
+	case []any:
+		for _, child := range val {
+			stripBlockIDsFromAttrs(child)
+		}
+	}
+}
+
+func requireJSONEqIgnoringBlockIDs(t *testing.T, want, got string) {
+	t.Helper()
+	var w, g any
+	require.NoError(t, json.Unmarshal([]byte(want), &w))
+	require.NoError(t, json.Unmarshal([]byte(got), &g))
+	stripBlockIDsFromAttrs(w)
+	stripBlockIDsFromAttrs(g)
+	require.Equal(t, w, g)
+}
+
 func kbActivePage(id, spaceID string, parentID *string) *domain.Page {
 	return &domain.Page{
 		ID: id, WorkspaceID: kbWS, SpaceID: spaceID, ParentID: parentID,
@@ -157,7 +194,7 @@ func Test_ページ取得_snapshotが無ければブロックから組み立て�
 
 	out, err := uc.Execute(context.Background(), kb.GetPageInput{WorkspaceID: kbWS, PageID: kbPage})
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`, out.Doc)
+	requireJSONEqIgnoringBlockIDs(t, `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`, out.Doc)
 }
 
 func Test_ページ取得_無いページはそのまま失敗(t *testing.T) {
@@ -373,8 +410,8 @@ func Test_本文書き換え_docを行に分解して全入れ替えする(t *te
 	require.Len(t, gotRows, 4, "heading / bulletList / listItem / paragraph の 4 行")
 	assert.Equal(t, domain.BlockTypeHeading, gotRows[0].Type)
 	assert.Equal(t, domain.BlockTypeBulletList, gotRows[1].Type)
-	assert.Equal(t, 1, gotRows[2].ParentIndex, "listItem の親は bulletList")
-	assert.JSONEq(t, doc, gotSnapshot, "snapshot は行から再生成した正規形の doc")
+	assert.Equal(t, gotRows[1].ID, *gotRows[2].ParentID, "listItem の親は bulletList")
+	requireJSONEqIgnoringBlockIDs(t, doc, gotSnapshot)
 }
 
 // Test_本文書き換え_ブロック置換と最終編集者の記録は同じトランザクションで行う は

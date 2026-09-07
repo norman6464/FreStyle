@@ -36,12 +36,34 @@ export default function KbPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const { data, loading, error, saveStatus, onDocChange, renameTitle, changeIcon, changeCover } =
-    useKbPageDoc(pageId);
+  const {
+    data,
+    loading,
+    error,
+    saveStatus,
+    contentConflictCount,
+    onDocChange,
+    renameTitle,
+    changeIcon,
+    changeCover,
+  } = useKbPageDoc(pageId);
   // ヘッダー/サイドバーのワークスペース切替から来たときだけ渡ってくる。
   // ページを開いているときは data.workspaceSlug が正なのでそちらを優先する。
   const navigationWorkspaceSlug = (location.state as { workspaceSlug?: string } | null)?.workspaceSlug;
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+
+  // 本文保存が block_id_conflict で失敗したら再読み込みを促す。0（未発生）はスキップする
+  // （マウント時の初期値で誤発火しないため）。再送しても直らない失敗なので、
+  // 「未保存」の表示だけでは原因が伝わらず利用者が気づけない（CodeRabbit 指摘）。
+  const prevContentConflictCount = useRef(contentConflictCount);
+  useEffect(() => {
+    if (contentConflictCount === prevContentConflictCount.current) return;
+    prevContentConflictCount.current = contentConflictCount;
+    showToast(
+      'error',
+      '他の変更と競合したため本文を保存できませんでした。ページを再読み込みしてやり直してください。',
+    );
+  }, [contentConflictCount, showToast]);
 
   // handleChangeCover がアップロード完了後に「まだ同じページを開いているか」を確かめるための、
   // 常に最新のページを指す ref（data はクロージャに古い値が残るため state 変数の直接比較では

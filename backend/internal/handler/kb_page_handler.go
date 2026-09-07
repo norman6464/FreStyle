@@ -231,6 +231,8 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		// 対象の現在の状態と両立しない」）。500 で返すと、クライアントは DB 障害と区別できず
 		// 再試行してよいものと誤解する（何度試しても同じ結果になる）。
 		c.JSON(http.StatusConflict, errorResponse{Error: "space_grant_voided"})
+	case errors.Is(err, repository.ErrBlockIDConflict):
+		c.JSON(http.StatusConflict, errorResponse{Error: "block_id_conflict"})
 	case errors.Is(err, repository.ErrWorkspaceSlugTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "slug_taken"})
 	case errors.Is(err, repository.ErrSpaceKeyTaken):

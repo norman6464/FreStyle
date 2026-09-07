@@ -137,6 +137,52 @@ describe('RichTextEditor', () => {
     expect(JSON.stringify(doc)).toContain('追記テキスト');
   });
 
+  // 可視本文が同じで block id だけが異なる別ページへ移動したケース（CodeRabbit 指摘の回帰）。
+  // stableDocString（onUpdate の重複判定）は id を除外するが、外部 value の同期判定に
+  // 同じ比較を使うと「変更なし」と誤判定し、前ページの block id を保ったまま新しいページの
+  // 文脈で保存してしまう（block_id_conflict の 409 を招く）。
+  it('可視本文が同じでもblock idが違う別ページへ移動したら中身を差し替える', async () => {
+    let editor: Editor | null = null;
+    // 段落を空（content 省略）にすると、tiptap が getJSON() でも同じ形にシリアライズするため
+    // id だけが違うケースをうまく再現できない。実文字を持たせ、id 以外は真に同一にする。
+    const pageA: RichDocContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' },
+          content: [{ type: 'text', text: '同じ見た目の本文' }],
+        },
+      ],
+    };
+    const pageB: RichDocContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' },
+          content: [{ type: 'text', text: '同じ見た目の本文' }],
+        },
+      ],
+    };
+    const { rerender } = render(
+      <RichTextEditor
+        value={pageA}
+        onCreate={(created) => {
+          editor = created;
+        }}
+      />,
+    );
+    await waitFor(() => expect(editor).not.toBeNull());
+
+    rerender(<RichTextEditor value={pageB} />);
+
+    await waitFor(() => {
+      const ids = (editor!.getJSON().content ?? []).map((n) => (n.attrs as { id?: string })?.id);
+      expect(ids).toEqual(['bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb']);
+    });
+  });
+
   // エコー抑止: 外部から value を差し替えた同期は onChange を再発火しない（常時「未保存」への退行防止）。
   it('外部 value の差し替えでは onChange を発火しない（エコー抑止）', async () => {
     const onChange = vi.fn();

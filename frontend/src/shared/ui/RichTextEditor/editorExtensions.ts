@@ -12,6 +12,7 @@ import { ListNormalization } from './listNormalization';
 import { MarkdownShortcuts } from './markdownShortcuts';
 import { createSchemaExtensions } from './schemaExtensions';
 import { SlashCommand } from './slashCommandExtension';
+import { StableBlockId } from './stableBlockId';
 
 /**
  * withZenkakuHeadingInputRules は Heading（levels 1〜3）へ全角入力対応の input rule を上掛けする。
@@ -128,6 +129,9 @@ export function createEditorExtensions(
     // IME（日本語入力）確定でも効く ＃ 見出し・``` コードブロック変換。
     MarkdownShortcuts,
     Placeholder.configure({ placeholder }),
+    // 保存のたびに同じ id を送り続けられるよう、id を持たないブロックへ新規採番して埋める
+    // （振る舞いなのでスキーマ本体＝schemaExtensions.ts ではなくここに置く）。
+    StableBlockId,
   );
 
   if (slashItems && slashItems.length > 0) {

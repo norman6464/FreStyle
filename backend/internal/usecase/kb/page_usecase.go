@@ -375,6 +375,10 @@ var kbContainerBlockTypes = map[domain.BlockType]bool{
 // kbDocNode はブロック行 1 つに対応する中間表現。分解（doc → 行）と組み立て（行 → doc）が
 // この木を共有することで、保存する snapshot が必ず「行から再生成できる形」になる。
 type kbDocNode struct {
+	// ID は blocks.id に対応する。parsePageDoc が返す木のすべてのノードは、呼び出し完了
+	// 時点で必ず有効な非空 UUID 文字列を持つ（parseBlockNode がクライアント由来の
+	// attrs.id を検証するか、無ければ新規採番する）。差分 UPSERT で行を同一に保つための鍵。
+	ID       string
 	Type     domain.BlockType
 	Attrs    string  // JSON object。属性が無ければ "{}"（NULL と {} の二通りを作らない）
 	Inline   *string // JSON array。葉ノードの content。容器ノード・content 無しは nil
@@ -434,15 +438,36 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 	}
 
 	node := &kbDocNode{Type: t, Attrs: "{}"}
+	m := map[string]json.RawMessage{}
 	if len(rn.Attrs) > 0 && string(rn.Attrs) != "null" {
 		// attrs は object であること（DDL の CHECK と同じ壁を入口にも置く）。
-		var m map[string]json.RawMessage
 		if err := json.Unmarshal(rn.Attrs, &m); err != nil {
 			return nil, fmt.Errorf("%w: attrs が object ではありません: %w", ErrPageDocInvalid, err)
 		}
-		if len(m) > 0 {
-			node.Attrs = string(rn.Attrs)
+	}
+	// attrs.id はクライアント由来のブロック id。有効な UUID ならそのまま使う（同じ id で
+	// 保存を繰り返す限り blocks.id が変わらないことが、差分 UPSERT で comment_threads.block_id
+	// の紐付けを保つ唯一の理由）。無い・文字列でない・UUID として parse できない場合は
+	// ここで新規採番する。attrs が最初から空でもこのロジックは同じように通す。
+	node.ID = uuid.NewString()
+	if raw, ok := m["id"]; ok {
+		var idStr string
+		if err := json.Unmarshal(raw, &idStr); err == nil {
+			if _, err := uuid.Parse(idStr); err == nil {
+				node.ID = idStr
+			}
 		}
+	}
+	// "id" キーは map から削除してから残りを node.Attrs へ再マーシャルする。保存される
+	// attrs JSONB には id を絶対に含めない — id は blocks.id という別の列で管理する
+	// 唯一の情報源にする（attrs と PK の二重管理を避けるための設計判断）。
+	delete(m, "id")
+	if len(m) > 0 {
+		attrs, err := json.Marshal(m)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
+		}
+		node.Attrs = string(attrs)
 	}
 
 	if kbContainerBlockTypes[t] {
@@ -475,10 +500,21 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 
 // flattenPageDoc はブロック木を保存用の行（文書順・親が先）へ平坦化する。
 // 兄弟の position は fracindex の末尾追加で採番する（i 件目 = Between(直前, "")）。
+//
+// 同じ id が木の中に複数回現れたら、2 件目以降を新しい UUID へ採番し直す（n.ID を直接
+// 書き換える）。parseBlockNode は node 単体しか見ないため、attrs.id が有効な UUID なら
+// そのまま採用するだけで「木全体で一意か」までは検証しない。コピー＆ペーストや
+// ブロックの複製操作は ProseMirror の attrs をそのまま複製するため、id 込みで
+// 同じ値を持つ 2 つのノードが doc に混ざりうる。ここで再採番しないと、
+// ReplacePageBlocks の UPSERT が同じ id へ複数回書き込み、最後に処理したノードの内容
+// だけが残って前のノードの内容が無言で消える（エラーにならない）。n.ID をここで
+// 書き換えるのは、この後に呼ばれる renderPageDoc（snapshot 用）が同じ木を見るため、
+// 保存される行と snapshot の id を一致させるにはここで確定させる必要があるから。
 func flattenPageDoc(nodes []*kbDocNode) ([]repository.BlockWrite, error) {
 	out := make([]repository.BlockWrite, 0)
-	var walk func(nodes []*kbDocNode, parentIndex int) error
-	walk = func(nodes []*kbDocNode, parentIndex int) error {
+	seen := make(map[string]struct{})
+	var walk func(nodes []*kbDocNode, parentID *string) error
+	walk = func(nodes []*kbDocNode, parentID *string) error {
 		prev := ""
 		for _, n := range nodes {
 			pos, err := fracindex.Between(prev, "")
@@ -486,21 +522,31 @@ func flattenPageDoc(nodes []*kbDocNode) ([]repository.BlockWrite, error) {
 				return err
 			}
 			prev = pos
-			idx := len(out)
+			for {
+				if _, dup := seen[n.ID]; !dup {
+					break
+				}
+				n.ID = uuid.NewString()
+			}
+			seen[n.ID] = struct{}{}
 			out = append(out, repository.BlockWrite{
-				ParentIndex: parentIndex,
-				Position:    pos,
-				Type:        n.Type,
-				Attrs:       n.Attrs,
-				Inline:      n.Inline,
+				ID:       n.ID,
+				ParentID: parentID,
+				Position: pos,
+				Type:     n.Type,
+				Attrs:    n.Attrs,
+				Inline:   n.Inline,
 			})
-			if err := walk(n.Children, idx); err != nil {
+			// ループ変数 n のアドレスをそのまま使わないための退避（Go のループ変数の
+			// 使い回しでバグる典型パターン）。新しい変数へコピーしてからポインタを取る。
+			childParent := n.ID
+			if err := walk(n.Children, &childParent); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	if err := walk(nodes, -1); err != nil {
+	if err := walk(nodes, nil); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -516,7 +562,7 @@ func treeFromBlocks(blocks []domain.Block) ([]*kbDocNode, error) {
 		if !b.Type.Valid() {
 			return nil, fmt.Errorf("%w: %q", ErrPageDocUnknownNodeType, b.Type)
 		}
-		n := &kbDocNode{Type: b.Type, Attrs: b.Attrs}
+		n := &kbDocNode{ID: b.ID, Type: b.Type, Attrs: b.Attrs}
 		if b.Attrs == "" {
 			n.Attrs = "{}"
 		}
@@ -559,8 +605,10 @@ func treeFromBlocks(blocks []domain.Block) ([]*kbDocNode, error) {
 }
 
 // renderPageDoc はブロック木から ProseMirror ドキュメント（正規形）を組み立てる。
-// 正規形: doc の content は空でも必ず配列で出す / 各ノードの attrs は空 object なら出さない /
-// content は無ければ出さない。parsePageDoc → renderPageDoc の往復は正規形の入力に対して同値になる。
+// 正規形: doc の content は空でも必ず配列で出す / id を除いた属性が空でも、id を含む attrs は
+// 必ず出す（renderBlockNode 参照）/ content は無ければ出さない。parsePageDoc → renderPageDoc
+// の往復は id を除けば正規形の入力に対して同値になる（id 無し入力のノードは呼び出しごとに
+// 新規採番されるため、attrs.id の値自体は往復で変わりうる。requireJSONEqIgnoringBlockIDs 参照）。
 func renderPageDoc(nodes []*kbDocNode) (string, error) {
 	content, err := renderBlockNodes(nodes)
 	if err != nil {
@@ -595,15 +643,25 @@ func renderBlockNode(n *kbDocNode) (json.RawMessage, error) {
 		Content json.RawMessage `json:"content,omitempty"`
 	}{Type: string(n.Type)}
 
+	// n.Attrs をベースに id を必ず追加してから出す。id は保存時（parseBlockNode）に
+	// attrs から抜き出されて blocks.id という別列で管理されているため、書き戻すのは
+	// レンダリング側の責務。この結果、すべてのブロックノードは常に attrs を持つ。
+	m := map[string]json.RawMessage{}
 	if n.Attrs != "" && n.Attrs != "{}" {
-		var m map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(n.Attrs), &m); err != nil {
 			return nil, fmt.Errorf("ブロックの attrs が壊れています: %w", err)
 		}
-		if len(m) > 0 {
-			node.Attrs = json.RawMessage(n.Attrs)
-		}
 	}
+	idJSON, err := json.Marshal(n.ID)
+	if err != nil {
+		return nil, fmt.Errorf("ブロックの id を JSON 化できません: %w", err)
+	}
+	m["id"] = idJSON
+	attrs, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("ブロックの attrs を組み立てられません: %w", err)
+	}
+	node.Attrs = attrs
 
 	switch {
 	case len(n.Children) > 0:

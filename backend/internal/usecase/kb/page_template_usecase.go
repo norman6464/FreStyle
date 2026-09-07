@@ -181,7 +181,7 @@ func (u *CreatePageFromTemplateUseCase) Execute(ctx context.Context, in CreatePa
 		// （errors.Is による HTTP ステータスの判定を壊さないため）。
 		if delErr := u.deletePage.Execute(ctx, DeletePageInput{WorkspaceID: in.WorkspaceID, PageID: page.ID}); delErr != nil {
 			return nil, fmt.Errorf(
-				"雛形からの本文書き込みに失敗し、作成済みの空ページ %s の後始末（削除）にも失敗しました（削除エラー: %v）: %w",
+				"雛形からの本文書き込みに失敗し、作成済みの空ページ %s の後始末（削除）にも失敗しました（削除エラー: %w）: %w",
 				page.ID, delErr, err,
 			)
 		}

@@ -448,4 +448,205 @@ describe('KbRepository', () => {
       await expect(KbRepository.clearPageCover('acme', 'p-1')).rejects.toThrow();
     });
   });
+
+  describe('listCommentThreads', () => {
+    it('GET /comment-threads を叩き、threads を配列で返す', async () => {
+      const thread = {
+        id: 't-1',
+        createdBy: { userId: 1, name: '田中 太郎' },
+        resolvedAt: null,
+        resolvedBy: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        comments: [
+          {
+            id: 'c-1',
+            author: { userId: 1, name: '田中 太郎' },
+            body: [{ type: 'text', text: 'これはどういう意味ですか？' }],
+            createdAt: '2026-09-01T00:00:00Z',
+            updatedAt: '2026-09-01T00:00:00Z',
+          },
+        ],
+      };
+      mockGet.mockResolvedValue({ data: { threads: [thread] } });
+
+      const threads = await KbRepository.listCommentThreads('acme', 'p-1');
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/comment-threads');
+      expect(threads).toEqual([thread]);
+    });
+
+    it('threads が欠けた応答でも空配列にする', async () => {
+      mockGet.mockResolvedValue({ data: {} });
+
+      await expect(KbRepository.listCommentThreads('acme', 'p-1')).resolves.toEqual([]);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockGet.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.listCommentThreads('acme', 'p-1')).rejects.toThrow();
+    });
+  });
+
+  describe('createCommentThread', () => {
+    it('POST /comment-threads に body を送り、作った最初の 1 件込みのスレッドを返す', async () => {
+      const body = [{ type: 'text', text: '質問です' }];
+      const thread = {
+        id: 't-1',
+        createdBy: { userId: 1, name: '田中 太郎' },
+        resolvedAt: null,
+        resolvedBy: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        comments: [
+          {
+            id: 'c-1',
+            author: { userId: 1, name: '田中 太郎' },
+            body,
+            createdAt: '2026-09-01T00:00:00Z',
+            updatedAt: '2026-09-01T00:00:00Z',
+          },
+        ],
+      };
+      mockPost.mockResolvedValue({ data: thread });
+
+      const got = await KbRepository.createCommentThread('acme', 'p-1', body);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/comment-threads',
+        { body },
+      );
+      expect(got).toEqual(thread);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('forbidden'));
+
+      await expect(
+        KbRepository.createCommentThread('acme', 'p-1', [{ type: 'text', text: 'x' }]),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('addComment', () => {
+    it('POST /comment-threads/:threadId/comments に body を送り、追加した comment を返す', async () => {
+      const body = [{ type: 'text', text: '返信です' }];
+      const comment = {
+        id: 'c-2',
+        author: { userId: 2, name: '鈴木 花子' },
+        body,
+        createdAt: '2026-09-02T00:00:00Z',
+        updatedAt: '2026-09-02T00:00:00Z',
+      };
+      mockPost.mockResolvedValue({ data: comment });
+
+      const got = await KbRepository.addComment('acme', 'p-1', 't-1', body);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/comment-threads/t-1/comments',
+        { body },
+      );
+      expect(got).toEqual(comment);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('forbidden'));
+
+      await expect(
+        KbRepository.addComment('acme', 'p-1', 't-1', [{ type: 'text', text: 'x' }]),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('resolveCommentThread / reopenCommentThread', () => {
+    // backend は resolvedAt / resolvedBy を `*time.Time` / ポインタ + `omitempty` で返す。
+    // 解決済みのときはキーが出るが、**未解決（reopen 直後）ではキー自体が応答に無い**
+    // （null ではなく丸ごと欠ける）。comments も引き直さない設計で、常に空配列で返る。
+    const resolvedWire = {
+      id: 't-1',
+      createdBy: { userId: 1, name: '田中 太郎' },
+      resolvedAt: '2026-09-03T00:00:00Z',
+      resolvedBy: { userId: 2, name: '鈴木 花子' },
+      createdAt: '2026-09-01T00:00:00Z',
+      comments: [],
+    };
+    const reopenedWire = {
+      id: 't-1',
+      createdBy: { userId: 1, name: '田中 太郎' },
+      createdAt: '2026-09-01T00:00:00Z',
+      comments: [],
+      // resolvedAt / resolvedBy は無い（omitempty で欠ける）。
+    };
+
+    it('resolveCommentThread は POST /resolve を叩き、更新後のスレッドを返す', async () => {
+      mockPost.mockResolvedValue({ data: resolvedWire });
+
+      const got = await KbRepository.resolveCommentThread('acme', 'p-1', 't-1');
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/comment-threads/t-1/resolve',
+      );
+      expect(got).toEqual(resolvedWire);
+    });
+
+    it('reopenCommentThread は POST /reopen を叩き、resolvedAt/resolvedBy が欠けた応答を null に正規化する', async () => {
+      mockPost.mockResolvedValue({ data: reopenedWire });
+
+      const got = await KbRepository.reopenCommentThread('acme', 'p-1', 't-1');
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/pages/p-1/comment-threads/t-1/reopen',
+      );
+      // キーが無い応答でも、呼び出し側は必ず null で判定できる。
+      expect(got.resolvedAt).toBeNull();
+      expect(got.resolvedBy).toBeNull();
+      expect(got.comments).toEqual([]);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.resolveCommentThread('acme', 'p-1', 't-1')).rejects.toThrow();
+      await expect(KbRepository.reopenCommentThread('acme', 'p-1', 't-1')).rejects.toThrow();
+    });
+  });
+
+  describe('resolvedAt / resolvedBy が欠けた応答の正規化（未解決のスレッド）', () => {
+    // listCommentThreads / createCommentThread でも、未解決のスレッドは同じ理由で
+    // resolvedAt / resolvedBy のキー自体が無い応答になり得る。
+    const unresolvedWire = {
+      id: 't-1',
+      createdBy: { userId: 1, name: '田中 太郎' },
+      createdAt: '2026-09-01T00:00:00Z',
+      comments: [
+        {
+          id: 'c-1',
+          author: { userId: 1, name: '田中 太郎' },
+          body: [{ type: 'text', text: '質問です' }],
+          createdAt: '2026-09-01T00:00:00Z',
+          updatedAt: '2026-09-01T00:00:00Z',
+        },
+      ],
+      // resolvedAt / resolvedBy は無い。
+    };
+
+    it('listCommentThreads は欠けたキーを null に正規化する', async () => {
+      mockGet.mockResolvedValue({ data: { threads: [unresolvedWire] } });
+
+      const [thread] = await KbRepository.listCommentThreads('acme', 'p-1');
+
+      expect(thread.resolvedAt).toBeNull();
+      expect(thread.resolvedBy).toBeNull();
+    });
+
+    it('createCommentThread は欠けたキーを null に正規化する', async () => {
+      mockPost.mockResolvedValue({ data: unresolvedWire });
+
+      const thread = await KbRepository.createCommentThread('acme', 'p-1', [
+        { type: 'text', text: '質問です' },
+      ]);
+
+      expect(thread.resolvedAt).toBeNull();
+      expect(thread.resolvedBy).toBeNull();
+    });
+  });
 });

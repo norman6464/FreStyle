@@ -25,6 +25,30 @@ type Block struct {
 	UpdatedAt   time.Time
 }
 
+type Comment struct {
+	ID           uuid.UUID
+	ThreadID     uuid.UUID
+	AuthorUserID int64
+	Body         json.RawMessage
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type CommentThread struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	PageID           uuid.UUID
+	BlockID          uuid.NullUUID
+	AnchorFrom       sql.NullInt32
+	AnchorTo         sql.NullInt32
+	Quote            sql.NullString
+	ResolvedAt       sql.NullTime
+	ResolvedByUserID sql.NullInt64
+	CreatedByUserID  int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
 type ExerciseSubmission struct {
 	ID            int64
 	UserID        int64

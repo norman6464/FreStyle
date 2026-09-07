@@ -28,4 +28,7 @@ export type {
   KbGrantRole,
   KbPageGrant,
   KbGrantablePrincipal,
+  KbCommentAuthorRef,
+  KbComment,
+  KbCommentThread,
 } from './model/types';

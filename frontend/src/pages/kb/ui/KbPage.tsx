@@ -7,7 +7,7 @@ import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
-import { DocumentTextIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, Bars3Icon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { useKbPageDoc } from '../model/useKbPageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { resolveEntryPageId } from '../model/resolveEntryPage';
@@ -18,8 +18,10 @@ import KbPageIconButton from './KbPageIconButton';
 import KbPageMeta from './KbPageMeta';
 import KbPageCover from './KbPageCover';
 import KbPageCoverButton from './KbPageCoverButton';
+import KbCommentsPanel from './KbCommentsPanel';
 import { SharePanel } from '@/features/permission-sharing';
 import { useKbShare } from '../model/useKbShare';
+import { useKbComments } from '../model/useKbComments';
 
 /**
  * KbPage はナレッジの画面（左にサイドバー、右に本文）。
@@ -203,6 +205,62 @@ export default function KbPage() {
     shareOpen ? data?.page.id : undefined,
   );
 
+  // コメントパネルの開閉。共有パネルと同じ理由でページを移ったら必ず閉じる。
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  useEffect(() => {
+    setCommentsOpen(false);
+  }, [pageId]);
+  const comments = useKbComments(data?.workspaceSlug, data?.page.id, commentsOpen);
+  const unresolvedCommentCount = comments.threads.filter((thread) => !thread.resolvedAt).length;
+
+  const handleCreateThread = useCallback(
+    async (body: unknown[]) => {
+      try {
+        await comments.createThread(body);
+      } catch (cause) {
+        showToast('error', 'コメントを送信できませんでした');
+        throw cause;
+      }
+    },
+    [comments, showToast],
+  );
+
+  const handleReplyToThread = useCallback(
+    async (threadId: string, body: unknown[]) => {
+      try {
+        await comments.reply(threadId, body);
+      } catch (cause) {
+        showToast('error', 'コメントを送信できませんでした');
+        throw cause;
+      }
+    },
+    [comments, showToast],
+  );
+
+  const handleResolveThread = useCallback(
+    async (threadId: string) => {
+      try {
+        await comments.resolve(threadId);
+      } catch (cause) {
+        showToast('error', 'スレッドを解決できませんでした');
+        throw cause;
+      }
+    },
+    [comments, showToast],
+  );
+
+  const handleReopenThread = useCallback(
+    async (threadId: string) => {
+      try {
+        await comments.reopen(threadId);
+      } catch (cause) {
+        showToast('error', 'スレッドを再開できませんでした');
+        throw cause;
+      }
+    },
+    [comments, showToast],
+  );
+
   const extraSlashCommands = useMemo<EditorCommand[]>(
     () => [
       {
@@ -308,39 +366,60 @@ export default function KbPage() {
                   </span>
                 </span>
               </nav>
-              {/*
-                共有は canManage のときだけ出す。権限が無い相手に押せるボタンを出しても、
-                返るのは 404 だけで「権限が無い」ことすら伝わらない。
-              */}
-              {data.canManage && (
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShareOpen((open) => !open)}
-                    aria-expanded={shareOpen}
-                    className="rounded border border-surface-3 px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
-                  >
-                    共有
-                  </button>
-                  {shareOpen && (
-                    <div className="absolute right-0 top-full z-20 mt-1">
-                      <SharePanel
-                        targetTitle={data.page.title}
-                        inheritedNote="上の段（ワークスペース・スペース・親ページ）から届いている人はここには出ません。"
-                        emptyNote="このページではまだ誰にも権限を足していません。上の段から届いている人は、ここが空でもこのページを見られます。"
-                        rows={share.rows}
-                        candidates={share.candidates}
-                        loading={share.loading}
-                        error={share.error}
-                        saving={share.saving}
-                        onGrant={share.grant}
-                        onRevoke={share.revoke}
-                        onClose={() => setShareOpen(false)}
-                      />
-                    </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {/* コメントは canComment に関わらず誰でも開ける（読むだけの人にも見せる）。 */}
+                <button
+                  type="button"
+                  onClick={() => setCommentsOpen((open) => !open)}
+                  aria-expanded={commentsOpen}
+                  aria-label={
+                    unresolvedCommentCount > 0
+                      ? `コメント (未解決 ${unresolvedCommentCount} 件)`
+                      : 'コメント'
+                  }
+                  className="relative rounded border border-surface-3 p-1.5 text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
+                >
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  {unresolvedCommentCount > 0 && (
+                    <span className="absolute -right-1 -top-1 h-4 min-w-[16px] rounded-full bg-red-600 px-1 text-center text-[10px] leading-4 text-white">
+                      {unresolvedCommentCount > 99 ? '99+' : unresolvedCommentCount}
+                    </span>
                   )}
-                </div>
-              )}
+                </button>
+                {/*
+                  共有は canManage のときだけ出す。権限が無い相手に押せるボタンを出しても、
+                  返るのは 404 だけで「権限が無い」ことすら伝わらない。
+                */}
+                {data.canManage && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShareOpen((open) => !open)}
+                      aria-expanded={shareOpen}
+                      className="rounded border border-surface-3 px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
+                    >
+                      共有
+                    </button>
+                    {shareOpen && (
+                      <div className="absolute right-0 top-full z-20 mt-1">
+                        <SharePanel
+                          targetTitle={data.page.title}
+                          inheritedNote="上の段（ワークスペース・スペース・親ページ）から届いている人はここには出ません。"
+                          emptyNote="このページではまだ誰にも権限を足していません。上の段から届いている人は、ここが空でもこのページを見られます。"
+                          rows={share.rows}
+                          candidates={share.candidates}
+                          loading={share.loading}
+                          error={share.error}
+                          saving={share.saving}
+                          onGrant={share.grant}
+                          onRevoke={share.revoke}
+                          onClose={() => setShareOpen(false)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               </div>
               {/* カバー画像の追加・変更・外す操作。読むだけの人には何も出さない（部品側の約束）。 */}
               <KbPageCoverButton cover={data.cover} canEdit={data.canEdit} onChange={handleChangeCover} />
@@ -384,6 +463,32 @@ export default function KbPage() {
           )}
         </div>
       </main>
+
+      {/*
+        通常表示（peekable・collapsible 無し）を、開閉トグルで出し入れする。
+        SecondaryPanel の通常表示は常時幅を占有するため、閉じている間はレンダリング
+        ごとやめる — これで「常時表示」を経由せずに開閉トグルの見た目になる。
+        <main> の後に置くだけで、デスクトップでは右側に来る（呼び出し側の DOM 順）。
+      */}
+      {commentsOpen && (
+        <SecondaryPanel
+          title="コメント"
+          side="right"
+          mobileOpen={commentsOpen}
+          onMobileClose={() => setCommentsOpen(false)}
+        >
+          <KbCommentsPanel
+            threads={comments.threads}
+            loading={comments.loading}
+            error={comments.error}
+            canComment={data?.canComment ?? false}
+            onCreateThread={handleCreateThread}
+            onReply={handleReplyToThread}
+            onResolve={handleResolveThread}
+            onReopen={handleReopenThread}
+          />
+        </SecondaryPanel>
+      )}
     </div>
   );
 }

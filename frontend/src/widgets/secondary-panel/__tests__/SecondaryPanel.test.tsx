@@ -54,6 +54,33 @@ describe('SecondaryPanel', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
+  it('side="right" のとき、モバイル固定パネルは右から出る（right-0・border-l を持ち、left-0 は持たない）', () => {
+    const { container } = render(
+      <SecondaryPanel title="コメント" side="right" mobileOpen={true} onMobileClose={() => {}}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    // モバイル固定パネル自身を探す（inset-y-0 を持つのはこの 1 枚だけ）。
+    const mobilePanel = container.querySelector('.inset-y-0');
+    expect(mobilePanel).not.toBeNull();
+    expect(mobilePanel?.className).toContain('right-0');
+    expect(mobilePanel?.className).not.toContain('left-0');
+    expect(mobilePanel?.className).toContain('border-l');
+    expect(mobilePanel?.className).not.toContain('border-r');
+  });
+
+  it('side を省くと従来どおり左から出る（既定 "left"・後方互換）', () => {
+    const { container } = render(
+      <SecondaryPanel title="ナレッジ" mobileOpen={true} onMobileClose={() => {}}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const mobilePanel = container.querySelector('.inset-y-0');
+    expect(mobilePanel?.className).toContain('left-0');
+    expect(mobilePanel?.className).not.toContain('right-0');
+    expect(mobilePanel?.className).toContain('border-r');
+  });
+
   it('折りたたみ中は「開く」ボタンを出し、折りたたみボタンは出さない', () => {
     const onToggle = vi.fn();
     render(

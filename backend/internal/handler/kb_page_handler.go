@@ -267,6 +267,10 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "unsupported_content_type"})
 	case errors.Is(err, domain.ErrImageTooLarge):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "image_too_large"})
+	case errors.Is(err, repository.ErrCommentThreadNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+	case errors.Is(err, domain.ErrInvalidCommentBody):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
@@ -301,7 +305,17 @@ func kbScope(c *gin.Context) (kbRequestScope, bool) {
 func (h *KnowledgeBasePageHandler) requirePagePermission(
 	c *gin.Context, scope kbRequestScope, pageID string, capability domain.Capability,
 ) bool {
-	perm, err := h.check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
+	return requirePagePermissionWith(c, h.check, scope, pageID, capability)
+}
+
+// requirePagePermissionWith は requirePagePermission の実体。KnowledgeBasePageHandler と
+// CommentHandler の両方が同じ判定を使うために package レベルの関数へ切り出してある
+// （CanView/CanEdit の判定はどちらの handler でも同じで、writeし直すとどちらか片方だけ
+// 直し忘れて食い違う危険がある）。
+func requirePagePermissionWith(
+	c *gin.Context, check *kb.CheckPagePermissionUseCase, scope kbRequestScope, pageID string, capability domain.Capability,
+) bool {
+	perm, err := check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		UserID:      scope.userID,
@@ -1086,7 +1100,8 @@ func limitKnowledgeBaseBody(c *gin.Context) {
 
 // kbResolvedPageResponse は /kb/pages/{pageId}（URL にテナントを持たない解決）の返却形。
 // workspaceSlug は以降の API 呼び出し（木・保存）に、workspaceName と ancestors は
-// パンくず（場所の表示）に、canEdit は編集 UI の、canManage は共有 UI の出し分けに使う。
+// パンくず（場所の表示）に、canEdit は編集 UI の、canManage は共有 UI の、canComment は
+// コメントの書き込み系 UI（作成・返信・解決/再開ボタン）の出し分けに使う。
 // ancestors は**読み手が閲覧できる祖先だけ**を根から順に持つ（木と同じ規則で穴があき得る）。
 type kbResolvedPageResponse struct {
 	WorkspaceSlug string          `json:"workspaceSlug" example:"w-3f2a9c"`
@@ -1096,8 +1111,11 @@ type kbResolvedPageResponse struct {
 	CanEdit       bool            `json:"canEdit"`
 	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
 	// 届いている役割が admin かどうかだけで決まる。
-	CanManage bool             `json:"canManage"`
-	Ancestors []kb.AncestorRef `json:"ancestors"`
+	CanManage bool `json:"canManage"`
+	// CanComment はコメントを作成・返信・解決/再開できるか（domain.PagePermission.CanComment
+	// と同じ規則。共有リンク経由では常に false）。一覧の閲覧自体は CanView だけで誰でもできる。
+	CanComment bool             `json:"canComment"`
+	Ancestors  []kb.AncestorRef `json:"ancestors"`
 	// LastEditedBy はまだ誰も本文を保存していなければ null。name は引けなければ空文字。
 	LastEditedBy *kbEditorRefResponse `json:"lastEditedBy,omitempty"`
 	// LastEditedAt は page_snapshots.built_at（本文保存と同じトランザクションの時刻）。
@@ -1181,6 +1199,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		Doc:           json.RawMessage(doc),
 		CanEdit:       perm.CanEdit,
 		CanManage:     perm.CanManage,
+		CanComment:    perm.CanComment,
 		Ancestors:     ancestors,
 		LastEditedBy:  h.kbLastEditedByResponse(c.Request.Context(), out.Page.LastEditedByUserID),
 		LastEditedAt:  out.BuiltAt,

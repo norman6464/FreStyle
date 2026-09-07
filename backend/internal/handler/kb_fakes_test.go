@@ -728,6 +728,11 @@ func roleFor(perm domain.PagePermission) *domain.GrantRole {
 	case perm.CanEdit:
 		role := domain.GrantRoleEditor
 		return &role
+	case perm.CanComment:
+		// CanComment だけを立てたい（viewer より強いが editor ではない）テストのための分岐。
+		// commenter は CanView も含むので、下の CanView 分岐より先に見る必要がある。
+		role := domain.GrantRoleCommenter
+		return &role
 	case perm.CanView:
 		role := domain.GrantRoleViewer
 		return &role
@@ -1594,5 +1599,123 @@ func (f *kbFakeProvisioner) ProvisionPrivateSpace(
 	}
 	f.perms.setScopeRole(space.ID, in.CreatorUserID, domain.GrantRoleAdmin)
 	c := *space
+	return &c, nil
+}
+
+// kbFakeComments は repository.CommentRepository の in-memory fake。
+type kbFakeComments struct {
+	threads     map[string]domain.CommentThread // threadID -> thread
+	threadOrder []string                        // 作成順（ListCommentThreadsByPage の並びを保つ）
+	comments    map[string][]domain.Comment     // threadID -> 返信（作成順）
+	nextID      int
+}
+
+var _ repository.CommentRepository = (*kbFakeComments)(nil)
+
+func newKbFakeComments() *kbFakeComments {
+	return &kbFakeComments{
+		threads:  map[string]domain.CommentThread{},
+		comments: map[string][]domain.Comment{},
+	}
+}
+
+func (f *kbFakeComments) newID(prefix string) string {
+	f.nextID++
+	return prefix + "-" + strconv.Itoa(f.nextID)
+}
+
+func (f *kbFakeComments) CreateCommentThread(
+	_ context.Context, workspaceID, pageID string, createdByUserID uint64,
+) (*domain.CommentThread, error) {
+	now := time.Now()
+	t := domain.CommentThread{
+		ID:              f.newID("thread"),
+		WorkspaceID:     workspaceID,
+		PageID:          pageID,
+		CreatedByUserID: createdByUserID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	f.threads[t.ID] = t
+	f.threadOrder = append(f.threadOrder, t.ID)
+	c := t
+	return &c, nil
+}
+
+func (f *kbFakeComments) CreateComment(
+	_ context.Context, threadID string, authorUserID uint64, body string,
+) (*domain.Comment, error) {
+	if _, ok := f.threads[threadID]; !ok {
+		return nil, repository.ErrCommentThreadNotFound
+	}
+	now := time.Now()
+	c := domain.Comment{
+		ID:           f.newID("comment"),
+		ThreadID:     threadID,
+		AuthorUserID: authorUserID,
+		Body:         body,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	f.comments[threadID] = append(f.comments[threadID], c)
+	out := c
+	return &out, nil
+}
+
+func (f *kbFakeComments) GetCommentThread(_ context.Context, workspaceID, pageID, threadID string) (*domain.CommentThread, error) {
+	t, ok := f.threads[threadID]
+	if !ok || t.WorkspaceID != workspaceID || t.PageID != pageID {
+		return nil, repository.ErrCommentThreadNotFound
+	}
+	c := t
+	return &c, nil
+}
+
+func (f *kbFakeComments) ListCommentThreadsByPage(_ context.Context, workspaceID, pageID string) ([]domain.CommentThread, error) {
+	out := make([]domain.CommentThread, 0)
+	for _, id := range f.threadOrder {
+		t := f.threads[id]
+		if t.WorkspaceID == workspaceID && t.PageID == pageID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+func (f *kbFakeComments) ListCommentsByThreads(_ context.Context, threadIDs []string) ([]domain.Comment, error) {
+	out := make([]domain.Comment, 0)
+	for _, id := range threadIDs {
+		out = append(out, f.comments[id]...)
+	}
+	return out, nil
+}
+
+func (f *kbFakeComments) ResolveCommentThread(
+	_ context.Context, workspaceID, pageID, threadID string, resolvedByUserID uint64,
+) (*domain.CommentThread, error) {
+	t, ok := f.threads[threadID]
+	if !ok || t.WorkspaceID != workspaceID || t.PageID != pageID {
+		return nil, repository.ErrCommentThreadNotFound
+	}
+	now := time.Now()
+	t.ResolvedAt = &now
+	resolvedBy := resolvedByUserID
+	t.ResolvedByUserID = &resolvedBy
+	t.UpdatedAt = now
+	f.threads[threadID] = t
+	c := t
+	return &c, nil
+}
+
+func (f *kbFakeComments) ReopenCommentThread(_ context.Context, workspaceID, pageID, threadID string) (*domain.CommentThread, error) {
+	t, ok := f.threads[threadID]
+	if !ok || t.WorkspaceID != workspaceID || t.PageID != pageID {
+		return nil, repository.ErrCommentThreadNotFound
+	}
+	t.ResolvedAt = nil
+	t.ResolvedByUserID = nil
+	t.UpdatedAt = time.Now()
+	f.threads[threadID] = t
+	c := t
 	return &c, nil
 }

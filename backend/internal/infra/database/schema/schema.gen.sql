@@ -32,6 +32,41 @@ CREATE INDEX "idx_blocks_workspace_id" ON "public"."blocks" ("workspace_id");
 CREATE UNIQUE INDEX "uq_blocks_page_position" ON "public"."blocks" ("page_id", "position") WHERE (parent_id IS NULL);
 -- Create index "uq_blocks_parent_position" to table: "blocks"
 CREATE UNIQUE INDEX "uq_blocks_parent_position" ON "public"."blocks" ("parent_id", "position");
+-- Create "comment_threads" table
+CREATE TABLE "public"."comment_threads" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "block_id" uuid NULL,
+  "anchor_from" integer NULL,
+  "anchor_to" integer NULL,
+  "quote" text NULL,
+  "resolved_at" timestamptz NULL,
+  "resolved_by_user_id" bigint NULL,
+  "created_by_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_comment_threads_anchor_pair" CHECK ((anchor_from IS NULL) = (anchor_to IS NULL)),
+  CONSTRAINT "ck_comment_threads_resolved_pair" CHECK ((resolved_at IS NULL) = (resolved_by_user_id IS NULL))
+);
+-- Create index "idx_comment_threads_block" to table: "comment_threads"
+CREATE INDEX "idx_comment_threads_block" ON "public"."comment_threads" ("block_id");
+-- Create index "idx_comment_threads_page" to table: "comment_threads"
+CREATE INDEX "idx_comment_threads_page" ON "public"."comment_threads" ("workspace_id", "page_id");
+-- Create "comments" table
+CREATE TABLE "public"."comments" (
+  "id" uuid NOT NULL,
+  "thread_id" uuid NOT NULL,
+  "author_user_id" bigint NOT NULL,
+  "body" jsonb NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_comments_body_array" CHECK (jsonb_typeof(body) = 'array'::text)
+);
+-- Create index "idx_comments_thread" to table: "comments"
+CREATE INDEX "idx_comments_thread" ON "public"."comments" ("thread_id");
 -- Create "exercise_submissions" table
 CREATE TABLE "public"."exercise_submissions" (
   "id" bigserial NOT NULL,
@@ -340,6 +375,10 @@ CREATE TABLE "public"."workspaces" (
 CREATE UNIQUE INDEX "uq_workspaces_personal_owner" ON "public"."workspaces" ("personal_owner_user_id") WHERE (personal_owner_user_id IS NOT NULL);
 -- Modify "blocks" table
 ALTER TABLE "public"."blocks" ADD CONSTRAINT "fk_blocks_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "comment_threads" table
+ALTER TABLE "public"."comment_threads" ADD CONSTRAINT "fk_comment_threads_block" FOREIGN KEY ("block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE SET NULL, ADD CONSTRAINT "fk_comment_threads_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "comments" table
+ALTER TABLE "public"."comments" ADD CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_grants" table
 ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_paths" table

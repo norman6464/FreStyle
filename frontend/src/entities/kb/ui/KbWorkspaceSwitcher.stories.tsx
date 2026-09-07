@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import KbWorkspaceSwitcher from './KbWorkspaceSwitcher';
 import type { KbWorkspace } from '../model/types';
 
@@ -118,6 +118,11 @@ export const 削除の確認: Story = {
     await expect(canvas.queryByRole('button', { name: '営業部 を削除' })).toBeNull();
     await userEvent.click(canvas.getByRole('button', { name: '開発チーム を削除' }));
     // 確認は portal で body の直下に出るので、story の枠の中からは引けない。
-    await expect(await within(document.body).findByText(/元に戻せません/)).toBeVisible();
+    // ConfirmModal は CSS アニメーション（animate-scale-in）で現れるため、要素が DOM に
+    // 追加された直後に toBeVisible() を呼ぶと、アニメーション開始前の最初のフレームを
+    // 掴んで落ちることがある（CI の headless ブラウザでだけ再現し、ローカルでは再現しない
+    // ——同じコミットで CI のみ3回連続で失敗し特定）。1フレーム分の猶予を持たせて再試行する。
+    const message = await within(document.body).findByText(/元に戻せません/);
+    await waitFor(() => expect(message).toBeVisible());
   },
 };

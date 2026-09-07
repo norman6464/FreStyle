@@ -6,6 +6,7 @@
 - **バックエンド**: Go 1.x / Gin / sqlc（`backend/`）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6。データアクセスは **sqlc**（SQL から型付き Go を生成）
+- **本番 ECS は現状停止中**（2026-09-07 確認: cluster `frestyle-prod` は `status: INACTIVE`、service `frestyle-prod-svc` は `MISSING`。夜間の desiredCount 0↔1 スケジュール停止とは別に、サービス自体が無い状態）。**開発はローカル環境（`docker compose up`）を前提に進める。** 本番デプロイ（ECS への反映）は都度ユーザーに確認してから実施する。PR のマージ・本番 DB スキーマ適用（`schema-apply`）と ECS デプロイは別の決定として切り離してよく、ローカル開発が主軸の間は ECS デプロイを急がない
 ---
 
 ## 2. クリーンアーキテクチャ規約（最重要）

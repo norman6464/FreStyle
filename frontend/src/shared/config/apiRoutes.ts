@@ -261,6 +261,31 @@ export const KB_API = {
    */
   restorePageVersion: (workspaceSlug: string, pageId: string, seq: number) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions/${seq}/restore`,
+  /**
+   * GET(一覧・?spaceId= は任意) — /api/v2/kb/workspaces/:slug/templates
+   *
+   * 一覧・使用はワークスペース所属者なら誰でもできる。spaceId を渡すと、そのスペース専用の
+   * テンプレート + ワークスペース全体のテンプレートの両方が返る想定（backend 未実装の段階の
+   * 想定であり確定ではない — 要すり合わせ）。
+   */
+  templates: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/templates`,
+  /**
+   * POST(作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/templates
+   *
+   * 今のページの内容からテンプレートを作る。ワークスペースの編集者（editor）以上が要る。
+   */
+  pageTemplates: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/templates`,
+  /** DELETE(削除) — /api/v2/kb/workspaces/:slug/templates/:templateId。編集者以上が要る。 */
+  template: (workspaceSlug: string, templateId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/templates/${templateId}`,
+  /**
+   * POST(テンプレートからページを作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/pages/from-template
+   *
+   * 応答は通常のページ作成（POST .../pages）と同じ形（KbPage）。
+   */
+  pageFromTemplate: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/pages/from-template`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

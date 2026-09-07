@@ -280,6 +280,12 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 	case errors.Is(err, domain.ErrInvalidPageVersionNote):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_version_note"})
+	case errors.Is(err, domain.ErrPageTemplateNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+	case errors.Is(err, repository.ErrDuplicateTemplateName):
+		c.JSON(http.StatusConflict, errorResponse{Error: "duplicate_template_name"})
+	case errors.Is(err, domain.ErrInvalidTemplateName):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_template_name"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
@@ -356,7 +362,16 @@ func requirePagePermissionWith(
 func (h *KnowledgeBasePageHandler) requireSpacePermission(
 	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
-	perm, err := h.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
+	return requireSpacePermissionWith(c, h.checkSpace, scope, spaceID, capability)
+}
+
+// requireSpacePermissionWith は requireSpacePermission の実体。KnowledgeBasePageHandler と
+// PageTemplateHandler の両方が「スペース直下への作成」と同じ判定（parentId 相当が無いときの
+// 入口）を使うために package レベルの関数へ切り出してある（requirePagePermissionWith と同じ理由）。
+func requireSpacePermissionWith(
+	c *gin.Context, checkSpace *kb.CheckSpacePermissionUseCase, scope kbRequestScope, spaceID string, capability domain.Capability,
+) bool {
+	perm, err := checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		UserID:      scope.userID,

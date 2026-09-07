@@ -1,17 +1,28 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRightIcon, EllipsisHorizontalIcon, PlusIcon } from '@heroicons/react/24/outline';
-import type { KbDropTarget, KbPage, KbSpace } from '@/entities/kb';
+import { emitKbTreeEvent, type KbDropTarget, type KbPage, type KbSpace } from '@/entities/kb';
 import { toDropTarget, type KbDropZone } from '../model/dropZone';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import type { KbSpaceState } from '../model/useKbTree';
+import { useKbPageTemplates } from '../model/useKbPageTemplates';
 import KbTreeList from './KbTreeList';
 import KbInlineRename from './KbInlineRename';
+import KbTemplatePickerModal from './KbTemplatePickerModal';
 
 export interface KbSpaceSectionProps {
   space: KbSpace;
   state: KbSpaceState | undefined;
   workspaceSlug: string;
+  /**
+   * 自分がこのワークスペースの admin か（KbWorkspace.canManage）。
+   *
+   * 「雛形から作る」ピッカーの削除ボタンの表示可否にこれを使う。**厳密には代理指標**
+   * — 仕様上テンプレートの削除に要る権限は「ワークスペースの編集者(editor)以上」だが、
+   * フロントに届いている権限フラグは admin（canManage）しか無い。admin でない editor には
+   * 削除ボタンが出ない、安全側に倒れた簡略化（要すり合わせ）。
+   */
+  workspaceCanManage: boolean;
   activePageId?: string;
   expandedPageIds: ReadonlySet<string>;
   onToggleSpace: (spaceId: string) => void;
@@ -57,6 +68,7 @@ export default function KbSpaceSection({
   space,
   state,
   workspaceSlug,
+  workspaceCanManage,
   activePageId,
   expandedPageIds,
   onToggleSpace,
@@ -87,6 +99,10 @@ export default function KbSpaceSection({
   // 見出しの名前を書き換え中か（行の renaming と同じ流儀の、見出し版）。
   const [renamingSpace, setRenamingSpace] = useState(false);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+  // 「雛形から作る」ピッカーの開閉。一覧の取得はピッカーが開いている間だけ行う
+  // （useKbPageTemplates の open ゲート）。
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const templates = useKbPageTemplates(workspaceSlug, space.id, templatePickerOpen);
 
   const createPage = async (parentId?: string) => {
     try {
@@ -166,6 +182,22 @@ export default function KbSpaceSection({
     }
   };
 
+  /**
+   * テンプレートを選んで新しいページを作る。**失敗は投げる**
+   * （KbTemplatePickerModal がフォーム内にエラーを出す。ここで握り潰さない）。
+   *
+   * 作った本人の木は emitKbTreeEvent の 'page-created' を自分でも受け取って更新する
+   * （useKbTree の購読が page-created で該当スペースの木を取り直す — createSubpage.ts
+   * と同じ経路。onCreatePage 経由にしないのは、createPageFromTemplate が
+   * useKbTree の管理する状態を経由しない独立した API 呼び出しのため）。
+   */
+  const createFromTemplate = async (templateId: string, title: string) => {
+    const created = await templates.createPageFromTemplate({ templateId, title });
+    emitKbTreeEvent({ type: 'page-created', page: created });
+    setTemplatePickerOpen(false);
+    navigate(`/kb/${created.id}`);
+  };
+
   return (
     <section className="mb-1">
       <h2 className="group relative flex items-center gap-1 rounded-md pr-1 hover:bg-surface-2">
@@ -233,6 +265,23 @@ export default function KbSpaceSection({
                     className="w-full px-3 py-1.5 text-left text-sm normal-case tracking-normal text-[var(--color-text-primary)] hover:bg-surface-2"
                   >
                     スペースの名前を変更
+                  </button>
+                </li>
+                <li>
+                  {/*
+                    雛形から作る。テンプレートから新しいページを作る入口 — 一覧・使用は
+                    ワークスペース所属者なら誰でもできるので、「+」の空のページ作成と同じく
+                    権限で出し分けない（削除ボタンだけがピッカー側で canManageTemplates を見る）。
+                  */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpaceMenuOpen(false);
+                      setTemplatePickerOpen(true);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-sm normal-case tracking-normal text-[var(--color-text-primary)] hover:bg-surface-2"
+                  >
+                    雛形から作る
                   </button>
                 </li>
               </ul>
@@ -311,6 +360,17 @@ export default function KbSpaceSection({
           )}
         </div>
       )}
+
+      <KbTemplatePickerModal
+        isOpen={templatePickerOpen}
+        templates={templates.templates}
+        loading={templates.loading}
+        error={templates.error}
+        canManageTemplates={workspaceCanManage}
+        onConfirm={createFromTemplate}
+        onDelete={templates.deleteTemplate}
+        onClose={() => setTemplatePickerOpen(false)}
+      />
     </section>
   );
 }

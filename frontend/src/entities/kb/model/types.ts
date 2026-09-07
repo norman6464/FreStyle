@@ -317,3 +317,18 @@ export interface KbPageVersion {
 export interface KbPageVersionDetail extends KbPageVersion {
   doc: unknown;
 }
+
+/**
+ * テンプレート 1 件（一覧用の軽い形。doc は含まない）。
+ *
+ * spaceId が無い（null/undefined）ならワークスペース全体で使えるテンプレート、値があれば
+ * そのスペース専用。一覧 GET（?spaceId=）は「そのスペース専用」+「ワークスペース全体」の
+ * 両方を返す想定 — backend 未実装の段階での想定であり確定ではない（要すり合わせ）。
+ */
+export interface KbPageTemplate {
+  id: string;
+  name: string;
+  icon?: KbIcon | null;
+  spaceId?: string | null;
+  createdAt: string;
+}

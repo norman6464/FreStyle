@@ -49,6 +49,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewUserRepository(deps.db),
 		persistence.NewCommentRepository(deps.db),
 		persistence.NewPageVersionRepository(deps.db),
+		persistence.NewPageTemplateRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 		newKbImagePresignerOrFallback(deps),
 	)
@@ -102,6 +103,7 @@ func registerKnowledgeBaseRoutesWith(
 	users repository.UserRepository,
 	comments repository.CommentRepository,
 	versions repository.PageVersionRepository,
+	templates repository.PageTemplateRepository,
 	txManager repository.TxManager,
 	kbImagePresigner repository.KbImagePresigner,
 ) {
@@ -157,6 +159,20 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewGetPageVersionUseCase(versions),
 		kb.NewRestorePageVersionUseCase(versions, replaceBlocks),
 		kb.NewLookupUserNameUseCase(users),
+	)
+
+	// ページの雛形（FRESTYLE-435 段 5）。作成・削除はワークスペース全体への CanEdit、
+	// 一覧はワークスペース所属者なら誰でも、使用（雛形からページを作る）は既存のページ作成
+	// （h.Create）と全く同じ認可分岐で判定する（PageTemplateHandler 参照）。
+	th := NewPageTemplateHandler(
+		kb.NewIsWorkspaceMemberUseCase(permissions),
+		kb.NewCheckWorkspacePermissionUseCase(permissions),
+		kb.NewCheckPagePermissionUseCase(permissions),
+		kb.NewCheckSpacePermissionUseCase(permissions),
+		kb.NewListPageTemplatesUseCase(templates),
+		kb.NewCreateTemplateFromPageUseCase(pages, templates),
+		kb.NewDeletePageTemplateUseCase(templates),
+		kb.NewCreatePageFromTemplateUseCase(templates, kb.NewCreatePageUseCase(pages), replaceBlocks, kb.NewDeletePageUseCase(pages)),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
@@ -279,6 +295,14 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/versions/:seq", vh.Get)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/versions", vh.Create)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/versions/:seq/restore", vh.Restore)
+
+	// ページの雛形（FRESTYLE-435 段 5）。一覧はワークスペース所属者なら誰でも、
+	// 作成（そのページを雛形として保存）・削除はワークスペース全体への CanEdit を要求する
+	// （PageTemplateHandler 参照）。
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/templates", th.List)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/templates", th.CreateFromPage)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/templates/:templateId", th.Delete)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template", th.CreatePage)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。

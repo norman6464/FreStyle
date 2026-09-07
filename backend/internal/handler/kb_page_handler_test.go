@@ -47,6 +47,7 @@ type kbFixture struct {
 	users       *kbFakeUsers
 	comments    *kbFakeComments
 	versions    *kbFakePageVersions
+	templates   *kbFakePageTemplates
 	presigner   *kbFakeImagePresigner
 	router      *gin.Engine
 }
@@ -91,15 +92,18 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	users := newKbFakeUsers()
 	comments := newKbFakeComments()
 	versions := newKbFakePageVersions(pages)
+	templates := newKbFakePageTemplates()
 	presigner := &kbFakeImagePresigner{}
-	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, comments, versions, fakeTxManager{}, presigner)
+	registerKnowledgeBaseRoutesWith(
+		g, pages, perms, perms, provisioner, users, comments, versions, templates, fakeTxManager{}, presigner,
+	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
 	return kbFixture{
 		pages: pages, perms: perms, provisioner: provisioner, users: users,
-		comments: comments, versions: versions, presigner: presigner, router: r,
+		comments: comments, versions: versions, templates: templates, presigner: presigner, router: r,
 	}
 }
 
@@ -305,6 +309,14 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodDelete + " " + kbRoutePattern(kbWorkspacePath): true,
 		// /p/{pageId} の解決。Test_ナレッジAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
+		// ページの雛形 API（FRESTYLE-435 段5）。判定の軸がそれぞれ違う
+		// （一覧=所属のみ、保存・削除=ワークスペース全体のCanEdit、使用=既存のページ作成と
+		// 同じ分岐）ため表にせず個別に列挙する。page_template_handler_test.go の
+		// Test_雛形API_* が直接叩く。
+		http.MethodGet + " /api/v2/kb/workspaces/:workspaceSlug/templates":                            true,
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/templates":             true,
+		http.MethodDelete + " /api/v2/kb/workspaces/:workspaceSlug/templates/:templateId":             true,
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template": true,
 	}
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true

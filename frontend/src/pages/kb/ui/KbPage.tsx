@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { KbSidebar } from '@/widgets/kb-sidebar';
+import { KbSidebar, KbTemplatePickerModal, useKbPageTemplates } from '@/widgets/kb-sidebar';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import {
   RichTextEditor,
@@ -25,12 +25,13 @@ import { useKbPageDoc } from '../model/useKbPageDoc';
 import { createSubpage } from '../model/createSubpage';
 import { resolveEntryPageId } from '../model/resolveEntryPage';
 import { useKbImageResolver } from '../model/useKbImageResolver';
-import { KbRepository, subscribeKbTreeEvents, type KbIcon } from '@/entities/kb';
+import { emitKbTreeEvent, KbRepository, subscribeKbTreeEvents, type KbIcon } from '@/entities/kb';
 import KbPageTitle from './KbPageTitle';
 import KbPageIconButton from './KbPageIconButton';
 import KbPageMeta from './KbPageMeta';
 import KbPageCover from './KbPageCover';
 import KbPageCoverButton from './KbPageCoverButton';
+import KbSaveAsTemplateButton from './KbSaveAsTemplateButton';
 import KbCommentsPanel from './KbCommentsPanel';
 import KbVersionsPanel from './KbVersionsPanel';
 import KbVersionPreviewBanner from './KbVersionPreviewBanner';
@@ -337,6 +338,37 @@ export default function KbPage() {
   }, [pageId]);
   const versions = useKbPageVersions(data?.workspaceSlug, data?.page.id, historyOpen);
 
+  // 「雛形から作る」ピッカー（/template コマンド用）の開閉。共有・コメント・履歴と同じ理由で
+  // ページを移ったら必ず閉じる。一覧の取得はピッカーが開いている間だけ行う（open ゲート）。
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  useEffect(() => {
+    setTemplatePickerOpen(false);
+  }, [pageId]);
+  const templates = useKbPageTemplates(data?.workspaceSlug, data?.page.spaceId, templatePickerOpen);
+
+  /**
+   * テンプレートを選んで新しいページを作る（/template コマンドの本体）。
+   * **失敗は投げる**（KbTemplatePickerModal がフォーム内にエラーを出す。ここで握り潰さない）。
+   *
+   * 今のページの子として作る（/page が子ページを作るのと同じ置き方 — カーソル位置への
+   * 挿入は行わない。テンプレートの本文（doc）を取得する専用の GET が backend に無いため、
+   * この機能は「一覧から選んで新しいページを作る」に留めている。PR 説明に明記）。
+   */
+  const handleCreateFromTemplate = useCallback(
+    async (templateId: string, title: string) => {
+      if (!data) return;
+      const created = await templates.createPageFromTemplate({
+        templateId,
+        parentId: data.page.id,
+        title,
+      });
+      emitKbTreeEvent({ type: 'page-created', page: created });
+      setTemplatePickerOpen(false);
+      navigate(`/kb/${created.id}`);
+    },
+    [data, templates, navigate],
+  );
+
   // 「このページを参照しているページ」（逆リンク）。折りたたみの開閉には依存せず、
   // ページを開いたら常に取得する（見出しの件数表示に使うため — useKbComments と同じ考え方）。
   const backlinks = useKbBacklinks(data?.workspaceSlug, data?.page.id);
@@ -380,6 +412,11 @@ export default function KbPage() {
     }
   }, [data, versions, applyRestoredContent, waitForPendingSaveToSettle, showToast]);
 
+  // '/template': テンプレートのピッカーを開く。run は editor を受け取らず、状態を
+  // 切り替えるだけ（setTemplatePickerOpen は useState のセッター＝常に同一の参照なので、
+  // subpageContext のような ref 越しの読み出しが要らない — この呼び出しが
+  // 「エディタ生成時に固定される」制約に触れるのはこの 1 点だけで、`run` の中身自体は
+  // 常に最新のセッターを指したまま変わらない）。
   const extraSlashCommands = useMemo<EditorCommand[]>(
     () => [
       {
@@ -395,6 +432,14 @@ export default function KbPage() {
             .then((path) => ctx.navigate(path))
             .catch(() => ctx.showToast('error', '子ページを作成できませんでした'));
         },
+      },
+      {
+        id: 'template',
+        label: 'テンプレート',
+        group: 'insert',
+        glyph: '📑',
+        keywords: ['template', 'wireframe'],
+        run: () => setTemplatePickerOpen(true),
       },
     ],
     [],
@@ -542,6 +587,19 @@ export default function KbPage() {
                 >
                   <ClockIcon className="h-4 w-4" />
                 </button>
+                {/*
+                  「テンプレートとして保存」は canEdit のときだけ出す。作成はワークスペースの
+                  編集者以上が要る操作で、これは今のページを編集できるかと同じ軸で判定する
+                  （共有ボタンの canManage と同じ考え方 — 権限が無い相手に押せるボタンを
+                  出しても、返るのは 403 だけで「権限が無い」ことすら伝わらない）。
+                */}
+                {data.canEdit && (
+                  <KbSaveAsTemplateButton
+                    workspaceSlug={data.workspaceSlug}
+                    pageId={data.page.id}
+                    spaceId={data.page.spaceId}
+                  />
+                )}
                 {/*
                   共有は canManage のときだけ出す。権限が無い相手に押せるボタンを出しても、
                   返るのは 404 だけで「権限が無い」ことすら伝わらない。
@@ -714,6 +772,21 @@ export default function KbPage() {
           />
         </SecondaryPanel>
       )}
+
+      {/* /template コマンドが開くピッカー。削除ボタンの表示可否は、このページを編集できるか
+          （data.canEdit）で判定する — サイドバー起点の「雛形から作る」と違い、ここは
+          特定のページの文脈で開くので、workspace canManage の代理指標を経由せず
+          正確な canEdit をそのまま渡せる。 */}
+      <KbTemplatePickerModal
+        isOpen={templatePickerOpen}
+        templates={templates.templates}
+        loading={templates.loading}
+        error={templates.error}
+        canManageTemplates={data?.canEdit ?? false}
+        onConfirm={handleCreateFromTemplate}
+        onDelete={templates.deleteTemplate}
+        onClose={() => setTemplatePickerOpen(false)}
+      />
     </div>
   );
 }

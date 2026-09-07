@@ -39,6 +39,10 @@ const hoisted = vi.hoisted(() => ({
   createPageVersion: vi.fn(),
   restorePageVersion: vi.fn(),
   listBacklinks: vi.fn(),
+  createPageTemplate: vi.fn(),
+  listPageTemplates: vi.fn(),
+  deletePageTemplate: vi.fn(),
+  createPageFromTemplate: vi.fn(),
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
   fetchPageTree: vi.fn(),
@@ -89,6 +93,10 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       createPageVersion: hoisted.createPageVersion,
       restorePageVersion: hoisted.restorePageVersion,
       listBacklinks: hoisted.listBacklinks,
+      createPageTemplate: hoisted.createPageTemplate,
+      listPageTemplates: hoisted.listPageTemplates,
+      deletePageTemplate: hoisted.deletePageTemplate,
+      createPageFromTemplate: hoisted.createPageFromTemplate,
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
       fetchPageTree: hoisted.fetchPageTree,
@@ -190,6 +198,7 @@ beforeEach(() => {
   hoisted.listCommentThreads.mockResolvedValue([]);
   hoisted.listPageVersions.mockResolvedValue([]);
   hoisted.listBacklinks.mockResolvedValue([]);
+  hoisted.listPageTemplates.mockResolvedValue([]);
 });
 
 describe('KbPage の配線', () => {
@@ -212,7 +221,7 @@ describe('KbPage の配線', () => {
     renderPage();
     await screen.findByTestId('editor');
     const commands = hoisted.editorProps.current?.extraSlashCommands;
-    expect(commands?.map((c) => c.id)).toEqual(['page']);
+    expect(commands?.map((c) => c.id)).toEqual(['page', 'template']);
 
     // 成功: 作ったページへ遷移。
     hoisted.createPage.mockResolvedValue({
@@ -656,6 +665,98 @@ describe('KbPage の共有', () => {
     fireEvent.click(within(panel).getByLabelText('共有を閉じる'));
 
     await waitFor(() => expect(screen.queryByRole('region', { name: '共有' })).not.toBeInTheDocument());
+  });
+});
+
+describe('KbPage のテンプレート', () => {
+  it('編集できないページには「テンプレートとして保存」ボタンを出さない', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    renderPage();
+
+    await screen.findByRole('heading', { name: '親ページ' });
+    expect(screen.queryByRole('button', { name: 'テンプレートとして保存' })).not.toBeInTheDocument();
+  });
+
+  it('保存フォームを送信すると createPageTemplate が呼ばれ、成功したらフォームが閉じる', async () => {
+    hoisted.createPageTemplate.mockResolvedValue({
+      id: 't-1',
+      name: '議事録',
+      spaceId: 's1',
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'テンプレートとして保存' }));
+    const nameInput = await screen.findByLabelText('テンプレート名');
+    fireEvent.change(nameInput, { target: { value: '議事録' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(hoisted.createPageTemplate).toHaveBeenCalledWith('w-3f2a9c', 'p1', {
+        name: '議事録',
+        spaceId: 's1',
+      }),
+    );
+    await waitFor(() => expect(screen.queryByLabelText('テンプレート名')).not.toBeInTheDocument());
+  });
+
+  it('名前の重複（409）は専用のメッセージを出し、フォームは閉じない', async () => {
+    hoisted.createPageTemplate.mockRejectedValue(
+      new AxiosError('Conflict', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: { error: 'duplicate_name' },
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'テンプレートとして保存' }));
+    const nameInput = await screen.findByLabelText('テンプレート名');
+    fireEvent.change(nameInput, { target: { value: '議事録' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('同じ名前のテンプレートが既にあります');
+    expect(nameInput).toHaveValue('議事録');
+  });
+
+  it('/template でピッカーを開き、選んで確定すると新しいページへ遷移する', async () => {
+    hoisted.listPageTemplates.mockResolvedValue([
+      { id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' },
+    ]);
+    hoisted.createPageFromTemplate.mockResolvedValue({
+      id: 'child-9',
+      spaceId: 's1',
+      parentId: 'p1',
+      title: '議事録',
+      createdByUserId: 1,
+      createdAt: '2026-08-28T00:00:00Z',
+      updatedAt: '2026-08-28T00:00:00Z',
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+    const commands = hoisted.editorProps.current?.extraSlashCommands;
+    const templateCommand = commands?.find((c) => c.id === 'template');
+    expect(templateCommand).toBeDefined();
+
+    await act(async () => {
+      templateCommand!.run(fakeEditor());
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: '議事録' }));
+    const titleInput = await screen.findByRole('textbox', { name: '新しいページの題名' });
+    expect(titleInput).toHaveValue('議事録');
+    fireEvent.click(screen.getByRole('button', { name: '作成' }));
+
+    await waitFor(() =>
+      expect(hoisted.createPageFromTemplate).toHaveBeenCalledWith('w-3f2a9c', 's1', {
+        templateId: 't-1',
+        parentId: 'p1',
+        title: '議事録',
+      }),
+    );
+    await waitFor(() => expect(hoisted.navigate).toHaveBeenCalledWith('/kb/child-9'));
   });
 });
 

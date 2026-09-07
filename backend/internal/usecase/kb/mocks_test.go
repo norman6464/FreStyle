@@ -177,6 +177,17 @@ func (m *mockKnowledgeBaseRepo) UpdatePageIcon(ctx context.Context, workspaceID,
 	return p, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) UpdatePageCover(ctx context.Context, workspaceID, pageID string, cover *domain.PageCover) (*domain.Page, error) {
+	args := m.Called(ctx, workspaceID, pageID, cover)
+	p, _ := args.Get(0).(*domain.Page)
+	return p, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) PageReferencesImageKey(ctx context.Context, workspaceID, pageID, key string) (bool, error) {
+	args := m.Called(ctx, workspaceID, pageID, key)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *mockKnowledgeBaseRepo) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
 	return m.Called(ctx, workspaceID, pageID, userID).Error(0)
 }
@@ -434,4 +445,20 @@ var _ repository.TxManager = (*fakeTxManager)(nil)
 func (f *fakeTxManager) DoInTx(ctx context.Context, fn func(context.Context) error) error {
 	f.calls++
 	return fn(context.WithValue(ctx, txMarkerKey, true))
+}
+
+// --- mock: KbImagePresigner ---
+
+type mockKbImagePresigner struct{ mock.Mock }
+
+var _ repository.KbImagePresigner = (*mockKbImagePresigner)(nil)
+
+func (m *mockKbImagePresigner) PresignUpload(ctx context.Context, key, contentType string, size int64) (string, int, error) {
+	args := m.Called(ctx, key, contentType, size)
+	return args.String(0), args.Int(1), args.Error(2)
+}
+
+func (m *mockKbImagePresigner) PresignDownload(ctx context.Context, key string) (string, int, error) {
+	args := m.Called(ctx, key)
+	return args.String(0), args.Int(1), args.Error(2)
 }

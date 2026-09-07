@@ -868,6 +868,38 @@ func (q *Queries) PageHasDescendant(ctx context.Context, arg PageHasDescendantPa
 	return found, err
 }
 
+const pageReferencesImageKey = `-- name: PageReferencesImageKey :one
+SELECT EXISTS (
+  SELECT 1 FROM blocks b
+  WHERE b.workspace_id = $1 AND b.page_id = $2
+    AND b.type = 'image' AND b.attrs->>'src' = $3::text
+  UNION ALL
+  SELECT 1 FROM pages p
+  WHERE p.workspace_id = $1 AND p.id = $2
+    AND p.cover->>'key' = $3::text
+) AS referenced
+`
+
+type PageReferencesImageKeyParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	Key         string
+}
+
+// このページの本文（blocks の画像ノード）またはカバーが key を実際に使っているかを返す。
+// ダウンロード URL 発行時、他ページ由来の key（同一ワークスペース内のフォールバック経路）が
+// 「このページの本文に貼られている」ことを確かめるのに使う（usecase 側のコメント参照）。
+//
+// blocks.attrs は ProseMirror の attrs をそのまま持つ jsonb で、画像ノードなら
+// {"src": "<key>", ...} の形（backend は image 特有のフィールド名をパースせず素通しする設計。
+// ここで初めて src を覗く）。UNION ALL で十分（blocks 行と pages 行は別表なので重複しない）。
+func (q *Queries) PageReferencesImageKey(ctx context.Context, arg PageReferencesImageKeyParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, pageReferencesImageKey, arg.WorkspaceID, arg.PageID, arg.Key)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
+}
+
 const setPagePosition = `-- name: SetPagePosition :execrows
 UPDATE pages
 SET "position" = $3, updated_at = now()
@@ -1028,6 +1060,48 @@ func (q *Queries) UnarchivePageSubtree(ctx context.Context, arg UnarchivePageSub
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updatePageCover = `-- name: UpdatePageCover :one
+UPDATE pages
+SET cover = $1, updated_at = now()
+WHERE workspace_id = $2 AND id = $3 AND archived_at IS NULL
+RETURNING id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at, icon, cover, last_edited_by_user_id
+`
+
+type UpdatePageCoverParams struct {
+	Cover       *json.RawMessage
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+// カバー画像の設定・解除（cover に NULL を渡せば解除）。RETURNING で更新後の行を返す。
+// 正規形（domain.PageCover を json.Marshal したもの）だけを書く前提で、入力の妥当性（key の形）は
+// usecase 側が保証する。ここでは形の検証をしない。
+//
+// archived_at IS NULL を最初から入れておく（UpdatePageIcon には無い）。段 1a の
+// TouchPageLastEditedBy で見つかった「FindPage でのアーカイブ確認から実際の UPDATE までの間に
+// 別トランザクションがアーカイブを commit する」競合を、この新規メソッドでは最初から塞ぐ。
+// UpdatePageIcon 自体を直すのは本チケットのスコープ外。
+func (q *Queries) UpdatePageCover(ctx context.Context, arg UpdatePageCoverParams) (Page, error) {
+	row := q.db.QueryRowContext(ctx, updatePageCover, arg.Cover, arg.WorkspaceID, arg.ID)
+	var i Page
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpaceID,
+		&i.ParentID,
+		&i.Position,
+		&i.Title,
+		&i.CreatedByUserID,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Icon,
+		&i.Cover,
+		&i.LastEditedByUserID,
+	)
+	return i, err
 }
 
 const updatePageIcon = `-- name: UpdatePageIcon :one

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/richtextimage"
 )
@@ -21,6 +22,9 @@ func NewRichTextImageHandler(i *richtextimage.IssueRichTextImageUploadURLUseCase
 // issueUploadURLReq は body 受け取り。userId は受け取らず middleware の current user を使う（IDOR 対策）。
 type issueUploadURLReq struct {
 	ContentType string `json:"contentType"`
+	// Size はバイト数（FRESTYLE-9: サイズ上限の検証に使う）。省略時は 0 になり、
+	// domain.ValidateImageUpload が「0 以下は拒否」で弾く。
+	Size int64 `json:"size"`
 }
 
 func (h *RichTextImageHandler) IssueUploadURL(c *gin.Context) {
@@ -35,9 +39,16 @@ func (h *RichTextImageHandler) IssueUploadURL(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	got, err := h.issue.Execute(c.Request.Context(), uid, req.ContentType)
+	got, err := h.issue.Execute(c.Request.Context(), uid, req.ContentType, req.Size)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		switch {
+		case errors.Is(err, domain.ErrUnsupportedImageContentType):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported_content_type"})
+		case errors.Is(err, domain.ErrImageTooLarge):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "image_too_large"})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 	c.JSON(http.StatusOK, got)

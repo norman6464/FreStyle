@@ -1,10 +1,14 @@
 package handler
 
 import (
+	"context"
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
+	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -43,7 +47,25 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewWorkspaceProvisioner(deps.db),
 		persistence.NewUserRepository(deps.db),
 		persistence.NewTxManager(deps.db),
+		newKbImagePresignerOrFallback(deps),
 	)
+}
+
+// newKbImagePresignerOrFallback は本番では real な presigner、IMAGES_BUCKET 未設定や
+// 初期化失敗時は stub にフォールバックする（fail open。rich-text 画像・profile 画像と
+// 同じバケットを kb/ prefix で共有する — newRichTextImagePresignerOrFallback / の形をそのまま写す）。
+func newKbImagePresignerOrFallback(deps *routeDeps) repository.KbImagePresigner {
+	bucket := deps.cfg.S3.ImagesBucket
+	if bucket == "" {
+		log.Printf("[kb-image] IMAGES_BUCKET unset — using stub presigner (DEV)")
+		return persistence.NewStubKbImagePresigner("stub-bucket")
+	}
+	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)
+	if err != nil {
+		log.Printf("[kb-image] failed to init S3 presigner (%v) — falling back to stub", err)
+		return persistence.NewStubKbImagePresigner(bucket)
+	}
+	return persistence.NewKbImagePresigner(pre)
 }
 
 // registerKnowledgeBasePublicRoutes は認証不要のナレッジエンドポイントを登録する。
@@ -70,6 +92,7 @@ func registerKnowledgeBaseRoutesWith(
 	provisioner repository.WorkspaceProvisioner,
 	users repository.UserRepository,
 	txManager repository.TxManager,
+	kbImagePresigner repository.KbImagePresigner,
 ) {
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(permissions),
@@ -90,6 +113,10 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewDeletePageUseCase(pages),
 		kb.NewSetPageIconUseCase(pages),
 		kb.NewLookupUserNameUseCase(users),
+		kb.NewIssuePageImageUploadURLUseCase(pages, kbImagePresigner),
+		kb.NewIssuePageImageDownloadURLUseCase(pages, kbImagePresigner),
+		kb.NewSetPageCoverUseCase(pages),
+		kb.NewResolveCoverURLUseCase(kbImagePresigner),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
@@ -190,6 +217,11 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content", h.ReplaceContent)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.SetIcon)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.ClearIcon)
+	// ページに閉じた画像の読み取り経路（FRESTYLE-368 段 1b）。
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/images/upload-url", h.IssueImageUploadURL)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/images/download-url", h.IssueImageDownloadURL)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.SetCover)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.ClearCover)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。

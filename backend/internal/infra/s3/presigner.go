@@ -39,17 +39,42 @@ func NewPresigner(ctx context.Context, region, bucket string) (*Presigner, error
 
 // PresignPut は指定 key への PutObject presigned URL を返す。
 // contentType は presign に焼き込まれるため PUT 時のヘッダと完全一致が必要（不一致だと SignatureDoesNotMatch）。
-func (p *Presigner) PresignPut(ctx context.Context, key, contentType string) (string, time.Duration, error) {
+//
+// contentLength は 0 より大きいときだけ PutObjectInput.ContentLength に焼き込む。
+// S3 は Content-Length も署名対象にするため、PUT 時の実際の値と一致しないと同じく
+// SignatureDoesNotMatch になる。0 は「サイズを制約しない」呼び出し側（profile 画像など、
+// まだサイズ上限を持たない用途）をそのまま動かし続けるための値で、実在するオブジェクトの
+// 長さとして 0 を渡す意味ではない。
+func (p *Presigner) PresignPut(ctx context.Context, key, contentType string, contentLength int64) (string, time.Duration, error) {
 	if key == "" {
 		return "", 0, fmt.Errorf("s3: key is required")
 	}
-	req, err := p.client.PresignPutObject(ctx, &awss3.PutObjectInput{
+	input := &awss3.PutObjectInput{
 		Bucket:      aws.String(p.bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
-	}, awss3.WithPresignExpires(p.ttl))
+	}
+	if contentLength > 0 {
+		input.ContentLength = aws.Int64(contentLength)
+	}
+	req, err := p.client.PresignPutObject(ctx, input, awss3.WithPresignExpires(p.ttl))
 	if err != nil {
 		return "", 0, fmt.Errorf("s3: presign put: %w", err)
+	}
+	return req.URL, p.ttl, nil
+}
+
+// PresignGet は指定 key からの GetObject（ダウンロード）presigned URL を返す。
+func (p *Presigner) PresignGet(ctx context.Context, key string) (string, time.Duration, error) {
+	if key == "" {
+		return "", 0, fmt.Errorf("s3: key is required")
+	}
+	req, err := p.client.PresignGetObject(ctx, &awss3.GetObjectInput{
+		Bucket: aws.String(p.bucket),
+		Key:    aws.String(key),
+	}, awss3.WithPresignExpires(p.ttl))
+	if err != nil {
+		return "", 0, fmt.Errorf("s3: presign get: %w", err)
 	}
 	return req.URL, p.ttl, nil
 }

@@ -32,6 +32,9 @@ type kbFakePages struct {
 	// findPageCalls は FindPage が呼ばれた回数。権限の入口が「認可の前に対象を読む」形へ
 	// 戻っていないことをテストから確かめるために数える。
 	findPageCalls int
+	// blockImageKeys はページの本文（blocks）に貼られていることにする画像 key の集合
+	// （pageID -> key -> true）。PageReferencesImageKey の fake 実装が見る。
+	blockImageKeys map[string]map[string]bool
 }
 
 var _ repository.KnowledgeBaseRepository = (*kbFakePages)(nil)
@@ -404,6 +407,45 @@ func (f *kbFakePages) UpdatePageIcon(_ context.Context, workspaceID, pageID stri
 	}
 	p.Icon = icon
 	return copyPage(p), nil
+}
+
+func (f *kbFakePages) UpdatePageCover(_ context.Context, workspaceID, pageID string, cover *domain.PageCover) (*domain.Page, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	p, ok := f.pages[pageID]
+	// 本番の UpdatePageCover と同じく archived_at IS NULL も見る（アーカイブ済みは 0 行 = ErrPageNotFound）。
+	if !ok || p.WorkspaceID != workspaceID || p.ArchivedAt != nil {
+		return nil, repository.ErrPageNotFound
+	}
+	p.Cover = cover
+	return copyPage(p), nil
+}
+
+// blockImageKeys は fake 上の「ページの本文（blocks）に貼られている画像 key」の集合
+// （pageID -> keys）。本番の blocks.attrs->>'src' の代わりに、テストからこの集合へ
+// 直接足し込む（addBlockImageKey）。
+func (f *kbFakePages) PageReferencesImageKey(_ context.Context, workspaceID, pageID, key string) (bool, error) {
+	p, ok := f.pages[pageID]
+	if !ok || p.WorkspaceID != workspaceID {
+		return false, nil
+	}
+	if p.Cover != nil && p.Cover.Key == key {
+		return true, nil
+	}
+	return f.blockImageKeys[pageID][key], nil
+}
+
+// addBlockImageKey はテスト用に「このページの本文にこの画像 key が貼られている」ことにする
+// （本番の PageReferencesImageKey が blocks.attrs->>'src' を見るのと同じ効果を fake で作る）。
+func (f *kbFakePages) addBlockImageKey(pageID, key string) {
+	if f.blockImageKeys == nil {
+		f.blockImageKeys = map[string]map[string]bool{}
+	}
+	if f.blockImageKeys[pageID] == nil {
+		f.blockImageKeys[pageID] = map[string]bool{}
+	}
+	f.blockImageKeys[pageID][key] = true
 }
 
 func (f *kbFakePages) TouchPageLastEditedBy(_ context.Context, workspaceID, pageID string, userID uint64) error {
@@ -1453,6 +1495,29 @@ func (f *kbFakePerms) ListByPage(_ context.Context, workspaceID, pageID string) 
 
 func (f *kbFakePerms) PagePermissionFactsForPrincipal(context.Context, string, string, string) (*domain.PagePermissionFacts, error) {
 	return nil, errKbFakeNotModeled
+}
+
+// kbFakeImagePresigner は repository.KbImagePresigner の最小 fake。
+// 呼ばれた key をそのまま URL に埋めて返すだけで、実 S3 には触らない。
+type kbFakeImagePresigner struct {
+	// failWith が非 nil なら PresignUpload / PresignDownload の両方をそのエラーで失敗させる。
+	failWith error
+}
+
+var _ repository.KbImagePresigner = (*kbFakeImagePresigner)(nil)
+
+func (f *kbFakeImagePresigner) PresignUpload(_ context.Context, key, _ string, _ int64) (string, int, error) {
+	if f.failWith != nil {
+		return "", 0, f.failWith
+	}
+	return "https://example.s3.amazonaws.com/" + key + "?upload=1", 600, nil
+}
+
+func (f *kbFakeImagePresigner) PresignDownload(_ context.Context, key string) (string, int, error) {
+	if f.failWith != nil {
+		return "", 0, f.failWith
+	}
+	return "https://example.s3.amazonaws.com/" + key + "?download=1", 600, nil
 }
 
 // kbFakeProvisioner は repository.WorkspaceProvisioner の in-memory fake。

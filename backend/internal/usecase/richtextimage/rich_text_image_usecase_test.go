@@ -12,13 +12,13 @@ type stubPresigner struct {
 	err error
 }
 
-func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string) (*domain.RichTextImageUploadURL, error) {
+func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string, _ int64) (*domain.RichTextImageUploadURL, error) {
 	return s.url, s.err
 }
 
 func Test_リッチテキスト画像アップロードURL発行_ユーザーIDが必須(t *testing.T) {
 	uc := NewIssueRichTextImageUploadURLUseCase(&stubPresigner{})
-	if _, err := uc.Execute(context.Background(), 0, "image/png"); err == nil {
+	if _, err := uc.Execute(context.Background(), 0, "image/png", 1024); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -27,7 +27,7 @@ func Test_リッチテキスト画像アップロードURL発行_URLを返す(t 
 	uc := NewIssueRichTextImageUploadURLUseCase(&stubPresigner{
 		url: &domain.RichTextImageUploadURL{URL: "https://example", Key: "k", ExpiresIn: 60},
 	})
-	got, err := uc.Execute(context.Background(), 1, "image/png")
+	got, err := uc.Execute(context.Background(), 1, "image/png", 1024)
 	if err != nil || got.URL == "" {
 		t.Fatalf("unexpected: %+v err=%v", got, err)
 	}

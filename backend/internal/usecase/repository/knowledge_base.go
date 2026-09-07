@@ -153,6 +153,16 @@ type KnowledgeBaseRepository interface {
 	// 対象が無ければ ErrPageNotFound。入力の妥当性（domain.PageIcon.Valid()）は
 	// 呼び出し側（usecase）が保証済みという前提で、ここでは形の検証をしない。
 	UpdatePageIcon(ctx context.Context, workspaceID, pageID string, icon *domain.PageIcon) (*domain.Page, error)
+	// UpdatePageCover はカバー画像を設定・解除し（cover が nil なら解除）、更新後の行を返す。
+	// 対象が無ければ ErrPageNotFound。UpdatePageIcon と同じ形だが、こちらは新規メソッドとして
+	// archived_at IS NULL を最初から WHERE に含める（アーカイブ済みページへの更新を 0 行にする。
+	// UpdatePageIcon 側の同じ穴は本メソッドのスコープ外なので直さない）。
+	// 入力の妥当性（key の形）は呼び出し側（usecase）が保証済みという前提で、ここでは検証しない。
+	UpdatePageCover(ctx context.Context, workspaceID, pageID string, cover *domain.PageCover) (*domain.Page, error)
+	// PageReferencesImageKey は、このページの blocks（画像ノードの attrs.src）または
+	// pages.cover のいずれかが key と一致する行を持つかを返す。ダウンロード URL 発行時に
+	// 「このページの本文またはカバーで実際に使われている key か」を確かめるために使う。
+	PageReferencesImageKey(ctx context.Context, workspaceID, pageID, key string) (bool, error)
 	// TouchPageLastEditedBy は最終編集者を記録する。対象が無ければ ErrPageNotFound。
 	//
 	// 呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより**先に**これを呼ぶ。

@@ -197,6 +197,38 @@ SET icon = sqlc.narg(icon), updated_at = now()
 WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id)
 RETURNING *;
 
+-- name: UpdatePageCover :one
+-- カバー画像の設定・解除（cover に NULL を渡せば解除）。RETURNING で更新後の行を返す。
+-- 正規形（domain.PageCover を json.Marshal したもの）だけを書く前提で、入力の妥当性（key の形）は
+-- usecase 側が保証する。ここでは形の検証をしない。
+--
+-- archived_at IS NULL を最初から入れておく（UpdatePageIcon には無い）。段 1a の
+-- TouchPageLastEditedBy で見つかった「FindPage でのアーカイブ確認から実際の UPDATE までの間に
+-- 別トランザクションがアーカイブを commit する」競合を、この新規メソッドでは最初から塞ぐ。
+-- UpdatePageIcon 自体を直すのは本チケットのスコープ外。
+UPDATE pages
+SET cover = sqlc.narg(cover), updated_at = now()
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id) AND archived_at IS NULL
+RETURNING *;
+
+-- name: PageReferencesImageKey :one
+-- このページの本文（blocks の画像ノード）またはカバーが key を実際に使っているかを返す。
+-- ダウンロード URL 発行時、他ページ由来の key（同一ワークスペース内のフォールバック経路）が
+-- 「このページの本文に貼られている」ことを確かめるのに使う（usecase 側のコメント参照）。
+--
+-- blocks.attrs は ProseMirror の attrs をそのまま持つ jsonb で、画像ノードなら
+-- {"src": "<key>", ...} の形（backend は image 特有のフィールド名をパースせず素通しする設計。
+-- ここで初めて src を覗く）。UNION ALL で十分（blocks 行と pages 行は別表なので重複しない）。
+SELECT EXISTS (
+  SELECT 1 FROM blocks b
+  WHERE b.workspace_id = sqlc.arg(workspace_id) AND b.page_id = sqlc.arg(page_id)
+    AND b.type = 'image' AND b.attrs->>'src' = sqlc.arg(key)::text
+  UNION ALL
+  SELECT 1 FROM pages p
+  WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.id = sqlc.arg(page_id)
+    AND p.cover->>'key' = sqlc.arg(key)::text
+) AS referenced;
+
 -- name: TouchPageLastEditedBy :execrows
 -- 最終編集者の記録。呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより
 -- **先に**これを呼ぶ。UPDATE が pages の対象行を排他ロックするため、同じページへの

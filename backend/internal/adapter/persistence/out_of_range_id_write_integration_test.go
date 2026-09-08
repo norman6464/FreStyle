@@ -7,11 +7,11 @@ import (
 	"database/sql"
 	"math"
 	"testing"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,21 +28,21 @@ type writeCase struct {
 func outOfRangeWriteCases() []writeCase {
 	return []writeCase{
 		{
-			name: "演習提出の作成（user_id）",
+			name: "コメントスレッドの作成（created_by_user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewExerciseSubmissionRepository(db).Create(ctx, &domain.ExerciseSubmission{
-					UserID: outOfRangeID, ExerciseKind: domain.ExerciseKindMaster, ExerciseID: 1,
-					SubmittedAt: time.Now(),
-				})
+				_, err := persistence.NewCommentRepository(db).CreateCommentThread(
+					ctx, noSuchWorkspaceID, noSuchPageID, outOfRangeID, repository.CommentAnchor{},
+				)
+				return err
 			},
 		},
 		{
-			name: "演習提出の作成（exercise_id）",
+			name: "コメントの作成（author_user_id）",
 			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewExerciseSubmissionRepository(db).Create(ctx, &domain.ExerciseSubmission{
-					UserID: 1, ExerciseKind: domain.ExerciseKindMaster, ExerciseID: outOfRangeID,
-					SubmittedAt: time.Now(),
-				})
+				_, err := persistence.NewCommentRepository(db).CreateComment(
+					ctx, noSuchThreadID, outOfRangeID, `[{"type":"text","text":"x"}]`,
+				)
+				return err
 			},
 		},
 		{

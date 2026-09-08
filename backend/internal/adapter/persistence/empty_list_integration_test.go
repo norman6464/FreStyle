@@ -9,48 +9,42 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// noSuchID はどのテーブルにも該当行が無い状態を作るための存在しない ID。
-const noSuchID uint64 = 999_999_999
-
-// noSuchWorkspaceID は noSuchID の uuid 版（存在しないワークスペース）。
+// noSuchWorkspaceID はどのワークスペースにも該当しない UUID。
 const noSuchWorkspaceID = "0198a000-0000-7000-8000-0000000000ff"
+
+// noSuchPageID はどのページにも該当しない UUID。
+const noSuchPageID = "0198a000-0000-7000-8000-0000000000fe"
+
+// noSuchThreadID はどのコメントスレッドにも該当しない UUID。
+const noSuchThreadID = "0198a000-0000-7000-8000-0000000000fd"
 
 // listCase は「一覧を返す repository メソッド」1 件分の検証定義。
 //
 // call は any のスライスを返す形に揃える（要素型が異なるため）。
-// truncate は 0 件の状態を作るために空にするテーブル（絞り込みで 0 件にできる場合は不要）。
 type listCase struct {
-	name     string
-	truncate []string
-	call     func(ctx context.Context, db *sql.DB) (any, error)
+	name string
+	call func(ctx context.Context, db *sql.DB) (any, error)
 }
 
 func listCases() []listCase {
 	return []listCase{
 		{
-			name: "演習の提出履歴",
+			name: "ページのコメントスレッド一覧",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewExerciseSubmissionRepository(db).
-					ListByUserAndExercise(ctx, noSuchID, noSuchID, domain.ExerciseKindMaster)
+				return persistence.NewCommentRepository(db).
+					ListCommentThreadsByPage(ctx, noSuchWorkspaceID, noSuchPageID)
 			},
 		},
 		{
-			name: "演習一覧（言語別）",
+			name: "スレッドの返信一覧",
 			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewMasterExerciseRepository(db).ListByLanguage(ctx, "存在しない言語")
-			},
-		},
-		{
-			name:     "演習の言語別集計",
-			truncate: []string{"master_exercises"},
-			call: func(ctx context.Context, db *sql.DB) (any, error) {
-				return persistence.NewMasterExerciseRepository(db).SummaryByLanguage(ctx, noSuchID)
+				return persistence.NewCommentRepository(db).
+					ListCommentsByThreads(ctx, []string{noSuchThreadID})
 			},
 		},
 		{
@@ -66,18 +60,14 @@ func listCases() []listCase {
 // 一覧を返す repository メソッドが「該当行なし」で nil を返さないことを実 DB で検証する。
 //
 // nil スライスは encoding/json で null になり、フロントの map / filter / for-of が
-// TypeError で落ちる（staging 実機で観測）。新規ユーザー・新規コース・
-// 未提出演習という、新メンバーが最初に踏む動線で発生するため影響が大きい。
+// TypeError で落ちる（staging 実機で観測）。新規ワークスペース・空のページという、
+// 新メンバーが最初に踏む動線で発生するため影響が大きい。
 func TestPersistence_一覧が0件でもnullではなく空配列を返すこと_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	for _, tc := range listCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			if len(tc.truncate) > 0 {
-				testsupport.TruncateAll(t, sqlDB, tc.truncate...)
-			}
-
 			got, err := tc.call(ctx, sqlDB)
 
 			require.NoError(t, err)

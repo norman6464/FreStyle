@@ -977,7 +977,7 @@ ORDER BY cnd.title, cnd.id;
 -- domain.ResolvePageView が行う。
 --
 -- page_ids は json 配列（文字列の UUID）。IN 句のスライス展開を使わないのは
--- ListMasterExerciseExamplesByExerciseIDs と同じ理由（database/sql モードでは lib/pq 依存が
+-- comment.sql の ListCommentsByThreadIDs と同じ理由（database/sql モードでは lib/pq 依存が
 -- 増えるため。json_array_elements_text で展開して uuid へ落とす）。呼び出し側（Go）が
 -- UUID として読めない値を先に落として渡す — ここで ::uuid が失敗するとクエリ全体が落ちる。
 --

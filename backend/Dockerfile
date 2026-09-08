@@ -21,9 +21,6 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
 # --- Runtime stage ---
 # distroless/static: 静的 Go バイナリのみを載せる（イメージ ~60MB）。
-# 学習者コードのサンドボックス実行は code-runner サイドカーへ HTTP 委譲する想定で、
-# 本番 ECS は CODE_RUNNER_URL=http://127.0.0.1:9000 を注入する（**distroless backend は
-# CODE_RUNNER_URL 必須**＝in-process 実行はできない。ローカルは `go run ./cmd/server` を使う）。
 # distroless は ca-certificates / tzdata / nonroot(65532) を同梱し、HTTPS 呼び出しが可能。
 FROM gcr.io/distroless/static-debian12:nonroot
 

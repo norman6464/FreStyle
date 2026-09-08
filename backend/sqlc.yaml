@@ -314,8 +314,8 @@ rules:
   #
   # 代わりにどう書くか:
   #   id の集まりは json 配列 1 個のパラメータで渡し、SQL 側で展開する。
-  #   実例は master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs
-  #   （json_array_elements_text で展開してから bigint へ落としている）。
+  #   実例は comment.sql の ListCommentsByThreadIDs
+  #   （json_array_elements_text で展開してから uuid へ落としている）。
   #
   # 何を弾かないか:
   #   見るのは「プレースホルダ $N の直後の配列キャスト」だけ。
@@ -332,8 +332,7 @@ rules:
       driver は pgx で lib/pq は go.mod に入っていないため、生成物がビルドできなくなります
       （そして「lib/pq を足す」という誤った直し方に誘導されます）。
       id の集まりは json 配列 1 個のパラメータで渡し、json_array_elements_text で
-      展開してください（実例: master_exercise_example.sql の
-      ListMasterExerciseExamplesByExerciseIDs）。
+      展開してください（実例: comment.sql の ListCommentsByThreadIDs）。
     rule: >-
       query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)[$][0-9]+[ \\t]*::[ \\t]*[a-z_][a-z0-9_]*[ \\t]*\\[[ \\t]*\\]")
 

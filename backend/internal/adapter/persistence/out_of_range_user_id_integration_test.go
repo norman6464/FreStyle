@@ -299,27 +299,25 @@ func countPages(t *testing.T, db *sql.DB, workspaceID string) int {
 	return n
 }
 
-// Test_範囲外の演習IDは0件を返すこと_Integration は、演習の例の一覧が
-// 巻き戻った exercise_id で別の演習の例を返さないことを固定する。
+// Test_範囲外のユーザーIDの通知は0件を返すこと_Integration は、通知の一覧が
+// 巻き戻った user_id で別ユーザー宛の通知を返さないことを固定する。
 //
-// master_exercise_examples.exercise_id には FK が無いので、巻き戻った負の値を
-// 持つ行を作れてしまう。ここでもおとりの行を置いて、拾わないことを確かめる。
-func Test_範囲外の演習IDは0件を返すこと_Integration(t *testing.T) {
+// notifications.user_id には FK が無いので、巻き戻った負の値を持つ行を作れてしまう。
+// ここでもおとりの行を置いて、拾わないことを確かめる。
+func Test_範囲外のユーザーIDの通知は0件を返すこと_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, sqlDB, "master_exercise_examples")
+	testsupport.TruncateAll(t, sqlDB, "notifications")
 	_, err := sqlDB.Exec(
-		`INSERT INTO master_exercise_examples
-		   (exercise_id, order_index, input_text, expected_output, created_at, updated_at)
-		 VALUES ($1, 0, 'in', 'out', now(), now())`, decoyUserID,
+		`INSERT INTO notifications (user_id, type, title, body, is_read, created_at)
+		 VALUES ($1, 'info', 't', 'b', false, now())`, decoyUserID,
 	)
 	require.NoError(t, err)
 
-	got, err := persistence.NewMasterExerciseExampleRepository(sqlDB).
-		ListByExerciseID(ctx, wrappedUserID())
+	got, err := persistence.NewNotificationRepository(sqlDB).ListByUserID(ctx, wrappedUserID())
 
 	require.NoError(t, err)
 	assert.NotNil(t, got, "0 件でも nil スライスを返さないこと")
-	assert.Empty(t, got, "巻き戻った exercise_id で別の演習の例を拾わないこと")
+	assert.Empty(t, got, "巻き戻った user_id で別ユーザー宛の通知を拾わないこと")
 }

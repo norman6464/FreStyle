@@ -46,13 +46,6 @@ linters:
     - wastedassign
   exclusions:
     rules:
-      # サンドボックス(infra/sandbox)はユーザコードを意図的に exec する。
-      # 引数(filename/tmpDir)は内部生成で外部入力をそのまま渡していない。G204 は
-      # このファイルに限定して除外し、他箇所の危険な exec は検出を維持する。
-      - path: internal/infra/sandbox/runner\.go
-        linters:
-          - gosec
-        text: 'G204'
       # persistence の id 境界は DB が bigint(int64)、domain が uint64。**向きで扱いを分ける。**
       #
       # DB → domain（int64 → uint64）だけを除外する。読み出した値は bigint の採番

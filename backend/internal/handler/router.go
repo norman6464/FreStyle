@@ -63,7 +63,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	registerRichTextImageRoutes(authed, deps)
 	registerSocialRoutes(authed, deps)
 	registerEmbedRoutes(authed)
-	registerExerciseRoutes(authed, deps)
 	registerKnowledgeBaseRoutes(authed, deps)
 	return r
 }

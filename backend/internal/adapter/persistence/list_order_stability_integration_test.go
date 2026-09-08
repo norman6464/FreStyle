@@ -4,175 +4,136 @@ package persistence_test
 
 import (
 	"context"
-	"strconv"
+	"database/sql"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
 // 一覧クエリの並びが「ソートキーの同着」で崩れないことを横断的に固定する。
 //
 // 非一意な列だけで ORDER BY すると同値行の相対順序は SQL 上未定義で、実行計画・ページ境界・
-// 物理配置で変わりうる。ページングと組み合わさると同じ行の重複表示や欠落になる。
+// 物理配置で変わりうる。ここでは blocks.position（兄弟内の並び順）を題材にする —
+// ListBlocksByPage のコメントが明言するとおり、親の異なるブロック同士は position が
+// 偶然一致しうる（兄弟内でしか一意性を強制していないため）ので、id がそのタイブレーク。
 //
-// 各ケースは意図的に同着を作り、さらに「投入順（＝ヒープの物理順）」を「期待順」の逆にしてある。
-// タイブレークを外すと素の走査順がそのまま返り、期待順と食い違って必ず落ちる（テストが
-// 空回りしていないことの担保）。
+// タイブレークを外すと素の走査順がそのまま返ってしまうことを確かめるため、各同着ペアは
+// 「投入順（＝ヒープの物理順）」を「期待順（id 昇順）」の逆にしてある。
 
-// collectAllPages は Limit/Offset を進めて全ページを取得し、出現順の ID 列を返す。
-func collectAllPages(t *testing.T, exRepo repository.MasterExerciseRepository, language string, limit int) []uint64 {
+// blockRow は insertBlock 呼び出し 1 回分。
+type blockRow struct {
+	id       string
+	parentID *string
+	position string
+}
+
+// insertBlocks は rows を渡した順（＝物理投入順）でそのまま INSERT する。
+func insertBlocks(t *testing.T, db *sql.DB, workspaceID, pageID string, rows []blockRow) {
 	t.Helper()
-	// limit <= 0 だと offset が進まず、ListWithStatusByLanguage も LIMIT/OFFSET を付けないため
-	// 毎回全件が返って終了条件（len(rows) < limit）も成立しない。放置するとテストが
-	// タイムアウトまでハングし、原因の分かりにくい CI ハングになるので入口で落とす。
-	require.Positive(t, limit, "collectAllPages は limit > 0 を前提とする")
-	ctx := context.Background()
-	ids := make([]uint64, 0)
-	for offset := 0; ; offset += limit {
-		rows, err := exRepo.ListWithStatusByLanguage(ctx, repository.ListWithStatusInput{
-			Language: language,
-			Offset:   offset,
-			Limit:    limit,
-		})
-		require.NoError(t, err)
-		if len(rows) == 0 {
-			return ids
-		}
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		if len(rows) < limit {
-			return ids
-		}
+	for _, r := range rows {
+		require.NoError(t, insertBlock(
+			db, r.id, workspaceID, pageID, r.parentID, r.position, domain.BlockTypeParagraph, "{}", nil,
+		))
 	}
 }
 
-// TestMasterExerciseListOrder_TiedSortOrder_Integration は sort_order 同着でも
-// OFFSET ページングが重複・欠落を起こさないことを検証する。
-func TestMasterExerciseListOrder_TiedSortOrder_Integration(t *testing.T) {
+// TestListBlocksByPage_TiedPosition_Integration は position 同着でも
+// ListBlocksByPage の並びが id 昇順で決定的に解決されることを検証する。
+func TestListBlocksByPage_TiedPosition_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
-	exRepo := persistence.NewMasterExerciseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, "master_exercises", "exercise_submissions")
+	testsupport.TruncateAll(t, sqlDB, "blocks", "pages", "spaces", "workspaces")
 
-	// php 40 件 / go 5 件とも sort_order を全行 1 に揃えて同着を作る。ID は降順に投入して
-	// 「物理順 ≠ 期待順（ID 昇順）」にする。
-	// 40 件あるのは、LIMIT+OFFSET が小さいと PostgreSQL が top-N heapsort を選び、
-	// N（= limit+offset）ごとに同着の並びが変わるため。件数が少ないと素の整列で偶然揃ってしまい、
-	// 「ページ間で並びが変わる → 重複・欠落」という本来の症状を再現できない。
-	var phpIDs, goIDs []uint64
-	for id := uint64(140); id >= 101; id-- {
-		phpIDs = append(phpIDs, id)
-	}
-	for id := uint64(205); id >= 201; id-- {
-		goIDs = append(goIDs, id)
-	}
-	insert := func(ids []uint64, language string) {
-		for _, id := range ids {
-			row := domain.MasterExercise{
-				ID:          id,
-				Slug:        language + "-tie-" + strconv.FormatUint(id, 10),
-				Language:    language,
-				Title:       "tie",
-				SortOrder:   1,
-				IsPublished: true,
-			}
-			insertMasterExercise(ctx, t, sqlDB, &row)
+	ws := createWorkspace(t, sqlDB, "ws-list-order")
+	space := createSpace(t, sqlDB, ws, "eng")
+	page := createPage(t, sqlDB, ws, space, nil, "a0")
+
+	// 親 2 つ（トップレベル）。position は a0 < a1 で確定するが、id はわざと逆
+	// （parentA の id を parentB より大きくする）にして、「position が違えば id の
+	// 大小に関係なく position が並びを決める」ことを後段の assertion で確かめる。
+	parentA := "00000000-0000-7000-8000-0000000000f9"
+	parentB := "00000000-0000-7000-8000-0000000000f1"
+
+	// 子は 2 つの親それぞれの下に、同じ position（b0/b1/b2）で 1 件ずつ置く。
+	// 同じ親の中では position は一意（uq_blocks_parent_position）だが、親が違えば
+	// 偶然の一致が起こりうる — その一致が全ブロック一覧では同着になる。
+	childA0, childA1, childA2 := "00000000-0000-7000-8000-000000000006", "00000000-0000-7000-8000-000000000005", "00000000-0000-7000-8000-000000000004"
+	childB0, childB1, childB2 := "00000000-0000-7000-8000-000000000003", "00000000-0000-7000-8000-000000000002", "00000000-0000-7000-8000-000000000001"
+
+	insertBlocks(t, sqlDB, ws, page, []blockRow{
+		{id: parentA, position: "a0"},
+		{id: parentB, position: "a1"},
+		// 各同着ペアは「id が大きい方（=期待順で後ろ）」を先に投入する。
+		// タイブレークが無ければ物理投入順がそのまま出て、期待順（id 昇順）と食い違う。
+		{id: childA0, parentID: &parentA, position: "b0"},
+		{id: childB0, parentID: &parentB, position: "b0"},
+		{id: childA1, parentID: &parentA, position: "b1"},
+		{id: childB1, parentID: &parentB, position: "b1"},
+		{id: childA2, parentID: &parentA, position: "b2"},
+		{id: childB2, parentID: &parentB, position: "b2"},
+	})
+
+	allIDs := []string{parentA, parentB, childA0, childB0, childA1, childB1, childA2, childB2}
+	wantOrder := []string{parentA, parentB, childB0, childA0, childB1, childA1, childB2, childA2}
+
+	list := func() []string {
+		rows, err := persistence.NewKnowledgeBaseRepository(sqlDB).ListBlocksByPage(ctx, ws, page)
+		require.NoError(t, err)
+		ids := make([]string, 0, len(rows))
+		for _, b := range rows {
+			ids = append(ids, b.ID)
 		}
+		return ids
 	}
-	insert(phpIDs, domain.ExerciseLanguagePhp)
-	insert(goIDs, domain.ExerciseLanguageGo)
 
-	ascending := func(from, to uint64) []uint64 {
-		out := make([]uint64, 0, to-from+1)
-		for id := from; id <= to; id++ {
-			out = append(out, id)
+	t.Run("同着は id 昇順で解決される", func(t *testing.T) {
+		got := list()
+		require.Equal(t, wantOrder, got)
+	})
+
+	t.Run("position が異なる行は id の大小に関係なく position の順を保つ", func(t *testing.T) {
+		got := list()
+		posOfA := indexOf(got, parentA)
+		posOfB := indexOf(got, parentB)
+		require.Less(t, posOfA, posOfB,
+			"parentA の id は parentB より大きいが、position(a0<a1) が優先されて先に来ること")
+	})
+
+	t.Run("同じクエリを繰り返しても並びは毎回同一", func(t *testing.T) {
+		first := list()
+		for i := 0; i < 4; i++ {
+			require.Equal(t, first, list())
 		}
-		return out
-	}
-	wantPHP := ascending(101, 140)
-	wantAll := append(ascending(101, 140), ascending(201, 205)...)
+	})
 
-	t.Run("言語指定: 全ページを繋ぐと重複も欠落もなく全件と一致する", func(t *testing.T) {
-		got := collectAllPages(t, exRepo, domain.ExerciseLanguagePhp, 5)
+	t.Run("重複も欠落もなく全件と一致する", func(t *testing.T) {
+		got := list()
 		requireNoDuplicates(t, got)
-		require.ElementsMatch(t, wantPHP, got, "ページを跨いだ重複・欠落が無い")
-		require.Equal(t, wantPHP, got, "sort_order 同着は id 昇順で解決される")
+		require.ElementsMatch(t, allIDs, got)
 	})
+}
 
-	t.Run("言語指定: 同じページングを繰り返しても ID 列が毎回同一", func(t *testing.T) {
-		first := collectAllPages(t, exRepo, domain.ExerciseLanguagePhp, 5)
-		for i := 0; i < 4; i++ {
-			require.Equal(t, first, collectAllPages(t, exRepo, domain.ExerciseLanguagePhp, 5))
+// indexOf は s の中で最初に v と一致する位置を返す（無ければ -1）。
+func indexOf(s []string, v string) int {
+	for i, x := range s {
+		if x == v {
+			return i
 		}
-	})
-
-	t.Run("全言語(language 空): 全ページを繋ぐと重複も欠落もなく全件と一致する", func(t *testing.T) {
-		// 言語をまたぐと sort_order の同着は更に増える（言語ごとに 1 から採番されるため）。
-		for _, limit := range []int{3, 5, 7} {
-			got := collectAllPages(t, exRepo, "", limit)
-			requireNoDuplicates(t, got)
-			require.ElementsMatch(t, wantAll, got, "limit=%d でページを跨いだ重複・欠落が無い", limit)
-			require.Equal(t, wantAll, got, "limit=%d", limit)
-		}
-	})
-
-	t.Run("全言語(language 空): 同じページングを繰り返しても ID 列が毎回同一", func(t *testing.T) {
-		first := collectAllPages(t, exRepo, "", 3)
-		for i := 0; i < 4; i++ {
-			require.Equal(t, first, collectAllPages(t, exRepo, "", 3))
-		}
-	})
-
-	t.Run("Limit=0(全件)でも同着は id 昇順で解決される", func(t *testing.T) {
-		rows, err := exRepo.ListWithStatusByLanguage(ctx, repository.ListWithStatusInput{Language: ""})
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, wantAll, ids)
-	})
-
-	t.Run("非ページング版 ListByLanguage も同じ順序に揃う", func(t *testing.T) {
-		rows, err := exRepo.ListByLanguage(ctx, domain.ExerciseLanguagePhp)
-		require.NoError(t, err)
-		ids := make([]uint64, 0, len(rows))
-		for _, r := range rows {
-			ids = append(ids, r.ID)
-		}
-		require.Equal(t, wantPHP, ids)
-	})
-
-	t.Run("sort_order が異なる行の並び（仕様）は変わらない", func(t *testing.T) {
-		// タイブレークは同着の解決だけを担う。sort_order が違えば従来どおり sort_order が優先される。
-		setSortOrder := func(sortOrder int) {
-			_, err := sqlDB.ExecContext(ctx,
-				`UPDATE master_exercises SET sort_order = $1, updated_at = now() WHERE id = $2`,
-				sortOrder, uint64(140))
-			require.NoError(t, err)
-		}
-		setSortOrder(0)
-		defer setSortOrder(1)
-
-		rows, err := exRepo.ListByLanguage(ctx, domain.ExerciseLanguagePhp)
-		require.NoError(t, err)
-		require.Equal(t, uint64(140), rows[0].ID, "sort_order=0 が id に関係なく先頭に来る")
-	})
+	}
+	return -1
 }
 
 // requireNoDuplicates は ID 列に同じ ID が 2 度現れないことを検証する
-// （OFFSET ページングで同着が揺れたときに出る症状そのもの）。
-func requireNoDuplicates(t *testing.T, ids []uint64) {
+// （並びの解決が同着で不安定になったときに出る症状そのもの）。
+func requireNoDuplicates(t *testing.T, ids []string) {
 	t.Helper()
-	seen := make(map[uint64]struct{}, len(ids))
+	seen := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		_, dup := seen[id]
-		require.False(t, dup, "ID %d がページを跨いで重複した", id)
+		require.False(t, dup, "ID %s がページを跨いで重複した", id)
 		seen[id] = struct{}{}
 	}
 }

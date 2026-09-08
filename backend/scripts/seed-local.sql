@@ -42,7 +42,6 @@ SELECT setseed(0.42);
 CREATE TEMP TABLE _cfg AS
 SELECT
   CASE :'size' WHEN 'small' THEN 100 WHEN 'medium' THEN 1000 WHEN 'large' THEN 10000 END::int  AS n_users,
-  CASE :'size' WHEN 'small' THEN  10 WHEN 'medium' THEN  100 WHEN 'large' THEN   500 END::int  AS submissions_per_user,
   CASE :'size' WHEN 'small' THEN  30 WHEN 'medium' THEN  180 WHEN 'large' THEN   365 END::int  AS activity_days,
   1000000::bigint AS id_base;
 
@@ -58,10 +57,10 @@ BEGIN
 END $$;
 
 -- 規模の値を psql 変数へ取り込む(以降 :n_users のように埋め込んで使う)。
-SELECT n_users, submissions_per_user, activity_days
+SELECT n_users, activity_days
   FROM _cfg \gset
 
-\echo '=== seed-local: size =' :'size' '/ users =' :n_users '/ submissions_per_user =' :submissions_per_user
+\echo '=== seed-local: size =' :'size' '/ users =' :n_users
 
 -- ナレッジ(workspace/space/page/block)に使う固定 ID。
 --
@@ -103,17 +102,8 @@ SELECT n_users, submissions_per_user, activity_days
 -- 依存の子から消す(FK が無くても順序は揃えておく)。
 BEGIN;
 
-DELETE FROM user_daily_activities
-WHERE user_id >= 1000000;
-
-DELETE FROM exercise_submissions
-WHERE user_id >= 1000000;
-
 DELETE FROM profiles
 WHERE user_id >= 1000000;
-
-DELETE FROM master_exercises
-WHERE id >= 1000000;
 
 DELETE FROM user_oidc_identities
 WHERE user_id >= 1000000;
@@ -162,7 +152,7 @@ VALUES (
 -- OIDC identity（正規化後のログイン突き合わせの正）。
 --
 -- bulk の seed1..N@example.test には Dex 側に対応する staticPasswords が無く、実際には
--- 誰もログインしない(exercise_submissions 等のダミーデータ量産のためだけに存在する)ので、
+-- 誰もログインしない(実行計画の比較用にダミーデータの量を作るためだけに存在する)ので、
 -- subject はダミー文字列のままでよい。provider は "cognito" 固定
 -- (domain.OidcProviderCognito。歴史的な名残りで実際の発行者を指す値ではないが、
 -- FindByCognitoSub 等がこの文字列で照合するため、発行者を Dex に変えても値は変えない)。
@@ -463,57 +453,12 @@ VALUES
   (gen_random_uuid(), :'kb_workspace_support_id', :'kb_page_escalation_id', NULL, 'a1', 'paragraph',
    '{}'::jsonb, '[{"type":"text","text":"重大度が高い、または一次回答から 24 時間解決しない場合(ダミー文言)。"}]'::jsonb);
 
--- ---- master_exercises -----------------------------------------------------
-INSERT INTO master_exercises (id, slug, language, sort_order, category, title, description,
-                              starter_code, hint_text, expected_output, mode, explanation,
-                              difficulty, is_published, created_at, updated_at)
-SELECT
-  1000000 + e,
-  'seed-exercise-' || e,
-  (ARRAY['go','php','sql','bash'])[1 + (e % 4)],
-  e,
-  'seed',
-  'シード演習 ' || e,
-  'ダミーの問題文。',
-  '// ここにコードを書く',
-  'ヒント',
-  'expected',
-  'execute',
-  '',
-  1 + (e % 3),
-  true,
-  now(), now()
-FROM generate_series(1, 200) AS e;
-
 COMMIT;
-
--- ---- exercise_submissions -------------------------------------------------
--- 最大の行数になるテーブル。idx_submissions_user_at (user_id, submitted_at DESC) の
--- 効きを見る主対象。日時は過去 1 年に散らす。
-\echo '=== exercise_submissions を投入中(最も件数が多い) ...'
-BEGIN;
-INSERT INTO exercise_submissions (user_id, exercise_kind, exercise_id, submitted_code,
-                                  stdout, stderr, exit_code, is_correct, submitted_at)
-SELECT
-  1000000 + u,
-  'master',
-  1000000 + (1 + (s % 200)),
-  'print("seed ' || s || '")',
-  'seed output',
-  '',
-  0,
-  (random() < 0.6),
-  now() - (random() * 365)::int * interval '1 day' - (random() * 86400)::int * interval '1 second'
-FROM generate_series(1, :n_users) AS u,
-     generate_series(1, :submissions_per_user) AS s;
-COMMIT;
-
 
 -- ---- 統計の更新 ------------------------------------------------------------
 -- ANALYZE を忘れるとプランナが古い統計で判断し、実行計画の比較が無意味になる。
 \echo '=== ANALYZE 実行中 ...'
-ANALYZE users, profiles, master_exercises, exercise_submissions, user_daily_activities,
-        workspaces, principals, workspace_grants, spaces, pages, page_paths, blocks;
+ANALYZE users, profiles, workspaces, principals, workspace_grants, spaces, pages, page_paths, blocks;
 
 -- 規模の受け渡しに使った一時テーブルは、この後の集計に混ざらないよう捨てる。
 DROP TABLE _cfg;

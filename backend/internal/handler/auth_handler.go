@@ -67,14 +67,12 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 		return
 	}
-	roles := middleware.RolesFromContext(c)
 	resp := gin.H{
 		"id":        user.ID,
 		"email":     user.Email,
 		"name":      user.Name,
 		"createdAt": user.CreatedAt,
 		"updatedAt": user.UpdatedAt,
-		"groups":    roles,
 	}
 	// workspaceId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
 	if user.WorkspaceID != nil {

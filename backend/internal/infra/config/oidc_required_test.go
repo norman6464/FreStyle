@@ -78,18 +78,4 @@ func Test_設定_揃っていれば読み込める(t *testing.T) {
 	assert.Empty(t, cfg.OIDC.ClientSecret)
 	// カンマ区切りは前後の空白を落として読む（打ち間違いで一致しなくなるのを避ける）。
 	assert.Equal(t, []string{"project-1", "client-id"}, cfg.OIDC.Audiences)
-	// 役割の在り処は既定を持つ（発行者を替えるときは設定で差し替える）。
-	assert.Equal(t, "roles", cfg.OIDC.AdminRoleClaim)
-	assert.Equal(t, "admin", cfg.OIDC.AdminRole)
-}
-
-func Test_設定_役割の在り処は設定で差し替えられる(t *testing.T) {
-	setRequiredEnv(t)
-	t.Setenv("OIDC_ROLES_CLAIM", "groups")
-	t.Setenv("OIDC_ADMIN_ROLE", "operators")
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	assert.Equal(t, "groups", cfg.OIDC.AdminRoleClaim)
-	assert.Equal(t, "operators", cfg.OIDC.AdminRole)
 }

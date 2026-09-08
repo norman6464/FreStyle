@@ -265,7 +265,11 @@ export const 提案を送信する: Story = {
     await waitFor(async () => {
       await expect(canvas.queryByText(/提案として保存されます/)).not.toBeInTheDocument();
     });
-    await expect(await screen.findByText('提案として送信しました')).toBeVisible();
+    // トーストのフェードイン途中はDOMに存在してもtoBeVisibleを満たさないことが
+    // CI環境（実ブラウザ）でだけ起きるため、アニメーションが収まるまでwaitForで待つ。
+    await waitFor(async () => {
+      await expect(screen.getByText('提案として送信しました')).toBeVisible();
+    });
   },
 };
 

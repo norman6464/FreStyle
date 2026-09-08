@@ -28,8 +28,6 @@ func TestApplySchema_Integration(t *testing.T) {
 	t.Run("中核テーブルが揃っている", func(t *testing.T) {
 		for _, table := range []string{
 			"users", "user_oidc_identities",
-			"master_exercises", "master_exercise_examples",
-			"exercise_submissions",
 			"notifications",
 		} {
 			require.True(t, tableExists(t, db, table), "中核テーブル %s が無い", table)
@@ -45,6 +43,12 @@ func TestApplySchema_Integration(t *testing.T) {
 		// companies / company_applications / company_exercises はテナントの正本が
 		// workspaces へ完全移行済みのレガシー（退役 PR で撤去）。
 		for _, table := range []string{"companies", "company_applications", "company_exercises"} {
+			require.False(t, tableExists(t, db, table), "退役済みのテーブル %s が残っている", table)
+		}
+	})
+
+	t.Run("退役済みの演習テーブルは作られない", func(t *testing.T) {
+		for _, table := range []string{"master_exercises", "master_exercise_examples", "exercise_submissions"} {
 			require.False(t, tableExists(t, db, table), "退役済みのテーブル %s が残っている", table)
 		}
 	})

@@ -49,49 +49,6 @@ type CommentThread struct {
 	UpdatedAt        time.Time
 }
 
-type ExerciseSubmission struct {
-	ID            int64
-	UserID        int64
-	ExerciseKind  string
-	ExerciseID    int64
-	SubmittedCode string
-	Stdout        sql.NullString
-	Stderr        sql.NullString
-	ExitCode      int64
-	IsCorrect     bool
-	SubmittedAt   time.Time
-}
-
-type MasterExercise struct {
-	ID             int64
-	Slug           string
-	Language       string
-	SortOrder      int32
-	Category       string
-	Title          string
-	Description    string
-	StarterCode    string
-	HintText       sql.NullString
-	ExpectedOutput sql.NullString
-	Mode           string
-	Explanation    string
-	Difficulty     int16
-	IsPublished    bool
-	ChapterID      sql.NullInt64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
-type MasterExerciseExample struct {
-	ID             int64
-	ExerciseID     int64
-	OrderIndex     int16
-	InputText      string
-	ExpectedOutput string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
 type Notification struct {
 	ID        int64
 	UserID    int64

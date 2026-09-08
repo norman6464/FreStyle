@@ -15,4 +15,13 @@ regexes = [
   # 結合テスト用のローカル Postgres（docker-compose の使い捨てコンテナ固定値。機密ではない）
   '''postgres://frestyle:frestyle@localhost''',
   '''POSTGRES_(USER|PASSWORD|DB):\s*frestyle''',
+
+  # フロントの GCIP（Firebase Authentication）クライアント API キー。
+  # **鍵ではなく宛先**で、ビルド成果物の JS に焼き込まれて frestyle.dev を開いた
+  # 誰もが読める（Firebase の設計どおり。守りは許可ドメインと Auth 側の規則が担う）。
+  #
+  # gcp-api-key ルールそのものは無効にしない。AIza… の形は Maps や他 API の
+  # サーバー用キーにも使われ、そちらは本当に隠すべきものだから。
+  # **この 1 つの値だけ**を通し、別の GCP API キーが混ざれば今までどおり落ちるようにする。
+  '''AIzaSyBccI4D5QmiY3M1il3Kq80yhSNCXVasJVw''',
 ]

@@ -82,16 +82,4 @@ func Test_実際の発行者が出したトークンを受け取れる(t *testin
 	if tok.RefreshToken == "" {
 		t.Error("refresh_token が発行されていない（scope に offline_access が無い可能性）")
 	}
-
-	// 役割の読み取りも実物で確かめる。ここは形を推測しやすく、
-	// 間違えると弾かれずに「権限が静かに消える」ので、本物で見ておく価値が高い。
-	claimName := os.Getenv("OIDC_ROLES_CLAIM")
-	if claimName == "" {
-		claimName = "roles"
-	}
-	roles := RolesFromClaim(claims[claimName])
-	t.Logf("access_token の役割: %v（クレーム名 %s）", roles, claimName)
-	if want := os.Getenv("OIDC_EXPECT_ROLE"); want != "" && !HasRole(roles, want) {
-		t.Fatalf("役割 %q を読めていない: %v（生の値: %#v）", want, roles, claims[claimName])
-	}
 }

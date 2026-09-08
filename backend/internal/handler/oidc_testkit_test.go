@@ -24,8 +24,6 @@ import (
 const (
 	testIssuer   = "https://issuer.test"
 	testClientID = "test-client-id"
-	// testRolesClaim は役割の一覧が入るクレーム名。発行者ごとに違うので設定で指す。
-	testRolesClaim = "urn:frestyle:test:roles"
 )
 
 type testIdP struct {

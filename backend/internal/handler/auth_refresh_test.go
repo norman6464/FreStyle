@@ -27,10 +27,8 @@ func newRefreshHandler(t *testing.T, idp *testIdP, users *fakeUserRepo, respond 
 	t.Cleanup(srv.Close)
 
 	cfg := &config.OIDCConfig{
-		ClientID:       testClientID,
-		TokenURI:       srv.URL,
-		AdminRoleClaim: testRolesClaim,
-		AdminRole:      "admin",
+		ClientID: testClientID,
+		TokenURI: srv.URL,
 	}
 	h := &AuthHandler{
 		oidcCfg:  cfg,
@@ -157,7 +155,7 @@ func newFailingRefreshHandler(t *testing.T, idp *testIdP, status int, body strin
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-	cfg := &config.OIDCConfig{ClientID: testClientID, TokenURI: srv.URL, AdminRoleClaim: testRolesClaim, AdminRole: "admin"}
+	cfg := &config.OIDCConfig{ClientID: testClientID, TokenURI: srv.URL}
 	return &AuthHandler{
 		oidcCfg:  cfg,
 		verifier: idp.verifier(t),

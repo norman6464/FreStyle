@@ -95,7 +95,7 @@ func newTestAuthHandler(
 	t.Helper()
 	return &AuthHandler{
 		verifier: idp.verifier(t),
-		oidcCfg:  &config.OIDCConfig{AdminRoleClaim: testRolesClaim, AdminRole: "admin"},
+		oidcCfg:  &config.OIDCConfig{},
 		upsertUser: user.NewUpsertUserFromIDTokenUseCase(
 			users, fakeOidcIdentityRepo{}, fakeTxManager{},
 		),

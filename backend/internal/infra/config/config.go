@@ -82,10 +82,6 @@ type OIDCConfig struct {
 	// 空なら ClientID を要求する。発行者によっては aud にプロジェクトの識別子を
 	// 入れるので、その差を推測ではなく設定で吸収する。
 	Audiences []string
-	// AdminRoleClaim は役割の一覧が入っているクレーム名。
-	// AdminRole はそのうち運営管理者を表す役割名。
-	AdminRoleClaim string
-	AdminRole      string
 }
 
 // Configured は認証に必要な設定が揃っているかを返す。
@@ -116,11 +112,6 @@ func Load() (*Config, error) {
 			ClientSecret:  os.Getenv("OIDC_CLIENT_SECRET"),
 			RedirectURI:   os.Getenv("OIDC_REDIRECT_URI"),
 			Audiences:     splitAndTrim(os.Getenv("OIDC_AUDIENCES")),
-			// 役割の在り処は発行者ごとに違うので設定で指す。既定値はどの発行者にも
-			// 当てはまるものではないため、実際に運用する発行者の形に合わせて
-			// OIDC_ROLES_CLAIM で必ず差し替えること。
-			AdminRoleClaim: getEnvOrDefault("OIDC_ROLES_CLAIM", "roles"),
-			AdminRole:      getEnvOrDefault("OIDC_ADMIN_ROLE", "admin"),
 		},
 		S3: S3Config{
 			Region:       getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

@@ -28,10 +28,10 @@ handler → usecase → repository / infra → domain
 |---|---|---|
 | handler | `backend/internal/handler` | HTTP 受付、middleware から認証情報取得、usecase 呼び出し、JSON 返却。ビジネスロジック禁止 |
 | middleware | `backend/internal/handler/middleware` | JWT 認証、CORS、current user 注入、CSRF 等の横断的処理 |
-| usecase | `backend/internal/usecase/<domain>` | ドメイン単位のサブパッケージ（`kb` / `exercise` / `user` / `profile` / `notification` / `richtextimage` / `health`）。1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
+| usecase | `backend/internal/usecase/<domain>` | ドメイン単位のサブパッケージ（`kb` / `comment` / `user` / `profile` / `notification` / `richtextimage` / `health`）。1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
 | repository (port) | `backend/internal/usecase/repository` | usecase が依存する repository interface の定義 |
-| persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / S3 等の repository 実装 |
-| infra | `backend/internal/infra/{oidc,s3,ses,database,sandbox,...}` | 外部サービス連携（AWS SDK ラッパ）、DB 接続、設定読み込み |
+| persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / Cloud Storage 等の repository 実装 |
+| infra | `backend/internal/infra/{oidc,gcs,database,config,ratelimit,embed,logging}` | 外部サービス連携（GCP クライアントラッパ。AWS SDK は撤去済み）、DB 接続、設定読み込み |
 | domain | `backend/internal/domain` | エンティティ + ビジネス定数。JSON tag のみ直書き（永続化の都合は持ち込まない）。他層を import しない |
 
 ### 2.3 1 構造体 1 責務（usecase）

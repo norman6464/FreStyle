@@ -58,7 +58,7 @@ func Test_画像の表示URLに配信ドメインを含めないこと(t *testin
 	}
 }
 
-// アップロード先の presigned URL は S3 への直接 PUT なので絶対 URL のままでよい。
+// アップロード先の presigned URL はオブジェクトストレージへの直接 PUT なので絶対 URL のままでよい。
 // 表示 URL と混同して相対化してしまわないことを確認する。
 func Test_アップロード先URLは絶対URLのままであること(t *testing.T) {
 	ctx := context.Background()

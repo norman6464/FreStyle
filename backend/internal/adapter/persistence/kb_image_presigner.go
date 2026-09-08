@@ -6,14 +6,14 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// kbImagePresigner はナレッジのページ画像用 S3 presigner
+// kbImagePresigner はナレッジのページ画像用 presigner
 // （kb/{workspaceId}/{pageId}/{epochNs}.bin キー。キーの組み立ては呼び出し側の usecase が行う）。
 type kbImagePresigner struct {
-	pre s3Presigner
+	pre imagePresigner
 }
 
-// NewKbImagePresigner は本番経路。infra/s3.Presigner を渡して使う。
-func NewKbImagePresigner(p s3Presigner) repository.KbImagePresigner {
+// NewKbImagePresigner は本番経路。infra/gcs.Presigner を渡して使う。
+func NewKbImagePresigner(p imagePresigner) repository.KbImagePresigner {
 	return &kbImagePresigner{pre: p}
 }
 

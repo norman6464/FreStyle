@@ -22,7 +22,7 @@ var ErrUnsupportedImageContentType = errors.New("unsupported image content type"
 var ErrImageTooLarge = errors.New("image is too large")
 
 // ValidateImageUpload は画像アップロード要求（Content-Type とサイズ）が保存してよい形かを見る。
-// S3 presign の前に必ず通す入口で、不正なら presign 自体を行わない
+// presign の前に必ず通す入口で、不正なら presign 自体を行わない
 // （不正な値のまま署名を発行すると、上限の無い PUT を許すのと同じ穴になる）。
 func ValidateImageUpload(contentType string, size int64) error {
 	if !AcceptedImageContentTypes[contentType] {

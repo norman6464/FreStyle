@@ -90,10 +90,10 @@ func (i PageIcon) Valid() bool {
 	return true
 }
 
-// PageCoverType はページカバーの種類。いまのところアップロード画像（S3 key）のみ。
+// PageCoverType はページカバーの種類。いまのところアップロード画像（オブジェクトストレージの key）のみ。
 type PageCoverType string
 
-// PageCoverTypeFile はアップロード画像を指す種類（保存形は S3 key）。
+// PageCoverTypeFile はアップロード画像を指す種類（保存形はオブジェクトストレージの key）。
 const PageCoverTypeFile PageCoverType = "file"
 
 // PageCover はページ頭部のカバー画像。保存形は pages.cover の jsonb。

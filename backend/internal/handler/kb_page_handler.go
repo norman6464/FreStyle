@@ -711,7 +711,7 @@ type kbImageUploadURLResponse struct {
 	ExpiresIn int    `json:"expiresIn"`
 }
 
-// IssueImageUploadURL はページに閉じた画像（本文・カバー共通）の S3 PUT presigned URL を
+// IssueImageUploadURL はページに閉じた画像（本文・カバー共通）の PUT presigned URL を
 // 発行する（編集権限が要る）。
 func (h *KnowledgeBasePageHandler) IssueImageUploadURL(c *gin.Context) {
 	scope, ok := kbScope(c)
@@ -747,7 +747,7 @@ type kbImageDownloadURLResponse struct {
 	ExpiresIn int    `json:"expiresIn"`
 }
 
-// IssueImageDownloadURL はページに閉じた画像の S3 GET（ダウンロード）presigned URL を
+// IssueImageDownloadURL はページに閉じた画像の GET（ダウンロード）presigned URL を
 // 発行する（閲覧権限が要る）。
 func (h *KnowledgeBasePageHandler) IssueImageDownloadURL(c *gin.Context) {
 	scope, ok := kbScope(c)
@@ -776,7 +776,7 @@ func (h *KnowledgeBasePageHandler) IssueImageDownloadURL(c *gin.Context) {
 }
 
 // kbPageCoverResponse はカバーの返却形（解決済みの表示 URL を持つ。保存形の key は返さない —
-// key は S3 のオブジェクト名で、表示に使うのは presign 済みの url の方のため）。
+// key はオブジェクトストレージ上の名前で、表示に使うのは presign 済みの url の方のため）。
 type kbPageCoverResponse struct {
 	Type string `json:"type" example:"file"`
 	URL  string `json:"url"`

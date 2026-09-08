@@ -1559,7 +1559,7 @@ func (f *kbFakePerms) PagePermissionFactsForPrincipal(context.Context, string, s
 }
 
 // kbFakeImagePresigner は repository.KbImagePresigner の最小 fake。
-// 呼ばれた key をそのまま URL に埋めて返すだけで、実 S3 には触らない。
+// 呼ばれた key をそのまま URL に埋めて返すだけで、実オブジェクトストレージには触らない。
 type kbFakeImagePresigner struct {
 	// failWith が非 nil なら PresignUpload / PresignDownload の両方をそのエラーで失敗させる。
 	failWith error
@@ -1571,14 +1571,14 @@ func (f *kbFakeImagePresigner) PresignUpload(_ context.Context, key, _ string, _
 	if f.failWith != nil {
 		return "", 0, f.failWith
 	}
-	return "https://example.s3.amazonaws.com/" + key + "?upload=1", 600, nil
+	return "https://storage.googleapis.com/example/" + key + "?upload=1", 600, nil
 }
 
 func (f *kbFakeImagePresigner) PresignDownload(_ context.Context, key string) (string, int, error) {
 	if f.failWith != nil {
 		return "", 0, f.failWith
 	}
-	return "https://example.s3.amazonaws.com/" + key + "?download=1", 600, nil
+	return "https://storage.googleapis.com/example/" + key + "?download=1", 600, nil
 }
 
 // kbFakeProvisioner は repository.WorkspaceProvisioner の in-memory fake。

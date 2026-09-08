@@ -6,7 +6,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
-// RichTextImagePresigner は S3 への PUT 用 presigned URL を発行する。
+// RichTextImagePresigner はオブジェクトストレージへの PUT 用 presigned URL を発行する。
 // size はバイト数。Content-Type とあわせて domain.ValidateImageUpload で検証してから presign する
 // （FRESTYLE-9: 許可リストとサイズ上限）。
 type RichTextImagePresigner interface {

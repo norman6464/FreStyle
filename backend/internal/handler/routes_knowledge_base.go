@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	infraGCS "github.com/norman6464/FreStyle/backend/internal/infra/gcs"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
-	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/comment"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -60,21 +60,21 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 // （bucket が最初から無い = 明示的にローカル開発用と分かる状態なので安全。rich-text 画像・
 // profile 画像と同じバケットを kb/ prefix で共有する）。
 //
-// bucket が設定されているのに infraS3.NewPresigner が失敗する場合は fallback しない。
-// この場合は「本物の S3 を使うつもりだった」ことが bucket 名の
+// bucket が設定されているのに infraGCS.NewPresigner が失敗する場合は fallback しない。
+// この場合は「本物の Cloud Storage を使うつもりだった」ことが bucket 名の
 // 存在から明らかなので、黙って stub（未署名 URL）へ倒すと IssueImageUploadURL が 200 を
-// 返し続け、クライアントは成功と誤認したまま S3 PUT だけが失敗する。config.Load の OIDC
-// 必須化（「起動時に止める。通す側に倒すと誰も気づかない」）と同じ考え方で、ここも
+// 返し続け、クライアントは成功と誤認したままアップロード PUT だけが失敗する。config.Load の
+// OIDC 必須化（「起動時に止める。通す側に倒すと誰も気づかない」）と同じ考え方で、ここも
 // 起動を失敗させる。
 func newKbImagePresignerOrFallback(deps *routeDeps) repository.KbImagePresigner {
-	bucket := deps.cfg.S3.ImagesBucket
+	bucket := deps.cfg.Images.Bucket
 	if bucket == "" {
 		log.Printf("[kb-image] IMAGES_BUCKET unset — using stub presigner (DEV)")
 		return persistence.NewStubKbImagePresigner("stub-bucket")
 	}
-	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)
+	pre, err := infraGCS.NewPresigner(context.Background(), bucket)
 	if err != nil {
-		log.Fatalf("[kb-image] IMAGES_BUCKET=%q is set but S3 presigner init failed: %v", bucket, err)
+		log.Fatalf("[kb-image] IMAGES_BUCKET=%q is set but GCS presigner init failed: %v", bucket, err)
 	}
 	return persistence.NewKbImagePresigner(pre)
 }

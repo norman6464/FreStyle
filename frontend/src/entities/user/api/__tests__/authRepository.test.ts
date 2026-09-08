@@ -11,35 +11,13 @@ describe('AuthRepository', () => {
     vi.clearAllMocks();
   });
 
-  it('callback: PKCE の検証値と nonce を送る', async () => {
+  it('login: /auth/login をBodyなしで呼ぶ（Bearerヘッダはaxios側で付く）', async () => {
     mockedApiClient.post.mockResolvedValue({ data: { message: 'ログインしました。' } });
 
-    const result = await authRepository.callback({
-      code: 'auth-code-123',
-      codeVerifier: 'verifier-abc',
-      nonce: 'nonce-xyz',
-    });
+    const result = await authRepository.login();
 
-    // 検証値を送らないと、公開クライアントでは交換そのものが通らない。
-    // nonce はバックエンドが id_token の中身と突き合わせる。
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
-      '/api/v2/auth/login',
-      { code: 'auth-code-123', codeVerifier: 'verifier-abc', nonce: 'nonce-xyz' },
-      { skipAuthRedirect: true },
-    );
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/login');
     expect(result).toEqual({ message: 'ログインしました。' });
-  });
-
-  it('logout: 発行者側のセッション終了先を受け取る', async () => {
-    mockedApiClient.post.mockResolvedValue({
-      data: { message: 'ログアウトしました。', endSessionUrl: 'https://issuer.test/logout' },
-    });
-
-    const result = await authRepository.logout();
-
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/logout');
-    // Cookie を消すだけでは発行者側のセッションが残り、同じ端末で入り直せてしまう。
-    expect(result.endSessionUrl).toBe('https://issuer.test/logout');
   });
 
   it('getCurrentUser: 現在のユーザー情報を取得できる', async () => {
@@ -52,11 +30,13 @@ describe('AuthRepository', () => {
     expect(result).toEqual(mockUser);
   });
 
-  it('refreshToken: トークンリフレッシュできる', async () => {
-    mockedApiClient.post.mockResolvedValue({});
+  it('probeCurrentUser: skipAuthRedirect を付けて呼ぶ（未ログインでも/loginへ飛ばさない）', async () => {
+    const mockUser = { id: 1, email: 'test@example.com' };
+    mockedApiClient.get.mockResolvedValue({ data: mockUser });
 
-    await authRepository.refreshToken();
+    const result = await authRepository.probeCurrentUser();
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/refresh');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/auth/me', { skipAuthRedirect: true });
+    expect(result).toEqual(mockUser);
   });
 });

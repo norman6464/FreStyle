@@ -1,9 +1,8 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
-import { AUTH } from '@/shared/config/apiRoutes';
+import { getCurrentIdToken } from '@/shared/lib/auth/currentIdToken';
 
 // 空文字なら同一オリジンの相対パスになる。**undefined のままにしない** —
-// 下のリフレッシュは文字列に埋め込むので、undefined だと
-// `undefined/api/v2/auth/refresh` という宛先へ飛ぶ（404 が返るだけなので気付きにくい）。
+// ローカルではフロントのオリジンにしか届かず backend に繋がらないため。
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 /**
@@ -12,28 +11,25 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
  * <p>役割:</p>
  * <ul>
  *   <li>API呼び出しの一元管理</li>
- *   <li>認証トークンの自動リフレッシュ</li>
+ *   <li>認証トークン（Bearer）の自動付与と、期限切れ時の自動更新</li>
  *   <li>エラーハンドリングの統一</li>
  * </ul>
  *
- * <p>インフラ層（Infrastructure Layer）:</p>
- * <ul>
- *   <li>外部APIとの通信を担当</li>
- *   <li>HTTPクライアントの設定</li>
- * </ul>
+ * backend は Cookie を発行しない（Bearer の ID トークン検証だけを行う）ため
+ * `withCredentials` は使わない。ID トークンは `shared/lib/auth/currentIdToken.ts` が
+ * 発行者の違い（GCIP / ローカルの Dex）を吸収して返す。
  */
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Cookie（JWT）を自動送信
 });
 
 /**
  * 公開ページから呼ぶときのリクエスト設定。
  *
- * `skipAuthRedirect: true` を付けた呼び出しは、401（かつリフレッシュ失敗）でも
+ * `skipAuthRedirect: true` を付けた呼び出しは、401（かつ更新失敗）でも
  * /login へ強制遷移しない。「ログイン済みか確かめる」用途では 401 は正常な答えであり、
  * 公開ページの訪問者や検索エンジンのクローラをログイン画面へ追い出してはいけないため
  * （公開 LP の全訪問者が /login に飛ばされた回帰への対応）。
@@ -43,13 +39,30 @@ export interface PublicSafeRequestConfig extends AxiosRequestConfig {
 }
 
 /**
- * トークンリフレッシュ中フラグ
- * 複数のリクエストが同時に401を受けた場合、リフレッシュは1回だけ実行
+ * リクエストのたびに、いまサインインしている人の ID トークンを Bearer で付ける。
+ *
+ * トークンが無ければ（未サインイン）何も付けない。未認証で呼べる公開エンドポイント
+ * （例: 共有リンクの検証）はこれで通り、認証必須のエンドポイントは backend 側の
+ * 401 で弾かれる。
+ */
+apiClient.interceptors.request.use(async (config) => {
+  const token = await getCurrentIdToken();
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`);
+  }
+  return config;
+});
+
+/**
+ * トークン更新中フラグ
+ * 複数のリクエストが同時に401を受けた場合、更新は1回だけ実行
+ * （Dex の refresh_token は使い回すと発行者側で失効させられることがあるため、
+ * 並行してばらばらに更新を試みると片方が必ず失敗する）。
  */
 let isRefreshing = false;
 
 /**
- * リフレッシュ待ちのリクエストキュー
+ * 更新待ちのリクエストキュー
  */
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
@@ -73,7 +86,7 @@ const processQueue = (error: AxiosError | null = null) => {
 
 /**
  * レスポンスインターセプター
- * 401エラー時に自動的にトークンをリフレッシュ
+ * 401エラー時に自動的にトークンを更新（forceRefresh）してから1回だけ再試行する
  */
 apiClient.interceptors.response.use(
   (response) => response,
@@ -86,7 +99,7 @@ apiClient.interceptors.response.use(
     // 401エラーかつ、まだリトライしていない場合
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // 既にリフレッシュ中の場合はキューに追加
+        // 既に更新中の場合はキューに追加
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -102,23 +115,25 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // トークンリフレッシュ
-        await axios.post(
-          `${API_BASE_URL}${AUTH.refreshToken}`,
-          {},
-          { withCredentials: true }
-        );
+        // トークン更新。期限的には有効に見えても強制的に更新を試みる
+        // （backend とこのブラウザの時計のずれ・失効等、期限だけでは分からない
+        // 理由で 401 になっているケースを拾うため）。
+        const token = await getCurrentIdToken(true);
+        if (!token) {
+          throw new Error('id token unavailable after refresh');
+        }
 
         processQueue(null);
         isRefreshing = false;
 
-        // リトライ
+        // リトライ。Authorization ヘッダは request interceptor が
+        // 更新後のトークンで付け直す（ここで手で書き換える必要はない）。
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(error);
         isRefreshing = false;
 
-        // リフレッシュ失敗 → ログインページへ。
+        // 更新失敗 → ログインページへ。
         // ただし公開ページの認証確認（skipAuthRedirect）では遷移しない。
         if (!originalRequest.skipAuthRedirect && typeof window !== 'undefined') {
           window.location.href = '/login';

@@ -1,28 +1,49 @@
 import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '@/shared/ui/PublicHeader';
 import Button from '@/shared/ui/Button';
+import InputField from '@/shared/ui/InputField';
 import SNSSignInButton from '@/shared/ui/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
 import { AuthUnavailableNotice } from '@/features/auth';
-import { CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { toChangeHandler } from '@/shared/lib/formHandlers';
 import { useLoginPage } from '../model/useLoginPage';
 
 /**
  * ログイン画面。
  *
- * メールとパスワードのフォームは置かない。パスワードを受け取るのは発行者の
- * ログイン画面の役目で、アプリが受け取ると、二要素・ロックアウト・パスワードの
- * 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
+ * 発行者が 2 通りある——本番（GCIP・Firebase JS SDK）はメールとパスワードをこの画面が
+ * その場で受け取ってよい（発行者の SDK が直接検証するので、二要素・ロックアウト・
+ * パスワードの強さといった守りはアプリを経由しない）。ローカル開発（Dex）は今までどおり
+ * 発行者のログイン画面へ丸ごと送るだけで、パスワードは受け取らない（Dex はその場で
+ * 受け取る手段を持たないため）。
  *
- * ここは「発行者へ送る」ことだけをする。
- *
- * 設定が揃っていないときは `login.available` が false になり、`start` が
- * 存在しない。押せるボタンを描く経路が型として無いので、「押しても何も
- * 起きない」状態は書こうとしても型検査で落ちる。
+ * どちらを出すかは `mode`（ビルド時の設定で決まる）で分岐する。設定が両方とも
+ * 欠けているときは、ボタンを消さず理由を添える（`AuthUnavailableNotice`）。
  */
 export default function LoginPage() {
-  const { flashMessage, login } = useLoginPage();
-  const loading = login.available && login.loading;
+  const {
+    flashMessage,
+    mode,
+    email,
+    password,
+    setEmail,
+    setPassword,
+    firebaseAuth,
+    handleEmailSignIn,
+    handleGoogleSignIn,
+    dexLogin,
+    sessionError,
+  } = useLoginPage();
+
+  const firebaseErrorMessage = mode === 'firebase' && firebaseAuth.available ? firebaseAuth.errorMessage : null;
+  const dexErrorMessage = mode === 'dex' && dexLogin.available ? dexLogin.errorMessage : null;
+  const errorMessage = firebaseErrorMessage ?? dexErrorMessage ?? sessionError;
+
+  const missing =
+    mode === 'unconfigured'
+      ? [...(!firebaseAuth.available ? firebaseAuth.missing : []), ...(!dexLogin.available ? dexLogin.missing : [])]
+      : [];
 
   return (
     <AuthLayout title="ログイン" header={<PublicHeader />}>
@@ -36,42 +57,80 @@ export default function LoginPage() {
         </p>
       )}
 
-      {login.available && login.errorMessage && (
+      {errorMessage && (
         <p
           role="alert"
-          className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
+          className="mb-4 flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
         >
-          {login.errorMessage}
+          <ExclamationCircleIcon className="h-4 w-4" aria-hidden="true" />
+          {errorMessage}
         </p>
       )}
 
-      {!login.available && <AuthUnavailableNotice missing={login.missing} />}
+      {mode === 'unconfigured' && <AuthUnavailableNotice missing={missing} />}
 
-      <Button
-        variant="primary"
-        fullWidth
-        type="button"
-        loading={loading}
-        disabled={!login.available}
-        onClick={() => login.available && login.start()}
-      >
-        {loading ? 'ログイン画面へ移動しています...' : 'ログインする'}
-      </Button>
+      {mode === 'firebase' && firebaseAuth.available && (
+        <>
+          <form aria-label="ログインフォーム" onSubmit={handleEmailSignIn}>
+            <InputField
+              label="メールアドレス"
+              name="email"
+              type="email"
+              value={email}
+              onChange={toChangeHandler(setEmail)}
+            />
+            <InputField
+              label="パスワード"
+              name="password"
+              type="password"
+              value={password}
+              onChange={toChangeHandler(setPassword)}
+            />
+            <div className="-mt-4 mb-6 text-right text-sm">
+              <LinkText to="/password-reset">パスワードをお忘れですか？</LinkText>
+            </div>
+            <Button variant="primary" fullWidth type="submit" loading={firebaseAuth.loading}>
+              ログインする
+            </Button>
+          </form>
 
-      <div className="relative my-5">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-surface-3"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-surface-1 px-2 text-[var(--color-text-muted)]">または</span>
-        </div>
-      </div>
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-surface-3"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-surface-1 px-2 text-[var(--color-text-muted)]">または</span>
+            </div>
+          </div>
 
-      <SNSSignInButton
-        provider="google"
-        disabled={!login.available}
-        onClick={() => login.available && login.start('Google')}
-      />
+          <SNSSignInButton provider="google" disabled={firebaseAuth.loading} onClick={handleGoogleSignIn} />
+        </>
+      )}
+
+      {mode === 'dex' && dexLogin.available && (
+        <>
+          <Button
+            variant="primary"
+            fullWidth
+            type="button"
+            loading={dexLogin.loading}
+            onClick={() => dexLogin.start()}
+          >
+            {dexLogin.loading ? 'ログイン画面へ移動しています...' : 'ログインする'}
+          </Button>
+
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-surface-3"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-surface-1 px-2 text-[var(--color-text-muted)]">または</span>
+            </div>
+          </div>
+
+          <SNSSignInButton provider="google" disabled={dexLogin.loading} onClick={() => dexLogin.start('Google')} />
+        </>
+      )}
 
       <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
         招待された方は招待メールのリンクからログインできます。

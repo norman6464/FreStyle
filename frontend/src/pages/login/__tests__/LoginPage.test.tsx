@@ -1,17 +1,52 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import LoginPage from '../ui/LoginPage';
+import authReducer from '@/entities/user/model/authSlice';
+
+vi.mock('firebase/auth', async () => {
+  const actual = await vi.importActual<typeof import('firebase/auth')>('firebase/auth');
+  return {
+    ...actual,
+    signInWithEmailAndPassword: vi.fn(),
+    signInWithPopup: vi.fn(),
+  };
+});
+
+vi.mock('@/shared/lib/auth/firebaseApp', () => ({
+  getFirebaseAuth: vi.fn(() => ({ /* フェイクの Auth インスタンス */ })),
+}));
 
 function renderLoginPage() {
+  const store = configureStore({
+    reducer: { auth: authReducer },
+    preloadedState: { auth: { isAuthenticated: false, loading: false } },
+  });
   return render(
-    <MemoryRouter>
-      <LoginPage />
-    </MemoryRouter>
+    <Provider store={store}>
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    </Provider>,
   );
 }
 
-describe('LoginPage', () => {
+// テストの既定値は Dex 設定が揃っている（src/test/setup.ts）。GCIP（Firebase）は
+// 個々のテストで stubEnv して有効にする。
+const FIREBASE_ENVS = {
+  VITE_FIREBASE_API_KEY: 'test-api-key',
+  VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
+  VITE_FIREBASE_PROJECT_ID: 'test-project',
+} as const;
+
+function stubFirebaseEnv() {
+  Object.entries(FIREBASE_ENVS).forEach(([key, value]) => vi.stubEnv(key, value));
+}
+
+describe('LoginPage（Dex モード・既定）', () => {
   it('発行者のログイン画面へ送るボタンだけを置く', () => {
     renderLoginPage();
 
@@ -47,18 +82,48 @@ describe('LoginPage', () => {
 });
 
 /*
- * 設定が欠けているときの姿。
+ * 本番（GCIP）の姿。メールとパスワードをその場で受け取る——ここでは発行者の SDK が
+ * 直接検証するので、Dex 向けの「アプリが受け取ってはいけない」制約が当てはまらない。
+ */
+describe('LoginPage（Firebase モード）', () => {
+  beforeEach(() => {
+    stubFirebaseEnv();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('メールとパスワードの入力欄・パスワード再設定への導線を置く', () => {
+    renderLoginPage();
+
+    expect(screen.getByRole('form', { name: 'ログインフォーム' })).toBeInTheDocument();
+    expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    expect(screen.getByLabelText('パスワード')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /パスワードをお忘れ/ })).toHaveAttribute('href', '/password-reset');
+  });
+
+  it('Dex 向けの「発行者へ送る」ボタンは出さない', () => {
+    renderLoginPage();
+    expect(screen.queryByText('ログイン画面へ移動しています...')).not.toBeInTheDocument();
+  });
+
+  it('Google ログイン導線がある', () => {
+    renderLoginPage();
+    expect(screen.getByRole('button', { name: /Google/ })).toBeInTheDocument();
+  });
+});
+
+/*
+ * 設定が両方とも欠けているときの姿。
  *
  * ボタンを消さず、押せない状態のまま理由を添える。消してしまうと外から見て
  * 「壊れているのか、意図的に止めているのか」が区別できない。
- *
- * ここで検査しているのは表示だけで、**押せて何も起きない状態を作らせない**のは
- * 型（useOidcLogin の合併に start が無い枝）の役目。表示の検査を外しても
- * その保証は残るが、逆は成り立たない。
  */
 describe('LoginPage（認可の設定が欠けているとき）', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_OIDC_AUTHORIZE_URI', '');
+    vi.stubEnv('VITE_OIDC_TOKEN_URI', '');
     vi.stubEnv('VITE_OIDC_CLIENT_ID', '');
   });
 
@@ -66,25 +131,17 @@ describe('LoginPage（認可の設定が欠けているとき）', () => {
     vi.unstubAllEnvs();
   });
 
-  it('ログインボタンは消えず、押せない状態で残る', () => {
+  it('フォームもボタンも出さず、押せない理由を画面に出す', () => {
     renderLoginPage();
-    const button = screen.getByRole('button', { name: 'ログインする' });
-    expect(button).toBeInTheDocument();
-    expect(button).toBeDisabled();
-  });
+    expect(screen.queryByLabelText('メールアドレス')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ログインする' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Google/ })).not.toBeInTheDocument();
 
-  it('Google の導線も押せない', () => {
-    renderLoginPage();
-    expect(screen.getByRole('button', { name: /Google/ })).toBeDisabled();
-  });
-
-  it('押せない理由を画面に出す', () => {
-    renderLoginPage();
     const notice = screen.getByRole('status');
     expect(notice).toHaveTextContent('現在ログインを受け付けていません');
   });
 
-  // 欠けている設定の名前は人が読む文には出さない（利用者に意味が無い）。
+  // 欠けている設定の名前は人が読む文には出さない(利用者に意味が無い)。
   // 運用する側が要素を見れば分かるよう、属性には載せる。
   it('欠けている設定の名前は文ではなく属性に載せる', () => {
     renderLoginPage();
@@ -92,5 +149,29 @@ describe('LoginPage（認可の設定が欠けているとき）', () => {
     expect(notice.textContent).not.toContain('VITE_');
     expect(notice.getAttribute('data-missing')).toContain('VITE_OIDC_AUTHORIZE_URI');
     expect(notice.getAttribute('data-missing')).toContain('VITE_OIDC_CLIENT_ID');
+  });
+});
+
+describe('LoginPage（Firebase メールログインの送信）', () => {
+  beforeEach(() => {
+    stubFirebaseEnv();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('メールとパスワードを入力して送信すると signInWithEmailAndPassword が呼ばれる', () => {
+    vi.mocked(signInWithEmailAndPassword).mockImplementation(
+      () => new Promise(() => {}), // pending のまま。ここでは呼び出し内容だけ見る。
+    );
+
+    renderLoginPage();
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('パスワード'), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ログインする' }));
+
+    expect(signInWithEmailAndPassword).toHaveBeenCalledWith(expect.anything(), 'user@example.com', 'password123');
   });
 });

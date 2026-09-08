@@ -11,6 +11,7 @@ import { vi } from 'vitest';
 // 既定を「揃っている」側に置くのは、ほとんどのテストが通常の画面を見たいため。
 // 設定が欠けた状態を見たいテストは、そのテストの中で stubEnv して外す。
 vi.stubEnv('VITE_OIDC_AUTHORIZE_URI', 'https://issuer.test/oauth/v2/authorize');
+vi.stubEnv('VITE_OIDC_TOKEN_URI', 'https://issuer.test/oauth/v2/token');
 vi.stubEnv('VITE_OIDC_CLIENT_ID', 'test-client-id');
 vi.stubEnv('VITE_OIDC_REDIRECT_URI', 'http://localhost:3000/login/callback');
 vi.stubEnv('VITE_OIDC_SCOPE', 'openid profile email offline_access');

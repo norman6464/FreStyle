@@ -4,10 +4,12 @@ import { withApi, withRouter, withStore } from '../../../../.storybook/decorator
 import SignupPage from './SignupPage';
 
 /**
- * アカウントを作る入口。
+ * アカウントを作る入口。`pages/login/ui/LoginPage.stories.tsx` と対になる。
  *
- * ログインと同じく、この画面ではパスワードを受け取らない。作るのも発行者の役目で、
- * アプリは入口を出すだけ。
+ * 発行者が 2 通りある——本番（GCIP）はメールとパスワードをこの場で受け取り、
+ * その場でアカウントを作る。ローカル開発（Dex）は自己登録の手段を持たないため、
+ * 発行者のログイン画面へ送るだけの入口になる。どちらを見せるかは手元の `.env`
+ * （`VITE_FIREBASE_*` / `VITE_OIDC_*`）に従う。
  */
 const meta = {
   title: 'pages/signup/SignupPage',
@@ -28,7 +30,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** ふだんの見え方（見本では発行者の設定が無いので、その案内が出る）。 */
+/** ふだんの見え方。表示される姿はこの env（`.env`）の設定に従う。 */
 export const 既定: Story = {
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole('heading', { level: 1 })).toBeVisible();

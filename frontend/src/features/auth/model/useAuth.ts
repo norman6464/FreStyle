@@ -6,6 +6,7 @@ import { classifyApiError } from '@/shared/lib/classifyApiError';
 import { clearAuthHint } from '@/shared/lib/authHint';
 import { AuthRepository, UserInfo } from '@/entities/user';
 import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
+import { signOutCurrentProvider } from '@/shared/lib/auth/currentIdToken';
 
 /**
  * 認証フック
@@ -33,23 +34,22 @@ export const useAuth = () => {
 
   /**
    * ログアウト
+   *
+   * 発行者側のセッション終了は、いま有効な発行者（GCIP のクライアント SDK /
+   * ローカルの Dex）ごとに `signOutCurrentProvider` が吸収する。backend には
+   * ログアウト用のエンドポイントが無い（Cookie セッションを持たないため）。
    */
   const logout = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
 
     try {
-      const { endSessionUrl } = await AuthRepository.logout();
+      await signOutCurrentProvider();
       setUser(null);
       dispatch(clearAuth());
       // 認証ヒント（次回の初期描画を早めるための印）も消す。
       // 残すと、ログアウト後の再訪でログイン済みとして描き始めてしまう。
       clearAuthHint();
-      // 発行者側のセッションも終わらせる（手元の Cookie を消すだけでは残る）。
-      if (endSessionUrl) {
-        window.location.href = endSessionUrl;
-        return;
-      }
       navigate('/login');
     } catch (err) {
       setError(classifyApiError(err, 'ログアウトに失敗しました。'));
@@ -79,21 +79,6 @@ export const useAuth = () => {
     }
   }, [dispatch]);
 
-  /**
-   * トークンリフレッシュ
-   */
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    try {
-      await AuthRepository.refreshToken();
-      return true;
-    } catch (err) {
-      setError('トークンのリフレッシュに失敗しました。');
-      dispatch(clearAuth());
-      navigate('/login');
-      return false;
-    }
-  }, [dispatch, navigate]);
-
   return {
     user,
     loading,
@@ -101,6 +86,5 @@ export const useAuth = () => {
     isAuthenticated: authState.isAuthenticated,
     logout,
     getCurrentUser,
-    refreshToken,
   };
 };

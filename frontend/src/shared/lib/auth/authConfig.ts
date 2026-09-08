@@ -1,5 +1,9 @@
 /**
- * 認可の設定を「欠けうるもの」として 1 か所で読む。
+ * ローカル開発用の発行者（Dex）向けの認可設定を「欠けうるもの」として 1 か所で読む。
+ *
+ * GCIP（本番）はクライアント SDK で直接サインインするため、この認可コード + PKCE
+ * のリダイレクト方式を使わない（`shared/lib/auth/firebaseConfig.ts` を参照）。
+ * Dex はこの方式でしか動かない発行者なので、ローカル開発用の経路として残している。
  *
  * 設定はビルド時にバンドルへ焼き込まれる。焼き込まれなければ**無い**。
  * 「必ずある」と信じて読むと、欠けた設定で認可 URL を組み立てるコードが
@@ -18,6 +22,12 @@
 export type ConfiguredAuth = {
   readonly status: 'configured';
   readonly authorizeUri: string;
+  /**
+   * トークンの交換先。backend はもう認可コードの交換を仲介しない
+   * （Bearer の ID トークン検証だけを行う）ため、フロントがブラウザから
+   * 直接ここを叩いて交換する（`oidcAuthUrl.ts` の `exchangeCodeForToken`）。
+   */
+  readonly tokenUri: string;
   readonly clientId: string;
   readonly redirectUri: string;
   readonly scope: string;
@@ -65,20 +75,23 @@ function isHttpUrl(value: string | undefined): value is string {
 export function readAuthConfig(): AuthConfig {
   const env = import.meta.env;
   const authorizeUri = env.VITE_OIDC_AUTHORIZE_URI;
+  const tokenUri = env.VITE_OIDC_TOKEN_URI;
   const clientId = env.VITE_OIDC_CLIENT_ID;
   const redirectUri = env.VITE_OIDC_REDIRECT_URI;
 
   const missing: string[] = [];
   if (!isHttpUrl(authorizeUri)) missing.push('VITE_OIDC_AUTHORIZE_URI');
+  if (!isHttpUrl(tokenUri)) missing.push('VITE_OIDC_TOKEN_URI');
   if (!clientId) missing.push('VITE_OIDC_CLIENT_ID');
   if (!isHttpUrl(redirectUri)) missing.push('VITE_OIDC_REDIRECT_URI');
 
   // `missing.length === 0` で分岐しても型は絞れない（配列の長さは値の有無を語らない）。
-  // 条件そのものをもう一度書くことで、`configured` の枝では 3 つとも string になる。
-  if (isHttpUrl(authorizeUri) && clientId && isHttpUrl(redirectUri)) {
+  // 条件そのものをもう一度書くことで、`configured` の枝では全部 string になる。
+  if (isHttpUrl(authorizeUri) && isHttpUrl(tokenUri) && clientId && isHttpUrl(redirectUri)) {
     return {
       status: 'configured',
       authorizeUri,
+      tokenUri,
       clientId,
       redirectUri,
       scope: env.VITE_OIDC_SCOPE || DEFAULT_SCOPE,

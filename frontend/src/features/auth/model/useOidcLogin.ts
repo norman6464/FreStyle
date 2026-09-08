@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildAuthorizeUrl } from '../lib/oidcAuthUrl';
-import { readAuthConfig } from '../lib/authConfig';
+import { buildAuthorizeUrl } from '@/shared/lib/auth/oidcAuthUrl';
+import { readAuthConfig } from '@/shared/lib/auth/authConfig';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
 import { logger } from '@/shared/lib/logger';
 

@@ -6,11 +6,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 本番フロントは Firebase Hosting（frestyle.dev がカスタムドメイン、frestyle-dev.web.app が
+// 既定 URL、frestyle-dev.firebaseapp.com は GCIP の authDomain としても使われる既定ドメインで、
+// 同じ内容が配信される）。旧 frestyle.jp（DNS 削除済み）・旧 CloudFront・旧 S3 website
+// エンドポイントは AWS 撤去に伴い実在しないため、許可リストから外してある
+// （到達不能な origin を残す意味が無い）。
 var allowedOrigins = map[string]struct{}{
-	"https://frestyle.jp":                                             {},
-	"http://localhost:5173":                                           {},
-	"https://dcd3m6lwt0z8u.cloudfront.net":                            {},
-	"http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com": {},
+	"https://frestyle.dev":                 {},
+	"https://frestyle-dev.web.app":         {},
+	"https://frestyle-dev.firebaseapp.com": {},
+	"http://localhost:5173":                {},
 }
 
 const (

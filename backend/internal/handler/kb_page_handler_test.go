@@ -47,6 +47,7 @@ type kbFixture struct {
 	users       *kbFakeUsers
 	comments    *kbFakeComments
 	versions    *kbFakePageVersions
+	templates   *kbFakePageTemplates
 	presigner   *kbFakeImagePresigner
 	router      *gin.Engine
 }
@@ -91,15 +92,18 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	users := newKbFakeUsers()
 	comments := newKbFakeComments()
 	versions := newKbFakePageVersions(pages)
+	templates := newKbFakePageTemplates()
 	presigner := &kbFakeImagePresigner{}
-	registerKnowledgeBaseRoutesWith(g, pages, perms, perms, provisioner, users, comments, versions, fakeTxManager{}, presigner)
+	registerKnowledgeBaseRoutesWith(
+		g, pages, perms, perms, provisioner, users, comments, versions, templates, fakeTxManager{}, presigner,
+	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
 	// 「未認証でも通ること」を検証できない。
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
 	return kbFixture{
 		pages: pages, perms: perms, provisioner: provisioner, users: users,
-		comments: comments, versions: versions, presigner: presigner, router: r,
+		comments: comments, versions: versions, templates: templates, presigner: presigner, router: r,
 	}
 }
 
@@ -305,6 +309,14 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodDelete + " " + kbRoutePattern(kbWorkspacePath): true,
 		// /p/{pageId} の解決。Test_ナレッジAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
+		// ページの雛形 API（FRESTYLE-435 段5）。判定の軸がそれぞれ違う
+		// （一覧=所属のみ、保存・削除=ワークスペース全体のCanEdit、使用=既存のページ作成と
+		// 同じ分岐）ため表にせず個別に列挙する。page_template_handler_test.go の
+		// Test_雛形API_* が直接叩く。
+		http.MethodGet + " /api/v2/kb/workspaces/:workspaceSlug/templates":                            true,
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/templates":             true,
+		http.MethodDelete + " /api/v2/kb/workspaces/:workspaceSlug/templates/:templateId":             true,
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template": true,
 	}
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
@@ -1494,6 +1506,35 @@ func Test_ナレッジAPI_IDだけの解決にcanCommentが載る(t *testing.T) 
 	})
 }
 
+// Test_ナレッジAPI_IDだけの解決にworkspaceCanEditが載る は、ページ単位の canEdit
+// （付与の合成）とワークスペース全体への CanEdit（CheckWorkspacePermissionUseCase）が
+// 別軸であることを固定する。ページ/スペース限定の編集権限しか持たない人は canEdit=true でも
+// workspaceCanEdit=false になり得る（雛形の作成・削除はワークスペース全体の CanEdit で
+// 判定するため、フロントはこちらを見て「押せるが403になる」ボタンを出さないようにする）。
+func Test_ナレッジAPI_IDだけの解決にworkspaceCanEditが載る(t *testing.T) {
+	t.Run("ワークスペース全体の役割が無ければfalse（ページ単位のcanEditがtrueでも）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+
+		got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+		assert.True(t, res.CanEdit, "ページ単位はfallbackのkbCanEditでtrue")
+		assert.False(t, res.WorkspaceCanEdit, "ワークスペース全体の役割は別途設定していないのでfalse")
+	})
+
+	t.Run("ワークスペース全体でeditor以上ならtrue", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleEditor)
+
+		got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+		assert.True(t, res.WorkspaceCanEdit)
+	})
+}
+
 // Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字 は、名前が引けなくても
 // 200 のまま返し、name だけが空文字に落ちることを固定する（LookupUserNameUseCase の doc）。
 func Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字(t *testing.T) {
@@ -1606,6 +1647,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 	users := newKbFakeUsers()
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(perms),
+		kb.NewCheckWorkspacePermissionUseCase(perms),
 		kb.NewResolvePageLocationUseCase(pages),
 		kb.NewCheckSpacePermissionUseCase(perms),
 		kb.NewCanEditPageSubtreeUseCase(perms),

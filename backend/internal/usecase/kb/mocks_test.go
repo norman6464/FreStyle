@@ -528,3 +528,29 @@ func (m *mockPageVersionRepo) GetVersion(ctx context.Context, workspaceID, pageI
 	}
 	return v, args.Error(1)
 }
+
+// --- mock: PageTemplateRepository ---
+
+type mockPageTemplateRepo struct{ mock.Mock }
+
+var _ repository.PageTemplateRepository = (*mockPageTemplateRepo)(nil)
+
+func (m *mockPageTemplateRepo) Create(ctx context.Context, tpl *domain.PageTemplate) error {
+	return m.Called(ctx, tpl).Error(0)
+}
+
+func (m *mockPageTemplateRepo) List(ctx context.Context, workspaceID string, spaceID *string) ([]domain.PageTemplate, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	rows, _ := args.Get(0).([]domain.PageTemplate)
+	return rows, args.Error(1)
+}
+
+func (m *mockPageTemplateRepo) Get(ctx context.Context, workspaceID, templateID string) (*domain.PageTemplate, error) {
+	args := m.Called(ctx, workspaceID, templateID)
+	tpl, _ := args.Get(0).(*domain.PageTemplate)
+	return tpl, args.Error(1)
+}
+
+func (m *mockPageTemplateRepo) Delete(ctx context.Context, workspaceID, templateID string) error {
+	return m.Called(ctx, workspaceID, templateID).Error(0)
+}

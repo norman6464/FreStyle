@@ -1871,3 +1871,80 @@ func (f *kbFakePageVersions) GetVersion(_ context.Context, workspaceID, pageID s
 	out := v
 	return &out, nil
 }
+
+// kbFakePageTemplates は repository.PageTemplateRepository の in-memory fake。
+type kbFakePageTemplates struct {
+	// templates は templateID -> 雛形。
+	templates map[string]*domain.PageTemplate
+	nextID    int
+	failWith  error
+}
+
+var _ repository.PageTemplateRepository = (*kbFakePageTemplates)(nil)
+
+func newKbFakePageTemplates() *kbFakePageTemplates {
+	return &kbFakePageTemplates{templates: map[string]*domain.PageTemplate{}}
+}
+
+func (f *kbFakePageTemplates) Create(_ context.Context, tpl *domain.PageTemplate) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	for _, existing := range f.templates {
+		if existing.WorkspaceID == tpl.WorkspaceID && existing.Name == tpl.Name {
+			return repository.ErrDuplicateTemplateName
+		}
+	}
+	f.nextID++
+	stored := *tpl
+	stored.ID = "template-" + strconv.Itoa(f.nextID)
+	stored.CreatedAt = time.Now()
+	stored.UpdatedAt = stored.CreatedAt
+	f.templates[stored.ID] = &stored
+	*tpl = stored
+	return nil
+}
+
+func (f *kbFakePageTemplates) List(_ context.Context, workspaceID string, spaceID *string) ([]domain.PageTemplate, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	out := make([]domain.PageTemplate, 0, len(f.templates))
+	for _, tpl := range f.templates {
+		if tpl.WorkspaceID != workspaceID {
+			continue
+		}
+		// spaceID が nil の行（ワークスペース全体向け）は常に含める。非 nil なら、
+		// 呼び出し側が指定した spaceID と一致する行も加える
+		// （repository.PageTemplateRepository.List の doc と同じ規則）。
+		if tpl.SpaceID == nil || (spaceID != nil && *tpl.SpaceID == *spaceID) {
+			out = append(out, *tpl)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (f *kbFakePageTemplates) Get(_ context.Context, workspaceID, templateID string) (*domain.PageTemplate, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	tpl, ok := f.templates[templateID]
+	if !ok || tpl.WorkspaceID != workspaceID {
+		return nil, domain.ErrPageTemplateNotFound
+	}
+	out := *tpl
+	return &out, nil
+}
+
+func (f *kbFakePageTemplates) Delete(_ context.Context, workspaceID, templateID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	tpl, ok := f.templates[templateID]
+	if !ok || tpl.WorkspaceID != workspaceID {
+		return domain.ErrPageTemplateNotFound
+	}
+	delete(f.templates, templateID)
+	return nil
+}

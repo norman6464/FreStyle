@@ -158,6 +158,15 @@ export interface KbResolvedPage {
    */
   canManage: boolean;
   /**
+   * このページではなく**ワークスペース全体**への書き込み資格。雛形の作成・削除は
+   * ワークスペース全体の編集者(editor)以上で判定するため、こちらで出し分ける。
+   *
+   * canEdit はページ単位の実効権限（付与の合成）なので、ページ/スペース限定の編集権限しか
+   * 持たない人には true でも、workspaceCanEdit は false になり得る（雛形関連のボタンを
+   * 「押せるが403になる」状態で出さないための旗。旧応答（デプロイ順）では undefined）。
+   */
+  workspaceCanEdit?: boolean;
+  /**
    * 閲覧できる祖先だけが根から順に入る（パンくず用）。
    * 見えない祖先は行ごと無い — 木と同じ規則で、穴があき得る。
    */
@@ -316,4 +325,19 @@ export interface KbPageVersion {
 /** 版 1 件 + その時点の本文（doc）。一覧では返らず、単体取得（GET .../versions/:seq）でだけ付く。 */
 export interface KbPageVersionDetail extends KbPageVersion {
   doc: unknown;
+}
+
+/**
+ * テンプレート 1 件（一覧用の軽い形。doc は含まない）。
+ *
+ * spaceId が無い（null/undefined）ならワークスペース全体で使えるテンプレート、値があれば
+ * そのスペース専用。一覧 GET（?spaceId=）は「そのスペース専用」+「ワークスペース全体」の
+ * 両方を返す想定 — backend 未実装の段階での想定であり確定ではない（要すり合わせ）。
+ */
+export interface KbPageTemplate {
+  id: string;
+  name: string;
+  icon?: KbIcon | null;
+  spaceId?: string | null;
+  createdAt: string;
 }

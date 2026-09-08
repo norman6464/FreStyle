@@ -1436,6 +1436,99 @@ func stripPageRefTitlesNode(node any) bool {
 	return changed
 }
 
+// kbTemplateExcludedNodeTypes は「雛形として保存」で本文の木から丸ごと取り除くノードの type 名。
+//
+// pageRef は特定の 1 ページへの固定参照であり、雛形が複数のページに展開されると
+// 展開後の全ページが同じ参照先を指してしまい意味をなさない。画像（domain.BlockTypeImage、
+// tiptap のノード名も "image"）はページ固有の S3 key（kbImageKeyPrefix）に紐づいており、
+// 雛形経由で複製すると元ページの画像が消えたときに雛形からのコピーだけが宙に浮いた参照を
+// 残す（key の生存管理の仕組みが無い）。どちらも雛形の本文からは意図的に除外する。
+var kbTemplateExcludedNodeTypes = map[string]bool{
+	kbPageRefNodeType:             true,
+	string(domain.BlockTypeImage): true,
+}
+
+// stripPageRefAndImageNodesForTemplate は「雛形として保存」の直前に、本文の木から
+// pageRef ノードと画像ノードを丸ごと取り除く（StripPageRefTitles のように属性を null に
+// 落とすのではなく、ノードそのものを content 配列から除く）。除外する理由は
+// kbTemplateExcludedNodeTypes のコメント参照。
+//
+// 取り除いた結果、空になった段落等が残ってもよい（見た目が多少寂しくなる程度で実害はない）。
+func stripPageRefAndImageNodesForTemplate(doc string) (string, error) {
+	var root any
+	if err := json.Unmarshal([]byte(doc), &root); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
+	}
+	out, err := json.Marshal(stripTemplateExcludedNodes(root))
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// stripTemplateExcludedNodes は node を再帰的に歩き、content 配列から
+// kbTemplateExcludedNodeTypes に含まれる type のノードを除いた値を返す。
+// StripPageRefTitles の木の走査パターン（map[string]any / []any を直接歩く）を踏襲する。
+func stripTemplateExcludedNodes(node any) any {
+	switch v := node.(type) {
+	case map[string]any:
+		if content, ok := v["content"]; ok {
+			v["content"] = stripTemplateExcludedNodes(content)
+		}
+		return v
+	case []any:
+		out := make([]any, 0, len(v))
+		for _, child := range v {
+			if m, ok := child.(map[string]any); ok {
+				if t, _ := m["type"].(string); kbTemplateExcludedNodeTypes[t] {
+					continue
+				}
+			}
+			out = append(out, stripTemplateExcludedNodes(child))
+		}
+		return out
+	default:
+		return node
+	}
+}
+
+// regenerateBlockIDs は「雛形からページを作る」の直前に、本文の木からブロックノードの
+// attrs.id をすべて削除する（null 化ではなくキー自体を消す）。id が無いノードは
+// parseBlockNode が新しい UUID を採番する既存の挙動にそのまま任せる。
+//
+// 削除しないままだと、同じ雛形から複数のページを作ったときに blocks.id
+// （グローバルに一意な PK）が衝突し、2 ページ目以降の保存が失敗する。
+func regenerateBlockIDs(doc string) (string, error) {
+	var root any
+	if err := json.Unmarshal([]byte(doc), &root); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
+	}
+	stripNodeIDs(root)
+	out, err := json.Marshal(root)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// stripNodeIDs は node を再帰的に歩き、各ノードの attrs から "id" キーを削除する
+// （map を直接書き換える）。inline ノード（text・pageRef 等）はそもそも attrs.id という
+// 概念を持たない（parseBlockNode が id を見るのはブロックノードの attrs だけ）ため、
+// 区別せず全ノードへ同じ処理をかけても安全。
+func stripNodeIDs(node any) {
+	switch v := node.(type) {
+	case map[string]any:
+		if attrs, ok := v["attrs"].(map[string]any); ok {
+			delete(attrs, "id")
+		}
+		stripNodeIDs(v["content"])
+	case []any:
+		for _, child := range v {
+			stripNodeIDs(child)
+		}
+	}
+}
+
 // pageRefCollector は doc を歩いて pageRef の pageId を文書順・重複なしで集める。
 // 重複の判定は set（O(1)）で行い、天井（kbPageRefMaxResolve）に達したら**収集自体を
 // 打ち切る** — 線形走査の重複判定や収集後の切り詰めだと、参照を大量に並べた本文

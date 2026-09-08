@@ -185,6 +185,24 @@ CREATE TABLE "public"."page_snapshots" (
   PRIMARY KEY ("page_id"),
   CONSTRAINT "ck_page_snapshots_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
 );
+-- Create "page_templates" table
+CREATE TABLE "public"."page_templates" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NULL,
+  "name" text NOT NULL,
+  "icon" jsonb NULL,
+  "doc" jsonb NOT NULL,
+  "created_by_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_page_templates_workspace_name" UNIQUE ("workspace_id", "name"),
+  CONSTRAINT "ck_page_templates_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
+  CONSTRAINT "ck_page_templates_icon" CHECK ((icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text))
+);
+-- Create index "idx_page_templates_workspace_id" to table: "page_templates"
+CREATE INDEX "idx_page_templates_workspace_id" ON "public"."page_templates" ("workspace_id");
 -- Create "page_versions" table
 CREATE TABLE "public"."page_versions" (
   "workspace_id" uuid NOT NULL,
@@ -418,6 +436,8 @@ ALTER TABLE "public"."page_paths" ADD CONSTRAINT "fk_page_paths_ancestor" FOREIG
 ALTER TABLE "public"."page_search" ADD CONSTRAINT "fk_page_search_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_snapshots" table
 ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "page_templates" table
+ALTER TABLE "public"."page_templates" ADD CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_versions" table
 ALTER TABLE "public"."page_versions" ADD CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "pages" table

@@ -67,6 +67,11 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
   const [addingSpace, setAddingSpace] = useState(false);
   const [addingPrivateSpace, setAddingPrivateSpace] = useState(false);
 
+  // 「雛形から作る」ピッカーの削除ボタンの表示可否に使う代理指標。
+  // KbSpaceSection の workspaceCanManage の JSDoc 参照（仕様上は「編集者以上」だが、
+  // フロントに届く権限フラグは admin=canManage しか無いため）。
+  const workspaceCanManage = workspaces.find((w) => w.slug === activeSlug)?.canManage ?? false;
+
   // ワークスペース作成は入口が 2 つ（切替ポップアップ / 所属 0 件の常設フォーム）ある。
   // 作成 → 失敗の知らせ → /kb へ戻る、を 1 つに集約して入口ごとの差を作らない。
   const handleCreateWorkspace = async (input: { name: string }) => {
@@ -226,6 +231,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
               space={space}
               state={spaceStates[space.id]}
               workspaceSlug={activeSlug}
+              workspaceCanManage={workspaceCanManage}
               activePageId={activePageId}
               expandedPageIds={expandedPageIds}
               onToggleSpace={toggleSpace}
@@ -300,6 +306,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
                   space={space}
                   state={spaceStates[space.id]}
                   workspaceSlug={activeSlug}
+                  workspaceCanManage={workspaceCanManage}
                   activePageId={activePageId}
                   expandedPageIds={expandedPageIds}
                   onToggleSpace={toggleSpace}

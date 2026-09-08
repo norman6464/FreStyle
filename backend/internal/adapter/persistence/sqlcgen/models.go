@@ -153,6 +153,18 @@ type PageSnapshot struct {
 	BuiltAt time.Time
 }
 
+type PageTemplate struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.NullUUID
+	Name            string
+	Icon            *json.RawMessage
+	Doc             json.RawMessage
+	CreatedByUserID int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type PageVersion struct {
 	WorkspaceID  uuid.UUID
 	PageID       uuid.UUID

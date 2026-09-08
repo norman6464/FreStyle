@@ -35,4 +35,5 @@ export type {
   KbPageContentSaveResult,
   KbPageVersion,
   KbPageVersionDetail,
+  KbPageTemplate,
 } from './model/types';

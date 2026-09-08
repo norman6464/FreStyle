@@ -1215,6 +1215,93 @@ table "page_links" {
   }
 }
 
+# page_templates: ページの雛形（「雛形として保存」「雛形から作る」の元になる本文）。
+# workspace 全体、または特定の space に限定して置ける。page_snapshots / page_search /
+# page_links と違い、blocks から再構築できる派生データではない — この表自身が正本。
+#
+# space_id が NULL ならワークスペース全体で見える雛形、値があればそのスペース限定。
+# 複合 FK (workspace_id, space_id) は space_id が NULL の行には効かない
+# （PostgreSQL の MATCH SIMPLE の既定動作 — 複合 FK の列のどれか 1 つでも NULL なら
+# 制約そのものが素通りする）。これは意図した挙動で、スペース側の存在確認は
+# space_id が非 NULL のときだけ効けばよいというこの表の要件とちょうど一致する。
+table "page_templates" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "space_id" {
+    null = true
+    type = uuid
+  }
+  column "name" {
+    null = false
+    type = text
+  }
+  # domain.PageIcon と同じ形（例: {"type":"emoji","value":"📘"}）。未設定は NULL。
+  column "icon" {
+    null = true
+    type = jsonb
+  }
+  # tiptap の getJSON() 相当。page_snapshots.doc と同じ形・同じ CHECK 式
+  # （ck_page_snapshots_doc）を流用する（下の ck_page_templates_doc）。
+  column "doc" {
+    null = false
+    type = jsonb
+  }
+  column "created_by_user_id" {
+    null = false
+    type = bigint
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  foreign_key "fk_page_templates_workspace" {
+    columns     = [column.workspace_id]
+    ref_columns = [table.workspaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # spaces.uq_spaces_workspace_id が参照先として要る（テナント越えの space_id 指定を防ぐ）。
+  # space_id が NULL の行はこの複合 FK の対象にならない（このテーブルの doc コメント参照）。
+  foreign_key "fk_page_templates_space" {
+    columns     = [column.workspace_id, column.space_id]
+    ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_page_templates_workspace_id" {
+    columns = [column.workspace_id]
+  }
+  # 名前はスペースの有無に関わらずワークスペース内で一意（space_id はこの制約に含めない —
+  # チームスペース向けとワークスペース全体向けで同じ名前を許すと、一覧でどちらか
+  # 区別が付かなくなるため）。
+  unique "uq_page_templates_workspace_name" {
+    columns = [column.workspace_id, column.name]
+  }
+  check "ck_page_templates_icon" {
+    expr = "(icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text)"
+  }
+  # page_snapshots.ck_page_snapshots_doc と同じ式（tiptap の doc 形式であることを入口で保証する）。
+  check "ck_page_templates_doc" {
+    expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
+  }
+}
+
 # comments: スレッドに付いた 1 件の発言（スレッドを開いた最初の発言も返信も同じ形で持つ）。
 table "comments" {
   schema = schema.public

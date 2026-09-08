@@ -959,4 +959,134 @@ describe('KbRepository', () => {
       await expect(KbRepository.restorePageVersion('acme', 'p-1', 3)).rejects.toThrow();
     });
   });
+
+  describe('listPageTemplates', () => {
+    it('spaceId を省くと params 無しで GET する', async () => {
+      mockGet.mockResolvedValue({ data: [] });
+
+      await KbRepository.listPageTemplates('acme');
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/templates', {
+        params: undefined,
+      });
+    });
+
+    it('spaceId を渡すと params に乗せる', async () => {
+      const template = { id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' };
+      mockGet.mockResolvedValue({ data: [template] });
+
+      const got = await KbRepository.listPageTemplates('acme', 's-1');
+
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/templates', {
+        params: { spaceId: 's-1' },
+      });
+      expect(got).toEqual([template]);
+    });
+
+    it('一覧が null で返っても空配列にする', async () => {
+      mockGet.mockResolvedValue({ data: null });
+
+      await expect(KbRepository.listPageTemplates('acme')).resolves.toEqual([]);
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockGet.mockRejectedValue(new Error('boom'));
+
+      await expect(KbRepository.listPageTemplates('acme')).rejects.toThrow();
+    });
+  });
+
+  describe('createPageTemplate', () => {
+    it('POST /pages/:id/templates に name と spaceId を送る', async () => {
+      const created = { id: 't-1', name: '議事録', spaceId: 's-1', createdAt: '2026-09-01T00:00:00Z' };
+      mockPost.mockResolvedValue({ data: created });
+
+      const got = await KbRepository.createPageTemplate('acme', 'p-1', {
+        name: '議事録',
+        spaceId: 's-1',
+      });
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/templates', {
+        name: '議事録',
+        spaceId: 's-1',
+      });
+      expect(got).toEqual(created);
+    });
+
+    it('spaceId に null を渡すとそのまま送る（ワークスペース全体）', async () => {
+      mockPost.mockResolvedValue({ data: { id: 't-1', name: '議事録', createdAt: '' } });
+
+      await KbRepository.createPageTemplate('acme', 'p-1', { name: '議事録', spaceId: null });
+
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/pages/p-1/templates', {
+        name: '議事録',
+        spaceId: null,
+      });
+    });
+
+    it('名前の重複（409）も含め、失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('duplicate_name'));
+
+      await expect(
+        KbRepository.createPageTemplate('acme', 'p-1', { name: '議事録' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('deletePageTemplate', () => {
+    it('DELETE /templates/:id を叩く', async () => {
+      mockDelete.mockResolvedValue({ data: undefined });
+
+      await KbRepository.deletePageTemplate('acme', 't-1');
+
+      expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/templates/t-1');
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockDelete.mockRejectedValue(new Error('forbidden'));
+
+      await expect(KbRepository.deletePageTemplate('acme', 't-1')).rejects.toThrow();
+    });
+  });
+
+  describe('createPageFromTemplate', () => {
+    it('POST /spaces/:id/pages/from-template に templateId・title を送る', async () => {
+      const page = { id: 'p-new', spaceId: 's-1', title: '議事録' };
+      mockPost.mockResolvedValue({ data: page });
+
+      const got = await KbRepository.createPageFromTemplate('acme', 's-1', {
+        templateId: 't-1',
+        title: '議事録',
+      });
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/spaces/s-1/pages/from-template',
+        { templateId: 't-1', title: '議事録' },
+      );
+      expect(got).toEqual(page);
+    });
+
+    it('parentId を渡すとそのまま送る', async () => {
+      mockPost.mockResolvedValue({ data: { id: 'p-new' } });
+
+      await KbRepository.createPageFromTemplate('acme', 's-1', {
+        templateId: 't-1',
+        parentId: 'p-parent',
+        title: '議事録',
+      });
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/v2/kb/workspaces/acme/spaces/s-1/pages/from-template',
+        { templateId: 't-1', parentId: 'p-parent', title: '議事録' },
+      );
+    });
+
+    it('失敗は握り潰さず投げる', async () => {
+      mockPost.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        KbRepository.createPageFromTemplate('acme', 's-1', { templateId: 't-1', title: 'x' }),
+      ).rejects.toThrow();
+    });
+  });
 });

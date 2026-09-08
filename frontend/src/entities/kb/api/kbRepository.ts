@@ -13,6 +13,7 @@ import type {
   KbPageContentSaveResult,
   KbPageDoc,
   KbPageGrant,
+  KbPageTemplate,
   KbPageTree,
   KbPageVersion,
   KbPageVersionDetail,
@@ -611,6 +612,50 @@ const KbRepository = {
     const res = await apiClient.post<KbPageContentSaveResult>(
       KB_API.restorePageVersion(workspaceSlug, pageId, seq),
     );
+    return res.data;
+  },
+
+  /**
+   * テンプレートの一覧。spaceId を渡すと、そのスペース専用のテンプレート + ワークスペース
+   * 全体のテンプレートの両方が返る想定（backend 未実装の段階の想定であり確定ではない）。
+   * doc は含まない軽い形。ワークスペース所属者なら誰でも読める。**失敗は例外として投げる。**
+   */
+  async listPageTemplates(workspaceSlug: string, spaceId?: string): Promise<KbPageTemplate[]> {
+    const res = await apiClient.get<KbPageTemplate[]>(KB_API.templates(workspaceSlug), {
+      params: spaceId ? { spaceId } : undefined,
+    });
+    return toArray<KbPageTemplate>(res.data);
+  },
+
+  /**
+   * 今のページの内容からテンプレートを作る。ワークスペースの編集者（editor）以上が要る。
+   * spaceId を渡すとそのスペース専用、省く（null）とワークスペース全体で使えるテンプレートになる。
+   * 名前が重複していれば 409。**失敗は例外として投げる。**
+   */
+  async createPageTemplate(
+    workspaceSlug: string,
+    pageId: string,
+    input: { name: string; spaceId?: string | null },
+  ): Promise<KbPageTemplate> {
+    const res = await apiClient.post<KbPageTemplate>(KB_API.pageTemplates(workspaceSlug, pageId), input);
+    return res.data;
+  },
+
+  /** テンプレートを削除する。ワークスペースの編集者（editor）以上が要る。**失敗は例外として投げる。** */
+  async deletePageTemplate(workspaceSlug: string, templateId: string): Promise<void> {
+    await apiClient.delete(KB_API.template(workspaceSlug, templateId));
+  },
+
+  /**
+   * テンプレートから新しいページを作る。応答は通常のページ作成と同じ形（KbPage）。
+   * 一覧・使用はワークスペース所属者なら誰でもできる。**失敗は例外として投げる。**
+   */
+  async createPageFromTemplate(
+    workspaceSlug: string,
+    spaceId: string,
+    input: { templateId: string; parentId?: string; title: string },
+  ): Promise<KbPage> {
+    const res = await apiClient.post<KbPage>(KB_API.pageFromTemplate(workspaceSlug, spaceId), input);
     return res.data;
   },
 };

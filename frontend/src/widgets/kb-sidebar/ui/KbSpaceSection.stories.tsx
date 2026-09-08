@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import type { KbPage, KbPageTreeNode, KbSpace } from '@/entities/kb';
-import { withRouter, withToast } from '../../../../.storybook/decorators';
+import { withApi, withRouter, withToast } from '../../../../.storybook/decorators';
 import KbSpaceSection from './KbSpaceSection';
 
 /**
@@ -73,6 +73,7 @@ const base = {
   ...callbacks,
   space,
   workspaceSlug: 'w-3f2a9c',
+  workspaceCanManage: true,
   expandedPageIds: new Set<string>(),
   archivedMode: false,
 };
@@ -168,5 +169,46 @@ export const 見出しを押す: Story = {
       within(canvasElement).getByRole('button', { name: /^バックエンド定例$/ }),
     );
     await expect(args.onToggleSpace).toHaveBeenCalledWith('s-1');
+  },
+};
+
+/**
+ * 「⋯」から「雛形から作る」を選ぶと、テンプレートのピッカーが開く（テンプレートの
+ * ピッカー自体は KbTemplatePickerModal 側の story で詳しく検証する）。
+ */
+export const 雛形から作るを選ぶとピッカーが開く: Story = {
+  args: { ...base, state: undefined },
+  decorators: [
+    withApi({ '/templates': [{ id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' }] }),
+  ],
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'バックエンド定例 の操作' }),
+    );
+    await userEvent.click(within(canvasElement).getByRole('button', { name: '雛形から作る' }));
+
+    // ピッカーは document.body へポータルされる。
+    await waitFor(async () => {
+      await expect(screen.getByRole('button', { name: '議事録' })).toBeVisible();
+    });
+  },
+};
+
+/** ワークスペース管理者でなければ、ピッカー内の削除ボタンは出ない。 */
+export const 管理者でなければピッカーに削除ボタンが出ない: Story = {
+  args: { ...base, state: undefined, workspaceCanManage: false },
+  decorators: [
+    withApi({ '/templates': [{ id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' }] }),
+  ],
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'バックエンド定例 の操作' }),
+    );
+    await userEvent.click(within(canvasElement).getByRole('button', { name: '雛形から作る' }));
+
+    await waitFor(async () => {
+      await expect(screen.getByRole('button', { name: '議事録' })).toBeVisible();
+    });
+    await expect(screen.queryByRole('button', { name: '議事録 を削除' })).not.toBeInTheDocument();
   },
 };

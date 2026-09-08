@@ -21,6 +21,7 @@ import (
 // URL の slug と principals から確定させたものを context から取る。
 type KnowledgeBasePageHandler struct {
 	check          *kb.CheckPagePermissionUseCase
+	checkWorkspace *kb.CheckWorkspacePermissionUseCase
 	resolve        *kb.ResolvePageLocationUseCase
 	checkSpace     *kb.CheckSpacePermissionUseCase
 	canEditSubtree *kb.CanEditPageSubtreeUseCase
@@ -48,6 +49,7 @@ type KnowledgeBasePageHandler struct {
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
 func NewKnowledgeBasePageHandler(
 	check *kb.CheckPagePermissionUseCase,
+	checkWorkspace *kb.CheckWorkspacePermissionUseCase,
 	resolve *kb.ResolvePageLocationUseCase,
 	checkSpace *kb.CheckSpacePermissionUseCase,
 	canEditSubtree *kb.CanEditPageSubtreeUseCase,
@@ -73,6 +75,7 @@ func NewKnowledgeBasePageHandler(
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
+		checkWorkspace: checkWorkspace,
 		resolve:        resolve,
 		checkSpace:     checkSpace,
 		canEditSubtree: canEditSubtree,
@@ -280,6 +283,12 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 	case errors.Is(err, domain.ErrInvalidPageVersionNote):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_version_note"})
+	case errors.Is(err, domain.ErrPageTemplateNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+	case errors.Is(err, repository.ErrDuplicateTemplateName):
+		c.JSON(http.StatusConflict, errorResponse{Error: "duplicate_template_name"})
+	case errors.Is(err, domain.ErrInvalidTemplateName):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_template_name"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
@@ -356,7 +365,16 @@ func requirePagePermissionWith(
 func (h *KnowledgeBasePageHandler) requireSpacePermission(
 	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
-	perm, err := h.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
+	return requireSpacePermissionWith(c, h.checkSpace, scope, spaceID, capability)
+}
+
+// requireSpacePermissionWith は requireSpacePermission の実体。KnowledgeBasePageHandler と
+// PageTemplateHandler の両方が「スペース直下への作成」と同じ判定（parentId 相当が無いときの
+// 入口）を使うために package レベルの関数へ切り出してある（requirePagePermissionWith と同じ理由）。
+func requireSpacePermissionWith(
+	c *gin.Context, checkSpace *kb.CheckSpacePermissionUseCase, scope kbRequestScope, spaceID string, capability domain.Capability,
+) bool {
+	perm, err := checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
 		UserID:      scope.userID,
@@ -1161,6 +1179,12 @@ type kbResolvedPageResponse struct {
 	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
 	// 届いている役割が admin かどうかだけで決まる。
 	CanManage bool `json:"canManage"`
+	// WorkspaceCanEdit はこのページではなく**ワークスペース全体**への書き込み資格
+	// （CheckWorkspacePermissionUseCase・PageTemplateHandler.requireWorkspaceCanEdit と同じ判定）。
+	// CanEdit はページ単位の実効権限（付与の合成）なので、ページ/スペース限定の編集権限しか
+	// 持たない人には true でも、ワークスペース全体への操作（雛形の作成・削除）はできない
+	// ことがある。雛形関連のボタンはこちらで出し分ける。
+	WorkspaceCanEdit bool `json:"workspaceCanEdit"`
 	// CanComment はコメントを作成・返信・解決/再開できるか（domain.PagePermission.CanComment
 	// と同じ規則。共有リンク経由では常に false）。一覧の閲覧自体は CanView だけで誰でもできる。
 	CanComment bool             `json:"canComment"`
@@ -1241,17 +1265,29 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		slog.WarnContext(c.Request.Context(), "kb: cover resolve failed", "err", coverErr)
 		coverResp = nil
 	}
+	// ワークスペース全体への CanEdit も、ancestors・cover と同じく失敗してもページは開く
+	// （雛形ボタンを一時的に隠すだけで、本文自体を見せない理由にはならない）。
+	workspaceCanEdit := false
+	if wsPerm, wsErr := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
+		WorkspaceID: loc.Workspace.ID,
+		UserID:      uid,
+	}); wsErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: workspace permission resolve failed", "err", wsErr)
+	} else {
+		workspaceCanEdit = wsPerm.CanEdit
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
-		WorkspaceSlug: loc.Workspace.Slug,
-		WorkspaceName: loc.Workspace.Name,
-		Page:          toKbPageResponse(&out.Page),
-		Doc:           json.RawMessage(doc),
-		CanEdit:       perm.CanEdit,
-		CanManage:     perm.CanManage,
-		CanComment:    perm.CanComment,
-		Ancestors:     ancestors,
-		LastEditedBy:  h.kbLastEditedByResponse(c.Request.Context(), out.Page.LastEditedByUserID),
-		LastEditedAt:  out.BuiltAt,
-		Cover:         coverResp,
+		WorkspaceSlug:    loc.Workspace.Slug,
+		WorkspaceName:    loc.Workspace.Name,
+		Page:             toKbPageResponse(&out.Page),
+		Doc:              json.RawMessage(doc),
+		CanEdit:          perm.CanEdit,
+		CanManage:        perm.CanManage,
+		CanComment:       perm.CanComment,
+		WorkspaceCanEdit: workspaceCanEdit,
+		Ancestors:        ancestors,
+		LastEditedBy:     h.kbLastEditedByResponse(c.Request.Context(), out.Page.LastEditedByUserID),
+		LastEditedAt:     out.BuiltAt,
+		Cover:            coverResp,
 	})
 }

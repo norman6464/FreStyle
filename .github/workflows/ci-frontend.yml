@@ -1,7 +1,7 @@
 name: CI - Frontend (Vite + Vitest)
 
 # 目的: PR / push のたびにフロントエンドのテストとビルド検証だけを行う。
-# 本ワークフローは S3 / CloudFront に一切触らない。デプロイは cd-frontend.yml で別途。
+# 本ワークフローはデプロイ先を一切触らない。デプロイは cd-frontend.yml で別途。
 
 # path フィルタは付けない: 必須ステータスチェック（branch protection）として使うため、
 # 対象外パスの PR でも必ず report されるよう全 PR / main push で走らせる。
@@ -82,7 +82,7 @@ jobs:
         run: pnpm exec vitest run --project=storybook
 
       - name: Build (verify only)
-        # ビルドが通るかだけ確認。S3 sync / CloudFront invalidation は CD 側で実施。
+        # ビルドが通るかだけ確認。Firebase Hosting へのデプロイは CD 側で実施。
         env:
           # ビルド時の VITE_* は本番値ではなくダミーで OK（型チェック・syntax確認が目的）
           VITE_API_BASE_URL: https://example.invalid

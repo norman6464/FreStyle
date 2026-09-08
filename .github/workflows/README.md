@@ -9,23 +9,23 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 | `ci-backend.yml` | CI | PR / push to main（`FreStyle/**`） | `./gradlew test` + Docker image ビルド検証 |
 | `ci-frontend.yml` | CI | PR / push to main（`frontend/**`） | `pnpm test` + `pnpm run build` |
 | `cd-backend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | ECR push + ECS ローリング再起動（タスク定義は infra リポの Terraform が管理。CFn 依存は撤去済み） |
-| `cd-frontend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | S3 sync + CloudFront invalidation |
+| `cd-frontend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | Firebase Hosting へデプロイ |
 
 ## 必要な GitHub Secrets（CD 動作前提）
 
 | 種別 | Secret 名 | 用途 |
 |---|---|---|
 | AWS | `AWS_ECR_API_SERVER_REPOSITORY` | ECR リポジトリ名（例: `fre-style`） |
-| AWS | `CLOUDFRONT_DISTRIBUTION_ID` | CloudFront キャッシュ無効化対象 |
-| Frontend | `VITE_API_BASE_URL` / `VITE_COGNITO_DOMAIN` / `VITE_CLIENT_ID` / `VITE_REDIRECT_URI` / `VITE_RESPONSE_TYPE` / `VITE_SCOPE` | フロントエンドビルド時に注入 |
+| Frontend | `VITE_OIDC_AUTHORIZE_URI` / `VITE_OIDC_CLIENT_ID` | フロントエンドビルド時に注入（`auth_mode: configured` のときのみ必須。認証は GCIP への作り直しが未実装で、値は未設定のままでよい） |
 
 AWS 認証はすべて GitHub OIDC で、ワークフローが実行のたびに一時認証情報を引き受ける（長寿命の
-アクセスキーは使わない）。ロールは infra リポの Terraform が管理する。
+アクセスキーは使わない）。GCP 認証は Workload Identity Federation（WIF）で同様に一時認証情報を
+引き受ける。どちらも infra リポの Terraform が管理する。
 
-| ワークフロー | 引き受けるロール | 定義 |
+| ワークフロー | 引き受ける先 | 定義 |
 |---|---|---|
-| `cd-backend.yml` | `frestyle-prod-github-actions-role` | `terraform/github-oidc.tf` |
-| `cd-frontend.yml` | `frestyle-prod-github-actions-frontend-role` | `terraform/github-oidc-frontend.tf` |
+| `cd-backend.yml` | AWS IAM ロール `frestyle-prod-github-actions-role` | `terraform/github-oidc.tf` |
+| `cd-frontend.yml` | GCP サービスアカウント `frestyle-frontend-deploy@frestyle-507912.iam.gserviceaccount.com`（WIF pool `github`） | frestyle-infrastructure の Terraform（Firebase Hosting 用 WIF pool/provider） |
 
 > **失効待ち（ワークフローは参照しないが、認証情報としてはまだ有効）**:
 > ワークフローから参照されなくなっても、認証情報そのものは失効させるまで有効なままで、
@@ -35,6 +35,7 @@ AWS 認証はすべて GitHub OIDC で、ワークフローが実行のたびに
 > |---|---|
 > | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | OIDC デプロイの成功を確認 → IAM ユーザーのアクセスキーを無効化してから削除 → GitHub Secrets からも削除 |
 > | `IAC_REPO_TOKEN` | PAT を revoke → GitHub Secrets からも削除 |
+> | `CLOUDFRONT_DISTRIBUTION_ID` | `cd-frontend.yml` の Firebase Hosting 化（本ファイル）で参照されなくなった。CloudFront ディストリビューション自体を infra リポの Terraform で削除 → GitHub Secrets からも削除。AWS IAM ロール `frestyle-prod-github-actions-frontend-role`（GitHub Secret ではないが同様に未参照）も infra リポ側で削除を検討 |
 >
 > 失効まで終えたら、この表から下の「廃止済み」へ移す。
 >
@@ -53,7 +54,7 @@ gh secret list -R norman6464/FreStyle
 
 ### 1. CI と CD を分離
 - 旧: `back-deploy.yml` / `front-deploy.yml` が `push to main` で test → build → deploy を一気に実行
-- 新: CI（テスト・検証）と CD（デプロイ）を別ファイルに分離。**CD は AWS リソースを触る**ため、明示的なトリガーでのみ動かす
+- 新: CI（テスト・検証）と CD（デプロイ）を別ファイルに分離。**CD は AWS / GCP リソースを触る**ため、明示的なトリガーでのみ動かす
 
 ### 2. 通常 push では CD は動かない
 - main にマージしただけではデプロイされない
@@ -102,12 +103,12 @@ gh run list --workflow=cd-backend.yml --limit 5
 
 ## CI と CD のスコープまとめ
 
-| ワークフロー | テスト | Docker ビルド | ECR push | ECS deploy | S3 sync | CF invalidation |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| ci-backend | ✅ | ✅ (verify) | ❌ | ❌ | – | – |
-| ci-frontend | ✅ | – | – | – | ❌ | ❌ |
-| cd-backend | – | ✅ | ✅ | ✅ | – | – |
-| cd-frontend | – | – | – | – | ✅ | ✅ |
+| ワークフロー | テスト | Docker ビルド | ECR push | ECS deploy | Firebase Hosting deploy |
+|---|:-:|:-:|:-:|:-:|:-:|
+| ci-backend | ✅ | ✅ (verify) | ❌ | ❌ | – |
+| ci-frontend | ✅ | – | – | – | ❌ |
+| cd-backend | – | ✅ | ✅ | ✅ | – |
+| cd-frontend | – | – | – | – | ✅ |
 
 ## トラブル: CD が古い image を取って来てしまう
 

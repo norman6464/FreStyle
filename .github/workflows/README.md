@@ -6,43 +6,49 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 
 | ファイル | 種別 | トリガー | やること |
 |---|---|---|---|
-| `ci-backend.yml` | CI | PR / push to main（`FreStyle/**`） | `./gradlew test` + Docker image ビルド検証 |
+| `ci-backend-go.yml` | CI | PR / push to main（`backend/**`） | `go build` / `go vet` / `go test` + 結合テスト（実 PostgreSQL） |
 | `ci-frontend.yml` | CI | PR / push to main（`frontend/**`） | `pnpm test` + `pnpm run build` |
-| `cd-backend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | ECR push + ECS ローリング再起動（タスク定義は infra リポの Terraform が管理。CFn 依存は撤去済み） |
+| `cd-backend.yml` | CD | **workflow_dispatch のみ** | Artifact Registry へ push + Cloud Run の新リビジョン作成（Cloud Run サービス自体は infra リポの Terraform が管理。ECS / CFn 依存は撤去済み） |
 | `cd-frontend.yml` | CD | **workflow_dispatch のみ** + tag `release/v*` | Firebase Hosting へデプロイ |
+
+`cd-backend.yml` が tag push を持たないのは、本番デプロイ用の WIF binding（インフラ側
+Terraform）が `refs/heads/main` 上の実行にしか許可されていないため（`release/v*` タグは
+含まれない）。タグ経路を持たせるにはインフラ側の対応が先に要る。
 
 ## 必要な GitHub Secrets（CD 動作前提）
 
 | 種別 | Secret 名 | 用途 |
 |---|---|---|
-| AWS | `AWS_ECR_API_SERVER_REPOSITORY` | ECR リポジトリ名（例: `fre-style`） |
 | Frontend | `VITE_OIDC_AUTHORIZE_URI` / `VITE_OIDC_CLIENT_ID` | フロントエンドビルド時に注入（`auth_mode: configured` のときのみ必須。認証は GCIP への作り直しが未実装で、値は未設定のままでよい） |
 
-AWS 認証はすべて GitHub OIDC で、ワークフローが実行のたびに一時認証情報を引き受ける（長寿命の
-アクセスキーは使わない）。GCP 認証は Workload Identity Federation（WIF）で同様に一時認証情報を
-引き受ける。どちらも infra リポの Terraform が管理する。
+`cd-backend.yml` は Secret を持たない。Artifact Registry のリポジトリ名・Cloud Run サービス名は
+値そのものが秘密ではないため、ワークフロー内に直接書いている（`env:` 参照）。
+
+GCP 認証はどちらのワークフローも Workload Identity Federation（WIF）で、実行のたびに一時認証情報を
+引き受ける（長寿命のサービスアカウントキーは発行しない）。WIF pool/provider・サービスアカウントは
+infra リポの Terraform が管理する。
 
 | ワークフロー | 引き受ける先 | 定義 |
 |---|---|---|
-| `cd-backend.yml` | AWS IAM ロール `frestyle-prod-github-actions-role` | `terraform/github-oidc.tf` |
+| `cd-backend.yml` | GCP サービスアカウント `frestyle-prod-github-deploy@frestyle-prod.iam.gserviceaccount.com`（WIF pool `github`） | frestyle-infrastructure の Terraform（Cloud Run 用 WIF pool/provider） |
 | `cd-frontend.yml` | GCP サービスアカウント `frestyle-frontend-deploy@frestyle-507912.iam.gserviceaccount.com`（WIF pool `github`） | frestyle-infrastructure の Terraform（Firebase Hosting 用 WIF pool/provider） |
 
 > **失効待ち（ワークフローは参照しないが、認証情報としてはまだ有効）**:
 > ワークフローから参照されなくなっても、認証情報そのものは失効させるまで有効なままで、
-> 漏えいすれば悪用できる。次の 2 つは発行元で失効させるまで「廃止済み」とは扱わない。
+> 漏えいすれば悪用できる。次は発行元で失効させるまで「廃止済み」とは扱わない。
 >
-> | Secret | 失効手順 |
+> | Secret / 認証情報 | 失効手順 |
 > |---|---|
-> | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | OIDC デプロイの成功を確認 → IAM ユーザーのアクセスキーを無効化してから削除 → GitHub Secrets からも削除 |
+> | AWS IAM ロール `frestyle-prod-github-actions-role` | `cd-backend.yml` の Cloud Run 化（本ファイル）で参照されなくなった。IAM ロール自体を AWS 側で削除するか、infra リポの Terraform で削除を検討 |
 > | `IAC_REPO_TOKEN` | PAT を revoke → GitHub Secrets からも削除 |
-> | `CLOUDFRONT_DISTRIBUTION_ID` | `cd-frontend.yml` の Firebase Hosting 化（本ファイル）で参照されなくなった。CloudFront ディストリビューション自体を infra リポの Terraform で削除 → GitHub Secrets からも削除。AWS IAM ロール `frestyle-prod-github-actions-frontend-role`（GitHub Secret ではないが同様に未参照）も infra リポ側で削除を検討 |
+> | `CLOUDFRONT_DISTRIBUTION_ID` | `cd-frontend.yml` の Firebase Hosting 化で参照されなくなった。CloudFront ディストリビューション自体を infra リポの Terraform で削除 → GitHub Secrets からも削除。AWS IAM ロール `frestyle-prod-github-actions-frontend-role`（GitHub Secret ではないが同様に未参照）も infra リポ側で削除を検討 |
 >
 > 失効まで終えたら、この表から下の「廃止済み」へ移す。
 >
 > **廃止済み Secrets**（認証情報ではない / 参照されない）:
-> `IAC_REPO`、`COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。タスク定義の
-> env / secrets は infra リポの Terraform `ecs.tf` が持つ）。いずれも cd-backend の
-> Terraform 前提化で不要になった。GitHub Secrets 側に残っていても参照されない。
+> `AWS_ECR_API_SERVER_REPOSITORY`（ECR リポジトリ名。`cd-backend.yml` の Cloud Run 化で不要になった）、
+> `IAC_REPO`、`COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。Cloud Run の
+> env / secrets は infra リポの Terraform が持つ）。GitHub Secrets 側に残っていても参照されない。
 
 ### Secrets 一覧確認
 
@@ -54,12 +60,12 @@ gh secret list -R norman6464/FreStyle
 
 ### 1. CI と CD を分離
 - 旧: `back-deploy.yml` / `front-deploy.yml` が `push to main` で test → build → deploy を一気に実行
-- 新: CI（テスト・検証）と CD（デプロイ）を別ファイルに分離。**CD は AWS / GCP リソースを触る**ため、明示的なトリガーでのみ動かす
+- 新: CI（テスト・検証）と CD（デプロイ）を別ファイルに分離。**CD は GCP リソースを触る**（旧 cd-backend は AWS リソースを触っていたが Cloud Run 化で GCP に統一）ため、明示的なトリガーでのみ動かす
 
 ### 2. 通常 push では CD は動かない
 - main にマージしただけではデプロイされない
 - ドキュメント更新やリファクタなど「動作に影響しない変更」で誤って本番デプロイされることがない
-- デプロイしたいときは **手動で workflow_dispatch を起動** するか **`release/v*` タグを push**
+- デプロイしたいときは **手動で workflow_dispatch を起動**（frontend は **`release/v*` タグを push** でも可。backend は WIF binding が `refs/heads/main` にしか許可されていないためタグ経路を持たない）
 
 ### 3. 手動実行時の二重確認
 - `workflow_dispatch` の入力欄に `deploy` と入力しないと先に進まない
@@ -69,12 +75,13 @@ gh secret list -R norman6464/FreStyle
 
 ### A. 手動デプロイ（普段はこちら）
 
-1. GitHub UI: Actions → 対象ワークフロー（`CD - Backend Deploy to ECS` 等）を開く
+1. GitHub UI: Actions → 対象ワークフロー（`CD - Backend Deploy to Cloud Run` 等）を開く
 2. 「Run workflow」ボタン → ブランチ選択（通常 `main`）
 3. `confirm` 欄に **`deploy`** と入力 → Run
-4. 完了を待つ
+4. backend の `deploy` job は production Environment の required reviewers 承認待ちで止まる。GitHub UI で承認する
+5. 完了を待つ
 
-### B. リリースタグ付与でのデプロイ
+### B. リリースタグ付与でのデプロイ（frontend のみ）
 
 ```bash
 # main を最新に
@@ -86,7 +93,8 @@ git tag release/v1.2.3
 git push origin release/v1.2.3
 ```
 
-タグ push をフックに `cd-backend.yml` / `cd-frontend.yml` が自動実行される。
+タグ push をフックに `cd-frontend.yml` が自動実行される。backend（`cd-backend.yml`）はこの経路を
+持たない（WIF binding の制約。上の「必要な GitHub Secrets」参照）。
 
 ### C. CLI でのデプロイ（`gh` 使用）
 
@@ -103,13 +111,24 @@ gh run list --workflow=cd-backend.yml --limit 5
 
 ## CI と CD のスコープまとめ
 
-| ワークフロー | テスト | Docker ビルド | ECR push | ECS deploy | Firebase Hosting deploy |
-|---|:-:|:-:|:-:|:-:|:-:|
-| ci-backend | ✅ | ✅ (verify) | ❌ | ❌ | – |
-| ci-frontend | ✅ | – | – | – | ❌ |
-| cd-backend | – | ✅ | ✅ | ✅ | – |
-| cd-frontend | – | – | – | – | ✅ |
+| ワークフロー | テスト | Docker image push | Cloud Run deploy | Firebase Hosting deploy |
+|---|:-:|:-:|:-:|:-:|
+| ci-backend-go | ✅ (go vet/test/build + 結合テスト) | – | – | – |
+| ci-frontend | ✅ | – | – | – |
+| cd-backend | – | ✅ (Artifact Registry) | ✅ | – |
+| cd-frontend | – | – | – | ✅ |
 
-## トラブル: CD が古い image を取って来てしまう
+## トラブル: ロールバックしたい
 
-ECS service は task-definition で参照されている image tag を動的に解決するので、`:latest` を使い回しているとロールバックが面倒。`cd-backend.yml` は **`:${{ github.sha }}` 付きでも push** しているので、infra リポの Terraform `ecs.tf` のタスク定義を SHA 指定に書き換えれば immutable deploy が可能（現在は `:latest` 参照 + force-new-deployment 方式）。
+Artifact Registry の cleanup policy は、タグ無しイメージを 7 日、タグ付きイメージを 30 日で削除し
+（直近 3 版は残す）、`cd-backend.yml` は毎回 `:latest` と `:<commit sha>` の 2 タグを push している。
+3 版以内であれば、対象の SHA タグを指定して手動でロールバックできる。
+
+```bash
+gcloud run services update frestyle-prod-backend \
+  --project frestyle-prod --region asia-northeast1 \
+  --image asia-northeast1-docker.pkg.dev/frestyle-prod/frestyle-prod-backend/fre-style:<過去のcommit sha>
+```
+
+Cloud Run は指定した image 参照をそのままデプロイするため、ECS の task-definition が
+`:latest` を動的解決していた頃のような「意図しない古い image を掴む」問題は無い。

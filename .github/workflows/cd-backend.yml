@@ -1,27 +1,31 @@
-name: CD - Backend Deploy to ECS
+name: CD - Backend Deploy to Cloud Run
 
-# 目的: バックエンドを ECS にデプロイする。CI と分離し、明示的トリガーのみで動く。
+# 目的: バックエンドを Cloud Run にデプロイする。CI と分離し、明示的トリガーのみで動く。
 # トリガー:
-#   - workflow_dispatch（手動）  : メインの起動経路
-#   - tag push (release/v*)     : リリースタグ付与でデプロイ
+#   - workflow_dispatch（手動） : 唯一の起動経路
 #
-# main への通常 push では動かない。ドキュメント変更などで誤ってデプロイされない。
+# release/v* タグ push は持たない。本番デプロイ用の WIF binding（インフラ側 Terraform）は
+# `norman6464/FreStyle` の refs/heads/main 上の実行（push / workflow_dispatch /
+# environment: production の job）にだけ許可されており、タグからの実行は含まれない。
+# タグ経路を復活させたい場合は、インフラ側で binding を先に追加すること
+# （本ワークフロー側の変更だけでは通らない）。
+#
+# main への通常 push でも動かない。ドキュメント変更などで誤ってデプロイされない。
 #
 # 仕組み:
-#   1) Docker image を ECR に push (:latest と :${sha} の両方)
-#   2) force-new-deployment でローリング再起動（新タスクが :latest を pull）
+#   1) Docker image を Artifact Registry に push（:latest と :${sha} の両方）
+#   2) Cloud Run の新リビジョンを作成し、Ready になるまで待つ（gcloud run services update は
+#      デフォルトで同期的に待つ。ECS の force-new-deployment + wait services-stable のような
+#      2 段階の手順は要らない）
 #
-# タスク定義・ECS サービス・ALB は infra リポの Terraform（ecs.tf）が管理する（2026-06 移行済・
-# 旧 CloudFormation スタックは全撤去）。本 CD はイメージ push と再起動だけを担い、
-# インフラ定義には触れない。
+# Cloud Run サービス・Artifact Registry・WIF は infra リポの Terraform が管理する。
+# 本 CD はイメージの build/push と Cloud Run への反映だけを担い、インフラ定義には触れない。
+# env / secret は Cloud Run 側の Terraform が持ち、ignore_changes でイメージを追跡しない
+# （CD はイメージだけを差し替える）。
 #
-# 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
-#       Step 3 で導入。長寿命の AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY は廃止。
+# 認証: GitHub OIDC + Workload Identity Federation（google-github-actions/auth@v2）。
+#       長寿命のサービスアカウントキーは発行しない。
 #
-# 必要な GitHub Secrets（事前セットアップが必要）:
-#   - AWS_ECR_API_SERVER_REPOSITORY : 例 fre-style
-#     ※ 旧 CFn デプロイ時代の COGNITO_* / IAC_REPO / IAC_REPO_TOKEN は不要になった
-#       （タスク定義の env / secrets は infra リポの Terraform ecs.tf が持つ）
 # 詳細は .github/workflows/README.md 参照
 
 on:
@@ -31,51 +35,33 @@ on:
         description: '本番デプロイ確認用に "deploy" と入力してください'
         required: true
         type: string
-  push:
-    tags:
-      - 'release/v*'
 
 env:
-  AWS_REGION: ap-northeast-1
-  CLUSTER: frestyle-prod
-  SERVICE: frestyle-prod-svc
-  # ファミリー名のみ指定して最新 ACTIVE リビジョンを採用する(下の deploy ステップ参照)
-  TASK_FAMILY: frestyle-prod-task
-  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
+  # インフラ側 Terraform（backend_image_repo / github_workload_identity_provider /
+  # github_deploy_service_account の各 output）の実値。
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/654858357747/locations/global/workloadIdentityPools/github/providers/github-actions
+  GCP_SERVICE_ACCOUNT: frestyle-prod-github-deploy@frestyle-prod.iam.gserviceaccount.com
+  GCP_PROJECT_ID: frestyle-prod
+  GCP_REGION: asia-northeast1
+  # Cloud Run サービスのコンテナは fre-style の 1 本のみ（code-runner サイドカーは
+  # FRESTYLE-449 で削除済み）。
+  IMAGE_REPO: asia-northeast1-docker.pkg.dev/frestyle-prod/frestyle-prod-backend/fre-style
+  CLOUD_RUN_SERVICE: frestyle-prod-backend
 
-# OIDC(id-token: write) は AWS 認証を行うジョブ(build-and-push / deploy)だけに
-# ジョブレベルで付与する(最小権限。guard には不要)。
 permissions:
   contents: read
 
-# 同時実行を直列化する。mutable タグ(:latest)への push と
-# deploy(force-new-deployment) が並行 run で競合し、意図しないイメージが反映されるのを防ぐ。
-# 進行中の deploy は中断しない(cancel-in-progress: false)。後続 run は待機して順に実行する。
+# 同時実行を直列化する。Cloud Run の新リビジョン作成はアトミックだが、
+# 並行 deploy で意図しないイメージが反映される事故を防ぐ。
+# 進行中の deploy は中断しない（cancel-in-progress: false）。後続 run は待機して順に実行する。
 concurrency:
   group: cd-backend-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # 本番の ECS は撤去済み。手動実行でもタグ push でも、ここで必ず止まる。
-  # guard は workflow_dispatch でしか走らないので、タグ push の経路を塞ぐには
-  # 条件を持たない別の job が要る。
-  target:
-    name: 出し先があるか確かめる
-    runs-on: ubuntu-latest
-    steps:
-      - name: ECS の実行環境が現存するか
-        run: |
-          # 復活させたら、リポジトリ変数 BACKEND_DEPLOY_TARGET にクラスタ名を入れて
-          # ここを通す（env の CLUSTER と一致させること）。
-          if [ -z "${{ vars.BACKEND_DEPLOY_TARGET }}" ]; then
-            echo "::error::本番のバックエンド実行環境（ECS）は撤去済みです。出し先が無いまま進むと、存在しないサービスへ向けて image を push することになります。復活させたら BACKEND_DEPLOY_TARGET を設定してください。"
-            exit 1
-          fi
-
   guard:
-    name: Confirm input (workflow_dispatch only)
+    name: Confirm input
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Verify confirmation input
         run: |
@@ -88,8 +74,10 @@ jobs:
     name: Build & Push Image
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [target, guard]
-    if: always() && needs.target.result == 'success' && (github.event_name == 'push' || needs.guard.result == 'success')
+    needs: [guard]
+    # 第三者のコード（Go の依存モジュール）を取り込んでビルドするため、この job には
+    # GCP を触れる権限を最小限にする。id-token: write は Artifact Registry への push
+    # そのものに必要（WIF でサービスアカウントを引き受ける）。
     permissions:
       id-token: write
       contents: read
@@ -100,46 +88,39 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: frestyle-cd-backend-build
-          aws-region: ${{ env.AWS_REGION }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
 
       - name: Set image metadata
         id: meta
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
         run: |
-          echo "image_tag=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${{ env.IMAGE_REPO }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build production image (Go backend)
+      # Cloud Run は arm64 イメージを受け付けない。--platform を忘れないこと
+      # （GitHub-hosted runner は amd64 だが、buildx の既定 builder が multi-arch 設定だと
+      # 暗黙に変わることがあるため明示する）。
+      - name: Build and push production image (Go backend)
         working-directory: backend
         run: |
           docker buildx build --platform linux/amd64 \
-            -t temp_api_image_name:latest --load .
-
-      - name: Tag and push to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
-        run: |
-          docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+            -t ${{ env.IMAGE_REPO }}:latest \
+            -t ${{ steps.meta.outputs.image_tag }} \
+            --push .
 
   deploy:
-    name: ECS Rolling Deploy
+    name: Cloud Run Deploy
     runs-on: ubuntu-latest
     needs: [build-and-push]
     timeout-minutes: 20
@@ -151,42 +132,36 @@ jobs:
     environment: production
 
     steps:
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: frestyle-cd-backend-deploy
-          aws-region: ${{ env.AWS_REGION }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
-      # タスク定義は infra リポの Terraform(ecs.tf)が :latest を参照して管理する。
-      # build-and-push が新イメージを push 済みなので、ローリング再起動で新イメージが
-      # pull される(タスク定義の再登録は不要)。
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # gcloud run services update はデフォルトで同期的に待つ（新リビジョンが Ready になり
+      # トラフィックを受け始めるまでコマンドが返らない。失敗すれば非 0 で終わる）。
+      # ECS の force-new-deployment + 別ステップでの wait のような 2 段階の手順は要らない。
       #
-      # --task-definition にファミリー名だけを渡し、**最新の ACTIVE リビジョン**を必ず採用する。
-      # ECS サービスは Terraform 側で lifecycle.ignore_changes = [task_definition] のため、
-      # ecs.tf の環境変数を変えて apply しても新リビジョンが作られるだけでサービスは古い
-      # リビジョンのまま動き続ける。force-new-deployment だけだとその古い設定を再起動して
-      # しまい、環境変数の変更が永久に本番へ反映されない(過去にログイン不能の原因になった)。
-      - name: Deploy latest task definition (rolling restart)
+      # env / secret は infra リポの Terraform（Cloud Run 側）が持ち、ignore_changes で
+      # イメージだけを追跡しない設定にしてある。ここではイメージの差し替えだけを行う。
+      - name: Deploy new revision to Cloud Run
         run: |
-          aws ecs update-service --region "$AWS_REGION" \
-            --cluster "$CLUSTER" --service "$SERVICE" \
-            --task-definition "$TASK_FAMILY" \
-            --force-new-deployment \
-            --query 'service.taskDefinition' --output text
+          gcloud run services update "${{ env.CLOUD_RUN_SERVICE }}" \
+            --platform managed \
+            --project "${{ env.GCP_PROJECT_ID }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --image "${{ needs.build-and-push.outputs.image_tag }}" \
+            --quiet
 
-      - name: Wait for service to stabilize
-        run: |
-          aws ecs wait services-stable --region "$AWS_REGION" \
-            --cluster "$CLUSTER" --services "$SERVICE"
-
-      # frestyle.jp/api/* は CloudFront(SPA fallback)が一律 200 を返して誤判定するため、
-      # ALB に直結する api.frestyle.jp を叩く。パスは Go/Gin の /api/v2/health
-      # (旧 Spring の /actuator/health は撤去済)。
-      - name: Verify health
+      # gcloud 側の Ready 待ちはコンテナの起動確認でしかない。アプリ + DB 疎通まで含めた
+      # 本当の健全性は、実際に /api/v2/health を叩いて確かめる。
+      - name: Verify health (Cloud Run direct URL)
         run: |
           for i in 1 2 3 4 5; do
-            if curl -fsS "https://api.frestyle.jp/api/v2/health"; then
+            if curl -fsS "https://frestyle-prod-backend-kb5pw7fpka-an.a.run.app/api/v2/health"; then
               echo "✅ Healthy"
               exit 0
             fi
@@ -195,3 +170,14 @@ jobs:
           done
           echo "❌ Health check failed after 5 attempts"
           exit 1
+
+      # カスタムドメイン api.frestyle.dev は Google 管理証明書の発行タイミング次第で
+      # 未発行のことがあるため、ここは失敗させない（自動検証は上の直結 URL を正とする）。
+      - name: Verify health (custom domain, best-effort)
+        continue-on-error: true
+        run: |
+          if curl -fsS "https://api.frestyle.dev/api/v2/health"; then
+            echo "✅ api.frestyle.dev も到達可能"
+          else
+            echo "::warning::api.frestyle.dev への到達確認に失敗しました（Google 管理証明書が未発行の可能性）。frestyle-prod-backend-kb5pw7fpka-an.a.run.app の確認結果を正とします。"
+          fi

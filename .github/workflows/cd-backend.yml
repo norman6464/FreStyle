@@ -48,7 +48,7 @@ env:
 permissions:
   contents: read
 
-# 同時実行を直列化する。mutable タグ(:latest / :coderunner-latest)への push と
+# 同時実行を直列化する。mutable タグ(:latest)への push と
 # deploy(force-new-deployment) が並行 run で競合し、意図しないイメージが反映されるのを防ぐ。
 # 進行中の deploy は中断しない(cancel-in-progress: false)。後続 run は待機して順に実行する。
 concurrency:
@@ -138,32 +138,6 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 
-      # コード実行サイドカー(code-runner)のイメージを同じ ECR リポに coderunner-* タグで push する。
-      # ECS タスク定義(infra Terraform ecs.tf)が :coderunner-latest を参照する。
-      # 同一 run の後続 deploy より前に push されるため、サイドカー参照が解決できる(docs/36 §6)。
-      - name: Build & push code-runner image
-        working-directory: backend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
-        run: |
-          # Docker Hub の pull(node:24-bookworm 等)は runner 上で transient に timeout する
-          # ことがあるためリトライする(ci-backend-go.yml の integration と同じ方針)。
-          # backend :latest push 済みの後にここが失敗すると :coderunner-latest だけ旧のまま
-          # 残り「新 backend + 旧 coderunner」が生まれるため、諦める前に 3 回試す。
-          # buildx は docker-container driver でキャッシュが daemon と分離されているので、
-          # 先行 docker pull ではなく buildx build 自体をリトライで包む必要がある。
-          for i in 1 2 3; do
-            docker buildx build --platform linux/amd64 \
-              -f Dockerfile.coderunner \
-              -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-latest" \
-              -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-${{ github.sha }}" \
-              --push . && exit 0
-            echo "coderunner build failed (attempt $i/3), retrying in 10s..."
-            sleep 10
-          done
-          exit 1
-
   deploy:
     name: ECS Rolling Deploy
     runs-on: ubuntu-latest
@@ -184,8 +158,8 @@ jobs:
           role-session-name: frestyle-cd-backend-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      # タスク定義は infra リポの Terraform(ecs.tf)が :latest / :coderunner-latest を参照して
-      # 管理する。build-and-push が新イメージを push 済みなので、ローリング再起動で新イメージが
+      # タスク定義は infra リポの Terraform(ecs.tf)が :latest を参照して管理する。
+      # build-and-push が新イメージを push 済みなので、ローリング再起動で新イメージが
       # pull される(タスク定義の再登録は不要)。
       #
       # --task-definition にファミリー名だけを渡し、**最新の ACTIVE リビジョン**を必ず採用する。

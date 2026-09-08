@@ -62,3 +62,21 @@ const stubAdapter: typeof axios.defaults.adapter = (config) =>
   });
 
 axios.defaults.adapter = stubAdapter;
+
+// @tiptap/extension-bubble-menu（v3.30.5）の BubbleMenuView.destroy() は
+// updateDebounceTimer/resizeDebounceTimer を clearTimeout しない。エディタを
+// アンマウントしても保留中のタイマーは生き残り、後続のテストファイルへ環境が
+// 切り替わった後に発火して「document is not defined」を投げる
+// （テスト自体は全部 pass するのに Vitest が exit 1 になる flaky の原因。
+// getClientRects と同じ種類の tiptap/jsdom 由来の既知の unhandled error）。
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    if (
+      event.error instanceof ReferenceError &&
+      /document is not defined/.test(event.error.message) &&
+      /extension-bubble-menu/.test(String(event.error.stack))
+    ) {
+      event.preventDefault();
+    }
+  });
+}

@@ -548,7 +548,7 @@ SELECT id FROM session_notes WHERE session_id = $1 AND user_id = $2;`,
 // 代わりの書き方:
 //
 //	id の集まりは json 配列 1 個のパラメータで渡し、json_array_elements_text で展開する。
-//	実例は master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs。
+//	実例は comment.sql の ListCommentsByThreadIDs。
 func Test_クエリがsqlcSliceを使っていないこと(t *testing.T) {
 	var found []string
 	for path, src := range readSQLFiles(t, queriesDir) {
@@ -561,7 +561,7 @@ func Test_クエリがsqlcSliceを使っていないこと(t *testing.T) {
 		"sqlc.slice はこの設定（postgresql + database/sql）では展開されず、"+
 			"プレースホルダ 1 個に対して要素数ぶんの値を渡す生成になります。"+
 			"json 配列 1 個のパラメータで渡し json_array_elements_text で展開してください"+
-			"（実例: master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs）:\n%s",
+			"（実例: comment.sql の ListCommentsByThreadIDs）:\n%s",
 		strings.Join(found, "\n"))
 }
 

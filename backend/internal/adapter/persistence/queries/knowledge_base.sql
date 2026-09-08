@@ -388,8 +388,7 @@ WHERE workspace_id = $1 AND page_id = $2;
 -- （= ANY(sqlc.arg(ids)::uuid[]) にすると database/sql モードの sqlc がパラメータを
 -- pq.Array() で包む生成になり、このリポジトリが依存していない github.com/lib/pq を
 -- import してビルドが壊れる。禁止は sqlc.yaml の no-array-param vet ルール、
--- 同じ理由での実例は master_exercise_example.sql の
--- ListMasterExerciseExamplesByExerciseIDs を参照）。
+-- 同じ理由での実例は comment.sql の ListCommentsByThreadIDs を参照）。
 SELECT id FROM blocks
 WHERE id IN (
   SELECT value::uuid FROM json_array_elements_text(sqlc.arg(ids)::json) AS t(value)

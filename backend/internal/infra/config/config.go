@@ -26,11 +26,6 @@ type Config struct {
 	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
-	// CodeRunnerURL はコード実行サイドカー（cmd/coderunner）の baseURL。
-	// セットされていると backend 本体は os/exec せず HTTP 越しに runner へ委譲する
-	// （例: http://127.0.0.1:9000）。未設定なら in-process サンドボックスで実行する。
-	CodeRunnerURL string
-
 	OIDC OIDCConfig
 	S3   S3Config
 	SES  SESConfig
@@ -101,17 +96,16 @@ func (c OIDCConfig) Configured() bool {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		AppEnv:        getEnvOrDefault("APP_ENV", "local"),
-		ServerPort:    getEnvOrDefault("PORT", "8080"),
-		DatabaseURL:   os.Getenv("DATABASE_URL"),
-		DBHost:        os.Getenv("DB_HOST"),
-		DBPort:        getEnvOrDefault("DB_PORT", "5432"),
-		DBUser:        getEnvOrDefault("DB_USER", "postgres"),
-		DBPassword:    os.Getenv("DB_PASSWORD"),
-		DBName:        getEnvOrDefault("DB_NAME", "fre_style"),
-		DBSSLMode:     getEnvOrDefault("DB_SSLMODE", "require"),
-		AppBaseURL:    getEnvOrDefault("APP_BASE_URL", ""),
-		CodeRunnerURL: os.Getenv("CODE_RUNNER_URL"),
+		AppEnv:      getEnvOrDefault("APP_ENV", "local"),
+		ServerPort:  getEnvOrDefault("PORT", "8080"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DBHost:      os.Getenv("DB_HOST"),
+		DBPort:      getEnvOrDefault("DB_PORT", "5432"),
+		DBUser:      getEnvOrDefault("DB_USER", "postgres"),
+		DBPassword:  os.Getenv("DB_PASSWORD"),
+		DBName:      getEnvOrDefault("DB_NAME", "fre_style"),
+		DBSSLMode:   getEnvOrDefault("DB_SSLMODE", "require"),
+		AppBaseURL:  getEnvOrDefault("APP_BASE_URL", ""),
 		OIDC: OIDCConfig{
 			Issuer:        os.Getenv("OIDC_ISSUER"),
 			AuthorizeURI:  os.Getenv("OIDC_AUTHORIZE_URI"),

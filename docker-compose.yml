@@ -53,7 +53,6 @@ services:
       DATABASE_URL: postgres://${LOCAL_DB_USER:-frestyle}:${LOCAL_DB_PASSWORD:-frestyle}@db:5432/${LOCAL_DB_NAME:-frestyle}?sslmode=disable
       MAIL_SMTP_HOST: mail
       MAIL_SMTP_PORT: '1025'
-      CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
       APP_ENV: ${APP_ENV:-local}
       # ===== 認証(OpenID Connect) =====
       # 発行者はローカルの Dex(上の idp サービス)。config.Load() は 5 つとも揃わないと
@@ -80,17 +79,6 @@ services:
         condition: service_started
     # distroless にはシェルも curl も無いためコンテナ内の healthcheck は書けない。
     # 起動確認は `curl http://localhost:8080/api/v2/health` で行う。
-
-  code-runner:
-    profiles: ['full']
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.coderunner
-    container_name: frestyle-local-code-runner
-    restart: unless-stopped
-    # backend からのみ使う。学習者コードを実行するのでホストには publish しない。
-    expose:
-      - '9000'
 
 volumes:
   db_data:

@@ -111,4 +111,4 @@ gh run list --workflow=cd-backend.yml --limit 5
 
 ## トラブル: CD が古い image を取って来てしまう
 
-ECS service は task-definition で参照されている image tag を動的に解決するので、`:latest` を使い回しているとロールバックが面倒。`cd-backend.yml` は **`:${{ github.sha }}` 付きでも push** しているので、infra リポの Terraform `ecs.tf` のタスク定義を SHA 指定に書き換えれば immutable deploy が可能（現在は `:latest` / `:coderunner-latest` 参照 + force-new-deployment 方式）。
+ECS service は task-definition で参照されている image tag を動的に解決するので、`:latest` を使い回しているとロールバックが面倒。`cd-backend.yml` は **`:${{ github.sha }}` 付きでも push** しているので、infra リポの Terraform `ecs.tf` のタスク定義を SHA 指定に書き換えれば immutable deploy が可能（現在は `:latest` 参照 + force-new-deployment 方式）。

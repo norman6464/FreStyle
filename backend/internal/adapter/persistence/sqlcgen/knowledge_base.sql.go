@@ -865,8 +865,7 @@ WHERE id IN (
 // （= ANY(sqlc.arg(ids)::uuid[]) にすると database/sql モードの sqlc がパラメータを
 // pq.Array() で包む生成になり、このリポジトリが依存していない github.com/lib/pq を
 // import してビルドが壊れる。禁止は sqlc.yaml の no-array-param vet ルール、
-// 同じ理由での実例は master_exercise_example.sql の
-// ListMasterExerciseExamplesByExerciseIDs を参照）。
+// 同じ理由での実例は comment.sql の ListCommentsByThreadIDs を参照）。
 func (q *Queries) ListExistingBlockIDsAmong(ctx context.Context, ids json.RawMessage) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, listExistingBlockIDsAmong, ids)
 	if err != nil {

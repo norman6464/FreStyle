@@ -17,8 +17,7 @@ func Test_許可オリジン判定(t *testing.T) {
 		{"https://frestyle-dev.web.app", true},
 		{"https://frestyle-dev.firebaseapp.com", true},
 		{"http://localhost:5173", true},
-		// 旧ドメインはすべて撤去済み（DNS 削除 / AWS 撤去）のため許可しない。
-		{"https://frestyle.jp", false},
+		// AWS 時代の配信元は撤去済みで実在しない。許可リストに入っていないことを固定する。
 		{"https://dcd3m6lwt0z8u.cloudfront.net", false},
 		{"http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com", false},
 		{"https://normanblog.com", false},
@@ -50,7 +49,7 @@ func Test_CORSミドルウェア_許可オリジンにはヘッダを付け未�
 		{"Firebase Hosting既定URL", "https://frestyle-dev.web.app", true},
 		{"Firebase既定authDomain", "https://frestyle-dev.firebaseapp.com", true},
 		{"ローカル開発", "http://localhost:5173", true},
-		{"撤去済みの旧ドメイン", "https://frestyle.jp", false},
+		{"撤去済みの旧配信元", "https://dcd3m6lwt0z8u.cloudfront.net", false},
 		{"無関係なオリジン", "https://evil.example.com", false},
 	}
 

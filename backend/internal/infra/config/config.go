@@ -23,7 +23,7 @@ type Config struct {
 	DBSSLMode  string
 
 	// AppBaseURL はフロントエンドの絶対 URL。
-	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
+	// 例: https://frestyle.dev (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
 	OIDC   OIDCConfig
@@ -41,7 +41,7 @@ type ImagesConfig struct {
 }
 
 // SESConfig は招待マジックリンクメール送信用の SES v2 設定。
-// FromAddress は SES で検証済の送信元（例: "FreStyle <noreply@frestyle.jp>"）。
+// FromAddress は SES で検証済の送信元（例: "FreStyle <noreply@frestyle.dev>"）。
 // 未設定（空文字）のときは送信スキップ → token をログに残してフォールバック。
 type SESConfig struct {
 	Region      string

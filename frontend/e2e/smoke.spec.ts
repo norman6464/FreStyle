@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
  * - 公開 SPA がレンダリングできる
  * - 配信のセキュリティヘッダーが正しく載っている
  *
- * 宛先は frestyle.dev（Firebase Hosting）。旧 frestyle.jp は DNS ごと畳んだので、
+ * 宛先は frestyle.dev（Firebase Hosting）。AWS 時代のドメインは DNS ごと畳んだので、
  * 向け先を変えるまでこの spec は名前解決の失敗で赤いままだった。
  *
  * ヘッダーの検査は「配信の設定が生きているか」を見る。Firebase Hosting が自前で

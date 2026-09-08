@@ -14,7 +14,6 @@ export interface NavItem {
  */
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'ホーム', to: '/', matchExact: true },
-  { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   // ナレッジは共有される木（workspaces → spaces → pages）。to の /kb はページ未選択の入口で、
   // resolveEntryPageId（pages/kb/model/resolveEntryPage.ts）が続きのページへ即座に移す。
   { id: 'kb', label: 'ナレッジ', to: '/kb', matchPrefix: '/kb' },

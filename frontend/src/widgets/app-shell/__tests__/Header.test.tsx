@@ -44,7 +44,6 @@ describe('Header', () => {
 
   it('テキストのナビ項目を表示する', () => {
     renderHeader();
-    expect(screen.getAllByText('演習').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('ナレッジ').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -68,10 +67,10 @@ describe('Header', () => {
   it('ハンバーガーでモバイルメニューが開き、設定/ログアウトが出る', () => {
     renderHeader();
     // 開く前はデスクトップ分のみ。
-    expect(screen.getAllByText('演習').length).toBe(1);
+    expect(screen.getAllByText('ナレッジ').length).toBe(1);
     fireEvent.click(screen.getByRole('button', { name: /メニュー/ }));
     // モバイルメニュー分が増え、設定 / ログアウトも出る。
-    expect(screen.getAllByText('演習').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('ナレッジ').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('設定')).toBeInTheDocument();
     expect(screen.getByText('ログアウト')).toBeInTheDocument();
   });

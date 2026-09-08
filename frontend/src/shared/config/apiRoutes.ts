@@ -114,21 +114,6 @@ export const EMBEDS = {
   oembed: `${API_V2}/embeds/oembed`,
 } as const;
 
-/** マスタ演習問題（旧 PHP 専用 API を言語非依存に汎用化）+ コード実行 */
-export const EXERCISES = {
-  list: `${API_V2}/exercises`,
-  /** 言語別の問題数 / 正解済み件数（言語選択カード用）。 */
-  summary: `${API_V2}/exercises/summary`,
-  bySlug: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}`,
-  submit: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}/submit`,
-  submissions: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}/submissions`,
-} as const;
-
-export const CODE = {
-  execute: `${API_V2}/code/execute`,
-  warmup: `${API_V2}/code/warmup`,
-} as const;
-
 /**
  * ナレッジ（workspaces → spaces → pages の木）。
  *

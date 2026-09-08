@@ -8,7 +8,6 @@
 | Slice | 担当 |
 |---|---|
 | `course` | コース・教材（章）・章の進捗 |
-| `exercise` | コーディング演習・提出・採点結果 |
 | `user` | ユーザー・プロフィール・認証状態 |
 | `ai-chat` | AI チャットのセッションとメッセージ |
 | `notification` | 通知 |
@@ -72,8 +71,8 @@ gitignore 記法では「親ディレクトリが除外されていると子を�
 | 対象 | 置き場所 | 理由 |
 |---|---|---|
 | `TeachingMaterial`（教材＝章） | `entities/course` | コースの章であり単独では存在しない。別 Slice にすると `courseRepository` が型を参照した時点でクロス import になる |
-| `MarkdownView` / `CodeBlock` | **shared/ui** | AI チャットと演習の両方が使う汎用レンダラ。ai-chat に置くと exercise からのクロス import になる |
-| `LanguageBadge` / `LanguageIcon` | **shared/ui** | コースと演習の両方が使う。同上 |
+| `MarkdownView` / `CodeBlock` | **shared/ui** | AI チャットが使う汎用レンダラ。ai-chat に置くと他 entity からのクロス import になりうる |
+| `LanguageBadge` / `LanguageIcon` | **shared/ui** | ホームの `FeatureCard` が使う。同上 |
 | `MessageInput` | **features**（Phase 6 予定） | 「メッセージを送る」というユーザー操作であって entity の表示ではない |
 
 ## 移行状況

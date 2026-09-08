@@ -1,4 +1,4 @@
-import { CodeBracketIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon } from '@heroicons/react/24/outline';
 
 import FeatureSection from './FeatureSection';
 import FeatureCard from './FeatureCard';
@@ -6,7 +6,7 @@ import FeatureCard from './FeatureCard';
 /**
  * ホーム画面。
  *
- * 全ユーザーに同じレイアウトを出す（コード演習・ナレッジ）。
+ * 全ユーザーに同じレイアウトを出す（ナレッジ）。
  */
 export default function MenuPage() {
   return (
@@ -20,24 +20,13 @@ export default function MenuPage() {
           FreStyle へようこそ
         </h1>
         <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-          演習で学習を進め、AI チャットで疑問を解決しましょう。
+          ナレッジに学習メモを書き留め、いつでも振り返れます。
         </p>
       </section>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* ── 左メインコンテンツ ── */}
         <div className="flex-1 min-w-0 space-y-8 w-full">
-          <FeatureSection title="学習">
-            <FeatureCard
-              to="/code-editor"
-              icon={CodeBracketIcon}
-              title="コード演習"
-              description="実際にコードを書いて手を動かしながら学べます。"
-              color="emerald"
-              techLogos={['go', 'php', 'javascript', 'typescript']}
-            />
-          </FeatureSection>
-
           <FeatureSection title="ツール">
             <FeatureCard
               to="/kb"

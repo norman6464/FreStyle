@@ -55,39 +55,26 @@ type SMTPConfig struct {
 	FromAddress string
 }
 
-// OIDCConfig は OpenID Connect の発行者と話すために要る設定。
+// OIDCConfig は Bearer の ID トークンを検証するために要る設定。
 //
-// 以前は COGNITO_* という名前で、issuer を持っていなかった（JWKS の URL から
-// 文字列を削って推測していた）。発行者の URL の形に依存する推測なので、
-// 発行者を替えると黙って壊れる。issuer は必ず明示する。
+// GCIP（Google Cloud Identity Platform）はクライアント SDK でサインインして
+// ID トークンを直接受け取る設計で、`/authorize` `/token` を提供する認可サーバーとしては
+// 振る舞わない。認可コード交換・リフレッシュ・クライアントシークレットの概念が無いため、
+// 以前の OpenID Connect（認可コード + PKCE）向けの項目（AuthorizeURI / TokenURI /
+// EndSessionURI / ClientID / ClientSecret / RedirectURI）は持たない。
 type OIDCConfig struct {
 	// Issuer は発行者の識別子。トークンの iss と完全一致する値。
 	Issuer string
-	// AuthorizeURI はログイン画面へ送る認可要求の宛先。フロントエンドが使う。
-	AuthorizeURI string
-	// TokenURI は認可コードとリフレッシュトークンの交換先。
-	TokenURI string
 	// JWKSURI は署名鍵の取得先。
 	JWKSURI string
-	// EndSessionURI はログアウトのとき発行者側のセッションも終わらせる宛先。
-	// 空なら発行者側のセッションは残る（同じ端末で再ログインが素通りになる）。
-	EndSessionURI string
-	ClientID      string
-	// ClientSecret は機密クライアントのときだけ設定する。
-	// 空なら公開クライアント（PKCE）として扱う。ブラウザで動くアプリは秘密を
-	// 持てないので、こちらが既定の形。
-	ClientSecret string
-	RedirectURI  string
-	// Audiences は access_token の aud に含まれていることを要求する値（カンマ区切り）。
-	// 空なら ClientID を要求する。発行者によっては aud にプロジェクトの識別子を
-	// 入れるので、その差を推測ではなく設定で吸収する。
+	// Audiences は ID トークンの aud に含まれていることを要求する値（カンマ区切り）。
+	// GCIP は aud に client_id ではなく GCP のプロジェクト ID を入れる。
 	Audiences []string
 }
 
 // Configured は認証に必要な設定が揃っているかを返す。
 func (c OIDCConfig) Configured() bool {
-	return c.Issuer != "" && c.JWKSURI != "" && c.TokenURI != "" &&
-		c.ClientID != "" && c.RedirectURI != ""
+	return c.Issuer != "" && c.JWKSURI != "" && len(c.Audiences) > 0
 }
 
 func Load() (*Config, error) {
@@ -103,15 +90,9 @@ func Load() (*Config, error) {
 		DBSSLMode:   getEnvOrDefault("DB_SSLMODE", "require"),
 		AppBaseURL:  getEnvOrDefault("APP_BASE_URL", ""),
 		OIDC: OIDCConfig{
-			Issuer:        os.Getenv("OIDC_ISSUER"),
-			AuthorizeURI:  os.Getenv("OIDC_AUTHORIZE_URI"),
-			TokenURI:      os.Getenv("OIDC_TOKEN_URI"),
-			JWKSURI:       os.Getenv("OIDC_JWKS_URI"),
-			EndSessionURI: os.Getenv("OIDC_END_SESSION_URI"),
-			ClientID:      os.Getenv("OIDC_CLIENT_ID"),
-			ClientSecret:  os.Getenv("OIDC_CLIENT_SECRET"),
-			RedirectURI:   os.Getenv("OIDC_REDIRECT_URI"),
-			Audiences:     splitAndTrim(os.Getenv("OIDC_AUDIENCES")),
+			Issuer:    os.Getenv("OIDC_ISSUER"),
+			JWKSURI:   os.Getenv("OIDC_JWKS_URI"),
+			Audiences: splitAndTrim(os.Getenv("OIDC_AUDIENCES")),
 		},
 		S3: S3Config{
 			Region:       getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
@@ -139,10 +120,9 @@ func Load() (*Config, error) {
 	// 通す側に倒すと誰も気づかない。だから起動時に止める。
 	if !cfg.OIDC.Configured() {
 		return nil, fmt.Errorf(
-			"OIDC の設定が足りません（OIDC_ISSUER / OIDC_JWKS_URI / OIDC_TOKEN_URI / OIDC_CLIENT_ID / OIDC_REDIRECT_URI は必須）: "+
-				"issuer=%t jwks=%t token=%t client_id=%t redirect_uri=%t",
-			cfg.OIDC.Issuer != "", cfg.OIDC.JWKSURI != "", cfg.OIDC.TokenURI != "",
-			cfg.OIDC.ClientID != "", cfg.OIDC.RedirectURI != "",
+			"OIDC の設定が足りません（OIDC_ISSUER / OIDC_JWKS_URI / OIDC_AUDIENCES は必須）: "+
+				"issuer=%t jwks=%t audiences=%t",
+			cfg.OIDC.Issuer != "", cfg.OIDC.JWKSURI != "", len(cfg.OIDC.Audiences) > 0,
 		)
 	}
 

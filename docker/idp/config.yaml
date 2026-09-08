@@ -5,6 +5,14 @@ storage:
 
 web:
   http: 0.0.0.0:5556
+  # backend は認可コード交換を仲介しない（Bearer の ID トークン検証だけを行う。
+  # internal/infra/config・internal/handler/auth_handler.go 参照）。フロントエンドが
+  # ブラウザから直接 /dex/token を叩いて交換するため、その Origin を許可しておく必要がある
+  # （無いと `Access-Control-Allow-Origin` が付かず、ブラウザの CORS で弾かれる。
+  # 実際に curl の Origin ヘッダ付きリクエストで確認済み: 無いと素の POST でも
+  # ヘッダが付かず、フロントの fetch は失敗する）。
+  allowedOrigins:
+    - "http://localhost:5173"
 
 # ログイン画面を出す既定のログイン方式(HTMLフォーム/JS無し)。
 frontend:
@@ -34,5 +42,3 @@ staticPasswords:
     hash: "$2b$10$ajnqBS8GAmXdBoT2U3bzO.cXIgWeKGcSBxdZXclgcIqSURnWmqLlK"
     username: admin
     userID: seed-sub-admin
-    groups:
-      - admin

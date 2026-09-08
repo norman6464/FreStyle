@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"log/slog"
@@ -10,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -23,8 +21,6 @@ type AuthHandler struct {
 	getCurrentUser          *user.GetCurrentUserUseCase
 	upsertUser              *user.UpsertUserFromIDTokenUseCase
 	ensurePersonalWorkspace *kb.EnsurePersonalWorkspaceUseCase
-	oidcCfg                 *config.OIDCConfig
-	tokens                  *oidc.TokenExchanger
 	verifier                *oidc.Verifier
 }
 
@@ -33,21 +29,13 @@ func NewAuthHandler(
 	getCurrentUser *user.GetCurrentUserUseCase,
 	upsertUser *user.UpsertUserFromIDTokenUseCase,
 	ensurePersonalWorkspace *kb.EnsurePersonalWorkspaceUseCase,
-	oidcCfg *config.OIDCConfig,
 	verifier *oidc.Verifier,
 ) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser:          getCurrentUser,
 		upsertUser:              upsertUser,
 		ensurePersonalWorkspace: ensurePersonalWorkspace,
-		oidcCfg:                 oidcCfg,
 		verifier:                verifier,
-		tokens: oidc.NewTokenExchanger(oidc.ExchangerConfig{
-			ClientID:     oidcCfg.ClientID,
-			ClientSecret: oidcCfg.ClientSecret,
-			RedirectURI:  oidcCfg.RedirectURI,
-			TokenURI:     oidcCfg.TokenURI,
-		}),
 	}
 }
 
@@ -81,205 +69,49 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// logoutResponse は Cookie 消去に続けてフロントが踏むべき URL を返す。
-type logoutResponse struct {
-	Message string `json:"message"`
-	// EndSessionURL は発行者側のセッションも終わらせるための遷移先（設定が無ければ空）。
-	EndSessionURL string `json:"endSessionUrl,omitempty"`
-}
-
-// Logout は認証 Cookie を消去し、発行者側のセッション終了先を返す。
+// Login は Authorization: Bearer で渡された ID トークンを検証し、
+// 初回サインインなら users 行と個人ワークスペースを作る（自己サインアップ）。
 //
-// Cookie を消すだけでは、発行者の側にはログイン済みのセッションが残る。同じ端末で
-// もう一度ログインを始めると、ログイン画面すら出ずにそのまま入り直せてしまう。
-// 共用端末では、前の人のアカウントに次の人が入れることになる。
-func (h *AuthHandler) Logout(c *gin.Context) {
-	middleware.ClearAuthCookies(c)
-	c.JSON(http.StatusOK, logoutResponse{
-		Message:       "ログアウトしました。",
-		EndSessionURL: h.oidcCfg.EndSessionURI,
-	})
-}
-
-type callbackReq struct {
-	Code string `json:"code" binding:"required"`
-	// CodeVerifier は PKCE の検証値。認可を始めたブラウザが作って手元に置いた乱数で、
-	// 発行者がこれと認可要求に載った要約を突き合わせる。
-	CodeVerifier string `json:"codeVerifier" binding:"required"`
-	// Nonce は認可を始めたブラウザが作った値。id_token の中身と一致することを確かめる。
-	Nonce string `json:"nonce" binding:"required"`
-}
-
-// Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
-// 新規ユーザーは常に自己サインアップとして作成する。
-func (h *AuthHandler) Callback(c *gin.Context) {
-	var req callbackReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+// verifier は発行者非依存（本番は GCIP、ローカルは Dex）。どちらもクライアント側で
+// 直接発行者とやり取りして ID トークンを得る設計で、backend が仲介する認可コード交換は
+// 存在しない。以降の API 呼び出しは同じ ID トークンをそのまま Bearer で送るだけでよく、
+// backend 側で発行する Cookie は無い（JWTAuth がリクエストのたびに同じトークンを検証する）。
+func (h *AuthHandler) Login(c *gin.Context) {
+	idToken, ok := middleware.BearerToken(c.GetHeader("Authorization"))
+	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
 
-	tok, err := h.tokens.ExchangeAuthorizationCode(c.Request.Context(), req.Code, req.CodeVerifier)
-	if status, body, ok := h.handleTokenError(c, "callback", err); ok {
-		c.JSON(status, body)
-		return
-	}
-
-	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する
-	// （自己サインアップとして新規作成する）。
-	user, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.Nonce)
-	if !h.respondUpsertOutcome(c, "callback", tok, user, upErr) {
+	_, err := h.upsertUserFromIDToken(c, idToken)
+	if err != nil {
+		if errors.Is(err, repository.ErrEmailTaken) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "email_taken",
+				"message": "同じメールアドレスでの登録が別のリクエストで同時に完了しました。もう一度ログインし直してください。",
+			})
+			return
+		}
+		if errors.Is(err, errIDTokenRejected) {
+			log.Printf("login: id_token rejected: %v", err)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_id_token"})
+			return
+		}
+		log.Printf("login: upsert failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }
 
-// respondUpsertOutcome は upsertUserFromIDToken の結果を HTTP レスポンスへ変換する。
-// 成功時のみ Cookie を発行して true を返す。false を返したときは呼び出し元がそのまま return する。
-//
-// upErr は原因ごとに扱いを分ける: id_token の検証失敗は 401、内部エラー(DB)は 500、
-// 同じ email での同時サインアップ競合(repository.ErrEmailTaken)は 409。
-func (h *AuthHandler) respondUpsertOutcome(c *gin.Context, logPrefix string, tok *oidc.Token, user *domain.User, upErr error) bool {
-	if upErr != nil {
-		if errors.Is(upErr, repository.ErrEmailTaken) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error":   "email_taken",
-				"message": "同じメールアドレスでの登録が別のリクエストで同時に完了しました。もう一度ログインし直してください。",
-			})
-			return false
-		}
-		if errors.Is(upErr, errIDTokenRejected) {
-			log.Printf("%s: id_token rejected: %v", logPrefix, upErr)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_id_token"})
-			return false
-		}
-		log.Printf("%s: upsert failed: %v", logPrefix, upErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-		return false
-	}
-
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-	return true
-}
-
-// Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
-func (h *AuthHandler) Refresh(c *gin.Context) {
-	rt, err := c.Cookie(middleware.CookieRefreshToken)
-	if err != nil || rt == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token_missing"})
-		return
-	}
-
-	tok, err := h.tokens.RefreshAccessToken(c.Request.Context(), rt)
-	if err != nil {
-		var exErr *oidc.TokenExchangeError
-		if errors.As(err, &exErr) {
-			log.Printf("refresh: status=%d body=%s", exErr.HTTPStatus, exErr.Body)
-			// **Cookie を消すのは「この refresh_token はもう使えない」と分かったときだけ。**
-			//
-			// TokenExchangeError は 200 以外のすべてを表すので、429（絞られた）や
-			// 5xx（発行者が一時的に落ちている）でも同じ扱いにすると、
-			// 発行者の短い不調が「全利用者の強制ログアウト」に化ける。
-			// 手元のトークンはまだ有効なのに、こちらから捨てることになる。
-			if isUnrecoverableGrantError(exErr) {
-				middleware.ClearAuthCookies(c)
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_failed"})
-				return
-			}
-			// 一時的な失敗。Cookie は残し、後でもう一度試せるようにする。
-			c.JSON(http.StatusBadGateway, gin.H{"error": "idp_unreachable"})
-			return
-		}
-		status, body, _ := h.handleTokenError(c, "refresh", err)
-		c.JSON(status, body)
-		return
-	}
-
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	// **回転した refresh_token を必ず書き戻す。**
-	//
-	// 発行者によっては、交換のたびに refresh_token 自体が新しいものへ入れ替わる。
-	// 書き戻さないと Cookie には使用済みの値が残り、次の更新で「使い回し」と見なされて
-	// 失敗する。しかも多くの実装は使い回しをトークン窃取の兆候として扱い、
-	// そのトークン系列をまとめて失効させる。結果、2 回目の更新で全員が
-	// ログイン画面へ飛ばされ、書きかけの内容が消える。
-	// 空文字のときは何もしない（SetRefreshTokenCookie 側で握る）。
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-
-	// id_token があれば upsert して氏名等の変化を反映する。refresh は既存ユーザー前提なので、
-	// 失敗してもレスポンスは変えないがログには残す（恒久的に失敗し続ける状態に気付けるようにする）。
-	//
-	// nonce は空を渡す。nonce は「認可を始めた本人か」を確かめるためのもので、
-	// 更新の応答には対応する認可要求が無い（そもそも発行者が nonce を載せない）。
-	if tok.IDToken != "" {
-		if _, err := h.upsertUserFromIDToken(c, tok.IDToken, ""); err != nil {
-			slog.WarnContext(c.Request.Context(), "refresh: user upsert failed", "err", err)
-		}
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "refreshed"})
-}
-
-// handleTokenError は TokenExchanger が返したエラーを HTTP レスポンスに変換する。
-// returned ok=true なら呼び元は早期 return する想定。
-func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (int, gin.H, bool) {
-	if err == nil {
-		return 0, nil, false
-	}
-
-	var exErr *oidc.TokenExchangeError
-	switch {
-	case errors.Is(err, oidc.ErrNotConfigured):
-		return http.StatusInternalServerError, gin.H{"error": "oidc_not_configured"}, true
-	case errors.As(err, &exErr):
-		// 本物の理由は log に残し、クライアントには簡素なエラーだけ返す。
-		log.Printf("%s: token exchange status=%d body=%s redirect_uri=%s client_id_set=%t client_secret_set=%t",
-			op, exErr.HTTPStatus, exErr.Body, h.oidcCfg.RedirectURI, h.oidcCfg.ClientID != "", h.oidcCfg.ClientSecret != "")
-		return http.StatusUnauthorized, gin.H{"error": "token_exchange_failed"}, true
-	case errors.Is(err, oidc.ErrUnreachable):
-		log.Printf("%s: token endpoint unreachable: %v", op, err)
-		return http.StatusBadGateway, gin.H{"error": "idp_unreachable"}, true
-	case errors.Is(err, oidc.ErrInvalidResponse):
-		log.Printf("%s: invalid token response: %v", op, err)
-		return http.StatusBadGateway, gin.H{"error": "invalid_token_response"}, true
-	default:
-		log.Printf("%s: unexpected error: %v", op, err)
-		return http.StatusInternalServerError, gin.H{"error": "internal_error"}, true
-	}
-}
-
-// isUnrecoverableGrantError は「その refresh_token はもう使えない」と言い切れる失敗かを返す。
-//
-// **状態コードだけでは決められない。** OAuth2 は grant が無効なときに 400 を返すが
-// （RFC 6749 §5.2）、同じ 400 は invalid_request（こちらの組み立て方が悪い）でも返るし、
-// 401 は invalid_client（クライアントの設定が悪い）で返る。どちらも設定の問題であって、
-// 利用者の refresh_token は生きている。ここで消すと、設定を 1 つ間違えた瞬間に
-// 全利用者がログアウトさせられる。
-//
-// 消してよいのは error が invalid_grant のときだけ。本文が読めない・別の error なら
-// 消さない（分からないときは手元の資格を残す側に倒す）。
-func isUnrecoverableGrantError(e *oidc.TokenExchangeError) bool {
-	var body struct {
-		Error string `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(e.Body), &body); err != nil {
-		return false
-	}
-	return body.Error == "invalid_grant"
-}
-
 // errIDTokenRejected は id_token の署名・クレーム検証に落ちたことを表す。
-// respondUpsertOutcome がこれを 401 に変換する（DB 障害の 500 と区別する）。
+// Login がこれを 401 に変換する（DB 障害の 500 と区別する）。
 var errIDTokenRejected = errors.New("handler: id_token rejected")
 
 // upsertUserFromIDToken は id_token を検証してユーザー更新を usecase へ委譲する。
 // 続けて個人ワークスペースの確保まで行う（無ければ作る。既存なら 1 回の SELECT で終わる）。
-func (h *AuthHandler) upsertUserFromIDToken(
-	c *gin.Context,
-	idToken string,
-	expectedNonce string,
-) (u *domain.User, err error) {
+func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (u *domain.User, err error) {
 	if h.upsertUser == nil {
 		return nil, errors.New("upsert user usecase not configured")
 	}
@@ -287,7 +119,11 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	// **署名とクレームを検証してから読む。**
 	// ここで作られるのはユーザーそのもの（sub / email）で、検証せずに読むと
 	// 「好きな sub と email を名乗って新しいユーザーを作る」ことができてしまう。
-	claims, verifyErr := h.verifier.VerifyIDToken(c.Request.Context(), idToken, expectedNonce)
+	//
+	// nonce は空文字（照合しない）。nonce は「認可を始めたブラウザ本人か」を確かめる
+	// もので、リダイレクトを介した認可要求に対応する。GCIP はクライアント SDK が直接
+	// 発行者とやり取りするため、対応する認可要求そのものが存在しない。
+	claims, verifyErr := h.verifier.VerifyIDToken(c.Request.Context(), idToken, "")
 	if verifyErr != nil {
 		return nil, errors.Join(errIDTokenRejected, verifyErr)
 	}

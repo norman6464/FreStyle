@@ -45,7 +45,6 @@ func main() {
 	verifier, err := oidc.NewVerifier(oidc.Config{
 		Issuer:    cfg.OIDC.Issuer,
 		JWKSURI:   cfg.OIDC.JWKSURI,
-		ClientID:  cfg.OIDC.ClientID,
 		Audiences: cfg.OIDC.Audiences,
 	})
 	if err != nil {

@@ -14,9 +14,7 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://x/y")
 	t.Setenv("OIDC_ISSUER", "https://issuer.test")
 	t.Setenv("OIDC_JWKS_URI", "https://issuer.test/oauth/v2/keys")
-	t.Setenv("OIDC_TOKEN_URI", "https://issuer.test/oauth/v2/token")
-	t.Setenv("OIDC_CLIENT_ID", "client-id")
-	t.Setenv("OIDC_REDIRECT_URI", "http://localhost:5173/login/callback")
+	t.Setenv("OIDC_AUDIENCES", "project-1")
 }
 
 // 認証の設定が欠けているときは起動を止める。
@@ -29,9 +27,7 @@ func Test_設定_OIDCが欠けていたら起動を止める(t *testing.T) {
 	required := []string{
 		"OIDC_ISSUER",
 		"OIDC_JWKS_URI",
-		"OIDC_TOKEN_URI",
-		"OIDC_CLIENT_ID",
-		"OIDC_REDIRECT_URI",
+		"OIDC_AUDIENCES",
 	}
 	for _, missing := range required {
 		t.Run(missing+" が無い", func(t *testing.T) {
@@ -53,10 +49,7 @@ func Test_設定_APP_ENV未設定でも認証設定は必須(t *testing.T) {
 	t.Setenv("APP_ENV", "")
 	// 手元のシェルに OIDC_* が残っていると、このテストが「別の理由で」通ってしまう。
 	// 見たいのは「認証設定が無いこと」なので、明示的に空にする。
-	for _, k := range []string{
-		"OIDC_ISSUER", "OIDC_JWKS_URI", "OIDC_TOKEN_URI",
-		"OIDC_CLIENT_ID", "OIDC_REDIRECT_URI",
-	} {
+	for _, k := range []string{"OIDC_ISSUER", "OIDC_JWKS_URI", "OIDC_AUDIENCES"} {
 		t.Setenv(k, "")
 	}
 
@@ -67,15 +60,11 @@ func Test_設定_APP_ENV未設定でも認証設定は必須(t *testing.T) {
 
 func Test_設定_揃っていれば読み込める(t *testing.T) {
 	setRequiredEnv(t)
-	t.Setenv("OIDC_CLIENT_SECRET", "")
-	t.Setenv("OIDC_AUDIENCES", " project-1 , client-id ")
+	t.Setenv("OIDC_AUDIENCES", " project-1 , project-2 ")
 
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, "https://issuer.test", cfg.OIDC.Issuer)
-	assert.Equal(t, "client-id", cfg.OIDC.ClientID)
-	// 秘密が空 = 公開クライアント（PKCE）として扱う。
-	assert.Empty(t, cfg.OIDC.ClientSecret)
 	// カンマ区切りは前後の空白を落として読む（打ち間違いで一致しなくなるのを避ける）。
-	assert.Equal(t, []string{"project-1", "client-id"}, cfg.OIDC.Audiences)
+	assert.Equal(t, []string{"project-1", "project-2"}, cfg.OIDC.Audiences)
 }

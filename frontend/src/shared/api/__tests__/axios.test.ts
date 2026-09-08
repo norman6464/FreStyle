@@ -121,4 +121,59 @@ describe('apiClient の 401 ハンドリング', () => {
     ).rejects.toThrow();
     expect(hrefSetter).not.toHaveBeenCalled();
   });
+
+  // 更新待ちでキューに入ったリクエストは、更新完了後に一度だけ再試行される。
+  // その再試行がトークンとは無関係な理由でまた401を返すことがある(特定のエンドポイントだけ
+  // 権限が無い等)。_retry を引き継いでいないと、これを「まだ更新していない401」と
+  // 誤認して二重に更新を始めてしまう。
+  it('キューで待って再試行したリクエストが再び401でも、二重に更新しない', async () => {
+    let forceRefreshCalls = 0;
+    let resolveForceRefresh: (token: string) => void = () => {};
+    vi.mocked(getCurrentIdToken).mockImplementation(
+      (forceRefresh) =>
+        new Promise((resolve) => {
+          if (forceRefresh) {
+            forceRefreshCalls += 1;
+            resolveForceRefresh = resolve;
+          } else {
+            resolve('expired-token');
+          }
+        }),
+    );
+
+    // A: 最初のリクエスト。401 を受けて更新を開始し、完了まで止める。
+    let aAttempts = 0;
+    const aPromise = apiClient.get('/a', {
+      adapter: (config) => {
+        aAttempts += 1;
+        if (aAttempts === 1) return reject401(config);
+        return resolve200(config as never);
+      },
+    });
+
+    // A が isRefreshing を立てて forceRefresh の待ちに入るまで、マクロタスクを1周させる。
+    await new Promise((r) => setTimeout(r, 0));
+
+    // B: A の更新待ち中に 401 → キューに入る。再試行後もまた 401（トークンの期限とは無関係）。
+    let bAttempts = 0;
+    const bPromise = apiClient.get('/b', {
+      adapter: (config) => {
+        bAttempts += 1;
+        return reject401(config);
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    // A の更新を完了させる → B がキューから離れて再試行される。
+    resolveForceRefresh('fresh-token');
+
+    await expect(aPromise).resolves.toMatchObject({ status: 200 });
+    await expect(bPromise).rejects.toBeTruthy();
+
+    // B の再試行が 401 でも、強制更新は A の分の 1 回だけ。
+    expect(forceRefreshCalls).toBe(1);
+    // B 自体は「最初の 401」+「キュー後の再試行」の 2 回だけ（三度目が飛んでいない）。
+    expect(bAttempts).toBe(2);
+  });
 });

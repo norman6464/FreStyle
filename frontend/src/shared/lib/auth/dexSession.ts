@@ -19,6 +19,15 @@ const STORAGE_KEY = 'dex.session';
 /** 期限までの残りがこれを切ったら、使う前に更新しておく（リクエストの途中で切れるのを防ぐ）。 */
 const REFRESH_LEEWAY_MS = 60_000;
 
+/**
+ * 進行中の更新（あれば）。axios の request interceptor はリクエストのたびに
+ * `getCurrentIdToken` を呼ぶため、複数のリクエストが同時に飛ぶと「期限間際」の判定も
+ * 同時に起きる。ここで合流させないと、同じ refresh_token で複数回同時に更新を試み、
+ * Dex 側が使い回しを検知して片方だけ失効させる（有効だったセッションが突然
+ * ログアウト扱いになる）。
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
 type StoredSession = {
   idToken: string;
   refreshToken: string | null;
@@ -63,6 +72,10 @@ function loadDexSession(): StoredSession | null {
  * 期限だけでは分からない理由で無効になっているケースを拾う）。
  */
 export async function getValidDexIdToken(cfg: ConfiguredAuth, forceRefresh = false): Promise<string | null> {
+  // 進行中の更新があれば、新しく判定し直さずそれに合流する。セッションは 1 つしか無いので、
+  // 誰かが更新を必要と判断した時点で、他の呼び出しにとっても答えは同じになる。
+  if (refreshInFlight) return refreshInFlight;
+
   const session = loadDexSession();
   if (!session) return null;
 
@@ -75,17 +88,24 @@ export async function getValidDexIdToken(cfg: ConfiguredAuth, forceRefresh = fal
     return null;
   }
 
-  try {
-    const refreshed = await refreshDexToken(cfg, session.refreshToken);
-    saveDexSession(refreshed.idToken, refreshed.refreshToken, refreshed.expiresInSeconds);
-    return refreshed.idToken;
-  } catch (err) {
-    if (err instanceof DexTokenExchangeError) {
-      clearDexSession();
-      return null;
+  const refreshToken = session.refreshToken;
+  refreshInFlight = (async () => {
+    try {
+      const refreshed = await refreshDexToken(cfg, refreshToken);
+      saveDexSession(refreshed.idToken, refreshed.refreshToken, refreshed.expiresInSeconds);
+      return refreshed.idToken;
+    } catch (err) {
+      if (err instanceof DexTokenExchangeError) {
+        clearDexSession();
+        return null;
+      }
+      throw err;
+    } finally {
+      refreshInFlight = null;
     }
-    throw err;
-  }
+  })();
+
+  return refreshInFlight;
 }
 
 /** 保存されたセッションがあるか（有効期限は問わない）。UIの初期描画判定に使う。 */

@@ -140,4 +140,31 @@ describe('dexSession', () => {
     expect(await getValidDexIdToken(auth)).toBeNull();
     expect(hasDexSession()).toBe(false);
   });
+
+  // axios の request interceptor は呼び出しのたびに getCurrentIdToken を呼ぶため、
+  // 複数のリクエストが同時に飛ぶと期限間際の判定も同時に起きる。素朴に実装すると
+  // 同じ refresh_token で複数回同時に更新を試み、Dex 側が使い回しを検知して
+  // 片方だけ失効させる（有効なセッションのはずが突然ログアウトになる）。
+  it('同時に呼んでも更新は1回だけ行い、両方に同じ新しいトークンを返す', async () => {
+    saveDexSession('old-id-token', 'refresh-1', 60);
+    let resolveRefresh: (value: { idToken: string; refreshToken: string; expiresInSeconds: number }) => void =
+      () => {};
+    vi.mocked(refreshDexToken).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+    vi.advanceTimersByTime(5_000);
+
+    const first = getValidDexIdToken(auth);
+    const second = getValidDexIdToken(auth);
+
+    resolveRefresh({ idToken: 'new-id-token', refreshToken: 'new-refresh', expiresInSeconds: 3600 });
+    const [firstToken, secondToken] = await Promise.all([first, second]);
+
+    expect(refreshDexToken).toHaveBeenCalledTimes(1);
+    expect(firstToken).toBe('new-id-token');
+    expect(secondToken).toBe('new-id-token');
+  });
 });

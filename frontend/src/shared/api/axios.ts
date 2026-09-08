@@ -99,7 +99,10 @@ apiClient.interceptors.response.use(
     // 401エラーかつ、まだリトライしていない場合
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // 既に更新中の場合はキューに追加
+        // 既に更新中の場合はキューに追加。再試行の1回分を使い切ったことにしておく
+        // （付けないと、再試行がトークンとは無関係の理由でまた401を返したときに
+        // 「まだ更新していない401」と誤認して、ここへ二重に更新を始めてしまう）。
+        originalRequest._retry = true;
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })

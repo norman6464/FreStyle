@@ -36,6 +36,12 @@ export function usePasswordResetPage(): PasswordResetPageState {
    * 「このメールアドレスは登録されているか」を外部から探る手がかりになる
    * （`shared/lib/auth/firebaseErrorMessage.ts` が wrong-password / user-not-found を
    * 同じ文言にまとめているのと同じ理由）。成功・失敗を問わず同じ案内を出す。
+   *
+   * **これだけでは列挙対策として完結しない。** GCIP の REST API 自体は、プロジェクトの
+   * 「メール列挙保護」設定が無効だと存在確認の結果によって応答（ステータス・本文）を
+   * 変える。ここでの一律表示は画面の見た目を揃えるだけで、ネットワークタブを見れば
+   * 分かってしまう可能性がある。実際に塞ぐには GCIP コンソール側の設定が要る
+   * （フロントのコードだけでは閉じられない）。
    */
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();

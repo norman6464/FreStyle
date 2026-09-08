@@ -10,52 +10,50 @@
         - default-src 'self'                            : 既定で同一オリジン以外を遮断
         - script-src 'self'                             : インラインスクリプト禁止（Self-XSS / 注入対策）
         - style-src 'self' 'unsafe-inline'              : Tailwind / React の inline style 用
-        - img-src 'self' data: https: blob:               : avatar / CDN 経由画像 / data URL /
+        - img-src 'self' data: https: blob:               : avatar / 署名付き URL の画像 / data URL /
                                                            URL.createObjectURL() プレビュー（添付チップ）
         - font-src 'self' data:                         : ローカルフォント + base64 埋め込み
-        - connect-src 'self' https://api.frestyle.jp https://*.amazoncognito.com wss://api.frestyle.jp
-                       https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com
-                                                         : API / WebSocket / Cognito callback /
-                                                           プロフィール / Note 画像の S3 presigned PUT
-                                                           (frestyle-prod-note-images.s3.amazonaws.com)
-        - form-action 'self' https://*.amazoncognito.com: ログイン flow が Cognito Hosted UI へ POST
+        - connect-src 'self' https://api.frestyle.dev
+                       https://identitytoolkit.googleapis.com https://securetoken.googleapis.com
+                       https://storage.googleapis.com   : 自前 API / GCIP（Firebase Auth JS SDK が
+                                                           サインイン・トークン更新で叩く 2 つの
+                                                           Google API）/ Cloud Storage の署名付き URL
+        - frame-src https://frestyle-507912.firebaseapp.com
+                                                         : Google サインイン（signInWithPopup）が
+                                                           authDomain 上の /__/auth/iframe を埋め込む。
+                                                           default-src 'self' のままだと popup を開いても
+                                                           結果が親ページへ返らない
+        - form-action 'self'                            : フォームの送信先を自分自身に限る
         - base-uri 'self'                               : <base> 注入対策
         - object-src 'none'                             : <object>/<embed>/<applet> 禁止
         - upgrade-insecure-requests                     : http リソース参照を https に強制
 
       NOTE: `frame-ancestors` は CSP 仕様で <meta> 経由では無視される（HTTP ヘッダー専用）。
-      代わりに CloudFront ResponseHeadersPolicy で `X-Frame-Options: DENY` を配信して
-      Clickjacking を等価に防御している（infrastructure リポ：runtime/cloudfront-security-headers.yml）。
-      `report-uri` / `report-to` / `sandbox` も同様 meta では無視されるので、配信が必要な場合は
-      CloudFront 側に追加する。
+      Clickjacking の防御は Firebase Hosting のヘッダー設定（リポジトリ直下の firebase.json）で
+      `X-Frame-Options: DENY` を配信して等価に行う。`report-uri` / `report-to` / `sandbox` も
+      同様に meta では無視されるので、配信が必要な場合は firebase.json 側に追加する。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.jp https://*.amazoncognito.com wss://api.frestyle.jp https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://storage.googleapis.com; frame-src https://frestyle-507912.firebaseapp.com; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <!--
       SEO:
-        - 検索結果のタイトル/説明文の素材となる title / meta description。
-          description が無いと Google は描画後の本文から自動抽出するため、夜間停止中の
-          クロールでメンテナンス文言がスニペットに使われていた（実際に発生）。
         - OGP / Twitter Card は SNS・チャットでの共有時のプレビュー用。
         - JSON-LD (Organization + WebSite) は構造化データ。type="application/ld+json" の
           データブロックは実行されないため CSP script-src 'self' の対象外（ブロックされない）。
+
+      説明文（meta description / og:description / JSON-LD の description）は**意図的に
+      置いていない**。以前の説明は撤去済みの機能を挙げており実態と合わなくなった。
+      合わない説明を置くくらいなら無い方がよいという判断で、位置づけが決まるまで空にする。
+      description が無いと Google は描画後の本文から抽出するため、置くと決めたらここに書く。
     -->
-    <title>FreStyle | 新卒ITエンジニア向け研修プラットフォーム</title>
-    <meta
-      name="description"
-      content="FreStyle は新卒ITエンジニアの研修を一つにまとめた企業向け学習プラットフォームです。教材・コーディング演習・AI 学習支援・学習レポートで、新人エンジニアが即戦力になるまでを支援します。"
-    />
-    <link rel="canonical" href="https://frestyle.jp/" />
+    <title>FreStyle</title>
+    <link rel="canonical" href="https://frestyle.dev/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="FreStyle" />
-    <meta property="og:title" content="FreStyle | 新卒ITエンジニア向け研修プラットフォーム" />
-    <meta
-      property="og:description"
-      content="新卒ITエンジニアの研修を一つにまとめた企業向け学習プラットフォーム。教材・コーディング演習・AI 学習支援・学習レポートを提供します。"
-    />
-    <meta property="og:url" content="https://frestyle.jp/" />
-    <meta property="og:image" content="https://frestyle.jp/ogp.png" />
+    <meta property="og:title" content="FreStyle" />
+    <meta property="og:url" content="https://frestyle.dev/" />
+    <meta property="og:image" content="https://frestyle.dev/ogp.png" />
     <meta property="og:locale" content="ja_JP" />
     <meta name="twitter:card" content="summary" />
     <script type="application/ld+json">
@@ -64,19 +62,18 @@
         "@graph": [
           {
             "@type": "Organization",
-            "@id": "https://frestyle.jp/#organization",
+            "@id": "https://frestyle.dev/#organization",
             "name": "FreStyle",
-            "url": "https://frestyle.jp/",
-            "logo": "https://frestyle.jp/ogp.png"
+            "url": "https://frestyle.dev/",
+            "logo": "https://frestyle.dev/ogp.png"
           },
           {
             "@type": "WebSite",
-            "@id": "https://frestyle.jp/#website",
-            "url": "https://frestyle.jp/",
+            "@id": "https://frestyle.dev/#website",
+            "url": "https://frestyle.dev/",
             "name": "FreStyle",
-            "description": "新卒ITエンジニア向け研修プラットフォーム。教材・コーディング演習・AI 学習支援・学習レポートを提供する企業向け学習サービス。",
             "inLanguage": "ja",
-            "publisher": { "@id": "https://frestyle.jp/#organization" }
+            "publisher": { "@id": "https://frestyle.dev/#organization" }
           }
         ]
       }

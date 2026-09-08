@@ -23,12 +23,17 @@ type FirstTimeWelcomeProps = {
 
 /**
  * 初回訪問者向けのウェルカムカード。
- * 「このアプリで何ができるのか」「まず何をすればよいのか」を 3〜5 ステップで示す。
+ * 「まず何をすればよいのか」を 3〜5 ステップで示す。
+ *
+ * このカードは何をする道具かを説明しない（説明の文言は呼び出し側の責務）。
+ * shared/ui はビジネスを知らない層で、ここに製品の説明を書くと、製品の位置づけが
+ * 変わるたびに層をまたいで直すことになる（実際に「AI と会話しながら…」という
+ * 文言が、その機能の撤去後も残っていた）。
  */
 export default function FirstTimeWelcome({
   title = 'ようこそ FreStyle へ',
   steps,
-  primaryActionLabel = 'はじめて練習する',
+  primaryActionLabel = 'はじめる',
   onPrimaryAction,
   storageKey,
 }: FirstTimeWelcomeProps) {
@@ -77,11 +82,6 @@ export default function FirstTimeWelcome({
           {title}
         </h2>
       </div>
-      <p className="mt-2 text-sm text-[var(--color-text-secondary)] leading-relaxed">
-        AI と会話しながら、新卒エンジニア向けのビジネスコミュニケーションを練習できます。
-        まずは以下のステップで使ってみましょう。
-      </p>
-
       <ol className="mt-4 space-y-3">
         {steps.map((step, index) => (
           <li key={step.title} className="flex items-start gap-3">

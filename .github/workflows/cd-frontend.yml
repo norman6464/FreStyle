@@ -1,6 +1,6 @@
-name: CD - Frontend Deploy to S3 + CloudFront
+name: CD - Frontend Deploy to Firebase Hosting
 
-# 目的: フロントエンドを S3 にデプロイ + CloudFront キャッシュ無効化。
+# 目的: フロントエンドを Firebase Hosting にデプロイする。
 # CI と分離し、明示的トリガーのみで動く。
 # トリガー:
 #   - workflow_dispatch（手動）  : メイン
@@ -24,17 +24,20 @@ on:
       - 'release/v*'
 
 env:
-  AWS_REGION: ap-northeast-1
-  # GitHub OIDC で引き受けるデプロイ用ロール。長寿命の静的キーは廃止。
-  # 権限は配信バケットへのアップロードと CloudFront のキャッシュ無効化のみ。
-  # 定義: frestyle-infrastructure の terraform/github-oidc-frontend.tf
-  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-frontend-role
+  # WIF（Workload Identity Federation）でデプロイ用サービスアカウントを引き受ける。
+  # 長寿命のサービスアカウントキー（JSON）は発行しない。
+  # 定義: frestyle-infrastructure の terraform（Firebase Hosting 用 WIF pool/provider）。
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/691431142080/locations/global/workloadIdentityPools/github/providers/github-actions
+  GCP_SERVICE_ACCOUNT: frestyle-frontend-deploy@frestyle-507912.iam.gserviceaccount.com
+  # Hosting サイト ID と GCP プロジェクト ID。backend の GCP プロジェクト（frestyle-prod 用）とは
+  # 別プロジェクトで、表示名がどちらも「FreStyle」なので必ず ID で指定する。
+  FIREBASE_PROJECT_ID: frestyle-507912
 
 permissions:
   contents: read
 
-# 同時実行を直列化する。並行 deploy が s3 sync --delete + CloudFront 無効化で競合し、
-# index.html が存在しないチャンクを参照して 404(MIME text/html) になる事故を防ぐ。
+# 同時実行を直列化する。Firebase Hosting のリリース切り替えはアトミックだが、
+# 並行 deploy でリリース順が入れ替わる事故は防ぐ。
 concurrency:
   group: cd-frontend-${{ github.ref }}
   cancel-in-progress: false
@@ -58,9 +61,9 @@ jobs:
     timeout-minutes: 12
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
-    # pnpm install --frozen-lockfile / build は第三者のコードを実行するため、この job には AWS を触れる
+    # pnpm install --frozen-lockfile / build は第三者のコードを実行するため、この job には GCP を触れる
     # 権限を与えない。id-token: write を持たせると、侵害された依存パッケージが
-    # ACTIONS_ID_TOKEN_REQUEST_* 経由でトークンを発行し本番ロールを assume できてしまう。
+    # ACTIONS_ID_TOKEN_REQUEST_* 経由でトークンを発行し本番サービスアカウントを引き受けられてしまう。
     # contents: read は actions/checkout がソースを取得するためだけに必要。
     permissions:
       contents: read
@@ -70,11 +73,9 @@ jobs:
 
     env:
       # 公開 URL(公開 JS に焼き込まれる値)は Secret にする必要がないため直接記載する。
-      #
-      # NOTE: 認証は OIDC へ移したが、**本番の発行者はまだ立てていない**。
-      # ここの Secrets（発行者のホストとクライアント ID）を用意するまで、
-      # 本番のフロントを出してもログインは通らない。出す前に発行者を先に決めること。
-      VITE_API_BASE_URL: https://api.frestyle.jp
+      VITE_API_BASE_URL: https://api.frestyle.dev
+      # NOTE: 認証（GCIP への作り直し）はまだ実装していない（FRESTYLE-446）。
+      # VITE_OIDC_* は Dex（ローカル）向けの値のままで、認証の実装が決まるまで触らない。
       VITE_OIDC_REDIRECT_URI: https://frestyle.jp/login/callback
       VITE_OIDC_AUTHORIZE_URI: ${{ secrets.VITE_OIDC_AUTHORIZE_URI }}
       VITE_OIDC_CLIENT_ID: ${{ secrets.VITE_OIDC_CLIENT_ID }}
@@ -118,8 +119,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # build は dist/app.html も作る（scripts/make-app-shell.mjs）。CloudFront は存在しない
-      # パスへのリクエストにこのファイルを返すので、欠けると SPA の全ルートが壊れる。
+      # build は dist/app.html も作る（scripts/make-app-shell.mjs）。Firebase Hosting の
+      # rewrite（firebase.json）は存在しないパスをすべて index.html へ流すが、SPA の
+      # フォールバック起動先として app.html も引き続き作っておく。
       - name: Build
         run: pnpm run build
 
@@ -128,95 +130,71 @@ jobs:
       - name: Verify SPA fallback shell
         run: test -f dist/app.html
 
-      # deploy job へはビルド成果物だけを渡す。deploy 側は checkout しないため、
-      # 本番ロールを持つ job にリポジトリのソースやスクリプトが存在しない。
+      # deploy job へはビルド成果物と firebase.json だけを渡す。deploy 側は checkout しないため、
+      # 本番サービスアカウントを持つ job にリポジトリのソースやスクリプトが存在しない。
+      # firebase.json の "public": "frontend/dist" はリポジトリ直下からの相対パスなので、
+      # ダウンロード側でも同じ相対配置に復元する（deploy job 側を参照）。
       - name: Upload built assets
         uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
-          path: frontend/dist
+          path: |
+            frontend/dist
+            firebase.json
           retention-days: 1
           if-no-files-found: error
 
   deploy:
-    name: Deploy to S3 + CloudFront
+    name: Deploy to Firebase Hosting
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [build]
     # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
     environment: production
-    # OIDC トークンの発行に必要。第三者コードを実行しないこの job にだけ与える。
-    # checkout しないので contents は付けない。同一 run の artifact 取得に GITHUB_TOKEN の
-    # 権限は要らない(別 run / 別リポから取るときだけ actions:read 付きの token が要る)。
+    # OIDC トークンの発行に必要（WIF 経由で GCP サービスアカウントを引き受ける）。
+    # 第三者コードを実行しないこの job にだけ与える。checkout しないので contents は付けない。
+    # 同一 run の artifact 取得に GITHUB_TOKEN の権限は要らない
+    # （別 run / 別リポから取るときだけ actions:read 付きの token が要る）。
     # permissions を明示した時点で、ここに書いていない権限はすべて none になる。
     permissions:
       id-token: write
 
     steps:
+      # frontend-dist という 1 つのアーティファクトに frontend/dist と firebase.json の
+      # 両方が入っている（build job 参照）。path を . にして、リポジトリ直下からの
+      # 相対配置のまま復元する。
       - name: Download built assets
         uses: actions/download-artifact@v7
         with:
           name: frontend-dist
-          path: dist
+          path: .
 
-      # 静的キーではなく OIDC でその実行だけ有効な一時認証情報を得る。
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+      # 静的キーではなく WIF でその実行だけ有効な一時認証情報を得る（Application Default
+      # Credentials として GOOGLE_APPLICATION_CREDENTIALS に書き出される）。firebase-tools は
+      # これを自動で拾うため、firebase login や FIREBASE_TOKEN は要らない。
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
-      # 1) ハッシュ付きアセットは内容不変なので immutable + 長期キャッシュで配信する。
-      #    index.html は別ステップで no-cache にするため、ここでは除外する。
-      - name: Sync hashed assets to S3 (immutable, long cache)
-        run: |
-          aws s3 sync dist/ s3://fre-style-bucket --delete \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "index.html" \
-            --exclude "app.html"
-
-      # 2) index.html は no-cache。これがないと古い index.html がブラウザにキャッシュされ、
-      #    次デプロイの --delete で消えた旧チャンクを参照して 404(MIME text/html)になる。
-      # index.html は既定のルートオブジェクト、app.html は SPA フォールバック用。公開
-      # ランディングの焼き込みを廃止したので、どちらも同じ空シェル。
-      # どちらも no-cache。古い HTML がキャッシュされると、--delete で消えた旧チャンクを
-      # 参照して 404(MIME text/html)になる。
-      - name: Upload HTML entrypoints (no-cache)
-        run: |
-          for f in index.html app.html; do
-            aws s3 cp "dist/$f" "s3://fre-style-bucket/$f" \
-              --cache-control "no-cache, must-revalidate" \
-              --content-type "text/html; charset=utf-8"
-          done
-
-      - name: Invalidate CloudFront cache
-        id: invalidate
-        run: |
-          id=$(aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*" --query 'Invalidation.Id' --output text)
-          echo "id=$id" >> "$GITHUB_OUTPUT"
-
-      # 無効化は打っただけでは終わっていない。完了を待たずに次へ進むと、
-      # 直後の確認がエッジの古い応答を見て「通った」ことになる。
-      #
-      # この待ちには cloudfront:GetInvalidation が要る（CreateInvalidation だけでは
-      # 足りない）。デプロイロールの権限は private リポの Terraform 側が持つ。
-      - name: 無効化の完了を待つ
-        run: |
-          aws cloudfront wait invalidation-completed \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --id "${{ steps.invalidate.outputs.id }}"
+      # --non-interactive を付けないと、CI で確認プロンプトが出た場合に無応答のまま
+      # ハングする（対話端末が無いのでタイムアウトまで進まない）。
+      - name: Deploy to Firebase Hosting
+        run: npx firebase-tools deploy --only hosting --project "${{ env.FIREBASE_PROJECT_ID }}" --non-interactive
 
       # **バケットではなく、配信された実物を見る。**
-      # S3 を読み戻しても「エッジが何を返すか」は 1 ミリも分からない。
-      # バケットは正しいのにエッジが古い HTML を返している、という一番切り分けに
-      # くい壊れ方は、この差でしか捕まらない。
+      # deploy コマンドの成功は「Firebase へリリースを登録できた」ことしか意味しない。
+      # エッジが実際に新しい版を返しているかは別に確かめる必要がある。
+      #
+      # frestyle-dev.web.app（Firebase の既定ドメイン）を見る。カスタムドメイン
+      # frestyle.dev は証明書発行のタイミング次第でこの CD より後から追従することがあるため、
+      # 自動検証は常に成功する既定ドメインを対象にする。
       - name: 配信された実物を確かめる
         env:
           AUTH_MODE: ${{ inputs.auth_mode || 'configured' }}
         run: |
-          url="https://frestyle.jp/"
+          url="https://frestyle-dev.web.app/"
           code=$(curl -sS -o /tmp/index.html -w '%{http_code}' --max-time 30 "$url")
           if [ "$code" != "200" ]; then
             echo "::error::${url} が ${code} を返しました"
@@ -234,7 +212,7 @@ jobs:
           # いま出した成果物の資産名（内容ハッシュ付き）を、配信された HTML が
           # 指しているかまで見る。1 つでも欠けていれば、届いているのは前の版。
           missing_assets=""
-          for asset in $(grep -o 'assets/[A-Za-z0-9._-]*\.js' dist/index.html | sort -u); do
+          for asset in $(grep -o 'assets/[A-Za-z0-9._-]*\.js' frontend/dist/index.html | sort -u); do
             grep -q "${asset}" /tmp/index.html || missing_assets="${missing_assets} ${asset}"
           done
           if [ -n "${missing_assets}" ]; then
@@ -245,7 +223,7 @@ jobs:
           # 入口が指す JS を 1 本引いて、実際に取得できることまで確かめる。
           # HTML だけ新しくて資産が配られていない、という壊れ方を捕まえる。
           entry=$(grep -o 'assets/[A-Za-z0-9._-]*\.js' /tmp/index.html | head -1)
-          entry_code=$(curl -sS -o /tmp/entry.js -w '%{http_code}' --max-time 30 "https://frestyle.jp/${entry}")
+          entry_code=$(curl -sS -o /tmp/entry.js -w '%{http_code}' --max-time 30 "https://frestyle-dev.web.app/${entry}")
           if [ "${entry_code}" != "200" ]; then
             echo "::error::${entry} が ${entry_code} を返しました"
             exit 1

@@ -10,7 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 )
 
-// ProfileImageHandler は profile アイコン用 S3 PUT 署名付き URL を発行する。
+// ProfileImageHandler は profile アイコン用 PUT 署名付き URL を発行する。
 type ProfileImageHandler struct {
 	issue *profile.IssueProfileImageUploadURLUseCase
 }

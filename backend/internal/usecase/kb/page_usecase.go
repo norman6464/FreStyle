@@ -876,7 +876,7 @@ func kbWorkspaceImageKeyPrefix(workspaceID string) string {
 	return "kb/" + workspaceID + "/"
 }
 
-// IssuePageImageUploadURLUseCase はページに閉じた画像（本文・カバー共通）の S3 PUT presigned URL を
+// IssuePageImageUploadURLUseCase はページに閉じた画像（本文・カバー共通）の PUT presigned URL を
 // 発行する。key は "kb/<workspaceId>/<pageId>/<epochNs>.bin" の形で採番する
 // （rich-text の rich-text/{userId}/{epochNs}.bin と同じ発想。ページを名指しする経路なので、
 // ページ ID を混ぜて後から「どのページ由来か」が分かる形にしてある）。
@@ -924,7 +924,7 @@ func (u *IssuePageImageUploadURLUseCase) Execute(ctx context.Context, in IssuePa
 	return &IssuePageImageUploadURLOutput{URL: url, Key: key, ExpiresIn: expiresIn}, nil
 }
 
-// IssuePageImageDownloadURLUseCase はページに閉じた画像の S3 GET（ダウンロード）presigned URL を発行する。
+// IssuePageImageDownloadURLUseCase はページに閉じた画像の GET（ダウンロード）presigned URL を発行する。
 //
 // 認可（このページを閲覧できるか）は handler 側の requirePagePermission が済ませている前提で、
 // ここで見るのは「この key がこのページに結びついているか」だけ。
@@ -1007,7 +1007,7 @@ func NewSetPageCoverUseCase(r repository.KnowledgeBaseRepository) *SetPageCoverU
 type SetPageCoverInput struct {
 	WorkspaceID string
 	PageID      string
-	// Key は設定するカバーの S3 key。nil なら解除。
+	// Key は設定するカバーのオブジェクトストレージ key。nil なら解除。
 	Key *string
 }
 
@@ -1034,7 +1034,7 @@ func (u *SetPageCoverUseCase) Execute(ctx context.Context, in SetPageCoverInput)
 	return u.repo.UpdatePageCover(ctx, in.WorkspaceID, in.PageID, cover)
 }
 
-// ResolveCoverURLUseCase はページのカバー（S3 key）をダウンロード presigned URL へ解決する。
+// ResolveCoverURLUseCase はページのカバー（オブジェクトストレージ key）をダウンロード presigned URL へ解決する。
 // SetCover / ClearCover のレスポンス作成と、ResolveByID（/p/{pageId}）ハンドラの両方から呼ばれる。
 type ResolveCoverURLUseCase struct {
 	presigner repository.KbImagePresigner
@@ -1440,7 +1440,7 @@ func stripPageRefTitlesNode(node any) bool {
 //
 // pageRef は特定の 1 ページへの固定参照であり、雛形が複数のページに展開されると
 // 展開後の全ページが同じ参照先を指してしまい意味をなさない。画像（domain.BlockTypeImage、
-// tiptap のノード名も "image"）はページ固有の S3 key（kbImageKeyPrefix）に紐づいており、
+// tiptap のノード名も "image"）はページ固有のオブジェクトストレージ key（kbImageKeyPrefix）に紐づいており、
 // 雛形経由で複製すると元ページの画像が消えたときに雛形からのコピーだけが宙に浮いた参照を
 // 残す（key の生存管理の仕組みが無い）。どちらも雛形の本文からは意図的に除外する。
 var kbTemplateExcludedNodeTypes = map[string]bool{

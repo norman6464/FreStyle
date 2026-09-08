@@ -10,13 +10,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// profileImagePresigner は profile アイコン用の S3 presigner（profiles/{userId}/{epochNs}{ext} キー）。
+// profileImagePresigner は profile アイコン用の presigner（profiles/{userId}/{epochNs}{ext} キー）。
 type profileImagePresigner struct {
-	pre s3Presigner
+	pre imagePresigner
 }
 
 // NewProfileImagePresigner は本番経路。
-func NewProfileImagePresigner(p s3Presigner) repository.ProfileImagePresigner {
+func NewProfileImagePresigner(p imagePresigner) repository.ProfileImagePresigner {
 	return &profileImagePresigner{pre: p}
 }
 

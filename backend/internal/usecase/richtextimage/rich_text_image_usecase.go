@@ -8,7 +8,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// IssueRichTextImageUploadURLUseCase はリッチテキスト画像用 S3 PUT 署名付き URL を発行する。
+// IssueRichTextImageUploadURLUseCase はリッチテキスト画像用 PUT 署名付き URL を発行する。
 type IssueRichTextImageUploadURLUseCase struct {
 	presigner repository.RichTextImagePresigner
 }

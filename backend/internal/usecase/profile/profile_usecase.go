@@ -56,7 +56,7 @@ func (u *UpdateProfileUseCase) Execute(ctx context.Context, in UpdateProfileInpu
 	return p, nil
 }
 
-// IssueProfileImageUploadURLUseCase は profile アイコン用 S3 PUT 署名付き URL を発行する。
+// IssueProfileImageUploadURLUseCase は profile アイコン用 PUT 署名付き URL を発行する。
 type IssueProfileImageUploadURLUseCase struct {
 	presigner repository.ProfileImagePresigner
 }

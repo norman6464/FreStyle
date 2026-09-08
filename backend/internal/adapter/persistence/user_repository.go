@@ -1,5 +1,5 @@
 // Package persistence は usecase 層が定義した port の永続化実装
-// （sqlc 生成コード / DynamoDB / S3 presigner 等）を集約する。wiring は router.go で行う。
+// （sqlc 生成コード / DynamoDB / GCS presigner 等）を集約する。wiring は router.go で行う。
 package persistence
 
 import (

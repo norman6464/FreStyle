@@ -26,16 +26,18 @@ type Config struct {
 	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
-	OIDC OIDCConfig
-	S3   S3Config
-	SES  SESConfig
-	SMTP SMTPConfig
+	OIDC   OIDCConfig
+	Images ImagesConfig
+	SES    SESConfig
+	SMTP   SMTPConfig
 }
 
-// S3Config は profile / リッチテキスト画像 upload の presign 発行に必要な設定。
-type S3Config struct {
-	Region       string
-	ImagesBucket string
+// ImagesConfig は profile / リッチテキスト画像 / KB ページ画像 upload の presign 発行に
+// 必要な設定。バケットは Cloud Storage（internal/infra/gcs.Presigner）。
+// リージョンは持たない——GCS のバケット名はプロジェクト内で一意なグローバル名前空間で、
+// クライアント側の呼び出しにリージョン指定は要らない（AWS S3 の Region とは異なる）。
+type ImagesConfig struct {
+	Bucket string
 }
 
 // SESConfig は招待マジックリンクメール送信用の SES v2 設定。
@@ -94,12 +96,16 @@ func Load() (*Config, error) {
 			JWKSURI:   os.Getenv("OIDC_JWKS_URI"),
 			Audiences: splitAndTrim(os.Getenv("OIDC_AUDIENCES")),
 		},
-		S3: S3Config{
-			Region:       getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			ImagesBucket: os.Getenv("IMAGES_BUCKET"),
+		Images: ImagesConfig{
+			Bucket: os.Getenv("IMAGES_BUCKET"),
 		},
+		// AWS_REGION は S3（このバケットの旧実装）だけの利用者で、GCS への切り替えで
+		// 不要になった。SESConfig.Region は元々 SES を実際に呼び出すコードが無い
+		// （grep で確認済み。招待メール送信の実装が toC 化で無くなったため）ため、
+		// AWS_REGION 経由の既定値へ連鎖させず、そのまま固定の既定値にする
+		// （AWS_REGION 削除前後で SESConfig.Region の値は変わらない）。
 		SES: SESConfig{
-			Region:      getEnvOrDefault("SES_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
+			Region:      getEnvOrDefault("SES_REGION", "ap-northeast-1"),
 			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
 		},
 		SMTP: SMTPConfig{

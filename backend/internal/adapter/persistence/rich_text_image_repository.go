@@ -9,13 +9,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// richTextImagePresigner はリッチテキスト画像用の S3 presigner（rich-text/{userId}/{epochNs}.bin キー）。
+// richTextImagePresigner はリッチテキスト画像用の presigner（rich-text/{userId}/{epochNs}.bin キー）。
 type richTextImagePresigner struct {
-	pre s3Presigner
+	pre imagePresigner
 }
 
-// NewRichTextImagePresigner は本番経路。infra/s3.Presigner を渡して使う。
-func NewRichTextImagePresigner(p s3Presigner) repository.RichTextImagePresigner {
+// NewRichTextImagePresigner は本番経路。infra/gcs.Presigner を渡して使う。
+func NewRichTextImagePresigner(p imagePresigner) repository.RichTextImagePresigner {
 	return &richTextImagePresigner{pre: p}
 }
 

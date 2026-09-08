@@ -13,6 +13,7 @@ import type {
   KbPageContentSaveResult,
   KbPageDoc,
   KbPageGrant,
+  KbPageSuggestion,
   KbPageTemplate,
   KbPageTree,
   KbPageVersion,
@@ -656,6 +657,61 @@ const KbRepository = {
     input: { templateId: string; parentId?: string; title: string },
   ): Promise<KbPage> {
     const res = await apiClient.post<KbPage>(KB_API.pageFromTemplate(workspaceSlug, spaceId), input);
+    return res.data;
+  },
+
+  /**
+   * 本文を提案として保存する（CanComment が要る）。**1 回の POST が 1 回の提案** — 既存の
+   * open な提案を更新する API は無い（作成のみ）。連投すると提案行が量産される。
+   * **失敗は例外として投げる。**
+   */
+  async createSuggestion(
+    workspaceSlug: string,
+    pageId: string,
+    doc: unknown,
+  ): Promise<KbPageSuggestion> {
+    const res = await apiClient.post<KbPageSuggestion>(
+      KB_API.pageSuggestions(workspaceSlug, pageId),
+      { doc },
+    );
+    return res.data;
+  },
+
+  /**
+   * open な提案の一覧を返す（作成日時昇順）。閲覧できれば誰でも読める（canView）。
+   * 0 件でも空配列。**失敗は例外として投げる。**
+   */
+  async listOpenSuggestions(workspaceSlug: string, pageId: string): Promise<KbPageSuggestion[]> {
+    const res = await apiClient.get<KbPageSuggestion[]>(KB_API.pageSuggestions(workspaceSlug, pageId));
+    return toArray<KbPageSuggestion>(res.data);
+  },
+
+  /**
+   * 提案を採用する（編集権限が要る）。本文へ反映し版を 1 つ切る。応答の doc は
+   * 反映後の本文そのもの。**失敗は例外として投げる。**
+   */
+  async acceptSuggestion(
+    workspaceSlug: string,
+    pageId: string,
+    suggestionId: string,
+  ): Promise<KbPageSuggestion> {
+    const res = await apiClient.post<KbPageSuggestion>(
+      KB_API.acceptPageSuggestion(workspaceSlug, pageId, suggestionId),
+    );
+    return res.data;
+  },
+
+  /**
+   * 提案を却下する（編集権限が要る）。本文は一切変えない。**失敗は例外として投げる。**
+   */
+  async rejectSuggestion(
+    workspaceSlug: string,
+    pageId: string,
+    suggestionId: string,
+  ): Promise<KbPageSuggestion> {
+    const res = await apiClient.post<KbPageSuggestion>(
+      KB_API.rejectPageSuggestion(workspaceSlug, pageId, suggestionId),
+    );
     return res.data;
   },
 };

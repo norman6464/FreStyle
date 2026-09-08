@@ -20,6 +20,7 @@ import {
   Bars3Icon,
   ChatBubbleLeftRightIcon,
   ClockIcon,
+  LightBulbIcon,
 } from '@heroicons/react/24/outline';
 import { useKbPageDoc } from '../model/useKbPageDoc';
 import { createSubpage } from '../model/createSubpage';
@@ -36,11 +37,16 @@ import KbCommentsPanel from './KbCommentsPanel';
 import KbVersionsPanel from './KbVersionsPanel';
 import KbVersionPreviewBanner from './KbVersionPreviewBanner';
 import KbBacklinksSection from './KbBacklinksSection';
+import KbSuggestEditButton from './KbSuggestEditButton';
+import KbSuggestDraftBanner from './KbSuggestDraftBanner';
+import KbSuggestionsPanel from './KbSuggestionsPanel';
 import { SharePanel } from '@/features/permission-sharing';
 import { useKbShare } from '../model/useKbShare';
 import { useKbComments } from '../model/useKbComments';
 import { useKbPageVersions } from '../model/useKbPageVersions';
 import { useKbBacklinks } from '../model/useKbBacklinks';
+import { useKbSuggestionDraft } from '../model/useKbSuggestionDraft';
+import { useKbPageSuggestions } from '../model/useKbPageSuggestions';
 
 /**
  * KbPage はナレッジの画面（左にサイドバー、右に本文）。
@@ -69,6 +75,7 @@ export default function KbPage() {
     changeCover,
     applyRestoredContent,
     waitForPendingSaveToSettle,
+    reloadPage,
   } = useKbPageDoc(pageId);
   // ヘッダー/サイドバーのワークスペース切替から来たときだけ渡ってくる。
   // ページを開いているときは data.workspaceSlug が正なのでそちらを優先する。
@@ -412,6 +419,77 @@ export default function KbPage() {
     }
   }, [data, versions, applyRestoredContent, waitForPendingSaveToSettle, showToast]);
 
+  // 提案パネルの開閉。履歴・コメントと同じ流儀 — canView であれば誰でも開ける
+  // （backend の一覧 API が CanView だけで許可するのと同じ考え方）。ページを移ったら必ず閉じる。
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  useEffect(() => {
+    setSuggestionsOpen(false);
+  }, [pageId]);
+  const suggestions = useKbPageSuggestions(data?.workspaceSlug, data?.page.id, suggestionsOpen);
+
+  /**
+   * commenter の「変更を提案する」ドラフトモード。既存の自動保存（useKbPageDoc の
+   * flushSave・デバウンス・onDocChange）とは完全に別系統の状態機械（useKbSuggestionDraft）。
+   * ここでは開始（本文の今の doc を下書きの初期値にする）と、送信成功時のトーストだけを持つ
+   * — 失敗時の知らせは帯（KbSuggestDraftBanner）自身がエラー state を出すので、ここでは
+   * 何もしない。
+   */
+  const suggestionDraft = useKbSuggestionDraft(data?.workspaceSlug, data?.page.id);
+
+  const handleToggleSuggestDraft = useCallback(() => {
+    if (suggestionDraft.open) {
+      suggestionDraft.cancel();
+      return;
+    }
+    // data.doc は旧応答（デプロイ順）や壊れた保存で isRichDoc を満たさないことがある
+    // （本文表示側と同じ防御。RichTextEditor に無効な doc をそのまま渡さない）。
+    if (data) suggestionDraft.start(isRichDoc(data.doc) ? data.doc : emptyRichDoc());
+  }, [suggestionDraft, data]);
+
+  const handleSubmitSuggestion = useCallback(async () => {
+    const ok = await suggestionDraft.submit();
+    if (ok) showToast('success', '提案として送信しました');
+  }, [suggestionDraft, showToast]);
+
+  /**
+   * 採用が成功すると本文が変わる。応答（accept の doc）をそのまま使わず、ページを
+   * GET で引き直す（useKbPageDoc.reloadPage）— そちらなら lastEditedBy/lastEditedAt も
+   * 一緒に最新化される（accept の応答は提案そのものであって、ページ全体の情報は持たない）。
+   *
+   * 採用の直前に waitForPendingSaveToSettle を呼ぶ — 採用は自動保存（PUT .../content）とは
+   * 別経路（POST .../suggestions/:id/accept）なので、待たずに叩くと、先に飛んでいた
+   * 自動保存の応答が採用の**後**に着地して、採用した内容を古い自動保存の内容で
+   * 上書きしてしまう競合がある（handleRestoreVersion と同じ理由）。
+   */
+  const handleAcceptSuggestion = useCallback(
+    async (suggestionId: string) => {
+      if (!data) return;
+      const targetPageId = data.page.id;
+      try {
+        await waitForPendingSaveToSettle(targetPageId);
+        await suggestions.accept(suggestionId);
+        await reloadPage(targetPageId);
+      } catch (cause) {
+        showToast('error', '提案を採用できませんでした');
+        // KbSuggestionsPanel 側がボタンを押し直せる状態へ戻すため、再 throw する。
+        throw cause;
+      }
+    },
+    [data, suggestions, reloadPage, showToast, waitForPendingSaveToSettle],
+  );
+
+  const handleRejectSuggestion = useCallback(
+    async (suggestionId: string) => {
+      try {
+        await suggestions.reject(suggestionId);
+      } catch (cause) {
+        showToast('error', '提案を却下できませんでした');
+        throw cause;
+      }
+    },
+    [suggestions, showToast],
+  );
+
   // '/template': テンプレートのピッカーを開く。run は editor を受け取らず、状態を
   // 切り替えるだけ（setTemplatePickerOpen は useState のセッター＝常に同一の参照なので、
   // subpageContext のような ref 越しの読み出しが要らない — この呼び出しが
@@ -506,8 +584,23 @@ export default function KbPage() {
                 読み込み中・失敗はここで吸収し、揃うまで(下の)本文は出さない
                 (途中状態のまま編集可能な本文を触らせないため)。
               */}
-              {versions.selected && versions.selected.loading && <Loading className="py-8" />}
-              {versions.selected && !versions.selected.loading && versions.selected.error && (
+              {/*
+                ドラフトモード中の帯。版のプレビューより先に見る — 両方が同時に立つことは
+                無い想定だが、編集中の下書きを優先して見せる（版プレビューは読み取り専用
+                なので、書きかけの下書きを隠す理由が無い）。
+              */}
+              {suggestionDraft.open && (
+                <KbSuggestDraftBanner
+                  submitting={suggestionDraft.submitting}
+                  error={suggestionDraft.error}
+                  onSubmit={() => void handleSubmitSuggestion()}
+                  onCancel={suggestionDraft.cancel}
+                />
+              )}
+              {!suggestionDraft.open && versions.selected && versions.selected.loading && (
+                <Loading className="py-8" />
+              )}
+              {!suggestionDraft.open && versions.selected && !versions.selected.loading && versions.selected.error && (
                 <EmptyState
                   icon={ClockIcon}
                   title="この版を開けません"
@@ -515,7 +608,7 @@ export default function KbPage() {
                   action={{ label: '現在の版に戻る', onClick: versions.clearSelection }}
                 />
               )}
-              {versions.selected && !versions.selected.loading && versions.selected.detail && (
+              {!suggestionDraft.open && versions.selected && !versions.selected.loading && versions.selected.detail && (
                 <KbVersionPreviewBanner
                   createdAt={versions.selected.detail.createdAt}
                   canEdit={data.canEdit}
@@ -588,6 +681,27 @@ export default function KbPage() {
                   <ClockIcon className="h-4 w-4" />
                 </button>
                 {/*
+                  提案は canView だけで開ける(履歴と同じ考え方 — backend の一覧 API も
+                  CanView だけで許可する)。バッジ・件数表示は持たせない(履歴と揃える)。
+                */}
+                <button
+                  type="button"
+                  onClick={() => setSuggestionsOpen((open) => !open)}
+                  aria-expanded={suggestionsOpen}
+                  aria-label="提案"
+                  className="rounded border border-surface-3 p-1.5 text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
+                >
+                  <LightBulbIcon className="h-4 w-4" />
+                </button>
+                {/*
+                  「変更を提案する」は commenter（閲覧+コメントはできるが編集はできない役割）
+                  だけに見せる。editor 以上は本文を直接編集できるので提案の必要が無く、
+                  viewer はそもそも書けない（提案も本文の書き換えの一種）。
+                */}
+                {data.canComment && !data.canEdit && (
+                  <KbSuggestEditButton active={suggestionDraft.open} onToggle={handleToggleSuggestDraft} />
+                )}
+                {/*
                   「テンプレートとして保存」は canEdit（このページを編集できる）と
                   workspaceCanEdit（ワークスペース全体への書き込み資格。雛形の作成が実際に
                   要求する権限）の両方が揃ったときだけ出す。ページ/スペース限定の編集権限
@@ -659,7 +773,19 @@ export default function KbPage() {
                 />
               </div>
               <KbPageMeta lastEditedBy={data.lastEditedBy} lastEditedAt={data.lastEditedAt} />
-              {versions.selected ? (
+              {suggestionDraft.open ? (
+                // ドラフトモード中。value/onChange は useKbPageDoc の自動保存とは完全に
+                // 別系統のローカルなドラフト state（useKbSuggestionDraft）へ繋ぐ —
+                // ここで保存されるのは提案としてであって、本文そのものはまだ変わっていない。
+                <RichTextEditor
+                  value={isRichDoc(suggestionDraft.draft) ? suggestionDraft.draft : emptyRichDoc()}
+                  editable={true}
+                  onChange={suggestionDraft.changeDraft}
+                  ariaLabel={`${data.page.title} の本文（提案を編集中）`}
+                  onNavigateToPage={(path) => navigate(path)}
+                  resolveImageSrc={resolveImageSrc}
+                />
+              ) : versions.selected ? (
                 // 版のプレビュー中。揃うまで(取得中・失敗)は本文を出さない — 上の帯/読み込み/
                 // 失敗の表示に任せる。**コメント関連 props は渡さない**(editable=false と
                 // canComment 省略の組み合わせで RichTextEditor 自身がバブルメニュー自体を
@@ -772,6 +898,25 @@ export default function KbPage() {
             selectedSeq={versions.selected?.seq ?? null}
             onCreateVersion={handleCreateVersion}
             onSelectVersion={versions.selectVersion}
+          />
+        </SecondaryPanel>
+      )}
+
+      {/* 提案パネル。履歴・コメントと同じ流儀 — 閉じている間はレンダリングごとやめる。 */}
+      {suggestionsOpen && (
+        <SecondaryPanel
+          title="提案"
+          side="right"
+          mobileOpen={suggestionsOpen}
+          onMobileClose={() => setSuggestionsOpen(false)}
+        >
+          <KbSuggestionsPanel
+            suggestions={suggestions.suggestions}
+            loading={suggestions.loading}
+            error={suggestions.error}
+            canEdit={data?.canEdit ?? false}
+            onAccept={handleAcceptSuggestion}
+            onReject={handleRejectSuggestion}
           />
         </SecondaryPanel>
       )}

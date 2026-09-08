@@ -944,10 +944,9 @@ table "page_snapshots" {
   }
 }
 
-# comment_threads: ページ（または将来ブロック）に付いたコメントのスレッド。
-# FRESTYLE-432 段 2 の時点では「ページ全体へのコメント」だけを作る経路しか無く、
-# block_id / anchor_from / anchor_to / quote は常に NULL のまま作られる
-# （書き込み経路は段 3・錨付きコメントで足す）。
+# comment_threads: ページ（または特定のブロック）に付いたコメントのスレッド。
+# block_id / anchor_from / anchor_to / quote は錨付きコメント（特定のブロックへのコメント）
+# のときだけ値を持ち、ページ全体へのコメントでは常に NULL のまま作られる。
 table "comment_threads" {
   schema = schema.public
   column "id" {
@@ -965,13 +964,13 @@ table "comment_threads" {
   # 単独 FK（block_id だけを参照列にする）。もし workspace_id/page_id も含めた複合 FK に
   # すると、ON DELETE SET NULL が発火したとき workspace_id/page_id まで NULL になってしまう
   # （このスレッドがどのページのものか分からなくなる）。block_id が「本当に同じページの
-  # ブロックか」はこの FK だけでは保証されない（アプリ側で検証する）。段3（錨付きコメント）で
-  # 書き込み経路ができるまで、block_id は常に NULL（このPRでは NULL しか作らない）。
+  # ブロックか」はこの FK だけでは保証されない（アプリ側で検証する）。ページ全体への
+  # コメントでは block_id は常に NULL。
   column "block_id" {
     null = true
     type = uuid
   }
-  # 文字範囲での錨付け（段3）。両方あるか両方無いかを CHECK で縛る。
+  # 文字範囲での錨付け。両方あるか両方無いかを CHECK で縛る。
   column "anchor_from" {
     null = true
     type = int
@@ -980,8 +979,7 @@ table "comment_threads" {
     null = true
     type = int
   }
-  # 錨付けした時点の引用文。ブロックが消えて block_id が NULL に落ちても quote だけは残す
-  # （段3）。
+  # 錨付けした時点の引用文。ブロックが消えて block_id が NULL に落ちても quote だけは残す。
   column "quote" {
     null = true
     type = text
@@ -1040,7 +1038,7 @@ table "comment_threads" {
   }
 }
 
-# page_versions: ページ本文（doc）の明示的なスナップショット履歴（FRESTYLE-433 段 3）。
+# page_versions: ページ本文（doc）の明示的なスナップショット履歴。
 # page_snapshots が「1 ページ 1 行の読み取りキャッシュ（正本は blocks）」なのに対し、
 # こちらは「複数行が積み上がる履歴」。本文保存のたびに毎回 1 行増やすのではなく、直近の版から
 # 10 分以上経っている場合だけ新しい版を切る（間引き。usecase/repository/page_version.go の
@@ -1299,6 +1297,115 @@ table "page_templates" {
   # page_snapshots.ck_page_snapshots_doc と同じ式（tiptap の doc 形式であることを入口で保証する）。
   check "ck_page_templates_doc" {
     expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
+  }
+}
+
+# page_suggestions: commenter（閲覧+コメントはできるが編集はできない役割）が本文を書き換えると、
+# blocks を直接更新する代わりにここへ 1 行積む。editor 以上が採用すれば通常の保存経路
+# （ReplacePageBlocksUseCase）を通って本文へ反映され、却下すれば何も変えずにこの行だけ閉じる。
+#
+# 差分は表示のときに base_seq が指す page_versions.doc と比べて出す（差分形式そのものは
+# ここに持ち込まない — doc は「提案後の本文全体」を丸ごと持つ）。
+#
+# base_seq は提案した時点のそのページの最新版（無ければ NULL — まだ 1 度も版が無いページへの
+# 提案）。FK を NO_ACTION にしてあるのは、30 日掃除（DeleteOldPageVersions）がこの版を
+# 消せてしまうと提案の差分が表示できなくなるため。掃除側はこの表の open な行が参照している
+# 版を対象から外す（queries/page_version.sql の DeleteOldPageVersions 参照）。
+table "page_suggestions" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  # テナント境界の複合 FK（fk_page_suggestions_page）用。page_versions と同じ役割分担。
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  # 提案した時点のそのページの最新版（page_versions.seq）。NULL は「まだ版が 1 つも無い
+  # ページへの提案」を表す（複合 FK は列のどちらかが NULL なら不問になる — page_templates の
+  # space_id と同じ理屈）。
+  column "base_seq" {
+    null = true
+    type = bigint
+  }
+  # 提案後の ProseMirror ドキュメント全体。page_versions.doc と同じ形・同じ CHECK 式
+  # （下の ck_page_suggestions_doc）。
+  column "doc" {
+    null = false
+    type = jsonb
+  }
+  column "status" {
+    null    = false
+    type    = text
+    default = "open"
+  }
+  column "author_user_id" {
+    null = false
+    type = bigint
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  # 採用・却下されるまでは両方 NULL（両方あるか両方無いかは CHECK では縛らない —
+  # status='open' のあいだは repository.Resolve が条件付き UPDATE で両方を同時に埋める
+  # 唯一の書き込み経路なので、アプリ側の不変条件で足りる）。
+  column "resolved_at" {
+    null = true
+    type = timestamptz
+  }
+  column "resolved_by_user_id" {
+    null = true
+    type = bigint
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  # comment_threads.fk_comment_threads_page と同じ書き方（複合 FK でテナント越えを塞ぐ）。
+  foreign_key "fk_page_suggestions_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # page_versions の PK が複合 (page_id, seq) なので、この 2 列で参照する。NO_ACTION —
+  # このテーブルの doc コメント参照（30 日掃除が参照中の版を消せないようにするのは
+  # アプリ側 = DeleteOldPageVersions の EXISTS 除外であって、この FK 自体は掃除を妨げない。
+  # 掃除側の除外を書き忘れたときに初めて FK 違反として表面化する最後の網）。
+  foreign_key "fk_page_suggestions_base_version" {
+    columns     = [column.page_id, column.base_seq]
+    ref_columns = [table.page_versions.column.page_id, table.page_versions.column.seq]
+    on_update   = NO_ACTION
+    on_delete   = NO_ACTION
+  }
+  index "idx_page_suggestions_page" {
+    columns = [column.workspace_id, column.page_id]
+  }
+  # DeleteOldPageVersions が毎回の本文保存のたびに引く correlated EXISTS
+  # （page_suggestions.page_id = page_versions.page_id AND base_seq = seq AND status = 'open'）
+  # のための索引。open な行だけに絞った部分索引にして、解決済みの行を無駄に載せない。
+  index "idx_page_suggestions_open_base_seq" {
+    columns = [column.page_id, column.base_seq]
+    where   = "(status = 'open'::text)"
+  }
+  check "ck_page_suggestions_doc" {
+    expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
+  }
+  check "ck_page_suggestions_status" {
+    expr = "status = ANY (ARRAY['open'::text, 'accepted'::text, 'rejected'::text])"
+  }
+  # comment_threads.ck_comment_threads_resolved_pair と同じ発想だが、こちらは status 列を
+  # 持つのでその値まで縛る。resolved_at/resolved_by_user_id の唯一の書き込み経路
+  # （ResolvePageSuggestion）が常に3つを同時に更新するので実害は無い想定だが、将来別の経路が
+  # 増えたときに壊れた状態を作らせない最後の網。
+  check "ck_page_suggestions_resolution_consistency" {
+    expr = "(status = 'open'::text AND resolved_at IS NULL AND resolved_by_user_id IS NULL) OR (status <> 'open'::text AND resolved_at IS NOT NULL AND resolved_by_user_id IS NOT NULL)"
   }
 }
 

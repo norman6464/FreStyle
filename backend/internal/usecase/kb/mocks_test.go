@@ -529,6 +529,15 @@ func (m *mockPageVersionRepo) GetVersion(ctx context.Context, workspaceID, pageI
 	return v, args.Error(1)
 }
 
+func (m *mockPageVersionRepo) GetLatestVersion(ctx context.Context, workspaceID, pageID string) (*domain.PageVersion, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	var v *domain.PageVersion
+	if args.Get(0) != nil {
+		v = args.Get(0).(*domain.PageVersion)
+	}
+	return v, args.Error(1)
+}
+
 // --- mock: PageTemplateRepository ---
 
 type mockPageTemplateRepo struct{ mock.Mock }
@@ -553,4 +562,35 @@ func (m *mockPageTemplateRepo) Get(ctx context.Context, workspaceID, templateID 
 
 func (m *mockPageTemplateRepo) Delete(ctx context.Context, workspaceID, templateID string) error {
 	return m.Called(ctx, workspaceID, templateID).Error(0)
+}
+
+// --- mock: PageSuggestionRepository ---
+
+type mockPageSuggestionRepo struct{ mock.Mock }
+
+var _ repository.PageSuggestionRepository = (*mockPageSuggestionRepo)(nil)
+
+func (m *mockPageSuggestionRepo) Create(ctx context.Context, s *domain.PageSuggestion) error {
+	return m.Called(ctx, s).Error(0)
+}
+
+func (m *mockPageSuggestionRepo) ListOpen(ctx context.Context, workspaceID, pageID string) ([]domain.PageSuggestion, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	rows, _ := args.Get(0).([]domain.PageSuggestion)
+	return rows, args.Error(1)
+}
+
+func (m *mockPageSuggestionRepo) Get(ctx context.Context, workspaceID, pageID, suggestionID string) (*domain.PageSuggestion, error) {
+	args := m.Called(ctx, workspaceID, pageID, suggestionID)
+	s, _ := args.Get(0).(*domain.PageSuggestion)
+	return s, args.Error(1)
+}
+
+func (m *mockPageSuggestionRepo) Resolve(
+	ctx context.Context, workspaceID, pageID, suggestionID string,
+	status domain.PageSuggestionStatus, resolverUserID uint64, resolvedAt time.Time,
+) (*domain.PageSuggestion, error) {
+	args := m.Called(ctx, workspaceID, pageID, suggestionID, status, resolverUserID, resolvedAt)
+	s, _ := args.Get(0).(*domain.PageSuggestion)
+	return s, args.Error(1)
 }

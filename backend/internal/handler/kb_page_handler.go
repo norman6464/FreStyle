@@ -289,6 +289,10 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, errorResponse{Error: "duplicate_template_name"})
 	case errors.Is(err, domain.ErrInvalidTemplateName):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_template_name"})
+	case errors.Is(err, domain.ErrPageSuggestionNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+	case errors.Is(err, domain.ErrPageSuggestionAlreadyResolved):
+		c.JSON(http.StatusConflict, errorResponse{Error: "suggestion_already_resolved"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}

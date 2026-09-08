@@ -73,8 +73,11 @@ export const 送信に成功: Story = {
     await waitFor(async () => {
       await expect(canvas.queryByLabelText('テンプレート名')).not.toBeInTheDocument();
     });
-    // 成功のトースト。
-    await expect(await screen.findByText('テンプレートとして保存しました')).toBeVisible();
+    // 成功のトースト。フェードインの途中はDOMに存在してもtoBeVisibleを満たさないことが
+    // CI環境（実ブラウザ）でだけ起きるため、アニメーションが収まるまでwaitForで待つ。
+    await waitFor(async () => {
+      await expect(screen.getByText('テンプレートとして保存しました')).toBeVisible();
+    });
   },
 };
 

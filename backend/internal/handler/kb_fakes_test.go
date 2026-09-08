@@ -1787,7 +1787,7 @@ func (f *kbFakeComments) ReopenCommentThread(_ context.Context, workspaceID, pag
 	return &c, nil
 }
 
-// kbFakePageVersions は repository.PageVersionRepository の in-memory fake（FRESTYLE-433 段 3）。
+// kbFakePageVersions は repository.PageVersionRepository の in-memory fake。
 //
 // 10 分規則・30 日掃除の正確な判定は実 DB の結合テスト（page_version_repository_integration_test.go）
 // が持つ。この fake は handler / DI 配線のテストが必要とする水準（呼ばれれば version を 1 件作る、
@@ -1872,6 +1872,20 @@ func (f *kbFakePageVersions) GetVersion(_ context.Context, workspaceID, pageID s
 	return &out, nil
 }
 
+func (f *kbFakePageVersions) GetLatestVersion(_ context.Context, workspaceID, pageID string) (*domain.PageVersion, error) {
+	key := kbFakeVersionKey(workspaceID, pageID)
+	seq := f.nextSeq[key]
+	if seq == 0 {
+		return nil, nil
+	}
+	v, ok := f.versions[key][seq]
+	if !ok {
+		return nil, nil
+	}
+	out := v
+	return &out, nil
+}
+
 // kbFakePageTemplates は repository.PageTemplateRepository の in-memory fake。
 type kbFakePageTemplates struct {
 	// templates は templateID -> 雛形。
@@ -1947,4 +1961,81 @@ func (f *kbFakePageTemplates) Delete(_ context.Context, workspaceID, templateID 
 	}
 	delete(f.templates, templateID)
 	return nil
+}
+
+// kbFakePageSuggestions は repository.PageSuggestionRepository の in-memory fake。
+type kbFakePageSuggestions struct {
+	// suggestions は suggestionID -> 提案。
+	suggestions map[string]*domain.PageSuggestion
+	nextID      int
+	failWith    error
+}
+
+var _ repository.PageSuggestionRepository = (*kbFakePageSuggestions)(nil)
+
+func newKbFakePageSuggestions() *kbFakePageSuggestions {
+	return &kbFakePageSuggestions{suggestions: map[string]*domain.PageSuggestion{}}
+}
+
+func (f *kbFakePageSuggestions) Create(_ context.Context, s *domain.PageSuggestion) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	f.nextID++
+	stored := *s
+	stored.ID = "suggestion-" + strconv.Itoa(f.nextID)
+	stored.Status = domain.PageSuggestionStatusOpen
+	stored.CreatedAt = time.Now()
+	f.suggestions[stored.ID] = &stored
+	*s = stored
+	return nil
+}
+
+func (f *kbFakePageSuggestions) ListOpen(_ context.Context, workspaceID, pageID string) ([]domain.PageSuggestion, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	out := make([]domain.PageSuggestion, 0)
+	for _, s := range f.suggestions {
+		if s.WorkspaceID == workspaceID && s.PageID == pageID && s.Status == domain.PageSuggestionStatusOpen {
+			out = append(out, *s)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (f *kbFakePageSuggestions) Get(_ context.Context, workspaceID, pageID, suggestionID string) (*domain.PageSuggestion, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	s, ok := f.suggestions[suggestionID]
+	if !ok || s.WorkspaceID != workspaceID || s.PageID != pageID {
+		return nil, domain.ErrPageSuggestionNotFound
+	}
+	out := *s
+	return &out, nil
+}
+
+func (f *kbFakePageSuggestions) Resolve(
+	_ context.Context, workspaceID, pageID, suggestionID string,
+	status domain.PageSuggestionStatus, resolverUserID uint64, resolvedAt time.Time,
+) (*domain.PageSuggestion, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	s, ok := f.suggestions[suggestionID]
+	if !ok || s.WorkspaceID != workspaceID || s.PageID != pageID {
+		return nil, domain.ErrPageSuggestionNotFound
+	}
+	if s.Status != domain.PageSuggestionStatusOpen {
+		return nil, domain.ErrPageSuggestionAlreadyResolved
+	}
+	s.Status = status
+	s.ResolvedAt = &resolvedAt
+	resolver := resolverUserID
+	s.ResolvedByUserID = &resolver
+	s.BaseSeq = nil
+	out := *s
+	return &out, nil
 }

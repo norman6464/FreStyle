@@ -185,6 +185,27 @@ CREATE TABLE "public"."page_snapshots" (
   PRIMARY KEY ("page_id"),
   CONSTRAINT "ck_page_snapshots_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
 );
+-- Create "page_suggestions" table
+CREATE TABLE "public"."page_suggestions" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "base_seq" bigint NULL,
+  "doc" jsonb NOT NULL,
+  "status" text NOT NULL DEFAULT 'open',
+  "author_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "resolved_at" timestamptz NULL,
+  "resolved_by_user_id" bigint NULL,
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_page_suggestions_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
+  CONSTRAINT "ck_page_suggestions_resolution_consistency" CHECK (((status = 'open'::text) AND (resolved_at IS NULL) AND (resolved_by_user_id IS NULL)) OR ((status <> 'open'::text) AND (resolved_at IS NOT NULL) AND (resolved_by_user_id IS NOT NULL))),
+  CONSTRAINT "ck_page_suggestions_status" CHECK (status = ANY (ARRAY['open'::text, 'accepted'::text, 'rejected'::text]))
+);
+-- Create index "idx_page_suggestions_open_base_seq" to table: "page_suggestions"
+CREATE INDEX "idx_page_suggestions_open_base_seq" ON "public"."page_suggestions" ("page_id", "base_seq") WHERE (status = 'open'::text);
+-- Create index "idx_page_suggestions_page" to table: "page_suggestions"
+CREATE INDEX "idx_page_suggestions_page" ON "public"."page_suggestions" ("workspace_id", "page_id");
 -- Create "page_templates" table
 CREATE TABLE "public"."page_templates" (
   "id" uuid NOT NULL,
@@ -436,6 +457,8 @@ ALTER TABLE "public"."page_paths" ADD CONSTRAINT "fk_page_paths_ancestor" FOREIG
 ALTER TABLE "public"."page_search" ADD CONSTRAINT "fk_page_search_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_snapshots" table
 ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "page_suggestions" table
+ALTER TABLE "public"."page_suggestions" ADD CONSTRAINT "fk_page_suggestions_base_version" FOREIGN KEY ("page_id", "base_seq") REFERENCES "public"."page_versions" ("page_id", "seq") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_page_suggestions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_templates" table
 ALTER TABLE "public"."page_templates" ADD CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_versions" table

@@ -48,6 +48,7 @@ type kbFixture struct {
 	comments    *kbFakeComments
 	versions    *kbFakePageVersions
 	templates   *kbFakePageTemplates
+	suggestions *kbFakePageSuggestions
 	presigner   *kbFakeImagePresigner
 	router      *gin.Engine
 }
@@ -93,9 +94,10 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	comments := newKbFakeComments()
 	versions := newKbFakePageVersions(pages)
 	templates := newKbFakePageTemplates()
+	suggestions := newKbFakePageSuggestions()
 	presigner := &kbFakeImagePresigner{}
 	registerKnowledgeBaseRoutesWith(
-		g, pages, perms, perms, provisioner, users, comments, versions, templates, fakeTxManager{}, presigner,
+		g, pages, perms, perms, provisioner, users, comments, versions, templates, suggestions, fakeTxManager{}, presigner,
 	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
@@ -103,7 +105,8 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
 	return kbFixture{
 		pages: pages, perms: perms, provisioner: provisioner, users: users,
-		comments: comments, versions: versions, templates: templates, presigner: presigner, router: r,
+		comments: comments, versions: versions, templates: templates, suggestions: suggestions,
+		presigner: presigner, router: r,
 	}
 }
 
@@ -309,7 +312,7 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodDelete + " " + kbRoutePattern(kbWorkspacePath): true,
 		// /p/{pageId} の解決。Test_ナレッジAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
-		// ページの雛形 API（FRESTYLE-435 段5）。判定の軸がそれぞれ違う
+		// ページの雛形 API。判定の軸がそれぞれ違う
 		// （一覧=所属のみ、保存・削除=ワークスペース全体のCanEdit、使用=既存のページ作成と
 		// 同じ分岐）ため表にせず個別に列挙する。page_template_handler_test.go の
 		// Test_雛形API_* が直接叩く。
@@ -317,6 +320,13 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/templates":             true,
 		http.MethodDelete + " /api/v2/kb/workspaces/:workspaceSlug/templates/:templateId":             true,
 		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template": true,
+		// 提案 API。作成=CanComment、一覧=CanView、採用・却下=CanEdit と
+		// エンドポイントごとに判定の軸が違うため表にせず個別に列挙する。
+		// page_suggestion_handler_test.go の Test_提案API_* が直接叩く。
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions":                      true,
+		http.MethodGet + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions":                       true,
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions/:suggestionId/accept": true,
+		http.MethodPost + " /api/v2/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions/:suggestionId/reject": true,
 	}
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
@@ -332,7 +342,7 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 	for _, e := range kbCommentEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
 	}
-	// ページ本文の版 API（FRESTYLE-433 段 3）も判定の軸は domain.Capability だが、
+	// ページ本文の版 API も判定の軸は domain.Capability だが、
 	// {seq} という kbEndpoints に無いプレースホルダを要るため表を分けてある
 	// （page_version_handler_test.go の kbVersionEndpoints）。足したらそちら側に足す。
 	for _, e := range kbVersionEndpoints {
@@ -1152,7 +1162,7 @@ func Test_ナレッジアイコン_設定と解除が取得に映る(t *testing.
 }
 
 // Test_ナレッジ画像_アップロードURL発行からカバー設定解除までの一連の流れ は、
-// FRESTYLE-368 段 1b の読み取り経路（アップロード URL 発行 → そのキーでカバー設定 →
+// ページに閉じた画像の読み取り経路（アップロード URL 発行 → そのキーでカバー設定 →
 // ダウンロード URL 発行 → 解除）を端から端まで固定する。
 func Test_ナレッジ画像_アップロードURL発行からカバー設定解除までの一連の流れ(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)

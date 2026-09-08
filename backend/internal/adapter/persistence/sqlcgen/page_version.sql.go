@@ -62,7 +62,14 @@ func (q *Queries) CreatePageVersion(ctx context.Context, arg CreatePageVersionPa
 
 const deleteOldPageVersions = `-- name: DeleteOldPageVersions :exec
 DELETE FROM page_versions
-WHERE workspace_id = $1 AND page_id = $2 AND created_at < $3
+WHERE page_versions.workspace_id = $1 AND page_versions.page_id = $2
+  AND page_versions.created_at < $3
+  AND NOT EXISTS (
+    SELECT 1 FROM page_suggestions
+    WHERE page_suggestions.page_id = page_versions.page_id
+      AND page_suggestions.base_seq = page_versions.seq
+      AND page_suggestions.status = 'open'
+  )
 `
 
 type DeleteOldPageVersionsParams struct {
@@ -75,6 +82,11 @@ type DeleteOldPageVersionsParams struct {
 // cutoff は Go 側の time.Now().Add(-30*24*time.Hour) を渡す（DB の now() には頼らない —
 // 10 分規則の判定も Go 側の time.Now() を使っており、両者の時刻の出どころを揃えるため）。
 // 今挿入した行は created_at が cutoff より新しいので、この DELETE の対象にはならない。
+//
+// NOT EXISTS で除いているのは、open な提案（page_suggestions）が base_seq として参照している
+// 版。base_seq の FK は NO_ACTION なので、この DELETE がそれを消そうとすると FK 違反になり、
+// 同じトランザクションで今まさに進行中の本文保存自体が丸ごと失敗する。採用・却下で
+// status が open でなくなった提案の参照はここで無視してよい（対象から外れる＝掃除される）。
 func (q *Queries) DeleteOldPageVersions(ctx context.Context, arg DeleteOldPageVersionsParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOldPageVersions, arg.WorkspaceID, arg.PageID, arg.Cutoff)
 	return err
@@ -199,7 +211,7 @@ type LockPageForVersioningParams struct {
 	PageID      uuid.UUID
 }
 
-// page_versions（ページ本文の明示的なスナップショット履歴）のクエリ。FRESTYLE-433 段 3。
+// page_versions（ページ本文の明示的なスナップショット履歴）のクエリ。
 //
 // 採番・間引き・掃除の判定はすべて Go 側（PageVersionRepository.CreateVersionIfDue）が行う。
 // ここに並ぶクエリはその手順 1 つずつの実体で、単独では「版を残すべきか」の意味を持たない。

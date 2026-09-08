@@ -286,6 +286,23 @@ export const KB_API = {
    */
   pageFromTemplate: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/pages/from-template`,
+  /**
+   * GET(openな一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/suggestions
+   *
+   * 作成は CanComment、一覧の閲覧は CanView。一覧は open な提案だけを返す
+   * （採用・却下が済んだものは含まない）。
+   */
+  pageSuggestions: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/suggestions`,
+  /**
+   * POST(採用・body無し) — .../suggestions/:suggestionId/accept。CanEdit が要る。
+   * 本文へ反映し版を1つ切る。応答は反映後の提案そのもの（doc が反映後の本文と同じ）。
+   */
+  acceptPageSuggestion: (workspaceSlug: string, pageId: string, suggestionId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/suggestions/${suggestionId}/accept`,
+  /** POST(却下・body無し) — .../suggestions/:suggestionId/reject。CanEdit が要る。本文は一切変えない。 */
+  rejectPageSuggestion: (workspaceSlug: string, pageId: string, suggestionId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/suggestions/${suggestionId}/reject`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。

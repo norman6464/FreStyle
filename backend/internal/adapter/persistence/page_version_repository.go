@@ -13,8 +13,7 @@ import (
 )
 
 // pageVersionMinInterval は、直近の版からこの時間未満しか経っていなければ新しい版を
-// 間引く（作らない）しきい値。CreateVersionIfDue の doc コメント・
-// backend タスク設計（FRESTYLE-433 段 3）の「10 分規則」参照。
+// 間引く（作らない）しきい値。CreateVersionIfDue の doc コメント（10 分規則）参照。
 const pageVersionMinInterval = 10 * time.Minute
 
 // pageVersionRetention は版を残す期間。これより古い版は、新しい版を作るのと同じ
@@ -214,6 +213,26 @@ func (r *pageVersionRepository) ListVersions(ctx context.Context, workspaceID, p
 		out = append(out, toDomainPageVersion(row))
 	}
 	return out, nil
+}
+
+func (r *pageVersionRepository) GetLatestVersion(ctx context.Context, workspaceID, pageID string) (*domain.PageVersion, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return nil, nil
+	}
+	row, err := r.queries(ctx).GetLatestPageVersion(ctx, sqlcgen.GetLatestPageVersionParams{
+		WorkspaceID: wsID, PageID: pgID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// 版が 1 つも無いのは正常な状態（このメソッドの doc 参照）。
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	v := toDomainPageVersion(row)
+	return &v, nil
 }
 
 func (r *pageVersionRepository) GetVersion(ctx context.Context, workspaceID, pageID string, seq int64) (*domain.PageVersion, error) {

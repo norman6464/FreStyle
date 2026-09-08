@@ -43,6 +43,7 @@
     "@tiptap/starter-kit": "^3.30.2",
     "@tiptap/suggestion": "^3.30.2",
     "axios": "^1.18.1",
+    "diff": "^9.0.0",
     "github-slugger": "^2.0.0",
     "highlight.js": "11.11.2",
     "lowlight": "^3.3.0",

@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { mockAuthenticated } from './authMock';
 
 /**
  * ローカルビルド + API モックによる「認証付き導線・主要画面」E2E。
@@ -6,40 +7,15 @@ import { test, expect, type Page } from '@playwright/test';
  * 本番 Cognito / DB に触れず、`/api/v2/**` を Playwright route でモックして
  * 認証ガード (AuthInitializer → Protected) と主要画面の描画を検証する。
  *
- * 認証は `GET /auth/me` のレスポンスで制御する:
- *   - 401 を返す → 未認証扱い → /login へリダイレクト
- *   - 200 → 認証済み → AppShell + ページ描画
+ * 認証は AuthInitializer が見る発行者のクライアント側状態（ここでは Dex の
+ * localStorage セッション。`mockAuthenticated` 参照）で制御する:
+ *   - 無い → 未認証扱い → /login へリダイレクト
+ *   - 有る → セッション確立（POST /auth/login）→ AppShell + ページ描画
  */
-
-// 認証済みユーザーとして /api/v2/** をモックする。
-// 個別エンドポイントを上書きできるよう overrides を受け取る。
-async function mockAuthenticated(page: Page, overrides: Record<string, unknown> = {}) {
-  // 既定: 未指定の API は空配列で 200（リスト/オブジェクトどちらの消費側も undefined 安全）。
-  await page.route('**/api/v2/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  );
-  // 認証確認: 認証済みにする（role は撤去済みでレスポンスに含まれない）。
-  await page.route('**/api/v2/auth/me', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ id: 1, email: 'e2e@example.com', name: 'E2E ユーザー' }),
-    })
-  );
-  for (const [pattern, body] of Object.entries(overrides)) {
-    await page.route(pattern, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      })
-    );
-  }
-}
 
 test.describe('認証ガード', () => {
   test('未認証で保護ルートを開くと /login にリダイレクトされる', async ({ page }) => {
-    // すべての API を 401 にする → getCurrentUser 401 → refresh 401 → /login。
+    // Dex セッションを一切置かない（mockAuthenticated を呼ばない）→ 未認証扱い。
     await page.route('**/api/v2/**', (route) =>
       route.fulfill({
         status: 401,

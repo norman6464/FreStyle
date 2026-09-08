@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockAuthenticated } from './authMock';
 
 /**
  * トップ（/）に来た人がどこへ着くかの E2E。
@@ -27,16 +28,7 @@ test.describe('トップ（/）', () => {
   });
 
   test('ログイン済みならどこへも送られずホームがそのまま出る', async ({ page }) => {
-    await page.route('**/api/v2/**', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-    );
-    await page.route('**/api/v2/auth/me', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ id: 1, email: 'e2e@example.com', name: 'E2E ユーザー' }),
-      })
-    );
+    await mockAuthenticated(page);
     await page.goto('/');
 
     // ホームが実際に描画されるまで待つ。URL だけを見ると、MenuPage の遅延ロードが

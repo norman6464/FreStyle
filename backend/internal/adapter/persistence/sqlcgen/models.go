@@ -153,6 +153,19 @@ type PageSnapshot struct {
 	BuiltAt time.Time
 }
 
+type PageSuggestion struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	PageID           uuid.UUID
+	BaseSeq          sql.NullInt64
+	Doc              json.RawMessage
+	Status           string
+	AuthorUserID     int64
+	CreatedAt        time.Time
+	ResolvedAt       sql.NullTime
+	ResolvedByUserID sql.NullInt64
+}
+
 type PageTemplate struct {
 	ID              uuid.UUID
 	WorkspaceID     uuid.UUID

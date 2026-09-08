@@ -43,6 +43,10 @@ const hoisted = vi.hoisted(() => ({
   listPageTemplates: vi.fn(),
   deletePageTemplate: vi.fn(),
   createPageFromTemplate: vi.fn(),
+  createSuggestion: vi.fn(),
+  listOpenSuggestions: vi.fn(),
+  acceptSuggestion: vi.fn(),
+  rejectSuggestion: vi.fn(),
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
   fetchPageTree: vi.fn(),
@@ -97,6 +101,10 @@ vi.mock('@/entities/kb', async (importOriginal) => {
       listPageTemplates: hoisted.listPageTemplates,
       deletePageTemplate: hoisted.deletePageTemplate,
       createPageFromTemplate: hoisted.createPageFromTemplate,
+      createSuggestion: hoisted.createSuggestion,
+      listOpenSuggestions: hoisted.listOpenSuggestions,
+      acceptSuggestion: hoisted.acceptSuggestion,
+      rejectSuggestion: hoisted.rejectSuggestion,
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
       fetchPageTree: hoisted.fetchPageTree,
@@ -205,6 +213,7 @@ beforeEach(() => {
   hoisted.listPageVersions.mockResolvedValue([]);
   hoisted.listBacklinks.mockResolvedValue([]);
   hoisted.listPageTemplates.mockResolvedValue([]);
+  hoisted.listOpenSuggestions.mockResolvedValue([]);
 });
 
 describe('KbPage の配線', () => {
@@ -1204,6 +1213,194 @@ describe('KbPage の逆リンク（このページを参照しているページ
 
     // 実際に押しても落ちない（Link 自体の遷移は react-router の実装に委ねている）。
     fireEvent.click(link);
+  });
+});
+
+describe('KbPage の提案編集（commenter のドラフトモード）', () => {
+  it('commenterには「変更を提案する」ボタンが出る', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false)); // canEdit:false, canComment:true(既定) = commenter
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: '変更を提案する' })).toBeInTheDocument();
+  });
+
+  it('editorには出ない（本文を直接編集できるので提案の必要が無い）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(true)); // canEdit:true
+    renderPage();
+    await screen.findByTestId('editor');
+
+    expect(screen.queryByRole('button', { name: '変更を提案する' })).not.toBeInTheDocument();
+  });
+
+  it('viewerには出ない（canComment も無い）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false, false, false)); // canEdit:false, canComment:false
+    renderPage();
+    await screen.findByTestId('editor');
+
+    expect(screen.queryByRole('button', { name: '変更を提案する' })).not.toBeInTheDocument();
+  });
+
+  it('押すと本文が編集可能なドラフトモードに切り替わり、帯が出る', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    renderPage();
+    await screen.findByTestId('editor');
+    expect(hoisted.editorProps.current?.editable).toBe(false);
+
+    fireEvent.click(await screen.findByRole('button', { name: '変更を提案する' }));
+
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+    expect(await screen.findByText(/提案として保存されます/)).toBeInTheDocument();
+  });
+
+  it('ドラフトモードで送信するとcreateSuggestionが1回呼ばれ、成功したらドラフトモードを終了し成功トーストを出す', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    hoisted.createSuggestion.mockResolvedValue({
+      id: 's-1',
+      doc: { type: 'doc', content: [] },
+      status: 'open',
+      author: { userId: 1, name: '' },
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+    fireEvent.click(await screen.findByRole('button', { name: '変更を提案する' }));
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+
+    // 本文を書き換える（ローカルなドラフト state への onChange。API へは送らない）。
+    const edited = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '書き換え' }] }] };
+    act(() => {
+      hoisted.editorProps.current?.onChange?.(edited);
+    });
+    expect(hoisted.replaceContent).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '送信' }));
+
+    await waitFor(() => expect(hoisted.createSuggestion).toHaveBeenCalledTimes(1));
+    expect(hoisted.createSuggestion).toHaveBeenCalledWith('w-3f2a9c', 'p1', edited);
+    // 成功したらドラフトモードを終了し、通常の読み取り専用表示に戻る。
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+    expect(screen.queryByText(/提案として保存されます/)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('success', '提案として送信しました'),
+    );
+  });
+
+  it('送信に失敗したらドラフトモードのまま・入力を保持したままエラーを出す（成功トーストは出ない）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    hoisted.createSuggestion.mockRejectedValue(new Error('boom'));
+    renderPage();
+    await screen.findByTestId('editor');
+    fireEvent.click(await screen.findByRole('button', { name: '変更を提案する' }));
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: '送信' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('提案を送信できませんでした');
+    expect(hoisted.editorProps.current?.editable).toBe(true);
+    expect(hoisted.showToast).not.toHaveBeenCalledWith('success', expect.anything());
+  });
+
+  it('キャンセルすると下書きを破棄して読み取り専用表示に戻る（APIは呼ばない）', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false));
+    renderPage();
+    await screen.findByTestId('editor');
+    fireEvent.click(await screen.findByRole('button', { name: '変更を提案する' }));
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
+
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(false));
+    expect(hoisted.createSuggestion).not.toHaveBeenCalled();
+  });
+});
+
+describe('KbPage の提案パネル（開閉・採用・却下）', () => {
+  const suggestion = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    baseSeq: 1,
+    baseDoc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '元の本文' }] }] },
+    doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '書き換え後' }] }] },
+    status: 'open',
+    author: { userId: 2, name: '田中 太郎' },
+    createdAt: '2026-09-01T00:00:00Z',
+    ...over,
+  });
+
+  it('トグルを押すとlistOpenSuggestionsが呼ばれ、提案者名・差分が見える', async () => {
+    hoisted.listOpenSuggestions.mockResolvedValue([suggestion('s-1')]);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '提案' }));
+
+    await waitFor(() => expect(hoisted.listOpenSuggestions).toHaveBeenCalledWith('w-3f2a9c', 'p1'));
+    // SecondaryPanel はモバイル版・デスクトップ版の両方に同じ中身を描くため常に2つ出る
+    // （KbCommentsPanel・KbVersionsPanel の既存テストと同じ扱い）。
+    expect((await screen.findAllByText('田中 太郎')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('書き換え後').length).toBeGreaterThan(0);
+  });
+
+  it('採用ボタンを押すとacceptSuggestionが呼ばれ、一覧から消え、本文が再取得されて反映される', async () => {
+    hoisted.listOpenSuggestions.mockResolvedValue([suggestion('s-1')]);
+    hoisted.acceptSuggestion.mockResolvedValue({ ...suggestion('s-1'), status: 'accepted' });
+    const updatedDoc = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: '反映後の本文' }] }],
+    };
+    hoisted.resolvePage
+      .mockResolvedValueOnce(resolved(true)) // 初回描画（editor = 採用ボタンが出る）
+      .mockResolvedValueOnce({ ...resolved(true), doc: updatedDoc }); // handleAcceptSuggestion 内の reloadPage
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '提案' }));
+    await screen.findAllByText('田中 太郎');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '採用' })[0]);
+
+    await waitFor(() => expect(hoisted.acceptSuggestion).toHaveBeenCalledWith('w-3f2a9c', 'p1', 's-1'));
+    // 本文の再取得（resolvePage の 2 回目呼び出し）で画面へ反映される。
+    await waitFor(() => expect(hoisted.resolvePage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hoisted.editorProps.current?.value).toEqual(updatedDoc));
+    // 一覧からも消える。
+    expect(screen.queryByText('田中 太郎')).not.toBeInTheDocument();
+  });
+
+  it('却下ボタンを押すとrejectSuggestionが呼ばれ、一覧から消えるだけ（本文の再取得はしない）', async () => {
+    hoisted.listOpenSuggestions.mockResolvedValue([suggestion('s-1')]);
+    hoisted.rejectSuggestion.mockResolvedValue({ ...suggestion('s-1'), status: 'rejected' });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '提案' }));
+    await screen.findAllByText('田中 太郎');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '却下' })[0]);
+
+    await waitFor(() => expect(hoisted.rejectSuggestion).toHaveBeenCalledWith('w-3f2a9c', 'p1', 's-1'));
+    await waitFor(() => expect(screen.queryByText('田中 太郎')).not.toBeInTheDocument());
+    expect(hoisted.resolvePage).toHaveBeenCalledTimes(1);
+  });
+
+  it('採用に失敗したらエラートーストを出す', async () => {
+    hoisted.listOpenSuggestions.mockResolvedValue([suggestion('s-1')]);
+    hoisted.acceptSuggestion.mockRejectedValue(new Error('conflict'));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '提案' }));
+    await screen.findAllByText('田中 太郎');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '採用' })[0]);
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', '提案を採用できませんでした'),
+    );
+  });
+
+  it('編集できないページ（commenter）には採用・却下ボタンが出ない。読むこと自体はできる', async () => {
+    hoisted.resolvePage.mockResolvedValue(resolved(false)); // commenter
+    hoisted.listOpenSuggestions.mockResolvedValue([suggestion('s-1')]);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '提案' }));
+    await screen.findAllByText('田中 太郎');
+
+    expect(screen.queryByRole('button', { name: '採用' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '却下' })).not.toBeInTheDocument();
   });
 });
 

@@ -23,7 +23,7 @@ import (
 // kbTables（knowledge_base_schema_integration_test.go）に page_versions を加えたもの
 // （commentTables と同じ役割分担）。子から先に並べる。
 var pageVersionTables = []string{
-	"page_versions",
+	"page_suggestions", "page_versions",
 	"share_links", "page_grants", "space_grants", "workspace_grants",
 	"principal_members", "principals",
 	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
@@ -222,6 +222,67 @@ func TestPageVersionRepository_Cleanup_Integration(t *testing.T) {
 	assert.Equal(t, []int64{2, 3}, seqs, "31日前の版だけ消え、29日前の版と新しい版は残る")
 }
 
+// TestPageVersionRepository_Cleanup_KeepsVersionReferencedByOpenSuggestion_Integration は、
+// open な提案が base_seq として参照している版は、30 日を超えていても掃除で消えないことを
+// 固定する（queries/page_version.sql の DeleteOldPageVersions の NOT EXISTS 参照）。
+func TestPageVersionRepository_Cleanup_KeepsVersionReferencedByOpenSuggestion_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	ws, page := setupPageVersionFixture(t, sqlDB, "ws-pv-cleanup-open-sugg")
+	versionRepo := persistence.NewPageVersionRepository(sqlDB)
+	suggestionRepo := persistence.NewPageSuggestionRepository(sqlDB)
+
+	require.NoError(t, insertPageVersion(sqlDB, ws, page, 1, pageVersionTestDoc, 1, nil, time.Now().Add(-31*24*time.Hour)))
+	baseSeq := int64(1)
+	sugg := &domain.PageSuggestion{WorkspaceID: ws, PageID: page, BaseSeq: &baseSeq, Doc: pageVersionTestDoc, AuthorUserID: 2}
+	require.NoError(t, suggestionRepo.Create(ctx, sugg))
+
+	created, v, err := versionRepo.CreateVersionIfDue(ctx, ws, page, pageVersionTestDoc, 1, nil, true)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NotNil(t, v)
+	assert.Equal(t, int64(2), v.Seq)
+
+	assert.Equal(t, 2, countPageVersions(t, sqlDB, ws, page),
+		"31日前でもopenな提案が参照しているseq=1は消えず、新しいseq=2と合わせて2件残る")
+}
+
+// TestPageVersionRepository_Cleanup_DeletesVersionAfterSuggestionResolved_Integration は、
+// 提案が採用・却下されて open でなくなれば、それが参照していた古い版は通常どおり
+// 掃除されることを固定する（参照が外れたのと同じ扱い）。
+func TestPageVersionRepository_Cleanup_DeletesVersionAfterSuggestionResolved_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	ws, page := setupPageVersionFixture(t, sqlDB, "ws-pv-cleanup-resolved-sugg")
+	versionRepo := persistence.NewPageVersionRepository(sqlDB)
+	suggestionRepo := persistence.NewPageSuggestionRepository(sqlDB)
+
+	require.NoError(t, insertPageVersion(sqlDB, ws, page, 1, pageVersionTestDoc, 1, nil, time.Now().Add(-31*24*time.Hour)))
+	baseSeq := int64(1)
+	sugg := &domain.PageSuggestion{WorkspaceID: ws, PageID: page, BaseSeq: &baseSeq, Doc: pageVersionTestDoc, AuthorUserID: 2}
+	require.NoError(t, suggestionRepo.Create(ctx, sugg))
+	_, err := suggestionRepo.Resolve(ctx, ws, page, sugg.ID, domain.PageSuggestionStatusRejected, 3, time.Now())
+	require.NoError(t, err)
+
+	created, v, err := versionRepo.CreateVersionIfDue(ctx, ws, page, pageVersionTestDoc, 1, nil, true)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NotNil(t, v)
+	assert.Equal(t, int64(2), v.Seq)
+
+	rows, err := sqlDB.Query(`SELECT seq FROM page_versions WHERE workspace_id = $1 AND page_id = $2 ORDER BY seq`, ws, page)
+	require.NoError(t, err)
+	defer rows.Close()
+	var seqs []int64
+	for rows.Next() {
+		var seq int64
+		require.NoError(t, rows.Scan(&seq))
+		seqs = append(seqs, seq)
+	}
+	require.NoError(t, rows.Err())
+	assert.Equal(t, []int64{2}, seqs, "却下済みの提案が参照していたseq=1は通常どおり掃除される")
+}
+
 // TestPageVersionRepository_RollbackOnFailure_Integration は、版の書き込み
 // （CreateVersionIfDue の INSERT）が失敗したとき、同じトランザクションに入っている
 // TouchPageLastEditedBy / ReplacePageBlocks も道連れでロールバックされることを固定する。
@@ -315,9 +376,8 @@ func TestPageVersionRepository_TenantIsolation_Integration(t *testing.T) {
 // 一時的に外すと、10並行の force=true 書き込みのうち複数が
 // "duplicate key value violates unique constraint \"page_versions_pkey\"" で失敗することを
 // 確認済み（ロック有りでは複数回実行して常に0件）。「衝突後に再試行」ではなく
-// 「ロックで衝突自体を起こさせない」という設計判断（段3の着手時に解いた未決事項）を
-// このテストが守る。CodeRabbit相当の検証エージェント自身の指摘: このテストが無いと、
-// 将来誰かがロックを誤って外してもCIが緑のまま気づけない。
+// 「ロックで衝突自体を起こさせない」という設計判断をこのテストが守る。
+// このテストが無いと、将来誰かがロックを誤って外してもCIが緑のまま気づけない。
 func TestPageVersionRepository_ConcurrentWrites_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()

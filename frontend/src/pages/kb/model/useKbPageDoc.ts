@@ -266,6 +266,26 @@ export function useKbPageDoc(pageId: string | undefined) {
     });
   }, []);
 
+  /**
+   * reloadPage はこのページを GET で引き直し、応答をそのまま画面の状態へ差し替える。
+   *
+   * 提案の採用（useKbPageSuggestions.accept）は本文を直接書き換える別経路の API
+   * （POST .../suggestions/:id/accept）で、自動保存（flushSave・PUT .../content）とは
+   * 完全に別系統。採用が成功した直後、この画面が持つ doc / lastEditedBy 等はまだ
+   * 反映前の古い値のままなので、呼び出し側（KbPage）が明示的にここを呼んで揃え直す。
+   *
+   * **自動保存のタイマー・保留（pendingSaves）には触れない** — 反映前の版で上書きすると
+   * 自動保存の対象に含めてしまう既存の懸念とは別物（あちらは PUT の応答同士の順序、
+   * こちらは採用という別経路の結果を今の画面へ映すだけ）なので、ここでは何もしない。
+   */
+  const reloadPage = useCallback(async (pageId: string): Promise<void> => {
+    const token = generation.current;
+    const data = await KbRepository.resolvePage(pageId);
+    // 応答が返る前に別ページへ移っていたら、画面の状態には触らない（他の更新系と同じ守り）。
+    if (token !== generation.current) return;
+    setState({ data, loading: false, error: null });
+  }, []);
+
   /** onDocChange はエディタの onChange から呼ぶ。デバウンスして本文を保存する。 */
   const onDocChange = useCallback(
     (doc: unknown) => {
@@ -293,5 +313,6 @@ export function useKbPageDoc(pageId: string | undefined) {
     changeCover,
     applyRestoredContent,
     waitForPendingSaveToSettle,
+    reloadPage,
   };
 }

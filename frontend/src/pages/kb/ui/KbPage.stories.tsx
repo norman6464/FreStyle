@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test';
 import { withApi, withToast, routerWithParam } from '../../../../.storybook/decorators';
 import KbPage from './KbPage';
 
@@ -94,6 +94,26 @@ const api = (over: Record<string, unknown> = {}) => ({
   // 含むため、iconStub と同じ理由でそちらより前に置く（後ろだと workspaces の一覧が
   // 誤って backlinks の応答として使われ、意図しない逆リンクセクションが出てしまう）。
   '/pages/p-1/backlinks': [],
+  // 提案系の宛先も `/kb/workspaces` を部分文字列として含むため、同じ理由でそちらより前に
+  // 置く。採用・却下（.../suggestions/:id/accept|reject）は一覧（.../suggestions）を
+  // 部分文字列として含むので、この中でも採用・却下を先に書く。既定は「何も無い」に倒し、
+  // 各 story は `over` で同じキー名を上書きする（同名キーの再定義は元の並び順を保ったまま
+  // 値だけ差し替わる — ECMAScript の仕様どおりの挙動）。
+  '/pages/p-1/suggestions/s-1/accept': () => ({
+    id: 's-1',
+    doc,
+    status: 'accepted',
+    author: { userId: 1, name: '' },
+    createdAt: '2026-09-01T00:00:00Z',
+  }),
+  '/pages/p-1/suggestions/s-1/reject': () => ({
+    id: 's-1',
+    doc,
+    status: 'rejected',
+    author: { userId: 1, name: '' },
+    createdAt: '2026-09-01T00:00:00Z',
+  }),
+  '/pages/p-1/suggestions': [],
   '/spaces/s-1/pages': tree,
   '/spaces': spaces,
   '/kb/workspaces': workspaces,
@@ -208,6 +228,91 @@ export const アイコンの変更に失敗: Story = {
     });
     // 失敗したのでピッカーは開いたまま。
     await expect(canvas.getByRole('dialog', { name: 'ページのアイコンを選ぶ' })).toBeInTheDocument();
+  },
+};
+
+/**
+ * commenter（閲覧+コメントはできるが編集はできない役割）が「変更を提案する」を送信する。
+ * 送信すると本文は変わらないまま（実際の本文は変えず、提案として積まれるだけ）、
+ * ドラフトモードを終え通常表示に戻り、成功のトーストが出る。
+ */
+export const 提案を送信する: Story = {
+  decorators: [
+    routerWithParam('/kb/:pageId', '/kb/p-1'),
+    withApi(
+      api({
+        '/kb/pages/p-1': resolved({ canEdit: false, canManage: false, canComment: true }),
+        '/pages/p-1/suggestions': (config: { method?: string }) =>
+          config.method === 'post'
+            ? {
+                id: 'sugg-1',
+                doc,
+                status: 'open',
+                author: { userId: 9, name: '山田 太郎' },
+                createdAt: '2026-09-01T00:00:00Z',
+              }
+            : [],
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: '変更を提案する' }));
+    await expect(canvas.getByText(/提案として保存されます/)).toBeVisible();
+
+    await userEvent.click(canvas.getByRole('button', { name: '送信' }));
+
+    await waitFor(async () => {
+      await expect(canvas.queryByText(/提案として保存されます/)).not.toBeInTheDocument();
+    });
+    await expect(await screen.findByText('提案として送信しました')).toBeVisible();
+  },
+};
+
+/**
+ * editor が「提案」パネルを開き、開いている提案を採用する。採用すると一覧からその提案が消える
+ * （backend が反映後の本文を返すので、フロントは本文を再取得して画面へ映す）。
+ */
+export const 提案を採用する: Story = {
+  decorators: [
+    routerWithParam('/kb/:pageId', '/kb/p-1'),
+    withApi(
+      api({
+        '/pages/p-1/suggestions/s-1/accept': () => ({
+          id: 's-1',
+          doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '採用後の本文' }] }] },
+          status: 'accepted',
+          author: { userId: 2, name: '鈴木 花子' },
+          createdAt: '2026-09-01T09:00:00Z',
+          resolvedAt: '2026-09-01T10:00:00Z',
+          resolvedBy: { userId: 1, name: '田中 太郎' },
+        }),
+        '/pages/p-1/suggestions': [
+          {
+            id: 's-1',
+            baseSeq: 1,
+            baseDoc: doc,
+            doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '採用後の本文' }] }] },
+            status: 'open',
+            author: { userId: 2, name: '鈴木 花子' },
+            createdAt: '2026-09-01T09:00:00Z',
+          },
+        ],
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: '提案' }));
+    // SecondaryPanel はモバイル版（隠れている）・デスクトップ版の両方に同じ中身を描くため
+    // 常に2つ出る。片方は非表示なので toBeVisible ではなく件数だけ見る。
+    await expect((await canvas.findAllByText('鈴木 花子')).length).toBeGreaterThan(0);
+
+    await userEvent.click(canvas.getAllByRole('button', { name: '採用' })[0]);
+
+    await waitFor(async () => {
+      await expect(canvas.queryByText('鈴木 花子')).not.toBeInTheDocument();
+    });
   },
 };
 

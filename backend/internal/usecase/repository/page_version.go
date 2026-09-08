@@ -56,4 +56,10 @@ type PageVersionRepository interface {
 
 	// GetVersion は 1 件の版を返す。無ければ domain.ErrPageVersionNotFound。
 	GetVersion(ctx context.Context, workspaceID, pageID string, seq int64) (*domain.PageVersion, error)
+
+	// GetLatestVersion はそのページの直近の版（seq 降順 1 件）を返す。GetVersion と違い、
+	// 版が 1 つも無いことはエラーではなく正常な状態として扱う（CreateSuggestionUseCase が
+	// BaseSeq を決めるために使う — まだ版が無いページへの提案は BaseSeq を nil のままにする）。
+	// 版が無ければ (nil, nil) を返す。
+	GetLatestVersion(ctx context.Context, workspaceID, pageID string) (*domain.PageVersion, error)
 }

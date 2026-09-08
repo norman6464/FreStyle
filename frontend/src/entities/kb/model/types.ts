@@ -328,6 +328,30 @@ export interface KbPageVersionDetail extends KbPageVersion {
 }
 
 /**
+ * 提案 1 件。commenter（閲覧+コメントはできるが編集はできない役割）が本文を書き換えたときに、
+ * blocks を直接更新する代わりに積まれる。editor 以上が採用すれば本文へ反映され、
+ * 却下すれば本文は一切変わらない。
+ *
+ * baseSeq は提案した時点のそのページの最新版（page_versions.seq）。まだ版が 1 つも無い
+ * ページへの提案では省略される。baseDoc は baseSeq が指す版の本文全体（差分表示用の
+ * 付随情報 — その版が引けなければ省略されるが、それだけで提案自体の表示は止めない）。
+ *
+ * doc は提案後の本文全体（ProseMirror doc）。**差分は計算済みでは来ない** —
+ * baseDoc と doc をこちら側で突き合わせて計算する（backend は差分を持たない設計）。
+ */
+export interface KbPageSuggestion {
+  id: string;
+  baseSeq?: number;
+  doc: unknown;
+  status: 'open' | 'accepted' | 'rejected';
+  author: KbEditorRef;
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: KbEditorRef;
+  baseDoc?: unknown;
+}
+
+/**
  * テンプレート 1 件（一覧用の軽い形。doc は含まない）。
  *
  * spaceId が無い（null/undefined）ならワークスペース全体で使えるテンプレート、値があれば

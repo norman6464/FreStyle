@@ -14,9 +14,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CommentHandler はページ全体へのコメント（FRESTYLE-432 段 2）と、
-// 錨付きコメント（同段 3）を受ける。錨付け（block_id / anchor_from / anchor_to / quote）を
-// 受け取るのは CreateThread だけ（返信・解決・再開はスレッド単位の操作で錨を持たない）。
+// CommentHandler はページ全体へのコメントと錨付きコメントを受ける。
+// 錨付け（block_id / anchor_from / anchor_to / quote）を受け取るのは CreateThread だけ
+// （返信・解決・再開はスレッド単位の操作で錨を持たない）。
 type CommentHandler struct {
 	check        *kb.CheckPagePermissionUseCase
 	createThread *comment.CreateCommentThreadUseCase
@@ -55,7 +55,16 @@ func NewCommentHandler(
 // domain.Capability ではなく domain.PagePermission.CanComment という別軸のフィールドなので、
 // 別関数にする（Capability は view/edit の 2 値にしか対応しておらず、そのまま流用できない）。
 func (h *CommentHandler) requireCommentPermission(c *gin.Context, scope kbRequestScope, pageID string) bool {
-	perm, err := h.check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
+	return requireCommentPermissionWith(c, h.check, scope, pageID)
+}
+
+// requireCommentPermissionWith は requireCommentPermission の実体。CommentHandler と
+// PageSuggestionHandler の両方が同じ判定（CanComment）を使うために package レベルの関数へ
+// 切り出してある（requirePagePermissionWith / requireSpacePermissionWith と同じ理由 —
+// CanComment の判定はどちらの handler でも同じで、書き直すとどちらか片方だけ直し忘れて
+// 食い違う危険がある）。
+func requireCommentPermissionWith(c *gin.Context, check *kb.CheckPagePermissionUseCase, scope kbRequestScope, pageID string) bool {
+	perm, err := check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
 		UserID:      scope.userID,
@@ -95,7 +104,7 @@ type commentResponse struct {
 
 // commentThreadResponse はスレッド 1 件と、その発言（最初の発言 + 返信）の返却形。
 //
-// BlockID/AnchorFrom/AnchorTo/Quote は錨付きスレッド（段 3）だけ値を持つ。page-level の
+// BlockID/AnchorFrom/AnchorTo/Quote は錨付きスレッドだけ値を持つ。page-level の
 // スレッドでは 4 つとも省略される（omitempty）。
 type commentThreadResponse struct {
 	ID         string                    `json:"id"`
@@ -176,7 +185,7 @@ type kbCommentBodyRequest struct {
 	Body json.RawMessage `json:"body" binding:"required"`
 }
 
-// kbCreateThreadRequest は新しいスレッドの入力。本文に加え、錨（段 3）を任意で受け取る。
+// kbCreateThreadRequest は新しいスレッドの入力。本文に加え、錨を任意で受け取る。
 // BlockID/AnchorFrom/AnchorTo/Quote は 4 つとも揃うか 4 つとも無いかのどちらかで、
 // その検証は domain.ValidateCommentAnchor（usecase 経由）が行う。
 type kbCreateThreadRequest struct {

@@ -36,4 +36,5 @@ export type {
   KbPageVersion,
   KbPageVersionDetail,
   KbPageTemplate,
+  KbPageSuggestion,
 } from './model/types';

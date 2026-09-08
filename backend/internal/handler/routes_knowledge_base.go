@@ -50,6 +50,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewCommentRepository(deps.db),
 		persistence.NewPageVersionRepository(deps.db),
 		persistence.NewPageTemplateRepository(deps.db),
+		persistence.NewPageSuggestionRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 		newKbImagePresignerOrFallback(deps),
 	)
@@ -59,8 +60,8 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 // （bucket が最初から無い = 明示的にローカル開発用と分かる状態なので安全。rich-text 画像・
 // profile 画像と同じバケットを kb/ prefix で共有する）。
 //
-// bucket が設定されているのに infraS3.NewPresigner が失敗する場合は fallback しない
-// （CodeRabbit 指摘・段1b）。この場合は「本物の S3 を使うつもりだった」ことが bucket 名の
+// bucket が設定されているのに infraS3.NewPresigner が失敗する場合は fallback しない。
+// この場合は「本物の S3 を使うつもりだった」ことが bucket 名の
 // 存在から明らかなので、黙って stub（未署名 URL）へ倒すと IssueImageUploadURL が 200 を
 // 返し続け、クライアントは成功と誤認したまま S3 PUT だけが失敗する。config.Load の OIDC
 // 必須化（「起動時に止める。通す側に倒すと誰も気づかない」）と同じ考え方で、ここも
@@ -104,11 +105,12 @@ func registerKnowledgeBaseRoutesWith(
 	comments repository.CommentRepository,
 	versions repository.PageVersionRepository,
 	templates repository.PageTemplateRepository,
+	suggestions repository.PageSuggestionRepository,
 	txManager repository.TxManager,
 	kbImagePresigner repository.KbImagePresigner,
 ) {
 	// ReplacePageBlocksUseCase は本文保存の成功直後に versionRepo.CreateVersionIfDue を同じ
-	// トランザクションで呼ぶ（FRESTYLE-433 段 3）ので、PageVersionHandler と同じ 1 つの
+	// トランザクションで呼ぶので、PageVersionHandler と同じ 1 つの
 	// インスタンスを共有する（RestorePageVersionUseCase もこれをそのまま呼ぶ）。
 	replaceBlocks := kb.NewReplacePageBlocksUseCase(pages, txManager, versions)
 	h := NewKnowledgeBasePageHandler(
@@ -138,7 +140,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewListPageBacklinksUseCase(permissions),
 	)
 
-	// ページ全体へのコメント（FRESTYLE-432 段 2）。認可は CommentHandler 内で
+	// ページ全体へのコメント。認可は CommentHandler 内で
 	// CheckPagePermissionUseCase を直接使う（CanComment / CanView の判定は
 	// requireCommentPermission / requirePagePermissionWith を参照）。
 	ch := NewCommentHandler(
@@ -151,7 +153,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewLookupUserNameUseCase(users),
 	)
 
-	// ページ本文の版（FRESTYLE-433 段 3）。一覧・単体取得は CapabilityView、
+	// ページ本文の版。一覧・単体取得は CapabilityView、
 	// 作成（「版を残す」）・復元は CapabilityEdit（PageVersionHandler 内の各ハンドラ参照）。
 	vh := NewPageVersionHandler(
 		kb.NewCheckPagePermissionUseCase(permissions),
@@ -162,7 +164,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewLookupUserNameUseCase(users),
 	)
 
-	// ページの雛形（FRESTYLE-435 段 5）。作成・削除はワークスペース全体への CanEdit、
+	// ページの雛形。作成・削除はワークスペース全体への CanEdit、
 	// 一覧はワークスペース所属者なら誰でも、使用（雛形からページを作る）は既存のページ作成
 	// （h.Create）と全く同じ認可分岐で判定する（PageTemplateHandler 参照）。
 	th := NewPageTemplateHandler(
@@ -174,6 +176,20 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewCreateTemplateFromPageUseCase(pages, templates),
 		kb.NewDeletePageTemplateUseCase(templates),
 		kb.NewCreatePageFromTemplateUseCase(templates, kb.NewCreatePageUseCase(pages), replaceBlocks, kb.NewDeletePageUseCase(pages)),
+	)
+
+	// 提案。作成は CanComment、一覧の閲覧は CanView、採用・却下は CanEdit
+	// （PageSuggestionHandler 参照）。採用は本文保存の成功直後に版を切る通常の保存経路と
+	// 同じ replaceBlocks インスタンスを使い回す（インスタンスを複数持つと版のトランザクション境界が
+	// 揃わなくなるため）。
+	sgh := NewPageSuggestionHandler(
+		kb.NewCheckPagePermissionUseCase(permissions),
+		kb.NewCreateSuggestionUseCase(pages, versions, suggestions),
+		kb.NewListOpenPageSuggestionsUseCase(suggestions),
+		kb.NewAcceptPageSuggestionUseCase(suggestions, replaceBlocks, txManager),
+		kb.NewRejectPageSuggestionUseCase(suggestions),
+		kb.NewGetPageVersionUseCase(versions),
+		kb.NewLookupUserNameUseCase(users),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
@@ -274,7 +290,7 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content", h.ReplaceContent)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.SetIcon)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.ClearIcon)
-	// ページに閉じた画像の読み取り経路（FRESTYLE-368 段 1b）。
+	// ページに閉じた画像の読み取り経路。
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/images/upload-url", h.IssueImageUploadURL)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/images/download-url", h.IssueImageDownloadURL)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.SetCover)
@@ -282,7 +298,7 @@ func registerKnowledgeBaseRoutesWith(
 	// 逆リンク: このページを参照しているページの一覧。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/backlinks", h.Backlinks)
 
-	// ページ全体へのコメント（FRESTYLE-432 段 2）。一覧は CanView だけで許可し、
+	// ページ全体へのコメント。一覧は CanView だけで許可し、
 	// 作成・返信・解決・再開は CanComment を要求する（CommentHandler.requireCommentPermission）。
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads", ch.CreateThread)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads", ch.ListThreads)
@@ -290,20 +306,27 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/resolve", ch.Resolve)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/comment-threads/:threadId/reopen", ch.Reopen)
 
-	// ページ本文の版（FRESTYLE-433 段 3）。一覧・単体取得は CapabilityView（閲覧できれば
+	// ページ本文の版。一覧・単体取得は CapabilityView（閲覧できれば
 	// 誰でも読める）、「版を残す」・復元は CapabilityEdit を要求する（PageVersionHandler 参照）。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/versions", vh.List)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/versions/:seq", vh.Get)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/versions", vh.Create)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/versions/:seq/restore", vh.Restore)
 
-	// ページの雛形（FRESTYLE-435 段 5）。一覧はワークスペース所属者なら誰でも、
+	// ページの雛形。一覧はワークスペース所属者なら誰でも、
 	// 作成（そのページを雛形として保存）・削除はワークスペース全体への CanEdit を要求する
 	// （PageTemplateHandler 参照）。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/templates", th.List)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/templates", th.CreateFromPage)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/templates/:templateId", th.Delete)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template", th.CreatePage)
+
+	// 提案。作成は CanComment、一覧の閲覧は CanView、採用・却下は CanEdit
+	// を要求する（PageSuggestionHandler 参照）。
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions", sgh.Create)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions", sgh.ListOpen)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions/:suggestionId/accept", sgh.Accept)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions/:suggestionId/reject", sgh.Reject)
 
 	// ここから下が「権限そのものを変える」経路。すべて admin だけが通り、
 	// 通らなかった要求は理由も対象の種類も伏せて 404 を返す（kb_permission_gate.go）。

@@ -4,17 +4,33 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 
 import { setAuthData } from '@/entities/user';
 import { AuthRepository as authRepository } from '@/entities/user';
-import { consumeAuthFlowState } from '@/features/auth';
+import {
+  consumeAuthFlowState,
+  exchangeCodeForToken,
+  verifyIdTokenNonce,
+  saveDexSession,
+  readAuthConfig,
+} from '@/features/auth';
 import { setAuthHint } from '@/shared/lib/authHint';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
 
+/** state / nonce の検証に失敗したことを表す（発行者への通信自体は成功している）。 */
+class CallbackVerificationError extends Error {}
+
 /**
- * 発行者のログイン画面からの戻りを処理する。
+ * 発行者（ローカル開発の Dex）のログイン画面からの戻りを処理する。
+ *
+ * 本番（GCIP）はここを通らない——`signInWithPopup` がその場でトークンまで
+ * 完結させるため、別タブへ丸ごと遷移するコールバック画面が要らない。
+ * ここは Dex（認可コード + PKCE の標準フロー）専用。
  *
  * 認可コードを交換する前に、**戻ってきた state が自分の作った値と一致するか**を確かめる。
  * 確かめないと、攻撃者が自分の認可コードを他人のブラウザに踏ませて、
- * 被害者を攻撃者のアカウントでログインさせられる（被害者が書いたものが
- * 攻撃者の手元に残る）。
+ * 被害者を攻撃者のアカウントでログインさせられる。
+ *
+ * 交換して id_token を受け取った後は、**nonce クレームも突き合わせる**。backend は
+ * もうこのコード交換に立ち会わない（Bearer の検証だけを行う）ため、id_token を
+ * 受け取った側＝ここが自分で確かめる必要がある。
  */
 export function useLoginCallback() {
   const [searchParams] = useSearchParams();
@@ -49,11 +65,21 @@ export function useLoginCallback() {
       return;
     }
 
-    authRepository
-      .callback({
-        code,
-        codeVerifier: flow.codeVerifier,
-        nonce: flow.nonce,
+    const cfg = readAuthConfig();
+    if (cfg.status !== 'configured') {
+      navigate('/login', {
+        state: { toast: '現在ログインを受け付けていません。' },
+      });
+      return;
+    }
+
+    exchangeCodeForToken(cfg, code, flow.codeVerifier)
+      .then((token) => {
+        if (!verifyIdTokenNonce(token.idToken, flow.nonce)) {
+          throw new CallbackVerificationError();
+        }
+        saveDexSession(token.idToken, token.refreshToken, token.expiresInSeconds);
+        return authRepository.login();
       })
       .then(() => {
         dispatch(setAuthData());
@@ -61,9 +87,11 @@ export function useLoginCallback() {
         navigate('/');
       })
       .catch((err) => {
-        navigate('/login', {
-          state: { toast: classifyApiError(err, '認証に失敗しました') },
-        });
+        const toast =
+          err instanceof CallbackVerificationError
+            ? 'ログインの検証に失敗しました。もう一度お試しください。'
+            : classifyApiError(err, '認証に失敗しました');
+        navigate('/login', { state: { toast } });
       });
   }, [code, returnedState, error, dispatch, navigate]);
 }

@@ -19,17 +19,17 @@
 
 const API_V2 = '/api/v2' as const;
 
-/** 認証 (Cognito Hosted UI / SRP / 自己情報取得) */
+/**
+ * 認証（Bearer の ID トークン検証）
+ *
+ * backend はセッション用の Cookie を発行しない。login は Authorization: Bearer で
+ * 渡した ID トークンを検証して users 行と個人ワークスペースを作る（自己サインアップ、
+ * 既存ユーザーなら実質 no-op）。ログアウト・更新はどちらも発行者
+ * （GCIP のクライアント SDK / ローカルの Dex）側だけで完結し、backend には対応する
+ * エンドポイントが無い。
+ */
 export const AUTH = {
-  // 認可コードの交換 / ログアウト / 更新は発行者に依存しない REST パスに統一する。
-  //
-  // メールとパスワードをアプリで受ける口（/auth/cognito/login など）は撤去した。
-  // パスワードを受け取るのは発行者のログイン画面の役目で、アプリが受け取ると
-  // 二要素・ロックアウト・パスワードの強さといった発行者側の守りを素通りする
-  // 経路を自分で開くことになる。
-  callback: `${API_V2}/auth/login`,
-  logout: `${API_V2}/auth/logout`,
-  refreshToken: `${API_V2}/auth/refresh`,
+  login: `${API_V2}/auth/login`,
   me: `${API_V2}/auth/me`,
 } as const;
 

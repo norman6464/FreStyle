@@ -1,113 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
 import { useSidebar } from '../useSidebar';
+import { useAuth } from '@/features/auth';
 
-const mockDispatch = vi.fn();
-const mockNavigate = vi.fn();
-
-vi.mock('@/shared/lib/store', () => ({
-  useAppDispatch: () => mockDispatch,
-}));
-
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-}));
-
-vi.mock('@/entities/user/model/authSlice', () => ({
-  clearAuth: () => ({ type: 'auth/clearAuth' }),
-}));
-
-const mockLogout = vi.fn();
-
-vi.mock('@/entities/user/api/authRepository', () => ({
-  default: {
-    logout: (...args: unknown[]) => mockLogout(...args),
-  },
+// ログアウトの実体は useAuth に一本化した。ここでは配線（useAuth の logout/loading を
+// handleLogout/loggingOut としてそのまま渡していること）だけを確かめる。
+// logout 自体の挙動（Redux 更新・遷移・失敗時の扱い）は useAuth.test.ts が検証する。
+vi.mock('@/features/auth', () => ({
+  useAuth: vi.fn(),
 }));
 
 describe('useSidebar', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockLogout.mockResolvedValue({ message: 'ログアウトしました。' });
-  });
+  it('useAuth の logout を handleLogout として返す', () => {
+    const mockLogout = vi.fn();
+    vi.mocked(useAuth).mockReturnValue({ logout: mockLogout, loading: false } as never);
 
-  it('ログアウトでdispatch(clearAuth)とnavigate(/login)を呼ぶ', async () => {
     const { result } = renderHook(() => useSidebar());
-
-    await act(async () => {
-      await result.current.handleLogout();
-    });
+    result.current.handleLogout();
 
     expect(mockLogout).toHaveBeenCalledOnce();
-    expect(mockDispatch).toHaveBeenCalledWith({ type: 'auth/clearAuth' });
-    expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
-  it('ログアウト失敗時はnavigate呼ばない', async () => {
-    mockLogout.mockRejectedValue(new Error('Network Error'));
+  it('useAuth の loading を loggingOut として返す', () => {
+    vi.mocked(useAuth).mockReturnValue({ logout: vi.fn(), loading: true } as never);
 
     const { result } = renderHook(() => useSidebar());
-
-    await act(async () => {
-      await result.current.handleLogout();
-    });
-
-    expect(mockNavigate).not.toHaveBeenCalled();
-  });
-
-  it('ログアウト成功時にトースト付きでログインページに遷移する', async () => {
-    const { result } = renderHook(() => useSidebar());
-
-    await act(async () => {
-      await result.current.handleLogout();
-    });
-
-    expect(mockNavigate).toHaveBeenCalledWith('/login');
-  });
-
-  it('ログアウト失敗時にdispatchも呼ばれない', async () => {
-    mockLogout.mockRejectedValue(new Error('Network Error'));
-
-    const { result } = renderHook(() => useSidebar());
-
-    await act(async () => {
-      await result.current.handleLogout();
-    });
-
-    expect(mockDispatch).not.toHaveBeenCalled();
-  });
-
-  it('初期状態でloggingOutがfalseである', () => {
-    const { result } = renderHook(() => useSidebar());
-    expect(result.current.loggingOut).toBe(false);
-  });
-
-  it('ログアウト開始時にloggingOutがtrueになる', async () => {
-    let resolveLogout: () => void;
-    mockLogout.mockImplementation(() => new Promise<void>(r => { resolveLogout = r; }));
-
-    const { result } = renderHook(() => useSidebar());
-
-    act(() => {
-      result.current.handleLogout();
-    });
 
     expect(result.current.loggingOut).toBe(true);
-
-    await act(async () => {
-      resolveLogout!();
-    });
-  });
-
-  it('ログアウト失敗時にloggingOutがfalseに戻る', async () => {
-    mockLogout.mockRejectedValue(new Error('Network Error'));
-
-    const { result } = renderHook(() => useSidebar());
-
-    await act(async () => {
-      await result.current.handleLogout();
-    });
-
-    expect(result.current.loggingOut).toBe(false);
   });
 });

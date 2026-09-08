@@ -4,7 +4,9 @@
 # esbuild: 自分のプラットフォーム向けバイナリを配置するために要る（vite / vitest が使う）。
 #          許さないと "You installed esbuild for another platform" でビルドが落ちる。
 allowBuilds:
+  '@firebase/util': true
   esbuild: true
+  protobufjs: true
 
 # 依存の版を上書きする。**npm の package.json "overrides" は pnpm が読まない**ので、
 # 移行のときにここへ移した（残したままだと固定が黙って効かなくなる）。

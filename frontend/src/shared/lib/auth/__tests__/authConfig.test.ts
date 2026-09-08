@@ -3,6 +3,7 @@ import { readAuthConfig, DEFAULT_SCOPE } from '../authConfig';
 
 const complete = {
   VITE_OIDC_AUTHORIZE_URI: 'https://issuer.test/oauth/v2/authorize',
+  VITE_OIDC_TOKEN_URI: 'https://issuer.test/oauth/v2/token',
   VITE_OIDC_CLIENT_ID: 'test-client-id',
   VITE_OIDC_REDIRECT_URI: 'https://app.test/login/callback',
   VITE_OIDC_SCOPE: 'openid profile email offline_access',
@@ -25,6 +26,7 @@ describe('readAuthConfig', () => {
     expect(config).toEqual({
       status: 'configured',
       authorizeUri: complete.VITE_OIDC_AUTHORIZE_URI,
+      tokenUri: complete.VITE_OIDC_TOKEN_URI,
       clientId: complete.VITE_OIDC_CLIENT_ID,
       redirectUri: complete.VITE_OIDC_REDIRECT_URI,
       scope: complete.VITE_OIDC_SCOPE,
@@ -47,6 +49,7 @@ describe('readAuthConfig', () => {
 
   it.each([
     ['VITE_OIDC_AUTHORIZE_URI'],
+    ['VITE_OIDC_TOKEN_URI'],
     ['VITE_OIDC_CLIENT_ID'],
     ['VITE_OIDC_REDIRECT_URI'],
   ])('%s が空なら unconfigured で、その名前を挙げる', (key) => {
@@ -90,6 +93,15 @@ describe('readAuthConfig', () => {
     expect(config.status).toBe('unconfigured');
     if (config.status === 'unconfigured') {
       expect(config.missing).toContain('VITE_OIDC_REDIRECT_URI');
+    }
+  });
+
+  it('tokenUri が絶対 http(s) URL でなければ unconfigured', () => {
+    stub({ VITE_OIDC_TOKEN_URI: '/dex/token' });
+    const config = readAuthConfig();
+    expect(config.status).toBe('unconfigured');
+    if (config.status === 'unconfigured') {
+      expect(config.missing).toContain('VITE_OIDC_TOKEN_URI');
     }
   });
 });

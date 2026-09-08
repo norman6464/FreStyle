@@ -7,8 +7,10 @@ import { createElement } from 'react';
 import { useAuth } from '../useAuth';
 import { AuthRepository } from '@/entities/user';
 import authReducer from '@/entities/user/model/authSlice';
+import { signOutCurrentProvider } from '@/shared/lib/auth/currentIdToken';
 
 vi.mock('@/entities/user/api/authRepository');
+vi.mock('@/shared/lib/auth/currentIdToken');
 
 const mockedRepo = vi.mocked(AuthRepository);
 
@@ -34,43 +36,8 @@ describe('useAuth', () => {
     vi.clearAllMocks();
   });
 
-  // 発行者側のセッション終了先が返ってきたら、そちらへ飛ぶ。
-  // 手元の Cookie を消すだけだと発行者にログイン済みが残り、同じ端末で入り直せてしまう。
-  it('logout: 発行者のセッション終了先が返れば そちらへ遷移する', async () => {
-    mockedRepo.logout.mockResolvedValue({
-      message: 'ログアウトしました。',
-      endSessionUrl: 'https://issuer.test/oidc/v1/end_session',
-    });
-    const original = window.location;
-    // location.href への代入を観測する（jsdom は実際の遷移をしない）。
-    const assigned: string[] = [];
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: {
-        ...original,
-        set href(v: string) {
-          assigned.push(v);
-        },
-        get href() {
-          return assigned[assigned.length - 1] ?? '';
-        },
-      },
-    });
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-    await act(async () => {
-      await result.current.logout();
-    });
-
-    Object.defineProperty(window, 'location', { configurable: true, value: original });
-
-    expect(assigned).toContain('https://issuer.test/oidc/v1/end_session');
-    // 発行者へ飛ばすので、SPA 内の /login へは送らない（二重遷移になる）。
-    expect(mockNavigate).not.toHaveBeenCalledWith('/login');
-  });
-
-  it('logout: ログアウト成功時にログインページに遷移する', async () => {
-    mockedRepo.logout.mockResolvedValue({ message: 'ログアウトしました。' });
+  it('logout: 発行者からサインアウトしてログインページに遷移する', async () => {
+    vi.mocked(signOutCurrentProvider).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 
@@ -78,8 +45,22 @@ describe('useAuth', () => {
       await result.current.logout();
     });
 
+    expect(signOutCurrentProvider).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith('/login');
     expect(result.current.isAuthenticated).toBe(false);
+  });
+
+  it('logout: サインアウトに失敗したらエラーを表示し遷移しない', async () => {
+    vi.mocked(signOutCurrentProvider).mockRejectedValue(new Error('network error'));
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login');
+    expect(result.current.error).toBe('ログアウトに失敗しました。');
   });
 
   it('getCurrentUser: ユーザー情報取得成功時に認証状態を設定する', async () => {
@@ -109,19 +90,5 @@ describe('useAuth', () => {
 
     expect(user).toBeNull();
     expect(result.current.error).toBe('ユーザー情報の取得に失敗しました。');
-  });
-
-  it('refreshToken: リフレッシュ失敗時にログインページに遷移する', async () => {
-    mockedRepo.refreshToken.mockRejectedValue(new Error('トークン期限切れ'));
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = true;
-    await act(async () => {
-      success = await result.current.refreshToken();
-    });
-
-    expect(success).toBe(false);
-    expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 });

@@ -134,6 +134,7 @@ jobs:
         env:
           VITE_API_BASE_URL: ''
           VITE_OIDC_AUTHORIZE_URI: https://example.invalid/oauth/v2/authorize
+          VITE_OIDC_TOKEN_URI: https://example.invalid/oauth/v2/token
           VITE_OIDC_CLIENT_ID: ci-dummy
           VITE_OIDC_REDIRECT_URI: https://example.invalid/login/callback
           VITE_OIDC_SCOPE: openid profile email offline_access

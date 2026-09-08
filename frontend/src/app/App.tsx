@@ -17,6 +17,7 @@ import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReloa
 const LoginPage = lazyWithReload(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })), 'LoginPage');
 const SignupPage = lazyWithReload(() => import('@/pages/signup').then((m) => ({ default: m.SignupPage })), 'SignupPage');
 const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then((m) => ({ default: m.LoginCallback })), 'LoginCallback');
+const PasswordResetPage = lazyWithReload(() => import('@/pages/password-reset').then((m) => ({ default: m.PasswordResetPage })), 'PasswordResetPage');
 
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
@@ -64,6 +65,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
+      <Route path="/password-reset" element={<PasswordResetPage />} />
       {/* inkwell UI カタログ（見た目確認用・認証不要） */}
       <Route path="/dev/inkwell" element={<InkwellShowcasePage />} />
 

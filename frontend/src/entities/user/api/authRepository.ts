@@ -7,7 +7,7 @@ import { AUTH } from '@/shared/config/apiRoutes';
  * <p>役割:</p>
  * <ul>
  *   <li>認証関連のAPI呼び出しを抽象化</li>
- *   <li>ログイン、ログアウト、ユーザー情報取得</li>
+ *   <li>セッション確立、自己情報取得</li>
  * </ul>
  *
  * <p>インフラ層（Infrastructure Layer）:</p>
@@ -15,6 +15,11 @@ import { AUTH } from '@/shared/config/apiRoutes';
  *   <li>外部APIとの通信を担当</li>
  *   <li>Domain層に依存せず、独立している</li>
  * </ul>
+ *
+ * backend はセッション用の Cookie を発行しない。認証は毎リクエスト
+ * `Authorization: Bearer <ID トークン>` で行う（`shared/api/axios.ts` が自動で付ける）。
+ * ID トークンの取得元（GCIP のクライアント SDK / ローカルの Dex）はこのリポジトリの
+ * 関知するところではない。
  */
 
 export interface UserInfo {
@@ -22,7 +27,6 @@ export interface UserInfo {
   email?: string;
   name?: string;
   sub?: string;
-  groups?: string[];
   /** /auth/me が返す表示名 */
   displayName?: string;
   /** 所属ワークスペースの UUID。未所属の運営ユーザーでは返らない。 */
@@ -31,33 +35,14 @@ export interface UserInfo {
 
 class AuthRepository {
   /**
-   * 認可コードの交換。
+   * セッションを確立する。
    *
-   * codeVerifier と nonce は、認可を始めたときにこのブラウザが作って手元に置いた値
-   * （features/auth/lib/oidcAuthUrl）。バックエンドはこれを使って
-   * 「この応答が、この人が始めた認可の応答か」を確かめる。
+   * サインイン/サインアップ直後に一度呼ぶ。backend が Bearer の ID トークンを検証し、
+   * 初回なら users 行と個人ワークスペースを作る（自己サインアップ）。既存ユーザーなら
+   * 実質 no-op（何度呼んでも安全）。
    */
-  async callback(params: {
-    code: string;
-    codeVerifier: string;
-    nonce: string;
-  }): Promise<{ message: string }> {
-    const body = {
-      code: params.code,
-      codeVerifier: params.codeVerifier,
-      nonce: params.nonce,
-    };
-    // 交換失敗(401)も正常な応答として呼び出し側で扱う（ログイン画面へ戻して案内するため）。
-    const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
-    const response = await apiClient.post(AUTH.callback, body, config);
-    return response.data;
-  }
-
-  /**
-   * ログアウト
-   */
-  async logout(): Promise<{ message: string; endSessionUrl?: string }> {
-    const response = await apiClient.post(AUTH.logout);
+  async login(): Promise<{ message: string }> {
+    const response = await apiClient.post(AUTH.login);
     return response.data;
   }
 
@@ -80,13 +65,6 @@ class AuthRepository {
     const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
     const response = await apiClient.get(AUTH.me, config);
     return response.data;
-  }
-
-  /**
-   * トークンリフレッシュ
-   */
-  async refreshToken(): Promise<void> {
-    await apiClient.post(AUTH.refreshToken);
   }
 }
 

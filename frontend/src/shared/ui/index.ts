@@ -47,7 +47,7 @@ export { default as LanguageBadge } from './LanguageBadge';
 export { default as LanguageIcon } from './LanguageIcon';
 
 /*
- * RichTextEditor は **意図的にこの barrel から出さない**（CodeEditor と同じ理由）。
+ * RichTextEditor は **意図的にこの barrel から出さない**。
  *
  * 中身は tiptap / ProseMirror（数百 KB）で、ここで re-export すると `@/shared/ui` を
  * import した全ページがエディタ一式を巻き込みコード分割が壊れる。利用側は深いパス

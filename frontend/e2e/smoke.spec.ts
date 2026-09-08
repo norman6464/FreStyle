@@ -6,10 +6,13 @@ import { test, expect } from '@playwright/test';
  * - 公開 SPA がレンダリングできる
  * - 配信のセキュリティヘッダーが正しく載っている
  *
- * **API を叩く分は落とした。** 本番の API を動かしていた実行環境ごと畳んだので、
- * api.frestyle.jp は名前解決すらできない。存在しない相手に対する検査を残すと、
- * すべての PR で赤いままになり、やがて誰も見なくなる。
- * API を出し直したときに、この spec へ戻す。
+ * 宛先は frestyle.dev（Firebase Hosting）。旧 frestyle.jp は DNS ごと畳んだので、
+ * 向け先を変えるまでこの spec は名前解決の失敗で赤いままだった。
+ *
+ * ヘッダーの検査は「配信の設定が生きているか」を見る。Firebase Hosting が自前で
+ * 付けるのは HSTS だけで、残りは firebase.json の headers が配る。旧 CloudFront が
+ * 配っていた分がその移行で落ちていても、**配信物そのものは 200 で返るので気づけない**。
+ * ここが唯一それを捕まえる場所。
  *
  * 認証付きの導線は e2e/local/ 側で、API をモックして確かめている。
  */
@@ -28,9 +31,10 @@ test.describe('FreStyle smoke', () => {
     ).toBeVisible({ timeout: 20_000 });
   });
 
-  test('CloudFront セキュリティヘッダーが配信される', async ({ request }) => {
+  test('セキュリティヘッダーが配信される', async ({ request }) => {
     const res = await request.get('/');
     const headers = res.headers();
+    // HSTS は Firebase Hosting が自前で付ける。以下は firebase.json の headers 由来。
     expect(headers['strict-transport-security']).toMatch(/max-age=\d+/);
     expect(headers['x-frame-options']).toBe('DENY');
     expect(headers['x-content-type-options']).toBe('nosniff');

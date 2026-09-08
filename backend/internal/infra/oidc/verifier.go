@@ -79,6 +79,10 @@ type Config struct {
 	// JWKSURI は署名鍵の取得先。
 	JWKSURI string
 	// ClientID はこのアプリの client_id。azp（認可された相手）の照合に使う。
+	//
+	// 発行者によっては client_id という概念自体を持たない（例: GCIP は
+	// プロジェクトIDが aud そのものになり、azp クレームも出さない）。
+	// その場合は空のままでよい —— azp の照合は ClientID が設定されているときだけ行う。
 	ClientID string
 	// Audiences は ClientID に **足して** 受け入れる aud の値。
 	//
@@ -95,6 +99,10 @@ type Config struct {
 //
 // **黙って検証を弱めない。** 設定が足りないときに「検証しない Verifier」を返すと、
 // 設定を書き忘れた環境が、認証が効いているように見えたまま素通しで動く。
+//
+// ClientID と Audiences は少なくとも一方が要る（aud を 1 つも受け入れないと
+// どんなトークンも必ず弾かれる、検証済みかどうか以前の設定ミスになる）。
+// ClientID を持たない発行者（GCIP 等）は Audiences だけで組み立てる。
 func NewVerifier(cfg Config) (*Verifier, error) {
 	if cfg.Issuer == "" {
 		return nil, errors.New("oidc: issuer is required")
@@ -102,11 +110,14 @@ func NewVerifier(cfg Config) (*Verifier, error) {
 	if cfg.JWKSURI == "" {
 		return nil, errors.New("oidc: jwks uri is required")
 	}
-	if cfg.ClientID == "" {
-		return nil, errors.New("oidc: client id is required")
+	if cfg.ClientID == "" && len(cfg.Audiences) == 0 {
+		return nil, errors.New("oidc: client id or at least one audience is required")
 	}
-	// ClientID は常に受け入れる。設定はそれに足すだけ（重複は落とす）。
-	auds := []string{cfg.ClientID}
+	// ClientID は設定されていれば常に受け入れる。Audiences はそれに足す（重複は落とす）。
+	var auds []string
+	if cfg.ClientID != "" {
+		auds = append(auds, cfg.ClientID)
+	}
 	for _, a := range cfg.Audiences {
 		if a != "" && !slices.Contains(auds, a) {
 			auds = append(auds, a)
@@ -245,8 +256,13 @@ func (v *Verifier) verifyStandardClaims(claims map[string]any) error {
 	}
 	// azp があるなら「認可された相手」がこのアプリであることも要求する。
 	// aud に複数入る発行者では、巻き添えで並んでいるだけの aud を弾けない。
-	if azp, ok := claims["azp"].(string); ok && azp != "" && azp != v.clientID {
-		return ErrJWTBadAudience
+	//
+	// ClientID を持たない発行者（GCIP 等）は比較のしようがないので、この検査自体を行わない
+	// （aud の照合だけで済ませる。GCIP の ID トークンは azp クレームを出さない）。
+	if v.clientID != "" {
+		if azp, ok := claims["azp"].(string); ok && azp != "" && azp != v.clientID {
+			return ErrJWTBadAudience
+		}
 	}
 	return nil
 }

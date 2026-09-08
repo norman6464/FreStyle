@@ -111,7 +111,7 @@ func Test_検証器_必須設定が欠けたら作れない(t *testing.T) {
 	}{
 		{"issuer なし", Config{JWKSURI: "https://x/keys", ClientID: "c"}},
 		{"jwks なし", Config{Issuer: testIssuer, ClientID: "c"}},
-		{"client_id なし", Config{Issuer: testIssuer, JWKSURI: "https://x/keys"}},
+		{"client_id も audiences も無い", Config{Issuer: testIssuer, JWKSURI: "https://x/keys"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -119,6 +119,38 @@ func Test_検証器_必須設定が欠けたら作れない(t *testing.T) {
 				t.Fatal("設定が欠けているのに検証器ができてしまった")
 			}
 		})
+	}
+}
+
+// client_id という概念を持たない発行者（GCIP 等）向け。audiences だけで検証器を組み立てられ、
+// aud さえ一致すれば通る（azp の照合は行われない——比較先の client_id が無いため）。
+func Test_検証器_client_idが無くてもaudiencesがあれば作れる(t *testing.T) {
+	i := newIdP(t)
+	v, err := NewVerifier(Config{
+		Issuer:    testIssuer,
+		JWKSURI:   i.server.URL,
+		Audiences: []string{"project-123"},
+	})
+	if err != nil {
+		t.Fatalf("client_id 無しで audiences があるのに検証器を作れない: %v", err)
+	}
+	tok := i.sign(t, map[string]any{
+		"iss": testIssuer, "aud": "project-123", "sub": "u1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	if _, err := v.Verify(context.Background(), tok); err != nil {
+		t.Fatalf("通るはずのトークンが落ちた: %v", err)
+	}
+
+	// azp が付いていても、比較先の client_id が無いので弾かれない
+	// （比較しようがないものを弾くと、GCIP のように azp を出さない発行者の
+	// トークンに万一 azp 相当の値が紛れ込んだだけで全ユーザーが 401 になりかねない）。
+	tokWithAzp := i.sign(t, map[string]any{
+		"iss": testIssuer, "aud": "project-123", "azp": "something-else", "sub": "u1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	if _, err := v.Verify(context.Background(), tokWithAzp); err != nil {
+		t.Fatalf("client_id が無いのに azp で弾かれた: %v", err)
 	}
 }
 

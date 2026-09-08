@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 )
 
@@ -95,7 +94,6 @@ func newTestAuthHandler(
 	t.Helper()
 	return &AuthHandler{
 		verifier: idp.verifier(t),
-		oidcCfg:  &config.OIDCConfig{},
 		upsertUser: user.NewUpsertUserFromIDTokenUseCase(
 			users, fakeOidcIdentityRepo{}, fakeTxManager{},
 		),
@@ -225,7 +223,7 @@ func Test_IDトークンからユーザー登録_壊れたトークンを弾く(
 	idp := newTestIdP(t)
 	h := newTestAuthHandler(t, idp, &fakeUserRepo{})
 
-	user, err := h.upsertUserFromIDToken(newGinCtx(), "invalid-id-token", "")
+	user, err := h.upsertUserFromIDToken(newGinCtx(), "invalid-id-token")
 
 	if user != nil {
 		t.Fatal("不正な id_token を許可してはいけない")
@@ -253,51 +251,11 @@ func Test_IDトークンからユーザー登録_宛先違いを弾く(t *testin
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 
-	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
+	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken)
 	if user != nil {
 		t.Fatal("別のアプリ宛のトークンを許可してはいけない")
 	}
 	if !errors.Is(err, errIDTokenRejected) {
 		t.Fatalf("id_token の拒否として返っていない: %v", err)
-	}
-}
-
-// nonce は「この応答が自分の始めた認可の応答か」を確かめる値。
-// 一致しないものを通すと、攻撃者が自分の認可コードを他人に踏ませる筋道が残る。
-func Test_IDトークンからユーザー登録_nonce不一致を弾く(t *testing.T) {
-	idp := newTestIdP(t)
-	h := newTestAuthHandler(t, idp, &fakeUserRepo{})
-
-	idToken := makeIDToken(t, idp, map[string]any{
-		"sub": "u1", "email": "u@example.com", "nonce": "attacker-nonce",
-	})
-
-	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken, "victim-nonce")
-	if user != nil {
-		t.Fatal("nonce が違うトークンを許可してはいけない")
-	}
-	if !errors.Is(err, errIDTokenRejected) {
-		t.Fatalf("id_token の拒否として返っていない: %v", err)
-	}
-}
-
-// 期待した nonce と一致していれば通る（上のテストが「常に落ちる」だけでないことの裏取り）。
-func Test_IDトークンからユーザー登録_nonce一致なら通る(t *testing.T) {
-	idp := newTestIdP(t)
-	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
-		"u1": {ID: 1, Email: "u@example.com"},
-	}}
-	h := newTestAuthHandler(t, idp, users)
-
-	idToken := makeIDToken(t, idp, map[string]any{
-		"sub": "u1", "email": "u@example.com", "nonce": "same-nonce",
-	})
-
-	user, err := h.upsertUserFromIDToken(newGinCtx(), idToken, "same-nonce")
-	if err != nil {
-		t.Fatalf("nonce が一致しているのに落ちた: %v", err)
-	}
-	if user == nil {
-		t.Fatal("ユーザーが返っていない")
 	}
 }

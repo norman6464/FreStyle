@@ -36,7 +36,7 @@ services:
       # ポート番号(5556)は固定すること。可変にすると
       # (1) 上でマウントする config.yaml の issuer 文字列、
       # (2) frontend/.env.example の VITE_OIDC_AUTHORIZE_URI、
-      # (3) backend サービスの OIDC_JWKS_URI / OIDC_TOKEN_URI の既定値
+      # (3) backend サービスの OIDC_JWKS_URI の既定値
       # の 3 箇所が同時にずれ、気づかないまま全員 401 になる。変えるなら 3 箇所を揃えて変えること。
       - '127.0.0.1:5556:5556'
 
@@ -54,22 +54,19 @@ services:
       MAIL_SMTP_HOST: mail
       MAIL_SMTP_PORT: '1025'
       APP_ENV: ${APP_ENV:-local}
-      # ===== 認証(OpenID Connect) =====
-      # 発行者はローカルの Dex(上の idp サービス)。config.Load() は 5 つとも揃わないと
+      # ===== 認証(Bearer の ID トークン検証) =====
+      # 発行者はローカルの Dex(上の idp サービス)。config.Load() は 3 つとも揃わないと
       # 起動しない(fail-closed)ため、compose 側で既定値を必ず与える。.env で上書きすれば
-      # 別の発行者(本物の Cognito 等)にも向けられる。
+      # 別の発行者(本番の GCIP 等)にも向けられる。
       #
       # OIDC_ISSUER はブラウザ(トークンの iss と比較する側)から見た URL なので localhost。
-      # OIDC_JWKS_URI / OIDC_TOKEN_URI は backend コンテナが直接叩く宛先なので、Docker
-      # ネットワーク内のサービス名 `idp` で到達させる(localhost だと backend 自身を指してしまう)。
+      # OIDC_JWKS_URI は backend コンテナが直接叩く宛先なので、Docker ネットワーク内の
+      # サービス名 `idp` で到達させる(localhost だと backend 自身を指してしまう)。
+      # OIDC_AUDIENCES は Dex の client_id（aud クレームに入る値）。backend は client_id という
+      # 概念自体を持たず、aud として受け入れる値の一覧としてだけ扱う。
       OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:5556/dex}
       OIDC_JWKS_URI: ${OIDC_JWKS_URI:-http://idp:5556/dex/keys}
-      OIDC_TOKEN_URI: ${OIDC_TOKEN_URI:-http://idp:5556/dex/token}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-frestyle-local}
-      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:5173/login/callback}
-      # Dex の password connector は groups クレームに staticPasswords[].groups を載せる。
-      # 既定の "roles" のままだと運営管理者判定(config.go の AdminRoleClaim)が一致しない。
-      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-groups}
+      OIDC_AUDIENCES: ${OIDC_AUDIENCES:-frestyle-local}
     ports:
       - '${LOCAL_BACKEND_PORT:-8080}:8080'
     depends_on:

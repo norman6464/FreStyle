@@ -25,23 +25,41 @@ func newAuthedEngine(verify VerifyFunc) *gin.Engine {
 	return r
 }
 
-func getWithCookie(r *gin.Engine, token string) *httptest.ResponseRecorder {
+func getWithBearer(r *gin.Engine, token string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	if token != "" {
-		req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: token})
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w
 }
 
-func Test_JWT認証_Cookieが無ければ401(t *testing.T) {
+func Test_JWT認証_Authorizationヘッダが無ければ401(t *testing.T) {
 	r := newAuthedEngine(func(context.Context, string) (map[string]any, error) {
-		t.Fatal("Cookie が無いのに検証が呼ばれた")
+		t.Fatal("ヘッダが無いのに検証が呼ばれた")
 		return nil, nil
 	})
-	if got := getWithCookie(r, "").Code; got != http.StatusUnauthorized {
+	if got := getWithBearer(r, "").Code; got != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", got)
+	}
+}
+
+// Bearer 以外の形式（例: Basic 認証、値が空の Bearer）は弾く。
+func Test_JWT認証_Bearer形式でなければ401(t *testing.T) {
+	r := newAuthedEngine(func(context.Context, string) (map[string]any, error) {
+		t.Fatal("Bearer 形式でないのに検証が呼ばれた")
+		return nil, nil
+	})
+	gin.SetMode(gin.TestMode)
+	for _, header := range []string{"Basic dXNlcjpwYXNz", "Bearer ", "bearer tok", "tok"} {
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req.Header.Set("Authorization", header)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("header = %q: status = %d, want 401", header, w.Code)
+		}
 	}
 }
 
@@ -50,7 +68,7 @@ func Test_JWT認証_検証が落ちたら401(t *testing.T) {
 	r := newAuthedEngine(func(context.Context, string) (map[string]any, error) {
 		return nil, errors.New("bad token")
 	})
-	if got := getWithCookie(r, "tok").Code; got != http.StatusUnauthorized {
+	if got := getWithBearer(r, "tok").Code; got != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", got)
 	}
 }
@@ -61,7 +79,7 @@ func Test_JWT認証_subが無ければ401(t *testing.T) {
 	r := newAuthedEngine(func(context.Context, string) (map[string]any, error) {
 		return map[string]any{"email": "u@example.com"}, nil
 	})
-	w := getWithCookie(r, "tok")
+	w := getWithBearer(r, "tok")
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", w.Code)
 	}
@@ -74,7 +92,7 @@ func Test_JWT認証_検証が通ればsubを渡す(t *testing.T) {
 	r := newAuthedEngine(func(context.Context, string) (map[string]any, error) {
 		return map[string]any{"sub": "abc-123"}, nil
 	})
-	w := getWithCookie(r, "tok")
+	w := getWithBearer(r, "tok")
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}

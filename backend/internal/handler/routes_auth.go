@@ -8,14 +8,18 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
 )
 
-// registerAuthPublicRoutes は認証不要の認証エンドポイント（login / logout / refresh）を登録し、
+// registerAuthPublicRoutes は認証不要の login を登録し、
 // authed group で再利用するため AuthHandler を返す。
-// login / refresh は Cookie を発行・更新するため JWTAuth の対象外。
+// login は Bearer の ID トークン自体を検証するため JWTAuth の対象外
+// （JWTAuth を先に通すと、まだ users 行の無い初回サインインが弾かれてしまう）。
 //
 // メールとパスワードをアプリのフォームで受ける経路（/auth/cognito/login と
 // /auth/cognito/new-password）は撤去した。パスワードを受け取るのは発行者の
-// ログイン画面の役目で、アプリが受け取ると、二要素・ロックアウト・パスワードの
-// 強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
+// サインイン画面（Firebase JS SDK）の役目で、アプリが受け取ると、二要素・ロックアウト・
+// パスワードの強さといった発行者側の守りをすべて素通りする経路を自分で開くことになる。
+//
+// logout / refresh は撤去した。GCIP はサーバー側の Cookie セッションを持たず、
+// サインアウトもトークンの自動更新もクライアント SDK 側で完結する。
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := user.NewGetCurrentUserUseCase(deps.userRepo)
 	upsertUser := user.NewUpsertUserFromIDTokenUseCase(
@@ -29,15 +33,11 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	)
 
 	authHandler := NewAuthHandler(
-		getCurrentUser, upsertUser, ensurePersonalWorkspace,
-		&deps.cfg.OIDC, deps.verifier,
+		getCurrentUser, upsertUser, ensurePersonalWorkspace, deps.verifier,
 	)
 
-	g.POST("/auth/logout", authHandler.Logout)
-	// login（認可コード→token 交換）は認証不要のため、総当たり緩和に per-IP 制限を掛ける。
-	g.POST("/auth/login", middleware.RateLimitPerMinute(30, 10), authHandler.Callback)
-	// refresh は正規ユーザーが定期的に叩くため、NAT 共有 IP を考慮して緩めに設定する。
-	g.POST("/auth/refresh", middleware.RateLimitPerMinute(60, 30), authHandler.Refresh)
+	// login（ID トークンの検証+upsert）は認証不要のため、総当たり緩和に per-IP 制限を掛ける。
+	g.POST("/auth/login", middleware.RateLimitPerMinute(30, 10), authHandler.Login)
 
 	return authHandler
 }

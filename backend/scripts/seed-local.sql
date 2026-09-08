@@ -122,11 +122,9 @@ WHERE id IN (:'kb_workspace_id', :'kb_workspace_alpha_id', :'kb_workspace_suppor
 -- ---- users ----------------------------------------------------------------
 -- companies / roles テーブルは会社→ワークスペース移行のレガシー橋渡し撤去(#2413)で
 -- 全廃済みなので、もう company_id 経由で workspace_id を引けないし role_id 列自体も無い。
--- 運営管理者かどうかは DB の列ではなく、ログイン時に発行される OIDC トークンの
--- groups クレーム(OIDC_ROLES_CLAIM。config.go の AdminRoleClaim/AdminRole)に
--- "admin" が入っているかで決まるため、ここでは判定材料を持たせようがない
--- (かつ持たせる必要も無い)。workspace_id は所属先が無いので NULL のままにする
--- (users.workspace_id は nullable)。
+-- アプリ全体の運営管理者という概念自体を持たない（権限は workspace/space/page 単位の
+-- grant だけで表現する。domain.GrantRole 参照）ため、ここに判定材料を持たせる必要も無い。
+-- workspace_id は所属先が無いので NULL のままにする(users.workspace_id は nullable)。
 -- password_hash も同じ理由で投入しない: パスワード検証はもう DB 側ではなく
 -- Dex(docker/idp/config.yaml の staticPasswords)側が持つ。列自体は残っているので
 -- INSERT の列リストから外し、NULL のまま(既定値は無い)にしている。

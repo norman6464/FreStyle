@@ -79,6 +79,42 @@ describe('useKbSuggestionDraft', () => {
     expect(result.current.error).toBe('提案を送信できませんでした。');
   });
 
+  it('送信中にページを移ったら、後から届く失敗が移った先の下書きstateを汚さない', async () => {
+    let rejectCreate: (err: unknown) => void = () => {};
+    hoisted.createSuggestion.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectCreate = reject;
+      }),
+    );
+    const { result, rerender } = renderHook(
+      ({ pageId }: { pageId: string }) => useKbSuggestionDraft('w-1', pageId),
+      { initialProps: { pageId: 'p-1' } },
+    );
+    act(() => result.current.start(doc));
+
+    let submitPromise: Promise<boolean> | undefined;
+    act(() => {
+      submitPromise = result.current.submit();
+    });
+
+    // 送信がまだ飛んでいる間にページを移り、移った先で新しいドラフトを開く。
+    rerender({ pageId: 'p-2' });
+    await waitFor(() => expect(result.current.open).toBe(false));
+    act(() => result.current.start(doc));
+    expect(result.current.open).toBe(true);
+
+    // ここでようやく古い送信（p-1 宛て）が失敗として着地する。
+    act(() => rejectCreate(new Error('boom')));
+    await act(async () => {
+      await submitPromise;
+    });
+
+    // 移った先（p-2）で開いている新しいドラフトは、古い送信の失敗で閉じたりエラーが
+    // 出たりしてはいけない。
+    expect(result.current.open).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+
   it('ページを移ったら書きかけの下書きを持ち越さない', async () => {
     const { result, rerender } = renderHook(
       ({ pageId }: { pageId: string }) => useKbSuggestionDraft('w-1', pageId),

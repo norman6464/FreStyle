@@ -100,6 +100,29 @@ func TestPageSuggestionRepository_BaseSeqSet_Integration(t *testing.T) {
 	assert.Equal(t, seq, *got.BaseSeq)
 }
 
+// TestPageSuggestionRepository_ResolveClearsBaseSeq_Integration は、base_seq を持つ提案を
+// 解決すると Resolve の戻り値・その後の Get の両方で base_seq が nil になることを固定する
+// （ResolvePageSuggestion クエリ参照）。
+func TestPageSuggestionRepository_ResolveClearsBaseSeq_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	ws, page := setupPageSuggestionFixture(t, sqlDB, "ws-sugg-resolve-clears-base")
+	require.NoError(t, insertPageVersion(sqlDB, ws, page, 1, pageVersionTestDoc, 1, nil, time.Now()))
+	repo := persistence.NewPageSuggestionRepository(sqlDB)
+
+	seq := int64(1)
+	s := &domain.PageSuggestion{WorkspaceID: ws, PageID: page, BaseSeq: &seq, Doc: pageSuggestionTestDoc, AuthorUserID: 1}
+	require.NoError(t, repo.Create(ctx, s))
+
+	resolved, err := repo.Resolve(ctx, ws, page, s.ID, domain.PageSuggestionStatusRejected, 2, time.Now())
+	require.NoError(t, err)
+	assert.Nil(t, resolved.BaseSeq, "Resolveの戻り値でbase_seqがnilになる")
+
+	got, err := repo.Get(ctx, ws, page, s.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.BaseSeq, "解決後にGetし直してもbase_seqはnilのまま")
+}
+
 // TestPageSuggestionRepository_Resolve_Integration は Resolve の条件付き UPDATE
 // （WHERE status='open'）を固定する: 1回目（accept）は成功し、2回目（同じ提案をもう一度解決
 // しようとする）は ErrPageSuggestionAlreadyResolved になる。
@@ -177,5 +200,43 @@ func TestPageSuggestionRepository_TenantIsolation_Integration(t *testing.T) {
 		stillOpen, getErr := repo.Get(ctx, wsA, pageA, s.ID)
 		require.NoError(t, getErr)
 		assert.Equal(t, domain.PageSuggestionStatusOpen, stillOpen.Status)
+	})
+}
+
+// TestPageSuggestionRepository_ResolutionConsistencyCheck_Integration は
+// ck_page_suggestions_resolution_consistency（comment_threads.ck_comment_threads_resolved_pair
+// と同じ発想）を固定する: open なのに resolved_at/resolved_by_user_id のどちらかが入っている行、
+// accepted/rejected なのにどちらかが欠けている行は、どちらも INSERT できない。
+func TestPageSuggestionRepository_ResolutionConsistencyCheck_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ws, page := setupPageSuggestionFixture(t, sqlDB, "ws-sugg-resolution-check")
+
+	insert := func(status string, resolvedAt, resolvedBy string) error {
+		_, err := sqlDB.Exec(
+			`INSERT INTO page_suggestions (id, workspace_id, page_id, doc, status, author_user_id, resolved_at, resolved_by_user_id)
+			 VALUES ($1, $2, $3, $4, $5, 1, `+resolvedAt+`, `+resolvedBy+`)`,
+			newID(), ws, page, pageSuggestionTestDoc, status,
+		)
+		return err
+	}
+
+	t.Run("openなのにresolved_atだけ入っている行は拒否する", func(t *testing.T) {
+		err := insert("open", "now()", "NULL")
+		requirePgError(t, err, sqlStateCheckViolation, "ck_page_suggestions_resolution_consistency")
+	})
+
+	t.Run("openなのにresolved_by_user_idだけ入っている行は拒否する", func(t *testing.T) {
+		err := insert("open", "NULL", "1")
+		requirePgError(t, err, sqlStateCheckViolation, "ck_page_suggestions_resolution_consistency")
+	})
+
+	t.Run("acceptedなのにresolved_at/resolved_by_user_idが両方無い行は拒否する", func(t *testing.T) {
+		err := insert("accepted", "NULL", "NULL")
+		requirePgError(t, err, sqlStateCheckViolation, "ck_page_suggestions_resolution_consistency")
+	})
+
+	t.Run("acceptedでresolved_at/resolved_by_user_idが両方揃っていれば通る", func(t *testing.T) {
+		err := insert("accepted", "now()", "1")
+		require.NoError(t, err)
 	})
 }

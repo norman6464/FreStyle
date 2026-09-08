@@ -1400,6 +1400,13 @@ table "page_suggestions" {
   check "ck_page_suggestions_status" {
     expr = "status = ANY (ARRAY['open'::text, 'accepted'::text, 'rejected'::text])"
   }
+  # comment_threads.ck_comment_threads_resolved_pair と同じ発想だが、こちらは status 列を
+  # 持つのでその値まで縛る。resolved_at/resolved_by_user_id の唯一の書き込み経路
+  # （ResolvePageSuggestion）が常に3つを同時に更新するので実害は無い想定だが、将来別の経路が
+  # 増えたときに壊れた状態を作らせない最後の網。
+  check "ck_page_suggestions_resolution_consistency" {
+    expr = "(status = 'open'::text AND resolved_at IS NULL AND resolved_by_user_id IS NULL) OR (status <> 'open'::text AND resolved_at IS NOT NULL AND resolved_by_user_id IS NOT NULL)"
+  }
 }
 
 # comments: スレッドに付いた 1 件の発言（スレッドを開いた最初の発言も返信も同じ形で持つ）。

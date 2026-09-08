@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KbRepository } from '@/entities/kb';
 
 export interface KbSuggestionDraftState {
@@ -31,16 +31,25 @@ const CLOSED: KbSuggestionDraftState = { open: false, draft: null, submitting: f
 export function useKbSuggestionDraft(workspaceSlug: string | undefined, pageId: string | undefined) {
   const [state, setState] = useState<KbSuggestionDraftState>(CLOSED);
 
+  // submit が送信中に「別のドラフト」へ移ったか（ページを移った・キャンセルした・新しい
+  // ドラフトを開き直した）を検知するための世代カウンタ。応答が着地したとき世代が変わって
+  // いたら、もうこの state を持ち主が変わっているとみなし、成功/失敗のどちらでも触らない
+  // （移った先のページの下書き state を、古いページへの送信結果で上書きしてしまうため）。
+  const generation = useRef(0);
+
   // ページを移ったら、書きかけの下書きを持ち越さない（共有・コメント・履歴の各パネルと同じ理由）。
   useEffect(() => {
+    generation.current += 1;
     setState(CLOSED);
   }, [workspaceSlug, pageId]);
 
   const start = useCallback((initialDoc: unknown) => {
+    generation.current += 1;
     setState({ open: true, draft: initialDoc, submitting: false, error: null });
   }, []);
 
   const cancel = useCallback(() => {
+    generation.current += 1;
     setState(CLOSED);
   }, []);
 
@@ -51,13 +60,16 @@ export function useKbSuggestionDraft(workspaceSlug: string | undefined, pageId: 
   /** submit は下書きを 1 回だけ提案として送る。成功したら true、失敗したら false を返す。 */
   const submit = useCallback(async (): Promise<boolean> => {
     if (!workspaceSlug || !pageId) return false;
+    const requestGeneration = generation.current;
     setState((prev) => ({ ...prev, submitting: true, error: null }));
     try {
       await KbRepository.createSuggestion(workspaceSlug, pageId, state.draft);
-      setState(CLOSED);
+      if (generation.current === requestGeneration) setState(CLOSED);
       return true;
     } catch {
-      setState((prev) => ({ ...prev, submitting: false, error: '提案を送信できませんでした。' }));
+      if (generation.current === requestGeneration) {
+        setState((prev) => ({ ...prev, submitting: false, error: '提案を送信できませんでした。' }));
+      }
       return false;
     }
   }, [workspaceSlug, pageId, state.draft]);

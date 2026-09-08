@@ -199,6 +199,7 @@ CREATE TABLE "public"."page_suggestions" (
   "resolved_by_user_id" bigint NULL,
   PRIMARY KEY ("id"),
   CONSTRAINT "ck_page_suggestions_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
+  CONSTRAINT "ck_page_suggestions_resolution_consistency" CHECK (((status = 'open'::text) AND (resolved_at IS NULL) AND (resolved_by_user_id IS NULL)) OR ((status <> 'open'::text) AND (resolved_at IS NOT NULL) AND (resolved_by_user_id IS NOT NULL))),
   CONSTRAINT "ck_page_suggestions_status" CHECK (status = ANY (ARRAY['open'::text, 'accepted'::text, 'rejected'::text]))
 );
 -- Create index "idx_page_suggestions_open_base_seq" to table: "page_suggestions"

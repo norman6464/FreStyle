@@ -441,7 +441,9 @@ export default function KbPage() {
       suggestionDraft.cancel();
       return;
     }
-    if (data) suggestionDraft.start(data.doc);
+    // data.doc は旧応答（デプロイ順）や壊れた保存で isRichDoc を満たさないことがある
+    // （本文表示側と同じ防御。RichTextEditor に無効な doc をそのまま渡さない）。
+    if (data) suggestionDraft.start(isRichDoc(data.doc) ? data.doc : emptyRichDoc());
   }, [suggestionDraft, data]);
 
   const handleSubmitSuggestion = useCallback(async () => {
@@ -453,12 +455,18 @@ export default function KbPage() {
    * 採用が成功すると本文が変わる。応答（accept の doc）をそのまま使わず、ページを
    * GET で引き直す（useKbPageDoc.reloadPage）— そちらなら lastEditedBy/lastEditedAt も
    * 一緒に最新化される（accept の応答は提案そのものであって、ページ全体の情報は持たない）。
+   *
+   * 採用の直前に waitForPendingSaveToSettle を呼ぶ — 採用は自動保存（PUT .../content）とは
+   * 別経路（POST .../suggestions/:id/accept）なので、待たずに叩くと、先に飛んでいた
+   * 自動保存の応答が採用の**後**に着地して、採用した内容を古い自動保存の内容で
+   * 上書きしてしまう競合がある（handleRestoreVersion と同じ理由）。
    */
   const handleAcceptSuggestion = useCallback(
     async (suggestionId: string) => {
       if (!data) return;
       const targetPageId = data.page.id;
       try {
+        await waitForPendingSaveToSettle(targetPageId);
         await suggestions.accept(suggestionId);
         await reloadPage(targetPageId);
       } catch (cause) {
@@ -467,7 +475,7 @@ export default function KbPage() {
         throw cause;
       }
     },
-    [data, suggestions, reloadPage, showToast],
+    [data, suggestions, reloadPage, showToast, waitForPendingSaveToSettle],
   );
 
   const handleRejectSuggestion = useCallback(

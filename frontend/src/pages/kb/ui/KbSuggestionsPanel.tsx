@@ -89,7 +89,7 @@ export default function KbSuggestionsPanel({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    disabled={busyId === suggestion.id}
+                    disabled={busyId !== null}
                     onClick={() => void run(suggestion.id, onReject)}
                   >
                     却下
@@ -98,6 +98,7 @@ export default function KbSuggestionsPanel({
                     type="button"
                     size="sm"
                     variant="secondary"
+                    disabled={busyId !== null && busyId !== suggestion.id}
                     loading={busyId === suggestion.id}
                     onClick={() => void run(suggestion.id, onAccept)}
                   >

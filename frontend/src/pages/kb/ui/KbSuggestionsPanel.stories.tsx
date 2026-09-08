@@ -80,7 +80,11 @@ export const 失敗: Story = {
   },
 };
 
-/** 一覧が並ぶ。提案者名・作成日時・差分（追加=緑・削除=赤の打ち消し線）が見える。 */
+/**
+ * 一覧が並ぶ。提案者名・作成日時・差分（追加=緑・削除=赤の打ち消し線）が見える。
+ * 追加・削除は色だけで伝えない — "+"/"-" の記号と、スクリーンリーダー向けの
+ * ラベル（追加:/削除:）も併記する。
+ */
 export const 一覧と差分: Story = {
   args: { suggestions: [suggestion('s-1')] },
   play: async ({ canvasElement }) => {
@@ -88,6 +92,8 @@ export const 一覧と差分: Story = {
     await expect(canvas.getByText('鈴木 花子')).toBeVisible();
     await expect(canvas.getByText('元の本文')).toHaveClass(/line-through/);
     await expect(canvas.getByText('書き換え後の本文')).toBeVisible();
+    await expect(canvas.getByText('追加:')).toBeInTheDocument();
+    await expect(canvas.getByText('削除:')).toBeInTheDocument();
   },
 };
 
@@ -129,6 +135,29 @@ export const 却下を押す: Story = {
   play: async ({ args, canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole('button', { name: '却下' }));
     await expect(args.onReject).toHaveBeenCalledWith('s-1');
+  },
+};
+
+/**
+ * 1件の採用が飛んでいる間、他の提案の採用・却下ボタンも押せなくする（同時に2件の採用が
+ * 走ると、片方が丸ごとの本文置換で先勝ちの結果を消してしまうため）。押している行自体は
+ * loading 表示、他の行は disabled で見分ける。
+ */
+export const 採用が飛んでいる間は他の提案の操作も押せない: Story = {
+  args: {
+    suggestions: [suggestion('s-1'), suggestion('s-2', { author: { userId: 2, name: '田中 太郎' } })],
+    onAccept: fn(() => new Promise<void>(() => {})), // 決して解決しない = ずっと飛んでいる状態を固定する
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const acceptButtons = canvas.getAllByRole('button', { name: '採用' });
+    const rejectButtons = canvas.getAllByRole('button', { name: '却下' });
+    await userEvent.click(acceptButtons[0]);
+
+    await expect(acceptButtons[0]).toBeDisabled();
+    await expect(rejectButtons[0]).toBeDisabled();
+    await expect(acceptButtons[1]).toBeDisabled();
+    await expect(rejectButtons[1]).toBeDisabled();
   },
 };
 

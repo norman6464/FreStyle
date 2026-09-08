@@ -2035,6 +2035,7 @@ func (f *kbFakePageSuggestions) Resolve(
 	s.ResolvedAt = &resolvedAt
 	resolver := resolverUserID
 	s.ResolvedByUserID = &resolver
+	s.BaseSeq = nil
 	out := *s
 	return &out, nil
 }

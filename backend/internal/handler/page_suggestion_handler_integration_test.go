@@ -120,12 +120,31 @@ func TestPageSuggestionAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("一覧は open な提案だけをcreated_at昇順で返す", func(t *testing.T) {
+		// この時点で既に acceptedPending/rejectedPending にした 2 件は open ではないので、
+		// 一覧に混ざらないことも合わせて確かめるため、ここで新たに 2 件の open な提案を作る。
+		const firstDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"1件目の提案"}]}]}`
+		const secondDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"2件目の提案"}]}]}`
+
+		firstCreated := asCommenter.do(t, http.MethodPost, suggestionsPath, `{"doc":`+firstDoc+`}`)
+		require.Equal(t, http.StatusCreated, firstCreated.Code, firstCreated.Body.String())
+		var first kbPageSuggestionResponse
+		require.NoError(t, json.Unmarshal(firstCreated.Body.Bytes(), &first))
+
+		secondCreated := asCommenter.do(t, http.MethodPost, suggestionsPath, `{"doc":`+secondDoc+`}`)
+		require.Equal(t, http.StatusCreated, secondCreated.Code, secondCreated.Body.String())
+		var second kbPageSuggestionResponse
+		require.NoError(t, json.Unmarshal(secondCreated.Body.Bytes(), &second))
+
 		w := asCommenter.do(t, http.MethodGet, suggestionsPath, "")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		var got []kbPageSuggestionResponse
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+
+		require.Len(t, got, 2, "既にacceptedとrejectedになった提案は一覧に出ない")
+		assert.Equal(t, first.ID, got[0].ID, "先に作った提案が先頭に来る（created_at昇順）")
+		assert.Equal(t, second.ID, got[1].ID)
 		for _, s := range got {
-			assert.Equal(t, "open", s.Status, "acceptedとrejectedになった提案は一覧に出ない")
+			assert.Equal(t, "open", s.Status)
 		}
 	})
 }

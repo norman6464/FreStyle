@@ -1252,6 +1252,32 @@ describe('KbPage の提案編集（commenter のドラフトモード）', () =>
     expect(await screen.findByText(/提案として保存されます/)).toBeInTheDocument();
   });
 
+  it('本文が壊れている（isRichDocを満たさない）ページで編集せずに送信しても、nullではなく空文書が送られる', async () => {
+    hoisted.resolvePage.mockResolvedValue({ ...resolved(false), doc: null });
+    hoisted.createSuggestion.mockResolvedValue({
+      id: 's-1',
+      doc: { type: 'doc', content: [] },
+      status: 'open',
+      author: { userId: 1, name: '' },
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    renderPage();
+    await screen.findByTestId('editor');
+
+    fireEvent.click(await screen.findByRole('button', { name: '変更を提案する' }));
+    await waitFor(() => expect(hoisted.editorProps.current?.editable).toBe(true));
+    // 何も打鍵せずそのまま送信する。
+    fireEvent.click(await screen.findByRole('button', { name: '送信' }));
+
+    await waitFor(() =>
+      expect(hoisted.createSuggestion).toHaveBeenCalledWith(
+        'w-3f2a9c',
+        'p1',
+        { type: 'doc', content: [{ type: 'paragraph' }] },
+      ),
+    );
+  });
+
   it('ドラフトモードで送信するとcreateSuggestionが1回呼ばれ、成功したらドラフトモードを終了し成功トーストを出す', async () => {
     hoisted.resolvePage.mockResolvedValue(resolved(false));
     hoisted.createSuggestion.mockResolvedValue({

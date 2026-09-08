@@ -93,6 +93,13 @@ func TestPageTemplateRepository_ListBySpace_Integration(t *testing.T) {
 		names := templateNames(got)
 		assert.ElementsMatch(t, []string{"全体向け"}, names)
 	})
+
+	t.Run("一覧の行はdocを持ち出さない", func(t *testing.T) {
+		got, err := repo.List(ctx, ws, nil)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Empty(t, got[0].Doc, "一覧クエリはdoc列を選択しない（ListPageTemplatesRowにDocが無い）")
+	})
 }
 
 func templateNames(templates []domain.PageTemplate) []string {

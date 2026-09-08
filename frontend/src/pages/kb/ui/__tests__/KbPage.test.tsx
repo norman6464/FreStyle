@@ -154,7 +154,12 @@ vi.mock('@/shared/ui/RichTextEditor', async (importOriginal) => {
   };
 });
 
-const resolved = (canEdit: boolean, canManage = false, canComment = true) => ({
+const resolved = (
+  canEdit: boolean,
+  canManage = false,
+  canComment = true,
+  workspaceCanEdit = true,
+) => ({
   workspaceSlug: 'w-3f2a9c',
   workspaceName: '開発チーム',
   ancestors: [{ id: 'anc-1', title: '親ページの親' }],
@@ -170,6 +175,7 @@ const resolved = (canEdit: boolean, canManage = false, canComment = true) => ({
   canEdit,
   canManage,
   canComment,
+  workspaceCanEdit,
 });
 
 /** /page の run に渡す最小のエディタ（createSubpage が使う形だけ）。 */
@@ -677,6 +683,17 @@ describe('KbPage のテンプレート', () => {
     expect(screen.queryByRole('button', { name: 'テンプレートとして保存' })).not.toBeInTheDocument();
   });
 
+  it('ページは編集できてもワークスペース全体のCanEditが無ければ「テンプレートとして保存」ボタンを出さない', async () => {
+    // canEdit（ページ単位）は true だが workspaceCanEdit（ワークスペース全体）は false ——
+    // ページ/スペース限定の編集権限しか持たない人を想定。押せるが 403 になるボタンを
+    // 出さないための、canEdit だけでは判定しない旗。
+    hoisted.resolvePage.mockResolvedValue(resolved(true, false, true, false));
+    renderPage();
+
+    await screen.findByTestId('editor');
+    expect(screen.queryByRole('button', { name: 'テンプレートとして保存' })).not.toBeInTheDocument();
+  });
+
   it('保存フォームを送信すると createPageTemplate が呼ばれ、成功したらフォームが閉じる', async () => {
     hoisted.createPageTemplate.mockResolvedValue({
       id: 't-1',
@@ -719,6 +736,27 @@ describe('KbPage のテンプレート', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('同じ名前のテンプレートが既にあります');
     expect(nameInput).toHaveValue('議事録');
+  });
+
+  it('/templateピッカーの削除ボタンはworkspaceCanEdit（canEditではなく）で出し分ける', async () => {
+    // canEdit（ページ単位）は true・workspaceCanEdit（ワークスペース全体）は false ——
+    // ページ/スペース限定の編集権限しか持たない人を想定。canManageTemplates が canEdit を
+    // 見ていたら誤って削除ボタンが出てしまうところを、workspaceCanEdit で正しく隠すことを固定する。
+    hoisted.resolvePage.mockResolvedValue(resolved(true, false, true, false));
+    hoisted.listPageTemplates.mockResolvedValue([
+      { id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' },
+    ]);
+    renderPage();
+    await screen.findByTestId('editor');
+    const commands = hoisted.editorProps.current?.extraSlashCommands;
+    const templateCommand = commands?.find((c) => c.id === 'template');
+
+    await act(async () => {
+      templateCommand!.run(fakeEditor());
+    });
+
+    await screen.findByRole('button', { name: '議事録' });
+    expect(screen.queryByRole('button', { name: '議事録 を削除' })).not.toBeInTheDocument();
   });
 
   it('/template でピッカーを開き、選んで確定すると新しいページへ遷移する', async () => {

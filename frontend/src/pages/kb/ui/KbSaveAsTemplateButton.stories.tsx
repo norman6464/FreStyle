@@ -78,10 +78,24 @@ export const 送信に成功: Story = {
   },
 };
 
+// 「ワークスペース全体を選んで送信」の見本で、実際に送った本文を確かめるために使う。
+// withApi のデコレータは story オブジェクト生成時（モジュール評価時）に配線されるので、
+// play の中の変数ではなくモジュール直下の入れ物へ書く（play 側は毎回リセットしてから読む）。
+const capturedCreateTemplateBody: { current: unknown } = { current: undefined };
+
 /** 「ワークスペース全体」を選んで送信すると、spaceId を送らない（null）。 */
 export const ワークスペース全体を選んで送信: Story = {
-  decorators: [withApi({ '/templates': { id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' } })],
+  decorators: [
+    withApi({
+      '/templates': (config: { data?: unknown }) => {
+        capturedCreateTemplateBody.current =
+          typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+        return { id: 't-1', name: '議事録', createdAt: '2026-09-01T00:00:00Z' };
+      },
+    }),
+  ],
   play: async ({ canvasElement }) => {
+    capturedCreateTemplateBody.current = undefined;
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'テンプレートとして保存' }));
     await userEvent.type(canvas.getByLabelText('テンプレート名'), '議事録');
@@ -91,6 +105,7 @@ export const ワークスペース全体を選んで送信: Story = {
     await waitFor(async () => {
       await expect(canvas.queryByLabelText('テンプレート名')).not.toBeInTheDocument();
     });
+    await expect(capturedCreateTemplateBody.current).toMatchObject({ spaceId: null });
   },
 };
 

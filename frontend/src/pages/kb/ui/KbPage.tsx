@@ -588,12 +588,15 @@ export default function KbPage() {
                   <ClockIcon className="h-4 w-4" />
                 </button>
                 {/*
-                  「テンプレートとして保存」は canEdit のときだけ出す。作成はワークスペースの
-                  編集者以上が要る操作で、これは今のページを編集できるかと同じ軸で判定する
-                  （共有ボタンの canManage と同じ考え方 — 権限が無い相手に押せるボタンを
-                  出しても、返るのは 403 だけで「権限が無い」ことすら伝わらない）。
+                  「テンプレートとして保存」は canEdit（このページを編集できる）と
+                  workspaceCanEdit（ワークスペース全体への書き込み資格。雛形の作成が実際に
+                  要求する権限）の両方が揃ったときだけ出す。ページ/スペース限定の編集権限
+                  しか持たない人は canEdit だけ true になり得るので、そちらだけで判定すると
+                  「押せるが403になる」ボタンを出してしまう（共有ボタンの canManage と同じ
+                  考え方 — 権限が無い相手に押せるボタンを出しても、返るのは 403 だけで
+                  「権限が無い」ことすら伝わらない）。
                 */}
-                {data.canEdit && (
+                {data.canEdit && data.workspaceCanEdit && (
                   <KbSaveAsTemplateButton
                     workspaceSlug={data.workspaceSlug}
                     pageId={data.page.id}
@@ -773,16 +776,16 @@ export default function KbPage() {
         </SecondaryPanel>
       )}
 
-      {/* /template コマンドが開くピッカー。削除ボタンの表示可否は、このページを編集できるか
-          （data.canEdit）で判定する — サイドバー起点の「雛形から作る」と違い、ここは
-          特定のページの文脈で開くので、workspace canManage の代理指標を経由せず
-          正確な canEdit をそのまま渡せる。 */}
+      {/* /template コマンドが開くピッカー。削除ボタンの表示可否は、雛形の削除が実際に
+          要求するワークスペース全体の CanEdit（data.workspaceCanEdit）で判定する
+          （data.canEdit はページ単位の権限なので、これだけで判定すると「押せるが
+          403になる」削除ボタンを出しかねない）。 */}
       <KbTemplatePickerModal
         isOpen={templatePickerOpen}
         templates={templates.templates}
         loading={templates.loading}
         error={templates.error}
-        canManageTemplates={data?.canEdit ?? false}
+        canManageTemplates={data?.workspaceCanEdit ?? false}
         onConfirm={handleCreateFromTemplate}
         onDelete={templates.deleteTemplate}
         onClose={() => setTemplatePickerOpen(false)}

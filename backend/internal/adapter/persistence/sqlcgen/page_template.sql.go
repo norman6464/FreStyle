@@ -8,6 +8,7 @@ package sqlcgen
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -112,7 +113,8 @@ func (q *Queries) InsertPageTemplate(ctx context.Context, arg InsertPageTemplate
 }
 
 const listPageTemplates = `-- name: ListPageTemplates :many
-SELECT id, workspace_id, space_id, name, icon, doc, created_by_user_id, created_at, updated_at FROM page_templates
+SELECT id, workspace_id, space_id, name, icon, created_by_user_id, created_at, updated_at
+FROM page_templates
 WHERE workspace_id = $1
   AND (space_id IS NULL OR space_id = $2)
 ORDER BY name
@@ -123,7 +125,19 @@ type ListPageTemplatesParams struct {
 	SpaceID     uuid.NullUUID
 }
 
-// ワークスペースの雛形一覧を name 昇順で返す。
+type ListPageTemplatesRow struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.NullUUID
+	Name            string
+	Icon            *json.RawMessage
+	CreatedByUserID int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// ワークスペースの雛形一覧を name 昇順で返す。doc は一覧では使わない
+// （API 応答にも含めない）ので列に含めない。
 //
 // space_id の絞り込みは UNION ではなく 1 本の WHERE で書く。sqlc.narg(space_id) に
 // NULL（Go の uuid.NullUUID{Valid: false}）を渡すと `space_id = NULL` は SQL の 3 値論理で
@@ -131,22 +145,21 @@ type ListPageTemplatesParams struct {
 // 結果は「space_id IS NULL の行だけ」になる。非 NULL を渡せば「space_id IS NULL の行」と
 // 「space_id = 引数の行」の両方が返る。UNION で 2 本のクエリを合成するのと同じ結果集合を、
 // 表の別名を増やさず 1 本の SELECT で得られるため、こちらを採用した。
-func (q *Queries) ListPageTemplates(ctx context.Context, arg ListPageTemplatesParams) ([]PageTemplate, error) {
+func (q *Queries) ListPageTemplates(ctx context.Context, arg ListPageTemplatesParams) ([]ListPageTemplatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPageTemplates, arg.WorkspaceID, arg.SpaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PageTemplate{}
+	items := []ListPageTemplatesRow{}
 	for rows.Next() {
-		var i PageTemplate
+		var i ListPageTemplatesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
 			&i.SpaceID,
 			&i.Name,
 			&i.Icon,
-			&i.Doc,
 			&i.CreatedByUserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,

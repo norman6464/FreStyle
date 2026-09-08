@@ -1506,6 +1506,35 @@ func Test_ナレッジAPI_IDだけの解決にcanCommentが載る(t *testing.T) 
 	})
 }
 
+// Test_ナレッジAPI_IDだけの解決にworkspaceCanEditが載る は、ページ単位の canEdit
+// （付与の合成）とワークスペース全体への CanEdit（CheckWorkspacePermissionUseCase）が
+// 別軸であることを固定する。ページ/スペース限定の編集権限しか持たない人は canEdit=true でも
+// workspaceCanEdit=false になり得る（雛形の作成・削除はワークスペース全体の CanEdit で
+// 判定するため、フロントはこちらを見て「押せるが403になる」ボタンを出さないようにする）。
+func Test_ナレッジAPI_IDだけの解決にworkspaceCanEditが載る(t *testing.T) {
+	t.Run("ワークスペース全体の役割が無ければfalse（ページ単位のcanEditがtrueでも）", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+
+		got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+		assert.True(t, res.CanEdit, "ページ単位はfallbackのkbCanEditでtrue")
+		assert.False(t, res.WorkspaceCanEdit, "ワークスペース全体の役割は別途設定していないのでfalse")
+	})
+
+	t.Run("ワークスペース全体でeditor以上ならtrue", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleEditor)
+
+		got := f.do(t, http.MethodGet, "/api/v2/kb/pages/"+kbChildPageID, "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var res kbResolvedPageResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &res))
+		assert.True(t, res.WorkspaceCanEdit)
+	})
+}
+
 // Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字 は、名前が引けなくても
 // 200 のまま返し、name だけが空文字に落ちることを固定する（LookupUserNameUseCase の doc）。
 func Test_ナレッジAPI_IDだけの解決で不明なユーザーは名前が空文字(t *testing.T) {
@@ -1618,6 +1647,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 	users := newKbFakeUsers()
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(perms),
+		kb.NewCheckWorkspacePermissionUseCase(perms),
 		kb.NewResolvePageLocationUseCase(pages),
 		kb.NewCheckSpacePermissionUseCase(perms),
 		kb.NewCanEditPageSubtreeUseCase(perms),

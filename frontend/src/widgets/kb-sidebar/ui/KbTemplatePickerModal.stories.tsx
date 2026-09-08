@@ -173,11 +173,35 @@ export const 削除に失敗: Story = {
   },
 };
 
-/** 閉じるボタン・オーバーレイクリックのどちらでも onClose が呼ばれる。 */
+/** 閉じるボタンで onClose が呼ばれる。 */
 export const 閉じる: Story = {
   play: async ({ args }) => {
     await userEvent.click(screen.getByRole('button', { name: '閉じる' }));
     await expect(args.onClose).toHaveBeenCalled();
+  },
+};
+
+/** オーバーレイクリックでも onClose が呼ばれる。 */
+export const オーバーレイクリックで閉じる: Story = {
+  play: async ({ args }) => {
+    await userEvent.click(screen.getByTestId('kb-template-picker-overlay'));
+    await expect(args.onClose).toHaveBeenCalled();
+  },
+};
+
+/** 削除の確認モーダルが出ている間にEscapeを押しても、確認モーダルだけが閉じ、
+ * ピッカー全体（onClose）は閉じない。 */
+export const 削除確認中のEscapeはピッカーを閉じない: Story = {
+  args: { templates },
+  play: async ({ args }) => {
+    await userEvent.click(screen.getByRole('button', { name: '議事録 を削除' }));
+    await screen.findByRole('dialog', { name: 'テンプレートを削除' });
+
+    await userEvent.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'テンプレートを削除' })).not.toBeInTheDocument());
+    await expect(args.onClose).not.toHaveBeenCalled();
+    await expect(screen.getByRole('heading', { name: '雛形を選ぶ' })).toBeVisible();
   },
 };
 

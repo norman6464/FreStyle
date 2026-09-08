@@ -68,11 +68,13 @@ export default function KbTemplatePickerModal({
   useEffect(() => {
     if (!isOpen) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      // 削除の確認モーダルが出ている間は、Escape は ConfirmModal 側の onCancel だけが処理する
+      // （ここで onClose すると、確認モーダルごとピッカー全体が閉じてしまう）。
+      if (event.key === 'Escape' && confirmingDeleteId === null) onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, confirmingDeleteId]);
 
   if (!isOpen) return null;
 
@@ -119,7 +121,11 @@ export default function KbTemplatePickerModal({
       className="fixed inset-0 z-40 flex items-start justify-center pt-[18vh]"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        data-testid="kb-template-picker-overlay"
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
       <div
         role="dialog"
         aria-modal="true"

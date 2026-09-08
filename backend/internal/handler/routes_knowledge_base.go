@@ -113,6 +113,7 @@ func registerKnowledgeBaseRoutesWith(
 	replaceBlocks := kb.NewReplacePageBlocksUseCase(pages, txManager, versions)
 	h := NewKnowledgeBasePageHandler(
 		kb.NewCheckPagePermissionUseCase(permissions),
+		kb.NewCheckWorkspacePermissionUseCase(permissions),
 		kb.NewResolvePageLocationUseCase(pages),
 		kb.NewCheckSpacePermissionUseCase(permissions),
 		kb.NewCanEditPageSubtreeUseCase(permissions),

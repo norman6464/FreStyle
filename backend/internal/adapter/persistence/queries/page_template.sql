@@ -13,7 +13,8 @@ VALUES (
 RETURNING *;
 
 -- name: ListPageTemplates :many
--- ワークスペースの雛形一覧を name 昇順で返す。
+-- ワークスペースの雛形一覧を name 昇順で返す。doc は一覧では使わない
+-- （API 応答にも含めない）ので列に含めない。
 --
 -- space_id の絞り込みは UNION ではなく 1 本の WHERE で書く。sqlc.narg(space_id) に
 -- NULL（Go の uuid.NullUUID{Valid: false}）を渡すと `space_id = NULL` は SQL の 3 値論理で
@@ -21,7 +22,8 @@ RETURNING *;
 -- 結果は「space_id IS NULL の行だけ」になる。非 NULL を渡せば「space_id IS NULL の行」と
 -- 「space_id = 引数の行」の両方が返る。UNION で 2 本のクエリを合成するのと同じ結果集合を、
 -- 表の別名を増やさず 1 本の SELECT で得られるため、こちらを採用した。
-SELECT * FROM page_templates
+SELECT id, workspace_id, space_id, name, icon, created_by_user_id, created_at, updated_at
+FROM page_templates
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND (space_id IS NULL OR space_id = sqlc.narg(space_id))
 ORDER BY name;

@@ -42,15 +42,41 @@ func toDomainPageTemplate(row sqlcgen.PageTemplate) domain.PageTemplate {
 		id := row.SpaceID.UUID.String()
 		tpl.SpaceID = &id
 	}
-	// icon は飾り（見た目）であって、壊れていても雛形本体の読み出しを止める理由にはならない。
-	// json.Unmarshal に失敗したら nil に倒す（toDomainPage の icon 扱いと同じ判断）。
-	if row.Icon != nil {
-		var icon domain.PageIcon
-		if err := json.Unmarshal(*row.Icon, &icon); err == nil {
-			tpl.Icon = &icon
-		}
-	}
+	tpl.Icon = decodePageTemplateIcon(row.Icon)
 	return tpl
+}
+
+// toDomainPageTemplateListRow は一覧用の行（doc を含まない）を変換する。一覧の応答は
+// もともと doc を持ち出さない（PageTemplate.Doc は json:"-"）ので、Doc は空文字のままでよい。
+func toDomainPageTemplateListRow(row sqlcgen.ListPageTemplatesRow) domain.PageTemplate {
+	tpl := domain.PageTemplate{
+		ID:              row.ID.String(),
+		WorkspaceID:     row.WorkspaceID.String(),
+		Name:            row.Name,
+		CreatedByUserID: uint64(row.CreatedByUserID),
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
+	}
+	if row.SpaceID.Valid {
+		id := row.SpaceID.UUID.String()
+		tpl.SpaceID = &id
+	}
+	tpl.Icon = decodePageTemplateIcon(row.Icon)
+	return tpl
+}
+
+// decodePageTemplateIcon は icon が飾り（見た目）であって、壊れていても雛形本体の読み出しを
+// 止める理由にはならないという判断のもと、json.Unmarshal に失敗したら nil に倒す
+// （toDomainPage の icon 扱いと同じ判断）。
+func decodePageTemplateIcon(raw *json.RawMessage) *domain.PageIcon {
+	if raw == nil {
+		return nil
+	}
+	var icon domain.PageIcon
+	if err := json.Unmarshal(*raw, &icon); err != nil {
+		return nil
+	}
+	return &icon
 }
 
 func (r *pageTemplateRepository) Create(ctx context.Context, tpl *domain.PageTemplate) error {
@@ -123,7 +149,7 @@ func (r *pageTemplateRepository) List(ctx context.Context, workspaceID string, s
 	}
 	out := make([]domain.PageTemplate, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toDomainPageTemplate(row))
+		out = append(out, toDomainPageTemplateListRow(row))
 	}
 	return out, nil
 }

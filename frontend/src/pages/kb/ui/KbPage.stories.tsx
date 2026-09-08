@@ -70,6 +70,7 @@ const resolved = (over: Record<string, unknown> = {}) => ({
   doc,
   canEdit: true,
   canManage: true,
+  workspaceCanEdit: true,
   ...over,
 });
 

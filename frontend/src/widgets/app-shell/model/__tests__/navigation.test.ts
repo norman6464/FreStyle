@@ -27,15 +27,6 @@ describe('ナレッジへの導線', () => {
     expect(navActive(kb!, '/courses')).toBe(false);
   });
 
-  it('文字列 1 本の matchPrefix（演習・ナレッジとも）で子パスまで選ばれる', () => {
-    const code = MAIN_NAV_ITEMS.find((item) => item.id === 'code');
-
-    expect(navActive(code!, '/code-editor')).toBe(true);
-    expect(navActive(code!, '/code-editor/123')).toBe(true);
-    expect(navActive(code!, '/code-editor-x')).toBe(false);
-    expect(navActive(code!, '/courses')).toBe(false);
-  });
-
   it('名前が前方一致するだけの別パスでは選ばれない', () => {
     // 素の startsWith だと /kb-other でも「ナレッジ」が光ってしまう。
     // いまそういうルートは無いが、足した瞬間に静かに壊れる形なので判定側で塞ぐ。

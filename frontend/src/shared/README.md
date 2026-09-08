@@ -18,7 +18,7 @@
 | `Button` / `Avatar` | **shared/ui** |
 | `UserAvatar` / `CourseCard` | **entities/<slice>/ui** |
 | 日付フォーマット | **shared/lib** |
-| 演習ステータスの表示名変換 | **entities/exercise/lib** |
+| ページ木の祖先 ID 解決 | **entities/kb/lib** |
 
 判断基準は「**別のプロジェクトにコピーして使えるか**」。使えるなら shared、
 そのプロジェクト固有の意味を含むなら上の層。
@@ -55,12 +55,10 @@ export { Modal } from './Modal';
 
 ### 例外: barrel に載せないもの
 
-**重いモジュールを抱えるものは barrel から出さない。** `CodeEditor` は中身が
-monaco-editor（数百 KB）で、演習ページだけが `lazyWithReload` で遅延ロードしている。
-`index.ts` で re-export すると `@/shared/ui` を import した全ページが monaco を
-巻き込み、コード分割が壊れる（Phase 5a で実際に `CoursesListPage` /
-`HelpPage` のテストが monaco の `document.queryCommandSupported` で落ちて発覚した）。
-こういうものは深いパス（`@/shared/ui/CodeEditor`）で直接 import する。
+**重いモジュールを抱えるものは barrel から出さない。** `RichTextEditor` は中身が
+tiptap / ProseMirror（数百 KB）で、`index.ts` で re-export すると `@/shared/ui` を
+import した全ページがエディタ一式を巻き込み、コード分割が壊れる。
+こういうものは深いパス（`@/shared/ui/RichTextEditor`）で直接 import する。
 
 ## 移行状況
 
@@ -75,7 +73,7 @@ FSD 移行の Phase 2 で骨格を作り、**Phase 5a で
 
 | 対象 | 置き場所 | 理由 |
 |---|---|---|
-| `LanguageBadge` / `LanguageIcon` | **shared/ui** | コースと演習の両方が使う。どちらかの entity に置くと同一レイヤーの Slice 間 import になり FSD 違反。中身も devicon スラッグと Tailwind クラスの対応表で FreStyle 固有ではない |
+| `LanguageBadge` / `LanguageIcon` | **shared/ui** | ホームの `FeatureCard` が技術ロゴ表示に使う。entity に置くとビジネス層が shared を参照する向きになり FSD 違反。中身も devicon スラッグと Tailwind クラスの対応表で FreStyle 固有ではない |
 | `Toast` | **shared/ui** | 見た目だけを持つ。状態を知らない |
 | `ToastContainer` | **app/providers** | `useToast` で状態を購読する。shared に置くと、hooks が features へ移った時点で「下位層が上位層を import する」違反になる |
 | `PrimaryButton` | **削除** | `Button` に `variant="primary" fullWidth` を渡すだけのラッパ。`Button` の既定 variant がすでに primary なので名前が実態とずれており、`size` / `className` / ネイティブ属性も落としていた |

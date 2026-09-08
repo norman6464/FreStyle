@@ -1,6 +1,6 @@
 [
   {
-    "name": "初期ロード (アプリ + React/Redux, Monaco 除く)",
+    "name": "初期ロード (アプリ + React/Redux)",
     "path": [
       "dist/assets/index-*.js",
       "dist/assets/vendor-react-*.js",
@@ -9,11 +9,5 @@
     ],
     "gzip": true,
     "limit": "130 KB"
-  },
-  {
-    "name": "Monaco エディタ (vendor-monaco, modulepreload)",
-    "path": "dist/assets/vendor-monaco-*.js",
-    "gzip": true,
-    "limit": "1150 KB"
   }
 ]

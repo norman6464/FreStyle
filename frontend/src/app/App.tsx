@@ -24,9 +24,6 @@ const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) =>
 const KbPage = lazyWithReload(() => import('@/pages/kb').then((m) => ({ default: m.KbPage })), 'KbPage');
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
-const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
-const ExerciseListPage = lazyWithReload(() => import('@/pages/exercises').then((m) => ({ default: m.ExerciseListPage })), 'ExerciseListPage');
-const ExerciseDetailPage = lazyWithReload(() => import('@/pages/exercise-detail').then((m) => ({ default: m.ExerciseDetailPage })), 'ExerciseDetailPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
 const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
@@ -98,11 +95,6 @@ export default function App() {
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/help" element={<HelpPage />} />
-        {/* コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段。
-            /lang/:language は 2 セグメントなので 1 セグメントの :slug とは衝突しない。 */}
-        <Route path="/code-editor" element={<ExerciseLanguageSelectPage />} />
-        <Route path="/code-editor/lang/:language" element={<ExerciseListPage />} />
-        <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
       </Route>
 
       {/* どのルートにも一致しない URL の受け皿。

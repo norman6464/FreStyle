@@ -39,7 +39,6 @@ export default defineConfig(({ mode }) => ({
         // react-router-dom / react-dom を react より先に判定する(部分一致の取りこぼし防止)。
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('node_modules/monaco-editor')) return 'vendor-monaco';
           if (
             id.includes('node_modules/@reduxjs/toolkit') ||
             id.includes('node_modules/react-redux') ||

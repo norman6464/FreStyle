@@ -104,7 +104,7 @@ table "users" {
   }
 }
 
-# OIDC プロバイダ由来のユーザー識別子（Cognito の sub を users から分離）。
+# OIDC プロバイダ由来のユーザー識別子（発行者の sub を users から分離）。
 table "user_oidc_identities" {
   schema = schema.public
   column "id" {
@@ -118,7 +118,7 @@ table "user_oidc_identities" {
   column "provider" {
     null    = false
     type    = text
-    default = "cognito"
+    default = "oidc"
   }
   column "subject" {
     null = false

@@ -1207,7 +1207,7 @@ func (f *kbFakeUsers) FindByID(_ context.Context, userID uint64) (*domain.User, 
 	return u, nil
 }
 
-func (f *kbFakeUsers) FindByCognitoSub(context.Context, string) (*domain.User, error) {
+func (f *kbFakeUsers) FindByOidcSubject(context.Context, string) (*domain.User, error) {
 	return nil, nil
 }
 
@@ -1215,7 +1215,7 @@ func (f *kbFakeUsers) FindActiveByEmail(context.Context, string) (*domain.User, 
 	return nil, nil
 }
 
-func (f *kbFakeUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
+func (f *kbFakeUsers) OidcSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
 
 func (f *kbFakeUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
 	return nil, nil

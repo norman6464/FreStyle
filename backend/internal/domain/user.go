@@ -8,7 +8,7 @@ type User struct {
 	Email string `json:"email"`
 	// PasswordHash はパスワードログイン用の bcrypt ハッシュ。NULL = パスワードログイン不可
 	// （OIDC のみ）。API へは絶対に出さない。検証はローカル専用 authenticator（infra/localauth）
-	// が行い、本番のログイン経路（Cognito）はこの列を参照しない。
+	// が行い、本番のログイン経路（OIDC 認証）はこの列を参照しない。
 	PasswordHash *string `json:"-"`
 	Name         string  `json:"name"`
 	// WorkspaceID は所属ワークスペースへの参照。未所属は NULL。

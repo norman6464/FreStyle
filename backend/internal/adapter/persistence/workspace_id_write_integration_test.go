@@ -62,14 +62,14 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		repo := persistence.NewUserRepository(sqlDB)
 		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
 			Email: "a@example.com", Name: "A", WorkspaceID: &ws1Str,
-		}, domain.OidcProviderCognito, "sub-a")
+		}, domain.OidcProviderDefault, "sub-a")
 		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
 			Email: "b@example.com", Name: "B", WorkspaceID: &ws2Str,
-		}, domain.OidcProviderCognito, "sub-b")
+		}, domain.OidcProviderDefault, "sub-b")
 
-		userA, err := repo.FindByCognitoSub(ctx, "sub-a")
+		userA, err := repo.FindByOidcSubject(ctx, "sub-a")
 		require.NoError(t, err)
-		userB, err := repo.FindByCognitoSub(ctx, "sub-b")
+		userB, err := repo.FindByOidcSubject(ctx, "sub-b")
 		require.NoError(t, err)
 
 		require.Equal(t, uuid.NullUUID{UUID: ws1, Valid: true}, userWorkspaceID(t, sqlDB, userA.ID))
@@ -84,9 +84,9 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		repo := persistence.NewUserRepository(sqlDB)
 		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
 			Email: "root@example.com", Name: "運営",
-		}, domain.OidcProviderCognito, "sub-root")
+		}, domain.OidcProviderDefault, "sub-root")
 
-		got, err := repo.FindByCognitoSub(ctx, "sub-root")
+		got, err := repo.FindByOidcSubject(ctx, "sub-root")
 		require.NoError(t, err)
 		require.Nil(t, got.WorkspaceID)
 		require.False(t, tableWorkspaceID(t, sqlDB, "users", got.ID).Valid)
@@ -102,8 +102,8 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		repo := persistence.NewUserRepository(sqlDB)
 		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
 			Email: "move@example.com", Name: "異動", WorkspaceID: &ws1Str,
-		}, domain.OidcProviderCognito, "sub-move")
-		got, err := repo.FindByCognitoSub(ctx, "sub-move")
+		}, domain.OidcProviderDefault, "sub-move")
+		got, err := repo.FindByOidcSubject(ctx, "sub-move")
 		require.NoError(t, err)
 		require.Equal(t, uuid.NullUUID{UUID: ws1, Valid: true}, tableWorkspaceID(t, sqlDB, "users", got.ID))
 
@@ -124,8 +124,8 @@ func TestUserWorkspaceWrite_Integration(t *testing.T) {
 		repo := persistence.NewUserRepository(sqlDB)
 		createUserWithOidcIdentity(ctx, t, sqlDB, &domain.User{
 			Email: "leave@example.com", Name: "退所", WorkspaceID: &ws1Str,
-		}, domain.OidcProviderCognito, "sub-leave")
-		got, err := repo.FindByCognitoSub(ctx, "sub-leave")
+		}, domain.OidcProviderDefault, "sub-leave")
+		got, err := repo.FindByOidcSubject(ctx, "sub-leave")
 		require.NoError(t, err)
 
 		require.NoError(t, repo.UpdateWorkspaceID(ctx, got.ID, nil))

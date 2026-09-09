@@ -135,9 +135,9 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (u *
 	u, err = h.upsertUser.Execute(
 		c.Request.Context(),
 		user.UpsertUserFromIDTokenInput{
-			CognitoSub: sub,
-			Email:      email,
-			Name:       name,
+			Subject: sub,
+			Email:   email,
+			Name:    name,
 		},
 	)
 	if err != nil || u == nil {

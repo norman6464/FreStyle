@@ -23,7 +23,7 @@ type fakeUserRepo struct {
 	updateNameVal      string
 }
 
-func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {
+func (r *fakeUserRepo) FindByOidcSubject(_ context.Context, sub string) (*domain.User, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
@@ -37,7 +37,7 @@ func (r *fakeUserRepo) FindActiveByEmail(_ context.Context, _ string) (*domain.U
 	return nil, nil
 }
 
-func (r *fakeUserRepo) CognitoSubjectByUserID(_ context.Context, _ uint64) (string, error) {
+func (r *fakeUserRepo) OidcSubjectByUserID(_ context.Context, _ uint64) (string, error) {
 	return "", nil
 }
 

@@ -15,10 +15,10 @@ import (
 )
 
 // TestUserNormalization_Integration は users 正規化の契約を実 Postgres で固定する。
-// 旧カラム（users.role / users.cognito_sub）撤去（migrations/0021、および users.role 列自体の
+// 旧カラム（users.role / users の旧 OIDC sub 列）撤去（migrations/0021、および users.role 列自体の
 // 撤去）後の world を対象にする:
 //   - CreateWithOidcIdentity が users 行と identity を単一トランザクションで作る（片方だけ残らない）
-//   - FindByCognitoSub は user_oidc_identities 経由でのみ解決する
+//   - FindByOidcSubject は user_oidc_identities 経由でのみ解決する
 //   - FK / CHECK / 部分 UNIQUE / CASCADE などの DB 制約
 func TestUserNormalization_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
@@ -61,7 +61,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("CreateWithOidcIdentity は users 行と identity を対で作る", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "n1@example.com", Name: "n1"}
-		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderCognito, "norm-1"))
+		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, "norm-1"))
 
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
@@ -77,12 +77,12 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, int64(1), count)
 	})
 
-	t.Run("FindByCognitoSub は identities 経由で解決する", func(t *testing.T) {
+	t.Run("FindByOidcSubject は identities 経由で解決する", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "n2@example.com"}
-		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderCognito, "norm-2"))
+		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, "norm-2"))
 
-		got, err := repo.FindByCognitoSub(ctx, "norm-2")
+		got, err := repo.FindByOidcSubject(ctx, "norm-2")
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, u.ID, got.ID)
@@ -91,10 +91,10 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("EnsureOidcIdentity は冪等（同一 provider+subject を重複して作らない）", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "n3@example.com"}
-		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderCognito, "norm-3"))
+		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, "norm-3"))
 
 		// 作成時に張られた identity と同じものを張り直しても増えない。
-		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, "norm-3"))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderDefault, "norm-3"))
 
 		var count int64
 		require.NoError(t, sqlDB.QueryRow(
@@ -107,7 +107,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
 			`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
-			 VALUES (424242, 'cognito', 'ghost', NOW(), NOW())`,
+			 VALUES (424242, 'oidc', 'ghost', NOW(), NOW())`,
 		)
 		require.ErrorContains(t, err, "fk_user_oidc_identities_user")
 	})
@@ -115,7 +115,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("DB 制約: ユーザーの物理削除で identity が CASCADE 削除される", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "c1@example.com"}
-		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderCognito, "cascade-1"))
+		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, "cascade-1"))
 
 		_, err := sqlDB.Exec(`DELETE FROM users WHERE id = $1`, u.ID)
 		require.NoError(t, err)
@@ -130,13 +130,13 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("DB 制約: アクティブ行の email 重複は部分 UNIQUE で拒否・論理削除後の再利用は可", func(t *testing.T) {
 		truncate(t)
 		u1 := &domain.User{Email: "dup@example.com"}
-		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderCognito, "mail-1"))
+		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderDefault, "mail-1"))
 
 		// 同じ email のアクティブ行は作れない（users 行の INSERT が失敗 → トランザクションごと巻き戻る）。
 		dup := &domain.User{Email: "dup@example.com"}
 		require.ErrorIs(
 			t,
-			createWithOidcIdentity(dup, domain.OidcProviderCognito, "mail-2"),
+			createWithOidcIdentity(dup, domain.OidcProviderDefault, "mail-2"),
 			repository.ErrEmailTaken,
 		)
 		// identity も巻き戻っている（片方だけ残らない）。
@@ -149,7 +149,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		// 論理削除すればアクティブ行が消えるので同じ email で再登録できる（再招待のシナリオ）。
 		require.NoError(t, repo.SoftDelete(ctx, u1.ID))
 		dup2 := &domain.User{Email: "dup@example.com"}
-		require.NoError(t, createWithOidcIdentity(dup2, domain.OidcProviderCognito, "mail-3"))
+		require.NoError(t, createWithOidcIdentity(dup2, domain.OidcProviderDefault, "mail-3"))
 	})
 
 	t.Run("DB 制約: identity の空 subject は CHECK で拒否され、users 行も巻き戻る", func(t *testing.T) {
@@ -157,7 +157,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		u := &domain.User{Email: "chk@example.com"}
 		require.ErrorContains(
 			t,
-			createWithOidcIdentity(u, domain.OidcProviderCognito, ""),
+			createWithOidcIdentity(u, domain.OidcProviderDefault, ""),
 			"ck_user_oidc_identities_not_empty",
 		)
 		var count int64
@@ -170,12 +170,12 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("作成時に別ユーザーの subject 占有はトランザクションごとエラーになる", func(t *testing.T) {
 		truncate(t)
 		u1 := &domain.User{Email: "own1@example.com"}
-		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderCognito, "shared-sub"))
+		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderDefault, "shared-sub"))
 
 		// 同じ subject を別ユーザーに割り当てようとすると identity の一意制約で失敗し、
 		// users 行ごと巻き戻る（孤児ユーザーを作らない）。
 		u2 := &domain.User{Email: "own2@example.com"}
-		require.Error(t, createWithOidcIdentity(u2, domain.OidcProviderCognito, "shared-sub"))
+		require.Error(t, createWithOidcIdentity(u2, domain.OidcProviderDefault, "shared-sub"))
 		var count int64
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT count(*) FROM users WHERE email = $1`, "own2@example.com",
@@ -186,16 +186,16 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("SoftDelete が identity を解放し、同じ subject で再招待できる", func(t *testing.T) {
 		truncate(t)
 		u1 := &domain.User{Email: "re@example.com"}
-		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderCognito, "reinvite-sub"))
+		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderDefault, "reinvite-sub"))
 
 		require.NoError(t, repo.SoftDelete(ctx, u1.ID))
 
-		// 旧 cognito_sub 列が撤去されたので、同じ email / 同じ subject で新ユーザーを作れる
-		// （identity は SoftDelete で解放され、cognito_sub のユニーク衝突も無くなった）。
+		// 旧 OIDC sub 列が撤去されたので、同じ email / 同じ subject で新ユーザーを作れる
+		// （identity は SoftDelete で解放され、旧列のユニーク衝突も無くなった）。
 		u2 := &domain.User{Email: "re@example.com"}
-		require.NoError(t, createWithOidcIdentity(u2, domain.OidcProviderCognito, "reinvite-sub"))
+		require.NoError(t, createWithOidcIdentity(u2, domain.OidcProviderDefault, "reinvite-sub"))
 
-		got, err := repo.FindByCognitoSub(ctx, "reinvite-sub")
+		got, err := repo.FindByOidcSubject(ctx, "reinvite-sub")
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, u2.ID, got.ID)
@@ -205,15 +205,15 @@ func TestUserNormalization_Integration(t *testing.T) {
 		truncate(t)
 		e1 := &domain.User{Email: ""}
 		e2 := &domain.User{Email: ""}
-		require.NoError(t, createWithOidcIdentity(e1, domain.OidcProviderCognito, "nomail-1"))
-		require.NoError(t, createWithOidcIdentity(e2, domain.OidcProviderCognito, "nomail-2"))
+		require.NoError(t, createWithOidcIdentity(e1, domain.OidcProviderDefault, "nomail-1"))
+		require.NoError(t, createWithOidcIdentity(e2, domain.OidcProviderDefault, "nomail-2"))
 	})
 
 	t.Run("FindActiveByEmail はハッシュ込みで 1 件返し、無効・削除行は除外する", func(t *testing.T) {
 		truncate(t)
 		hash := "$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm"
 		u := &domain.User{Email: "find@example.com", PasswordHash: &hash}
-		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderCognito, "mail-find-1"))
+		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, "mail-find-1"))
 
 		got, err := repo.FindActiveByEmail(ctx, "find@example.com")
 		require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 
 		for _, sub := range []string{"dup-a", "dup-b"} {
 			u := &domain.User{Email: "dup2@example.com"}
-			require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderCognito, sub))
+			require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, sub))
 		}
 
 		_, err = repo.FindActiveByEmail(ctx, "dup2@example.com")
@@ -257,12 +257,12 @@ func TestUserNormalization_Integration(t *testing.T) {
 		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
 		recreateUniqueEmailActiveIndex(t, sqlDB)
 		u1 := &domain.User{Email: "case@example.com"}
-		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderCognito, "case-1"))
+		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderDefault, "case-1"))
 
 		dup := &domain.User{Email: "CASE@Example.com"}
 		require.ErrorIs(
 			t,
-			createWithOidcIdentity(dup, domain.OidcProviderCognito, "case-2"),
+			createWithOidcIdentity(dup, domain.OidcProviderDefault, "case-2"),
 			repository.ErrEmailTaken,
 		)
 	})

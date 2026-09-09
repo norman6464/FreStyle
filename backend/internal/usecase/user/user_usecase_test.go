@@ -15,7 +15,7 @@ type stubUserRepo struct {
 	err  error
 }
 
-func (s *stubUserRepo) FindByCognitoSub(_ context.Context, _ string) (*domain.User, error) {
+func (s *stubUserRepo) FindByOidcSubject(_ context.Context, _ string) (*domain.User, error) {
 	return s.user, s.err
 }
 
@@ -46,7 +46,7 @@ func (s *stubUserRepo) FindActiveByEmail(context.Context, string) (*domain.User,
 	return nil, nil
 }
 
-func (s *stubUserRepo) CognitoSubjectByUserID(context.Context, uint64) (string, error) {
+func (s *stubUserRepo) OidcSubjectByUserID(context.Context, uint64) (string, error) {
 	return "", nil
 }
 
@@ -93,19 +93,19 @@ type upsertUserRepoSpy struct {
 	stubUserRepo
 	created *domain.User
 
-	findByCognitoSubCalls int
-	createCalls           int
-	createErr             error
-	nameUpdateCalls       int
-	nameUpdateErr         error
+	findByOidcSubjectCalls int
+	createCalls            int
+	createErr              error
+	nameUpdateCalls        int
+	nameUpdateErr          error
 }
 
-func (s *upsertUserRepoSpy) FindByCognitoSub(
+func (s *upsertUserRepoSpy) FindByOidcSubject(
 	ctx context.Context,
 	sub string,
 ) (*domain.User, error) {
-	s.findByCognitoSubCalls++
-	return s.stubUserRepo.FindByCognitoSub(ctx, sub)
+	s.findByOidcSubjectCalls++
+	return s.stubUserRepo.FindByOidcSubject(ctx, sub)
 }
 
 func (s *upsertUserRepoSpy) Create(
@@ -168,8 +168,8 @@ func Test_UpsertUserFromIDToken_新規ユーザーは自己サインアップで
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "new-sub",
-			Email:      "new@example.com",
+			Subject: "new-sub",
+			Email:   "new@example.com",
 		},
 	)
 	if err != nil {
@@ -194,9 +194,9 @@ func Test_UpsertUserFromIDToken_新規はOIDC名をメールより優先(t *test
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "new-sub",
-			Email:      "taro@example.com",
-			Name:       "山田 太郎",
+			Subject: "new-sub",
+			Email:   "taro@example.com",
+			Name:    "山田 太郎",
 		},
 	)
 	if err != nil {
@@ -218,8 +218,8 @@ func Test_UpsertUserFromIDToken_新規でOIDC名なしはメールにフォー�
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "new-sub",
-			Email:      "a@example.com",
+			Subject: "new-sub",
+			Email:   "a@example.com",
 		},
 	)
 	if err != nil {
@@ -240,7 +240,7 @@ func Test_UpsertUserFromIDToken_ユーザー検索が失敗する(t *testing.T) 
 
 	user, err := uc.Execute(
 		context.Background(),
-		UpsertUserFromIDTokenInput{CognitoSub: "user-error-sub"},
+		UpsertUserFromIDTokenInput{Subject: "user-error-sub"},
 	)
 
 	if user != nil {
@@ -249,34 +249,34 @@ func Test_UpsertUserFromIDToken_ユーザー検索が失敗する(t *testing.T) 
 	if !errors.Is(err, userFindErr) {
 		t.Fatalf("error = %v, want wrapped %v", err, userFindErr)
 	}
-	if !strings.Contains(err.Error(), "find user by cognito sub") {
-		t.Fatalf("error = %q, want message containing %q", err.Error(), "find user by cognito sub")
+	if !strings.Contains(err.Error(), "find user by oidc subject") {
+		t.Fatalf("error = %q, want message containing %q", err.Error(), "find user by oidc subject")
 	}
 }
 
-func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing.T) {
+func Test_UpsertUserFromIDToken_Subjectが空なら処理しない(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	uc, _ := newUpsertUserUseCase(users)
 
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "",
-			Email:      "user@example.com",
+			Subject: "",
+			Email:   "user@example.com",
 		},
 	)
 
 	if user != nil {
-		t.Fatal("CognitoSubが空のユーザーを許可してはいけない")
+		t.Fatal("Subjectが空のユーザーを許可してはいけない")
 	}
 	if err == nil {
-		t.Fatal("CognitoSubが空の場合はエラーを返すべき")
+		t.Fatal("Subjectが空の場合はエラーを返すべき")
 	}
 	if !strings.Contains(err.Error(), "id_token missing sub") {
 		t.Fatalf("error = %q, want message containing %q", err.Error(), "id_token missing sub")
 	}
-	if users.findByCognitoSubCalls != 0 {
-		t.Fatalf("FindByCognitoSub calls = %d, want 0", users.findByCognitoSubCalls)
+	if users.findByOidcSubjectCalls != 0 {
+		t.Fatalf("FindByOidcSubject calls = %d, want 0", users.findByOidcSubjectCalls)
 	}
 	if users.createCalls != 0 {
 		t.Fatalf("Create calls = %d, want 0", users.createCalls)
@@ -293,8 +293,8 @@ func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrE
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "race-sub",
-			Email:      "race@example.com",
+			Subject: "race-sub",
+			Email:   "race@example.com",
 		},
 	)
 
@@ -314,8 +314,8 @@ func Test_UpsertUserFromIDToken_ユーザー作成に失敗する(t *testing.T) 
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "new-user-error",
-			Email:      "new-user@example.com",
+			Subject: "new-user-error",
+			Email:   "new-user@example.com",
 		},
 	)
 
@@ -337,8 +337,8 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "new-sub-1",
-			Email:      "new@example.com",
+			Subject: "new-sub-1",
+			Email:   "new@example.com",
 		},
 	)
 	if err != nil {
@@ -354,8 +354,8 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	if oidc.ensureIdentityCalls != 1 {
 		t.Fatalf("EnsureIdentity calls = %d, want 1", oidc.ensureIdentityCalls)
 	}
-	if oidc.ensuredProvider != domain.OidcProviderCognito {
-		t.Fatalf("provider = %q, want %q", oidc.ensuredProvider, domain.OidcProviderCognito)
+	if oidc.ensuredProvider != domain.OidcProviderDefault {
+		t.Fatalf("provider = %q, want %q", oidc.ensuredProvider, domain.OidcProviderDefault)
 	}
 	if oidc.ensuredSubject != "new-sub-1" {
 		t.Fatalf("subject = %q, want %q", oidc.ensuredSubject, "new-sub-1")
@@ -370,8 +370,8 @@ func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒ�
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "old-sub",
-			Email:      "e@example.com",
+			Subject: "old-sub",
+			Email:   "e@example.com",
 		},
 	)
 	if err != nil {
@@ -400,9 +400,9 @@ func Test_UpsertUserFromIDToken_既存ユーザーは表示名をOIDCから補�
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "exists",
-			Email:      "old@example.com",
-			Name:       "本名 太郎",
+			Subject: "exists",
+			Email:   "old@example.com",
+			Name:    "本名 太郎",
 		},
 	)
 	if err != nil {
@@ -425,9 +425,9 @@ func Test_UpsertUserFromIDToken_表示名カスタム済みは補完しない(t 
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "exists",
-			Email:      "u@example.com",
-			Name:       "Google Name",
+			Subject: "exists",
+			Email:   "u@example.com",
+			Name:    "Google Name",
 		},
 	)
 	if err != nil {
@@ -454,9 +454,9 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "existing-user",
-			Email:      "existing@example.com",
-			Name:       "OIDC User",
+			Subject: "existing-user",
+			Email:   "existing@example.com",
+			Name:    "OIDC User",
 		},
 	)
 
@@ -480,8 +480,8 @@ func Test_UpsertUserFromIDToken_emailは正規形で保存する(t *testing.T) {
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			CognitoSub: "member-sub",
-			Email:      " Member@Example.com ",
+			Subject: "member-sub",
+			Email:   " Member@Example.com ",
 		},
 	)
 	if err != nil {

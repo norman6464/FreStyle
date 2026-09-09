@@ -23,20 +23,6 @@ func (q *Queries) DeleteOidcIdentitiesByUserID(ctx context.Context, userID int64
 	return err
 }
 
-const getCognitoSubjectByUserID = `-- name: GetCognitoSubjectByUserID :one
-SELECT subject FROM user_oidc_identities
-WHERE user_id = $1 AND provider = 'cognito'
-`
-
-// ユーザーの OIDC subject を引く。
-// (user_id, provider) は uq_user_oidc_user_provider で一意（最大 1 行）。
-func (q *Queries) GetCognitoSubjectByUserID(ctx context.Context, userID int64) (string, error) {
-	row := q.db.QueryRowContext(ctx, getCognitoSubjectByUserID, userID)
-	var subject string
-	err := row.Scan(&subject)
-	return subject, err
-}
-
 const getOidcIdentityOwner = `-- name: GetOidcIdentityOwner :one
 SELECT user_id FROM user_oidc_identities
 WHERE provider = $1 AND subject = $2
@@ -55,41 +41,18 @@ func (q *Queries) GetOidcIdentityOwner(ctx context.Context, arg GetOidcIdentityO
 	return user_id, err
 }
 
-const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
-FROM users u
-WHERE u.deleted_at IS NULL
-  AND u.id IN (
-    SELECT oi.user_id FROM user_oidc_identities oi
-    WHERE oi.provider = 'cognito' AND oi.subject = $1
-  )
+const getOidcSubjectByUserID = `-- name: GetOidcSubjectByUserID :one
+SELECT subject FROM user_oidc_identities
+WHERE user_id = $1 AND provider = 'oidc'
 `
 
-type GetUserByCognitoSubRow struct {
-	ID          int64
-	Email       string
-	Name        string
-	WorkspaceID uuid.NullUUID
-	IsActive    bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
-}
-
-func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetUserByCognitoSubRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserByCognitoSub, subject)
-	var i GetUserByCognitoSubRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.WorkspaceID,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
+// ユーザーの OIDC subject を引く。
+// (user_id, provider) は uq_user_oidc_user_provider で一意（最大 1 行）。
+func (q *Queries) GetOidcSubjectByUserID(ctx context.Context, userID int64) (string, error) {
+	row := q.db.QueryRowContext(ctx, getOidcSubjectByUserID, userID)
+	var subject string
+	err := row.Scan(&subject)
+	return subject, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
@@ -113,6 +76,43 @@ type GetUserByIDRow struct {
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i GetUserByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getUserByOidcSubject = `-- name: GetUserByOidcSubject :one
+SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
+FROM users u
+WHERE u.deleted_at IS NULL
+  AND u.id IN (
+    SELECT oi.user_id FROM user_oidc_identities oi
+    WHERE oi.provider = 'oidc' AND oi.subject = $1
+  )
+`
+
+type GetUserByOidcSubjectRow struct {
+	ID          int64
+	Email       string
+	Name        string
+	WorkspaceID uuid.NullUUID
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
+}
+
+func (q *Queries) GetUserByOidcSubject(ctx context.Context, subject string) (GetUserByOidcSubjectRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByOidcSubject, subject)
+	var i GetUserByOidcSubjectRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,

@@ -12,22 +12,26 @@ import (
 // 入れ物（ワークスペース / スペース）には例外の層が無いので、答えは既定の役割だけで決まる。
 func Test_入れ物の実効権限は役割から決まる(t *testing.T) {
 	cases := []struct {
-		name      string
-		roles     []domain.GrantRole
-		canView   bool
-		canEdit   bool
-		canManage bool
+		name       string
+		roles      []domain.GrantRole
+		canView    bool
+		canComment bool
+		canEdit    bool
+		canManage  bool
 	}{
 		{name: "役割が無ければ何もできない"},
 		{name: "viewer は閲覧だけ", roles: []domain.GrantRole{domain.GrantRoleViewer}, canView: true},
-		{name: "commenter は閲覧だけ", roles: []domain.GrantRole{domain.GrantRoleCommenter}, canView: true},
+		{
+			name: "commenter は閲覧とコメント", roles: []domain.GrantRole{domain.GrantRoleCommenter},
+			canView: true, canComment: true,
+		},
 		{
 			name: "editor は閲覧と編集", roles: []domain.GrantRole{domain.GrantRoleEditor},
-			canView: true, canEdit: true,
+			canView: true, canComment: true, canEdit: true,
 		},
 		{
 			name: "admin は構成も変えられる", roles: []domain.GrantRole{domain.GrantRoleAdmin},
-			canView: true, canEdit: true, canManage: true,
+			canView: true, canComment: true, canEdit: true, canManage: true,
 		},
 		{
 			name:    "未知の役割は数えない",
@@ -40,6 +44,7 @@ func Test_入れ物の実効権限は役割から決まる(t *testing.T) {
 			got := domain.ResolveScopePermission(domain.ScopeFacts{Roles: tc.roles})
 
 			assert.Equal(t, tc.canView, got.CanView)
+			assert.Equal(t, tc.canComment, got.CanComment)
 			assert.Equal(t, tc.canEdit, got.CanEdit)
 			assert.Equal(t, tc.canManage, got.CanManage)
 		})
@@ -103,4 +108,22 @@ func Test_入れ物の実効権限のAllows(t *testing.T) {
 
 	assert.True(t, perm.Allows(domain.CapabilityView))
 	assert.False(t, perm.Allows(domain.CapabilityEdit))
+}
+
+// CanComment は GrantRole.CanComment() から導く。ページ 1 枚の解決（PagePermission）にも
+// 同じ役割の写像があるので、片方だけ直すと「スペースにはコメントできるがページにはできない」
+// のような経路ごとのずれになる。役割ごとの答えが両経路で一致することを固定する。
+func Test_入れ物のコメント可否は役割の写像と一致する(t *testing.T) {
+	for _, role := range domain.ValidGrantRoles {
+		t.Run(string(role), func(t *testing.T) {
+			got := domain.ResolveScopePermission(domain.ScopeFacts{
+				Roles: []domain.GrantRole{role},
+			})
+
+			assert.Equal(t, role.CanComment(), got.CanComment)
+		})
+	}
+
+	none := domain.ResolveScopePermission(domain.ScopeFacts{})
+	assert.False(t, none.CanComment, "役割が 1 つも無ければコメントもできない")
 }

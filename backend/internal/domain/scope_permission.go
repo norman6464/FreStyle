@@ -30,6 +30,12 @@ type ScopeFacts struct {
 type ScopePermission struct {
 	// CanView は入れ物の中身を既定で閲覧できるか。
 	CanView bool `json:"canView"`
+	// CanComment は入れ物の中身に既定でコメントできるか。
+	//
+	// 閲覧と編集のあいだにある唯一の段。commenter は中身を変えられないが、
+	// 会話には加われる。Capability には入れない（あちらは共有リンクに渡す既定で、
+	// DB の CHECK と対になっている。値を増やすと DDL が要る）。
+	CanComment bool `json:"canComment"`
 	// CanEdit は入れ物の中身を既定で編集できるか（＝ 直下にページを作れるか）。
 	CanEdit bool `json:"canEdit"`
 	// CanManage は入れ物そのものの構成（配下のスペース / 権限）を変えられるか。
@@ -52,8 +58,12 @@ func (p ScopePermission) Allows(c Capability) bool {
 func ResolveScopePermission(f ScopeFacts) ScopePermission {
 	role := StrongestGrantRole(f.Roles)
 	return ScopePermission{
-		CanView:   roleAllows(role, CapabilityView),
-		CanEdit:   roleAllows(role, CapabilityEdit),
-		CanManage: role != nil && role.CanManage(),
+		CanView: roleAllows(role, CapabilityView),
+		// コメントと構成変更は Capability を経由しない（どちらも共有リンクの既定に無いため）。
+		// 役割の写像そのもの（GrantRole.CanComment / CanManage）を呼び、
+		// ここに「commenter なら〜」という判定を書き写さない。
+		CanComment: role != nil && role.CanComment(),
+		CanEdit:    roleAllows(role, CapabilityEdit),
+		CanManage:  role != nil && role.CanManage(),
 	}
 }

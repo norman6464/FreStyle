@@ -155,6 +155,36 @@ sql:
               type: "RawMessage"
               pointer: true
 
+          # date は time.Time ではなく 'YYYY-MM-DD' の文字列で運ぶ。
+          #
+          # 既定では sqlc が date 列を time.Time にする。ローカルと CI（extended protocol）は
+          # パラメータに型 OID が付くので date として送られ、何も起きない。
+          # 本番は transaction pooler 越しの simple protocol で、pgx がパラメータを
+          # クライアント側で SQL リテラルへ埋め込む（このファイル冒頭の「プロトコルが違う」）。
+          # time.Time は timestamptz のリテラルとして埋まり、date 列へ入れる際に
+          # セッションの TimeZone（UTC）で切り捨てられる。日本時間 0 時ちょうどの日付は
+          # UTC では前日 15 時なので、**保存した日付が 1 日前になる**。
+          #
+          # 期限・開始日は「その日」であって時刻を持たない。time.Time で運ぶと、
+          # 呼び出し側がどの時刻・どのロケーションを詰めるかで結果が変わる余地が残る。
+          # 文字列にすれば、Go から DB まで同じ 10 文字がそのまま運ばれ、
+          # ずれる場所が無くなる（比較・大小は 'YYYY-MM-DD' の辞書順が日付順と一致する）。
+          #
+          # NULL 可の側を sql.NullString にするのは、既定の sql.NullTime を素の string に
+          # できないため。生成物の他の NULL 可列（89 箇所）と同じ扱いになる。
+          #
+          # この設定は date 列が 1 つも無い時点（2026-09-09・チケットの段 0）で入れた。
+          # 生成物は変わらないが、段 1 で date 列を足した瞬間から効く。**列を足してから
+          # 気づく類の欠陥ではない**（ローカルと CI では最後まで再現しないため、
+          # 本番で日付が 1 日ずれて初めて分かる）ので、列より先に置いている。
+          - db_type: "date"
+            go_type: "string"
+          - db_type: "date"
+            nullable: true
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+
 # ---------------------------------------------------------------------------
 # sqlc vet の静的ルール（backend/ で `make sqlc-vet`。CI の backend ジョブでも走る）
 #

@@ -69,6 +69,16 @@ type TicketUpdateFields struct {
 	DueDate   *string
 }
 
+// TicketWithAssignee はチケット 1 件と、その担当（principals への参照）の組。
+//
+// 担当は別表（ticket_assignments）なので domain.Ticket には持たせない（あの型は
+// tickets の 1 行を表す）。画面は一覧でも詳細でも担当を出すため、SQL 側の LEFT JOIN で
+// 一緒に取り、この型で運ぶ。担当が居なければ AssigneePrincipalID は nil。
+type TicketWithAssignee struct {
+	Ticket              domain.Ticket
+	AssigneePrincipalID *string
+}
+
 // ListTicketsInput は一覧の絞り込み条件。ゼロ値は「絞らない」を意味する。
 type ListTicketsInput struct {
 	WorkspaceID         string
@@ -123,11 +133,16 @@ type TicketRepository interface {
 
 	// CreateTicket は採番 CTE を含む 1 文で番号を払い出し、tickets へ 1 行作る。
 	CreateTicket(ctx context.Context, in TicketCreateInput) (*domain.Ticket, error)
+	// FindTicket はチケット 1 件を返す（担当は付かない）。権限判定・親子の検証など、
+	// 「その行が在るか・どのスペースか」だけが要る内部用途に使う。
+	// 画面へ返す取得は FindTicketWithAssignee を使う。
 	FindTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error)
+	// FindTicketWithAssignee は詳細画面向けにチケット 1 件と担当を 1 回の問い合わせで返す。
+	FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*TicketWithAssignee, error)
 	// ResolveTicketIDByKey は spaceKey（小文字）+ number から ticket_id を引く
 	// （domain.ParseTicketKey で分解した結果を渡す）。
 	ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error)
-	ListTickets(ctx context.Context, in ListTicketsInput) ([]domain.Ticket, error)
+	ListTickets(ctx context.Context, in ListTicketsInput) ([]TicketWithAssignee, error)
 	ListTicketChildren(ctx context.Context, workspaceID, spaceID, parentID string) ([]domain.Ticket, error)
 	UpdateTicket(ctx context.Context, workspaceID, ticketID string, fields TicketUpdateFields) (*domain.Ticket, error)
 	// ChangeTicketStatus は closedAt / resolution を usecase 側で

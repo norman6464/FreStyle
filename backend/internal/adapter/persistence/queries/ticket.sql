@@ -171,8 +171,12 @@ FROM n
 RETURNING *;
 
 -- name: GetTicket :one
-SELECT * FROM tickets
-WHERE workspace_id = $1 AND id = $2;
+-- 担当（ticket_assignments）を LEFT JOIN で添える。画面は詳細でも一覧でも担当を出すので、
+-- チケット 1 件につき問い合わせを 2 回に分けない（設計 Ⅶ の「詳細（… 担当 …）」）。
+-- 担当は 1 人（ticket_id が PK）なので、この JOIN で行が増えることはない。
+SELECT t.*, a.assignee_principal_id FROM tickets t
+LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
+WHERE t.workspace_id = $1 AND t.id = $2;
 
 -- name: GetTicketForUpdate :one
 -- 状態変更・親子変更・順位変更の直前にロックする。
@@ -190,7 +194,7 @@ WHERE t.workspace_id = sqlc.arg(workspace_id)
 
 -- name: ListTickets :many
 -- status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
-SELECT t.* FROM tickets t
+SELECT t.*, a.assignee_principal_id FROM tickets t
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.space_id = sqlc.arg(space_id)
   AND (t.archived_at IS NOT NULL) = sqlc.arg(include_archived)::boolean

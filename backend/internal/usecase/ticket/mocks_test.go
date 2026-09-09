@@ -141,14 +141,20 @@ func (m *mockTicketRepo) FindTicket(ctx context.Context, workspaceID, ticketID s
 	return t, args.Error(1)
 }
 
+func (m *mockTicketRepo) FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*repository.TicketWithAssignee, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	t, _ := args.Get(0).(*repository.TicketWithAssignee)
+	return t, args.Error(1)
+}
+
 func (m *mockTicketRepo) ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceKey, number)
 	return args.String(0), args.Error(1)
 }
 
-func (m *mockTicketRepo) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]domain.Ticket, error) {
+func (m *mockTicketRepo) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]repository.TicketWithAssignee, error) {
 	args := m.Called(ctx, in)
-	t, _ := args.Get(0).([]domain.Ticket)
+	t, _ := args.Get(0).([]repository.TicketWithAssignee)
 	return t, args.Error(1)
 }
 

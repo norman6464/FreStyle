@@ -161,8 +161,9 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	// キーからの解決（FRESTYLE-1 相当。spaceKey はこの fake では spaceID と同一視する）。
-	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/key/"+strings.ToUpper(kbSpaceID)+"-1", "")
+	// キーからの解決（FRESTYLE-1 相当。キー自体がスペースを含むので URL にスペースを取らない。
+	// spaceKey はこの fake では spaceID と同一視する）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/by-key/"+strings.ToUpper(kbSpaceID)+"-1", "")
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	// 4) 一覧。
@@ -208,8 +209,33 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assignment := decodeJSON[domain.TicketAssignment](t, w)
 	assert.Equal(t, "principal-1", assignment.AssigneePrincipalID)
+	// 担当を付けたら、詳細・一覧・変更系の応答すべてに同じ形（assigneePrincipalId）で載る。
+	// 画面は応答の出どころで型を出し分けなくてよい（設計 Ⅶ の「詳細（… 担当 …）」）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	withAssignee := decodeJSON[map[string]any](t, w)
+	assert.Equal(t, "principal-1", withAssignee["assigneePrincipalId"], "詳細に担当が載る")
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	listed := decodeJSON[map[string][]map[string]any](t, w)
+	assignedInList := 0
+	for _, row := range listed["tickets"] {
+		if row["assigneePrincipalId"] == "principal-1" {
+			assignedInList++
+		}
+	}
+	assert.Equal(t, 1, assignedInList, "一覧にも担当が載る（LEFT JOIN で N+1 にしない）")
+
 	w = f.do(t, http.MethodDelete, ticketAPIBase+"/tickets/"+created.ID+"/assignee", "")
 	require.Equal(t, http.StatusNoContent, w.Code)
+
+	// 外したら詳細から消える（omitempty なのでキー自体が無くなる）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	afterUnassign := decodeJSON[map[string]any](t, w)
+	_, has := afterUnassign["assigneePrincipalId"]
+	assert.False(t, has, "担当を外したらキーごと出ない")
 
 	// 9) アーカイブ・復元。
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+created.ID+"/archive", "")

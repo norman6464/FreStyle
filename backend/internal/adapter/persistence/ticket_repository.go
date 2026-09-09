@@ -684,7 +684,52 @@ func (r *ticketRepository) CreateTicket(ctx context.Context, in repository.Ticke
 	return &t, nil
 }
 
+// GetTicket / ListTickets は担当（ticket_assignments）を LEFT JOIN で足したので、sqlc が
+// tickets の行型ではなく専用の行型を生成する。tickets 由来の列だけを取り出して
+// 既存の toDomainTicket に渡すための小さな写し取り（変換規則そのものは 1 箇所に保つ）。
+func ticketOfGetRow(row sqlcgen.GetTicketRow) sqlcgen.Ticket {
+	return sqlcgen.Ticket{
+		ID: row.ID, WorkspaceID: row.WorkspaceID, SpaceID: row.SpaceID, Number: row.Number,
+		TypeID: row.TypeID, StatusID: row.StatusID, ParentID: row.ParentID, Title: row.Title,
+		Doc: row.Doc, PlainText: row.PlainText, Priority: row.Priority,
+		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.Position,
+		ClosedAt: row.ClosedAt, Resolution: row.Resolution,
+		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
+func ticketOfListRow(row sqlcgen.ListTicketsRow) sqlcgen.Ticket {
+	return sqlcgen.Ticket{
+		ID: row.ID, WorkspaceID: row.WorkspaceID, SpaceID: row.SpaceID, Number: row.Number,
+		TypeID: row.TypeID, StatusID: row.StatusID, ParentID: row.ParentID, Title: row.Title,
+		Doc: row.Doc, PlainText: row.PlainText, Priority: row.Priority,
+		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.Position,
+		ClosedAt: row.ClosedAt, Resolution: row.Resolution,
+		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
+// nullUUIDString は uuid.NullUUID を *string へ畳む（NULL は nil）。
+func nullUUIDString(v uuid.NullUUID) *string {
+	if !v.Valid {
+		return nil
+	}
+	s := v.UUID.String()
+	return &s
+}
+
 func (r *ticketRepository) FindTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
+	found, err := r.FindTicketWithAssignee(ctx, workspaceID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	t := found.Ticket
+	return &t, nil
+}
+
+func (r *ticketRepository) FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*repository.TicketWithAssignee, error) {
 	wsID, ok := kbParseID(workspaceID)
 	tID, ok2 := kbParseID(ticketID)
 	if !ok || !ok2 {
@@ -697,8 +742,10 @@ func (r *ticketRepository) FindTicket(ctx context.Context, workspaceID, ticketID
 	if err != nil {
 		return nil, err
 	}
-	t := toDomainTicket(row)
-	return &t, nil
+	return &repository.TicketWithAssignee{
+		Ticket:              toDomainTicket(ticketOfGetRow(row)),
+		AssigneePrincipalID: nullUUIDString(row.AssigneePrincipalID),
+	}, nil
 }
 
 // GetTicketForUpdate（sqlc 生成、SELECT … FOR UPDATE）は段 1 のどの usecase からも
@@ -726,7 +773,7 @@ func (r *ticketRepository) ResolveTicketIDByKey(ctx context.Context, workspaceID
 	return row.ID.String(), nil
 }
 
-func (r *ticketRepository) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]domain.Ticket, error) {
+func (r *ticketRepository) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]repository.TicketWithAssignee, error) {
 	wsID, ok := kbParseID(in.WorkspaceID)
 	spID, ok2 := kbParseID(in.SpaceID)
 	if !ok || !ok2 {
@@ -745,9 +792,12 @@ func (r *ticketRepository) ListTickets(ctx context.Context, in repository.ListTi
 	if err != nil {
 		return nil, err
 	}
-	out := make([]domain.Ticket, 0, len(rows))
+	out := make([]repository.TicketWithAssignee, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toDomainTicket(row))
+		out = append(out, repository.TicketWithAssignee{
+			Ticket:              toDomainTicket(ticketOfListRow(row)),
+			AssigneePrincipalID: nullUUIDString(row.AssigneePrincipalID),
+		})
 	}
 	return out, nil
 }

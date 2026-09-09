@@ -442,8 +442,9 @@ func (q *Queries) GetInitialTicketStatus(ctx context.Context, arg GetInitialTick
 }
 
 const getTicket = `-- name: GetTicket :one
-SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at FROM tickets
-WHERE workspace_id = $1 AND id = $2
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, a.assignee_principal_id FROM tickets t
+LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
+WHERE t.workspace_id = $1 AND t.id = $2
 `
 
 type GetTicketParams struct {
@@ -451,9 +452,36 @@ type GetTicketParams struct {
 	ID          uuid.UUID
 }
 
-func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (Ticket, error) {
+type GetTicketRow struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	SpaceID             uuid.UUID
+	Number              int64
+	TypeID              uuid.UUID
+	StatusID            uuid.UUID
+	ParentID            uuid.NullUUID
+	Title               string
+	Doc                 json.RawMessage
+	PlainText           string
+	Priority            int32
+	StartDate           pgtext.NullDate
+	DueDate             pgtext.NullDate
+	Position            string
+	ClosedAt            sql.NullTime
+	Resolution          sql.NullString
+	CreatedByUserID     int64
+	ArchivedAt          sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	AssigneePrincipalID uuid.NullUUID
+}
+
+// 担当（ticket_assignments）を LEFT JOIN で添える。画面は詳細でも一覧でも担当を出すので、
+// チケット 1 件につき問い合わせを 2 回に分けない（設計 Ⅶ の「詳細（… 担当 …）」）。
+// 担当は 1 人（ticket_id が PK）なので、この JOIN で行が増えることはない。
+func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (GetTicketRow, error) {
 	row := q.db.QueryRowContext(ctx, getTicket, arg.WorkspaceID, arg.ID)
-	var i Ticket
+	var i GetTicketRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -475,6 +503,7 @@ func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (Ticket, e
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AssigneePrincipalID,
 	)
 	return i, err
 }
@@ -1415,7 +1444,7 @@ func (q *Queries) ListTicketTypes(ctx context.Context, arg ListTicketTypesParams
 }
 
 const listTickets = `-- name: ListTickets :many
-SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at FROM tickets t
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, a.assignee_principal_id FROM tickets t
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
 WHERE t.workspace_id = $1 AND t.space_id = $2
   AND (t.archived_at IS NOT NULL) = $3::boolean
@@ -1437,8 +1466,32 @@ type ListTicketsParams struct {
 	AssigneePrincipalID uuid.NullUUID
 }
 
+type ListTicketsRow struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	SpaceID             uuid.UUID
+	Number              int64
+	TypeID              uuid.UUID
+	StatusID            uuid.UUID
+	ParentID            uuid.NullUUID
+	Title               string
+	Doc                 json.RawMessage
+	PlainText           string
+	Priority            int32
+	StartDate           pgtext.NullDate
+	DueDate             pgtext.NullDate
+	Position            string
+	ClosedAt            sql.NullTime
+	Resolution          sql.NullString
+	CreatedByUserID     int64
+	ArchivedAt          sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	AssigneePrincipalID uuid.NullUUID
+}
+
 // status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
-func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Ticket, error) {
+func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]ListTicketsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTickets,
 		arg.WorkspaceID,
 		arg.SpaceID,
@@ -1451,9 +1504,9 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Tic
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Ticket{}
+	items := []ListTicketsRow{}
 	for rows.Next() {
-		var i Ticket
+		var i ListTicketsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -1475,6 +1528,7 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Tic
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AssigneePrincipalID,
 		); err != nil {
 			return nil, err
 		}

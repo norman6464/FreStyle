@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,22 +25,23 @@ import (
 // checkTicket（ticket.CheckTicketPermissionUseCase。内部で FindTicket → スペース解決する）
 // で判定する。
 type TicketHandler struct {
-	checkSpace  *kb.CheckSpacePermissionUseCase
-	checkTicket *ticket.CheckTicketPermissionUseCase
-	resolveKey  *ticket.ResolveTicketKeyUseCase
-	enable      *ticket.EnableTicketsForSpaceUseCase
-	create      *ticket.CreateTicketUseCase
-	get         *ticket.GetTicketUseCase
-	list        *ticket.ListTicketsUseCase
-	update      *ticket.UpdateTicketUseCase
-	move        *ticket.MoveTicketUseCase
-	archive     *ticket.ArchiveTicketUseCase
-	restore     *ticket.RestoreTicketUseCase
-	changeStat  *ticket.ChangeTicketStatusUseCase
-	changeParen *ticket.ChangeTicketParentUseCase
-	assign      *ticket.AssignTicketUseCase
-	unassign    *ticket.UnassignTicketUseCase
-	history     *ticket.ListTicketHistoryUseCase
+	checkSpace    *kb.CheckSpacePermissionUseCase
+	checkTicket   *ticket.CheckTicketPermissionUseCase
+	resolveKey    *ticket.ResolveTicketKeyUseCase
+	enable        *ticket.EnableTicketsForSpaceUseCase
+	create        *ticket.CreateTicketUseCase
+	get           *ticket.GetTicketUseCase
+	getAssignment *ticket.GetTicketAssignmentUseCase
+	list          *ticket.ListTicketsUseCase
+	update        *ticket.UpdateTicketUseCase
+	move          *ticket.MoveTicketUseCase
+	archive       *ticket.ArchiveTicketUseCase
+	restore       *ticket.RestoreTicketUseCase
+	changeStat    *ticket.ChangeTicketStatusUseCase
+	changeParen   *ticket.ChangeTicketParentUseCase
+	assign        *ticket.AssignTicketUseCase
+	unassign      *ticket.UnassignTicketUseCase
+	history       *ticket.ListTicketHistoryUseCase
 }
 
 func NewTicketHandler(
@@ -49,6 +51,7 @@ func NewTicketHandler(
 	enable *ticket.EnableTicketsForSpaceUseCase,
 	create *ticket.CreateTicketUseCase,
 	get *ticket.GetTicketUseCase,
+	getAssignment *ticket.GetTicketAssignmentUseCase,
 	list *ticket.ListTicketsUseCase,
 	update *ticket.UpdateTicketUseCase,
 	move *ticket.MoveTicketUseCase,
@@ -62,7 +65,8 @@ func NewTicketHandler(
 ) *TicketHandler {
 	return &TicketHandler{
 		checkSpace: checkSpace, checkTicket: checkTicket, resolveKey: resolveKey,
-		enable: enable, create: create, get: get, list: list, update: update,
+		enable: enable, create: create, get: get, getAssignment: getAssignment,
+		list: list, update: update,
 		move: move, archive: archive, restore: restore, changeStat: changeStat,
 		changeParen: changeParent, assign: assign, unassign: unassign, history: history,
 	}
@@ -277,7 +281,7 @@ func (h *TicketHandler) Create(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, t)
+	h.respondTicket(c, scope, t, http.StatusCreated)
 }
 
 // Get はチケット 1 件を返す（閲覧権限が要る）。
@@ -290,14 +294,16 @@ func (h *TicketHandler) Get(c *gin.Context) {
 	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityView) {
 		return
 	}
-	t, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
+	found, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
 		WorkspaceID: scope.workspaceID, TicketID: ticketID,
 	})
 	if err != nil {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	c.JSON(http.StatusOK, ticketResponse{
+		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
+	})
 }
 
 // ResolveByKey は表示キー（例 FRESTYLE-12）からチケット 1 件を返す（閲覧権限が要る）。
@@ -318,19 +324,46 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityView) {
 		return
 	}
-	t, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
+	found, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
 		WorkspaceID: scope.workspaceID, TicketID: ticketID,
 	})
 	if err != nil {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	c.JSON(http.StatusOK, ticketResponse{
+		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
+	})
+}
+
+// ticketResponse はチケット 1 件の返却形。
+//
+// domain.Ticket をそのまま埋め込み（JSON は平らに出る）、別表にある担当だけを足す。
+// 一覧・詳細・変更系のすべてがこの 1 つの形で返るので、画面は応答の出どころで
+// 型を出し分けなくてよい（担当が居なければ assigneePrincipalId は出ない）。
+type ticketResponse struct {
+	*domain.Ticket
+	AssigneePrincipalID *string `json:"assigneePrincipalId,omitempty"`
 }
 
 // ticketListResponse は一覧の返却形。
 type ticketListResponse struct {
-	Tickets []domain.Ticket `json:"tickets"`
+	Tickets []ticketResponse `json:"tickets"`
+}
+
+// respondTicket は変更系の応答を組み立てて返す。担当は usecase が触らないので、
+// ここで 1 回だけ引いて詰める（引けなければ担当なしとして返し、応答自体は止めない —
+// 変更そのものは既に成功しているため。kb が最終編集者の名前で採るのと同じ扱い）。
+func (h *TicketHandler) respondTicket(c *gin.Context, scope kbRequestScope, t *domain.Ticket, status int) {
+	res := ticketResponse{Ticket: t}
+	a, err := h.getAssignment.Execute(c.Request.Context(), scope.workspaceID, t.ID)
+	if err != nil {
+		slog.WarnContext(c.Request.Context(), "ticket: assignee lookup failed", "err", err, "ticketId", t.ID)
+	} else if a != nil {
+		id := a.AssigneePrincipalID
+		res.AssigneePrincipalID = &id
+	}
+	c.JSON(status, res)
 }
 
 // List はスペース内のチケット一覧を返す（スペースの閲覧権限が要る）。
@@ -362,10 +395,14 @@ func (h *TicketHandler) List(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	if tickets == nil {
-		tickets = []domain.Ticket{}
+	out := make([]ticketResponse, 0, len(tickets))
+	for i := range tickets {
+		out = append(out, ticketResponse{
+			Ticket:              &tickets[i].Ticket,
+			AssigneePrincipalID: tickets[i].AssigneePrincipalID,
+		})
 	}
-	c.JSON(http.StatusOK, ticketListResponse{Tickets: tickets})
+	c.JSON(http.StatusOK, ticketListResponse{Tickets: out})
 }
 
 // ticketUpdateRequest はチケット更新の入力（PUT 相当。呼び出し側は現在の望ましい値を
@@ -405,7 +442,7 @@ func (h *TicketHandler) Update(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	h.respondTicket(c, scope, t, http.StatusOK)
 }
 
 // ticketMoveRequest は並び替えの入力。AnchorTicketID を省略すると末尾に置く。
@@ -466,7 +503,7 @@ func (h *TicketHandler) Archive(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	h.respondTicket(c, scope, t, http.StatusOK)
 }
 
 // Restore はアーカイブ済みチケットを現役へ戻す（編集権限が要る）。
@@ -486,7 +523,7 @@ func (h *TicketHandler) Restore(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	h.respondTicket(c, scope, t, http.StatusOK)
 }
 
 // ticketChangeStatusRequest は状態変更の入力。Resolution は category=done のときだけ使う
@@ -528,7 +565,7 @@ func (h *TicketHandler) ChangeStatus(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	h.respondTicket(c, scope, t, http.StatusOK)
 }
 
 // ticketChangeParentRequest は親変更の入力。ParentID を省略するとトップレベルへ戻す。
@@ -568,7 +605,7 @@ func (h *TicketHandler) ChangeParent(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, t)
+	h.respondTicket(c, scope, t, http.StatusOK)
 }
 
 // ticketAssignRequest は担当設定の入力。

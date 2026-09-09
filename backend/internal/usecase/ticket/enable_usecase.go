@@ -51,9 +51,13 @@ type EnableTicketsForSpaceInput struct {
 
 // EnableTicketsForSpaceOutput はどれだけ作ったかの要約（画面が「N 個の状態・M 個の
 // 種別を作成しました」のように出せるように）。
+//
+// json タグを明示するのは、この型が handler からそのまま JSON で返るため。
+// タグが無いと Go の既定でフィールド名がそのまま（大文字始まり）出てしまい、
+// ほかの API（domain の構造体は全部 camelCase のタグ付き）と綴りが食い違う。
 type EnableTicketsForSpaceOutput struct {
-	StatusCount int
-	TypeCount   int
+	StatusCount int `json:"statusCount"`
+	TypeCount   int `json:"typeCount"`
 }
 
 func (u *EnableTicketsForSpaceUseCase) Execute(

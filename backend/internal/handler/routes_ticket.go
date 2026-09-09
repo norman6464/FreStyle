@@ -46,6 +46,7 @@ func registerTicketRoutesWith(
 		ticket.NewEnableTicketsForSpaceUseCase(tickets, txManager),
 		ticket.NewCreateTicketUseCase(tickets),
 		ticket.NewGetTicketUseCase(tickets),
+		ticket.NewGetTicketAssignmentUseCase(tickets),
 		ticket.NewListTicketsUseCase(tickets),
 		ticket.NewUpdateTicketUseCase(tickets),
 		ticket.NewMoveTicketUseCase(tickets),
@@ -83,9 +84,11 @@ func registerTicketRoutesWith(
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets/enable", h.Enable)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets", h.List)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets", h.Create)
-	// 表示キー（例 FRESTYLE-12）からの解決。/tickets/:ticketId と衝突しないよう
-	// /tickets/key/:key に独立させる（ticketId は UUID、key はハイフン入りの自由文字列）。
-	tkGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets/key/:key", h.ResolveByKey)
+	// 表示キー（例 FRESTYLE-12）からの解決。キーはスペースの key を含んでいる
+	// （domain.ParseTicketKey が最後のハイフンで割る）ので、URL 側にスペースを取らない。
+	// /tickets/:ticketId と衝突しないよう /tickets/by-key/:key に独立させる
+	// （ticketId は UUID、key はハイフン入りの自由文字列）。
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/by-key/:key", h.ResolveByKey)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId", h.Get)
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId", h.Update)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/move", h.Move)

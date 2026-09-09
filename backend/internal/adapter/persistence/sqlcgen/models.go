@@ -209,6 +209,108 @@ type SpaceGrant struct {
 	UpdatedAt   time.Time
 }
 
+type Ticket struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	Number          int64
+	TypeID          uuid.UUID
+	StatusID        uuid.UUID
+	ParentID        uuid.NullUUID
+	Title           string
+	Doc             json.RawMessage
+	PlainText       string
+	Priority        int32
+	StartDate       sql.NullString
+	DueDate         sql.NullString
+	Position        string
+	ClosedAt        sql.NullTime
+	Resolution      sql.NullString
+	CreatedByUserID int64
+	ArchivedAt      sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type TicketAssignment struct {
+	WorkspaceID         uuid.UUID
+	TicketID            uuid.UUID
+	AssigneePrincipalID uuid.UUID
+	AssigneeKind        sql.NullString
+	AssignedByUserID    int64
+	CreatedAt           time.Time
+}
+
+type TicketChangeGroup struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+	ActorUserID int64
+	CreatedAt   time.Time
+}
+
+type TicketChangeItem struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	GroupID     uuid.UUID
+	Field       string
+	OldValue    sql.NullString
+	NewValue    sql.NullString
+	OldLabel    sql.NullString
+	NewLabel    sql.NullString
+}
+
+type TicketCounter struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+	LastNumber  int64
+	UpdatedAt   time.Time
+}
+
+type TicketPageLink struct {
+	WorkspaceID    uuid.UUID
+	SourceTicketID uuid.UUID
+	TargetPageID   uuid.UUID
+}
+
+type TicketStatus struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+	Name        string
+	NameLower   sql.NullString
+	Category    string
+	Color       string
+	Position    string
+	IsInitial   bool
+	ArchivedAt  sql.NullTime
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type TicketTicketLink struct {
+	WorkspaceID    uuid.UUID
+	SourceTicketID uuid.UUID
+	TargetTicketID uuid.UUID
+}
+
+type TicketType struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	SpaceID        uuid.UUID
+	Name           string
+	NameLower      sql.NullString
+	Color          string
+	HierarchyLevel int32
+	Position       string
+	IsDefault      bool
+	TemplateTitle  sql.NullString
+	TemplateDoc    *json.RawMessage
+	ArchivedAt     sql.NullTime
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type User struct {
 	ID           int64
 	Email        string

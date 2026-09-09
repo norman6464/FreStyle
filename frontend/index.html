@@ -8,7 +8,12 @@
     <!--
       Content-Security-Policy:
         - default-src 'self'                            : 既定で同一オリジン以外を遮断
-        - script-src 'self'                             : インラインスクリプト禁止（Self-XSS / 注入対策）
+        - script-src 'self' https://apis.google.com     : インラインスクリプト禁止（Self-XSS / 注入対策）。
+                                                           apis.google.com は Firebase Auth SDK が
+                                                           Google サインインのときに自分で
+                                                           <script src=".../js/api.js"> を差し込むため。
+                                                           'self' だけだとここで遮断され、Google の
+                                                           ボタンだけが無言で失敗する（実際に踏んだ）
         - style-src 'self' 'unsafe-inline'              : Tailwind / React の inline style 用
         - img-src 'self' data: https: blob:               : avatar / 署名付き URL の画像 / data URL /
                                                            URL.createObjectURL() プレビュー（添付チップ）
@@ -18,9 +23,10 @@
                        https://storage.googleapis.com   : 自前 API / GCIP（Firebase Auth JS SDK が
                                                            サインイン・トークン更新で叩く 2 つの
                                                            Google API）/ Cloud Storage の署名付き URL
-        - frame-src https://frestyle-507912.firebaseapp.com
+        - frame-src https://frestyle-507912.firebaseapp.com https://apis.google.com
                                                          : Google サインイン（signInWithPopup）が
-                                                           authDomain 上の /__/auth/iframe を埋め込む。
+                                                           authDomain 上の /__/auth/iframe を埋め込み、
+                                                           その出し入れを gapi（apis.google.com）が行う。
                                                            default-src 'self' のままだと popup を開いても
                                                            結果が親ページへ返らない
         - form-action 'self'                            : フォームの送信先を自分自身に限る
@@ -33,7 +39,7 @@
       `X-Frame-Options: DENY` を配信して等価に行う。`report-uri` / `report-to` / `sandbox` も
       同様に meta では無視されるので、配信が必要な場合は firebase.json 側に追加する。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://storage.googleapis.com; frame-src https://frestyle-507912.firebaseapp.com; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://storage.googleapis.com; frame-src https://frestyle-507912.firebaseapp.com https://apis.google.com; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <!--

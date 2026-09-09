@@ -6,10 +6,10 @@ export interface KbSectionHeadingProps {
   label: string;
   /** 上に区切り線を引くか。節が続くときだけ引く（最初の節の上には引かない）。 */
   divider?: boolean;
-  /** ＋ を押したとき（スペースを作る）。 */
-  onAdd: () => void;
-  /** ＋ の読み上げ名。「何が増えるか」を言う。 */
-  addLabel: string;
+  /** ＋ を押したとき（スペースを作る）。未指定なら ＋ 自体を出さない（作る入口が無い節向け）。 */
+  onAdd?: () => void;
+  /** ＋ の読み上げ名。「何が増えるか」を言う。onAdd と対で指定する。 */
+  addLabel?: string;
   /** ⋯ のメニュー項目。空なら ⋯ 自体を出さない（押せない印を並べない）。 */
   menuItems?: { label: string; onSelect: () => void }[];
 }
@@ -82,15 +82,17 @@ export default function KbSectionHeading({
             <EllipsisHorizontalIcon className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         )}
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={addLabel}
-          title={addLabel}
-          className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-surface-3"
-        >
-          <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        {onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={addLabel}
+            title={addLabel}
+            className="rounded p-0.5 text-[var(--color-text-tertiary)] hover:bg-surface-3"
+          >
+            <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {menuOpen && (

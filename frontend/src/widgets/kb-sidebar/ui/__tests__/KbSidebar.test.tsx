@@ -1275,7 +1275,7 @@ describe('スペースの見出しの操作', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => expect(hoisted.renameSpace).toHaveBeenCalledWith('acme', 'space-1', '技術部'));
-    expect(await screen.findByText('技術部')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '技術部' })).toBeInTheDocument();
     expect(hoisted.showToast).not.toHaveBeenCalled();
   });
 
@@ -1703,13 +1703,13 @@ describe('プライベートとチームの節分け', () => {
       space('space-2', '自分の下書き', 'private'),
     ]);
     renderSidebar();
-    await screen.findByText('開発部');
+    await screen.findByRole('button', { name: '開発部' });
 
     const teamHeading = screen.getByRole('heading', { name: 'チームスペース' });
     const privateHeading = screen.getByRole('heading', { name: 'プライベート' });
     // DOM 上でプライベート節はチーム節より後ろ。private のスペースは
     // プライベート見出しより後ろに出る（節の中に入っている）。
-    const privateSpace = await screen.findByText('自分の下書き');
+    const privateSpace = await screen.findByRole('button', { name: '自分の下書き' });
     expect(
       Boolean(
         privateHeading.compareDocumentPosition(privateSpace) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -1721,7 +1721,7 @@ describe('プライベートとチームの節分け', () => {
     // チームのスペース（開発部）はプライベート見出しより前。
     expect(
       Boolean(
-        screen.getByText('開発部').compareDocumentPosition(privateHeading) &
+        screen.getByRole('button', { name: '開発部' }).compareDocumentPosition(privateHeading) &
           Node.DOCUMENT_POSITION_FOLLOWING,
       ),
     ).toBe(true);
@@ -1756,7 +1756,7 @@ describe('プライベートとチームの節分け', () => {
       }),
     );
     // 作ったスペースが（プライベート節に）現れる。
-    await screen.findByText('自分の下書き');
+    await screen.findByRole('button', { name: '自分の下書き' });
   });
 
   it('頼んだ見え方と違うスペースが返ったら失敗として知らせる', async () => {
@@ -1796,7 +1796,7 @@ describe('プライベートとチームの節分け', () => {
       space('space-2', '自分の下書き', 'private'),
     ]);
     renderSidebar();
-    await screen.findByText('開発部');
+    await screen.findByRole('button', { name: '開発部' });
 
     fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
     await waitFor(() =>

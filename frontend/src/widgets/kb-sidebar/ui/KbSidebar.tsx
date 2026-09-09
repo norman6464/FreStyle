@@ -7,6 +7,7 @@ import KbSectionHeading from './KbSectionHeading';
 import { useKbTree } from '../model/useKbTree';
 import KbSpaceSection from './KbSpaceSection';
 import KbSearchDialog from './KbSearchDialog';
+import KbBacklogSection from './KbBacklogSection';
 import { KbRepository, KbWorkspaceSwitcher, type KbPage } from '@/entities/kb';
 
 export interface KbSidebarProps {
@@ -325,6 +326,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
           </>
         )}
 
+        {activeSlug && !archivedMode && <KbBacklogSection workspaceSlug={activeSlug} spaces={spaces} />}
       </div>
 
       {/*

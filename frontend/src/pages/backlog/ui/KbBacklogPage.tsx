@@ -1,0 +1,319 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Bars3Icon } from '@heroicons/react/24/outline';
+import { KbSidebar } from '@/widgets/kb-sidebar';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
+import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { useToast } from '@/shared/lib/hooks/useToast';
+import { getApiError } from '@/shared/lib/classifyApiError';
+import { TicketRepository } from '@/entities/ticket';
+import { useTicketList } from '../model/useTicketList';
+import { useTicketMasters } from '../model/useTicketMasters';
+import { useTicketDetail } from '../model/useTicketDetail';
+import { usePrincipalNames } from '../model/usePrincipalNames';
+import { useBacklogSpace } from '../model/useBacklogSpace';
+import BacklogList from './BacklogList';
+import TicketDetailPanel from './TicketDetailPanel';
+import TicketStatusAdmin from './TicketStatusAdmin';
+import TicketTypeAdmin from './TicketTypeAdmin';
+
+type Tab = 'tickets' | 'statuses' | 'types';
+
+/**
+ * KbBacklogPage はバックログ画面の container（設計 0・Ⅲ・Ⅵ）。
+ *
+ * 3 タブ（チケット / 状態 / 種別）を持つ 1 画面。管理はここのタブに置く
+ * （設計 Ⅳ-A — スペース設定の画面が存在しないため）。
+ */
+export default function KbBacklogPage() {
+  const { spaceId } = useParams<{ spaceId?: string }>();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+
+  const [tab, setTab] = useState<Tab>('tickets');
+  const [archived, setArchived] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailMobileOpen, setDetailMobileOpen] = useState(false);
+  const [enabling, setEnabling] = useState(false);
+
+  const { workspaceSlug, space, noSpaces, loading: spaceLoading, error: spaceError } = useBacklogSpace(
+    spaceId,
+    (id) => navigate(`/kb/backlog/${id}`, { replace: true }),
+  );
+
+  const list = useTicketList(workspaceSlug ?? undefined, space?.id, { archived });
+  const masters = useTicketMasters(workspaceSlug ?? undefined, space?.id);
+  const { principals, nameOf, initialsOf } = usePrincipalNames(workspaceSlug ?? undefined);
+  const detail = useTicketDetail(workspaceSlug ?? undefined, tab === 'tickets' ? selectedId : null);
+
+  // スペースを切り替えたら選択を捨てる（前のスペースのチケットを次の画面で引きずらない）。
+  useEffect(() => {
+    setSelectedId(null);
+    setTab('tickets');
+    setArchived(false);
+  }, [space?.id]);
+
+  const enabled = !masters.loading && !masters.error && masters.statuses.length > 0;
+  const selectedTicket = selectedId ? list.tickets.find((t) => t.id === selectedId) ?? null : null;
+  const parentTicket = selectedTicket?.parentId
+    ? list.tickets.find((t) => t.id === selectedTicket.parentId)
+    : undefined;
+
+  const handleEnable = async () => {
+    if (!workspaceSlug || !space) return;
+    setEnabling(true);
+    try {
+      await TicketRepository.enable(workspaceSlug, space.id);
+      masters.refresh();
+      list.refresh();
+    } catch {
+      showToast('error', 'チケットを有効化できませんでした。');
+    } finally {
+      setEnabling(false);
+    }
+  };
+
+  const handleSelect = (ticketId: string) => {
+    setSelectedId(ticketId);
+    setDetailMobileOpen(true);
+  };
+
+  const withToastOnFailure = async (action: () => Promise<unknown>, failureMessage: string) => {
+    try {
+      await action();
+    } catch (cause) {
+      showToast('error', getApiError(cause).status === 403 ? 'この操作を行う権限がありません。' : failureMessage);
+      throw cause;
+    }
+  };
+
+  if (spaceError) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--color-text-muted)]">
+        {spaceError}
+      </div>
+    );
+  }
+
+  if (noSpaces) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-center">
+        <div>
+          <p className="mb-1 text-base font-semibold text-[var(--color-text-secondary)]">
+            バックログを使えるスペースがありません
+          </p>
+          <p className="text-sm text-[var(--color-text-muted)]">ナレッジでスペースを作ると使えるようになります。</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full">
+      <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
+        <KbSidebar workspaceSlug={workspaceSlug ?? undefined} />
+      </SecondaryPanel>
+
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex items-center border-b border-surface-3 bg-surface-1 px-4 py-2 md:hidden">
+          <button type="button" onClick={openMobilePanel} aria-label="ナレッジを開く" className="p-1">
+            <Bars3Icon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        {spaceLoading || !space ? (
+          <div className="flex flex-1 items-center justify-center text-sm text-[var(--color-text-muted)]">
+            読み込み中…
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 border-b border-surface-3 px-4 py-2.5">
+              <h1 className="text-sm font-semibold text-[var(--color-text-primary)]">{space.name} のバックログ</h1>
+              {tab === 'tickets' && enabled && !list.loading && (
+                <span className="text-xs text-[var(--color-text-muted)]">{list.tickets.length} 件</span>
+              )}
+              {tab === 'tickets' && enabled && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void withToastOnFailure(
+                      () => list.createTicket({ title: '無題のチケット' }).then((t) => handleSelect(t.id)),
+                      'チケットを作成できませんでした。',
+                    )
+                  }
+                  className="ml-auto rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+                >
+                  チケットを作成
+                </button>
+              )}
+              {tab === 'tickets' && !enabled && !masters.loading && (
+                <button
+                  type="button"
+                  onClick={() => void handleEnable()}
+                  disabled={enabling}
+                  className="ml-auto rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {enabling ? '有効化中…' : 'チケットを有効化'}
+                </button>
+              )}
+              {tab !== 'tickets' && (
+                <span className="ml-auto text-xs text-[var(--color-text-faint)]" />
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 border-b border-surface-3 px-4">
+              <div role="tablist" aria-label="バックログの面" className="flex items-center gap-1">
+                {(
+                  [
+                    ['tickets', 'チケット'],
+                    ['statuses', '状態'],
+                    ['types', '種別'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === value}
+                    onClick={() => setTab(value)}
+                    className={`border-b-2 px-2.5 py-2 text-sm font-medium transition-colors ${
+                      tab === value
+                        ? 'border-brand-600 text-brand-700'
+                        : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {tab === 'tickets' && enabled && (
+                <span className="ml-auto flex gap-1 py-1.5">
+                  <button
+                    type="button"
+                    aria-pressed={!archived}
+                    onClick={() => setArchived(false)}
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      !archived ? 'bg-surface-3 text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)] hover:bg-surface-2'
+                    }`}
+                  >
+                    現役
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={archived}
+                    onClick={() => setArchived(true)}
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      archived ? 'bg-surface-3 text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)] hover:bg-surface-2'
+                    }`}
+                  >
+                    アーカイブ
+                  </button>
+                </span>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1" role="tabpanel">
+              {tab === 'tickets' &&
+                (!enabled && !masters.loading ? (
+                  <div className="flex h-full items-center justify-center px-6 text-center">
+                    <div>
+                      <p className="mb-1 text-base font-semibold text-[var(--color-text-secondary)]">
+                        このスペースではチケットを使っていません
+                      </p>
+                      <p className="text-sm text-[var(--color-text-muted)]">
+                        有効化すると、状態 5 件と種別 3 件の雛形が入ります。あとから増やせます。
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <BacklogList
+                    tickets={list.tickets}
+                    statuses={masters.statuses}
+                    types={masters.types}
+                    spaceKey={space.key}
+                    loading={list.loading}
+                    error={list.error}
+                    archived={archived}
+                    canEdit
+                    selectedId={selectedId}
+                    busyId={list.busyId}
+                    nameOf={nameOf}
+                    initialsOf={initialsOf}
+                    onSelect={handleSelect}
+                    onCreate={(title) => list.createTicket({ title }).then((t) => handleSelect(t.id))}
+                    onMove={(id, input) => list.move(id, input)}
+                    onRetry={list.refresh}
+                  />
+                ))}
+
+              {tab === 'statuses' && (
+                <div className="p-4">
+                  <TicketStatusAdmin
+                    statuses={masters.statuses}
+                    onCreate={masters.createStatus}
+                    onSetInitial={masters.setInitialStatus}
+                    onArchive={masters.archiveStatus}
+                  />
+                </div>
+              )}
+
+              {tab === 'types' && (
+                <div className="p-4">
+                  <TicketTypeAdmin
+                    types={masters.types}
+                    onCreate={masters.createType}
+                    onSetDefault={masters.setDefaultType}
+                    onArchive={masters.archiveType}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </main>
+
+      {tab === 'tickets' && selectedTicket && (
+        <SecondaryPanel
+          title="詳細"
+          side="right"
+          mobileOpen={detailMobileOpen}
+          onMobileClose={() => setDetailMobileOpen(false)}
+        >
+          <TicketDetailPanel
+            key={selectedTicket.id}
+            ticket={selectedTicket}
+            spaceKey={space?.key ?? ''}
+            statuses={masters.statuses}
+            types={masters.types}
+            principals={principals}
+            parentTicket={parentTicket}
+            history={detail.history}
+            historyLoading={detail.loading}
+            canEdit
+            busy={list.busyId === selectedTicket.id}
+            onUpdate={(ticketId, input) => list.updateTicket(ticketId, input)}
+            onChangeStatus={(statusId) =>
+              withToastOnFailure(() => list.changeStatus(selectedTicket.id, { statusId }), '状態を変更できませんでした。')
+            }
+            onAssign={(principalId) =>
+              withToastOnFailure(() => list.assign(selectedTicket.id, principalId), '担当を設定できませんでした。')
+            }
+            onUnassign={() => withToastOnFailure(() => list.unassign(selectedTicket.id), '担当を外せませんでした。')}
+            onArchive={() =>
+              withToastOnFailure(() => list.archiveTicket(selectedTicket.id), 'アーカイブできませんでした。').then(() =>
+                setSelectedId(null),
+              )
+            }
+            onRestore={() =>
+              withToastOnFailure(() => list.restoreTicket(selectedTicket.id), '現役に戻せませんでした。').then(() =>
+                setSelectedId(null),
+              )
+            }
+            onClose={() => setSelectedId(null)}
+          />
+        </SecondaryPanel>
+      )}
+    </div>
+  );
+}

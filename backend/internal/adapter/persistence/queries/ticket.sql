@@ -279,12 +279,16 @@ WHERE workspace_id = $1 AND space_id = $2 AND id = $3 AND archived_at IS NULL;
 -- =============================================================================
 
 -- name: UpsertTicketAssignment :one
+-- 衝突キー (ticket_id) は PK 単独だが、行の所有者列 workspace_id が EXCLUDED と一致する
+-- ときだけ更新する（blocks の upsert と同じ形。呼び出し側が ticket_id と workspace_id を
+-- 取り違えても、他テナントの行を上書きしない歯止めになる）。
 INSERT INTO ticket_assignments
   (workspace_id, ticket_id, assignee_principal_id, assigned_by_user_id, created_at)
 VALUES ($1, $2, $3, $4, now())
 ON CONFLICT (ticket_id)
 DO UPDATE SET assignee_principal_id = EXCLUDED.assignee_principal_id,
               assigned_by_user_id = EXCLUDED.assigned_by_user_id
+WHERE ticket_assignments.workspace_id = EXCLUDED.workspace_id
 RETURNING *;
 
 -- name: DeleteTicketAssignment :execrows

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/pgtext"
 )
 
 const archiveTicket = `-- name: ArchiveTicket :execrows
@@ -251,8 +252,8 @@ type CreateTicketParams struct {
 	Doc             json.RawMessage
 	PlainText       string
 	Priority        int32
-	StartDate       sql.NullString
-	DueDate         sql.NullString
+	StartDate       pgtext.NullDate
+	DueDate         pgtext.NullDate
 	Position        string
 	CreatedByUserID int64
 }
@@ -1220,8 +1221,8 @@ type ListTicketParentChainRow struct {
 	Doc             json.RawMessage
 	PlainText       string
 	Priority        int32
-	StartDate       sql.NullString
-	DueDate         sql.NullString
+	StartDate       pgtext.NullDate
+	DueDate         pgtext.NullDate
 	Position        string
 	ClosedAt        sql.NullTime
 	Resolution      sql.NullString
@@ -1754,8 +1755,8 @@ type UpdateTicketParams struct {
 	Doc         json.RawMessage
 	PlainText   string
 	Priority    int32
-	StartDate   sql.NullString
-	DueDate     sql.NullString
+	StartDate   pgtext.NullDate
+	DueDate     pgtext.NullDate
 	WorkspaceID uuid.UUID
 	ID          uuid.UUID
 }
@@ -1900,6 +1901,7 @@ VALUES ($1, $2, $3, $4, now())
 ON CONFLICT (ticket_id)
 DO UPDATE SET assignee_principal_id = EXCLUDED.assignee_principal_id,
               assigned_by_user_id = EXCLUDED.assigned_by_user_id
+WHERE ticket_assignments.workspace_id = EXCLUDED.workspace_id
 RETURNING workspace_id, ticket_id, assignee_principal_id, assignee_kind, assigned_by_user_id, created_at
 `
 
@@ -1913,6 +1915,9 @@ type UpsertTicketAssignmentParams struct {
 // =============================================================================
 // ticket_assignments
 // =============================================================================
+// 衝突キー (ticket_id) は PK 単独だが、行の所有者列 workspace_id が EXCLUDED と一致する
+// ときだけ更新する（blocks の upsert と同じ形。呼び出し側が ticket_id と workspace_id を
+// 取り違えても、他テナントの行を上書きしない歯止めになる）。
 func (q *Queries) UpsertTicketAssignment(ctx context.Context, arg UpsertTicketAssignmentParams) (TicketAssignment, error) {
 	row := q.db.QueryRowContext(ctx, upsertTicketAssignment,
 		arg.WorkspaceID,

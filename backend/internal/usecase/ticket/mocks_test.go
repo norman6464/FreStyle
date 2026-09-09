@@ -1,0 +1,464 @@
+package ticket_test
+
+import (
+	"context"
+	"time"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/stretchr/testify/mock"
+)
+
+// mockTicketRepo は repository.TicketRepository の testify/mock 実装。
+// usecase/kb の mockKBPermissionRepo と同じ作法（各メソッドは Called → 型アサーション
+// → 戻す、を機械的に繰り返すだけ。テストごとに使うメソッドだけ .On で期待値を設定する）。
+type mockTicketRepo struct{ mock.Mock }
+
+var _ repository.TicketRepository = (*mockTicketRepo)(nil)
+
+func (m *mockTicketRepo) HasActiveInitialTicketStatus(ctx context.Context, workspaceID, spaceID string) (bool, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockTicketRepo) InsertTicketStatus(ctx context.Context, s *domain.TicketStatus) error {
+	args := m.Called(ctx, s)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) FindTicketStatus(ctx context.Context, workspaceID, spaceID, statusID string) (*domain.TicketStatus, error) {
+	args := m.Called(ctx, workspaceID, spaceID, statusID)
+	s, _ := args.Get(0).(*domain.TicketStatus)
+	return s, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketStatuses(ctx context.Context, workspaceID, spaceID string, includeArchived bool) ([]domain.TicketStatus, error) {
+	args := m.Called(ctx, workspaceID, spaceID, includeArchived)
+	s, _ := args.Get(0).([]domain.TicketStatus)
+	return s, args.Error(1)
+}
+
+func (m *mockTicketRepo) GetInitialTicketStatus(ctx context.Context, workspaceID, spaceID string) (*domain.TicketStatus, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	s, _ := args.Get(0).(*domain.TicketStatus)
+	return s, args.Error(1)
+}
+
+func (m *mockTicketRepo) UpdateTicketStatus(ctx context.Context, s *domain.TicketStatus) error {
+	args := m.Called(ctx, s)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) SetTicketStatusInitial(ctx context.Context, workspaceID, spaceID, statusID string) error {
+	args := m.Called(ctx, workspaceID, spaceID, statusID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ArchiveTicketStatus(ctx context.Context, workspaceID, spaceID, statusID string) error {
+	args := m.Called(ctx, workspaceID, spaceID, statusID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) RestoreTicketStatus(ctx context.Context, workspaceID, spaceID, statusID, position string) error {
+	args := m.Called(ctx, workspaceID, spaceID, statusID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) CountActiveTicketsByStatus(ctx context.Context, workspaceID, spaceID, statusID string) (int64, error) {
+	args := m.Called(ctx, workspaceID, spaceID, statusID)
+	n, _ := args.Get(0).(int64)
+	return n, args.Error(1)
+}
+
+func (m *mockTicketRepo) LastActiveTicketStatusPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockTicketRepo) InsertTicketType(ctx context.Context, t *domain.TicketType) error {
+	args := m.Called(ctx, t)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) FindTicketType(ctx context.Context, workspaceID, spaceID, typeID string) (*domain.TicketType, error) {
+	args := m.Called(ctx, workspaceID, spaceID, typeID)
+	t, _ := args.Get(0).(*domain.TicketType)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketTypes(ctx context.Context, workspaceID, spaceID string, includeArchived bool) ([]domain.TicketType, error) {
+	args := m.Called(ctx, workspaceID, spaceID, includeArchived)
+	t, _ := args.Get(0).([]domain.TicketType)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) GetDefaultTicketType(ctx context.Context, workspaceID, spaceID string) (*domain.TicketType, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	t, _ := args.Get(0).(*domain.TicketType)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) UpdateTicketType(ctx context.Context, t *domain.TicketType) error {
+	args := m.Called(ctx, t)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) SetTicketTypeDefault(ctx context.Context, workspaceID, spaceID, typeID string) error {
+	args := m.Called(ctx, workspaceID, spaceID, typeID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ArchiveTicketType(ctx context.Context, workspaceID, spaceID, typeID string) error {
+	args := m.Called(ctx, workspaceID, spaceID, typeID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) RestoreTicketType(ctx context.Context, workspaceID, spaceID, typeID, position string) error {
+	args := m.Called(ctx, workspaceID, spaceID, typeID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) CountActiveTicketsByType(ctx context.Context, workspaceID, spaceID, typeID string) (int64, error) {
+	args := m.Called(ctx, workspaceID, spaceID, typeID)
+	n, _ := args.Get(0).(int64)
+	return n, args.Error(1)
+}
+
+func (m *mockTicketRepo) LastActiveTicketTypePosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockTicketRepo) CreateTicket(ctx context.Context, in repository.TicketCreateInput) (*domain.Ticket, error) {
+	args := m.Called(ctx, in)
+	t, _ := args.Get(0).(*domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) FindTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	t, _ := args.Get(0).(*domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error) {
+	args := m.Called(ctx, workspaceID, spaceKey, number)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]domain.Ticket, error) {
+	args := m.Called(ctx, in)
+	t, _ := args.Get(0).([]domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketChildren(ctx context.Context, workspaceID, spaceID, parentID string) ([]domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, spaceID, parentID)
+	t, _ := args.Get(0).([]domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) UpdateTicket(ctx context.Context, workspaceID, ticketID string, fields repository.TicketUpdateFields) (*domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, ticketID, fields)
+	t, _ := args.Get(0).(*domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) ChangeTicketStatus(
+	ctx context.Context, workspaceID, ticketID, statusID string,
+	closedAt *time.Time, resolution *domain.TicketResolution,
+) (*domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, ticketID, statusID, closedAt, resolution)
+	t, _ := args.Get(0).(*domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) MoveTicket(ctx context.Context, workspaceID, ticketID, position string) error {
+	args := m.Called(ctx, workspaceID, ticketID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ArchiveTicket(ctx context.Context, workspaceID, ticketID string) error {
+	args := m.Called(ctx, workspaceID, ticketID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) RestoreTicket(ctx context.Context, workspaceID, ticketID, position string) error {
+	args := m.Called(ctx, workspaceID, ticketID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) CountActiveTicketChildren(ctx context.Context, workspaceID, ticketID string) (int64, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	n, _ := args.Get(0).(int64)
+	return n, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketParentChain(ctx context.Context, workspaceID, ticketID string) ([]domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	t, _ := args.Get(0).([]domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) LastActiveTicketPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockTicketRepo) FindActiveTicketPosition(ctx context.Context, workspaceID, spaceID, ticketID string) (string, bool, error) {
+	args := m.Called(ctx, workspaceID, spaceID, ticketID)
+	return args.String(0), args.Bool(1), args.Error(2)
+}
+
+func (m *mockTicketRepo) UpsertTicketAssignment(ctx context.Context, a *domain.TicketAssignment) error {
+	args := m.Called(ctx, a)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) DeleteTicketAssignment(ctx context.Context, workspaceID, ticketID string) error {
+	args := m.Called(ctx, workspaceID, ticketID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) FindTicketAssignment(ctx context.Context, workspaceID, ticketID string) (*domain.TicketAssignment, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	a, _ := args.Get(0).(*domain.TicketAssignment)
+	return a, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketsAssignedToPrincipal(ctx context.Context, workspaceID, principalID string) ([]domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, principalID)
+	t, _ := args.Get(0).([]domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) InsertTicketChangeGroup(ctx context.Context, g *domain.TicketChangeGroup) error {
+	args := m.Called(ctx, g)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ListTicketChangeGroups(ctx context.Context, workspaceID, ticketID string) ([]domain.TicketChangeGroup, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	g, _ := args.Get(0).([]domain.TicketChangeGroup)
+	return g, args.Error(1)
+}
+
+func (m *mockTicketRepo) ReplaceTicketPageLinks(ctx context.Context, workspaceID, sourceTicketID string, targetPageIDs []string) error {
+	args := m.Called(ctx, workspaceID, sourceTicketID, targetPageIDs)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ReplaceTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string, targetTicketIDs []string) error {
+	args := m.Called(ctx, workspaceID, sourceTicketID, targetTicketIDs)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ListTicketPageLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketPageLink, error) {
+	args := m.Called(ctx, workspaceID, sourceTicketID)
+	l, _ := args.Get(0).([]domain.TicketPageLink)
+	return l, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListPagesReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketPageLink, error) {
+	args := m.Called(ctx, workspaceID, targetTicketID)
+	l, _ := args.Get(0).([]domain.TicketPageLink)
+	return l, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketTicketLink, error) {
+	args := m.Called(ctx, workspaceID, sourceTicketID)
+	l, _ := args.Get(0).([]domain.TicketTicketLink)
+	return l, args.Error(1)
+}
+
+func (m *mockTicketRepo) ListTicketsReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketTicketLink, error) {
+	args := m.Called(ctx, workspaceID, targetTicketID)
+	l, _ := args.Get(0).([]domain.TicketTicketLink)
+	return l, args.Error(1)
+}
+
+// mockKBPermissionRepo は repository.KnowledgeBasePermissionRepository の testify/mock 実装。
+// usecase/ticket は権限判定をこちらに委ね（設計: SpacePermissionFactsForUser を再利用）、
+// 独自の権限解決 SQL は持たない。フル実装は usecase/kb/mocks_test.go にあるが、
+// 別パッケージ（ticket_test）からは参照できないためここに複製する。
+type mockKBPermissionRepo struct{ mock.Mock }
+
+var _ repository.KnowledgeBasePermissionRepository = (*mockKBPermissionRepo)(nil)
+
+func (m *mockKBPermissionRepo) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) EnsureSpaceEveryonePrincipal(ctx context.Context, workspaceID, spaceID string) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) CreateGroupPrincipal(ctx context.Context, workspaceID, name string) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, name)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) FindPrincipal(ctx context.Context, workspaceID, principalID string) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, principalID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) FindUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeletePrincipal(ctx context.Context, workspaceID, principalID string) error {
+	args := m.Called(ctx, workspaceID, principalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error) {
+	args := m.Called(ctx, userID)
+	w, _ := args.Get(0).([]domain.MemberWorkspace)
+	return w, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) AddGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
+	args := m.Called(ctx, workspaceID, groupPrincipalID, memberPrincipalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) RemoveGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
+	args := m.Called(ctx, workspaceID, groupPrincipalID, memberPrincipalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
+	args := m.Called(ctx, workspaceID, principalID, role)
+	g, _ := args.Get(0).(*domain.WorkspaceGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error {
+	args := m.Called(ctx, workspaceID, principalID, role)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
+	args := m.Called(ctx, workspaceID, principalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
+	args := m.Called(ctx, workspaceID)
+	g, _ := args.Get(0).([]domain.WorkspaceGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) UpsertSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string, role domain.GrantRole) (*domain.SpaceGrant, error) {
+	args := m.Called(ctx, workspaceID, spaceID, principalID, role)
+	g, _ := args.Get(0).(*domain.SpaceGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeleteSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string) error {
+	args := m.Called(ctx, workspaceID, spaceID, principalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListSpaceGrants(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceGrant, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	g, _ := args.Get(0).([]domain.SpaceGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error) {
+	args := m.Called(ctx, workspaceID, pageID, principalID, role)
+	g, _ := args.Get(0).(*domain.PageGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error {
+	args := m.Called(ctx, workspaceID, pageID, principalID)
+	return args.Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListGrantablePrincipals(ctx context.Context, workspaceID string) ([]domain.GrantablePrincipal, error) {
+	args := m.Called(ctx, workspaceID)
+	p, _ := args.Get(0).([]domain.GrantablePrincipal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	g, _ := args.Get(0).([]domain.PageGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) PagePermissionFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*domain.PagePermissionFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, userID)
+	f, _ := args.Get(0).(*domain.PagePermissionFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) PagePermissionFactsForPrincipal(ctx context.Context, workspaceID, pageID, principalID string) (*domain.PagePermissionFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, principalID)
+	f, _ := args.Get(0).(*domain.PagePermissionFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, spaceID, userID, archived)
+	f, _ := args.Get(0).([]repository.PageWithViewFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]repository.PageSearchViewFact, error) {
+	args := m.Called(ctx, workspaceID, userID, query)
+	f, _ := args.Get(0).([]repository.PageSearchViewFact)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListPageLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, viewerUserID, targetPageID)
+	f, _ := args.Get(0).([]repository.PageWithViewFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListWorkspacePageViewFactsByIDs(ctx context.Context, workspaceID string, userID uint64, pageIDs []string) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, userID, pageIDs)
+	f, _ := args.Get(0).([]repository.PageWithViewFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, spaceID, userID)
+	f, _ := args.Get(0).(*domain.ScopeFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	f, _ := args.Get(0).(*domain.ScopeFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListWorkspaceSpaceScopeFacts(ctx context.Context, workspaceID string, userID uint64) ([]repository.SpaceWithScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	f, _ := args.Get(0).([]repository.SpaceWithScopeFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]repository.PageWithPermissionFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, userID)
+	f, _ := args.Get(0).([]repository.PageWithPermissionFacts)
+	return f, args.Error(1)
+}

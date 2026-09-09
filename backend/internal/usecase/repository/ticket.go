@@ -37,8 +37,9 @@ var ErrTicketAssigneeNotFound = errors.New("ticket assignee principal not found"
 // TicketCreateInput は CreateTicket に渡す入力。
 // Number は渡さない（採番 CTE が決める。呼び出し側が直接指定する経路は持たない —
 // 設計 Ⅳ-B の「tickets への INSERT はこのクエリ 1 本だけ」というレビュー項目）。
+// TicketCreateInput に ID は含めない。採番は repository（CreateTicket 実装）が
+// InsertTicketStatus / InsertTicketType と同じ流儀で行う（呼び出し側は入れ物を渡さない）。
 type TicketCreateInput struct {
-	ID              string
 	WorkspaceID     string
 	SpaceID         string
 	TypeID          string

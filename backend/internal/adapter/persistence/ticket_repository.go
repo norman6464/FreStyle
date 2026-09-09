@@ -5,13 +5,26 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/pgtext"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
+
+// nullDate は *string（'YYYY-MM-DD'、Ⅳ-K）を pgtext.NullDate へ変換する
+// （tickets.start_date / due_date の書き込み専用。読み取り側は sqlc が生成した
+// pgtext.NullDate をそのまま Scan する — pgtext.NullDate.go の doc に理由がある）。
+func nullDate(s *string) pgtext.NullDate {
+	if s == nil {
+		return pgtext.NullDate{}
+	}
+	return pgtext.NullDate{String: *s, Valid: true}
+}
 
 // ticketRepository は [repository.TicketRepository] の実装。knowledgeBaseRepository と
 // 同じ作法（sqlc 生成コード + 素の *sql.DB、複数書き込みは呼び出し側の TxManager.DoInTx に
@@ -32,6 +45,27 @@ func (r *ticketRepository) queries(ctx context.Context) *sqlcgen.Queries {
 // ticketNewID は UUIDv7 を採番する（knowledgeBaseRepository.kbNewID と同じ理由）。
 func ticketNewID() (uuid.UUID, error) {
 	return kbNewID()
+}
+
+// errOutOfRangeInt32 は domain 側の int を DB の integer（int32）へ渡す直前の範囲外検出。
+var errOutOfRangeInt32 = errors.New("value out of int32 range")
+
+// toInt32 は int を int32 へ範囲チェック付きで変換する（comment_repository.go の
+// nullInt32 と同じ理由。Go の int は 64bit 環境が前提）。
+//
+// HierarchyLevel・Priority は domain 側で値の集合（-1..1 / 1..3）が決まっているため
+// 実際にはここで落ちることは無いが、narrowing-cast-on-param（sqlc.yaml）と同じ考え方で
+// 「あり得ないから確認しない」を採らない。範囲外を静かに折り返すと DB には
+// 別の値が入り、原因が追えなくなる。
+func toInt32(n int) (int32, bool) {
+	if n < math.MinInt32 || n > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(n), true
+}
+
+func outOfRangeInt32Error(field string, n int) error {
+	return fmt.Errorf("%w: %s=%d", errOutOfRangeInt32, field, n)
 }
 
 // --- 変換 ---
@@ -74,7 +108,7 @@ func toDomainTicketType(row sqlcgen.TicketType) domain.TicketType {
 		t.TemplateTitle = &s
 	}
 	if row.TemplateDoc != nil {
-		t.TemplateDoc = json.RawMessage(*row.TemplateDoc)
+		t.TemplateDoc = *row.TemplateDoc
 	}
 	if row.ArchivedAt.Valid {
 		at := row.ArchivedAt.Time
@@ -92,7 +126,7 @@ func toDomainTicket(row sqlcgen.Ticket) domain.Ticket {
 		TypeID:          row.TypeID.String(),
 		StatusID:        row.StatusID.String(),
 		Title:           row.Title,
-		Doc:             json.RawMessage(row.Doc),
+		Doc:             row.Doc,
 		PlainText:       row.PlainText,
 		Priority:        domain.TicketPriority(row.Priority),
 		Position:        row.Position,
@@ -402,9 +436,13 @@ func (r *ticketRepository) InsertTicketType(ctx context.Context, t *domain.Ticke
 	if t.TemplateDoc != nil {
 		templateDoc = &t.TemplateDoc
 	}
+	level, okLevel := toInt32(t.HierarchyLevel)
+	if !okLevel {
+		return outOfRangeInt32Error("hierarchy_level", t.HierarchyLevel)
+	}
 	row, err := r.queries(ctx).InsertTicketType(ctx, sqlcgen.InsertTicketTypeParams{
 		ID: id, WorkspaceID: wsID, SpaceID: spID,
-		Name: t.Name, Color: t.Color, HierarchyLevel: int32(t.HierarchyLevel),
+		Name: t.Name, Color: t.Color, HierarchyLevel: level,
 		Position: t.Position, IsDefault: t.IsDefault,
 		TemplateTitle: nullString(t.TemplateTitle), TemplateDoc: templateDoc,
 	})
@@ -490,9 +528,13 @@ func (r *ticketRepository) UpdateTicketType(ctx context.Context, t *domain.Ticke
 	if t.TemplateDoc != nil {
 		templateDoc = &t.TemplateDoc
 	}
+	level, okLevel := toInt32(t.HierarchyLevel)
+	if !okLevel {
+		return outOfRangeInt32Error("hierarchy_level", t.HierarchyLevel)
+	}
 	row, err := r.queries(ctx).UpdateTicketType(ctx, sqlcgen.UpdateTicketTypeParams{
 		WorkspaceID: wsID, SpaceID: spID, ID: tyID,
-		Name: t.Name, Color: t.Color, HierarchyLevel: int32(t.HierarchyLevel),
+		Name: t.Name, Color: t.Color, HierarchyLevel: level,
 		TemplateTitle: nullString(t.TemplateTitle), TemplateDoc: templateDoc,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -606,23 +648,31 @@ func (r *ticketRepository) CreateTicket(ctx context.Context, in repository.Ticke
 	if !ok || !ok2 || !ok3 || !ok4 {
 		return nil, repository.ErrSpaceNotFound
 	}
-	id, ok5 := kbParseID(in.ID)
+	parentID, ok5 := kbNullID(in.ParentID)
 	if !ok5 {
-		return nil, errors.New("invalid ticket id")
-	}
-	parentID, ok6 := kbNullID(in.ParentID)
-	if !ok6 {
 		return nil, repository.ErrTicketNotFound
+	}
+	id, err := ticketNewID()
+	if err != nil {
+		return nil, err
+	}
+	priority, okPriority := toInt32(int(in.Priority))
+	if !okPriority {
+		return nil, outOfRangeInt32Error("priority", int(in.Priority))
+	}
+	createdBy, okCreatedBy := toInt64ID(in.CreatedByUserID)
+	if !okCreatedBy {
+		return nil, outOfRangeIDError("created_by_user_id", in.CreatedByUserID)
 	}
 	row, err := r.queries(ctx).CreateTicket(ctx, sqlcgen.CreateTicketParams{
 		ID: id, WorkspaceID: wsID, SpaceID: spID,
 		TypeID: tyID, StatusID: stID, ParentID: parentID,
 		Title: in.Title, Doc: in.Doc, PlainText: in.PlainText,
-		Priority:        int32(in.Priority),
-		StartDate:       nullString(in.StartDate),
-		DueDate:         nullString(in.DueDate),
+		Priority:        priority,
+		StartDate:       nullDate(in.StartDate),
+		DueDate:         nullDate(in.DueDate),
 		Position:        in.Position,
-		CreatedByUserID: int64(in.CreatedByUserID),
+		CreatedByUserID: createdBy,
 	})
 	if err != nil {
 		if isForeignKeyViolation(err) {
@@ -651,22 +701,13 @@ func (r *ticketRepository) FindTicket(ctx context.Context, workspaceID, ticketID
 	return &t, nil
 }
 
-func (r *ticketRepository) findTicketForUpdate(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
-	wsID, ok := kbParseID(workspaceID)
-	tID, ok2 := kbParseID(ticketID)
-	if !ok || !ok2 {
-		return nil, repository.ErrTicketNotFound
-	}
-	row, err := r.queries(ctx).GetTicketForUpdate(ctx, sqlcgen.GetTicketForUpdateParams{WorkspaceID: wsID, ID: tID})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, repository.ErrTicketNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	t := toDomainTicket(row)
-	return &t, nil
-}
+// GetTicketForUpdate（sqlc 生成、SELECT … FOR UPDATE）は段 1 のどの usecase からも
+// まだ呼んでいない。ChangeTicketStatus / ChangeTicketParent 等の「読んでから書く」操作は
+// 現状ロックなしで、真に同時に来た更新どうしの間で最終状態は Postgres の行更新自体は
+// 壊れないが（最後の書き込みが勝つ）、履歴の old→new の並びが実際の順序とずれ得る
+// （親変更の周期検出は複数チケットにまたがるため、対象の 1 行をロックするだけでは
+// 防げない — スペース単位のアドバイザリロック等、単一行ロックより大きい仕組みが要る）。
+// クエリ自体は残し、後続で実際に配線する（段 1 の既知のギャップとして明記する）。
 
 func (r *ticketRepository) ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	wsID, ok := kbParseID(workspaceID)
@@ -742,12 +783,16 @@ func (r *ticketRepository) UpdateTicket(ctx context.Context, workspaceID, ticket
 	if !ok4 {
 		return nil, repository.ErrTicketNotFound
 	}
+	priority, okPriority := toInt32(int(fields.Priority))
+	if !okPriority {
+		return nil, outOfRangeInt32Error("priority", int(fields.Priority))
+	}
 	row, err := r.queries(ctx).UpdateTicket(ctx, sqlcgen.UpdateTicketParams{
 		WorkspaceID: wsID, ID: tID, TypeID: tyID, ParentID: parentID,
 		Title: fields.Title, Doc: fields.Doc, PlainText: fields.PlainText,
-		Priority:  int32(fields.Priority),
-		StartDate: nullString(fields.StartDate),
-		DueDate:   nullString(fields.DueDate),
+		Priority:  priority,
+		StartDate: nullDate(fields.StartDate),
+		DueDate:   nullDate(fields.DueDate),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrTicketNotFound
@@ -918,10 +963,21 @@ func (r *ticketRepository) UpsertTicketAssignment(ctx context.Context, a *domain
 	if !ok || !ok2 || !ok3 {
 		return repository.ErrTicketNotFound
 	}
+	assignedBy, ok4 := toInt64ID(a.AssignedByUserID)
+	if !ok4 {
+		return outOfRangeIDError("assigned_by_user_id", a.AssignedByUserID)
+	}
 	row, err := r.queries(ctx).UpsertTicketAssignment(ctx, sqlcgen.UpsertTicketAssignmentParams{
 		WorkspaceID: wsID, TicketID: tID, AssigneePrincipalID: pID,
-		AssignedByUserID: int64(a.AssignedByUserID),
+		AssignedByUserID: assignedBy,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// クエリの WHERE ticket_assignments.workspace_id = EXCLUDED.workspace_id が
+		// 一致しなかった（＝呼び出し側が ticket_id とその実際の workspace_id を
+		// 取り違えた）。ticket_id はどのワークスペースでも一意な UUID なので、
+		// 通常の呼び出しでは起きない。テナント越え書き込みの歯止めが働いたことを表す。
+		return repository.ErrTicketNotFound
+	}
 	if err != nil {
 		if isForeignKeyViolation(err) {
 			// fk_ticket_assignments_principal（別ワークスペース・非 user 主体）と
@@ -998,8 +1054,12 @@ func (r *ticketRepository) InsertTicketChangeGroup(ctx context.Context, g *domai
 	if err != nil {
 		return err
 	}
+	actorID, okActor := toInt64ID(g.ActorUserID)
+	if !okActor {
+		return outOfRangeIDError("actor_user_id", g.ActorUserID)
+	}
 	row, err := r.queries(ctx).InsertTicketChangeGroup(ctx, sqlcgen.InsertTicketChangeGroupParams{
-		ID: id, WorkspaceID: wsID, TicketID: tID, ActorUserID: int64(g.ActorUserID),
+		ID: id, WorkspaceID: wsID, TicketID: tID, ActorUserID: actorID,
 	})
 	if err != nil {
 		if isForeignKeyViolation(err) {
@@ -1007,14 +1067,13 @@ func (r *ticketRepository) InsertTicketChangeGroup(ctx context.Context, g *domai
 		}
 		return err
 	}
+	// toDomainTicketChangeGroup は INSERT した行から group 自体の列（id / created_at 等）
+	// だけを組み立て、Items は持たない。呼び出し側が事前に詰めた Items を代入前に
+	// 退避しておかないと、この上書きで消えて insertTicketChangeItems が何も書かなくなる
+	// （実測: 結合テストで ListTicketChangeGroups が items 0 件を返して発覚した）。
+	items := g.Items
 	*g = toDomainTicketChangeGroup(row)
-	g.Items = nil
-	for i := range g.Items {
-		_ = i // 항목は下で個別に挿入する（このループは使わない。宣言だけ揃える）
-	}
-	for idx := range g.Items {
-		_ = idx
-	}
+	g.Items = items
 	return r.insertTicketChangeItems(ctx, wsID, g)
 }
 

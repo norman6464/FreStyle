@@ -170,8 +170,24 @@ sql:
           # 文字列にすれば、Go から DB まで同じ 10 文字がそのまま運ばれ、
           # ずれる場所が無くなる（比較・大小は 'YYYY-MM-DD' の辞書順が日付順と一致する）。
           #
-          # NULL 可の側を sql.NullString にするのは、既定の sql.NullTime を素の string に
-          # できないため。生成物の他の NULL 可列（89 箇所）と同じ扱いになる。
+          # NULL 可の側は sql.NullString ではなく internal/adapter/persistence/pgtext.NullDate
+          # を使う。理由（2026-09-09・段 1 で実機発見）: pgx の stdlib（database/sql）互換層は
+          # date 型（OID 1082）を宛先の Go 型に関わらず内部で time.Time にデコードしてから
+          # driver.Value として渡す（stdlib/sql.go の Rows.Next がこの OID をハードコードで
+          # pgtype.Date に読み、.Value() で time.Time化する。TypeMap.RegisterType で OID の
+          # Codec を差し替えても、この switch 文の変数自体が pgtype.Date に固定されているので
+          # 効かない。simple / extended のどちらの query protocol でも同じ。pgx v5.9.2 で
+          # 実機確認済み）。宛先を sql.NullString にしても、その Scan は database/sql の
+          # convertAssign を経由し、time.Time → *string の変換に time.RFC3339Nano を使うため
+          # （'2026-09-01' ではなく '2026-09-01T00:00:00Z' になる）、型を変えるだけでは直らない。
+          # pgtext.NullDate は time.Time でも string でも受けて 'YYYY-MM-DD' に正規化する。
+          #
+          # SQL 側で ::text にキャストして正体を変える対処は採らなかった —
+          # SELECT * / RETURNING * を全クエリぶん明示列挙し直す必要があるうえ、
+          # sqlc がキャスト式の NULL 許容を追えず NOT NULL の string になってしまい
+          # （すべての値が値ありの前提で string になる。実機確認済み）、NULL の start_date /
+          # due_date を持つ行の scan がそのまま失敗する。ドライバの型変換を信用しない
+          # Scanner をここに置く方が、クエリを増やさずに 1 箇所で閉じる。
           #
           # この設定は date 列が 1 つも無い時点（2026-09-09・チケットの段 0）で入れた。
           # 生成物は変わらないが、段 1 で date 列を足した瞬間から効く。**列を足してから
@@ -182,8 +198,8 @@ sql:
           - db_type: "date"
             nullable: true
             go_type:
-              import: "database/sql"
-              type: "NullString"
+              import: "github.com/norman6464/FreStyle/backend/internal/adapter/persistence/pgtext"
+              type: "NullDate"
 
 # ---------------------------------------------------------------------------
 # sqlc vet の静的ルール（backend/ で `make sqlc-vet`。CI の backend ジョブでも走る）

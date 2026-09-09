@@ -10,6 +10,21 @@ import (
 // CHECK 制約では書けない）。handler はこれを 409 にマップする。
 var ErrTicketHierarchyRejected = errors.New("domain: ticket hierarchy rejected")
 
+// ErrTicketDateRangeInverted は開始日が期限より後（ck_tickets_dates_ordered 違反）を表す。
+// DB の CHECK 制約に到達させると素の Postgres エラーになり 500 へ落ちてしまうため、
+// usecase が保存前にこれで断って 400 にマップできるようにする。
+var ErrTicketDateRangeInverted = errors.New("domain: ticket start date is after due date")
+
+// チケット・状態・種別の入力検証で使うセンチネル。handler がこれらを見て 400 に
+// マップできるように（gin の binding:"required" は空白だけの文字列や、色・カテゴリ・
+// 階層レベルのような固定集合の妥当性までは見ないため、usecase 側の検証がここを通る）。
+var (
+	ErrInvalidTicketName           = errors.New("domain: invalid ticket name")
+	ErrInvalidTicketColor          = errors.New("domain: invalid ticket color")
+	ErrInvalidTicketStatusCategory = errors.New("domain: invalid ticket status category")
+	ErrInvalidTicketHierarchyLevel = errors.New("domain: invalid ticket hierarchy level")
+)
+
 // ValidTicketHierarchyLevel は種別の階層レベルとして保存してよい値かを返す
 // （ck_ticket_types_hierarchy_level と同じ判定。1=束ね / 0=標準 / -1=小作業）。
 func ValidTicketHierarchyLevel(level int) bool {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/pgtext"
 )
 
 type Block struct {
@@ -221,8 +222,8 @@ type Ticket struct {
 	Doc             json.RawMessage
 	PlainText       string
 	Priority        int32
-	StartDate       sql.NullString
-	DueDate         sql.NullString
+	StartDate       pgtext.NullDate
+	DueDate         pgtext.NullDate
 	Position        string
 	ClosedAt        sql.NullTime
 	Resolution      sql.NullString

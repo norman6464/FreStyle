@@ -441,6 +441,15 @@ func TestTicketRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, n)
 
+		// 管理画面の「使用中 N 件」はスペース単位の GROUP BY で一括して数える
+		// （状態ごとに CountActiveTicketsByStatus を呼ぶ N+1 の代わり）。
+		// 使っていない状態（s2）は対応表に現れない — 呼び出し側が 0 とみなす契約。
+		grouped, err := repo.CountActiveTicketsByStatusForSpace(ctx, ws, space)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, grouped[updated.ID])
+		_, hasUnused := grouped[s2.ID]
+		assert.False(t, hasUnused, "使っていない状態は対応表に現れない")
+
 		// s2 は今の初期状態なのでアーカイブできない（ck_ticket_statuses_initial_active）。
 		// もう初期状態ではない updated（旧 s）をアーカイブする。
 		require.NoError(t, repo.ArchiveTicketStatus(ctx, ws, space, updated.ID))
@@ -497,6 +506,12 @@ func TestTicketRepository_Integration(t *testing.T) {
 		n, err := repo.CountActiveTicketsByType(ctx, ws, space, typ2.ID)
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, n)
+
+		groupedTypes, err := repo.CountActiveTicketsByTypeForSpace(ctx, ws, space)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, groupedTypes[typ2.ID])
+		_, hasUnusedType := groupedTypes[updated.ID]
+		assert.False(t, hasUnusedType, "使っていない種別は対応表に現れない")
 
 		require.NoError(t, repo.ArchiveTicketType(ctx, ws, space, updated.ID))
 		// includeArchived は「アーカイブ済みだけを絞り込む」フラグ（状態マスタと同じ規則）。

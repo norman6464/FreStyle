@@ -171,8 +171,12 @@ FROM n
 RETURNING *;
 
 -- name: GetTicket :one
-SELECT * FROM tickets
-WHERE workspace_id = $1 AND id = $2;
+-- 担当（ticket_assignments）を LEFT JOIN で添える。画面は詳細でも一覧でも担当を出すので、
+-- チケット 1 件につき問い合わせを 2 回に分けない（設計 Ⅶ の「詳細（… 担当 …）」）。
+-- 担当は 1 人（ticket_id が PK）なので、この JOIN で行が増えることはない。
+SELECT t.*, a.assignee_principal_id FROM tickets t
+LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
+WHERE t.workspace_id = $1 AND t.id = $2;
 
 -- name: GetTicketForUpdate :one
 -- 状態変更・親子変更・順位変更の直前にロックする。
@@ -190,7 +194,7 @@ WHERE t.workspace_id = sqlc.arg(workspace_id)
 
 -- name: ListTickets :many
 -- status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
-SELECT t.* FROM tickets t
+SELECT t.*, a.assignee_principal_id FROM tickets t
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.space_id = sqlc.arg(space_id)
   AND (t.archived_at IS NOT NULL) = sqlc.arg(include_archived)::boolean
@@ -386,3 +390,26 @@ WHERE workspace_id = $1 AND source_ticket_id = $2;
 -- name: ListTicketsReferencingTicket :many
 SELECT * FROM ticket_ticket_links
 WHERE workspace_id = $1 AND target_ticket_id = $2;
+
+-- name: GetTicketAcrossWorkspaces :one
+-- チケットを **ID だけ** で引く。/kb/tickets/{ticketId} の URL からワークスペースを
+-- 特定するための、このファイルで唯一 workspace_id を WHERE に持たない読み取り
+-- （knowledge_base.sql の GetPageAcrossWorkspaces と同じ役割・同じ作法）。
+-- 引いた直後に必ずその workspace の権限判定を通すこと（判定なしで応答に使わない）。
+-- id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない。
+SELECT id, workspace_id, space_id FROM tickets
+WHERE id = $1;
+
+-- name: CountActiveTicketsGroupedByStatus :many
+-- 管理画面の「使用中 N 件」。状態 1 つずつ CountActiveTicketsByStatus を呼ぶと
+-- 状態の数だけ問い合わせが増えるので、スペース 1 回の GROUP BY でまとめて数える。
+-- 現役（archived_at IS NULL）だけを数えるのは、アーカイブ済みのチケットが
+-- 状態のアーカイブを妨げないため（usecase の 409 判定と同じ範囲に揃える）。
+SELECT status_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY status_id;
+
+-- name: CountActiveTicketsGroupedByType :many
+SELECT type_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY type_id;

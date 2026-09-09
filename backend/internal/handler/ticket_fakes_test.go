@@ -201,6 +201,26 @@ func (f *ticketFakeRepo) CountActiveTicketsByStatus(_ context.Context, workspace
 	return n, nil
 }
 
+func (f *ticketFakeRepo) CountActiveTicketsByStatusForSpace(_ context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	out := map[string]int64{}
+	for _, t := range f.tickets {
+		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ArchivedAt == nil {
+			out[t.StatusID]++
+		}
+	}
+	return out, nil
+}
+
+func (f *ticketFakeRepo) CountActiveTicketsByTypeForSpace(_ context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	out := map[string]int64{}
+	for _, t := range f.tickets {
+		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ArchivedAt == nil {
+			out[t.TypeID]++
+		}
+	}
+	return out, nil
+}
+
 func (f *ticketFakeRepo) LastActiveTicketStatusPosition(_ context.Context, workspaceID, spaceID string) (string, error) {
 	last := ""
 	for _, s := range f.statuses {
@@ -364,6 +384,27 @@ func (f *ticketFakeRepo) FindTicket(_ context.Context, workspaceID, ticketID str
 	return &cp, nil
 }
 
+func (f *ticketFakeRepo) FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*repository.TicketWithAssignee, error) {
+	t, err := f.FindTicket(ctx, workspaceID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	out := &repository.TicketWithAssignee{Ticket: *t}
+	if a, ok := f.assignments[ticketID]; ok && a.WorkspaceID == workspaceID {
+		id := a.AssigneePrincipalID
+		out.AssigneePrincipalID = &id
+	}
+	return out, nil
+}
+
+func (f *ticketFakeRepo) FindTicketWorkspaceID(_ context.Context, ticketID string) (string, error) {
+	t, ok := f.tickets[ticketID]
+	if !ok {
+		return "", repository.ErrTicketNotFound
+	}
+	return t.WorkspaceID, nil
+}
+
 func (f *ticketFakeRepo) ResolveTicketIDByKey(_ context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	for _, t := range f.tickets {
 		if t.WorkspaceID != workspaceID || t.Number != number {
@@ -379,8 +420,8 @@ func (f *ticketFakeRepo) ResolveTicketIDByKey(_ context.Context, workspaceID, sp
 	return "", repository.ErrTicketNotFound
 }
 
-func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicketsInput) ([]domain.Ticket, error) {
-	var out []domain.Ticket
+func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicketsInput) ([]repository.TicketWithAssignee, error) {
+	var out []repository.TicketWithAssignee
 	for _, t := range f.tickets {
 		if t.WorkspaceID != in.WorkspaceID || t.SpaceID != in.SpaceID {
 			continue
@@ -400,13 +441,18 @@ func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicket
 				continue
 			}
 		}
-		out = append(out, *t)
+		row := repository.TicketWithAssignee{Ticket: *t}
+		if a, ok := f.assignments[t.ID]; ok {
+			id := a.AssigneePrincipalID
+			row.AssigneePrincipalID = &id
+		}
+		out = append(out, row)
 	}
 	// MoveTicketUseCase.placementPosition が「隣の兄弟」を position 順の隣接として
 	// 探すため、本番の SQL（ORDER BY t."position"）と同じ順序で返す必要がある
 	// （順不同のままだと並び替えが偶発的に不正な範囲を fracindex.Between へ渡し、
 	// テストが -race の有無に関わらずランダムに失敗する。実測）。
-	sort.Slice(out, func(i, j int) bool { return out[i].Position < out[j].Position })
+	sort.Slice(out, func(i, j int) bool { return out[i].Ticket.Position < out[j].Ticket.Position })
 	return out, nil
 }
 

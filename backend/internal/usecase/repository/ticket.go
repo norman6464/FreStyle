@@ -69,6 +69,16 @@ type TicketUpdateFields struct {
 	DueDate   *string
 }
 
+// TicketWithAssignee はチケット 1 件と、その担当（principals への参照）の組。
+//
+// 担当は別表（ticket_assignments）なので domain.Ticket には持たせない（あの型は
+// tickets の 1 行を表す）。画面は一覧でも詳細でも担当を出すため、SQL 側の LEFT JOIN で
+// 一緒に取り、この型で運ぶ。担当が居なければ AssigneePrincipalID は nil。
+type TicketWithAssignee struct {
+	Ticket              domain.Ticket
+	AssigneePrincipalID *string
+}
+
 // ListTicketsInput は一覧の絞り込み条件。ゼロ値は「絞らない」を意味する。
 type ListTicketsInput struct {
 	WorkspaceID         string
@@ -105,6 +115,11 @@ type TicketRepository interface {
 	ArchiveTicketStatus(ctx context.Context, workspaceID, spaceID, statusID string) error
 	RestoreTicketStatus(ctx context.Context, workspaceID, spaceID, statusID, position string) error
 	CountActiveTicketsByStatus(ctx context.Context, workspaceID, spaceID, statusID string) (int64, error)
+	// CountActiveTicketsByStatusForSpace はスペース内の現役チケットを状態ごとに数えて
+	// status_id -> 件数 の対応表で返す（管理画面の「使用中 N 件」用）。
+	// 状態 1 つずつ数えると状態の数だけ問い合わせが増えるので、1 回の GROUP BY で済ませる。
+	// 1 件も使われていない状態は対応表に現れない（呼び出し側は 0 とみなす）。
+	CountActiveTicketsByStatusForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error)
 	LastActiveTicketStatusPosition(ctx context.Context, workspaceID, spaceID string) (string, error)
 
 	InsertTicketType(ctx context.Context, t *domain.TicketType) error
@@ -117,17 +132,29 @@ type TicketRepository interface {
 	ArchiveTicketType(ctx context.Context, workspaceID, spaceID, typeID string) error
 	RestoreTicketType(ctx context.Context, workspaceID, spaceID, typeID, position string) error
 	CountActiveTicketsByType(ctx context.Context, workspaceID, spaceID, typeID string) (int64, error)
+	// CountActiveTicketsByTypeForSpace は CountActiveTicketsByStatusForSpace の種別版。
+	CountActiveTicketsByTypeForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error)
 	LastActiveTicketTypePosition(ctx context.Context, workspaceID, spaceID string) (string, error)
 
 	// --- チケット本体 ---
 
 	// CreateTicket は採番 CTE を含む 1 文で番号を払い出し、tickets へ 1 行作る。
 	CreateTicket(ctx context.Context, in TicketCreateInput) (*domain.Ticket, error)
+	// FindTicket はチケット 1 件を返す（担当は付かない）。権限判定・親子の検証など、
+	// 「その行が在るか・どのスペースか」だけが要る内部用途に使う。
+	// 画面へ返す取得は FindTicketWithAssignee を使う。
 	FindTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error)
+	// FindTicketWithAssignee は詳細画面向けにチケット 1 件と担当を 1 回の問い合わせで返す。
+	FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*TicketWithAssignee, error)
+	// FindTicketWorkspaceID はチケットを ID だけで引き、所属ワークスペースを返す
+	// （/kb/tickets/{ticketId} の URL からテナントを特定するための、workspace_id を
+	// WHERE に持たない唯一の読み取り。KnowledgeBaseRepository.FindPageByIDAcrossWorkspaces と
+	// 同じ役割で、引いた直後に必ずその workspace の権限判定を通す前提）。
+	FindTicketWorkspaceID(ctx context.Context, ticketID string) (string, error)
 	// ResolveTicketIDByKey は spaceKey（小文字）+ number から ticket_id を引く
 	// （domain.ParseTicketKey で分解した結果を渡す）。
 	ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error)
-	ListTickets(ctx context.Context, in ListTicketsInput) ([]domain.Ticket, error)
+	ListTickets(ctx context.Context, in ListTicketsInput) ([]TicketWithAssignee, error)
 	ListTicketChildren(ctx context.Context, workspaceID, spaceID, parentID string) ([]domain.Ticket, error)
 	UpdateTicket(ctx context.Context, workspaceID, ticketID string, fields TicketUpdateFields) (*domain.Ticket, error)
 	// ChangeTicketStatus は closedAt / resolution を usecase 側で

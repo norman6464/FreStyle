@@ -44,9 +44,18 @@ func (h *TicketStatusHandler) requireSpacePermission(
 	return requireTicketSpacePermissionWith(c, h.checkSpace, scope, spaceID, capability)
 }
 
+// ticketStatusResponse は状態 1 件の返却形。domain.TicketStatus をそのまま埋め込み
+// （JSON は平らに出る）、tickets を数えた派生値だけを足す。
+type ticketStatusResponse struct {
+	domain.TicketStatus
+	// ActiveTicketCount はこの状態を使っている現役チケットの件数。
+	// 管理画面が「使用中 N 件」を出し、アーカイブが 409 になるかを事前に示すために使う。
+	ActiveTicketCount int64 `json:"activeTicketCount"`
+}
+
 // ticketStatusListResponse は状態一覧の返却形。
 type ticketStatusListResponse struct {
-	Statuses []domain.TicketStatus `json:"statuses"`
+	Statuses []ticketStatusResponse `json:"statuses"`
 }
 
 // List はスペースの状態一覧を返す（閲覧権限が要る）。
@@ -67,10 +76,11 @@ func (h *TicketStatusHandler) List(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	if statuses == nil {
-		statuses = []domain.TicketStatus{}
+	out := make([]ticketStatusResponse, 0, len(statuses))
+	for _, s := range statuses {
+		out = append(out, ticketStatusResponse{TicketStatus: s.Status, ActiveTicketCount: s.ActiveTicketCount})
 	}
-	c.JSON(http.StatusOK, ticketStatusListResponse{Statuses: statuses})
+	c.JSON(http.StatusOK, ticketStatusListResponse{Statuses: out})
 }
 
 // ticketStatusRequest は状態の作成・更新の入力。

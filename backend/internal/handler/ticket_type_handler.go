@@ -45,9 +45,16 @@ func (h *TicketTypeHandler) requireSpacePermission(
 	return requireTicketSpacePermissionWith(c, h.checkSpace, scope, spaceID, capability)
 }
 
+// ticketTypeResponse は種別 1 件の返却形（ticketStatusResponse と同じ形）。
+type ticketTypeResponse struct {
+	domain.TicketType
+	// ActiveTicketCount はこの種別を使っている現役チケットの件数。
+	ActiveTicketCount int64 `json:"activeTicketCount"`
+}
+
 // ticketTypeListResponse は種別一覧の返却形。
 type ticketTypeListResponse struct {
-	Types []domain.TicketType `json:"types"`
+	Types []ticketTypeResponse `json:"types"`
 }
 
 // List はスペースの種別一覧を返す（閲覧権限が要る）。
@@ -68,10 +75,11 @@ func (h *TicketTypeHandler) List(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	if types == nil {
-		types = []domain.TicketType{}
+	out := make([]ticketTypeResponse, 0, len(types))
+	for _, t := range types {
+		out = append(out, ticketTypeResponse{TicketType: t.Type, ActiveTicketCount: t.ActiveTicketCount})
 	}
-	c.JSON(http.StatusOK, ticketTypeListResponse{Types: types})
+	c.JSON(http.StatusOK, ticketTypeListResponse{Types: out})
 }
 
 // ticketTypeRequest は種別の作成・更新の入力。

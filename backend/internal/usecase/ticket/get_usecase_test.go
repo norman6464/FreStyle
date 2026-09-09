@@ -22,7 +22,7 @@ func Test_チケット取得_必須項目の検証(t *testing.T) {
 
 func Test_チケット取得_存在しなければそのまま伝える(t *testing.T) {
 	repo := &mockTicketRepo{}
-	repo.On("FindTicket", mock.Anything, tkWS, tkTicket).Return(nil, repository.ErrTicketNotFound)
+	repo.On("FindTicketWithAssignee", mock.Anything, tkWS, tkTicket).Return(nil, repository.ErrTicketNotFound)
 
 	_, err := ticket.NewGetTicketUseCase(repo).Execute(context.Background(), ticket.GetTicketInput{
 		WorkspaceID: tkWS, TicketID: tkTicket,
@@ -32,16 +32,22 @@ func Test_チケット取得_存在しなければそのまま伝える(t *testi
 
 func Test_チケット取得_そのまま返す(t *testing.T) {
 	repo := &mockTicketRepo{}
-	repo.On("FindTicket", mock.Anything, tkWS, tkTicket).
-		Return(&domain.Ticket{
-			ID: tkTicket, WorkspaceID: tkWS, SpaceID: tkSpace,
-			Doc: []byte(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`),
+	assignee := "principal-1"
+	repo.On("FindTicketWithAssignee", mock.Anything, tkWS, tkTicket).
+		Return(&repository.TicketWithAssignee{
+			Ticket: domain.Ticket{
+				ID: tkTicket, WorkspaceID: tkWS, SpaceID: tkSpace,
+				Doc: []byte(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`),
+			},
+			AssigneePrincipalID: &assignee,
 		}, nil)
 
 	got, err := ticket.NewGetTicketUseCase(repo).Execute(context.Background(), ticket.GetTicketInput{
 		WorkspaceID: tkWS, TicketID: tkTicket,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, tkTicket, got.ID)
-	assert.Contains(t, string(got.Doc), "本文")
+	assert.Equal(t, tkTicket, got.Ticket.ID)
+	assert.Contains(t, string(got.Ticket.Doc), "本文")
+	require.NotNil(t, got.AssigneePrincipalID, "担当は同じ問い合わせで一緒に返る")
+	assert.Equal(t, "principal-1", *got.AssigneePrincipalID)
 }

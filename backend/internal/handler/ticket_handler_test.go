@@ -112,6 +112,36 @@ func Test_チケット取得_閲覧のみで200(t *testing.T) {
 	assert.Equal(t, "本文", got.Title)
 }
 
+// slug 無しの解決（/kb/tickets/:ticketId）は URL にワークスペースを持たない。
+// 通知の導線・本文中の ticketRef・ブックマークからの再訪がここを通るので、
+// ID だけで開けて、応答の workspaceSlug で以降の API を呼べることを固定する。
+func Test_チケットslug無し解決_workspaceSlugを返す(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	tk := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "解決される", Number: 1,
+	})
+
+	w := f.do(t, http.MethodGet, "/api/v2/kb/tickets/"+tk.ID, "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	got := decodeJSON[map[string]any](t, w)
+	assert.Equal(t, kbWorkspaceSlug, got["workspaceSlug"])
+	assert.Equal(t, true, got["canEdit"])
+	ticketObj, ok := got["ticket"].(map[string]any)
+	require.True(t, ok, "ticket が入れ子で返る")
+	assert.Equal(t, "解決される", ticketObj["title"])
+}
+
+func Test_チケットslug無し解決_閲覧できなければ404(t *testing.T) {
+	// メンバーではあるが、このスペースにどの役割も届いていない。
+	f := newTicketFixture(kbUserID, "")
+	tk := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "見えない",
+	})
+
+	w := f.do(t, http.MethodGet, "/api/v2/kb/tickets/"+tk.ID, "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 func Test_チケット取得_他ワークスペースのチケットは404(t *testing.T) {
 	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
 	other := f.tickets.addTicket(domain.Ticket{ID: "ticket-x", WorkspaceID: kbOtherWorkspaceID, SpaceID: "other-space", Title: "x"})
@@ -134,16 +164,16 @@ func Test_チケット作成_閲覧だけでは403(t *testing.T) {
 func Test_チケット一式_有効化から作成取得一覧更新状態変更移動担当履歴まで(t *testing.T) {
 	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
 
-	// 1) 有効化（最小構成）。
+	// 1) 有効化（既定の雛形）。
 	w := f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/enable", "")
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	statuses, err := f.tickets.ListTicketStatuses(context.Background(), kbWorkspaceID, kbSpaceID, false)
 	require.NoError(t, err)
-	require.Len(t, statuses, 3)
+	require.Len(t, statuses, 5)
 	types, err := f.tickets.ListTicketTypes(context.Background(), kbWorkspaceID, kbSpaceID, false)
 	require.NoError(t, err)
-	require.Len(t, types, 1)
+	require.Len(t, types, 3)
 
 	// 2 度目の有効化は 409。
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/enable", "")
@@ -161,8 +191,9 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	// キーからの解決（FRESTYLE-1 相当。spaceKey はこの fake では spaceID と同一視する）。
-	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/key/"+strings.ToUpper(kbSpaceID)+"-1", "")
+	// キーからの解決（FRESTYLE-1 相当。キー自体がスペースを含むので URL にスペースを取らない。
+	// spaceKey はこの fake では spaceID と同一視する）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/by-key/"+strings.ToUpper(kbSpaceID)+"-1", "")
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	// 4) 一覧。
@@ -208,8 +239,33 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assignment := decodeJSON[domain.TicketAssignment](t, w)
 	assert.Equal(t, "principal-1", assignment.AssigneePrincipalID)
+	// 担当を付けたら、詳細・一覧・変更系の応答すべてに同じ形（assigneePrincipalId）で載る。
+	// 画面は応答の出どころで型を出し分けなくてよい（設計 Ⅶ の「詳細（… 担当 …）」）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	withAssignee := decodeJSON[map[string]any](t, w)
+	assert.Equal(t, "principal-1", withAssignee["assigneePrincipalId"], "詳細に担当が載る")
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	listed := decodeJSON[map[string][]map[string]any](t, w)
+	assignedInList := 0
+	for _, row := range listed["tickets"] {
+		if row["assigneePrincipalId"] == "principal-1" {
+			assignedInList++
+		}
+	}
+	assert.Equal(t, 1, assignedInList, "一覧にも担当が載る（LEFT JOIN で N+1 にしない）")
+
 	w = f.do(t, http.MethodDelete, ticketAPIBase+"/tickets/"+created.ID+"/assignee", "")
 	require.Equal(t, http.StatusNoContent, w.Code)
+
+	// 外したら詳細から消える（omitempty なのでキー自体が無くなる）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	afterUnassign := decodeJSON[map[string]any](t, w)
+	_, has := afterUnassign["assigneePrincipalId"]
+	assert.False(t, has, "担当を外したらキーごと出ない")
 
 	// 9) アーカイブ・復元。
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+created.ID+"/archive", "")
@@ -356,6 +412,53 @@ func Test_種別マスタ_作成更新既定アーカイブ復元(t *testing.T) 
 	require.Equal(t, http.StatusNoContent, w.Code)
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/ticket-types/"+typ.ID+"/restore", "")
 	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// 管理表の「使用中 N 件」。アーカイブが 409 になるかを押す前に見せるための数で、
+// 現役のチケットだけを数える（アーカイブ済みは状態のアーカイブを妨げない）。
+func Test_状態種別一覧_使用中の件数を返す(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	w := f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/enable", "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	statuses, err := f.tickets.ListTicketStatuses(context.Background(), kbWorkspaceID, kbSpaceID, false)
+	require.NoError(t, err)
+	types, err := f.tickets.ListTicketTypes(context.Background(), kbWorkspaceID, kbSpaceID, false)
+	require.NoError(t, err)
+	initial := statuses[0].ID
+
+	// 2 件作って、片方をアーカイブする。
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", `{"title":"1件目"}`)
+	require.Equal(t, http.StatusCreated, w.Code)
+	first := decodeJSON[domain.Ticket](t, w)
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", `{"title":"2件目"}`)
+	require.Equal(t, http.StatusCreated, w.Code)
+	second := decodeJSON[domain.Ticket](t, w)
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+second.ID+"/archive", "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	countOf := func(path, key, id string) float64 {
+		res := f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/"+path, "")
+		require.Equal(t, http.StatusOK, res.Code, res.Body.String())
+		body := decodeJSON[map[string][]map[string]any](t, res)
+		for _, row := range body[key] {
+			if row["id"] == id {
+				n, ok := row["activeTicketCount"].(float64)
+				require.True(t, ok, "activeTicketCount が数で返る: %v", row["activeTicketCount"])
+				return n
+			}
+		}
+		t.Fatalf("%s に %s が無い", key, id)
+		return -1
+	}
+
+	assert.EqualValues(t, 1, countOf("ticket-statuses", "statuses", initial),
+		"アーカイブ済みは数えない（現役 1 件だけ）")
+	assert.EqualValues(t, 1, countOf("ticket-types", "types", first.TypeID))
+
+	// 使っていない状態は 0 件（対応表に現れないものは 0 に畳む）。
+	assert.EqualValues(t, 0, countOf("ticket-statuses", "statuses", statuses[len(statuses)-1].ID))
+	assert.EqualValues(t, 0, countOf("ticket-types", "types", types[len(types)-1].ID))
 }
 
 func Test_状態作成_不正な色は400(t *testing.T) {

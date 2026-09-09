@@ -9,13 +9,20 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// 最小構成（sourceSpaceId 未指定のとき）の色。設計 artifact の見本と同じ配色を使う
+// 既定の雛形（sourceSpaceId 未指定のとき）の色。画面の見本と同じ配色を使う
 // （状態の枠＝category の色分けと視覚的に対応させる）。
+//
+// 進行中が 3 つあるので、進むほど濃くなる並びにして一覧で見分けが付くようにする。
 const (
-	seedColorTodo       = "#5b6b7a"
-	seedColorInProgress = "#a0661a"
-	seedColorDone       = "#2f6b47"
-	seedColorTaskType   = "#2f6b47"
+	seedColorTodo     = "#5b6b7a"
+	seedColorDev      = "#a0661a"
+	seedColorReview   = "#8a5a14"
+	seedColorVerify   = "#7a5301"
+	seedColorReleased = "#2f6b47"
+
+	seedColorDesignType = "#7c3aed"
+	seedColorTaskType   = "#2563eb"
+	seedColorBugType    = "#9a3b2e"
 )
 
 // EnableTicketsForSpaceUseCase はスペースにチケット機能を有効化する。
@@ -24,10 +31,9 @@ const (
 // 二重の有効化は repository.ErrTicketsAlreadyEnabled を返す。
 //
 // SourceSpaceID を指定すると、そのスペースの現役の状態・種別をそのまま複製する
-// （設計 Ⅵ。同じ構成を別スペースに揃える手段）。指定が無ければ最小構成
-// （To Do / 進行中 / 完了 の 3 状態 + 種別「タスク」1 つ）を作る。どちらも
-// 有効化後は管理画面でいつでも編集できる前提なので、ここでの選択は初期値でしかない
-// （2026-09-09 ユーザー判断）。
+// （設計 Ⅵ。同じ構成を別スペースに揃える手段）。指定が無ければ既定の雛形
+// （seedStatuses / seedTypes）を作る。どちらも有効化後は管理画面でいつでも
+// 編集できる前提なので、ここでの選択は初期値でしかない。
 //
 // 複製元スペースへの参照権限の確認はこの usecase の責務ではない（handler / 呼び出し側が
 // 別途 CheckSpacePermissionUseCase 等で確かめる）。
@@ -45,15 +51,19 @@ func NewEnableTicketsForSpaceUseCase(
 type EnableTicketsForSpaceInput struct {
 	WorkspaceID string
 	SpaceID     string
-	// SourceSpaceID が nil なら最小構成、非 nil ならそのスペースの現役構成を複製する。
+	// SourceSpaceID が nil なら既定の雛形、非 nil ならそのスペースの現役構成を複製する。
 	SourceSpaceID *string
 }
 
 // EnableTicketsForSpaceOutput はどれだけ作ったかの要約（画面が「N 個の状態・M 個の
 // 種別を作成しました」のように出せるように）。
+//
+// json タグを明示するのは、この型が handler からそのまま JSON で返るため。
+// タグが無いと Go の既定でフィールド名がそのまま（大文字始まり）出てしまい、
+// ほかの API（domain の構造体は全部 camelCase のタグ付き）と綴りが食い違う。
 type EnableTicketsForSpaceOutput struct {
-	StatusCount int
-	TypeCount   int
+	StatusCount int `json:"statusCount"`
+	TypeCount   int `json:"typeCount"`
 }
 
 func (u *EnableTicketsForSpaceUseCase) Execute(
@@ -103,7 +113,7 @@ func (u *EnableTicketsForSpaceUseCase) Execute(
 
 // buildSeed は作る状態・種別の集合を組み立てる（DB へはまだ書かない）。
 // 複製元指定があれば ListTicketStatuses/ListTicketTypes（現役のみ）を読み、
-// 無ければ最小構成を fracindex で採番する。
+// 無ければ既定の雛形を fracindex で採番する。
 func (u *EnableTicketsForSpaceUseCase) buildSeed(
 	ctx context.Context, in EnableTicketsForSpaceInput,
 ) ([]domain.TicketStatus, []domain.TicketType, error) {
@@ -121,30 +131,58 @@ func (u *EnableTicketsForSpaceUseCase) buildSeed(
 		return statuses, types, nil
 	}
 
-	pos0, err := fracindex.Between("", "")
+	statusPos, err := seedPositions(len(seedStatuses))
 	if err != nil {
 		return nil, nil, err
 	}
-	pos1, err := fracindex.Between(pos0, "")
-	if err != nil {
-		return nil, nil, err
-	}
-	pos2, err := fracindex.Between(pos1, "")
-	if err != nil {
-		return nil, nil, err
-	}
-	statuses := []domain.TicketStatus{
-		{Name: "To Do", Category: domain.TicketStatusCategoryTodo, Color: seedColorTodo, Position: pos0, IsInitial: true},
-		{Name: "進行中", Category: domain.TicketStatusCategoryInProgress, Color: seedColorInProgress, Position: pos1},
-		{Name: "完了", Category: domain.TicketStatusCategoryDone, Color: seedColorDone, Position: pos2},
+	statuses := make([]domain.TicketStatus, len(seedStatuses))
+	for i, s := range seedStatuses {
+		s.Position = statusPos[i]
+		statuses[i] = s
 	}
 
-	typePos, err := fracindex.Between("", "")
+	typePos, err := seedPositions(len(seedTypes))
 	if err != nil {
 		return nil, nil, err
 	}
-	types := []domain.TicketType{
-		{Name: "タスク", HierarchyLevel: 0, Color: seedColorTaskType, Position: typePos, IsDefault: true},
+	types := make([]domain.TicketType, len(seedTypes))
+	for i, t := range seedTypes {
+		t.Position = typePos[i]
+		types[i] = t
 	}
 	return statuses, types, nil
+}
+
+// seedStatuses / seedTypes は有効化の既定の雛形（画面の見本と同じ並び）。
+//
+// Position はここでは決めない（buildSeed が fracindex で採番して埋める）。
+// 有効化のあとは管理画面でいつでも足せる・変えられるので、ここでの選択は初期値でしかない。
+var seedStatuses = []domain.TicketStatus{
+	{Name: "To Do", Category: domain.TicketStatusCategoryTodo, Color: seedColorTodo, IsInitial: true},
+	{Name: "開発", Category: domain.TicketStatusCategoryInProgress, Color: seedColorDev},
+	{Name: "レビュー中", Category: domain.TicketStatusCategoryInProgress, Color: seedColorReview},
+	{Name: "リリース検証", Category: domain.TicketStatusCategoryInProgress, Color: seedColorVerify},
+	{Name: "リリース", Category: domain.TicketStatusCategoryDone, Color: seedColorReleased},
+}
+
+var seedTypes = []domain.TicketType{
+	{Name: "設計", HierarchyLevel: 1, Color: seedColorDesignType},
+	{Name: "開発タスク", HierarchyLevel: 0, Color: seedColorTaskType, IsDefault: true},
+	{Name: "バグ", HierarchyLevel: 0, Color: seedColorBugType},
+}
+
+// seedPositions は n 個ぶんの position を先頭から順に採る。
+// fracindex.Between(prev, "") は「prev の次」を返すので、直前の値を渡して数珠つなぎにする。
+func seedPositions(n int) ([]string, error) {
+	out := make([]string, n)
+	prev := ""
+	for i := 0; i < n; i++ {
+		p, err := fracindex.Between(prev, "")
+		if err != nil {
+			return nil, err
+		}
+		out[i] = p
+		prev = p
+	}
+	return out, nil
 }

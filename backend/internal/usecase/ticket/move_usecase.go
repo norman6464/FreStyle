@@ -75,7 +75,7 @@ func (u *MoveTicketUseCase) placementPosition(ctx context.Context, in MoveTicket
 	}
 	idx := -1
 	for i, tk := range tickets {
-		if tk.ID == *in.AnchorTicketID {
+		if tk.Ticket.ID == *in.AnchorTicketID {
 			idx = i
 			break
 		}
@@ -83,17 +83,17 @@ func (u *MoveTicketUseCase) placementPosition(ctx context.Context, in MoveTicket
 	if idx < 0 {
 		return "", ErrTicketMoveAnchorNotSibling
 	}
-	anchorPos := tickets[idx].Position
+	anchorPos := tickets[idx].Ticket.Position
 	if in.AnchorAfter {
 		next := ""
 		if idx+1 < len(tickets) {
-			next = tickets[idx+1].Position
+			next = tickets[idx+1].Ticket.Position
 		}
 		return fracindex.Between(anchorPos, next)
 	}
 	prev := ""
 	if idx > 0 {
-		prev = tickets[idx-1].Position
+		prev = tickets[idx-1].Ticket.Position
 	}
 	return fracindex.Between(prev, anchorPos)
 }

@@ -25,11 +25,17 @@ func Test_チケット一覧_絞り込みをそのままrepositoryへ渡す(t *t
 	statusID := "status-1"
 	repo.On("ListTickets", mock.Anything, repository.ListTicketsInput{
 		WorkspaceID: tkWS, SpaceID: tkSpace, IncludeArchived: false, StatusID: &statusID,
-	}).Return([]domain.Ticket{{ID: "t1"}, {ID: "t2"}}, nil)
+	}).Return([]repository.TicketWithAssignee{
+		{Ticket: domain.Ticket{ID: "t1"}},
+		{Ticket: domain.Ticket{ID: "t2"}, AssigneePrincipalID: &statusID},
+	}, nil)
 
 	got, err := ticket.NewListTicketsUseCase(repo).Execute(context.Background(), ticket.ListTicketsInput{
 		WorkspaceID: tkWS, SpaceID: tkSpace, StatusID: &statusID,
 	})
 	require.NoError(t, err)
-	assert.Len(t, got, 2)
+	require.Len(t, got, 2)
+	assert.Equal(t, "t1", got[0].Ticket.ID)
+	assert.Nil(t, got[0].AssigneePrincipalID, "担当が居なければ nil のまま運ぶ")
+	require.NotNil(t, got[1].AssigneePrincipalID)
 }

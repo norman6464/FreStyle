@@ -70,6 +70,18 @@ func (m *mockTicketRepo) CountActiveTicketsByStatus(ctx context.Context, workspa
 	return n, args.Error(1)
 }
 
+func (m *mockTicketRepo) CountActiveTicketsByStatusForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	v, _ := args.Get(0).(map[string]int64)
+	return v, args.Error(1)
+}
+
+func (m *mockTicketRepo) CountActiveTicketsByTypeForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	v, _ := args.Get(0).(map[string]int64)
+	return v, args.Error(1)
+}
+
 func (m *mockTicketRepo) LastActiveTicketStatusPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceID)
 	return args.String(0), args.Error(1)
@@ -141,14 +153,25 @@ func (m *mockTicketRepo) FindTicket(ctx context.Context, workspaceID, ticketID s
 	return t, args.Error(1)
 }
 
+func (m *mockTicketRepo) FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*repository.TicketWithAssignee, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	t, _ := args.Get(0).(*repository.TicketWithAssignee)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) FindTicketWorkspaceID(ctx context.Context, ticketID string) (string, error) {
+	args := m.Called(ctx, ticketID)
+	return args.String(0), args.Error(1)
+}
+
 func (m *mockTicketRepo) ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceKey, number)
 	return args.String(0), args.Error(1)
 }
 
-func (m *mockTicketRepo) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]domain.Ticket, error) {
+func (m *mockTicketRepo) ListTickets(ctx context.Context, in repository.ListTicketsInput) ([]repository.TicketWithAssignee, error) {
 	args := m.Called(ctx, in)
-	t, _ := args.Get(0).([]domain.Ticket)
+	t, _ := args.Get(0).([]repository.TicketWithAssignee)
 	return t, args.Error(1)
 }
 

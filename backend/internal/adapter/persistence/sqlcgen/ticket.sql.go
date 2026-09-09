@@ -219,6 +219,88 @@ func (q *Queries) CountActiveTicketsByType(ctx context.Context, arg CountActiveT
 	return count, err
 }
 
+const countActiveTicketsGroupedByStatus = `-- name: CountActiveTicketsGroupedByStatus :many
+SELECT status_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY status_id
+`
+
+type CountActiveTicketsGroupedByStatusParams struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+type CountActiveTicketsGroupedByStatusRow struct {
+	StatusID uuid.UUID
+	Count    int64
+}
+
+// 管理画面の「使用中 N 件」。状態 1 つずつ CountActiveTicketsByStatus を呼ぶと
+// 状態の数だけ問い合わせが増えるので、スペース 1 回の GROUP BY でまとめて数える。
+// 現役（archived_at IS NULL）だけを数えるのは、アーカイブ済みのチケットが
+// 状態のアーカイブを妨げないため（usecase の 409 判定と同じ範囲に揃える）。
+func (q *Queries) CountActiveTicketsGroupedByStatus(ctx context.Context, arg CountActiveTicketsGroupedByStatusParams) ([]CountActiveTicketsGroupedByStatusRow, error) {
+	rows, err := q.db.QueryContext(ctx, countActiveTicketsGroupedByStatus, arg.WorkspaceID, arg.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveTicketsGroupedByStatusRow{}
+	for rows.Next() {
+		var i CountActiveTicketsGroupedByStatusRow
+		if err := rows.Scan(&i.StatusID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countActiveTicketsGroupedByType = `-- name: CountActiveTicketsGroupedByType :many
+SELECT type_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY type_id
+`
+
+type CountActiveTicketsGroupedByTypeParams struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+type CountActiveTicketsGroupedByTypeRow struct {
+	TypeID uuid.UUID
+	Count  int64
+}
+
+func (q *Queries) CountActiveTicketsGroupedByType(ctx context.Context, arg CountActiveTicketsGroupedByTypeParams) ([]CountActiveTicketsGroupedByTypeRow, error) {
+	rows, err := q.db.QueryContext(ctx, countActiveTicketsGroupedByType, arg.WorkspaceID, arg.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveTicketsGroupedByTypeRow{}
+	for rows.Next() {
+		var i CountActiveTicketsGroupedByTypeRow
+		if err := rows.Scan(&i.TypeID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createTicket = `-- name: CreateTicket :one
 
 WITH n AS (
@@ -442,8 +524,9 @@ func (q *Queries) GetInitialTicketStatus(ctx context.Context, arg GetInitialTick
 }
 
 const getTicket = `-- name: GetTicket :one
-SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at FROM tickets
-WHERE workspace_id = $1 AND id = $2
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, a.assignee_principal_id FROM tickets t
+LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
+WHERE t.workspace_id = $1 AND t.id = $2
 `
 
 type GetTicketParams struct {
@@ -451,9 +534,36 @@ type GetTicketParams struct {
 	ID          uuid.UUID
 }
 
-func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (Ticket, error) {
+type GetTicketRow struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	SpaceID             uuid.UUID
+	Number              int64
+	TypeID              uuid.UUID
+	StatusID            uuid.UUID
+	ParentID            uuid.NullUUID
+	Title               string
+	Doc                 json.RawMessage
+	PlainText           string
+	Priority            int32
+	StartDate           pgtext.NullDate
+	DueDate             pgtext.NullDate
+	Position            string
+	ClosedAt            sql.NullTime
+	Resolution          sql.NullString
+	CreatedByUserID     int64
+	ArchivedAt          sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	AssigneePrincipalID uuid.NullUUID
+}
+
+// 担当（ticket_assignments）を LEFT JOIN で添える。画面は詳細でも一覧でも担当を出すので、
+// チケット 1 件につき問い合わせを 2 回に分けない（設計 Ⅶ の「詳細（… 担当 …）」）。
+// 担当は 1 人（ticket_id が PK）なので、この JOIN で行が増えることはない。
+func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (GetTicketRow, error) {
 	row := q.db.QueryRowContext(ctx, getTicket, arg.WorkspaceID, arg.ID)
-	var i Ticket
+	var i GetTicketRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -475,7 +585,31 @@ func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (Ticket, e
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AssigneePrincipalID,
 	)
+	return i, err
+}
+
+const getTicketAcrossWorkspaces = `-- name: GetTicketAcrossWorkspaces :one
+SELECT id, workspace_id, space_id FROM tickets
+WHERE id = $1
+`
+
+type GetTicketAcrossWorkspacesRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+// チケットを **ID だけ** で引く。/kb/tickets/{ticketId} の URL からワークスペースを
+// 特定するための、このファイルで唯一 workspace_id を WHERE に持たない読み取り
+// （knowledge_base.sql の GetPageAcrossWorkspaces と同じ役割・同じ作法）。
+// 引いた直後に必ずその workspace の権限判定を通すこと（判定なしで応答に使わない）。
+// id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない。
+func (q *Queries) GetTicketAcrossWorkspaces(ctx context.Context, id uuid.UUID) (GetTicketAcrossWorkspacesRow, error) {
+	row := q.db.QueryRowContext(ctx, getTicketAcrossWorkspaces, id)
+	var i GetTicketAcrossWorkspacesRow
+	err := row.Scan(&i.ID, &i.WorkspaceID, &i.SpaceID)
 	return i, err
 }
 
@@ -1415,7 +1549,7 @@ func (q *Queries) ListTicketTypes(ctx context.Context, arg ListTicketTypesParams
 }
 
 const listTickets = `-- name: ListTickets :many
-SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at FROM tickets t
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, a.assignee_principal_id FROM tickets t
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
 WHERE t.workspace_id = $1 AND t.space_id = $2
   AND (t.archived_at IS NOT NULL) = $3::boolean
@@ -1437,8 +1571,32 @@ type ListTicketsParams struct {
 	AssigneePrincipalID uuid.NullUUID
 }
 
+type ListTicketsRow struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	SpaceID             uuid.UUID
+	Number              int64
+	TypeID              uuid.UUID
+	StatusID            uuid.UUID
+	ParentID            uuid.NullUUID
+	Title               string
+	Doc                 json.RawMessage
+	PlainText           string
+	Priority            int32
+	StartDate           pgtext.NullDate
+	DueDate             pgtext.NullDate
+	Position            string
+	ClosedAt            sql.NullTime
+	Resolution          sql.NullString
+	CreatedByUserID     int64
+	ArchivedAt          sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	AssigneePrincipalID uuid.NullUUID
+}
+
 // status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
-func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Ticket, error) {
+func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]ListTicketsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTickets,
 		arg.WorkspaceID,
 		arg.SpaceID,
@@ -1451,9 +1609,9 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Tic
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Ticket{}
+	items := []ListTicketsRow{}
 	for rows.Next() {
-		var i Ticket
+		var i ListTicketsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -1475,6 +1633,7 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Tic
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AssigneePrincipalID,
 		); err != nil {
 			return nil, err
 		}

@@ -33,10 +33,10 @@ func Test_チケット有効化_既に有効なら拒否(t *testing.T) {
 	repo.AssertNotCalled(t, "InsertTicketType")
 }
 
-// 最小構成: To Do(todo・初期状態) / 進行中(in_progress) / 完了(done) の 3 状態と、
-// 種別「タスク」(hierarchy_level=0・既定) 1 つだけを作る（2026-09-09 ユーザー判断:
-// 状態・種別は有効化後にいつでも編集画面で変えられる前提なので、最小構成のみでよい）。
-func Test_チケット有効化_最小構成を作る(t *testing.T) {
+// 既定の雛形: To Do(todo・初期状態) / 開発 / レビュー中 / リリース検証(in_progress) /
+// リリース(done) の 5 状態と、設計 / 開発タスク(既定) / バグ の 3 種別（画面の見本と同じ並び）。
+// 有効化後はいつでも管理画面で足せる・変えられるので、ここでの選択は初期値でしかない。
+func Test_チケット有効化_既定の雛形を作る(t *testing.T) {
 	repo := &mockTicketRepo{}
 	repo.On("HasActiveInitialTicketStatus", mock.Anything, tkWS, tkSpace).Return(false, nil)
 
@@ -63,7 +63,7 @@ func Test_チケット有効化_最小構成を作る(t *testing.T) {
 	}()
 	require.NoError(t, err)
 
-	require.Len(t, insertedStatuses, 3, "To Do / 進行中 / 完了")
+	require.Len(t, insertedStatuses, 5, "To Do / 開発 / レビュー中 / リリース検証 / リリース")
 	byCategory := map[domain.TicketStatusCategory]*domain.TicketStatus{}
 	for _, s := range insertedStatuses {
 		require.Equal(t, tkWS, s.WorkspaceID)
@@ -76,8 +76,23 @@ func Test_チケット有効化_最小構成を作る(t *testing.T) {
 	require.Contains(t, byCategory, domain.TicketStatusCategoryInProgress)
 	require.Contains(t, byCategory, domain.TicketStatusCategoryDone)
 	require.True(t, byCategory[domain.TicketStatusCategoryTodo].IsInitial, "初期状態は To Do")
-	require.False(t, byCategory[domain.TicketStatusCategoryInProgress].IsInitial)
 	require.False(t, byCategory[domain.TicketStatusCategoryDone].IsInitial)
+
+	// 初期状態は現役の中で 1 つだけ（部分 UNIQUE が DB 側にもあるが、雛形の時点で守る）。
+	initialCount := 0
+	for _, s := range insertedStatuses {
+		if s.IsInitial {
+			initialCount++
+		}
+	}
+	require.Equal(t, 1, initialCount, "初期状態は 1 つだけ")
+
+	// 位置は重複しない（uq_ticket_statuses_space_position は部分 UNIQUE）。
+	seenPos := map[string]bool{}
+	for _, s := range insertedStatuses {
+		require.False(t, seenPos[s.Position], "位置が重複している: %s", s.Position)
+		seenPos[s.Position] = true
+	}
 	// position は fracindex のバイト順で To Do → 進行中 → 完了 の順に並ぶこと。
 	require.Less(t,
 		byCategory[domain.TicketStatusCategoryTodo].Position,
@@ -86,13 +101,25 @@ func Test_チケット有効化_最小構成を作る(t *testing.T) {
 		byCategory[domain.TicketStatusCategoryInProgress].Position,
 		byCategory[domain.TicketStatusCategoryDone].Position)
 
-	require.Len(t, insertedTypes, 1, "種別はタスク1つだけ")
-	require.Equal(t, tkWS, insertedTypes[0].WorkspaceID)
-	require.Equal(t, tkSpace, insertedTypes[0].SpaceID)
-	require.Equal(t, 0, insertedTypes[0].HierarchyLevel)
-	require.True(t, insertedTypes[0].IsDefault)
-	require.True(t, domain.ValidHexColor(insertedTypes[0].Color))
-	require.NotEmpty(t, insertedTypes[0].Position)
+	require.Len(t, insertedTypes, 3, "設計 / 開発タスク / バグ")
+	defaultCount := 0
+	seenTypePos := map[string]bool{}
+	for _, ty := range insertedTypes {
+		require.Equal(t, tkWS, ty.WorkspaceID)
+		require.Equal(t, tkSpace, ty.SpaceID)
+		require.True(t, domain.ValidHexColor(ty.Color), "色は正規化済みで保存する: %s", ty.Color)
+		require.NotEmpty(t, ty.Position)
+		require.False(t, seenTypePos[ty.Position], "位置が重複している: %s", ty.Position)
+		seenTypePos[ty.Position] = true
+		// 階層レベルは -1..1 の範囲（ck_ticket_types_hierarchy_level）。
+		require.GreaterOrEqual(t, ty.HierarchyLevel, -1)
+		require.LessOrEqual(t, ty.HierarchyLevel, 1)
+		if ty.IsDefault {
+			defaultCount++
+			require.Equal(t, 0, ty.HierarchyLevel, "既定の種別は標準（0）にする")
+		}
+	}
+	require.Equal(t, 1, defaultCount, "既定の種別は 1 つだけ")
 }
 
 // sourceSpaceId を指定すると、そのスペースの現役の状態・種別をそのまま複製する

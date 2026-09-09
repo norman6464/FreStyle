@@ -50,10 +50,10 @@ func Test_チケット移動_アンカーの直後に置く(t *testing.T) {
 		Return(&domain.Ticket{ID: tkTicket, WorkspaceID: tkWS, SpaceID: tkSpace, Position: "a2"}, nil)
 	anchor := "t-anchor"
 	repo.On("ListTickets", mock.Anything, repository.ListTicketsInput{WorkspaceID: tkWS, SpaceID: tkSpace}).
-		Return([]domain.Ticket{
-			{ID: anchor, Position: "a0"},
-			{ID: "t-next", Position: "a1"},
-			{ID: tkTicket, Position: "a2"},
+		Return([]repository.TicketWithAssignee{
+			{Ticket: domain.Ticket{ID: anchor, Position: "a0"}},
+			{Ticket: domain.Ticket{ID: "t-next", Position: "a1"}},
+			{Ticket: domain.Ticket{ID: tkTicket, Position: "a2"}},
 		}, nil)
 	repo.On("MoveTicket", mock.Anything, tkWS, tkTicket, mock.MatchedBy(func(pos string) bool {
 		return pos > "a0" && pos < "a1"

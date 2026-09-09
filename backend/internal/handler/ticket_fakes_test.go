@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -116,6 +117,10 @@ func (f *ticketFakeRepo) ListTicketStatuses(_ context.Context, workspaceID, spac
 		}
 		out = append(out, *s)
 	}
+	// 本番の SQL は ORDER BY "position"。呼び出し側（例: 並び替えの隣接探索）が
+	// 順序に依存するので、map の走査順（毎プロセス起動でランダム化される）のまま返すと
+	// -race の有無に関わらずテストが偶発的に落ちる（実測）。
+	sort.Slice(out, func(i, j int) bool { return out[i].Position < out[j].Position })
 	return out, nil
 }
 
@@ -242,6 +247,7 @@ func (f *ticketFakeRepo) ListTicketTypes(_ context.Context, workspaceID, spaceID
 		}
 		out = append(out, *t)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Position < out[j].Position })
 	return out, nil
 }
 
@@ -396,6 +402,11 @@ func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicket
 		}
 		out = append(out, *t)
 	}
+	// MoveTicketUseCase.placementPosition が「隣の兄弟」を position 順の隣接として
+	// 探すため、本番の SQL（ORDER BY t."position"）と同じ順序で返す必要がある
+	// （順不同のままだと並び替えが偶発的に不正な範囲を fracindex.Between へ渡し、
+	// テストが -race の有無に関わらずランダムに失敗する。実測）。
+	sort.Slice(out, func(i, j int) bool { return out[i].Position < out[j].Position })
 	return out, nil
 }
 
@@ -406,6 +417,7 @@ func (f *ticketFakeRepo) ListTicketChildren(_ context.Context, workspaceID, spac
 			out = append(out, *t)
 		}
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Position < out[j].Position })
 	return out, nil
 }
 

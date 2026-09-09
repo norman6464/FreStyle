@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Ticket はチケット（Jira の課題 / Backlog の課題に当たる）本体。
+// Ticket はチケット（仕事 1 件を追いかける記録）本体。
 //
 // 表示キー（例 FRESTYLE-12）は保存しない派生値（FormatTicketKey が SpaceKey と Number から
 // 組み立てる）。SpaceKey はこの構造体には無く、呼び出し側（usecase/handler）が

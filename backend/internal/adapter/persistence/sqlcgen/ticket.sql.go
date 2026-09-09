@@ -847,7 +847,7 @@ func (q *Queries) InsertTicketType(ctx context.Context, arg InsertTicketTypePara
 }
 
 const lastActiveTicketPosition = `-- name: LastActiveTicketPosition :one
-SELECT COALESCE(max("position"), '') AS "position" FROM tickets
+SELECT COALESCE(max("position"), '')::text AS "position" FROM tickets
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
 `
 
@@ -856,15 +856,15 @@ type LastActiveTicketPositionParams struct {
 	SpaceID     uuid.UUID
 }
 
-func (q *Queries) LastActiveTicketPosition(ctx context.Context, arg LastActiveTicketPositionParams) (interface{}, error) {
+func (q *Queries) LastActiveTicketPosition(ctx context.Context, arg LastActiveTicketPositionParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, lastActiveTicketPosition, arg.WorkspaceID, arg.SpaceID)
-	var position interface{}
+	var position string
 	err := row.Scan(&position)
 	return position, err
 }
 
 const lastActiveTicketStatusPosition = `-- name: LastActiveTicketStatusPosition :one
-SELECT COALESCE(max("position"), '') AS "position" FROM ticket_statuses
+SELECT COALESCE(max("position"), '')::text AS "position" FROM ticket_statuses
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
 `
 
@@ -876,15 +876,15 @@ type LastActiveTicketStatusPositionParams struct {
 // 現役の状態のうち最後（position 最大）のもの。復元・新規作成の末尾採番に使う。
 // 1 件も無ければ空文字（sqlc は :one で 0 行だと sql.ErrNoRows を返すため、
 // COALESCE で空文字に畳んで「0 行エラー」を避ける）。
-func (q *Queries) LastActiveTicketStatusPosition(ctx context.Context, arg LastActiveTicketStatusPositionParams) (interface{}, error) {
+func (q *Queries) LastActiveTicketStatusPosition(ctx context.Context, arg LastActiveTicketStatusPositionParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, lastActiveTicketStatusPosition, arg.WorkspaceID, arg.SpaceID)
-	var position interface{}
+	var position string
 	err := row.Scan(&position)
 	return position, err
 }
 
 const lastActiveTicketTypePosition = `-- name: LastActiveTicketTypePosition :one
-SELECT COALESCE(max("position"), '') AS "position" FROM ticket_types
+SELECT COALESCE(max("position"), '')::text AS "position" FROM ticket_types
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
 `
 
@@ -893,9 +893,9 @@ type LastActiveTicketTypePositionParams struct {
 	SpaceID     uuid.UUID
 }
 
-func (q *Queries) LastActiveTicketTypePosition(ctx context.Context, arg LastActiveTicketTypePositionParams) (interface{}, error) {
+func (q *Queries) LastActiveTicketTypePosition(ctx context.Context, arg LastActiveTicketTypePositionParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, lastActiveTicketTypePosition, arg.WorkspaceID, arg.SpaceID)
-	var position interface{}
+	var position string
 	err := row.Scan(&position)
 	return position, err
 }
@@ -1739,37 +1739,39 @@ func (q *Queries) SetTicketTypeDefault(ctx context.Context, arg SetTicketTypeDef
 
 const updateTicket = `-- name: UpdateTicket :one
 UPDATE tickets
-SET type_id = $3, parent_id = $4, title = $5, doc = $6, plain_text = $7,
-    priority = $8, start_date = $9::date, due_date = $10::date, updated_at = now()
-WHERE workspace_id = $1 AND id = $2
+SET type_id = $1, parent_id = $2, title = $3,
+    doc = $4, plain_text = $5, priority = $6,
+    start_date = $7::date, due_date = $8::date,
+    updated_at = now()
+WHERE workspace_id = $9 AND id = $10
 RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at
 `
 
 type UpdateTicketParams struct {
-	WorkspaceID uuid.UUID
-	ID          uuid.UUID
 	TypeID      uuid.UUID
 	ParentID    uuid.NullUUID
 	Title       string
 	Doc         json.RawMessage
 	PlainText   string
 	Priority    int32
-	Column9     string
-	Column10    string
+	StartDate   sql.NullString
+	DueDate     sql.NullString
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
 }
 
 func (q *Queries) UpdateTicket(ctx context.Context, arg UpdateTicketParams) (Ticket, error) {
 	row := q.db.QueryRowContext(ctx, updateTicket,
-		arg.WorkspaceID,
-		arg.ID,
 		arg.TypeID,
 		arg.ParentID,
 		arg.Title,
 		arg.Doc,
 		arg.PlainText,
 		arg.Priority,
-		arg.Column9,
-		arg.Column10,
+		arg.StartDate,
+		arg.DueDate,
+		arg.WorkspaceID,
+		arg.ID,
 	)
 	var i Ticket
 	err := row.Scan(

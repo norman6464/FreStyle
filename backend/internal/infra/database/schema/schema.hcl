@@ -1841,7 +1841,7 @@ table "share_links" {
 # ticket_assignments / ticket_change_groups / ticket_change_items /
 # ticket_page_links / ticket_ticket_links。
 #
-# 設計: 「PostgreSQL チケット・バックログ設計」（2026-09-08、Jira FRESTYLE-455 配下）。
+# 設計: 「PostgreSQL チケット・バックログ設計」（2026-09-08、チケット番号 FRESTYLE-455 配下）。
 #
 # 共通の作法（既存表と同じ）:
 #   - 全表が workspace_id を持ち、親への FK は (workspace_id, …, id) の複合 FK。

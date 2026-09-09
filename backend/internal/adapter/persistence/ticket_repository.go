@@ -172,13 +172,6 @@ func toDomainTicketChangeItem(row sqlcgen.TicketChangeItem) domain.TicketChangeI
 	return item
 }
 
-func nullString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
 // --- ticket_statuses ---
 
 func (r *ticketRepository) HasActiveInitialTicketStatus(ctx context.Context, workspaceID, spaceID string) (bool, error) {

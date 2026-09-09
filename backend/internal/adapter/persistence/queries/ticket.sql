@@ -80,7 +80,7 @@ WHERE workspace_id = $1 AND space_id = $2 AND status_id = $3 AND archived_at IS 
 -- 現役の状態のうち最後（position 最大）のもの。復元・新規作成の末尾採番に使う。
 -- 1 件も無ければ空文字（sqlc は :one で 0 行だと sql.ErrNoRows を返すため、
 -- COALESCE で空文字に畳んで「0 行エラー」を避ける）。
-SELECT COALESCE(max("position"), '') AS "position" FROM ticket_statuses
+SELECT COALESCE(max("position"), '')::text AS "position" FROM ticket_statuses
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL;
 
 -- =============================================================================
@@ -140,7 +140,7 @@ SELECT count(*) FROM tickets
 WHERE workspace_id = $1 AND space_id = $2 AND type_id = $3 AND archived_at IS NULL;
 
 -- name: LastActiveTicketTypePosition :one
-SELECT COALESCE(max("position"), '') AS "position" FROM ticket_types
+SELECT COALESCE(max("position"), '')::text AS "position" FROM ticket_types
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL;
 
 -- =============================================================================
@@ -209,9 +209,11 @@ ORDER BY "position";
 
 -- name: UpdateTicket :one
 UPDATE tickets
-SET type_id = $3, parent_id = $4, title = $5, doc = $6, plain_text = $7,
-    priority = $8, start_date = $9::date, due_date = $10::date, updated_at = now()
-WHERE workspace_id = $1 AND id = $2
+SET type_id = sqlc.arg(type_id), parent_id = sqlc.narg(parent_id), title = sqlc.arg(title),
+    doc = sqlc.arg(doc), plain_text = sqlc.arg(plain_text), priority = sqlc.arg(priority),
+    start_date = sqlc.narg(start_date)::date, due_date = sqlc.narg(due_date)::date,
+    updated_at = now()
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id)
 RETURNING *;
 
 -- name: ChangeTicketStatus :one
@@ -263,7 +265,7 @@ WHERE depth > 0
 ORDER BY depth DESC;
 
 -- name: LastActiveTicketPosition :one
-SELECT COALESCE(max("position"), '') AS "position" FROM tickets
+SELECT COALESCE(max("position"), '')::text AS "position" FROM tickets
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL;
 
 -- name: FindActiveTicketPosition :one

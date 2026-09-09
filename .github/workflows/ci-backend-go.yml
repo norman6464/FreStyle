@@ -76,7 +76,10 @@ jobs:
       # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
       # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。
-      # ブロッキングなセキュリティ検査は CodeQL (codeql.yml) が担う。
+      # ブロッキングなセキュリティ検査は golangci-lint の gosec（依存の脆弱性は trivy）が担う。
+      # CodeQL は private リポジトリ化に伴い GitHub Advanced Security が必要になり撤去した
+      # （2026-09-09。gosec は同一関数内のパターン検出が中心で、CodeQL が持っていた
+      # 関数・ファイルをまたぐデータフロー解析は現状カバーできていない）。
       - name: govulncheck (advisory)
         continue-on-error: true
         run: |

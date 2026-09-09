@@ -1833,3 +1833,715 @@ table "share_links" {
     expr = "octet_length(token_hash) = 32"
   }
 }
+
+# =====================================================================
+# チケット（バックログ） — 段 1: 骨格
+#
+# 表 9 つ（追加のみ）: ticket_counters / ticket_statuses / ticket_types / tickets /
+# ticket_assignments / ticket_change_groups / ticket_change_items /
+# ticket_page_links / ticket_ticket_links。
+#
+# 設計: 「PostgreSQL チケット・バックログ設計」（2026-09-08、チケット番号 FRESTYLE-455 配下）。
+#
+# 共通の作法（既存表と同じ）:
+#   - 全表が workspace_id を持ち、親への FK は (workspace_id, …, id) の複合 FK。
+#   - 同一スペース内でしか参照できない列（種別 / 状態 / 親）は (workspace_id, space_id, id) の
+#     複合 FK にする。
+#   - 「人」を指す列は 2 種類。本人の行為の記録（created_by / actor / assigned_by）は
+#     users.id を bigint で持ち FK は張らない（pages と同じ）。他人を指名する列（担当者）は
+#     principals（ワークスペース所属の正本）への複合 FK にする。
+#   - 列挙値は varchar + CHECK。値の正本は internal/domain/ticket.go の定数。
+#   - 現役の名前（状態・種別）は大文字小文字を区別せず一意にしたいが、このファイルには
+#     複数列にまたがる関数索引の実例が無いため、生成列 name_lower（lower(name) を STORED）を
+#     挟んで素の複合部分 UNIQUE にする（principal_members.group_kind と同じ「FK / 索引の足場と
+#     しての生成列」という使い方。atlas schema inspect の実機出力で GENERATED ALWAYS AS
+#     (lower((name)::text)) STORED が意図どおり生成されることを確認済み）。
+#   - date 列（start_date / due_date）は Go 側で 'YYYY-MM-DD' の文字列として運ぶ
+#     （backend/sqlc.yaml の override。本番の transaction pooler 越し simple protocol で
+#     time.Time を渡すと timezone の丸めで 1 日ずれるため）。
+#   - 隠すのは archived_at（NULL が現役）。物理削除は入れ物の削除に伴う CASCADE だけ。
+#   - 参照先マスタ（ticket_statuses / ticket_types）への FK は ON DELETE NO ACTION
+#     （既存表と同じ。マスタは物理削除しない運用なので連鎖の起点にならない）。
+#   - 並び順は分数インデックス（fracindex）の text COLLATE "C"。DEFAULT は置かない。
+# =====================================================================
+
+# ticket_counters: スペースごとのチケット番号カウンタ。
+#
+# tickets.number の MAX+1 で採番すると同時作成が同じ番号を取り合い UNIQUE で片方が落ちる。
+# 採番と tickets への INSERT は必ず 1 文の CTE にまとめる（CreateTicket クエリ 1 本だけがこの表と
+# tickets の両方に書く）。VALUES に既定値 0 を使うと初回が 0 を返すので必ず 1 を渡す
+# （CHECK も > 0 を要求する）。番号は減らさず再利用しない。
+table "ticket_counters" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "space_id" {
+    null = false
+    type = uuid
+  }
+  # 直近に払い出した番号。DEFAULT は置かない（既定値 0 の行を先に作る経路を残さないため）。
+  column "last_number" {
+    null = false
+    type = bigint
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.workspace_id, column.space_id]
+  }
+  foreign_key "fk_ticket_counters_space" {
+    columns     = [column.workspace_id, column.space_id]
+    ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  check "ck_ticket_counters_last_number_positive" {
+    expr = "last_number > 0"
+  }
+}
+
+# ticket_statuses: スペースごとの状態。名前は自由、category は 3 枠（todo/in_progress/done）で
+# 固定（domain.TicketStatusCategory）。遷移規則の表は持たない（誰でもどの状態にも変えられる）。
+table "ticket_statuses" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "space_id" {
+    null = false
+    type = uuid
+  }
+  column "name" {
+    null = false
+    type = character_varying(50)
+  }
+  # FK / 索引の足場としてだけ使う生成列（テーブルの属性ではない）。冒頭の作法を参照。
+  column "name_lower" {
+    null = true
+    type = character_varying(50)
+    as {
+      expr = "lower((name)::text)"
+      type = STORED
+    }
+  }
+  column "category" {
+    null = false
+    type = character_varying(16)
+  }
+  column "color" {
+    null = false
+    type = character_varying(7)
+  }
+  column "position" {
+    null    = false
+    type    = text
+    collate = "C"
+  }
+  # 現役の中で 1 つだけ（下の部分 UNIQUE）。「0 個」は有効化 usecase の責務（DB は守れない）。
+  column "is_initial" {
+    null    = false
+    type    = boolean
+    default = false
+  }
+  column "archived_at" {
+    null = true
+    type = timestamptz
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  # tickets.status_id からの複合 FK の参照先。
+  unique "uq_ticket_statuses_workspace_space_id" {
+    columns = [column.workspace_id, column.space_id, column.id]
+  }
+  foreign_key "fk_ticket_statuses_space" {
+    columns     = [column.workspace_id, column.space_id]
+    ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_statuses_workspace_space" {
+    columns = [column.workspace_id, column.space_id]
+  }
+  index "uq_ticket_statuses_space_name" {
+    unique  = true
+    columns = [column.space_id, column.name_lower]
+    where   = "(archived_at IS NULL)"
+  }
+  index "uq_ticket_statuses_space_position" {
+    unique  = true
+    columns = [column.space_id, column.position]
+    where   = "(archived_at IS NULL)"
+  }
+  index "uq_ticket_statuses_space_initial" {
+    unique  = true
+    columns = [column.space_id]
+    where   = "(is_initial AND (archived_at IS NULL))"
+  }
+  check "ck_ticket_statuses_category" {
+    expr = "(category)::text = ANY (ARRAY[('todo'::character varying)::text, ('in_progress'::character varying)::text, ('done'::character varying)::text])"
+  }
+  check "ck_ticket_statuses_name_trimmed" {
+    expr = "((name)::text = btrim((name)::text)) AND ((name)::text <> ''::text)"
+  }
+  check "ck_ticket_statuses_color_hex" {
+    expr = "(color)::text ~ '^#[0-9a-f]{6}$'::text"
+  }
+  check "ck_ticket_statuses_position_not_empty" {
+    expr = "position <> ''::text"
+  }
+  check "ck_ticket_statuses_initial_active" {
+    expr = "NOT (is_initial AND (archived_at IS NOT NULL))"
+  }
+}
+
+# ticket_types: スペースごとの種別。hierarchy_level は階層の段（1=束ね/0=標準/-1=小作業）。
+# 親子規則（行をまたぐ）は CHECK では書けないので usecase が親チェーンを読んでから検査する。
+table "ticket_types" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "space_id" {
+    null = false
+    type = uuid
+  }
+  column "name" {
+    null = false
+    type = character_varying(50)
+  }
+  column "name_lower" {
+    null = true
+    type = character_varying(50)
+    as {
+      expr = "lower((name)::text)"
+      type = STORED
+    }
+  }
+  column "color" {
+    null = false
+    type = character_varying(7)
+  }
+  column "hierarchy_level" {
+    null    = false
+    type    = integer
+    default = 0
+  }
+  column "position" {
+    null    = false
+    type    = text
+    collate = "C"
+  }
+  column "is_default" {
+    null    = false
+    type    = boolean
+    default = false
+  }
+  # 雛形の題名・本文。NULL は「雛形なし」（空文字 / 空 doc は入れない）。
+  column "template_title" {
+    null = true
+    type = character_varying(200)
+  }
+  column "template_doc" {
+    null = true
+    type = jsonb
+  }
+  column "archived_at" {
+    null = true
+    type = timestamptz
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  unique "uq_ticket_types_workspace_space_id" {
+    columns = [column.workspace_id, column.space_id, column.id]
+  }
+  foreign_key "fk_ticket_types_space" {
+    columns     = [column.workspace_id, column.space_id]
+    ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_types_workspace_space" {
+    columns = [column.workspace_id, column.space_id]
+  }
+  index "uq_ticket_types_space_name" {
+    unique  = true
+    columns = [column.space_id, column.name_lower]
+    where   = "(archived_at IS NULL)"
+  }
+  index "uq_ticket_types_space_position" {
+    unique  = true
+    columns = [column.space_id, column.position]
+    where   = "(archived_at IS NULL)"
+  }
+  index "uq_ticket_types_space_default" {
+    unique  = true
+    columns = [column.space_id]
+    where   = "(is_default AND (archived_at IS NULL))"
+  }
+  check "ck_ticket_types_hierarchy_level" {
+    expr = "(hierarchy_level >= '-1'::integer) AND (hierarchy_level <= 1)"
+  }
+  check "ck_ticket_types_name_trimmed" {
+    expr = "((name)::text = btrim((name)::text)) AND ((name)::text <> ''::text)"
+  }
+  check "ck_ticket_types_color_hex" {
+    expr = "(color)::text ~ '^#[0-9a-f]{6}$'::text"
+  }
+  check "ck_ticket_types_position_not_empty" {
+    expr = "position <> ''::text"
+  }
+  check "ck_ticket_types_template_title_not_blank" {
+    expr = "(template_title IS NULL) OR (btrim((template_title)::text) <> ''::text)"
+  }
+  check "ck_ticket_types_template_doc" {
+    expr = "(template_doc IS NULL) OR ((jsonb_typeof(template_doc) = 'object'::text) AND ((template_doc ->> 'type'::text) = 'doc'::text))"
+  }
+  check "ck_ticket_types_default_active" {
+    expr = "NOT (is_default AND (archived_at IS NOT NULL))"
+  }
+}
+
+# tickets: チケット本体。表示キー（FRESTYLE-12）は保存しない派生値
+# （domain.FormatTicketKey が upper(spaces.key) || '-' || number を Go 側で組み立てる）。
+# 本文は ProseMirror doc の jsonb を NOT NULL で持つ（blocks には分解しない）。
+# closed_at / resolution は状態変更 usecase が category から必ず導く（引数から直接受けない）。
+table "tickets" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "space_id" {
+    null = false
+    type = uuid
+  }
+  column "number" {
+    null = false
+    type = bigint
+  }
+  column "type_id" {
+    null = false
+    type = uuid
+  }
+  column "status_id" {
+    null = false
+    type = uuid
+  }
+  column "parent_id" {
+    null = true
+    type = uuid
+  }
+  column "title" {
+    null = false
+    type = character_varying(200)
+  }
+  column "doc" {
+    null = false
+    type = jsonb
+  }
+  # pageRef / ticketRef の属性を含まない検索用の写し（本文保存のたびに作り直す派生値）。
+  column "plain_text" {
+    null    = false
+    type    = text
+    default = ""
+  }
+  # 1=高 / 2=中 / 3=低。既定は中（domain.TicketPriorityDefault）。
+  column "priority" {
+    null    = false
+    type    = integer
+    default = 2
+  }
+  # Go 側で 'YYYY-MM-DD' 文字列として運ぶ（sqlc.yaml の date override。冒頭の作法参照）。
+  column "start_date" {
+    null = true
+    type = date
+  }
+  column "due_date" {
+    null = true
+    type = date
+  }
+  column "position" {
+    null    = false
+    type    = text
+    collate = "C"
+  }
+  column "closed_at" {
+    null = true
+    type = timestamptz
+  }
+  column "resolution" {
+    null = true
+    type = character_varying(20)
+  }
+  # 報告者（users.id）。FK は張らない（pages.created_by_user_id と同じ扱い）。
+  column "created_by_user_id" {
+    null = false
+    type = bigint
+  }
+  column "archived_at" {
+    null = true
+    type = timestamptz
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  # コメント・履歴・ウォッチ・リンク・担当（ワークスペース横断で参照する子表）の足場。
+  unique "uq_tickets_workspace_id" {
+    columns = [column.workspace_id, column.id]
+  }
+  # 親子（同一スペース内でしか参照できない子表）の足場。
+  unique "uq_tickets_workspace_space_id" {
+    columns = [column.workspace_id, column.space_id, column.id]
+  }
+  # 番号はスペース内で一意。表示キーが 1 件を指すことをここで保証する。
+  unique "uq_tickets_space_number" {
+    columns = [column.workspace_id, column.space_id, column.number]
+  }
+  foreign_key "fk_tickets_space" {
+    columns     = [column.workspace_id, column.space_id]
+    ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_tickets_type" {
+    columns     = [column.workspace_id, column.space_id, column.type_id]
+    ref_columns = [table.ticket_types.column.workspace_id, table.ticket_types.column.space_id, table.ticket_types.column.id]
+    on_update   = NO_ACTION
+    on_delete   = NO_ACTION
+  }
+  foreign_key "fk_tickets_status" {
+    columns     = [column.workspace_id, column.space_id, column.status_id]
+    ref_columns = [table.ticket_statuses.column.workspace_id, table.ticket_statuses.column.space_id, table.ticket_statuses.column.id]
+    on_update   = NO_ACTION
+    on_delete   = NO_ACTION
+  }
+  # 親は同じスペースのチケットに限る。親が消えれば子も消える（入れ物の削除に伴う場合だけ。
+  # 通常運用の削除は無くアーカイブで隠す）。
+  foreign_key "fk_tickets_parent" {
+    columns     = [column.workspace_id, column.space_id, column.parent_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.space_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 現役のチケットで順位が重複しない。
+  index "uq_tickets_space_position" {
+    unique  = true
+    columns = [column.space_id, column.position]
+    where   = "(archived_at IS NULL)"
+  }
+  index "idx_tickets_space_status" {
+    columns = [column.workspace_id, column.space_id, column.status_id]
+  }
+  index "idx_tickets_space_type" {
+    columns = [column.workspace_id, column.space_id, column.type_id]
+  }
+  index "idx_tickets_parent_id" {
+    columns = [column.parent_id]
+  }
+  index "idx_tickets_archived_at" {
+    columns = [column.archived_at]
+  }
+  check "ck_tickets_number_positive" {
+    expr = "number > 0"
+  }
+  check "ck_tickets_title_not_blank" {
+    expr = "btrim((title)::text) <> ''::text"
+  }
+  check "ck_tickets_doc" {
+    expr = "(jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)"
+  }
+  check "ck_tickets_priority" {
+    expr = "priority = ANY (ARRAY[1, 2, 3])"
+  }
+  check "ck_tickets_position_not_empty" {
+    expr = "position <> ''::text"
+  }
+  check "ck_tickets_parent_not_self" {
+    expr = "(parent_id IS NULL) OR (parent_id <> id)"
+  }
+  check "ck_tickets_dates_ordered" {
+    expr = "(start_date IS NULL) OR (due_date IS NULL) OR (start_date <= due_date)"
+  }
+  check "ck_tickets_resolution" {
+    expr = "(resolution IS NULL) OR ((resolution)::text = ANY (ARRAY[('done'::character varying)::text, ('wont_do'::character varying)::text, ('invalid'::character varying)::text, ('duplicate'::character varying)::text, ('cannot_reproduce'::character varying)::text]))"
+  }
+  check "ck_tickets_closed_pair" {
+    expr = "(closed_at IS NULL) = (resolution IS NULL)"
+  }
+}
+
+# ticket_assignments: 担当者（1 人）。principals への複合 FK で所属に縛る
+# （別ワークスペースの人を担当にでき、その人の通知一覧に題名が届く穴を実測して塞いだ判断）。
+table "ticket_assignments" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "assignee_principal_id" {
+    null = false
+    type = uuid
+  }
+  # FK の足場（定数の生成列）。principal_members.group_kind と同じ作法。
+  column "assignee_kind" {
+    null = true
+    type = character_varying(16)
+    as {
+      expr = "'user'::character varying"
+      type = STORED
+    }
+  }
+  column "assigned_by_user_id" {
+    null = false
+    type = bigint
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.ticket_id]
+  }
+  foreign_key "fk_ticket_assignments_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_assignments_principal" {
+    columns     = [column.workspace_id, column.assignee_kind, column.assignee_principal_id]
+    ref_columns = [table.principals.column.workspace_id, table.principals.column.kind, table.principals.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_assignments_principal" {
+    columns = [column.workspace_id, column.assignee_principal_id]
+  }
+}
+
+# ticket_change_groups / ticket_change_items: 変更履歴。1 回の保存 = 1 グループ、項目ごとに 1 行。
+# 表示名を焼き込むのは、状態や種別が後で改名・アーカイブされても履歴をそのまま読むため。
+table "ticket_change_groups" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "actor_user_id" {
+    null = false
+    type = bigint
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  unique "uq_ticket_change_groups_workspace_id" {
+    columns = [column.workspace_id, column.id]
+  }
+  foreign_key "fk_ticket_change_groups_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_change_groups_ticket_created" {
+    columns = [column.ticket_id, column.created_at]
+  }
+}
+
+table "ticket_change_items" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "group_id" {
+    null = false
+    type = uuid
+  }
+  # 値の正本は domain.TicketChangeField。段 3・段 4 の値も最初から列挙する
+  # （段ごとに CHECK を DROP + ADD し直さないための判断）。
+  column "field" {
+    null = false
+    type = character_varying(32)
+  }
+  column "old_value" {
+    null = true
+    type = text
+  }
+  column "new_value" {
+    null = true
+    type = text
+  }
+  column "old_label" {
+    null = true
+    type = text
+  }
+  column "new_label" {
+    null = true
+    type = text
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  foreign_key "fk_ticket_change_items_group" {
+    columns     = [column.workspace_id, column.group_id]
+    ref_columns = [table.ticket_change_groups.column.workspace_id, table.ticket_change_groups.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_change_items_group_id" {
+    columns = [column.group_id]
+  }
+  check "ck_ticket_change_items_field" {
+    expr = "(field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text])"
+  }
+  check "ck_ticket_change_items_changed" {
+    expr = "(old_value IS DISTINCT FROM new_value) OR (old_label IS DISTINCT FROM new_label) OR ((field)::text = 'doc'::text)"
+  }
+}
+
+# ticket_page_links / ticket_ticket_links: 本文からの参照（派生表）。本文保存のたびに
+# usecase が作り直す（正本は tickets.doc、この表は壊れても本文から再生成できる索引）。
+table "ticket_page_links" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "source_ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "target_page_id" {
+    null = false
+    type = uuid
+  }
+  primary_key {
+    columns = [column.source_ticket_id, column.target_page_id]
+  }
+  foreign_key "fk_ticket_page_links_source" {
+    columns     = [column.workspace_id, column.source_ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_page_links_target" {
+    columns     = [column.workspace_id, column.target_page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_page_links_target" {
+    columns = [column.target_page_id]
+  }
+}
+
+table "ticket_ticket_links" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "source_ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "target_ticket_id" {
+    null = false
+    type = uuid
+  }
+  primary_key {
+    columns = [column.source_ticket_id, column.target_ticket_id]
+  }
+  foreign_key "fk_ticket_ticket_links_source" {
+    columns     = [column.workspace_id, column.source_ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_ticket_links_target" {
+    columns     = [column.workspace_id, column.target_ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_ticket_links_target" {
+    columns = [column.target_ticket_id]
+  }
+  check "ck_ticket_ticket_links_not_self" {
+    expr = "source_ticket_id <> target_ticket_id"
+  }
+}

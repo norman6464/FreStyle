@@ -64,6 +64,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	registerSocialRoutes(authed, deps)
 	registerEmbedRoutes(authed)
 	registerKnowledgeBaseRoutes(authed, deps)
+	registerTicketRoutes(authed, deps)
 	return r
 }
 

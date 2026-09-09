@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * 本番 (playwright.config.ts) とは別系統。`vite preview` で配信したビルド済み SPA に対し、
  * Playwright の route 機能で `/api/v2/**` をモックして「認証付き導線・主要画面」を検証する。
- * 本番 Cognito / 本番 DB に一切触れないため、CI で安全に毎回回せる。
+ * 本番の認証基盤 / 本番 DB に一切触れないため、CI で安全に毎回回せる。
  *
  * 重要: ビルドは VITE_API_BASE_URL='' （同一オリジン相対 /api/v2/*）で行う。index.html の
  * CSP connect-src 'self' に収め、Playwright route がモックを差し込めるようにするため。

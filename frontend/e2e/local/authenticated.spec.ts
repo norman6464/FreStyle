@@ -4,7 +4,7 @@ import { mockAuthenticated } from './authMock';
 /**
  * ローカルビルド + API モックによる「認証付き導線・主要画面」E2E。
  *
- * 本番 Cognito / DB に触れず、`/api/v2/**` を Playwright route でモックして
+ * 本番の認証基盤 / DB に触れず、`/api/v2/**` を Playwright route でモックして
  * 認証ガード (AuthInitializer → Protected) と主要画面の描画を検証する。
  *
  * 認証は AuthInitializer が見る発行者のクライアント側状態（ここでは Dex の

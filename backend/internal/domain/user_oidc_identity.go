@@ -17,11 +17,15 @@ type UserOidcIdentity struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// OidcProviderCognito は user_oidc_identities.provider に入れる鍵。
+// OidcProviderDefault は user_oidc_identities.provider に入れる既定の鍵。
 //
-// **値が "cognito" のままなのは歴史的な理由で、いま使っている発行者を指してはいない。**
-// これは DB に保存済みの値なので、変えると既存行の書き換え（データ移行）になる。
-// 発行者を切り替えたときに一緒に変えなかったのは、移行のタイミングと
-// 本番データの扱いが別の判断だから。名前を先に変えて値だけ残すと、
-// 「どちらが正か」が読めなくなるので、両方まとめて直すまでこのままにする。
-const OidcProviderCognito = "cognito"
+// **特定の発行者を指す値ではない。** 本番は GCIP、ローカルは Dex と、稼働する発行者は
+// デプロイ先ごとに 1 つに決まる（infra/oidc.Verifier が発行者非依存に作られている理由と同じ）。
+// アプリはどの発行者かを問わず、この 1 つの鍵で識別 subject を突き合わせる。
+//
+// 以前は撤去済みの旧発行者を指す名前・値のまま残っていた（発行者を切り替えたときに
+// 値まで変えると既存行の書き換え＝データ移行になり、名前だけ先に変えると
+// 「どちらが正か」が読めなくなるため、両方まとめて直すまで意図的に据え置いていた）。
+// 2026-09-09、本番データを全削除し user_oidc_identities が 0 件になったタイミングで
+// 名前と値を一緒に直した。
+const OidcProviderDefault = "oidc"

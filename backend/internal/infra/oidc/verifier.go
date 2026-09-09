@@ -2,7 +2,7 @@
 // handler 層はこのパッケージだけに依存し、JWKS の取得や JWT の分解といった
 // 低レベルな詳細を知らない。
 //
-// 特定の発行者（Cognito など）の名前はここに現れない。設定で渡された
+// 特定の発行者の名前はここに現れない。設定で渡された
 // issuer と JWKS の URL だけを見る。発行者ごとの癖を推測で埋めると、
 // 発行者を替えたときに黙って壊れる。
 package oidc
@@ -68,7 +68,7 @@ var (
 
 // Config は Verifier に必要な設定。**どれも空にできない。**
 //
-// 以前は issuer を JWKS の URL から文字列で削って作っていた。Cognito の
+// 以前は issuer を JWKS の URL から文字列で削って作っていた。ある発行者の
 // `<issuer>/.well-known/jwks.json` という形に依存した推測で、鍵の置き場所が
 // 別の形の発行者（例えば `<issuer>/oauth/v2/keys`）に向けると、削るものが無いので
 // issuer が JWKS の URL のままになり、iss の照合が必ず外れる。

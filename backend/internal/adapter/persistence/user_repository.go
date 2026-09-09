@@ -56,9 +56,9 @@ func toDomainUser(row userRow) *domain.User {
 	return u
 }
 
-func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error) {
+func (r *userRepository) FindByOidcSubject(ctx context.Context, sub string) (*domain.User, error) {
 	q := r.queries(ctx)
-	row, err := q.GetUserByCognitoSub(ctx, sub)
+	row, err := q.GetUserByOidcSubject(ctx, sub)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -97,13 +97,13 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	return u, nil
 }
 
-func (r *userRepository) CognitoSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
+func (r *userRepository) OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
 	id64, ok := toInt64ID(userID)
 	if !ok {
 		return "", nil
 	}
 	q := r.queries(ctx)
-	subject, err := q.GetCognitoSubjectByUserID(ctx, id64)
+	subject, err := q.GetOidcSubjectByUserID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
@@ -246,7 +246,7 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 	return nil
 }
 
-// SoftDelete はユーザーを論理削除する（deleted_at = now()）。以後 FindByCognitoSub 等で除外され、
+// SoftDelete はユーザーを論理削除する（deleted_at = now()）。以後 FindByOidcSubject 等で除外され、
 // 認証時にも弾かれる。既に削除済み / 存在しない場合は domain.ErrNotFound を返す。
 // OIDC identity も削除して subject の占有を解く（同じ OIDC アカウントの再招待を可能にする。
 // ここで消し損ねても起動時バックフィルの掃除が自己修復する）。

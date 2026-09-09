@@ -1,10 +1,10 @@
--- name: GetUserByCognitoSub :one
+-- name: GetUserByOidcSubject :one
 SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.deleted_at IS NULL
   AND u.id IN (
     SELECT oi.user_id FROM user_oidc_identities oi
-    WHERE oi.provider = 'cognito' AND oi.subject = $1
+    WHERE oi.provider = 'oidc' AND oi.subject = $1
   );
 
 -- name: GetUserByID :one
@@ -36,11 +36,11 @@ FROM users u
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::text, E'\t\n\x0B\f\r '))
   AND btrim(u.email, E'\t\n\x0B\f\r ') <> '' AND u.deleted_at IS NULL AND u.is_active;
 
--- name: GetCognitoSubjectByUserID :one
+-- name: GetOidcSubjectByUserID :one
 -- ユーザーの OIDC subject を引く。
 -- (user_id, provider) は uq_user_oidc_user_provider で一意（最大 1 行）。
 SELECT subject FROM user_oidc_identities
-WHERE user_id = $1 AND provider = 'cognito';
+WHERE user_id = $1 AND provider = 'oidc';
 
 -- name: InsertUser :one
 -- ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が

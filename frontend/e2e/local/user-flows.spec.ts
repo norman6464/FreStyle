@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 /**
  * ローカルビルド + API モックによる「主要ユーザーフロー」E2E。
  *
- * authenticated.spec.ts（認証ガード/画面到達）を補完する。本番 Cognito / DB には触れない。
+ * authenticated.spec.ts（認証ガード/画面到達）を補完する。本番の認証基盤 / DB には触れない。
  */
 
 test.describe('ログイン画面', () => {

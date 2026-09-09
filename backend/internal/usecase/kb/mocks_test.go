@@ -19,7 +19,7 @@ type mockUserRepo struct{ mock.Mock }
 
 var _ repository.UserRepository = (*mockUserRepo)(nil)
 
-func (m *mockUserRepo) FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error) {
+func (m *mockUserRepo) FindByOidcSubject(ctx context.Context, sub string) (*domain.User, error) {
 	args := m.Called(ctx, sub)
 	u, _ := args.Get(0).(*domain.User)
 	return u, args.Error(1)
@@ -47,7 +47,7 @@ func (m *mockUserRepo) FindActiveByEmail(ctx context.Context, email string) (*do
 	return u, args.Error(1)
 }
 
-func (m *mockUserRepo) CognitoSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
+func (m *mockUserRepo) OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
 	args := m.Called(ctx, userID)
 	return args.String(0), args.Error(1)
 }

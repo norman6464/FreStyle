@@ -14,7 +14,7 @@ const (
 	ContextKeyCurrentUser = "currentUser"
 )
 
-// CurrentUser は cognito sub から users 行を引いて currentUserID / currentUser を context にセットする。
+// CurrentUser は OIDC の subject から users 行を引いて currentUserID / currentUser を context にセットする。
 // 併せて、所属ワークスペースが停止されている場合はその全員を弾く（即時に利用不可）。
 func CurrentUser(users repository.UserRepository, workspaces repository.WorkspaceActivationReader) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -28,7 +28,7 @@ func CurrentUser(users repository.UserRepository, workspaces repository.Workspac
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_sub"})
 			return
 		}
-		user, err := users.FindByCognitoSub(c.Request.Context(), sub)
+		user, err := users.FindByOidcSubject(c.Request.Context(), sub)
 		if err != nil {
 			// repo / DB エラーは認証問題ではなくサーバ側障害なので 500。
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "user_lookup_failed"})

@@ -10,7 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// GetCurrentUserUseCase は Cognito sub から現在のユーザー情報を引く。
+// GetCurrentUserUseCase は OIDC の subject から現在のユーザー情報を引く。
 type GetCurrentUserUseCase struct {
 	users repository.UserRepository
 }
@@ -19,15 +19,15 @@ func NewGetCurrentUserUseCase(users repository.UserRepository) *GetCurrentUserUs
 	return &GetCurrentUserUseCase{users: users}
 }
 
-func (u *GetCurrentUserUseCase) Execute(ctx context.Context, cognitoSub string) (*domain.User, error) {
-	return u.users.FindByCognitoSub(ctx, cognitoSub)
+func (u *GetCurrentUserUseCase) Execute(ctx context.Context, subject string) (*domain.User, error) {
+	return u.users.FindByOidcSubject(ctx, subject)
 }
 
 // UpsertUserFromIDTokenInput はIDトークンから取得したユーザー情報を表す。
 type UpsertUserFromIDTokenInput struct {
-	CognitoSub string
-	Email      string
-	Name       string
+	Subject string
+	Email   string
+	Name    string
 }
 
 // UpsertUserFromIDTokenUseCase は認証済みユーザーの作成・更新を行う。
@@ -71,7 +71,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		return nil, errors.New("user repository not configured")
 	}
 
-	sub := in.CognitoSub
+	sub := in.Subject
 	if sub == "" {
 		return nil, errors.New("id_token missing sub")
 	}
@@ -82,10 +82,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	email := domain.NormalizeEmail(in.Email)
 	oidcName := in.Name
 
-	existing, findErr := u.users.FindByCognitoSub(ctx, sub)
+	existing, findErr := u.users.FindByOidcSubject(ctx, sub)
 	if findErr != nil {
 		return nil, fmt.Errorf(
-			"find user by cognito sub: %w",
+			"find user by oidc subject: %w",
 			findErr,
 		)
 	}
@@ -97,10 +97,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			}
 			existing.Name = oidcName
 		}
-		// user_oidc_identities への冪等な保険。FindByCognitoSub は identity を突き合わせ条件に
+		// user_oidc_identities への冪等な保険。FindByOidcSubject は identity を突き合わせ条件に
 		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
 		// おく（失敗してもログイン自体は成立しているため致命扱いにしない）。
-		if err := u.oidcIdentities.EnsureIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
+		if err := u.oidcIdentities.EnsureIdentity(ctx, existing.ID, domain.OidcProviderDefault, sub); err != nil {
 			slog.WarnContext(ctx, "ensure oidc identity failed (self-heal, non-fatal)", "userID", existing.ID, "err", err)
 		}
 		return existing, nil
@@ -109,7 +109,7 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	slog.InfoContext(
 		ctx,
 		"self signup: creating a new user",
-		"cognitoSub", sub,
+		"subject", sub,
 		"email", email,
 	)
 
@@ -130,13 +130,13 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		if err := u.users.Create(ctx, user); err != nil {
 			return err
 		}
-		return u.oidcIdentities.EnsureIdentity(ctx, user.ID, domain.OidcProviderCognito, sub)
+		return u.oidcIdentities.EnsureIdentity(ctx, user.ID, domain.OidcProviderDefault, sub)
 	}); err != nil {
 		if errors.Is(err, repository.ErrEmailTaken) {
 			// 同じ email で同時にサインアップが競合した（同一人物の二重送信など）。
 			// 別の sub で先に確定しているだけなので、呼び出し元が区別できるよう
 			// ErrEmailTaken をそのまま返す。
-			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup", "cognitoSub", sub, "email", email)
+			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup", "subject", sub, "email", email)
 			return nil, repository.ErrEmailTaken
 		}
 		return nil, fmt.Errorf("create user with oidc identity: %w", err)

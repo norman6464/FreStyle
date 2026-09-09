@@ -151,11 +151,11 @@ VALUES (
 --
 -- bulk の seed1..N@example.test には Dex 側に対応する staticPasswords が無く、実際には
 -- 誰もログインしない(実行計画の比較用にダミーデータの量を作るためだけに存在する)ので、
--- subject はダミー文字列のままでよい。provider は "cognito" 固定
--- (domain.OidcProviderCognito。歴史的な名残りで実際の発行者を指す値ではないが、
--- FindByCognitoSub 等がこの文字列で照合するため、発行者を Dex に変えても値は変えない)。
+-- subject はダミー文字列のままでよい。provider は "oidc" 固定
+-- (domain.OidcProviderDefault。特定の発行者を指さない既定の鍵なので、
+-- 発行者を Dex に変えてもこの値は変えない)。
 INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
-SELECT 1000000 + i, 'cognito', 'seed-sub-' || i, now(), now()
+SELECT 1000000 + i, 'oidc', 'seed-sub-' || i, now(), now()
 FROM generate_series(1, :n_users) AS i;
 
 -- 運営管理者(id 1000000)は実際に Dex でログインするため、Dex が本当に発行する sub と
@@ -180,7 +180,7 @@ FROM generate_series(1, :n_users) AS i;
 INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 SELECT
   1000000,
-  'cognito',
+  'oidc',
   rtrim(translate(encode(
     '\x0a'::bytea || set_byte('\x00'::bytea, 0, octet_length(u)) || convert_to(u, 'UTF8') ||
     '\x12'::bytea || set_byte('\x00'::bytea, 0, octet_length('local')) || convert_to('local', 'UTF8'),

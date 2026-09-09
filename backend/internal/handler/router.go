@@ -74,7 +74,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 //
 // 以前はここに「JWKS が無く APP_ENV が local なら署名検証をしない」経路と、
 // ローカル専用のパスワードログインが発行するトークンを受ける経路があった。
-// どちらも Cognito を通さずに手元を動かすためのもので、Cognito をやめた今は
+// どちらも発行者を通さずに手元を動かすためのもので、その必要が無くなった今は
 // 用が無い。逃げ道を残すと、設定を書き忘れた環境が「認証が効いているように
 // 見えて実は素通し」という一番気づけない壊れ方をする。
 func buildJWTVerify(v *oidc.Verifier) middleware.VerifyFunc {

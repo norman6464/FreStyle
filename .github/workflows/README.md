@@ -56,8 +56,8 @@ infra リポの Terraform が管理する。
 >
 > **廃止済み Secrets**（認証情報ではない / 参照されない）:
 > `AWS_ECR_API_SERVER_REPOSITORY`（ECR リポジトリ名。`cd-backend.yml` の Cloud Run 化で不要になった）、
-> `IAC_REPO`、`COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。Cloud Run の
-> env / secrets は infra リポの Terraform が持つ）。GitHub Secrets 側に残っていても参照されない。
+> `IAC_REPO`、および旧認証基盤の CFn parameter-overrides 用に使っていた `*_CLIENT_ID` 系の secrets
+> （Cloud Run の env / secrets は infra リポの Terraform が持つ）。GitHub Secrets 側に残っていても参照されない。
 
 ### Secrets 一覧確認
 

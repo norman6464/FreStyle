@@ -38,7 +38,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		t.Helper()
 		u := &domain.User{Email: email, Name: email}
 		require.NoError(t, repo.Create(ctx, u))
-		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, sub))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderDefault, sub))
 		require.NotZero(t, u.ID, "作成後は採番された id が書き戻る")
 		require.False(t, u.CreatedAt.IsZero(), "作成後は created_at が書き戻る")
 		require.False(t, u.UpdatedAt.IsZero(), "作成後は updated_at が書き戻る")
@@ -89,7 +89,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
 		require.Nil(t, got, "論理削除後は引けない")
-		bySub, err := repo.FindByCognitoSub(ctx, "bye-1")
+		bySub, err := repo.FindByOidcSubject(ctx, "bye-1")
 		require.NoError(t, err)
 		require.Nil(t, bySub)
 		var n int64
@@ -123,7 +123,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		other := &domain.User{Email: "m3@example.com", Name: "m3", WorkspaceID: &ws2}
 		for _, u := range []*domain.User{a, b, other} {
 			require.NoError(t, repo.Create(ctx, u))
-			require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderCognito, u.Name))
+			require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderDefault, u.Name))
 		}
 
 		rows, err := repo.ListByWorkspaceID(ctx, ws1)
@@ -150,15 +150,15 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.Empty(t, invalid)
 	})
 
-	t.Run("CognitoSubjectByUserID は subject を返し、無ければ空文字", func(t *testing.T) {
+	t.Run("OidcSubjectByUserID は subject を返し、無ければ空文字", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "sub@example.com", "sub-1")
 
-		got, err := repo.CognitoSubjectByUserID(ctx, u.ID)
+		got, err := repo.OidcSubjectByUserID(ctx, u.ID)
 		require.NoError(t, err)
 		require.Equal(t, "sub-1", got)
 
-		got, err = repo.CognitoSubjectByUserID(ctx, 999999)
+		got, err = repo.OidcSubjectByUserID(ctx, 999999)
 		require.NoError(t, err)
 		require.Empty(t, got)
 	})
@@ -169,14 +169,14 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		other := newTrainee(t, "other@example.com", "other-subject")
 
 		// 自分の subject を張り直しても冪等に成功する。
-		require.NoError(t, oidcRepo.EnsureIdentity(ctx, owner.ID, domain.OidcProviderCognito, "shared-subject"))
+		require.NoError(t, oidcRepo.EnsureIdentity(ctx, owner.ID, domain.OidcProviderDefault, "shared-subject"))
 
 		// 他人が持つ subject を要求したら黙って成功にせずエラー。
-		err := oidcRepo.EnsureIdentity(ctx, other.ID, domain.OidcProviderCognito, "shared-subject")
+		err := oidcRepo.EnsureIdentity(ctx, other.ID, domain.OidcProviderDefault, "shared-subject")
 		require.ErrorContains(t, err, "oidc identity conflict")
 
 		// 持ち主は変わっていない。
-		got, err := repo.FindByCognitoSub(ctx, "shared-subject")
+		got, err := repo.FindByOidcSubject(ctx, "shared-subject")
 		require.NoError(t, err)
 		require.Equal(t, owner.ID, got.ID)
 	})

@@ -94,7 +94,7 @@ pnpm run e2e:local    # ローカルビルド + API モックの認証導線 E2E
 
 - **単体**: 依存を interface で差し替え（**手書き fake が基本**・状態 / 戻り値を検証。`testify/mock` は相互作用が仕様のときだけ）
 - **結合**: handler（httptest で本物の Gin ルータ）/ repository（`//go:build integration` で本物の Postgres）
-- **E2E**: 本番スモーク + ローカルモック（`/auth/me` のレスポンスで認証状態を制御。本番 Cognito/DB に触れない）
+- **E2E**: 本番スモーク + ローカルモック（`/auth/me` のレスポンスで認証状態を制御。本番の認証基盤/DB に触れない）
 - **カバレッジゲート**: frontend は閾値（lines 85 等）、backend は総計 floor（`COVERAGE_MIN`）を下回ると CI が落ちる。テスト追加に合わせて floor を引き上げる
 
 **テストの哲学は古典学派（Classicist / Detroit）**を採用する。本物を使えるところは本物（実 DB・実ルータ）、扱いにくい依存だけ手書き fake に差し替え、検証は状態 / 出力。`testify/mock`（相互作用検証）は「呼ばれたこと自体が仕様」のときだけ。詳細は [トップ README のテスト節](./README.md) と `IaC リポ/docs/25` / `26`。
@@ -115,7 +115,7 @@ PR では次が走る（詳細は `IaC リポ/docs/23` / `24`）:
 
 ## 6. シークレット / セキュリティ
 
-秘密情報（AWS キー / `COGNITO_CLIENT_SECRET` / DB パスワード / トークン等）は `.env`（gitignore 済）か AWS Secrets Manager に置き、**コード・docs に直書きしない**。
+秘密情報（クラウドの API キー / DB パスワード / トークン等）は `.env`（gitignore 済）か Secrets Manager に置き、**コード・docs に直書きしない**。
 
 漏洩対策は多層防御:
 

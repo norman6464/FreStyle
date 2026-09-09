@@ -11,10 +11,10 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// stubUsers は UserRepository の最小 stub。FindByCognitoSub だけ返す。
+// stubUsers は UserRepository の最小 stub。FindByOidcSubject だけ返す。
 type stubUsers struct{ user *domain.User }
 
-func (s *stubUsers) FindByCognitoSub(context.Context, string) (*domain.User, error) {
+func (s *stubUsers) FindByOidcSubject(context.Context, string) (*domain.User, error) {
 	return s.user, nil
 }
 
@@ -28,11 +28,11 @@ func (s *stubUsers) Create(context.Context, *domain.User) error { return nil }
 
 func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error) { return nil, nil }
 
-func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
-func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }
-func (s *stubUsers) UpdateWorkspaceID(context.Context, uint64, *string) error       { return nil }
-func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error               { return nil }
-func (s *stubUsers) SoftDelete(context.Context, uint64) error                       { return nil }
+func (s *stubUsers) OidcSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
+func (s *stubUsers) UpdateName(context.Context, uint64, string) error            { return nil }
+func (s *stubUsers) UpdateWorkspaceID(context.Context, uint64, *string) error    { return nil }
+func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error            { return nil }
+func (s *stubUsers) SoftDelete(context.Context, uint64) error                    { return nil }
 
 // stubWorkspaces は WorkspaceActivationReader の最小 stub。workspace / err を返し、
 // 問い合わせに使われた workspace_id を記録する。

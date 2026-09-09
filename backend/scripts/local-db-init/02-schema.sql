@@ -513,7 +513,7 @@ CREATE UNIQUE INDEX "uq_tickets_space_position" ON "public"."tickets" ("space_id
 CREATE TABLE "public"."user_oidc_identities" (
   "id" bigserial NOT NULL,
   "user_id" bigint NOT NULL,
-  "provider" text NOT NULL DEFAULT 'cognito',
+  "provider" text NOT NULL DEFAULT 'oidc',
   "subject" text NOT NULL,
   "created_at" timestamptz NOT NULL,
   "updated_at" timestamptz NOT NULL,

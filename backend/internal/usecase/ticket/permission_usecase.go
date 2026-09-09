@@ -86,3 +86,41 @@ func (u *ResolveTicketKeyUseCase) Execute(ctx context.Context, in ResolveTicketK
 	}
 	return u.tickets.ResolveTicketIDByKey(ctx, in.WorkspaceID, spaceKey, number)
 }
+
+// ResolveTicketLocationUseCase は URL の /kb/tickets/{ticketId} から、そのチケットが
+// どのワークスペースに属するかを決める。
+//
+// テナントを確定する前の読み取りなので、**呼び出し側は返ったワークスペースで必ず
+// 権限判定を通してから応答に使うこと**（kb の ResolvePageLocationUseCase と同じ約束）。
+// チケットの ID は全テナントで一意な uuid なので、引くこと自体は越境にならない。
+type ResolveTicketLocationUseCase struct {
+	tickets    repository.TicketRepository
+	workspaces repository.KnowledgeBaseRepository
+}
+
+func NewResolveTicketLocationUseCase(
+	tickets repository.TicketRepository, workspaces repository.KnowledgeBaseRepository,
+) *ResolveTicketLocationUseCase {
+	return &ResolveTicketLocationUseCase{tickets: tickets, workspaces: workspaces}
+}
+
+// ResolveTicketLocationOutput は解決したワークスペース。画面は slug を受け取って
+// 以降の API 呼び出しに使う（URL にワークスペースを出さない既存の規則）。
+type ResolveTicketLocationOutput struct {
+	Workspace domain.Workspace
+}
+
+func (u *ResolveTicketLocationUseCase) Execute(ctx context.Context, ticketID string) (*ResolveTicketLocationOutput, error) {
+	if ticketID == "" {
+		return nil, repository.ErrTicketNotFound
+	}
+	workspaceID, err := u.tickets.FindTicketWorkspaceID(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	ws, err := u.workspaces.FindWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolveTicketLocationOutput{Workspace: *ws}, nil
+}

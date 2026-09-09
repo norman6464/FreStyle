@@ -377,6 +377,14 @@ func (f *ticketFakeRepo) FindTicketWithAssignee(ctx context.Context, workspaceID
 	return out, nil
 }
 
+func (f *ticketFakeRepo) FindTicketWorkspaceID(_ context.Context, ticketID string) (string, error) {
+	t, ok := f.tickets[ticketID]
+	if !ok {
+		return "", repository.ErrTicketNotFound
+	}
+	return t.WorkspaceID, nil
+}
+
 func (f *ticketFakeRepo) ResolveTicketIDByKey(_ context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	for _, t := range f.tickets {
 		if t.WorkspaceID != workspaceID || t.Number != number {

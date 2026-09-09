@@ -508,6 +508,29 @@ func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (GetTicket
 	return i, err
 }
 
+const getTicketAcrossWorkspaces = `-- name: GetTicketAcrossWorkspaces :one
+SELECT id, workspace_id, space_id FROM tickets
+WHERE id = $1
+`
+
+type GetTicketAcrossWorkspacesRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+// チケットを **ID だけ** で引く。/kb/tickets/{ticketId} の URL からワークスペースを
+// 特定するための、このファイルで唯一 workspace_id を WHERE に持たない読み取り
+// （knowledge_base.sql の GetPageAcrossWorkspaces と同じ役割・同じ作法）。
+// 引いた直後に必ずその workspace の権限判定を通すこと（判定なしで応答に使わない）。
+// id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない。
+func (q *Queries) GetTicketAcrossWorkspaces(ctx context.Context, id uuid.UUID) (GetTicketAcrossWorkspacesRow, error) {
+	row := q.db.QueryRowContext(ctx, getTicketAcrossWorkspaces, id)
+	var i GetTicketAcrossWorkspacesRow
+	err := row.Scan(&i.ID, &i.WorkspaceID, &i.SpaceID)
+	return i, err
+}
+
 const getTicketAssignment = `-- name: GetTicketAssignment :one
 SELECT workspace_id, ticket_id, assignee_principal_id, assignee_kind, assigned_by_user_id, created_at FROM ticket_assignments
 WHERE workspace_id = $1 AND ticket_id = $2

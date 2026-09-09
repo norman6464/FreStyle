@@ -756,6 +756,22 @@ func (r *ticketRepository) FindTicketWithAssignee(ctx context.Context, workspace
 // 防げない — スペース単位のアドバイザリロック等、単一行ロックより大きい仕組みが要る）。
 // クエリ自体は残し、後続で実際に配線する（段 1 の既知のギャップとして明記する）。
 
+// FindTicketWorkspaceID はチケットを ID だけで引く（詳細は port のコメント）。
+func (r *ticketRepository) FindTicketWorkspaceID(ctx context.Context, ticketID string) (string, error) {
+	tID, ok := kbParseID(ticketID)
+	if !ok {
+		return "", repository.ErrTicketNotFound
+	}
+	row, err := r.queries(ctx).GetTicketAcrossWorkspaces(ctx, tID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", repository.ErrTicketNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return row.WorkspaceID.String(), nil
+}
+
 func (r *ticketRepository) ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	wsID, ok := kbParseID(workspaceID)
 	if !ok {

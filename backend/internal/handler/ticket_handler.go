@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
@@ -28,6 +29,7 @@ type TicketHandler struct {
 	checkSpace    *kb.CheckSpacePermissionUseCase
 	checkTicket   *ticket.CheckTicketPermissionUseCase
 	resolveKey    *ticket.ResolveTicketKeyUseCase
+	resolveLoc    *ticket.ResolveTicketLocationUseCase
 	enable        *ticket.EnableTicketsForSpaceUseCase
 	create        *ticket.CreateTicketUseCase
 	get           *ticket.GetTicketUseCase
@@ -38,7 +40,7 @@ type TicketHandler struct {
 	archive       *ticket.ArchiveTicketUseCase
 	restore       *ticket.RestoreTicketUseCase
 	changeStat    *ticket.ChangeTicketStatusUseCase
-	changeParen   *ticket.ChangeTicketParentUseCase
+	changeParent  *ticket.ChangeTicketParentUseCase
 	assign        *ticket.AssignTicketUseCase
 	unassign      *ticket.UnassignTicketUseCase
 	history       *ticket.ListTicketHistoryUseCase
@@ -48,6 +50,7 @@ func NewTicketHandler(
 	checkSpace *kb.CheckSpacePermissionUseCase,
 	checkTicket *ticket.CheckTicketPermissionUseCase,
 	resolveKey *ticket.ResolveTicketKeyUseCase,
+	resolveLoc *ticket.ResolveTicketLocationUseCase,
 	enable *ticket.EnableTicketsForSpaceUseCase,
 	create *ticket.CreateTicketUseCase,
 	get *ticket.GetTicketUseCase,
@@ -65,10 +68,11 @@ func NewTicketHandler(
 ) *TicketHandler {
 	return &TicketHandler{
 		checkSpace: checkSpace, checkTicket: checkTicket, resolveKey: resolveKey,
-		enable: enable, create: create, get: get, getAssignment: getAssignment,
+		resolveLoc: resolveLoc,
+		enable:     enable, create: create, get: get, getAssignment: getAssignment,
 		list: list, update: update,
 		move: move, archive: archive, restore: restore, changeStat: changeStat,
-		changeParen: changeParent, assign: assign, unassign: unassign, history: history,
+		changeParent: changeParent, assign: assign, unassign: unassign, history: history,
 	}
 }
 
@@ -336,6 +340,63 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	})
 }
 
+// ticketResolvedResponse は slug 無しの解決の返却形。画面はこの workspaceSlug を
+// 受け取って以降の API 呼び出しに使う（URL にワークスペースを出さない既存の規則。
+// kb の kbResolvedPageResponse と同じ役割）。
+type ticketResolvedResponse struct {
+	WorkspaceSlug string         `json:"workspaceSlug"`
+	WorkspaceName string         `json:"workspaceName"`
+	Ticket        ticketResponse `json:"ticket"`
+	CanEdit       bool           `json:"canEdit"`
+}
+
+// ResolveByID はワークスペースの slug を URL に持たずにチケット 1 件を返す。
+//
+// 通知の導線・本文中の ticketRef の href・ブックマークからの再訪はワークスペースを
+// 知らないまま来るので、ID だけで開ける口がいる（kb の /kb/pages/:pageId と同じ）。
+// テナント確定前の読みなので、解決した workspace で**必ず**権限判定を通してから返す。
+func (h *TicketHandler) ResolveByID(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	ticketID := c.Param("ticketId")
+	loc, err := h.resolveLoc.Execute(c.Request.Context(), ticketID)
+	if err != nil {
+		// 実在しない ID も、この後の権限で伏せられる ID も、同じ経路の 404 に落ちる。
+		respondTicketErr(c, err)
+		return
+	}
+	perm, err := h.checkTicket.Execute(c.Request.Context(), ticket.CheckTicketPermissionInput{
+		WorkspaceID: loc.Workspace.ID, TicketID: ticketID, UserID: uid,
+	})
+	if err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	if !perm.CanView {
+		// 閲覧できない相手にはチケットの実在を教えない（存在しない ID と同じ応答）。
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+		return
+	}
+	found, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
+		WorkspaceID: loc.Workspace.ID, TicketID: ticketID,
+	})
+	if err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, ticketResolvedResponse{
+		WorkspaceSlug: loc.Workspace.Slug,
+		WorkspaceName: loc.Workspace.Name,
+		Ticket: ticketResponse{
+			Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
+		},
+		CanEdit: perm.CanEdit,
+	})
+}
+
 // ticketResponse はチケット 1 件の返却形。
 //
 // domain.Ticket をそのまま埋め込み（JSON は平らに出る）、別表にある担当だけを足す。
@@ -597,7 +658,7 @@ func (h *TicketHandler) ChangeParent(c *gin.Context) {
 		}
 		newParentID = &req.ParentID
 	}
-	t, err := h.changeParen.Execute(c.Request.Context(), ticket.ChangeTicketParentInput{
+	t, err := h.changeParent.Execute(c.Request.Context(), ticket.ChangeTicketParentInput{
 		WorkspaceID: scope.workspaceID, TicketID: ticketID,
 		NewParentID: newParentID, ActorUserID: scope.userID,
 	})

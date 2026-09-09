@@ -43,6 +43,7 @@ func registerTicketRoutesWith(
 		checkSpace,
 		ticket.NewCheckTicketPermissionUseCase(tickets, permissions),
 		ticket.NewResolveTicketKeyUseCase(tickets),
+		ticket.NewResolveTicketLocationUseCase(tickets, pages),
 		ticket.NewEnableTicketsForSpaceUseCase(tickets, txManager),
 		ticket.NewCreateTicketUseCase(tickets),
 		ticket.NewGetTicketUseCase(tickets),
@@ -76,6 +77,11 @@ func registerTicketRoutesWith(
 		ticket.NewArchiveTicketTypeUseCase(tickets),
 		ticket.NewRestoreTicketTypeUseCase(tickets),
 	)
+
+	// slug 無しの解決だけは middleware.KnowledgeBaseWorkspace を通さない
+	// （URL にワークスペースが無いので slug から確定できない。handler が ID から
+	// ワークスペースを解決し、その場で権限判定を通す。kb の /kb/pages/:pageId と同じ）。
+	g.GET("/kb/tickets/:ticketId", h.ResolveByID)
 
 	tkGroup := g.Group("", middleware.KnowledgeBaseWorkspace(
 		kb.NewResolveWorkspaceUseCase(pages, permissions, users),

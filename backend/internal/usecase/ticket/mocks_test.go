@@ -147,6 +147,11 @@ func (m *mockTicketRepo) FindTicketWithAssignee(ctx context.Context, workspaceID
 	return t, args.Error(1)
 }
 
+func (m *mockTicketRepo) FindTicketWorkspaceID(ctx context.Context, ticketID string) (string, error) {
+	args := m.Called(ctx, ticketID)
+	return args.String(0), args.Error(1)
+}
+
 func (m *mockTicketRepo) ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceKey, number)
 	return args.String(0), args.Error(1)

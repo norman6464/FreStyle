@@ -139,6 +139,11 @@ type TicketRepository interface {
 	FindTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error)
 	// FindTicketWithAssignee は詳細画面向けにチケット 1 件と担当を 1 回の問い合わせで返す。
 	FindTicketWithAssignee(ctx context.Context, workspaceID, ticketID string) (*TicketWithAssignee, error)
+	// FindTicketWorkspaceID はチケットを ID だけで引き、所属ワークスペースを返す
+	// （/kb/tickets/{ticketId} の URL からテナントを特定するための、workspace_id を
+	// WHERE に持たない唯一の読み取り。KnowledgeBaseRepository.FindPageByIDAcrossWorkspaces と
+	// 同じ役割で、引いた直後に必ずその workspace の権限判定を通す前提）。
+	FindTicketWorkspaceID(ctx context.Context, ticketID string) (string, error)
 	// ResolveTicketIDByKey は spaceKey（小文字）+ number から ticket_id を引く
 	// （domain.ParseTicketKey で分解した結果を渡す）。
 	ResolveTicketIDByKey(ctx context.Context, workspaceID, spaceKey string, number int64) (string, error)

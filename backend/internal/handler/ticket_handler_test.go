@@ -112,6 +112,36 @@ func Test_チケット取得_閲覧のみで200(t *testing.T) {
 	assert.Equal(t, "本文", got.Title)
 }
 
+// slug 無しの解決（/kb/tickets/:ticketId）は URL にワークスペースを持たない。
+// 通知の導線・本文中の ticketRef・ブックマークからの再訪がここを通るので、
+// ID だけで開けて、応答の workspaceSlug で以降の API を呼べることを固定する。
+func Test_チケットslug無し解決_workspaceSlugを返す(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	tk := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "解決される", Number: 1,
+	})
+
+	w := f.do(t, http.MethodGet, "/api/v2/kb/tickets/"+tk.ID, "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	got := decodeJSON[map[string]any](t, w)
+	assert.Equal(t, kbWorkspaceSlug, got["workspaceSlug"])
+	assert.Equal(t, true, got["canEdit"])
+	ticketObj, ok := got["ticket"].(map[string]any)
+	require.True(t, ok, "ticket が入れ子で返る")
+	assert.Equal(t, "解決される", ticketObj["title"])
+}
+
+func Test_チケットslug無し解決_閲覧できなければ404(t *testing.T) {
+	// メンバーではあるが、このスペースにどの役割も届いていない。
+	f := newTicketFixture(kbUserID, "")
+	tk := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "見えない",
+	})
+
+	w := f.do(t, http.MethodGet, "/api/v2/kb/tickets/"+tk.ID, "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 func Test_チケット取得_他ワークスペースのチケットは404(t *testing.T) {
 	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
 	other := f.tickets.addTicket(domain.Ticket{ID: "ticket-x", WorkspaceID: kbOtherWorkspaceID, SpaceID: "other-space", Title: "x"})

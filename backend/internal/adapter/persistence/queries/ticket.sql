@@ -390,3 +390,12 @@ WHERE workspace_id = $1 AND source_ticket_id = $2;
 -- name: ListTicketsReferencingTicket :many
 SELECT * FROM ticket_ticket_links
 WHERE workspace_id = $1 AND target_ticket_id = $2;
+
+-- name: GetTicketAcrossWorkspaces :one
+-- チケットを **ID だけ** で引く。/kb/tickets/{ticketId} の URL からワークスペースを
+-- 特定するための、このファイルで唯一 workspace_id を WHERE に持たない読み取り
+-- （knowledge_base.sql の GetPageAcrossWorkspaces と同じ役割・同じ作法）。
+-- 引いた直後に必ずその workspace の権限判定を通すこと（判定なしで応答に使わない）。
+-- id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない。
+SELECT id, workspace_id, space_id FROM tickets
+WHERE id = $1;

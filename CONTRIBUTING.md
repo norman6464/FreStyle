@@ -107,7 +107,7 @@ PR では次が走る（詳細は `IaC リポ/docs/23` / `24`）:
 
 - backend: **gofumpt(整形強制)** / vet / staticcheck / go mod tidy / **race + coverage(floor)** / govulncheck(advisory) / build / 結合テスト(Postgres)
 - frontend: tsc / ESLint(max-warnings=0) / **Vitest + coverage 閾値** / build
-- 全体: **CodeQL**（SAST）/ E2E（Playwright スモーク + ローカルモック）
+- 全体: E2E（Playwright スモーク + ローカルモック）
 
 本リポジトリに `docs/` フォルダは置かない（README はアプリケーションの説明に限定）。取り組んだ内容・手順は **Jira チケット**に残し、必要なら該当ディレクトリの README を更新する。設計・運用の詳細は private リポ（`frestyle-pdm` / `frestyle-infrastructure`）の `docs/` に置く。
 
@@ -153,6 +153,6 @@ gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle
 
 ## 8. マージ権限
 
-- `main` はブランチ保護下: **PR に承認 1 件 + CodeQL green が必須**。自分の PR は self-approve できないため、**必ず誰かのレビューを得てからマージ**する。
+- `main` はブランチ保護下（force-push・削除は禁止）。**PR承認・CI green は GitHub 側の必須設定にはなっていない**（2026-09-09 実機確認: `required_pull_request_reviews.required_approving_review_count` は 0、`required_status_checks` は未設定。`enforce_admins` は on だが、そもそもゲートが無いため意味を持たない）。運用上はレビューを得てからのマージを基本とする。
 - リポジトリ管理者（`@norman6464`）は admin 権限で要件をバイパスできる（`gh pr merge --admin`）。緊急時・自分の PR の最終マージ用。
 - メンバーを追加するときは **Write / Maintain ロール**で（Admin ロールはバイパスできてしまうため避ける）。

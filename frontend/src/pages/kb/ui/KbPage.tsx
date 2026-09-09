@@ -755,7 +755,7 @@ export default function KbPage() {
               {/* カバー画像の追加・変更・外す操作。読むだけの人には何も出さない（部品側の約束）。 */}
               <KbPageCoverButton cover={data.cover} canEdit={data.canEdit} onChange={handleChangeCover} />
               {/*
-                アイコン → 題名の順（Notion 等と同じ、上に乗るものから読む並び）。
+                アイコン → 題名の順（上に乗るものから読む並び）。
                 group はアイコン追加ボタンのホバー表示に使う（KbPageIconButton 側の約束）。
                 ページごとに作り直す（別ページへ移った瞬間、打ちかけの下書きを持ち越さない）。
               */}

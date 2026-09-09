@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// チケット（Jira / Nulab Backlog でいう「課題」）の語彙。
+// チケット（仕事 1 件を追いかける記録）の語彙。
 //
 // 表・API・画面が増えるのは段 1 以降で、ここには**どの層も同じ言葉で話すための値**だけを置く。
 // ここにある集合は DB の CHECK 制約と対になっている。片方だけ増やすと
@@ -47,7 +47,7 @@ func (c TicketStatusCategory) Valid() bool {
 
 // TicketPriority は優先度。小さいほど高い（1 = 高 / 2 = 中 / 3 = 低）。
 //
-// Jira は 5 段だが、実データでは直近 50 件すべてが Medium だった。Backlog と同じ 3 段にする。
+// 実データでは直近 50 件すべてが「中」だった。段階を細かくする実益が無いため 3 段にする。
 // 数値の向きが「小さいほど高い」なのは、一覧を priority 昇順で並べると
 // 高い順になり、SQL 側に CASE を書かずに済むため。
 type TicketPriority int
@@ -100,7 +100,7 @@ const (
 	TicketResolutionCannotReproduce TicketResolution = "cannot_reproduce"
 )
 
-// ValidTicketResolutions は保存を許す完了理由の一覧（Backlog と同じ 5 種）。
+// ValidTicketResolutions は保存を許す完了理由の一覧（固定 5 種）。
 var ValidTicketResolutions = []TicketResolution{
 	TicketResolutionDone,
 	TicketResolutionWontDo,

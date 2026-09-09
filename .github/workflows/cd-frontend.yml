@@ -86,9 +86,19 @@ jobs:
       #
       # 値は GCP プロジェクト frestyle-507912 の Web アプリのもの。backend の
       # プロジェクト（frestyle-prod）とは別で、表示名がどちらも FreStyle なので取り違えに注意。
-      VITE_FIREBASE_API_KEY: AIzaSyBccI4D5QmiY3M1il3Kq80yhSNCXVasJVw
-      VITE_FIREBASE_AUTH_DOMAIN: frestyle-507912.firebaseapp.com
-      VITE_FIREBASE_PROJECT_ID: frestyle-507912
+      #
+      # auth_mode に unconfigured を選んだときは**空にする**。値を焼き込んだまま
+      # 「止める」と宣言すると、門番（check-auth-config.sh）が宣言と実態の食い違いとして
+      # 必ずビルドを落とす。それでは「ログインを止めた版を出す」という戻り道が塞がる。
+      #
+      # 条件は != で書くこと。GitHub Actions の `&&` / `||` は値を返す演算子で、
+      # 空文字は偽として扱われる。`cond && '' || '値'` と書くと、cond が真でも
+      # 空文字が偽なので必ず '値' 側に落ちる（意図と逆になる）。
+      # タグ push には inputs が無く auth_mode は空文字になるため、この向きだと
+      # 「設定あり」に倒れる（タグでの配信は設定を要求する、という既定の意図どおり）。
+      VITE_FIREBASE_API_KEY: ${{ inputs.auth_mode != 'unconfigured' && 'AIzaSyBccI4D5QmiY3M1il3Kq80yhSNCXVasJVw' || '' }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ inputs.auth_mode != 'unconfigured' && 'frestyle-507912.firebaseapp.com' || '' }}
+      VITE_FIREBASE_PROJECT_ID: ${{ inputs.auth_mode != 'unconfigured' && 'frestyle-507912' || '' }}
 
       # VITE_OIDC_* は渡さない。あれは Dex（ローカル開発の発行者）専用で、
       # 本番のビルドに混ぜると resolveAuthMode が二重に設定を見つけることになる。

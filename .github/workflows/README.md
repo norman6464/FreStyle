@@ -15,9 +15,9 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 Terraform）が `refs/heads/main` 上の実行にしか許可されていないため（`release/v*` タグは
 含まれない）。タグ経路を持たせるにはインフラ側の対応が先に要る。
 
-## 必要な GitHub Secrets（CD 動作前提）
+## CD が使う設定値（Secrets は不要）
 
-**CD はどちらも Secret を持たない。**
+**CD はどちらも GitHub Secrets を持たない。**
 
 `cd-backend.yml` の Artifact Registry のリポジトリ名・Cloud Run サービス名、`cd-frontend.yml` の
 API の URL・GCIP（Firebase Authentication）のクライアント設定（`VITE_FIREBASE_API_KEY` /
@@ -103,7 +103,7 @@ git push origin release/v1.2.3
 ```
 
 タグ push をフックに `cd-frontend.yml` が自動実行される。backend（`cd-backend.yml`）はこの経路を
-持たない（WIF binding の制約。上の「必要な GitHub Secrets」参照）。
+持たない（WIF binding の制約。上の「CD が使う設定値」参照）。
 
 ### C. CLI でのデプロイ（`gh` 使用）
 

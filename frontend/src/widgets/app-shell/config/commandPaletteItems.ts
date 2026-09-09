@@ -69,6 +69,15 @@ export const COMMAND_ITEMS: CommandItem[] = [
     keywords: ['kb', 'knowledge', 'ナレッジ', 'メモ', 'wiki', '共有'],
   },
   {
+    id: 'nav-backlog',
+    label: 'バックログ',
+    description: 'バックログに移動',
+    icon: ChartBarIcon,
+    category: 'ページ移動',
+    action: { type: 'navigate', path: '/kb/backlog' },
+    keywords: ['backlog', 'ticket', 'チケット', 'バックログ', '課題'],
+  },
+  {
     id: 'nav-profile',
     label: 'プロフィール',
     description: 'プロフィールに移動',

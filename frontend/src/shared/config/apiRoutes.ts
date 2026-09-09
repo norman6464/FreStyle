@@ -291,3 +291,92 @@ export const KB_API = {
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。
+
+/**
+ * チケット・バックログ（既存の spaces に属する。routes_ticket.go 参照）。
+ *
+ * KB_API と同じくワークスペースは URL の slug で指す。チケットはページのような個票の
+ * grant を持たず、実効権限は常にスペース単位（設計 Ⅳ-H）なので、grants / principals 系の
+ * ルートは無い（担当者候補の名前解決は KB_API.pagePrincipals を流用する。Ⅳ-G 参照）。
+ */
+export const TICKET_API = {
+  /** POST — /api/v2/kb/workspaces/:slug/spaces/:spaceId/tickets/enable。body は省略可 */
+  enable: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/tickets/enable`,
+  /**
+   * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/tickets
+   *
+   * 一覧のクエリは statusId / typeId / assigneePrincipalId（いずれも省略可）と
+   * archived（'true' でアーカイブだけを返す。省略時は現役だけ。「込み」は取れない）。
+   */
+  tickets: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/tickets`,
+  /** GET — /api/v2/kb/workspaces/:slug/tickets/by-key/:key（例 FRESTYLE-12） */
+  ticketByKey: (workspaceSlug: string, key: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/by-key/${encodeURIComponent(key)}`,
+  /** GET(取得) / PUT(全置換) — /api/v2/kb/workspaces/:slug/tickets/:ticketId */
+  ticket: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}`,
+  /**
+   * GET — /api/v2/kb/tickets/:ticketId
+   *
+   * /kb/tickets/{ticketId} の URL からの解決。ワークスペースを出さないための口で、
+   * 応答の workspaceSlug を以降の呼び出しに使う（KB_API.resolvePage と同じ役割）。
+   */
+  resolveTicket: (ticketId: string) => `${API_V2}/kb/tickets/${ticketId}`,
+  /** POST(並び替え・204) — .../tickets/:ticketId/move。anchorTicketId 省略で末尾へ */
+  moveTicket: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/move`,
+  /** POST(アーカイブ) — .../tickets/:ticketId/archive */
+  archiveTicket: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/archive`,
+  /** POST(復元) — .../tickets/:ticketId/restore */
+  restoreTicket: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/restore`,
+  /** POST — .../tickets/:ticketId/status。resolution は category=done のときだけ意味を持つ */
+  changeTicketStatus: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/status`,
+  /** PUT — .../tickets/:ticketId/parent。parentId 省略でトップレベルへ */
+  changeTicketParent: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/parent`,
+  /** PUT(設定) / DELETE(解除・204) — .../tickets/:ticketId/assignee */
+  ticketAssignee: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/assignee`,
+  /** GET — .../tickets/:ticketId/history（変更履歴・新しい順） */
+  ticketHistory: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/history`,
+  /**
+   * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/ticket-statuses
+   *
+   * 一覧の各行は activeTicketCount（現役チケットでの使用数）を持つ（管理画面の「使用中 N 件」）。
+   */
+  ticketStatuses: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses`,
+  /** PUT — .../ticket-statuses/:statusId（name / color / category をまとめて置換） */
+  ticketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}`,
+  /** POST(body 無し) — .../ticket-statuses/:statusId/set-initial */
+  setInitialTicketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}/set-initial`,
+  /** POST(body 無し) — .../ticket-statuses/:statusId/archive。使用中は 409 status_in_use */
+  archiveTicketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}/archive`,
+  /** POST(body 無し) — .../ticket-statuses/:statusId/restore */
+  restoreTicketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}/restore`,
+  /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/ticket-types */
+  ticketTypes: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types`,
+  /** PUT — .../ticket-types/:typeId */
+  ticketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}`,
+  /** POST(body 無し) — .../ticket-types/:typeId/set-default */
+  setDefaultTicketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}/set-default`,
+  /** POST(body 無し) — .../ticket-types/:typeId/archive。使用中は 409 type_in_use */
+  archiveTicketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}/archive`,
+  /** POST(body 無し) — .../ticket-types/:typeId/restore */
+  restoreTicketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}/restore`,
+} as const;

@@ -23,6 +23,14 @@ const PasswordResetPage = lazyWithReload(() => import('@/pages/password-reset').
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
 const SettingsPage = lazyWithReload(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })), 'SettingsPage');
 const KbPage = lazyWithReload(() => import('@/pages/kb').then((m) => ({ default: m.KbPage })), 'KbPage');
+const KbBacklogPage = lazyWithReload(
+  () => import('@/pages/backlog').then((m) => ({ default: m.KbBacklogPage })),
+  'KbBacklogPage',
+);
+const KbTicketPage = lazyWithReload(
+  () => import('@/pages/backlog').then((m) => ({ default: m.KbTicketPage })),
+  'KbTicketPage',
+);
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
@@ -95,6 +103,15 @@ export default function App() {
             新しい /kb/:pageId と同じ形なので区別できず廃止した。ページ付きの旧 URL
             （/kb/:slug/pages/:pageId）だけ引き続き写す。 */}
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
+        {/*
+          バックログ（チケット）。既存の spaces に属するので kb と同じテナント非公開の作りを
+          踏襲する。/kb/backlog はスペース未選択の入口（最初に見つかったスペースへ移す）、
+          個票は /kb/tickets/{ticketId}（kb の /kb/{pageId} と同じ、ワークスペースを
+          URL に出さない解決の口）。
+        */}
+        <Route path="/kb/backlog" element={<KbBacklogPage />} />
+        <Route path="/kb/backlog/:spaceId" element={<KbBacklogPage />} />
+        <Route path="/kb/tickets/:ticketId" element={<KbTicketPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/help" element={<HelpPage />} />
       </Route>

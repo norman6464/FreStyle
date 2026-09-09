@@ -158,6 +158,10 @@ func toDomainTicket(row sqlcgen.Ticket) domain.Ticket {
 		at := row.ArchivedAt.Time
 		t.ArchivedAt = &at
 	}
+	if row.DeletedAt.Valid {
+		at := row.DeletedAt.Time
+		t.DeletedAt = &at
+	}
 	return t
 }
 
@@ -722,17 +726,23 @@ func (r *ticketRepository) CreateTicket(ctx context.Context, in repository.Ticke
 	return &t, nil
 }
 
-// GetTicket / ListTickets は担当（ticket_assignments）を LEFT JOIN で足したので、sqlc が
-// tickets の行型ではなく専用の行型を生成する。tickets 由来の列だけを取り出して
-// 既存の toDomainTicket に渡すための小さな写し取り（変換規則そのものは 1 箇所に保つ）。
+// GetTicket / ListTickets / ListTicketChildren は担当（ticket_assignments）や並び順
+// （ticket_ranks）を JOIN で足したので、sqlc が tickets の行型ではなく専用の行型を生成する。
+// tickets 由来の列だけを取り出して既存の toDomainTicket に渡すための小さな写し取り
+// （変換規則そのものは 1 箇所に保つ）。
+//
+// Position は row.Position（tickets.position。段 2 で並び順の正本ではなくなった古い列）ではなく
+// row.RankPosition（ticket_ranks.position。段 2 からの正本）を積む。API 応答の position は
+// これまでどおり「現在の並び順」を意味し続けるが、中身の出どころが変わっただけ
+// （設計 Ⅳ-F・フロントは無改修の想定）。
 func ticketOfGetRow(row sqlcgen.GetTicketRow) sqlcgen.Ticket {
 	return sqlcgen.Ticket{
 		ID: row.ID, WorkspaceID: row.WorkspaceID, SpaceID: row.SpaceID, Number: row.Number,
 		TypeID: row.TypeID, StatusID: row.StatusID, ParentID: row.ParentID, Title: row.Title,
 		Doc: row.Doc, PlainText: row.PlainText, Priority: row.Priority,
-		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.Position,
+		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.RankPosition,
 		ClosedAt: row.ClosedAt, Resolution: row.Resolution,
-		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt,
+		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt, DeletedAt: row.DeletedAt,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
@@ -742,9 +752,21 @@ func ticketOfListRow(row sqlcgen.ListTicketsRow) sqlcgen.Ticket {
 		ID: row.ID, WorkspaceID: row.WorkspaceID, SpaceID: row.SpaceID, Number: row.Number,
 		TypeID: row.TypeID, StatusID: row.StatusID, ParentID: row.ParentID, Title: row.Title,
 		Doc: row.Doc, PlainText: row.PlainText, Priority: row.Priority,
-		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.Position,
+		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.RankPosition,
 		ClosedAt: row.ClosedAt, Resolution: row.Resolution,
-		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt,
+		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt, DeletedAt: row.DeletedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
+func ticketOfChildrenRow(row sqlcgen.ListTicketChildrenRow) sqlcgen.Ticket {
+	return sqlcgen.Ticket{
+		ID: row.ID, WorkspaceID: row.WorkspaceID, SpaceID: row.SpaceID, Number: row.Number,
+		TypeID: row.TypeID, StatusID: row.StatusID, ParentID: row.ParentID, Title: row.Title,
+		Doc: row.Doc, PlainText: row.PlainText, Priority: row.Priority,
+		StartDate: row.StartDate, DueDate: row.DueDate, Position: row.RankPosition,
+		ClosedAt: row.ClosedAt, Resolution: row.Resolution,
+		CreatedByUserID: row.CreatedByUserID, ArchivedAt: row.ArchivedAt, DeletedAt: row.DeletedAt,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
@@ -871,7 +893,7 @@ func (r *ticketRepository) ListTicketChildren(ctx context.Context, workspaceID, 
 	}
 	out := make([]domain.Ticket, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toDomainTicket(row))
+		out = append(out, toDomainTicket(ticketOfChildrenRow(row)))
 	}
 	return out, nil
 }
@@ -946,24 +968,6 @@ func (r *ticketRepository) ChangeTicketStatus(
 	return &t, nil
 }
 
-func (r *ticketRepository) MoveTicket(ctx context.Context, workspaceID, ticketID, position string) error {
-	wsID, ok := kbParseID(workspaceID)
-	tID, ok2 := kbParseID(ticketID)
-	if !ok || !ok2 {
-		return repository.ErrTicketNotFound
-	}
-	n, err := r.queries(ctx).MoveTicket(ctx, sqlcgen.MoveTicketParams{
-		WorkspaceID: wsID, ID: tID, Position: position,
-	})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return repository.ErrTicketNotFound
-	}
-	return nil
-}
-
 func (r *ticketRepository) ArchiveTicket(ctx context.Context, workspaceID, ticketID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	tID, ok2 := kbParseID(ticketID)
@@ -996,6 +1000,121 @@ func (r *ticketRepository) RestoreTicket(ctx context.Context, workspaceID, ticke
 		return repository.ErrTicketNotFound
 	}
 	return nil
+}
+
+func (r *ticketRepository) DeleteTicket(ctx context.Context, workspaceID, ticketID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	n, err := r.queries(ctx).DeleteTicket(ctx, sqlcgen.DeleteTicketParams{WorkspaceID: wsID, ID: tID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrTicketNotFound
+	}
+	return nil
+}
+
+func (r *ticketRepository) FindDeletedTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return nil, repository.ErrTicketNotDeleted
+	}
+	row, err := r.queries(ctx).FindDeletedTicket(ctx, sqlcgen.FindDeletedTicketParams{WorkspaceID: wsID, ID: tID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrTicketNotDeleted
+	}
+	if err != nil {
+		return nil, err
+	}
+	t := toDomainTicket(row)
+	return &t, nil
+}
+
+func (r *ticketRepository) RestoreDeletedTicket(ctx context.Context, workspaceID, ticketID, position string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotDeleted
+	}
+	n, err := r.queries(ctx).RestoreDeletedTicket(ctx, sqlcgen.RestoreDeletedTicketParams{
+		WorkspaceID: wsID, ID: tID, Position: position,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrTicketNotDeleted
+	}
+	return nil
+}
+
+func (r *ticketRepository) DeleteTicketPageLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	sID, ok2 := kbParseID(sourceTicketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).DeleteTicketPageLinksBySourceCascade(ctx, sqlcgen.DeleteTicketPageLinksBySourceCascadeParams{
+		WorkspaceID: wsID, SourceTicketID: sID,
+	})
+}
+
+func (r *ticketRepository) DeleteTicketTicketLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	sID, ok2 := kbParseID(sourceTicketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).DeleteTicketTicketLinksBySourceCascade(ctx, sqlcgen.DeleteTicketTicketLinksBySourceCascadeParams{
+		WorkspaceID: wsID, SourceTicketID: sID,
+	})
+}
+
+// --- 並び順（ticket_ranks。段 2） ---
+
+func (r *ticketRepository) InsertTicketRank(ctx context.Context, workspaceID, ticketID, position string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).InsertTicketRank(ctx, sqlcgen.InsertTicketRankParams{
+		WorkspaceID: wsID, TicketID: tID, Position: position,
+	})
+}
+
+func (r *ticketRepository) MoveTicketRank(ctx context.Context, workspaceID, ticketID, position string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	n, err := r.queries(ctx).MoveTicketRank(ctx, sqlcgen.MoveTicketRankParams{
+		WorkspaceID: wsID, TicketID: tID, Position: position,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrTicketNotFound
+	}
+	return nil
+}
+
+func (r *ticketRepository) LastActiveTicketRankPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	if !ok || !ok2 {
+		return "", repository.ErrSpaceNotFound
+	}
+	return r.queries(ctx).LastActiveTicketRankPosition(ctx, sqlcgen.LastActiveTicketRankPositionParams{
+		WorkspaceID: wsID, SpaceID: spID,
+	})
 }
 
 func (r *ticketRepository) CountActiveTicketChildren(ctx context.Context, workspaceID, ticketID string) (int64, error) {

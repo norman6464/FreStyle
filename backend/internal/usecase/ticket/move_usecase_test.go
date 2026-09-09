@@ -15,8 +15,8 @@ func Test_チケット移動_アンカー無しなら末尾へ(t *testing.T) {
 	repo := &mockTicketRepo{}
 	repo.On("FindTicket", mock.Anything, tkWS, tkTicket).
 		Return(&domain.Ticket{ID: tkTicket, WorkspaceID: tkWS, SpaceID: tkSpace, Position: "a0"}, nil)
-	repo.On("LastActiveTicketPosition", mock.Anything, tkWS, tkSpace).Return("a1", nil)
-	repo.On("MoveTicket", mock.Anything, tkWS, tkTicket, mock.MatchedBy(func(pos string) bool {
+	repo.On("LastActiveTicketRankPosition", mock.Anything, tkWS, tkSpace).Return("a1", nil)
+	repo.On("MoveTicketRank", mock.Anything, tkWS, tkTicket, mock.MatchedBy(func(pos string) bool {
 		return pos > "a1"
 	})).Return(nil)
 
@@ -41,7 +41,7 @@ func Test_チケット移動_アンカーが兄弟でなければ拒否(t *testi
 		WorkspaceID: tkWS, TicketID: tkTicket, AnchorTicketID: &anchor,
 	})
 	require.ErrorIs(t, err, ticket.ErrTicketMoveAnchorNotSibling)
-	repo.AssertNotCalled(t, "MoveTicket")
+	repo.AssertNotCalled(t, "MoveTicketRank")
 }
 
 func Test_チケット移動_アンカーの直後に置く(t *testing.T) {
@@ -55,7 +55,7 @@ func Test_チケット移動_アンカーの直後に置く(t *testing.T) {
 			{Ticket: domain.Ticket{ID: "t-next", Position: "a1"}},
 			{Ticket: domain.Ticket{ID: tkTicket, Position: "a2"}},
 		}, nil)
-	repo.On("MoveTicket", mock.Anything, tkWS, tkTicket, mock.MatchedBy(func(pos string) bool {
+	repo.On("MoveTicketRank", mock.Anything, tkWS, tkTicket, mock.MatchedBy(func(pos string) bool {
 		return pos > "a0" && pos < "a1"
 	})).Return(nil)
 

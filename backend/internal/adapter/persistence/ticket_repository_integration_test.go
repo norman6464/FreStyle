@@ -573,18 +573,31 @@ func TestTicketRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "更新後", updated.Title)
 
-		// 並び替え。
-		last, err := repo.LastActiveTicketPosition(ctx, ws, space)
-		require.NoError(t, err)
-		require.NoError(t, repo.MoveTicket(ctx, ws, child.ID, last+"1"))
-		pos, ok, err := repo.FindActiveTicketPosition(ctx, ws, space, child.ID)
+		// tickets.position を直接読む経路（FindActiveTicketPosition。並び順の正本では
+		// なくなったが、列自体はまだ残っているので読み書きの SQL は健在であることを確認する）。
+		pos, ok, err := repo.FindActiveTicketPosition(ctx, ws, space, root.ID)
 		require.NoError(t, err)
 		require.True(t, ok)
-		assert.Equal(t, last+"1", pos)
-
+		assert.Equal(t, "a0", pos)
 		_, ok, err = repo.FindActiveTicketPosition(ctx, ws, space, newID())
 		require.NoError(t, err)
 		assert.False(t, ok, "非実在は 0 行に畳まれる")
+
+		// 並び替え（ticket_ranks。段 2 以降の並び順の正本。設計 Ⅳ-F）。root/child は
+		// repo.CreateTicket を直接呼んでおり InsertTicketRank を伴っていないので、
+		// GetTicket の position は COALESCE で tickets.position（"a1"）にフォールバックする。
+		got, err := repo.FindTicket(ctx, ws, child.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "a1", got.Position, "ticket_ranks に行が無ければ tickets.position へ落ちる")
+
+		require.NoError(t, repo.InsertTicketRank(ctx, ws, child.ID, "a1"))
+		lastRank, err := repo.LastActiveTicketRankPosition(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, "a1", lastRank)
+		require.NoError(t, repo.MoveTicketRank(ctx, ws, child.ID, lastRank+"1"))
+		moved, err := repo.FindTicket(ctx, ws, child.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "a11", moved.Position, "InsertTicketRank 後は ticket_ranks.position を返す")
 	})
 
 	t.Run("担当中のチケット一覧", func(t *testing.T) {

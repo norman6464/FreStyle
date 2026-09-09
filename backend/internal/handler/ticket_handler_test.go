@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -159,6 +160,48 @@ func Test_チケット作成_閲覧だけでは403(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func Test_チケット削除_閲覧だけでは403(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleViewer)
+	target := f.tickets.addTicket(domain.Ticket{ID: "ticket-del", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "x"})
+
+	w := f.do(t, http.MethodDelete, ticketAPIBase+"/tickets/"+target.ID, "")
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func Test_チケット削除_他ワークスペースのチケットは404(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	other := f.tickets.addTicket(domain.Ticket{ID: "ticket-other-del", WorkspaceID: kbOtherWorkspaceID, SpaceID: "other-space", Title: "x"})
+
+	w := f.do(t, http.MethodDelete, ticketAPIBase+"/tickets/"+other.ID, "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// RestoreDeleted は requireTicketPermission（FindTicket 経由）を使わない別経路
+// （FindDeletedTicketUseCase → requireTicketSpacePermission）なので、境界を独立して確かめる。
+func Test_復元削除_他ワークスペースの削除済みチケットは404(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	now := time.Now()
+	other := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-other-restore", WorkspaceID: kbOtherWorkspaceID, SpaceID: "other-space",
+		Title: "x", DeletedAt: &now,
+	})
+
+	w := f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+other.ID+"/restore-deleted", "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func Test_復元削除_閲覧だけでは403(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleViewer)
+	now := time.Now()
+	target := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-restore-viewer", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID,
+		Title: "x", DeletedAt: &now,
+	})
+
+	w := f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+target.ID+"/restore-deleted", "")
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
 // --- チケットのライフサイクル一式 ---
 
 func Test_チケット一式_有効化から作成取得一覧更新状態変更移動担当履歴まで(t *testing.T) {
@@ -276,6 +319,38 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	require.Equal(t, http.StatusOK, w.Code)
 	restored := decodeJSON[domain.Ticket](t, w)
 	assert.Nil(t, restored.ArchivedAt)
+
+	// 10) 削除・復元（設計 Ⅳ-J。archived_at とは別の独立した口）。
+	w = f.do(t, http.MethodDelete, ticketAPIBase+"/tickets/"+created.ID, "")
+	require.Equal(t, http.StatusNoContent, w.Code)
+
+	// 削除済みは通常の取得・一覧・移動・アーカイブから消える（存在しないのと同じ 404）。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
+	assert.Equal(t, http.StatusNotFound, w.Code, "削除済みは取得できない")
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	afterDelete := decodeJSON[ticketListResponse](t, w)
+	for _, row := range afterDelete.Tickets {
+		assert.NotEqual(t, created.ID, row.ID, "削除済みは一覧に出ない")
+	}
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+created.ID+"/archive", "")
+	assert.Equal(t, http.StatusNotFound, w.Code, "削除済みはアーカイブできない")
+
+	// 二重削除は 404（冪等な失敗）。
+	w = f.do(t, http.MethodDelete, ticketAPIBase+"/tickets/"+created.ID, "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	// 復元（restore-deleted）で戻る。
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+created.ID+"/restore-deleted", "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	undeleted := decodeJSON[domain.Ticket](t, w)
+	assert.Nil(t, undeleted.DeletedAt)
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
+	assert.Equal(t, http.StatusOK, w.Code, "復元後は通常どおり取得できる")
+
+	// 現役チケットに restore-deleted を呼んでも 404（削除されていない）。
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+created.ID+"/restore-deleted", "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func statusIDByCategory(statuses []domain.TicketStatus, category domain.TicketStatusCategory) string {

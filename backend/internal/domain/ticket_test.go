@@ -62,7 +62,7 @@ func Test_チケットの履歴の項目(t *testing.T) {
 	assert.Equal(t, []domain.TicketChangeField{
 		"title", "doc", "status", "type", "priority", "assignee", "parent",
 		"start_date", "due_date", "resolution", "position", "archived",
-		"category", "milestone", "link",
+		"category", "milestone", "link", "deleted",
 	}, domain.ValidTicketChangeFields, "ck_ticket_change_items_field と同じ集合であること")
 
 	for _, f := range domain.ValidTicketChangeFields {

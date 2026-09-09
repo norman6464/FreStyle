@@ -1891,6 +1891,11 @@ table "ticket_counters" {
     type    = timestamptz
     default = sql("now()")
   }
+  # スペースが在る限りこの行も在る（削除概念を持たない）。9 表一律の方針に合わせて列だけ足す。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   primary_key {
     columns = [column.workspace_id, column.space_id]
   }
@@ -1957,6 +1962,11 @@ table "ticket_statuses" {
     null = true
     type = timestamptz
   }
+  # 「消えたことにする」。archived_at（一覧から外すだけ・戻せる）とは別概念で、復元 API を持たない。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   column "created_at" {
     null    = false
     type    = timestamptz
@@ -1986,17 +1996,17 @@ table "ticket_statuses" {
   index "uq_ticket_statuses_space_name" {
     unique  = true
     columns = [column.space_id, column.name_lower]
-    where   = "(archived_at IS NULL)"
+    where   = "((archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   index "uq_ticket_statuses_space_position" {
     unique  = true
     columns = [column.space_id, column.position]
-    where   = "(archived_at IS NULL)"
+    where   = "((archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   index "uq_ticket_statuses_space_initial" {
     unique  = true
     columns = [column.space_id]
-    where   = "(is_initial AND (archived_at IS NULL))"
+    where   = "(is_initial AND (archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   check "ck_ticket_statuses_category" {
     expr = "(category)::text = ANY (ARRAY[('todo'::character varying)::text, ('in_progress'::character varying)::text, ('done'::character varying)::text])"
@@ -2075,6 +2085,11 @@ table "ticket_types" {
     null = true
     type = timestamptz
   }
+  # 「消えたことにする」。archived_at（一覧から外すだけ・戻せる）とは別概念で、復元 API を持たない。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   column "created_at" {
     null    = false
     type    = timestamptz
@@ -2103,17 +2118,17 @@ table "ticket_types" {
   index "uq_ticket_types_space_name" {
     unique  = true
     columns = [column.space_id, column.name_lower]
-    where   = "(archived_at IS NULL)"
+    where   = "((archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   index "uq_ticket_types_space_position" {
     unique  = true
     columns = [column.space_id, column.position]
-    where   = "(archived_at IS NULL)"
+    where   = "((archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   index "uq_ticket_types_space_default" {
     unique  = true
     columns = [column.space_id]
-    where   = "(is_default AND (archived_at IS NULL))"
+    where   = "(is_default AND (archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   check "ck_ticket_types_hierarchy_level" {
     expr = "(hierarchy_level >= '-1'::integer) AND (hierarchy_level <= 1)"
@@ -2223,6 +2238,11 @@ table "tickets" {
     null = true
     type = timestamptz
   }
+  # 「消えたことにする」。archived_at（一覧から外すだけ・戻せる）とは別概念で、復元 API を持たない。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   column "created_at" {
     null    = false
     type    = timestamptz
@@ -2278,7 +2298,7 @@ table "tickets" {
   index "uq_tickets_space_position" {
     unique  = true
     columns = [column.space_id, column.position]
-    where   = "(archived_at IS NULL)"
+    where   = "((archived_at IS NULL) AND (deleted_at IS NULL))"
   }
   index "idx_tickets_space_status" {
     columns = [column.workspace_id, column.space_id, column.status_id]
@@ -2291,6 +2311,9 @@ table "tickets" {
   }
   index "idx_tickets_archived_at" {
     columns = [column.archived_at]
+  }
+  index "idx_tickets_deleted_at" {
+    columns = [column.deleted_at]
   }
   check "ck_tickets_number_positive" {
     expr = "number > 0"
@@ -2355,6 +2378,12 @@ table "ticket_assignments" {
     type    = timestamptz
     default = sql("now()")
   }
+  # PK が ticket_id 自体（1 チケット 1 行）なので、外した行を残したまま付け直すことはできない。
+  # 9 表一律の方針で列だけ足す。運用（UPDATE のままにするか）は着手時に確定する。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   primary_key {
     columns = [column.ticket_id]
   }
@@ -2399,6 +2428,11 @@ table "ticket_change_groups" {
     null    = false
     type    = timestamptz
     default = sql("now()")
+  }
+  # 親チケットを消したとき、同一トランザクションで履歴にも伝播させる（Ⅳ-J の推奨どおり）。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
   }
   primary_key {
     columns = [column.id]
@@ -2453,6 +2487,11 @@ table "ticket_change_items" {
     null = true
     type = text
   }
+  # 親（グループ）が消えたときに一緒に伝播させる。グループ単体では消えないので実質グループに追随する。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   primary_key {
     columns = [column.id]
   }
@@ -2466,7 +2505,7 @@ table "ticket_change_items" {
     columns = [column.group_id]
   }
   check "ck_ticket_change_items_field" {
-    expr = "(field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text])"
+    expr = "(field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text, ('deleted'::character varying)::text])"
   }
   check "ck_ticket_change_items_changed" {
     expr = "(old_value IS DISTINCT FROM new_value) OR (old_label IS DISTINCT FROM new_label) OR ((field)::text = 'doc'::text)"
@@ -2488,6 +2527,11 @@ table "ticket_page_links" {
   column "target_page_id" {
     null = false
     type = uuid
+  }
+  # 参照元チケットが消えたとき伝播させる。派生索引なので本文保存時にも作り直される。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
   }
   primary_key {
     columns = [column.source_ticket_id, column.target_page_id]
@@ -2523,6 +2567,11 @@ table "ticket_ticket_links" {
     null = false
     type = uuid
   }
+  # 参照元・参照先どちらかのチケットが消えたとき伝播させる。派生索引なので本文保存時にも作り直される。
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
   primary_key {
     columns = [column.source_ticket_id, column.target_ticket_id]
   }
@@ -2543,5 +2592,72 @@ table "ticket_ticket_links" {
   }
   check "ck_ticket_ticket_links_not_self" {
     expr = "source_ticket_id <> target_ticket_id"
+  }
+}
+
+# ticket_ranks: 並び順を文脈ごとに独立させた表（設計 Ⅳ-F）。段 1 は tickets.position 1 本だけで
+# 始めたが、スプリント内・ボードの列内のような別文脈の並びが増えたときに 1 本をどう分配するかを
+# 決められなくなるため、段 2 で先出しする。当面は context_kind = 'backlog' の 1 種類のみ使う
+# （tickets.position の値をここへ移送する。tickets.position 自体はこの段では DROP しない）。
+table "ticket_ranks" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  # 'backlog' 固定（段 2 時点）。将来 'sprint' / 'board_column' 等を追加する想定の判別列。
+  column "context_kind" {
+    null = false
+    type = character_varying(32)
+  }
+  # context_kind='backlog' のときは空文字固定（スペース単位で 1 系列なので、区別する ID を持たない）。
+  # 将来 'board_column' 等を足したときにその列 id / スプリント id を入れる。
+  column "context_id" {
+    null    = false
+    type    = uuid
+    default = "00000000-0000-0000-0000-000000000000"
+  }
+  # tickets.position と同じ辞書順文字列（fracindex 作法）。照合順序は環境に依存させない。
+  column "position" {
+    null    = false
+    type    = text
+    collate = "C"
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.ticket_id, column.context_kind, column.context_id]
+  }
+  foreign_key "fk_ticket_ranks_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_ranks_workspace_ticket" {
+    columns = [column.workspace_id, column.ticket_id]
+  }
+  # 同じ文脈内で順位が重複しない。同時に同じ場所へ移動したら片方が落ちる
+  # （usecase 側が 1 回だけ位置を取り直して再試行する）。
+  unique "uq_ticket_ranks_context_position" {
+    columns = [column.context_kind, column.context_id, column.position]
+  }
+  check "ck_ticket_ranks_position_not_empty" {
+    expr = "position <> ''::text"
+  }
+  check "ck_ticket_ranks_context_kind" {
+    expr = "(context_kind)::text = ANY (ARRAY[('backlog'::character varying)::text])"
   }
 }

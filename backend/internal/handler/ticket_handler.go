@@ -39,6 +39,9 @@ type TicketHandler struct {
 	move          *ticket.MoveTicketUseCase
 	archive       *ticket.ArchiveTicketUseCase
 	restore       *ticket.RestoreTicketUseCase
+	del           *ticket.DeleteTicketUseCase
+	findDeleted   *ticket.FindDeletedTicketUseCase
+	restoreDel    *ticket.RestoreDeletedTicketUseCase
 	changeStat    *ticket.ChangeTicketStatusUseCase
 	changeParent  *ticket.ChangeTicketParentUseCase
 	assign        *ticket.AssignTicketUseCase
@@ -60,6 +63,9 @@ func NewTicketHandler(
 	move *ticket.MoveTicketUseCase,
 	archive *ticket.ArchiveTicketUseCase,
 	restore *ticket.RestoreTicketUseCase,
+	del *ticket.DeleteTicketUseCase,
+	findDeleted *ticket.FindDeletedTicketUseCase,
+	restoreDel *ticket.RestoreDeletedTicketUseCase,
 	changeStat *ticket.ChangeTicketStatusUseCase,
 	changeParent *ticket.ChangeTicketParentUseCase,
 	assign *ticket.AssignTicketUseCase,
@@ -71,7 +77,8 @@ func NewTicketHandler(
 		resolveLoc: resolveLoc,
 		enable:     enable, create: create, get: get, getAssignment: getAssignment,
 		list: list, update: update,
-		move: move, archive: archive, restore: restore, changeStat: changeStat,
+		move: move, archive: archive, restore: restore,
+		del: del, findDeleted: findDeleted, restoreDel: restoreDel, changeStat: changeStat,
 		changeParent: changeParent, assign: assign, unassign: unassign, history: history,
 	}
 }
@@ -94,6 +101,7 @@ func limitTicketBody(c *gin.Context) {
 func respondTicketErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, repository.ErrTicketNotFound),
+		errors.Is(err, repository.ErrTicketNotDeleted),
 		errors.Is(err, repository.ErrTicketStatusNotFound),
 		errors.Is(err, repository.ErrTicketTypeNotFound),
 		errors.Is(err, repository.ErrSpaceNotFound),
@@ -578,6 +586,58 @@ func (h *TicketHandler) Restore(c *gin.Context) {
 		return
 	}
 	t, err := h.restore.Execute(c.Request.Context(), ticket.RestoreTicketInput{
+		WorkspaceID: scope.workspaceID, TicketID: ticketID, ActorUserID: scope.userID,
+	})
+	if err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	h.respondTicket(c, scope, t, http.StatusOK)
+}
+
+// Delete はチケットを「消えたことにする」（編集権限が要る。archived_at と違い一覧・
+// URL 直打ちのどこからも見えなくなる。設計 Ⅳ-J）。対象は現役チケットに限る
+// （requireTicketPermission が内部で FindTicket を通すので、既に削除済みなら
+// ここで 404 になる — 冪等な失敗として扱う）。
+func (h *TicketHandler) Delete(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	ticketID := c.Param("ticketId")
+	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityEdit) {
+		return
+	}
+	if err := h.del.Execute(c.Request.Context(), ticket.DeleteTicketInput{
+		WorkspaceID: scope.workspaceID, TicketID: ticketID, ActorUserID: scope.userID,
+	}); err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// RestoreDeleted は削除済みチケットを現役へ戻す（編集権限が要る）。
+//
+// 対象は削除済みなので、通常の requireTicketPermission（FindTicket 経由）は使えない
+// （FindTicket は deleted_at IS NULL のチケットしか見つけない）。Create/Enable と同じ
+// 「対象がまだ見えない操作」の形で、まず削除済みチケットからスペース ID だけを解決し、
+// スペース単位の権限判定に落とす。
+func (h *TicketHandler) RestoreDeleted(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	ticketID := c.Param("ticketId")
+	found, err := h.findDeleted.Execute(c.Request.Context(), scope.workspaceID, ticketID)
+	if err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	if !h.requireTicketSpacePermission(c, scope, found.SpaceID, domain.CapabilityEdit) {
+		return
+	}
+	t, err := h.restoreDel.Execute(c.Request.Context(), ticket.RestoreDeletedTicketInput{
 		WorkspaceID: scope.workspaceID, TicketID: ticketID, ActorUserID: scope.userID,
 	})
 	if err != nil {

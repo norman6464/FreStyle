@@ -46,8 +46,12 @@ type Ticket struct {
 	// CreatedByUserID は報告者（users.id）。FK は張らない（pages と同じ分担）。
 	CreatedByUserID uint64     `json:"createdByUserId"`
 	ArchivedAt      *time.Time `json:"archivedAt,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
+	// DeletedAt は「消えたことにする」（設計 Ⅳ-J）。ArchivedAt とは別概念で、戻す口は
+	// RestoreDeletedTicketUseCase だけ。現役取得系（FindTicket 系）はこれが立っている行を
+	// 返さないので、API 応答では基本 nil のまま出ない（削除済み専用の取得経路でのみ埋まる）。
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 // TicketStatus はスペースごとの状態。名前は自由、Category は 3 枠で固定（domain.go）。

@@ -196,11 +196,6 @@ func (m *mockTicketRepo) ChangeTicketStatus(
 	return t, args.Error(1)
 }
 
-func (m *mockTicketRepo) MoveTicket(ctx context.Context, workspaceID, ticketID, position string) error {
-	args := m.Called(ctx, workspaceID, ticketID, position)
-	return args.Error(0)
-}
-
 func (m *mockTicketRepo) ArchiveTicket(ctx context.Context, workspaceID, ticketID string) error {
 	args := m.Called(ctx, workspaceID, ticketID)
 	return args.Error(0)
@@ -209,6 +204,37 @@ func (m *mockTicketRepo) ArchiveTicket(ctx context.Context, workspaceID, ticketI
 func (m *mockTicketRepo) RestoreTicket(ctx context.Context, workspaceID, ticketID, position string) error {
 	args := m.Called(ctx, workspaceID, ticketID, position)
 	return args.Error(0)
+}
+
+func (m *mockTicketRepo) DeleteTicket(ctx context.Context, workspaceID, ticketID string) error {
+	args := m.Called(ctx, workspaceID, ticketID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) FindDeletedTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	t, _ := args.Get(0).(*domain.Ticket)
+	return t, args.Error(1)
+}
+
+func (m *mockTicketRepo) RestoreDeletedTicket(ctx context.Context, workspaceID, ticketID, position string) error {
+	args := m.Called(ctx, workspaceID, ticketID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) InsertTicketRank(ctx context.Context, workspaceID, ticketID, position string) error {
+	args := m.Called(ctx, workspaceID, ticketID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) MoveTicketRank(ctx context.Context, workspaceID, ticketID, position string) error {
+	args := m.Called(ctx, workspaceID, ticketID, position)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) LastActiveTicketRankPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	return args.String(0), args.Error(1)
 }
 
 func (m *mockTicketRepo) CountActiveTicketChildren(ctx context.Context, workspaceID, ticketID string) (int64, error) {
@@ -273,6 +299,16 @@ func (m *mockTicketRepo) ReplaceTicketPageLinks(ctx context.Context, workspaceID
 
 func (m *mockTicketRepo) ReplaceTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string, targetTicketIDs []string) error {
 	args := m.Called(ctx, workspaceID, sourceTicketID, targetTicketIDs)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) DeleteTicketPageLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error {
+	args := m.Called(ctx, workspaceID, sourceTicketID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) DeleteTicketTicketLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error {
+	args := m.Called(ctx, workspaceID, sourceTicketID)
 	return args.Error(0)
 }
 

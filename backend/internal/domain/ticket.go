@@ -142,6 +142,10 @@ const (
 	TicketChangeFieldCategory   TicketChangeField = "category"
 	TicketChangeFieldMilestone  TicketChangeField = "milestone"
 	TicketChangeFieldLink       TicketChangeField = "link"
+	// TicketChangeFieldDeleted は deleted_at の変更（段 2・設計 Ⅳ-J）。archived と別の値に
+	// するのは、一覧から外しただけ（archived）と消えたことにした（deleted）を履歴上でも
+	// 区別できるようにするため。
+	TicketChangeFieldDeleted TicketChangeField = "deleted"
 )
 
 // ValidTicketChangeFields は履歴に書いてよい項目の一覧。
@@ -161,6 +165,7 @@ var ValidTicketChangeFields = []TicketChangeField{
 	TicketChangeFieldCategory,
 	TicketChangeFieldMilestone,
 	TicketChangeFieldLink,
+	TicketChangeFieldDeleted,
 }
 
 // Valid は履歴に書いてよい項目かを返す（保存前の検証に使う）。

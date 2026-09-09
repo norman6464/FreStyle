@@ -18,7 +18,7 @@ import (
 const archiveTicket = `-- name: ArchiveTicket :execrows
 UPDATE tickets
 SET archived_at = now(), updated_at = now()
-WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL
+WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL AND deleted_at IS NULL
 `
 
 type ArchiveTicketParams struct {
@@ -78,7 +78,7 @@ const changeTicketStatus = `-- name: ChangeTicketStatus :one
 UPDATE tickets
 SET status_id = $3, closed_at = $4, resolution = $5, updated_at = now()
 WHERE workspace_id = $1 AND id = $2
-RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, deleted_at, created_at, updated_at
 `
 
 type ChangeTicketStatusParams struct {
@@ -119,6 +119,7 @@ func (q *Queries) ChangeTicketStatus(ctx context.Context, arg ChangeTicketStatus
 		&i.Resolution,
 		&i.CreatedByUserID,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -320,7 +321,7 @@ SELECT
   $11::date, $12::date, $13,
   $14, now(), now()
 FROM n
-RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, deleted_at, created_at, updated_at
 `
 
 type CreateTicketParams struct {
@@ -383,10 +384,33 @@ func (q *Queries) CreateTicket(ctx context.Context, arg CreateTicketParams) (Tic
 		&i.Resolution,
 		&i.CreatedByUserID,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteTicket = `-- name: DeleteTicket :execrows
+UPDATE tickets
+SET deleted_at = now(), updated_at = now()
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL
+`
+
+type DeleteTicketParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+// 「消えたことにする」（設計 Ⅳ-J）。archived_at と独立の列で、戻す口は
+// RestoreDeletedTicket だけ（一覧・検索・URL 直打ちのどこにも出てこなくなる）。
+// 既に削除済みなら 0 行（呼び出し側は ErrTicketNotFound に畳む。冪等な 404）。
+func (q *Queries) DeleteTicket(ctx context.Context, arg DeleteTicketParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteTicket, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteTicketAssignment = `-- name: DeleteTicketAssignment :execrows
@@ -426,6 +450,25 @@ func (q *Queries) DeleteTicketPageLinksBySource(ctx context.Context, arg DeleteT
 	return err
 }
 
+const deleteTicketPageLinksBySourceCascade = `-- name: DeleteTicketPageLinksBySourceCascade :exec
+UPDATE ticket_page_links
+SET deleted_at = now()
+WHERE workspace_id = $1 AND source_ticket_id = $2 AND deleted_at IS NULL
+`
+
+type DeleteTicketPageLinksBySourceCascadeParams struct {
+	WorkspaceID    uuid.UUID
+	SourceTicketID uuid.UUID
+}
+
+// チケット削除時、その本文からの参照（派生索引）も一緒に「消えたことにする」。
+// 物理削除しないのは、DeleteTicketPageLinksBySource（本文保存時の張り替え）と役割が違うため
+// — こちらは「参照元が消えたので隠す」、あちらは「本文が変わったので作り直す」。
+func (q *Queries) DeleteTicketPageLinksBySourceCascade(ctx context.Context, arg DeleteTicketPageLinksBySourceCascadeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTicketPageLinksBySourceCascade, arg.WorkspaceID, arg.SourceTicketID)
+	return err
+}
+
 const deleteTicketTicketLinksBySource = `-- name: DeleteTicketTicketLinksBySource :exec
 DELETE FROM ticket_ticket_links
 WHERE workspace_id = $1 AND source_ticket_id = $2
@@ -441,9 +484,25 @@ func (q *Queries) DeleteTicketTicketLinksBySource(ctx context.Context, arg Delet
 	return err
 }
 
+const deleteTicketTicketLinksBySourceCascade = `-- name: DeleteTicketTicketLinksBySourceCascade :exec
+UPDATE ticket_ticket_links
+SET deleted_at = now()
+WHERE workspace_id = $1 AND source_ticket_id = $2 AND deleted_at IS NULL
+`
+
+type DeleteTicketTicketLinksBySourceCascadeParams struct {
+	WorkspaceID    uuid.UUID
+	SourceTicketID uuid.UUID
+}
+
+func (q *Queries) DeleteTicketTicketLinksBySourceCascade(ctx context.Context, arg DeleteTicketTicketLinksBySourceCascadeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTicketTicketLinksBySourceCascade, arg.WorkspaceID, arg.SourceTicketID)
+	return err
+}
+
 const findActiveTicketPosition = `-- name: FindActiveTicketPosition :one
 SELECT "position" FROM tickets
-WHERE workspace_id = $1 AND space_id = $2 AND id = $3 AND archived_at IS NULL
+WHERE workspace_id = $1 AND space_id = $2 AND id = $3 AND archived_at IS NULL AND deleted_at IS NULL
 `
 
 type FindActiveTicketPositionParams struct {
@@ -461,8 +520,49 @@ func (q *Queries) FindActiveTicketPosition(ctx context.Context, arg FindActiveTi
 	return position, err
 }
 
+const findDeletedTicket = `-- name: FindDeletedTicket :one
+SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, deleted_at, created_at, updated_at FROM tickets
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NOT NULL
+`
+
+type FindDeletedTicketParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+// RestoreDeletedTicketUseCase 専用。GetTicket と逆に、削除済み（deleted_at IS NOT NULL）の
+// 行だけを引く（現役の行は見えない — Archive/Restore の archived_at と対称の作法）。
+func (q *Queries) FindDeletedTicket(ctx context.Context, arg FindDeletedTicketParams) (Ticket, error) {
+	row := q.db.QueryRowContext(ctx, findDeletedTicket, arg.WorkspaceID, arg.ID)
+	var i Ticket
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpaceID,
+		&i.Number,
+		&i.TypeID,
+		&i.StatusID,
+		&i.ParentID,
+		&i.Title,
+		&i.Doc,
+		&i.PlainText,
+		&i.Priority,
+		&i.StartDate,
+		&i.DueDate,
+		&i.Position,
+		&i.ClosedAt,
+		&i.Resolution,
+		&i.CreatedByUserID,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDefaultTicketType = `-- name: GetDefaultTicketType :one
-SELECT id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, created_at, updated_at FROM ticket_types
+SELECT id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, deleted_at, created_at, updated_at FROM ticket_types
 WHERE workspace_id = $1 AND space_id = $2 AND is_default AND archived_at IS NULL
 `
 
@@ -487,6 +587,7 @@ func (q *Queries) GetDefaultTicketType(ctx context.Context, arg GetDefaultTicket
 		&i.TemplateTitle,
 		&i.TemplateDoc,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -494,7 +595,7 @@ func (q *Queries) GetDefaultTicketType(ctx context.Context, arg GetDefaultTicket
 }
 
 const getInitialTicketStatus = `-- name: GetInitialTicketStatus :one
-SELECT id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, created_at, updated_at FROM ticket_statuses
+SELECT id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, deleted_at, created_at, updated_at FROM ticket_statuses
 WHERE workspace_id = $1 AND space_id = $2 AND is_initial AND archived_at IS NULL
 `
 
@@ -517,6 +618,7 @@ func (q *Queries) GetInitialTicketStatus(ctx context.Context, arg GetInitialTick
 		&i.Position,
 		&i.IsInitial,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -524,9 +626,10 @@ func (q *Queries) GetInitialTicketStatus(ctx context.Context, arg GetInitialTick
 }
 
 const getTicket = `-- name: GetTicket :one
-SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, a.assignee_principal_id FROM tickets t
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at, a.assignee_principal_id, COALESCE(r.position, t."position") AS rank_position FROM tickets t
+LEFT JOIN ticket_ranks r ON r.workspace_id = t.workspace_id AND r.ticket_id = t.id AND r.context_kind = 'backlog'
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
-WHERE t.workspace_id = $1 AND t.id = $2
+WHERE t.workspace_id = $1 AND t.id = $2 AND t.deleted_at IS NULL
 `
 
 type GetTicketParams struct {
@@ -553,14 +656,27 @@ type GetTicketRow struct {
 	Resolution          sql.NullString
 	CreatedByUserID     int64
 	ArchivedAt          sql.NullTime
+	DeletedAt           sql.NullTime
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	AssigneePrincipalID uuid.NullUUID
+	RankPosition        string
 }
 
 // 担当（ticket_assignments）を LEFT JOIN で添える。画面は詳細でも一覧でも担当を出すので、
 // チケット 1 件につき問い合わせを 2 回に分けない（設計 Ⅶ の「詳細（… 担当 …）」）。
 // 担当は 1 人（ticket_id が PK）なので、この JOIN で行が増えることはない。
+//
+// ticket_ranks（段 2）を LEFT JOIN して並び順を rank_position として添える。並び順の正本は
+// tickets.position から ticket_ranks.position へ移った（設計 Ⅳ-F）。tickets.position 列は
+// まだ残っているが（段 2 では DROP しない）。LEFT JOIN + COALESCE にしてあるのは、
+// CreateTicket と InsertTicketRank が別の 2 文（CreateTicketUseCase 参照）で、どちらかを
+// 単独で呼ぶ経路（結合テストの直接呼び出し等）があってもチケットが一覧から消えないようにする
+// ため。INNER JOIN だと ticket_ranks 側の行が無いだけでチケットが「無い」と誤認される。
+//
+// deleted_at IS NOT NULL のチケットは「無い」と同じ扱いにする（設計 Ⅳ-J: 消えたことにする。
+// archived_at と違い戻す口を持たない）。削除済みチケットを個別に引く経路は
+// FindDeletedTicket に分けてある（RestoreDeletedTicketUseCase 専用）。
 func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (GetTicketRow, error) {
 	row := q.db.QueryRowContext(ctx, getTicket, arg.WorkspaceID, arg.ID)
 	var i GetTicketRow
@@ -583,9 +699,11 @@ func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (GetTicket
 		&i.Resolution,
 		&i.CreatedByUserID,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AssigneePrincipalID,
+		&i.RankPosition,
 	)
 	return i, err
 }
@@ -614,7 +732,7 @@ func (q *Queries) GetTicketAcrossWorkspaces(ctx context.Context, id uuid.UUID) (
 }
 
 const getTicketAssignment = `-- name: GetTicketAssignment :one
-SELECT workspace_id, ticket_id, assignee_principal_id, assignee_kind, assigned_by_user_id, created_at FROM ticket_assignments
+SELECT workspace_id, ticket_id, assignee_principal_id, assignee_kind, assigned_by_user_id, created_at, deleted_at FROM ticket_assignments
 WHERE workspace_id = $1 AND ticket_id = $2
 `
 
@@ -633,12 +751,13 @@ func (q *Queries) GetTicketAssignment(ctx context.Context, arg GetTicketAssignme
 		&i.AssigneeKind,
 		&i.AssignedByUserID,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getTicketForUpdate = `-- name: GetTicketForUpdate :one
-SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at FROM tickets
+SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, deleted_at, created_at, updated_at FROM tickets
 WHERE workspace_id = $1 AND id = $2
 FOR UPDATE
 `
@@ -671,6 +790,7 @@ func (q *Queries) GetTicketForUpdate(ctx context.Context, arg GetTicketForUpdate
 		&i.Resolution,
 		&i.CreatedByUserID,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -678,7 +798,7 @@ func (q *Queries) GetTicketForUpdate(ctx context.Context, arg GetTicketForUpdate
 }
 
 const getTicketStatus = `-- name: GetTicketStatus :one
-SELECT id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, created_at, updated_at FROM ticket_statuses
+SELECT id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, deleted_at, created_at, updated_at FROM ticket_statuses
 WHERE workspace_id = $1 AND space_id = $2 AND id = $3
 `
 
@@ -702,6 +822,7 @@ func (q *Queries) GetTicketStatus(ctx context.Context, arg GetTicketStatusParams
 		&i.Position,
 		&i.IsInitial,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -709,7 +830,7 @@ func (q *Queries) GetTicketStatus(ctx context.Context, arg GetTicketStatusParams
 }
 
 const getTicketType = `-- name: GetTicketType :one
-SELECT id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, created_at, updated_at FROM ticket_types
+SELECT id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, deleted_at, created_at, updated_at FROM ticket_types
 WHERE workspace_id = $1 AND space_id = $2 AND id = $3
 `
 
@@ -735,6 +856,7 @@ func (q *Queries) GetTicketType(ctx context.Context, arg GetTicketTypeParams) (T
 		&i.TemplateTitle,
 		&i.TemplateDoc,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -780,7 +902,7 @@ const insertTicketChangeGroup = `-- name: InsertTicketChangeGroup :one
 
 INSERT INTO ticket_change_groups (id, workspace_id, ticket_id, actor_user_id, created_at)
 VALUES ($1, $2, $3, $4, now())
-RETURNING id, workspace_id, ticket_id, actor_user_id, created_at
+RETURNING id, workspace_id, ticket_id, actor_user_id, created_at, deleted_at
 `
 
 type InsertTicketChangeGroupParams struct {
@@ -807,6 +929,7 @@ func (q *Queries) InsertTicketChangeGroup(ctx context.Context, arg InsertTicketC
 		&i.TicketID,
 		&i.ActorUserID,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -859,11 +982,33 @@ func (q *Queries) InsertTicketPageLink(ctx context.Context, arg InsertTicketPage
 	return err
 }
 
+const insertTicketRank = `-- name: InsertTicketRank :exec
+
+INSERT INTO ticket_ranks (workspace_id, ticket_id, context_kind, context_id, "position", created_at, updated_at)
+VALUES ($1, $2, 'backlog', '00000000-0000-0000-0000-000000000000', $3, now(), now())
+`
+
+type InsertTicketRankParams struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+	Position    string
+}
+
+// =============================================================================
+// ticket_ranks（段 2: 並び順の正本。設計 Ⅳ-F）
+// =============================================================================
+// CreateTicket 成功直後に usecase が呼ぶ（tickets への INSERT とは別文。設計 Ⅳ-B の
+// 「tickets への INSERT は 1 本だけ」という縛りは ticket_ranks には及ばない）。
+func (q *Queries) InsertTicketRank(ctx context.Context, arg InsertTicketRankParams) error {
+	_, err := q.db.ExecContext(ctx, insertTicketRank, arg.WorkspaceID, arg.TicketID, arg.Position)
+	return err
+}
+
 const insertTicketStatus = `-- name: InsertTicketStatus :one
 INSERT INTO ticket_statuses
   (id, workspace_id, space_id, name, category, color, "position", is_initial, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())
-RETURNING id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, deleted_at, created_at, updated_at
 `
 
 type InsertTicketStatusParams struct {
@@ -900,6 +1045,7 @@ func (q *Queries) InsertTicketStatus(ctx context.Context, arg InsertTicketStatus
 		&i.Position,
 		&i.IsInitial,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -929,7 +1075,7 @@ INSERT INTO ticket_types
   (id, workspace_id, space_id, name, color, hierarchy_level, "position", is_default,
    template_title, template_doc, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
-RETURNING id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, deleted_at, created_at, updated_at
 `
 
 type InsertTicketTypeParams struct {
@@ -975,6 +1121,7 @@ func (q *Queries) InsertTicketType(ctx context.Context, arg InsertTicketTypePara
 		&i.TemplateTitle,
 		&i.TemplateDoc,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -983,7 +1130,7 @@ func (q *Queries) InsertTicketType(ctx context.Context, arg InsertTicketTypePara
 
 const lastActiveTicketPosition = `-- name: LastActiveTicketPosition :one
 SELECT COALESCE(max("position"), '')::text AS "position" FROM tickets
-WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL AND deleted_at IS NULL
 `
 
 type LastActiveTicketPositionParams struct {
@@ -991,8 +1138,32 @@ type LastActiveTicketPositionParams struct {
 	SpaceID     uuid.UUID
 }
 
+// tickets.position 自体は段 2 で並び順の正本ではなくなったが、CreateTicket の INSERT が
+// NOT NULL 列を埋めるためにまだこれを呼ぶ（列は残す。読み手は誰も居ない・書き手だけ残る）。
 func (q *Queries) LastActiveTicketPosition(ctx context.Context, arg LastActiveTicketPositionParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, lastActiveTicketPosition, arg.WorkspaceID, arg.SpaceID)
+	var position string
+	err := row.Scan(&position)
+	return position, err
+}
+
+const lastActiveTicketRankPosition = `-- name: LastActiveTicketRankPosition :one
+SELECT COALESCE(max(r."position"), '')::text AS "position"
+FROM ticket_ranks r
+JOIN tickets t ON t.workspace_id = r.workspace_id AND t.id = r.ticket_id
+WHERE r.workspace_id = $1 AND t.space_id = $2 AND r.context_kind = 'backlog'
+  AND t.archived_at IS NULL AND t.deleted_at IS NULL
+`
+
+type LastActiveTicketRankPositionParams struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+// ticket_ranks 自体は space_id を持たないので、対象スペースへの絞り込みは tickets への
+// JOIN で行う（LastActiveTicketPosition の ticket_ranks 版）。
+func (q *Queries) LastActiveTicketRankPosition(ctx context.Context, arg LastActiveTicketRankPositionParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, lastActiveTicketRankPosition, arg.WorkspaceID, arg.SpaceID)
 	var position string
 	err := row.Scan(&position)
 	return position, err
@@ -1110,8 +1281,8 @@ func (q *Queries) ListExistingTicketIDsInWorkspace(ctx context.Context, arg List
 }
 
 const listPagesReferencingTicket = `-- name: ListPagesReferencingTicket :many
-SELECT workspace_id, source_ticket_id, target_page_id FROM ticket_page_links
-WHERE workspace_id = $1 AND target_page_id = $2
+SELECT workspace_id, source_ticket_id, target_page_id, deleted_at FROM ticket_page_links
+WHERE workspace_id = $1 AND target_page_id = $2 AND deleted_at IS NULL
 `
 
 type ListPagesReferencingTicketParams struct {
@@ -1120,6 +1291,10 @@ type ListPagesReferencingTicketParams struct {
 }
 
 // ticket-backlinks API の逆方向（そのページを参照しているチケット一覧）。
+// deleted_at IS NULL: 参照元チケットが削除されていれば、削除時に DeleteTicketPageLinksBySourceCascade
+// がこの行にも deleted_at を立てている。ここで除かないと、消えたはずのチケットの存在が
+// ページ側の逆参照一覧から漏れる（参照元チケットの deleted_at を都度 JOIN で見る代わりに、
+// 削除時に伝播させて 1 列で判定できるようにしてある。設計 Ⅳ-J の「読み出しの述語を単純に保つ」）。
 func (q *Queries) ListPagesReferencingTicket(ctx context.Context, arg ListPagesReferencingTicketParams) ([]TicketPageLink, error) {
 	rows, err := q.db.QueryContext(ctx, listPagesReferencingTicket, arg.WorkspaceID, arg.TargetPageID)
 	if err != nil {
@@ -1129,7 +1304,12 @@ func (q *Queries) ListPagesReferencingTicket(ctx context.Context, arg ListPagesR
 	items := []TicketPageLink{}
 	for rows.Next() {
 		var i TicketPageLink
-		if err := rows.Scan(&i.WorkspaceID, &i.SourceTicketID, &i.TargetPageID); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.SourceTicketID,
+			&i.TargetPageID,
+			&i.DeletedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1144,7 +1324,7 @@ func (q *Queries) ListPagesReferencingTicket(ctx context.Context, arg ListPagesR
 }
 
 const listTicketChangeGroups = `-- name: ListTicketChangeGroups :many
-SELECT id, workspace_id, ticket_id, actor_user_id, created_at FROM ticket_change_groups
+SELECT id, workspace_id, ticket_id, actor_user_id, created_at, deleted_at FROM ticket_change_groups
 WHERE workspace_id = $1 AND ticket_id = $2
 ORDER BY created_at DESC
 `
@@ -1169,6 +1349,7 @@ func (q *Queries) ListTicketChangeGroups(ctx context.Context, arg ListTicketChan
 			&i.TicketID,
 			&i.ActorUserID,
 			&i.CreatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1184,7 +1365,7 @@ func (q *Queries) ListTicketChangeGroups(ctx context.Context, arg ListTicketChan
 }
 
 const listTicketChangeItemsByGroupIDs = `-- name: ListTicketChangeItemsByGroupIDs :many
-SELECT i.id, i.workspace_id, i.group_id, i.field, i.old_value, i.new_value, i.old_label, i.new_label FROM ticket_change_items i
+SELECT i.id, i.workspace_id, i.group_id, i.field, i.old_value, i.new_value, i.old_label, i.new_label, i.deleted_at FROM ticket_change_items i
 WHERE i.workspace_id = $1
   AND i.group_id IN (
     SELECT value::uuid FROM json_array_elements_text($2::json) AS t(value)
@@ -1216,6 +1397,7 @@ func (q *Queries) ListTicketChangeItemsByGroupIDs(ctx context.Context, arg ListT
 			&i.NewValue,
 			&i.OldLabel,
 			&i.NewLabel,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1231,9 +1413,11 @@ func (q *Queries) ListTicketChangeItemsByGroupIDs(ctx context.Context, arg ListT
 }
 
 const listTicketChildren = `-- name: ListTicketChildren :many
-SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at FROM tickets
-WHERE workspace_id = $1 AND space_id = $2 AND parent_id = $3 AND archived_at IS NULL
-ORDER BY "position"
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at, COALESCE(r.position, t."position") AS rank_position FROM tickets t
+LEFT JOIN ticket_ranks r ON r.workspace_id = t.workspace_id AND r.ticket_id = t.id AND r.context_kind = 'backlog'
+WHERE t.workspace_id = $1 AND t.space_id = $2 AND t.parent_id = $3
+  AND t.archived_at IS NULL AND t.deleted_at IS NULL
+ORDER BY COALESCE(r.position, t."position")
 `
 
 type ListTicketChildrenParams struct {
@@ -1242,15 +1426,41 @@ type ListTicketChildrenParams struct {
 	ParentID    uuid.NullUUID
 }
 
-func (q *Queries) ListTicketChildren(ctx context.Context, arg ListTicketChildrenParams) ([]Ticket, error) {
+type ListTicketChildrenRow struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	Number          int64
+	TypeID          uuid.UUID
+	StatusID        uuid.UUID
+	ParentID        uuid.NullUUID
+	Title           string
+	Doc             json.RawMessage
+	PlainText       string
+	Priority        int32
+	StartDate       pgtext.NullDate
+	DueDate         pgtext.NullDate
+	Position        string
+	ClosedAt        sql.NullTime
+	Resolution      sql.NullString
+	CreatedByUserID int64
+	ArchivedAt      sql.NullTime
+	DeletedAt       sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	RankPosition    string
+}
+
+// ticket_ranks を LEFT JOIN + COALESCE で並び順を rank_position として返す（同上）。
+func (q *Queries) ListTicketChildren(ctx context.Context, arg ListTicketChildrenParams) ([]ListTicketChildrenRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTicketChildren, arg.WorkspaceID, arg.SpaceID, arg.ParentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Ticket{}
+	items := []ListTicketChildrenRow{}
 	for rows.Next() {
-		var i Ticket
+		var i ListTicketChildrenRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -1270,8 +1480,10 @@ func (q *Queries) ListTicketChildren(ctx context.Context, arg ListTicketChildren
 			&i.Resolution,
 			&i.CreatedByUserID,
 			&i.ArchivedAt,
+			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RankPosition,
 		); err != nil {
 			return nil, err
 		}
@@ -1287,7 +1499,7 @@ func (q *Queries) ListTicketChildren(ctx context.Context, arg ListTicketChildren
 }
 
 const listTicketPageLinksBySource = `-- name: ListTicketPageLinksBySource :many
-SELECT workspace_id, source_ticket_id, target_page_id FROM ticket_page_links
+SELECT workspace_id, source_ticket_id, target_page_id, deleted_at FROM ticket_page_links
 WHERE workspace_id = $1 AND source_ticket_id = $2
 `
 
@@ -1305,7 +1517,12 @@ func (q *Queries) ListTicketPageLinksBySource(ctx context.Context, arg ListTicke
 	items := []TicketPageLink{}
 	for rows.Next() {
 		var i TicketPageLink
-		if err := rows.Scan(&i.WorkspaceID, &i.SourceTicketID, &i.TargetPageID); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.SourceTicketID,
+			&i.TargetPageID,
+			&i.DeletedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1321,18 +1538,18 @@ func (q *Queries) ListTicketPageLinksBySource(ctx context.Context, arg ListTicke
 
 const listTicketParentChain = `-- name: ListTicketParentChain :many
 WITH RECURSIVE chain AS (
-  SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, 0 AS depth
+  SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at, 0 AS depth
   FROM tickets t
   WHERE t.workspace_id = $1 AND t.id = $2
   UNION ALL
-  SELECT p.id, p.workspace_id, p.space_id, p.number, p.type_id, p.status_id, p.parent_id, p.title, p.doc, p.plain_text, p.priority, p.start_date, p.due_date, p.position, p.closed_at, p.resolution, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at, c.depth + 1
+  SELECT p.id, p.workspace_id, p.space_id, p.number, p.type_id, p.status_id, p.parent_id, p.title, p.doc, p.plain_text, p.priority, p.start_date, p.due_date, p.position, p.closed_at, p.resolution, p.created_by_user_id, p.archived_at, p.deleted_at, p.created_at, p.updated_at, c.depth + 1
   FROM tickets p
   JOIN chain c ON p.workspace_id = c.workspace_id AND p.id = c.parent_id
   WHERE c.depth < 10
 )
 SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc,
   plain_text, priority, start_date, due_date, "position", closed_at, resolution,
-  created_by_user_id, archived_at, created_at, updated_at
+  created_by_user_id, archived_at, deleted_at, created_at, updated_at
 FROM chain
 WHERE depth > 0
 ORDER BY depth DESC
@@ -1362,6 +1579,7 @@ type ListTicketParentChainRow struct {
 	Resolution      sql.NullString
 	CreatedByUserID int64
 	ArchivedAt      sql.NullTime
+	DeletedAt       sql.NullTime
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -1397,6 +1615,7 @@ func (q *Queries) ListTicketParentChain(ctx context.Context, arg ListTicketParen
 			&i.Resolution,
 			&i.CreatedByUserID,
 			&i.ArchivedAt,
+			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1414,7 +1633,7 @@ func (q *Queries) ListTicketParentChain(ctx context.Context, arg ListTicketParen
 }
 
 const listTicketStatuses = `-- name: ListTicketStatuses :many
-SELECT id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, created_at, updated_at FROM ticket_statuses
+SELECT id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, deleted_at, created_at, updated_at FROM ticket_statuses
 WHERE workspace_id = $1 AND space_id = $2
   AND (archived_at IS NOT NULL) = $3::boolean
 ORDER BY "position"
@@ -1448,6 +1667,7 @@ func (q *Queries) ListTicketStatuses(ctx context.Context, arg ListTicketStatuses
 			&i.Position,
 			&i.IsInitial,
 			&i.ArchivedAt,
+			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1465,7 +1685,7 @@ func (q *Queries) ListTicketStatuses(ctx context.Context, arg ListTicketStatuses
 }
 
 const listTicketTicketLinksBySource = `-- name: ListTicketTicketLinksBySource :many
-SELECT workspace_id, source_ticket_id, target_ticket_id FROM ticket_ticket_links
+SELECT workspace_id, source_ticket_id, target_ticket_id, deleted_at FROM ticket_ticket_links
 WHERE workspace_id = $1 AND source_ticket_id = $2
 `
 
@@ -1483,7 +1703,12 @@ func (q *Queries) ListTicketTicketLinksBySource(ctx context.Context, arg ListTic
 	items := []TicketTicketLink{}
 	for rows.Next() {
 		var i TicketTicketLink
-		if err := rows.Scan(&i.WorkspaceID, &i.SourceTicketID, &i.TargetTicketID); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.SourceTicketID,
+			&i.TargetTicketID,
+			&i.DeletedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1498,7 +1723,7 @@ func (q *Queries) ListTicketTicketLinksBySource(ctx context.Context, arg ListTic
 }
 
 const listTicketTypes = `-- name: ListTicketTypes :many
-SELECT id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, created_at, updated_at FROM ticket_types
+SELECT id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, deleted_at, created_at, updated_at FROM ticket_types
 WHERE workspace_id = $1 AND space_id = $2
   AND (archived_at IS NOT NULL) = $3::boolean
 ORDER BY "position"
@@ -1532,6 +1757,7 @@ func (q *Queries) ListTicketTypes(ctx context.Context, arg ListTicketTypesParams
 			&i.TemplateTitle,
 			&i.TemplateDoc,
 			&i.ArchivedAt,
+			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1549,9 +1775,11 @@ func (q *Queries) ListTicketTypes(ctx context.Context, arg ListTicketTypesParams
 }
 
 const listTickets = `-- name: ListTickets :many
-SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at, a.assignee_principal_id FROM tickets t
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at, a.assignee_principal_id, COALESCE(r.position, t."position") AS rank_position FROM tickets t
+LEFT JOIN ticket_ranks r ON r.workspace_id = t.workspace_id AND r.ticket_id = t.id AND r.context_kind = 'backlog'
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
 WHERE t.workspace_id = $1 AND t.space_id = $2
+  AND t.deleted_at IS NULL
   AND (t.archived_at IS NOT NULL) = $3::boolean
   AND ($4::uuid IS NULL OR t.status_id = $4::uuid)
   AND ($5::uuid IS NULL OR t.type_id = $5::uuid)
@@ -1559,7 +1787,7 @@ WHERE t.workspace_id = $1 AND t.space_id = $2
     $6::uuid IS NULL
     OR a.assignee_principal_id = $6::uuid
   )
-ORDER BY t."position"
+ORDER BY COALESCE(r.position, t."position")
 `
 
 type ListTicketsParams struct {
@@ -1590,12 +1818,16 @@ type ListTicketsRow struct {
 	Resolution          sql.NullString
 	CreatedByUserID     int64
 	ArchivedAt          sql.NullTime
+	DeletedAt           sql.NullTime
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	AssigneePrincipalID uuid.NullUUID
+	RankPosition        string
 }
 
 // status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
+// ticket_ranks を LEFT JOIN + COALESCE で並び順を rank_position として返す（GetTicket と同じ理由）。
+// deleted_at IS NULL は常に付ける（include_archived の有無に関わらず、削除済みは一覧に出さない）。
 func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]ListTicketsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTickets,
 		arg.WorkspaceID,
@@ -1631,9 +1863,11 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Lis
 			&i.Resolution,
 			&i.CreatedByUserID,
 			&i.ArchivedAt,
+			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AssigneePrincipalID,
+			&i.RankPosition,
 		); err != nil {
 			return nil, err
 		}
@@ -1649,9 +1883,10 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Lis
 }
 
 const listTicketsAssignedToPrincipal = `-- name: ListTicketsAssignedToPrincipal :many
-SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.created_at, t.updated_at FROM tickets t
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at FROM tickets t
 JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
-WHERE t.workspace_id = $1 AND a.assignee_principal_id = $2 AND t.archived_at IS NULL
+WHERE t.workspace_id = $1 AND a.assignee_principal_id = $2
+  AND t.archived_at IS NULL AND t.deleted_at IS NULL
 `
 
 type ListTicketsAssignedToPrincipalParams struct {
@@ -1687,6 +1922,7 @@ func (q *Queries) ListTicketsAssignedToPrincipal(ctx context.Context, arg ListTi
 			&i.Resolution,
 			&i.CreatedByUserID,
 			&i.ArchivedAt,
+			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1704,8 +1940,8 @@ func (q *Queries) ListTicketsAssignedToPrincipal(ctx context.Context, arg ListTi
 }
 
 const listTicketsReferencingTicket = `-- name: ListTicketsReferencingTicket :many
-SELECT workspace_id, source_ticket_id, target_ticket_id FROM ticket_ticket_links
-WHERE workspace_id = $1 AND target_ticket_id = $2
+SELECT workspace_id, source_ticket_id, target_ticket_id, deleted_at FROM ticket_ticket_links
+WHERE workspace_id = $1 AND target_ticket_id = $2 AND deleted_at IS NULL
 `
 
 type ListTicketsReferencingTicketParams struct {
@@ -1713,6 +1949,7 @@ type ListTicketsReferencingTicketParams struct {
 	TargetTicketID uuid.UUID
 }
 
+// deleted_at IS NULL: ListPagesReferencingTicket と同じ理由（参照元チケットの削除を伝播で判定）。
 func (q *Queries) ListTicketsReferencingTicket(ctx context.Context, arg ListTicketsReferencingTicketParams) ([]TicketTicketLink, error) {
 	rows, err := q.db.QueryContext(ctx, listTicketsReferencingTicket, arg.WorkspaceID, arg.TargetTicketID)
 	if err != nil {
@@ -1722,7 +1959,12 @@ func (q *Queries) ListTicketsReferencingTicket(ctx context.Context, arg ListTick
 	items := []TicketTicketLink{}
 	for rows.Next() {
 		var i TicketTicketLink
-		if err := rows.Scan(&i.WorkspaceID, &i.SourceTicketID, &i.TargetTicketID); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.SourceTicketID,
+			&i.TargetTicketID,
+			&i.DeletedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1736,20 +1978,20 @@ func (q *Queries) ListTicketsReferencingTicket(ctx context.Context, arg ListTick
 	return items, nil
 }
 
-const moveTicket = `-- name: MoveTicket :execrows
-UPDATE tickets
+const moveTicketRank = `-- name: MoveTicketRank :execrows
+UPDATE ticket_ranks
 SET "position" = $3, updated_at = now()
-WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL
+WHERE workspace_id = $1 AND ticket_id = $2 AND context_kind = 'backlog'
 `
 
-type MoveTicketParams struct {
+type MoveTicketRankParams struct {
 	WorkspaceID uuid.UUID
-	ID          uuid.UUID
+	TicketID    uuid.UUID
 	Position    string
 }
 
-func (q *Queries) MoveTicket(ctx context.Context, arg MoveTicketParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, moveTicket, arg.WorkspaceID, arg.ID, arg.Position)
+func (q *Queries) MoveTicketRank(ctx context.Context, arg MoveTicketRankParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveTicketRank, arg.WorkspaceID, arg.TicketID, arg.Position)
 	if err != nil {
 		return 0, err
 	}
@@ -1783,10 +2025,32 @@ func (q *Queries) ResolveTicketIDByKey(ctx context.Context, arg ResolveTicketIDB
 	return i, err
 }
 
+const restoreDeletedTicket = `-- name: RestoreDeletedTicket :execrows
+UPDATE tickets
+SET deleted_at = NULL, "position" = $3, updated_at = now()
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NOT NULL
+`
+
+type RestoreDeletedTicketParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Position    string
+}
+
+// position は末尾へ付け直す（RestoreTicket と同じ理由。削除されていた間に他のチケットの
+// 並びが進んでいる可能性があるため、元の位置は復元しない）。
+func (q *Queries) RestoreDeletedTicket(ctx context.Context, arg RestoreDeletedTicketParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, restoreDeletedTicket, arg.WorkspaceID, arg.ID, arg.Position)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const restoreTicket = `-- name: RestoreTicket :execrows
 UPDATE tickets
 SET archived_at = NULL, "position" = $3, updated_at = now()
-WHERE workspace_id = $1 AND id = $2 AND archived_at IS NOT NULL
+WHERE workspace_id = $1 AND id = $2 AND archived_at IS NOT NULL AND deleted_at IS NULL
 `
 
 type RestoreTicketParams struct {
@@ -1904,7 +2168,7 @@ SET type_id = $1, parent_id = $2, title = $3,
     start_date = $7::date, due_date = $8::date,
     updated_at = now()
 WHERE workspace_id = $9 AND id = $10
-RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc, plain_text, priority, start_date, due_date, position, closed_at, resolution, created_by_user_id, archived_at, deleted_at, created_at, updated_at
 `
 
 type UpdateTicketParams struct {
@@ -1953,6 +2217,7 @@ func (q *Queries) UpdateTicket(ctx context.Context, arg UpdateTicketParams) (Tic
 		&i.Resolution,
 		&i.CreatedByUserID,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1963,7 +2228,7 @@ const updateTicketStatus = `-- name: UpdateTicketStatus :one
 UPDATE ticket_statuses
 SET name = $4, category = $5, color = $6, updated_at = now()
 WHERE workspace_id = $1 AND space_id = $2 AND id = $3
-RETURNING id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, name, name_lower, category, color, position, is_initial, archived_at, deleted_at, created_at, updated_at
 `
 
 type UpdateTicketStatusParams struct {
@@ -1996,6 +2261,7 @@ func (q *Queries) UpdateTicketStatus(ctx context.Context, arg UpdateTicketStatus
 		&i.Position,
 		&i.IsInitial,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -2007,7 +2273,7 @@ UPDATE ticket_types
 SET name = $4, color = $5, hierarchy_level = $6,
     template_title = $7, template_doc = $8, updated_at = now()
 WHERE workspace_id = $1 AND space_id = $2 AND id = $3
-RETURNING id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, created_at, updated_at
+RETURNING id, workspace_id, space_id, name, name_lower, color, hierarchy_level, position, is_default, template_title, template_doc, archived_at, deleted_at, created_at, updated_at
 `
 
 type UpdateTicketTypeParams struct {
@@ -2046,6 +2312,7 @@ func (q *Queries) UpdateTicketType(ctx context.Context, arg UpdateTicketTypePara
 		&i.TemplateTitle,
 		&i.TemplateDoc,
 		&i.ArchivedAt,
+		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -2061,7 +2328,7 @@ ON CONFLICT (ticket_id)
 DO UPDATE SET assignee_principal_id = EXCLUDED.assignee_principal_id,
               assigned_by_user_id = EXCLUDED.assigned_by_user_id
 WHERE ticket_assignments.workspace_id = EXCLUDED.workspace_id
-RETURNING workspace_id, ticket_id, assignee_principal_id, assignee_kind, assigned_by_user_id, created_at
+RETURNING workspace_id, ticket_id, assignee_principal_id, assignee_kind, assigned_by_user_id, created_at, deleted_at
 `
 
 type UpsertTicketAssignmentParams struct {
@@ -2092,6 +2359,7 @@ func (q *Queries) UpsertTicketAssignment(ctx context.Context, arg UpsertTicketAs
 		&i.AssigneeKind,
 		&i.AssignedByUserID,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }

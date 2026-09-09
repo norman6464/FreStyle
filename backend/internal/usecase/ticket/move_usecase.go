@@ -52,12 +52,14 @@ func (u *MoveTicketUseCase) Execute(ctx context.Context, in MoveTicketInput) err
 	if err != nil {
 		return err
 	}
-	return u.repo.MoveTicket(ctx, in.WorkspaceID, in.TicketID, pos)
+	// 並び順の正本は ticket_ranks（段 2・設計 Ⅳ-F）。tickets.position は CreateTicket の
+	// NOT NULL 制約を満たすためだけに残った列で、以後 Move では触らない。
+	return u.repo.MoveTicketRank(ctx, in.WorkspaceID, in.TicketID, pos)
 }
 
 func (u *MoveTicketUseCase) placementPosition(ctx context.Context, in MoveTicketInput, spaceID string) (string, error) {
 	if in.AnchorTicketID == nil {
-		last, err := u.repo.LastActiveTicketPosition(ctx, in.WorkspaceID, spaceID)
+		last, err := u.repo.LastActiveTicketRankPosition(ctx, in.WorkspaceID, spaceID)
 		if err != nil {
 			return "", err
 		}

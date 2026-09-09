@@ -229,6 +229,7 @@ type Ticket struct {
 	Resolution      sql.NullString
 	CreatedByUserID int64
 	ArchivedAt      sql.NullTime
+	DeletedAt       sql.NullTime
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -240,6 +241,7 @@ type TicketAssignment struct {
 	AssigneeKind        sql.NullString
 	AssignedByUserID    int64
 	CreatedAt           time.Time
+	DeletedAt           sql.NullTime
 }
 
 type TicketChangeGroup struct {
@@ -248,6 +250,7 @@ type TicketChangeGroup struct {
 	TicketID    uuid.UUID
 	ActorUserID int64
 	CreatedAt   time.Time
+	DeletedAt   sql.NullTime
 }
 
 type TicketChangeItem struct {
@@ -259,6 +262,7 @@ type TicketChangeItem struct {
 	NewValue    sql.NullString
 	OldLabel    sql.NullString
 	NewLabel    sql.NullString
+	DeletedAt   sql.NullTime
 }
 
 type TicketCounter struct {
@@ -266,12 +270,24 @@ type TicketCounter struct {
 	SpaceID     uuid.UUID
 	LastNumber  int64
 	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
 }
 
 type TicketPageLink struct {
 	WorkspaceID    uuid.UUID
 	SourceTicketID uuid.UUID
 	TargetPageID   uuid.UUID
+	DeletedAt      sql.NullTime
+}
+
+type TicketRank struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+	ContextKind string
+	ContextID   uuid.UUID
+	Position    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type TicketStatus struct {
@@ -285,6 +301,7 @@ type TicketStatus struct {
 	Position    string
 	IsInitial   bool
 	ArchivedAt  sql.NullTime
+	DeletedAt   sql.NullTime
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -293,6 +310,7 @@ type TicketTicketLink struct {
 	WorkspaceID    uuid.UUID
 	SourceTicketID uuid.UUID
 	TargetTicketID uuid.UUID
+	DeletedAt      sql.NullTime
 }
 
 type TicketType struct {
@@ -308,6 +326,7 @@ type TicketType struct {
 	TemplateTitle  sql.NullString
 	TemplateDoc    *json.RawMessage
 	ArchivedAt     sql.NullTime
+	DeletedAt      sql.NullTime
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

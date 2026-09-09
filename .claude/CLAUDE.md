@@ -2,7 +2,7 @@
 ---
 
 ## 1. プロジェクト基本情報
-- **本番URL**: https://frestyle.jp
+- **本番URL**: https://frestyle.dev
 - **バックエンド**: Go 1.x / Gin / sqlc（`backend/`）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6。データアクセスは **sqlc**（SQL から型付き Go を生成）

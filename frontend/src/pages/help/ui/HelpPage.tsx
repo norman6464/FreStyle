@@ -12,7 +12,7 @@ import { PageIntro, StepIndicator, GuidedHint, GlossaryTerm, ActionCard } from '
 import { GLOSSARY } from '../config/glossary';
 
 /**
- * 新卒新入社員向けの「使い方ガイド」ページ。
+ * はじめての人向けの「使い方ガイド」ページ。
  *
  * 章立て:
  *   1. FreStyle ってなに？
@@ -34,7 +34,6 @@ export default function HelpPage() {
       <PageIntro
         icon={<LifebuoyIcon className="h-6 w-6" />}
         title="使い方ガイド"
-        description="新卒・新入社員の方が、初日から迷わず FreStyle を使い始められるようにまとめた入門ドキュメントです。"
       />
 
       <GuidedHint title="このページの読み方" storageKey="hint:help:howto-v1">
@@ -46,12 +45,6 @@ export default function HelpPage() {
         <h2 id="help-what" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
           1. FreStyle ってなに？
         </h2>
-        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          FreStyle は、新卒 IT エンジニアのための <strong>ビジネスコミュニケーション練習アプリ</strong> です。
-          <br />
-          顧客折衝・上司への報連相・設計レビューでのやり取りなど、実務で遭遇しがちな 12 種類のシーンを AI 相手に
-          ロールプレイし、AI のフィードバックでコミュニケーション力を伸ばせます。
-        </p>
         <ul className="mt-3 list-disc pl-6 text-sm text-[var(--color-text-secondary)] space-y-1">
           <li>
             <GlossaryTerm

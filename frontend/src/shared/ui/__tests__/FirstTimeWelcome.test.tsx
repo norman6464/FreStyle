@@ -38,13 +38,13 @@ describe('FirstTimeWelcome', () => {
 
   it('onPrimaryAction が未指定なら CTA ボタンを出さない', () => {
     render(<FirstTimeWelcome steps={STEPS} />);
-    expect(screen.queryByRole('button', { name: /はじめて練習する/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /はじめる/ })).not.toBeInTheDocument();
   });
 
   it('onPrimaryAction が指定されれば CTA ボタンを出し、クリックで呼ばれる', () => {
     const onPrimary = vi.fn();
     render(<FirstTimeWelcome steps={STEPS} onPrimaryAction={onPrimary} />);
-    fireEvent.click(screen.getByRole('button', { name: 'はじめて練習する' }));
+    fireEvent.click(screen.getByRole('button', { name: 'はじめる' }));
     expect(onPrimary).toHaveBeenCalledOnce();
   });
 

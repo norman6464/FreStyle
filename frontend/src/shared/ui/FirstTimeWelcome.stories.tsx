@@ -3,9 +3,12 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import FirstTimeWelcome from './FirstTimeWelcome';
 
 /**
- * はじめて来た人に「何ができるか・まず何をするか」を示すカード。
+ * はじめて来た人に「まず何をするか」を示すカード。
  *
  * 手順は 3〜5 個まで。それ以上並べると読まれない。
+ *
+ * このカード自体は製品が何をする道具かを説明しない（説明は呼び出し側が書く）。
+ * ここに置く手順も、あくまで形を見るための見本。
  *
  * この見本では `storageKey` を**わざと渡していない**。渡すと一度閉じたきり
  * 見本が空っぽになるため。
@@ -16,9 +19,9 @@ const meta = {
   parameters: { layout: 'padded' },
   args: {
     steps: [
-      { title: '言語を選ぶ', description: '学びたい言語を 1 つ選びます。' },
-      { title: '演習を解く', description: '画面の中でコードを書いて動かします。' },
-      { title: '結果を振り返る', description: '通らなかったところの理由を読みます。' },
+      { title: 'ページを作る', description: '空のページを 1 つ作ります。' },
+      { title: '書いて整える', description: '見出しや箇条書きで形を付けます。' },
+      { title: '共有する', description: '読んでほしい人に見せます。' },
     ],
   },
   decorators: [
@@ -49,10 +52,10 @@ export const 既定: Story = {
 
 /** 次の一歩を置いた形。 */
 export const 最初の一歩つき: Story = {
-  args: { primaryActionLabel: 'はじめて練習する', onPrimaryAction: fn() },
+  args: { primaryActionLabel: 'ページを作る', onPrimaryAction: fn() },
   play: async ({ args, canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'はじめて練習する' }),
+      within(canvasElement).getByRole('button', { name: 'ページを作る' }),
     );
     await expect(args.onPrimaryAction).toHaveBeenCalledTimes(1);
   },

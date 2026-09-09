@@ -74,14 +74,34 @@ jobs:
     env:
       # 公開 URL(公開 JS に焼き込まれる値)は Secret にする必要がないため直接記載する。
       VITE_API_BASE_URL: https://api.frestyle.dev
-      # NOTE: 認証（GCIP への作り直し）はまだ実装していない（FRESTYLE-446）。
-      # VITE_OIDC_* は Dex（ローカル）向けの値のままで、認証の実装が決まるまで触らない。
-      VITE_OIDC_REDIRECT_URI: https://frestyle.jp/login/callback
-      VITE_OIDC_AUTHORIZE_URI: ${{ secrets.VITE_OIDC_AUTHORIZE_URI }}
-      VITE_OIDC_CLIENT_ID: ${{ secrets.VITE_OIDC_CLIENT_ID }}
-      # openid だけだと id_token に名前もメールも載らず、offline_access が無いと
-      # 更新用のトークンがそもそも発行されない。
-      VITE_OIDC_SCOPE: openid profile email offline_access
+
+      # 本番の発行者は GCIP（Firebase Authentication）。フロントは Firebase JS SDK で
+      # 直接サインインし、得た ID トークンを Bearer で backend へ送る。
+      #
+      # この 3 つも Secret にしない。**Firebase のクライアント設定は隠せる種類の値ではない**
+      # ——ビルド成果物の JS に焼き込まれ、frestyle.dev を開いた誰もが読める。鍵ではなく
+      # 「どのプロジェクトへ話しかけるか」の宛先で、守りは許可ドメイン（GCIP の
+      # authorizedDomains）と Auth 側の規則が担う。Secret に入れると隠せている気がして、
+      # 実際には隠れていない、という食い違いだけが残る。
+      #
+      # 値は GCP プロジェクト frestyle-507912 の Web アプリのもの。backend の
+      # プロジェクト（frestyle-prod）とは別で、表示名がどちらも FreStyle なので取り違えに注意。
+      #
+      # auth_mode に unconfigured を選んだときは**空にする**。値を焼き込んだまま
+      # 「止める」と宣言すると、門番（check-auth-config.sh）が宣言と実態の食い違いとして
+      # 必ずビルドを落とす。それでは「ログインを止めた版を出す」という戻り道が塞がる。
+      #
+      # 条件は != で書くこと。GitHub Actions の `&&` / `||` は値を返す演算子で、
+      # 空文字は偽として扱われる。`cond && '' || '値'` と書くと、cond が真でも
+      # 空文字が偽なので必ず '値' 側に落ちる（意図と逆になる）。
+      # タグ push には inputs が無く auth_mode は空文字になるため、この向きだと
+      # 「設定あり」に倒れる（タグでの配信は設定を要求する、という既定の意図どおり）。
+      VITE_FIREBASE_API_KEY: ${{ inputs.auth_mode != 'unconfigured' && 'AIzaSyBccI4D5QmiY3M1il3Kq80yhSNCXVasJVw' || '' }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ inputs.auth_mode != 'unconfigured' && 'frestyle-507912.firebaseapp.com' || '' }}
+      VITE_FIREBASE_PROJECT_ID: ${{ inputs.auth_mode != 'unconfigured' && 'frestyle-507912' || '' }}
+
+      # VITE_OIDC_* は渡さない。あれは Dex（ローカル開発の発行者）専用で、
+      # 本番のビルドに混ぜると resolveAuthMode が二重に設定を見つけることになる。
 
     steps:
       - uses: actions/checkout@v6
@@ -96,7 +116,6 @@ jobs:
       - name: 認可の設定と宣言が噛み合っているか確かめる
         env:
           AUTH_MODE: ${{ inputs.auth_mode || 'configured' }}
-          SITE_ORIGIN: https://frestyle.jp
         # build job は working-directory が ./frontend なので絶対パスで指す。
         run: "${{ github.workspace }}/.github/scripts/check-auth-config.sh"
 

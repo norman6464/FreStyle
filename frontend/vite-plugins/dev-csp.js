@@ -1,7 +1,7 @@
 /*
  * 開発サーバ（vite dev）のときだけ index.html の CSP connect-src に開発用オリジンを足す。
  *
- * index.html の CSP は本番向けに `connect-src 'self' https://api.frestyle.jp ...` を許可している。
+ * index.html の CSP は本番向けに `connect-src 'self' https://api.frestyle.dev ...` を許可している。
  * ローカル開発は SPA が localhost:5173、API が localhost:8080 と別オリジンになるため、
  * そのままでは health / auth の fetch が CSP で遮断され、画面がメンテナンス表示のまま進まない。
  * 本番ビルドの CSP は変えたくないので、dev サーバのときだけ配信する HTML を書き換える。

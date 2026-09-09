@@ -15,14 +15,23 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 Terraform）が `refs/heads/main` 上の実行にしか許可されていないため（`release/v*` タグは
 含まれない）。タグ経路を持たせるにはインフラ側の対応が先に要る。
 
-## 必要な GitHub Secrets（CD 動作前提）
+## CD が使う設定値（Secrets は不要）
 
-| 種別 | Secret 名 | 用途 |
-|---|---|---|
-| Frontend | `VITE_OIDC_AUTHORIZE_URI` / `VITE_OIDC_CLIENT_ID` | フロントエンドビルド時に注入（`auth_mode: configured` のときのみ必須。認証は GCIP への作り直しが未実装で、値は未設定のままでよい） |
+**CD はどちらも GitHub Secrets を持たない。**
 
-`cd-backend.yml` は Secret を持たない。Artifact Registry のリポジトリ名・Cloud Run サービス名は
-値そのものが秘密ではないため、ワークフロー内に直接書いている（`env:` 参照）。
+`cd-backend.yml` の Artifact Registry のリポジトリ名・Cloud Run サービス名、`cd-frontend.yml` の
+API の URL・GCIP（Firebase Authentication）のクライアント設定（`VITE_FIREBASE_API_KEY` /
+`VITE_FIREBASE_AUTH_DOMAIN` / `VITE_FIREBASE_PROJECT_ID`）は、いずれも値そのものが秘密ではない
+ためワークフロー内に直接書いている（`env:` 参照）。
+
+Firebase のクライアント設定を Secret にしないのは、**隠せる種類の値ではない**ため。
+ビルド成果物の JS に焼き込まれ、frestyle.dev を開いた誰もが読める。鍵ではなく
+「どのプロジェクトへ話しかけるか」の宛先で、守りは GCIP 側の許可ドメイン
+（`authorizedDomains`）と Auth の規則が担う。Secret に入れると隠せている気がして
+実際には隠れていない、という食い違いだけが残る。
+
+（旧 `VITE_OIDC_AUTHORIZE_URI` / `VITE_OIDC_CLIENT_ID` は参照しなくなった。`VITE_OIDC_*` は
+Dex＝ローカル開発の発行者専用で、本番のビルドには渡さない。）
 
 GCP 認証はどちらのワークフローも Workload Identity Federation（WIF）で、実行のたびに一時認証情報を
 引き受ける（長寿命のサービスアカウントキーは発行しない）。WIF pool/provider・サービスアカウントは
@@ -94,7 +103,7 @@ git push origin release/v1.2.3
 ```
 
 タグ push をフックに `cd-frontend.yml` が自動実行される。backend（`cd-backend.yml`）はこの経路を
-持たない（WIF binding の制約。上の「必要な GitHub Secrets」参照）。
+持たない（WIF binding の制約。上の「CD が使う設定値」参照）。
 
 ### C. CLI でのデプロイ（`gh` 使用）
 

@@ -8,9 +8,10 @@ import (
 
 // 本番フロントは Firebase Hosting（frestyle.dev がカスタムドメイン、frestyle-dev.web.app が
 // 既定 URL、frestyle-dev.firebaseapp.com は GCIP の authDomain としても使われる既定ドメインで、
-// 同じ内容が配信される）。旧 frestyle.jp（DNS 削除済み）・旧 CloudFront・旧 S3 website
-// エンドポイントは AWS 撤去に伴い実在しないため、許可リストから外してある
-// （到達不能な origin を残す意味が無い）。
+// 同じ内容が配信される）。
+//
+// 許可リストに載せるのは **いま実在する配信元だけ**。畳んだドメインを残しても
+// 到達できないので守りにはならず、どれが生きているのか分からなくなるだけ。
 var allowedOrigins = map[string]struct{}{
 	"https://frestyle.dev":                 {},
 	"https://frestyle-dev.web.app":         {},

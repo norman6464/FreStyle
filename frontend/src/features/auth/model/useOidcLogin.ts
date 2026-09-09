@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildAuthorizeUrl } from '@/shared/lib/auth/oidcAuthUrl';
 import { readAuthConfig } from '@/shared/lib/auth/authConfig';
+import { resolveAuthMode } from '@/shared/lib/auth/currentIdToken';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
 import { logger } from '@/shared/lib/logger';
 
@@ -60,10 +61,16 @@ export function useOidcLogin(): OidcLogin {
     [config],
   );
 
-  // 描画のたびに出さない。設定はビルド時に確定しているので、1 回出れば足りる。
+  // 記録に残すのは「どの発行者も設定されていない」ときだけ。
+  //
+  // 本番は GCIP の設定だけを焼き込むので、Dex 向けの設定が欠けているのは**正常**。
+  // それを毎回 error として出すと、ログインは動いているのに「認可の設定が揃っていない」
+  // という記録が全ページ表示ごとに残り、後から調べる人を確実に誤らせる（実際に誤らせた）。
+  //
+  // 描画のたびには出さない。設定はビルド時に確定しているので 1 回出れば足りる。
   useEffect(() => {
-    if (config.status === 'unconfigured') {
-      logger.error('認可の設定が揃っていないため、ログインを開始できません', {
+    if (config.status === 'unconfigured' && resolveAuthMode() === 'unconfigured') {
+      logger.error('どの発行者の設定も揃っていないため、ログインを開始できません', {
         missing: config.missing,
       });
     }

@@ -91,4 +91,6 @@ app > pages > widgets > features > entities > shared
 - `main` へ直接コミット・push しない
 - `xxxRequest` / `xxxResponse` は handler のファイル内で local 定義。機密フィールドは domain 側の `json:"-"` で隠す
 - **チケット・docs には実在確認した事実のみを書く**（ファイルの存在・コードの挙動・PR のマージ状態を検証してから書く。検証できないことは書かない）
+- **他社の製品名・サービス名・会社名を書かない**（コード / コードコメント / PR タイトル・本文 / commit メッセージ / チケット / docs のすべてが対象）。「〜風」「〜ライク」「〜のように」といった設計比較の言い回しも同様に避け、機能そのものの言葉で説明する。業務分析・市場調査が目的で比較そのものが本旨の docs（例: 競合調査資料）は対象外。OSS ライブラリ名・実際に使っている外部サービス名（インフラ・SaaS 依存として明記する場合。例: 「AWS から GCP へ移行」「Firebase Authentication を使う」）は対象外— 禁止しているのは**競合製品の設計・体験を引き合いに出す比較**であって、実在の技術的依存関係を隠すことではない
+  - 2026-09-09、この規約が抜けていた期間に蓄積した Jira / Nulab Backlog / Notion / Confluence / paiza / Zenn / Gemini / ChatGPT / Wandbox 等への言及を、コード・PR タイトル / 本文から一括で洗い出し是正した（過去 commit メッセージそのものは git 履歴の性質上書き換えていない。リポジトリは private 化済み）
 

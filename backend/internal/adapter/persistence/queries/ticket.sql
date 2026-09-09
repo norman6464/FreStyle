@@ -174,9 +174,27 @@ RETURNING *;
 -- 担当（ticket_assignments）を LEFT JOIN で添える。画面は詳細でも一覧でも担当を出すので、
 -- チケット 1 件につき問い合わせを 2 回に分けない（設計 Ⅶ の「詳細（… 担当 …）」）。
 -- 担当は 1 人（ticket_id が PK）なので、この JOIN で行が増えることはない。
-SELECT t.*, a.assignee_principal_id FROM tickets t
+--
+-- ticket_ranks（段 2）を LEFT JOIN して並び順を rank_position として添える。並び順の正本は
+-- tickets.position から ticket_ranks.position へ移った（設計 Ⅳ-F）。tickets.position 列は
+-- まだ残っているが（段 2 では DROP しない）。LEFT JOIN + COALESCE にしてあるのは、
+-- CreateTicket と InsertTicketRank が別の 2 文（CreateTicketUseCase 参照）で、どちらかを
+-- 単独で呼ぶ経路（結合テストの直接呼び出し等）があってもチケットが一覧から消えないようにする
+-- ため。INNER JOIN だと ticket_ranks 側の行が無いだけでチケットが「無い」と誤認される。
+--
+-- deleted_at IS NOT NULL のチケットは「無い」と同じ扱いにする（設計 Ⅳ-J: 消えたことにする。
+-- archived_at と違い戻す口を持たない）。削除済みチケットを個別に引く経路は
+-- FindDeletedTicket に分けてある（RestoreDeletedTicketUseCase 専用）。
+SELECT t.*, a.assignee_principal_id, COALESCE(r.position, t."position") AS rank_position FROM tickets t
+LEFT JOIN ticket_ranks r ON r.workspace_id = t.workspace_id AND r.ticket_id = t.id AND r.context_kind = 'backlog'
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
-WHERE t.workspace_id = $1 AND t.id = $2;
+WHERE t.workspace_id = $1 AND t.id = $2 AND t.deleted_at IS NULL;
+
+-- name: FindDeletedTicket :one
+-- RestoreDeletedTicketUseCase 専用。GetTicket と逆に、削除済み（deleted_at IS NOT NULL）の
+-- 行だけを引く（現役の行は見えない — Archive/Restore の archived_at と対称の作法）。
+SELECT * FROM tickets
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NOT NULL;
 
 -- name: GetTicketForUpdate :one
 -- 状態変更・親子変更・順位変更の直前にロックする。
@@ -194,9 +212,13 @@ WHERE t.workspace_id = sqlc.arg(workspace_id)
 
 -- name: ListTickets :many
 -- status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
-SELECT t.*, a.assignee_principal_id FROM tickets t
+-- ticket_ranks を LEFT JOIN + COALESCE で並び順を rank_position として返す（GetTicket と同じ理由）。
+-- deleted_at IS NULL は常に付ける（include_archived の有無に関わらず、削除済みは一覧に出さない）。
+SELECT t.*, a.assignee_principal_id, COALESCE(r.position, t."position") AS rank_position FROM tickets t
+LEFT JOIN ticket_ranks r ON r.workspace_id = t.workspace_id AND r.ticket_id = t.id AND r.context_kind = 'backlog'
 LEFT JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.space_id = sqlc.arg(space_id)
+  AND t.deleted_at IS NULL
   AND (t.archived_at IS NOT NULL) = sqlc.arg(include_archived)::boolean
   AND (sqlc.narg(status_id)::uuid IS NULL OR t.status_id = sqlc.narg(status_id)::uuid)
   AND (sqlc.narg(type_id)::uuid IS NULL OR t.type_id = sqlc.narg(type_id)::uuid)
@@ -204,12 +226,15 @@ WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.space_id = sqlc.arg(space_id
     sqlc.narg(assignee_principal_id)::uuid IS NULL
     OR a.assignee_principal_id = sqlc.narg(assignee_principal_id)::uuid
   )
-ORDER BY t."position";
+ORDER BY COALESCE(r.position, t."position");
 
 -- name: ListTicketChildren :many
-SELECT * FROM tickets
-WHERE workspace_id = $1 AND space_id = $2 AND parent_id = $3 AND archived_at IS NULL
-ORDER BY "position";
+-- ticket_ranks を LEFT JOIN + COALESCE で並び順を rank_position として返す（同上）。
+SELECT t.*, COALESCE(r.position, t."position") AS rank_position FROM tickets t
+LEFT JOIN ticket_ranks r ON r.workspace_id = t.workspace_id AND r.ticket_id = t.id AND r.context_kind = 'backlog'
+WHERE t.workspace_id = $1 AND t.space_id = $2 AND t.parent_id = $3
+  AND t.archived_at IS NULL AND t.deleted_at IS NULL
+ORDER BY COALESCE(r.position, t."position");
 
 -- name: UpdateTicket :one
 UPDATE tickets
@@ -228,20 +253,43 @@ SET status_id = $3, closed_at = $4, resolution = $5, updated_at = now()
 WHERE workspace_id = $1 AND id = $2
 RETURNING *;
 
--- name: MoveTicket :execrows
-UPDATE tickets
-SET "position" = $3, updated_at = now()
-WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL;
-
 -- name: ArchiveTicket :execrows
 UPDATE tickets
 SET archived_at = now(), updated_at = now()
-WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL;
+WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL AND deleted_at IS NULL;
 
 -- name: RestoreTicket :execrows
 UPDATE tickets
 SET archived_at = NULL, "position" = $3, updated_at = now()
-WHERE workspace_id = $1 AND id = $2 AND archived_at IS NOT NULL;
+WHERE workspace_id = $1 AND id = $2 AND archived_at IS NOT NULL AND deleted_at IS NULL;
+
+-- name: DeleteTicket :execrows
+-- 「消えたことにする」（設計 Ⅳ-J）。archived_at と独立の列で、戻す口は
+-- RestoreDeletedTicket だけ（一覧・検索・URL 直打ちのどこにも出てこなくなる）。
+-- 既に削除済みなら 0 行（呼び出し側は ErrTicketNotFound に畳む。冪等な 404）。
+UPDATE tickets
+SET deleted_at = now(), updated_at = now()
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;
+
+-- name: RestoreDeletedTicket :execrows
+-- position は末尾へ付け直す（RestoreTicket と同じ理由。削除されていた間に他のチケットの
+-- 並びが進んでいる可能性があるため、元の位置は復元しない）。
+UPDATE tickets
+SET deleted_at = NULL, "position" = $3, updated_at = now()
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NOT NULL;
+
+-- name: DeleteTicketPageLinksBySourceCascade :exec
+-- チケット削除時、その本文からの参照（派生索引）も一緒に「消えたことにする」。
+-- 物理削除しないのは、DeleteTicketPageLinksBySource（本文保存時の張り替え）と役割が違うため
+-- — こちらは「参照元が消えたので隠す」、あちらは「本文が変わったので作り直す」。
+UPDATE ticket_page_links
+SET deleted_at = now()
+WHERE workspace_id = $1 AND source_ticket_id = $2 AND deleted_at IS NULL;
+
+-- name: DeleteTicketTicketLinksBySourceCascade :exec
+UPDATE ticket_ticket_links
+SET deleted_at = now()
+WHERE workspace_id = $1 AND source_ticket_id = $2 AND deleted_at IS NULL;
 
 -- name: CountActiveTicketChildren :one
 SELECT count(*) FROM tickets
@@ -263,20 +311,46 @@ WITH RECURSIVE chain AS (
 )
 SELECT id, workspace_id, space_id, number, type_id, status_id, parent_id, title, doc,
   plain_text, priority, start_date, due_date, "position", closed_at, resolution,
-  created_by_user_id, archived_at, created_at, updated_at
+  created_by_user_id, archived_at, deleted_at, created_at, updated_at
 FROM chain
 WHERE depth > 0
 ORDER BY depth DESC;
 
 -- name: LastActiveTicketPosition :one
+-- tickets.position 自体は段 2 で並び順の正本ではなくなったが、CreateTicket の INSERT が
+-- NOT NULL 列を埋めるためにまだこれを呼ぶ（列は残す。読み手は誰も居ない・書き手だけ残る）。
 SELECT COALESCE(max("position"), '')::text AS "position" FROM tickets
-WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL;
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL AND deleted_at IS NULL;
 
 -- name: FindActiveTicketPosition :one
 -- move の before/after 指定チケットが現役かを確かめる（別スペース・アーカイブ済み・
 -- 非実在はすべて 0 行に畳まれ、usecase は同じ拒否として扱う）。
 SELECT "position" FROM tickets
-WHERE workspace_id = $1 AND space_id = $2 AND id = $3 AND archived_at IS NULL;
+WHERE workspace_id = $1 AND space_id = $2 AND id = $3 AND archived_at IS NULL AND deleted_at IS NULL;
+
+-- =============================================================================
+-- ticket_ranks（段 2: 並び順の正本。設計 Ⅳ-F）
+-- =============================================================================
+
+-- name: InsertTicketRank :exec
+-- CreateTicket 成功直後に usecase が呼ぶ（tickets への INSERT とは別文。設計 Ⅳ-B の
+-- 「tickets への INSERT は 1 本だけ」という縛りは ticket_ranks には及ばない）。
+INSERT INTO ticket_ranks (workspace_id, ticket_id, context_kind, context_id, "position", created_at, updated_at)
+VALUES ($1, $2, 'backlog', '00000000-0000-0000-0000-000000000000', $3, now(), now());
+
+-- name: MoveTicketRank :execrows
+UPDATE ticket_ranks
+SET "position" = $3, updated_at = now()
+WHERE workspace_id = $1 AND ticket_id = $2 AND context_kind = 'backlog';
+
+-- name: LastActiveTicketRankPosition :one
+-- ticket_ranks 自体は space_id を持たないので、対象スペースへの絞り込みは tickets への
+-- JOIN で行う（LastActiveTicketPosition の ticket_ranks 版）。
+SELECT COALESCE(max(r."position"), '')::text AS "position"
+FROM ticket_ranks r
+JOIN tickets t ON t.workspace_id = r.workspace_id AND t.id = r.ticket_id
+WHERE r.workspace_id = $1 AND t.space_id = $2 AND r.context_kind = 'backlog'
+  AND t.archived_at IS NULL AND t.deleted_at IS NULL;
 
 -- =============================================================================
 -- ticket_assignments
@@ -306,7 +380,8 @@ WHERE workspace_id = $1 AND ticket_id = $2;
 -- name: ListTicketsAssignedToPrincipal :many
 SELECT t.* FROM tickets t
 JOIN ticket_assignments a ON a.workspace_id = t.workspace_id AND a.ticket_id = t.id
-WHERE t.workspace_id = $1 AND a.assignee_principal_id = $2 AND t.archived_at IS NULL;
+WHERE t.workspace_id = $1 AND a.assignee_principal_id = $2
+  AND t.archived_at IS NULL AND t.deleted_at IS NULL;
 
 -- =============================================================================
 -- ticket_change_groups / ticket_change_items
@@ -380,16 +455,21 @@ WHERE workspace_id = $1 AND source_ticket_id = $2;
 
 -- name: ListPagesReferencingTicket :many
 -- ticket-backlinks API の逆方向（そのページを参照しているチケット一覧）。
+-- deleted_at IS NULL: 参照元チケットが削除されていれば、削除時に DeleteTicketPageLinksBySourceCascade
+-- がこの行にも deleted_at を立てている。ここで除かないと、消えたはずのチケットの存在が
+-- ページ側の逆参照一覧から漏れる（参照元チケットの deleted_at を都度 JOIN で見る代わりに、
+-- 削除時に伝播させて 1 列で判定できるようにしてある。設計 Ⅳ-J の「読み出しの述語を単純に保つ」）。
 SELECT * FROM ticket_page_links
-WHERE workspace_id = $1 AND target_page_id = $2;
+WHERE workspace_id = $1 AND target_page_id = $2 AND deleted_at IS NULL;
 
 -- name: ListTicketTicketLinksBySource :many
 SELECT * FROM ticket_ticket_links
 WHERE workspace_id = $1 AND source_ticket_id = $2;
 
 -- name: ListTicketsReferencingTicket :many
+-- deleted_at IS NULL: ListPagesReferencingTicket と同じ理由（参照元チケットの削除を伝播で判定）。
 SELECT * FROM ticket_ticket_links
-WHERE workspace_id = $1 AND target_ticket_id = $2;
+WHERE workspace_id = $1 AND target_ticket_id = $2 AND deleted_at IS NULL;
 
 -- name: GetTicketAcrossWorkspaces :one
 -- チケットを **ID だけ** で引く。/kb/tickets/{ticketId} の URL からワークスペースを

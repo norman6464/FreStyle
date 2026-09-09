@@ -34,6 +34,11 @@ var (
 // 実在しない（または kind='user' でない）ときに返す。
 var ErrTicketAssigneeNotFound = errors.New("ticket assignee principal not found")
 
+// ErrTicketNotDeleted は削除済みチケット専用の操作（RestoreDeletedTicket）を、
+// 削除されていない（現役 or 存在しない）チケットに対して呼んだときに返す。
+// FindTicket と同じ「存在の有無を漏らさない」方針で、404 に畳む。
+var ErrTicketNotDeleted = errors.New("ticket is not deleted")
+
 // TicketCreateInput は CreateTicket に渡す入力。
 // Number は渡さない（採番 CTE が決める。呼び出し側が直接指定する経路は持たない —
 // 設計 Ⅳ-B の「tickets への INSERT はこのクエリ 1 本だけ」というレビュー項目）。
@@ -163,9 +168,17 @@ type TicketRepository interface {
 		ctx context.Context, workspaceID, ticketID, statusID string,
 		closedAt *time.Time, resolution *domain.TicketResolution,
 	) (*domain.Ticket, error)
-	MoveTicket(ctx context.Context, workspaceID, ticketID, position string) error
 	ArchiveTicket(ctx context.Context, workspaceID, ticketID string) error
 	RestoreTicket(ctx context.Context, workspaceID, ticketID, position string) error
+	// DeleteTicket は「消えたことにする」（設計 Ⅳ-J）。同一トランザクションでの子孫への
+	// 伝播は usecase 側の責務ではなく、この呼び出しに続けて
+	// DeleteTicketPageLinksBySourceCascade / DeleteTicketTicketLinksBySourceCascade を呼ぶ
+	// （DeleteTicketUseCase 参照）。
+	DeleteTicket(ctx context.Context, workspaceID, ticketID string) error
+	// FindDeletedTicket は削除済み（deleted_at IS NOT NULL）の行だけを引く。
+	// RestoreDeletedTicketUseCase 専用（現役取得の FindTicket とは逆の絞り込み）。
+	FindDeletedTicket(ctx context.Context, workspaceID, ticketID string) (*domain.Ticket, error)
+	RestoreDeletedTicket(ctx context.Context, workspaceID, ticketID, position string) error
 	CountActiveTicketChildren(ctx context.Context, workspaceID, ticketID string) (int64, error)
 	// ListTicketParentChain は親を根まで辿った列（自分を含まない、根に近い順）を返す。
 	// 深さの検査・周期の検出・レベル整合性の検査に使う（最大 3 段なので閉包表は持たない）。
@@ -174,6 +187,13 @@ type TicketRepository interface {
 	// HasActiveTicketPosition は move の before/after 指定チケットが、指定スペースの
 	// 現役の兄弟であることを検証する。
 	FindActiveTicketPosition(ctx context.Context, workspaceID, spaceID, ticketID string) (string, bool, error)
+
+	// --- 並び順（ticket_ranks。段 2） ---
+
+	// InsertTicketRank は CreateTicket 成功直後に usecase が呼ぶ（tickets への INSERT とは別文）。
+	InsertTicketRank(ctx context.Context, workspaceID, ticketID, position string) error
+	MoveTicketRank(ctx context.Context, workspaceID, ticketID, position string) error
+	LastActiveTicketRankPosition(ctx context.Context, workspaceID, spaceID string) (string, error)
 
 	// --- 担当 ---
 
@@ -196,6 +216,10 @@ type TicketRepository interface {
 	// （リンク切れ 1 本のために保存全体を失敗させない。ページ側と同じ方針）。
 	ReplaceTicketPageLinks(ctx context.Context, workspaceID, sourceTicketID string, targetPageIDs []string) error
 	ReplaceTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string, targetTicketIDs []string) error
+	// DeleteTicketPageLinksBySourceCascade / DeleteTicketTicketLinksBySourceCascade はチケット削除時に
+	// DeleteTicketUseCase が呼ぶ（本文保存時の張り替え ReplaceXxxLinks とは別系統。設計 Ⅳ-J）。
+	DeleteTicketPageLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error
+	DeleteTicketTicketLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error
 	ListTicketPageLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketPageLink, error)
 	ListPagesReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketPageLink, error)
 	ListTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketTicketLink, error)

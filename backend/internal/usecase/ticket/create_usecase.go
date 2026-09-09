@@ -69,11 +69,22 @@ func (u *CreateTicketUseCase) Execute(ctx context.Context, in CreateTicketInput)
 		return nil, err
 	}
 
+	// tickets.position（NOT NULL 制約を満たすためだけの列。段 2 以降は読み手が居ない）と
+	// ticket_ranks.position（並び順の正本）は、移行時点の値こそ揃うが、以後の Move は
+	// ticket_ranks だけを更新するので独立した 2 つの列として計算する（設計 Ⅳ-F）。
 	last, err := u.repo.LastActiveTicketPosition(ctx, in.WorkspaceID, in.SpaceID)
 	if err != nil {
 		return nil, err
 	}
 	pos, err := fracindex.Between(last, "")
+	if err != nil {
+		return nil, err
+	}
+	lastRank, err := u.repo.LastActiveTicketRankPosition(ctx, in.WorkspaceID, in.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	rankPos, err := fracindex.Between(lastRank, "")
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +122,14 @@ func (u *CreateTicketUseCase) Execute(ctx context.Context, in CreateTicketInput)
 	if err != nil {
 		return nil, err
 	}
+
+	// ticket_ranks へ並び順の正本を作る（設計 Ⅳ-F）。created.Position を rankPos で
+	// 上書きするのは、以後の GetTicket が返す position（ticket_ranks 由来）と作成直後の
+	// 応答を一致させるため。
+	if err := u.repo.InsertTicketRank(ctx, in.WorkspaceID, created.ID, rankPos); err != nil {
+		return nil, err
+	}
+	created.Position = rankPos
 
 	// 派生表（本文からの参照）は作成直後に張る。空スライスでも Replace を呼ぶことで
 	// 「参照 0 件」を明示し、後続の UpdateTicket と同じ経路に揃える。

@@ -573,18 +573,116 @@ func TestTicketRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "更新後", updated.Title)
 
-		// 並び替え。
-		last, err := repo.LastActiveTicketPosition(ctx, ws, space)
-		require.NoError(t, err)
-		require.NoError(t, repo.MoveTicket(ctx, ws, child.ID, last+"1"))
-		pos, ok, err := repo.FindActiveTicketPosition(ctx, ws, space, child.ID)
+		// tickets.position を直接読む経路（FindActiveTicketPosition。並び順の正本では
+		// なくなったが、列自体はまだ残っているので読み書きの SQL は健在であることを確認する）。
+		pos, ok, err := repo.FindActiveTicketPosition(ctx, ws, space, root.ID)
 		require.NoError(t, err)
 		require.True(t, ok)
-		assert.Equal(t, last+"1", pos)
-
+		assert.Equal(t, "a0", pos)
 		_, ok, err = repo.FindActiveTicketPosition(ctx, ws, space, newID())
 		require.NoError(t, err)
 		assert.False(t, ok, "非実在は 0 行に畳まれる")
+
+		// 並び替え（ticket_ranks。段 2 以降の並び順の正本。設計 Ⅳ-F）。root/child は
+		// repo.CreateTicket を直接呼んでおり InsertTicketRank を伴っていないので、
+		// GetTicket の position は COALESCE で tickets.position（"a1"）にフォールバックする。
+		got, err := repo.FindTicket(ctx, ws, child.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "a1", got.Position, "ticket_ranks に行が無ければ tickets.position へ落ちる")
+
+		require.NoError(t, repo.InsertTicketRank(ctx, ws, child.ID, "a1"))
+		lastRank, err := repo.LastActiveTicketRankPosition(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, "a1", lastRank)
+		require.NoError(t, repo.MoveTicketRank(ctx, ws, child.ID, lastRank+"1"))
+		moved, err := repo.FindTicket(ctx, ws, child.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "a11", moved.Position, "InsertTicketRank 後は ticket_ranks.position を返す")
+	})
+
+	// 削除・復元（設計 Ⅳ-J）。deleted_at IS NULL のチケットは FindTicket から見えなくなり、
+	// 削除済みは FindDeletedTicket でだけ引ける（Archive/Restore の archived_at と対称）。
+	t.Run("削除と復元_本文からの参照の伝播", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		created, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		target, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "参照先", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a1", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		pageSpace := createSpace(t, sqlDB, ws, "kb-del")
+		pageID := createPage(t, sqlDB, ws, pageSpace, nil, "a0")
+
+		require.NoError(t, repo.ReplaceTicketTicketLinks(ctx, ws, created.ID, []string{target.ID}))
+		require.NoError(t, repo.ReplaceTicketPageLinks(ctx, ws, created.ID, []string{pageID}))
+		backFromTicket, err := repo.ListTicketsReferencingTicket(ctx, ws, target.ID)
+		require.NoError(t, err)
+		require.Len(t, backFromTicket, 1, "削除前は逆参照に載る")
+		// ListPagesReferencingTicket は既知の実装ミス（ticket_repository.go の doc 参照。
+		// 内部で ListTicketPageLinksBySource を呼んでおり target_page_id では絞れない）で
+		// 段2の対象外のため、ページ側は ticket_page_links.deleted_at を直接読んで確かめる。
+		var pageLinkDeletedBefore sql.NullTime
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT deleted_at FROM ticket_page_links WHERE workspace_id = $1 AND source_ticket_id = $2 AND target_page_id = $3`,
+			ws, created.ID, pageID,
+		).Scan(&pageLinkDeletedBefore))
+		assert.False(t, pageLinkDeletedBefore.Valid, "削除前は deleted_at が立っていない")
+
+		// 削除。以後 FindTicket は「無い」と同じ扱いにする。
+		require.NoError(t, repo.DeleteTicket(ctx, ws, created.ID))
+		_, err = repo.FindTicket(ctx, ws, created.ID)
+		require.ErrorIs(t, err, repository.ErrTicketNotFound, "削除済みは現役取得から見えない")
+		// 二重削除は 0 行（冪等な失敗）。
+		require.ErrorIs(t, repo.DeleteTicket(ctx, ws, created.ID), repository.ErrTicketNotFound)
+
+		// 派生リンクへの伝播（DeleteTicketUseCase が呼ぶのと同じ 2 メソッド）。
+		require.NoError(t, repo.DeleteTicketPageLinksBySourceCascade(ctx, ws, created.ID))
+		require.NoError(t, repo.DeleteTicketTicketLinksBySourceCascade(ctx, ws, created.ID))
+		backFromTicket, err = repo.ListTicketsReferencingTicket(ctx, ws, target.ID)
+		require.NoError(t, err)
+		assert.Empty(t, backFromTicket, "削除済みチケットからの参照は逆参照一覧に出ない")
+		var pageLinkDeletedAfter sql.NullTime
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT deleted_at FROM ticket_page_links WHERE workspace_id = $1 AND source_ticket_id = $2 AND target_page_id = $3`,
+			ws, created.ID, pageID,
+		).Scan(&pageLinkDeletedAfter))
+		assert.True(t, pageLinkDeletedAfter.Valid, "伝播後は deleted_at が立つ")
+
+		// FindDeletedTicket は削除済みだけを引く（現役は見えない）。
+		deleted, err := repo.FindDeletedTicket(ctx, ws, created.ID)
+		require.NoError(t, err)
+		require.NotNil(t, deleted.DeletedAt)
+		_, err = repo.FindDeletedTicket(ctx, ws, target.ID)
+		require.ErrorIs(t, err, repository.ErrTicketNotDeleted, "現役チケットは FindDeletedTicket で引けない")
+
+		// 復元。position は末尾へ付け直す。
+		require.NoError(t, repo.RestoreDeletedTicket(ctx, ws, created.ID, "z0"))
+		restored, err := repo.FindTicket(ctx, ws, created.ID)
+		require.NoError(t, err)
+		assert.Nil(t, restored.DeletedAt)
+		// 二重復元は 0 行。
+		require.ErrorIs(t, repo.RestoreDeletedTicket(ctx, ws, created.ID, "z1"), repository.ErrTicketNotDeleted)
+	})
+
+	// 部分一意（uq_tickets_space_position）が deleted_at IS NULL の行だけを見ることを、
+	// 実 Postgres で固定する（削除済みと同じ position の現役チケットを作り直せる）。
+	t.Run("削除済みは一意制約の対象から外れる", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		first, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: "c0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		require.NoError(t, repo.DeleteTicket(ctx, ws, first.ID))
+
+		// 削除済みと同じ position ("c0") で新しいチケットを作れる（部分一意が deleted_at を見ている証拠）。
+		require.NoError(t, insertTicketRaw(sqlDB, newID(), ws, space, 999, "c0", typeID, statusID, nil, 2, nil, nil))
 	})
 
 	t.Run("担当中のチケット一覧", func(t *testing.T) {

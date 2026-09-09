@@ -377,7 +377,7 @@ func (f *ticketFakeRepo) CreateTicket(_ context.Context, in repository.TicketCre
 
 func (f *ticketFakeRepo) FindTicket(_ context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
 	t, ok := f.tickets[ticketID]
-	if !ok || t.WorkspaceID != workspaceID {
+	if !ok || t.WorkspaceID != workspaceID || t.DeletedAt != nil {
 		return nil, repository.ErrTicketNotFound
 	}
 	cp := *t
@@ -426,6 +426,9 @@ func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicket
 		if t.WorkspaceID != in.WorkspaceID || t.SpaceID != in.SpaceID {
 			continue
 		}
+		if t.DeletedAt != nil {
+			continue
+		}
 		if t.ArchivedAt != nil && !in.IncludeArchived {
 			continue
 		}
@@ -459,7 +462,8 @@ func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicket
 func (f *ticketFakeRepo) ListTicketChildren(_ context.Context, workspaceID, spaceID, parentID string) ([]domain.Ticket, error) {
 	var out []domain.Ticket
 	for _, t := range f.tickets {
-		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ParentID != nil && *t.ParentID == parentID {
+		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ParentID != nil && *t.ParentID == parentID &&
+			t.ArchivedAt == nil && t.DeletedAt == nil {
 			out = append(out, *t)
 		}
 	}
@@ -497,18 +501,9 @@ func (f *ticketFakeRepo) ChangeTicketStatus(
 	return &cp, nil
 }
 
-func (f *ticketFakeRepo) MoveTicket(_ context.Context, workspaceID, ticketID, position string) error {
-	t, ok := f.tickets[ticketID]
-	if !ok || t.WorkspaceID != workspaceID {
-		return repository.ErrTicketNotFound
-	}
-	t.Position = position
-	return nil
-}
-
 func (f *ticketFakeRepo) ArchiveTicket(_ context.Context, workspaceID, ticketID string) error {
 	t, ok := f.tickets[ticketID]
-	if !ok || t.WorkspaceID != workspaceID {
+	if !ok || t.WorkspaceID != workspaceID || t.ArchivedAt != nil || t.DeletedAt != nil {
 		return repository.ErrTicketNotFound
 	}
 	now := time.Now()
@@ -518,12 +513,63 @@ func (f *ticketFakeRepo) ArchiveTicket(_ context.Context, workspaceID, ticketID 
 
 func (f *ticketFakeRepo) RestoreTicket(_ context.Context, workspaceID, ticketID, position string) error {
 	t, ok := f.tickets[ticketID]
-	if !ok || t.WorkspaceID != workspaceID {
+	if !ok || t.WorkspaceID != workspaceID || t.ArchivedAt == nil || t.DeletedAt != nil {
 		return repository.ErrTicketNotFound
 	}
 	t.ArchivedAt = nil
 	t.Position = position
 	return nil
+}
+
+func (f *ticketFakeRepo) DeleteTicket(_ context.Context, workspaceID, ticketID string) error {
+	t, ok := f.tickets[ticketID]
+	if !ok || t.WorkspaceID != workspaceID || t.DeletedAt != nil {
+		return repository.ErrTicketNotFound
+	}
+	now := time.Now()
+	t.DeletedAt = &now
+	return nil
+}
+
+func (f *ticketFakeRepo) FindDeletedTicket(_ context.Context, workspaceID, ticketID string) (*domain.Ticket, error) {
+	t, ok := f.tickets[ticketID]
+	if !ok || t.WorkspaceID != workspaceID || t.DeletedAt == nil {
+		return nil, repository.ErrTicketNotDeleted
+	}
+	cp := *t
+	return &cp, nil
+}
+
+func (f *ticketFakeRepo) RestoreDeletedTicket(_ context.Context, workspaceID, ticketID, position string) error {
+	t, ok := f.tickets[ticketID]
+	if !ok || t.WorkspaceID != workspaceID || t.DeletedAt == nil {
+		return repository.ErrTicketNotDeleted
+	}
+	t.DeletedAt = nil
+	t.Position = position
+	return nil
+}
+
+func (f *ticketFakeRepo) InsertTicketRank(_ context.Context, workspaceID, ticketID, position string) error {
+	t, ok := f.tickets[ticketID]
+	if !ok || t.WorkspaceID != workspaceID {
+		return repository.ErrTicketNotFound
+	}
+	t.Position = position
+	return nil
+}
+
+func (f *ticketFakeRepo) MoveTicketRank(_ context.Context, workspaceID, ticketID, position string) error {
+	t, ok := f.tickets[ticketID]
+	if !ok || t.WorkspaceID != workspaceID {
+		return repository.ErrTicketNotFound
+	}
+	t.Position = position
+	return nil
+}
+
+func (f *ticketFakeRepo) LastActiveTicketRankPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
+	return f.LastActiveTicketPosition(ctx, workspaceID, spaceID)
 }
 
 func (f *ticketFakeRepo) CountActiveTicketChildren(_ context.Context, workspaceID, ticketID string) (int64, error) {
@@ -556,7 +602,7 @@ func (f *ticketFakeRepo) ListTicketParentChain(_ context.Context, workspaceID, t
 func (f *ticketFakeRepo) LastActiveTicketPosition(_ context.Context, workspaceID, spaceID string) (string, error) {
 	last := ""
 	for _, t := range f.tickets {
-		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ArchivedAt == nil && t.Position > last {
+		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ArchivedAt == nil && t.DeletedAt == nil && t.Position > last {
 			last = t.Position
 		}
 	}
@@ -565,7 +611,7 @@ func (f *ticketFakeRepo) LastActiveTicketPosition(_ context.Context, workspaceID
 
 func (f *ticketFakeRepo) FindActiveTicketPosition(_ context.Context, workspaceID, spaceID, ticketID string) (string, bool, error) {
 	t, ok := f.tickets[ticketID]
-	if !ok || t.WorkspaceID != workspaceID || t.SpaceID != spaceID || t.ArchivedAt != nil {
+	if !ok || t.WorkspaceID != workspaceID || t.SpaceID != spaceID || t.ArchivedAt != nil || t.DeletedAt != nil {
 		return "", false, nil
 	}
 	return t.Position, true, nil
@@ -657,6 +703,16 @@ func (f *ticketFakeRepo) ReplaceTicketPageLinks(_ context.Context, workspaceID, 
 
 func (f *ticketFakeRepo) ReplaceTicketTicketLinks(_ context.Context, workspaceID, sourceTicketID string, targetTicketIDs []string) error {
 	f.ticketLinks[sourceTicketID] = targetTicketIDs
+	return nil
+}
+
+func (f *ticketFakeRepo) DeleteTicketPageLinksBySourceCascade(_ context.Context, workspaceID, sourceTicketID string) error {
+	delete(f.pageLinks, sourceTicketID)
+	return nil
+}
+
+func (f *ticketFakeRepo) DeleteTicketTicketLinksBySourceCascade(_ context.Context, workspaceID, sourceTicketID string) error {
+	delete(f.ticketLinks, sourceTicketID)
 	return nil
 }
 

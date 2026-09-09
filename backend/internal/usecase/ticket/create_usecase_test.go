@@ -62,11 +62,13 @@ func Test_チケット作成_既定の種別と状態を解決して作る(t *te
 	repo.On("GetDefaultTicketType", mock.Anything, tkWS, tkSpace).Return(&defaultType, nil)
 	repo.On("GetInitialTicketStatus", mock.Anything, tkWS, tkSpace).Return(&initialStatus, nil)
 	repo.On("LastActiveTicketPosition", mock.Anything, tkWS, tkSpace).Return("a0", nil)
+	repo.On("LastActiveTicketRankPosition", mock.Anything, tkWS, tkSpace).Return("a0", nil)
 
 	var captured repository.TicketCreateInput
 	repo.On("CreateTicket", mock.Anything, mock.AnythingOfType("repository.TicketCreateInput")).
 		Run(func(args mock.Arguments) { captured = args.Get(1).(repository.TicketCreateInput) }).
 		Return(&domain.Ticket{ID: "01a00000-0000-7000-8000-000000000040", WorkspaceID: tkWS, SpaceID: tkSpace, Number: 1}, nil)
+	repo.On("InsertTicketRank", mock.Anything, tkWS, "01a00000-0000-7000-8000-000000000040", mock.AnythingOfType("string")).Return(nil)
 	repo.On("ReplaceTicketPageLinks", mock.Anything, tkWS, mock.Anything, []string(nil)).Return(nil)
 	repo.On("ReplaceTicketTicketLinks", mock.Anything, tkWS, mock.Anything, []string(nil)).Return(nil)
 
@@ -82,6 +84,7 @@ func Test_チケット作成_既定の種別と状態を解決して作る(t *te
 	assert.Equal(t, domain.TicketPriorityDefault, captured.Priority)
 	assert.Nil(t, captured.ParentID)
 	assert.Greater(t, captured.Position, "a0", "既存の末尾より後ろに置く")
+	assert.Greater(t, got.Position, "a0", "応答の position は ticket_ranks 由来の値に上書きされる")
 }
 
 func Test_チケット作成_既定の種別が無ければ拒否(t *testing.T) {
@@ -166,12 +169,14 @@ func Test_チケット作成_本文から参照を張る(t *testing.T) {
 	repo.On("GetDefaultTicketType", mock.Anything, tkWS, tkSpace).Return(&defaultType, nil)
 	repo.On("GetInitialTicketStatus", mock.Anything, tkWS, tkSpace).Return(&initialStatus, nil)
 	repo.On("LastActiveTicketPosition", mock.Anything, tkWS, tkSpace).Return("", nil)
+	repo.On("LastActiveTicketRankPosition", mock.Anything, tkWS, tkSpace).Return("", nil)
 
 	pageID := "01a00000-0000-7000-8000-0000000000e1"
 	var captured repository.TicketCreateInput
 	repo.On("CreateTicket", mock.Anything, mock.AnythingOfType("repository.TicketCreateInput")).
 		Run(func(args mock.Arguments) { captured = args.Get(1).(repository.TicketCreateInput) }).
 		Return(&domain.Ticket{ID: "ticket-1", WorkspaceID: tkWS, SpaceID: tkSpace}, nil)
+	repo.On("InsertTicketRank", mock.Anything, tkWS, "ticket-1", mock.AnythingOfType("string")).Return(nil)
 	repo.On("ReplaceTicketPageLinks", mock.Anything, tkWS, "ticket-1", []string{pageID}).Return(nil)
 	repo.On("ReplaceTicketTicketLinks", mock.Anything, tkWS, "ticket-1", []string(nil)).Return(nil)
 

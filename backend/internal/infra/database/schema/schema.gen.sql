@@ -338,6 +338,7 @@ CREATE TABLE "public"."ticket_assignments" (
   "assignee_kind" character varying(16) NULL GENERATED ALWAYS AS ('user'::character varying) STORED,
   "assigned_by_user_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
+  "deleted_at" timestamptz NULL,
   PRIMARY KEY ("ticket_id")
 );
 -- Create index "idx_ticket_assignments_principal" to table: "ticket_assignments"
@@ -349,6 +350,7 @@ CREATE TABLE "public"."ticket_change_groups" (
   "ticket_id" uuid NOT NULL,
   "actor_user_id" bigint NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
+  "deleted_at" timestamptz NULL,
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_ticket_change_groups_workspace_id" UNIQUE ("workspace_id", "id")
 );
@@ -364,9 +366,10 @@ CREATE TABLE "public"."ticket_change_items" (
   "new_value" text NULL,
   "old_label" text NULL,
   "new_label" text NULL,
+  "deleted_at" timestamptz NULL,
   PRIMARY KEY ("id"),
   CONSTRAINT "ck_ticket_change_items_changed" CHECK ((old_value IS DISTINCT FROM new_value) OR (old_label IS DISTINCT FROM new_label) OR ((field)::text = 'doc'::text)),
-  CONSTRAINT "ck_ticket_change_items_field" CHECK ((field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text]))
+  CONSTRAINT "ck_ticket_change_items_field" CHECK ((field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text, ('deleted'::character varying)::text]))
 );
 -- Create index "idx_ticket_change_items_group_id" to table: "ticket_change_items"
 CREATE INDEX "idx_ticket_change_items_group_id" ON "public"."ticket_change_items" ("group_id");
@@ -376,6 +379,7 @@ CREATE TABLE "public"."ticket_counters" (
   "space_id" uuid NOT NULL,
   "last_number" bigint NOT NULL,
   "updated_at" timestamptz NOT NULL DEFAULT now(),
+  "deleted_at" timestamptz NULL,
   PRIMARY KEY ("workspace_id", "space_id"),
   CONSTRAINT "ck_ticket_counters_last_number_positive" CHECK (last_number > 0)
 );
@@ -384,10 +388,27 @@ CREATE TABLE "public"."ticket_page_links" (
   "workspace_id" uuid NOT NULL,
   "source_ticket_id" uuid NOT NULL,
   "target_page_id" uuid NOT NULL,
+  "deleted_at" timestamptz NULL,
   PRIMARY KEY ("source_ticket_id", "target_page_id")
 );
 -- Create index "idx_ticket_page_links_target" to table: "ticket_page_links"
 CREATE INDEX "idx_ticket_page_links_target" ON "public"."ticket_page_links" ("target_page_id");
+-- Create "ticket_ranks" table
+CREATE TABLE "public"."ticket_ranks" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "context_kind" character varying(32) NOT NULL,
+  "context_id" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+  "position" text NOT NULL COLLATE "C",
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("ticket_id", "context_kind", "context_id"),
+  CONSTRAINT "uq_ticket_ranks_context_position" UNIQUE ("context_kind", "context_id", "position"),
+  CONSTRAINT "ck_ticket_ranks_context_kind" CHECK ((context_kind)::text = ANY (ARRAY[('backlog'::character varying)::text])),
+  CONSTRAINT "ck_ticket_ranks_position_not_empty" CHECK ("position" <> ''::text)
+);
+-- Create index "idx_ticket_ranks_workspace_ticket" to table: "ticket_ranks"
+CREATE INDEX "idx_ticket_ranks_workspace_ticket" ON "public"."ticket_ranks" ("workspace_id", "ticket_id");
 -- Create "ticket_statuses" table
 CREATE TABLE "public"."ticket_statuses" (
   "id" uuid NOT NULL,
@@ -400,6 +421,7 @@ CREATE TABLE "public"."ticket_statuses" (
   "position" text NOT NULL COLLATE "C",
   "is_initial" boolean NOT NULL DEFAULT false,
   "archived_at" timestamptz NULL,
+  "deleted_at" timestamptz NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
@@ -413,16 +435,17 @@ CREATE TABLE "public"."ticket_statuses" (
 -- Create index "idx_ticket_statuses_workspace_space" to table: "ticket_statuses"
 CREATE INDEX "idx_ticket_statuses_workspace_space" ON "public"."ticket_statuses" ("workspace_id", "space_id");
 -- Create index "uq_ticket_statuses_space_initial" to table: "ticket_statuses"
-CREATE UNIQUE INDEX "uq_ticket_statuses_space_initial" ON "public"."ticket_statuses" ("space_id") WHERE (is_initial AND (archived_at IS NULL));
+CREATE UNIQUE INDEX "uq_ticket_statuses_space_initial" ON "public"."ticket_statuses" ("space_id") WHERE (is_initial AND (archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create index "uq_ticket_statuses_space_name" to table: "ticket_statuses"
-CREATE UNIQUE INDEX "uq_ticket_statuses_space_name" ON "public"."ticket_statuses" ("space_id", "name_lower") WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX "uq_ticket_statuses_space_name" ON "public"."ticket_statuses" ("space_id", "name_lower") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create index "uq_ticket_statuses_space_position" to table: "ticket_statuses"
-CREATE UNIQUE INDEX "uq_ticket_statuses_space_position" ON "public"."ticket_statuses" ("space_id", "position") WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX "uq_ticket_statuses_space_position" ON "public"."ticket_statuses" ("space_id", "position") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create "ticket_ticket_links" table
 CREATE TABLE "public"."ticket_ticket_links" (
   "workspace_id" uuid NOT NULL,
   "source_ticket_id" uuid NOT NULL,
   "target_ticket_id" uuid NOT NULL,
+  "deleted_at" timestamptz NULL,
   PRIMARY KEY ("source_ticket_id", "target_ticket_id"),
   CONSTRAINT "ck_ticket_ticket_links_not_self" CHECK (source_ticket_id <> target_ticket_id)
 );
@@ -442,6 +465,7 @@ CREATE TABLE "public"."ticket_types" (
   "template_title" character varying(200) NULL,
   "template_doc" jsonb NULL,
   "archived_at" timestamptz NULL,
+  "deleted_at" timestamptz NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
@@ -457,11 +481,11 @@ CREATE TABLE "public"."ticket_types" (
 -- Create index "idx_ticket_types_workspace_space" to table: "ticket_types"
 CREATE INDEX "idx_ticket_types_workspace_space" ON "public"."ticket_types" ("workspace_id", "space_id");
 -- Create index "uq_ticket_types_space_default" to table: "ticket_types"
-CREATE UNIQUE INDEX "uq_ticket_types_space_default" ON "public"."ticket_types" ("space_id") WHERE (is_default AND (archived_at IS NULL));
+CREATE UNIQUE INDEX "uq_ticket_types_space_default" ON "public"."ticket_types" ("space_id") WHERE (is_default AND (archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create index "uq_ticket_types_space_name" to table: "ticket_types"
-CREATE UNIQUE INDEX "uq_ticket_types_space_name" ON "public"."ticket_types" ("space_id", "name_lower") WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX "uq_ticket_types_space_name" ON "public"."ticket_types" ("space_id", "name_lower") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create index "uq_ticket_types_space_position" to table: "ticket_types"
-CREATE UNIQUE INDEX "uq_ticket_types_space_position" ON "public"."ticket_types" ("space_id", "position") WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX "uq_ticket_types_space_position" ON "public"."ticket_types" ("space_id", "position") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create "tickets" table
 CREATE TABLE "public"."tickets" (
   "id" uuid NOT NULL,
@@ -482,6 +506,7 @@ CREATE TABLE "public"."tickets" (
   "resolution" character varying(20) NULL,
   "created_by_user_id" bigint NOT NULL,
   "archived_at" timestamptz NULL,
+  "deleted_at" timestamptz NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
@@ -501,6 +526,8 @@ CREATE TABLE "public"."tickets" (
 );
 -- Create index "idx_tickets_archived_at" to table: "tickets"
 CREATE INDEX "idx_tickets_archived_at" ON "public"."tickets" ("archived_at");
+-- Create index "idx_tickets_deleted_at" to table: "tickets"
+CREATE INDEX "idx_tickets_deleted_at" ON "public"."tickets" ("deleted_at");
 -- Create index "idx_tickets_parent_id" to table: "tickets"
 CREATE INDEX "idx_tickets_parent_id" ON "public"."tickets" ("parent_id");
 -- Create index "idx_tickets_space_status" to table: "tickets"
@@ -508,7 +535,7 @@ CREATE INDEX "idx_tickets_space_status" ON "public"."tickets" ("workspace_id", "
 -- Create index "idx_tickets_space_type" to table: "tickets"
 CREATE INDEX "idx_tickets_space_type" ON "public"."tickets" ("workspace_id", "space_id", "type_id");
 -- Create index "uq_tickets_space_position" to table: "tickets"
-CREATE UNIQUE INDEX "uq_tickets_space_position" ON "public"."tickets" ("space_id", "position") WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX "uq_tickets_space_position" ON "public"."tickets" ("space_id", "position") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create "user_oidc_identities" table
 CREATE TABLE "public"."user_oidc_identities" (
   "id" bigserial NOT NULL,
@@ -610,6 +637,8 @@ ALTER TABLE "public"."ticket_change_items" ADD CONSTRAINT "fk_ticket_change_item
 ALTER TABLE "public"."ticket_counters" ADD CONSTRAINT "fk_ticket_counters_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_page_links" table
 ALTER TABLE "public"."ticket_page_links" ADD CONSTRAINT "fk_ticket_page_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_page_links_target" FOREIGN KEY ("workspace_id", "target_page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_ranks" table
+ALTER TABLE "public"."ticket_ranks" ADD CONSTRAINT "fk_ticket_ranks_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_statuses" table
 ALTER TABLE "public"."ticket_statuses" ADD CONSTRAINT "fk_ticket_statuses_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_ticket_links" table

@@ -53,6 +53,9 @@ func registerTicketRoutesWith(
 		ticket.NewMoveTicketUseCase(tickets),
 		ticket.NewArchiveTicketUseCase(tickets),
 		ticket.NewRestoreTicketUseCase(tickets),
+		ticket.NewDeleteTicketUseCase(tickets),
+		ticket.NewFindDeletedTicketUseCase(tickets),
+		ticket.NewRestoreDeletedTicketUseCase(tickets),
 		ticket.NewChangeTicketStatusUseCase(tickets),
 		ticket.NewChangeTicketParentUseCase(tickets),
 		ticket.NewAssignTicketUseCase(tickets),
@@ -100,6 +103,8 @@ func registerTicketRoutesWith(
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/move", h.Move)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/archive", h.Archive)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/restore", h.Restore)
+	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId", h.Delete)
+	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/restore-deleted", h.RestoreDeleted)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/status", h.ChangeStatus)
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/parent", h.ChangeParent)
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/assignee", h.Assign)

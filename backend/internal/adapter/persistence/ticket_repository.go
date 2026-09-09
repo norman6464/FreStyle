@@ -1257,14 +1257,17 @@ func (r *ticketRepository) ListPagesReferencingTicket(ctx context.Context, works
 	// チケット→ページの派生表しか持たない（設計 段1）。呼び出し側の意図（そのチケットを
 	// 参照しているページ一覧）に対応する逆引きクエリはこの表には無い（段1の対象外。
 	// ticket-backlinks の逆方向は page_ticket_links が持つ段2の責務）。
-	// ここでは「そのチケットが参照しているページ」だけを返す（ListTicketPageLinks と同じ）。
+	// ここでは「そのチケットが参照しているページ」だけを返す（ListTicketPageLinks と同じ
+	// クエリを使う。sqlcgen.ListPagesReferencingTicket は target_page_id で絞る別物のクエリで、
+	// ticket の ID を渡しても target_page_id 列と一致し得ず常に 0 行になる — 呼び出し先の
+	// クエリを取り違えていた実装ミス。結合テストで気づいた）。
 	wsID, ok := kbParseID(workspaceID)
 	tID, ok2 := kbParseID(targetTicketID)
 	if !ok || !ok2 {
 		return nil, nil
 	}
-	rows, err := r.queries(ctx).ListPagesReferencingTicket(ctx, sqlcgen.ListPagesReferencingTicketParams{
-		WorkspaceID: wsID, TargetPageID: tID,
+	rows, err := r.queries(ctx).ListTicketPageLinksBySource(ctx, sqlcgen.ListTicketPageLinksBySourceParams{
+		WorkspaceID: wsID, SourceTicketID: tID,
 	})
 	if err != nil {
 		return nil, err

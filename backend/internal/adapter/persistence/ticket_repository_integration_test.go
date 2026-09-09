@@ -358,6 +358,241 @@ func TestTicketRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, links)
 	})
+
+	t.Run("ページへの派生リンクも張り替わり実在しないIDは除外される", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		src, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		pageSpace := createSpace(t, sqlDB, ws, "kb")
+		pageID := createPage(t, sqlDB, ws, pageSpace, nil, "a0")
+
+		require.NoError(t, repo.ReplaceTicketPageLinks(ctx, ws, src.ID, []string{pageID, newID()}))
+		links, err := repo.ListTicketPageLinks(ctx, ws, src.ID)
+		require.NoError(t, err)
+		require.Len(t, links, 1, "実在しないページIDは黙って除外される")
+		assert.Equal(t, pageID, links[0].TargetPageID)
+
+		// ListPagesReferencingTicket は名前と裏腹に、現状は ListTicketPageLinks と同じ
+		// （そのチケットが参照しているページ）を返す。ticket_repository.go の doc 参照
+		// （逆引きは段 2 の page_ticket_links の責務で、段 1 の対象外）。
+		sameAsForward, err := repo.ListPagesReferencingTicket(ctx, ws, src.ID)
+		require.NoError(t, err)
+		assert.Equal(t, links, sameAsForward)
+
+		require.NoError(t, repo.ReplaceTicketPageLinks(ctx, ws, src.ID, nil))
+		links, err = repo.ListTicketPageLinks(ctx, ws, src.ID)
+		require.NoError(t, err)
+		assert.Empty(t, links, "空へ張り替えると消える")
+	})
+
+	t.Run("状態マスタのCRUD一式", func(t *testing.T) {
+		ws, space := setup(t)
+		has, err := repo.HasActiveInitialTicketStatus(ctx, ws, space)
+		require.NoError(t, err)
+		assert.False(t, has, "有効化前は初期状態が無い")
+
+		s := &domain.TicketStatus{WorkspaceID: ws, SpaceID: space, Name: "To Do", Category: domain.TicketStatusCategoryTodo, Color: "#5b6b7a", Position: "a0", IsInitial: true}
+		require.NoError(t, repo.InsertTicketStatus(ctx, s))
+		has, err = repo.HasActiveInitialTicketStatus(ctx, ws, space)
+		require.NoError(t, err)
+		assert.True(t, has, "「有効化済み」の正本はこの事実")
+
+		got, err := repo.FindTicketStatus(ctx, ws, space, s.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "To Do", got.Name)
+		_, err = repo.FindTicketStatus(ctx, ws, space, newID())
+		require.ErrorIs(t, err, repository.ErrTicketStatusNotFound)
+
+		list, err := repo.ListTicketStatuses(ctx, ws, space, false)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+
+		initial, err := repo.GetInitialTicketStatus(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, s.ID, initial.ID)
+
+		last, err := repo.LastActiveTicketStatusPosition(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, "a0", last)
+
+		updated := &domain.TicketStatus{ID: s.ID, WorkspaceID: ws, SpaceID: space, Name: "改名後", Category: domain.TicketStatusCategoryInProgress, Color: "#a0661a"}
+		require.NoError(t, repo.UpdateTicketStatus(ctx, updated))
+		assert.Equal(t, "改名後", updated.Name)
+
+		s2 := &domain.TicketStatus{WorkspaceID: ws, SpaceID: space, Name: "完了", Category: domain.TicketStatusCategoryDone, Color: "#2f6b47", Position: "a1"}
+		require.NoError(t, repo.InsertTicketStatus(ctx, s2))
+		require.NoError(t, repo.SetTicketStatusInitial(ctx, ws, space, s2.ID))
+		initial, err = repo.GetInitialTicketStatus(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, s2.ID, initial.ID, "旧初期状態は自動的に降ろされる")
+
+		typ := &domain.TicketType{WorkspaceID: ws, SpaceID: space, Name: "タスク", Color: "#2f6b47", Position: "a0", IsDefault: true}
+		require.NoError(t, repo.InsertTicketType(ctx, typ))
+		_, err = repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typ.ID, StatusID: updated.ID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: "b0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		n, err := repo.CountActiveTicketsByStatus(ctx, ws, space, updated.ID)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, n)
+
+		// s2 は今の初期状態なのでアーカイブできない（ck_ticket_statuses_initial_active）。
+		// もう初期状態ではない updated（旧 s）をアーカイブする。
+		require.NoError(t, repo.ArchiveTicketStatus(ctx, ws, space, updated.ID))
+		// includeArchived は「アーカイブ済みだけを絞り込む」フラグであって「両方含める」ではない
+		// （ListTicketStatuses の SQL コメント参照。archived=true → archived_at IS NOT NULL だけ）。
+		archived, err := repo.ListTicketStatuses(ctx, ws, space, true)
+		require.NoError(t, err)
+		require.Len(t, archived, 1)
+		require.NoError(t, repo.RestoreTicketStatus(ctx, ws, space, updated.ID, "b1"))
+		active, err := repo.ListTicketStatuses(ctx, ws, space, false)
+		require.NoError(t, err)
+		assert.Len(t, active, 2)
+	})
+
+	t.Run("種別マスタのCRUD一式", func(t *testing.T) {
+		ws, space := setup(t)
+		typ := &domain.TicketType{WorkspaceID: ws, SpaceID: space, Name: "タスク", Color: "#2f6b47", Position: "a0", IsDefault: true}
+		require.NoError(t, repo.InsertTicketType(ctx, typ))
+
+		got, err := repo.FindTicketType(ctx, ws, space, typ.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "タスク", got.Name)
+
+		list, err := repo.ListTicketTypes(ctx, ws, space, false)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+
+		def, err := repo.GetDefaultTicketType(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, typ.ID, def.ID)
+
+		last, err := repo.LastActiveTicketTypePosition(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, "a0", last)
+
+		updated := &domain.TicketType{ID: typ.ID, WorkspaceID: ws, SpaceID: space, Name: "改名後", Color: "#9a3b2e", HierarchyLevel: 1}
+		require.NoError(t, repo.UpdateTicketType(ctx, updated))
+		assert.Equal(t, "改名後", updated.Name)
+
+		typ2 := &domain.TicketType{WorkspaceID: ws, SpaceID: space, Name: "バグ", Color: "#2f6b47", Position: "a1"}
+		require.NoError(t, repo.InsertTicketType(ctx, typ2))
+		require.NoError(t, repo.SetTicketTypeDefault(ctx, ws, space, typ2.ID))
+		def, err = repo.GetDefaultTicketType(ctx, ws, space)
+		require.NoError(t, err)
+		assert.Equal(t, typ2.ID, def.ID, "旧既定は自動的に外れる")
+
+		status := &domain.TicketStatus{WorkspaceID: ws, SpaceID: space, Name: "To Do", Category: domain.TicketStatusCategoryTodo, Color: "#5b6b7a", Position: "a0", IsInitial: true}
+		require.NoError(t, repo.InsertTicketStatus(ctx, status))
+		_, err = repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typ2.ID, StatusID: status.ID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: "b0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		n, err := repo.CountActiveTicketsByType(ctx, ws, space, typ2.ID)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, n)
+
+		require.NoError(t, repo.ArchiveTicketType(ctx, ws, space, updated.ID))
+		// includeArchived は「アーカイブ済みだけを絞り込む」フラグ（状態マスタと同じ規則）。
+		archived, err := repo.ListTicketTypes(ctx, ws, space, true)
+		require.NoError(t, err)
+		require.Len(t, archived, 1)
+		require.NoError(t, repo.RestoreTicketType(ctx, ws, space, updated.ID, "b1"))
+		active, err := repo.ListTicketTypes(ctx, ws, space, false)
+		require.NoError(t, err)
+		assert.Len(t, active, 2)
+	})
+
+	t.Run("一覧_更新_移動_子一覧_表示キー解決", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		root, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "親", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		child, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID, ParentID: &root.ID,
+			Title: "子", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a1", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+
+		// 一覧（フィルタ無し）。
+		all, err := repo.ListTickets(ctx, repository.ListTicketsInput{WorkspaceID: ws, SpaceID: space})
+		require.NoError(t, err)
+		require.Len(t, all, 2)
+
+		// status_id で絞り込み。
+		filtered, err := repo.ListTickets(ctx, repository.ListTicketsInput{WorkspaceID: ws, SpaceID: space, StatusID: &statusID})
+		require.NoError(t, err)
+		assert.Len(t, filtered, 2)
+
+		children, err := repo.ListTicketChildren(ctx, ws, space, root.ID)
+		require.NoError(t, err)
+		require.Len(t, children, 1)
+		assert.Equal(t, child.ID, children[0].ID)
+
+		n, err := repo.CountActiveTicketChildren(ctx, ws, root.ID)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, n)
+
+		// 表示キー解決。spaceKey は spaces.key の値（setup() が "eng" で作っている。
+		// space 変数は spaces.id であって key ではない — 混同しない）。
+		resolvedID, err := repo.ResolveTicketIDByKey(ctx, ws, "eng", root.Number)
+		require.NoError(t, err)
+		assert.Equal(t, root.ID, resolvedID)
+		_, err = repo.ResolveTicketIDByKey(ctx, ws, "eng", 9999)
+		require.ErrorIs(t, err, repository.ErrTicketNotFound)
+
+		// 更新（PUT 相当）。
+		updated, err := repo.UpdateTicket(ctx, ws, root.ID, repository.TicketUpdateFields{
+			TypeID: typeID, Title: "更新後", Doc: []byte(`{"type":"doc","content":[]}`),
+			Priority: domain.TicketPriorityHigh,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "更新後", updated.Title)
+
+		// 並び替え。
+		last, err := repo.LastActiveTicketPosition(ctx, ws, space)
+		require.NoError(t, err)
+		require.NoError(t, repo.MoveTicket(ctx, ws, child.ID, last+"1"))
+		pos, ok, err := repo.FindActiveTicketPosition(ctx, ws, space, child.ID)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, last+"1", pos)
+
+		_, ok, err = repo.FindActiveTicketPosition(ctx, ws, space, newID())
+		require.NoError(t, err)
+		assert.False(t, ok, "非実在は 0 行に畳まれる")
+	})
+
+	t.Run("担当中のチケット一覧", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		created, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		perm := persistence.NewKnowledgeBasePermissionRepository(sqlDB)
+		alice := createUser(t, sqlDB, "alice-assigned")
+		principal, err := perm.EnsureUserPrincipal(ctx, ws, alice)
+		require.NoError(t, err)
+		require.NoError(t, repo.UpsertTicketAssignment(ctx, &domain.TicketAssignment{
+			WorkspaceID: ws, TicketID: created.ID, AssigneePrincipalID: principal.ID, AssignedByUserID: alice,
+		}))
+
+		assigned, err := repo.ListTicketsAssignedToPrincipal(ctx, ws, principal.ID)
+		require.NoError(t, err)
+		require.Len(t, assigned, 1)
+		assert.Equal(t, created.ID, assigned[0].ID)
+	})
 }
 
 // seedTicketMasterViaRepo は repository 経由で状態・種別を 1 つずつ用意する

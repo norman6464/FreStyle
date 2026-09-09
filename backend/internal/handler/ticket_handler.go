@@ -203,7 +203,7 @@ func (h *TicketHandler) Enable(c *gin.Context) {
 	if !h.requireTicketSpacePermission(c, scope, spaceID, domain.CapabilityEdit) {
 		return
 	}
-	// ボディは省略できる（最小構成で有効化する既定の経路）。ShouldBindJSON は空ボディを
+	// ボディは省略できる（既定の雛形で有効化する経路）。ShouldBindJSON は空ボディを
 	// io.EOF にするので、それだけは無視して既定値（SourceSpaceID なし）のまま進む。
 	// 壊れた JSON（EOF ではない）はふつうに 400 で断る。
 	var req ticketEnableRequest

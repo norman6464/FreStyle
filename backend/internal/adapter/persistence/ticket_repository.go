@@ -409,6 +409,44 @@ func (r *ticketRepository) CountActiveTicketsByStatus(ctx context.Context, works
 	})
 }
 
+func (r *ticketRepository) CountActiveTicketsByStatusForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	if !ok || !ok2 {
+		return map[string]int64{}, nil
+	}
+	rows, err := r.queries(ctx).CountActiveTicketsGroupedByStatus(ctx, sqlcgen.CountActiveTicketsGroupedByStatusParams{
+		WorkspaceID: wsID, SpaceID: spID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		out[row.StatusID.String()] = row.Count
+	}
+	return out, nil
+}
+
+func (r *ticketRepository) CountActiveTicketsByTypeForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	if !ok || !ok2 {
+		return map[string]int64{}, nil
+	}
+	rows, err := r.queries(ctx).CountActiveTicketsGroupedByType(ctx, sqlcgen.CountActiveTicketsGroupedByTypeParams{
+		WorkspaceID: wsID, SpaceID: spID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		out[row.TypeID.String()] = row.Count
+	}
+	return out, nil
+}
+
 func (r *ticketRepository) LastActiveTicketStatusPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)

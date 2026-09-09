@@ -399,3 +399,17 @@ WHERE workspace_id = $1 AND target_ticket_id = $2;
 -- id は uuid の主キーで全テナント一意なので、これ自体が越境にはならない。
 SELECT id, workspace_id, space_id FROM tickets
 WHERE id = $1;
+
+-- name: CountActiveTicketsGroupedByStatus :many
+-- 管理画面の「使用中 N 件」。状態 1 つずつ CountActiveTicketsByStatus を呼ぶと
+-- 状態の数だけ問い合わせが増えるので、スペース 1 回の GROUP BY でまとめて数える。
+-- 現役（archived_at IS NULL）だけを数えるのは、アーカイブ済みのチケットが
+-- 状態のアーカイブを妨げないため（usecase の 409 判定と同じ範囲に揃える）。
+SELECT status_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY status_id;
+
+-- name: CountActiveTicketsGroupedByType :many
+SELECT type_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY type_id;

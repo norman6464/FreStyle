@@ -219,6 +219,88 @@ func (q *Queries) CountActiveTicketsByType(ctx context.Context, arg CountActiveT
 	return count, err
 }
 
+const countActiveTicketsGroupedByStatus = `-- name: CountActiveTicketsGroupedByStatus :many
+SELECT status_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY status_id
+`
+
+type CountActiveTicketsGroupedByStatusParams struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+type CountActiveTicketsGroupedByStatusRow struct {
+	StatusID uuid.UUID
+	Count    int64
+}
+
+// 管理画面の「使用中 N 件」。状態 1 つずつ CountActiveTicketsByStatus を呼ぶと
+// 状態の数だけ問い合わせが増えるので、スペース 1 回の GROUP BY でまとめて数える。
+// 現役（archived_at IS NULL）だけを数えるのは、アーカイブ済みのチケットが
+// 状態のアーカイブを妨げないため（usecase の 409 判定と同じ範囲に揃える）。
+func (q *Queries) CountActiveTicketsGroupedByStatus(ctx context.Context, arg CountActiveTicketsGroupedByStatusParams) ([]CountActiveTicketsGroupedByStatusRow, error) {
+	rows, err := q.db.QueryContext(ctx, countActiveTicketsGroupedByStatus, arg.WorkspaceID, arg.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveTicketsGroupedByStatusRow{}
+	for rows.Next() {
+		var i CountActiveTicketsGroupedByStatusRow
+		if err := rows.Scan(&i.StatusID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countActiveTicketsGroupedByType = `-- name: CountActiveTicketsGroupedByType :many
+SELECT type_id, count(*)::bigint AS count FROM tickets
+WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL
+GROUP BY type_id
+`
+
+type CountActiveTicketsGroupedByTypeParams struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+}
+
+type CountActiveTicketsGroupedByTypeRow struct {
+	TypeID uuid.UUID
+	Count  int64
+}
+
+func (q *Queries) CountActiveTicketsGroupedByType(ctx context.Context, arg CountActiveTicketsGroupedByTypeParams) ([]CountActiveTicketsGroupedByTypeRow, error) {
+	rows, err := q.db.QueryContext(ctx, countActiveTicketsGroupedByType, arg.WorkspaceID, arg.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveTicketsGroupedByTypeRow{}
+	for rows.Next() {
+		var i CountActiveTicketsGroupedByTypeRow
+		if err := rows.Scan(&i.TypeID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createTicket = `-- name: CreateTicket :one
 
 WITH n AS (

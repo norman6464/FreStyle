@@ -70,6 +70,18 @@ func (m *mockTicketRepo) CountActiveTicketsByStatus(ctx context.Context, workspa
 	return n, args.Error(1)
 }
 
+func (m *mockTicketRepo) CountActiveTicketsByStatusForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	v, _ := args.Get(0).(map[string]int64)
+	return v, args.Error(1)
+}
+
+func (m *mockTicketRepo) CountActiveTicketsByTypeForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	v, _ := args.Get(0).(map[string]int64)
+	return v, args.Error(1)
+}
+
 func (m *mockTicketRepo) LastActiveTicketStatusPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceID)
 	return args.String(0), args.Error(1)

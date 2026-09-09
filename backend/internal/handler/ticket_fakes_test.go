@@ -201,6 +201,26 @@ func (f *ticketFakeRepo) CountActiveTicketsByStatus(_ context.Context, workspace
 	return n, nil
 }
 
+func (f *ticketFakeRepo) CountActiveTicketsByStatusForSpace(_ context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	out := map[string]int64{}
+	for _, t := range f.tickets {
+		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ArchivedAt == nil {
+			out[t.StatusID]++
+		}
+	}
+	return out, nil
+}
+
+func (f *ticketFakeRepo) CountActiveTicketsByTypeForSpace(_ context.Context, workspaceID, spaceID string) (map[string]int64, error) {
+	out := map[string]int64{}
+	for _, t := range f.tickets {
+		if t.WorkspaceID == workspaceID && t.SpaceID == spaceID && t.ArchivedAt == nil {
+			out[t.TypeID]++
+		}
+	}
+	return out, nil
+}
+
 func (f *ticketFakeRepo) LastActiveTicketStatusPosition(_ context.Context, workspaceID, spaceID string) (string, error) {
 	last := ""
 	for _, s := range f.statuses {

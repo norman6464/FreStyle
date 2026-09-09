@@ -115,6 +115,11 @@ type TicketRepository interface {
 	ArchiveTicketStatus(ctx context.Context, workspaceID, spaceID, statusID string) error
 	RestoreTicketStatus(ctx context.Context, workspaceID, spaceID, statusID, position string) error
 	CountActiveTicketsByStatus(ctx context.Context, workspaceID, spaceID, statusID string) (int64, error)
+	// CountActiveTicketsByStatusForSpace はスペース内の現役チケットを状態ごとに数えて
+	// status_id -> 件数 の対応表で返す（管理画面の「使用中 N 件」用）。
+	// 状態 1 つずつ数えると状態の数だけ問い合わせが増えるので、1 回の GROUP BY で済ませる。
+	// 1 件も使われていない状態は対応表に現れない（呼び出し側は 0 とみなす）。
+	CountActiveTicketsByStatusForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error)
 	LastActiveTicketStatusPosition(ctx context.Context, workspaceID, spaceID string) (string, error)
 
 	InsertTicketType(ctx context.Context, t *domain.TicketType) error
@@ -127,6 +132,8 @@ type TicketRepository interface {
 	ArchiveTicketType(ctx context.Context, workspaceID, spaceID, typeID string) error
 	RestoreTicketType(ctx context.Context, workspaceID, spaceID, typeID, position string) error
 	CountActiveTicketsByType(ctx context.Context, workspaceID, spaceID, typeID string) (int64, error)
+	// CountActiveTicketsByTypeForSpace は CountActiveTicketsByStatusForSpace の種別版。
+	CountActiveTicketsByTypeForSpace(ctx context.Context, workspaceID, spaceID string) (map[string]int64, error)
 	LastActiveTicketTypePosition(ctx context.Context, workspaceID, spaceID string) (string, error)
 
 	// --- チケット本体 ---

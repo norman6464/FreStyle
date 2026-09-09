@@ -164,16 +164,16 @@ func Test_チケット作成_閲覧だけでは403(t *testing.T) {
 func Test_チケット一式_有効化から作成取得一覧更新状態変更移動担当履歴まで(t *testing.T) {
 	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
 
-	// 1) 有効化（最小構成）。
+	// 1) 有効化（既定の雛形）。
 	w := f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/enable", "")
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	statuses, err := f.tickets.ListTicketStatuses(context.Background(), kbWorkspaceID, kbSpaceID, false)
 	require.NoError(t, err)
-	require.Len(t, statuses, 3)
+	require.Len(t, statuses, 5)
 	types, err := f.tickets.ListTicketTypes(context.Background(), kbWorkspaceID, kbSpaceID, false)
 	require.NoError(t, err)
-	require.Len(t, types, 1)
+	require.Len(t, types, 3)
 
 	// 2 度目の有効化は 409。
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/enable", "")
@@ -412,6 +412,53 @@ func Test_種別マスタ_作成更新既定アーカイブ復元(t *testing.T) 
 	require.Equal(t, http.StatusNoContent, w.Code)
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/ticket-types/"+typ.ID+"/restore", "")
 	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// 管理表の「使用中 N 件」。アーカイブが 409 になるかを押す前に見せるための数で、
+// 現役のチケットだけを数える（アーカイブ済みは状態のアーカイブを妨げない）。
+func Test_状態種別一覧_使用中の件数を返す(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	w := f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets/enable", "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	statuses, err := f.tickets.ListTicketStatuses(context.Background(), kbWorkspaceID, kbSpaceID, false)
+	require.NoError(t, err)
+	types, err := f.tickets.ListTicketTypes(context.Background(), kbWorkspaceID, kbSpaceID, false)
+	require.NoError(t, err)
+	initial := statuses[0].ID
+
+	// 2 件作って、片方をアーカイブする。
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", `{"title":"1件目"}`)
+	require.Equal(t, http.StatusCreated, w.Code)
+	first := decodeJSON[domain.Ticket](t, w)
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", `{"title":"2件目"}`)
+	require.Equal(t, http.StatusCreated, w.Code)
+	second := decodeJSON[domain.Ticket](t, w)
+	w = f.do(t, http.MethodPost, ticketAPIBase+"/tickets/"+second.ID+"/archive", "")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	countOf := func(path, key, id string) float64 {
+		res := f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/"+path, "")
+		require.Equal(t, http.StatusOK, res.Code, res.Body.String())
+		body := decodeJSON[map[string][]map[string]any](t, res)
+		for _, row := range body[key] {
+			if row["id"] == id {
+				n, ok := row["activeTicketCount"].(float64)
+				require.True(t, ok, "activeTicketCount が数で返る: %v", row["activeTicketCount"])
+				return n
+			}
+		}
+		t.Fatalf("%s に %s が無い", key, id)
+		return -1
+	}
+
+	assert.EqualValues(t, 1, countOf("ticket-statuses", "statuses", initial),
+		"アーカイブ済みは数えない（現役 1 件だけ）")
+	assert.EqualValues(t, 1, countOf("ticket-types", "types", first.TypeID))
+
+	// 使っていない状態は 0 件（対応表に現れないものは 0 に畳む）。
+	assert.EqualValues(t, 0, countOf("ticket-statuses", "statuses", statuses[len(statuses)-1].ID))
+	assert.EqualValues(t, 0, countOf("ticket-types", "types", types[len(types)-1].ID))
 }
 
 func Test_状態作成_不正な色は400(t *testing.T) {

@@ -51,12 +51,19 @@ jobs:
         run: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 
       # PR: 変更差分のパッケージだけを変異させる (高速)。信頼できない base_ref は env 経由で渡す。
+      #
+      # git fetch に一時トークンで認証を与える (-c http.extraheader)。リポジトリを private 化した
+      # 2026-09-09 以降、匿名の https fetch が "could not read Username" で失敗するようになったため。
+      # persist-credentials: false のまま、この 1 コマンドの呼び出しにだけ Authorization ヘッダーを
+      # 付けるので、資格情報は作業ツリー (.git/config) には残らない。
       - name: Gremlins (PR light — diff)
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git -c http.extraheader="Authorization: bearer ${GH_TOKEN}" \
+            fetch --no-tags --depth=1 origin "$BASE_REF"
           "$(go env GOPATH)/bin/gremlins" unleash --diff "origin/$BASE_REF" -o /tmp/gremlins.json
 
       # nightly / 手動: モジュール全体を変異させる。

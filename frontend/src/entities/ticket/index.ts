@@ -22,6 +22,7 @@ export { readCommentBody, buildCommentBody } from './lib/commentBody';
 export type {
   Ticket,
   Label,
+  TicketAttachment,
   TicketPermission,
   TicketComment,
   TicketCommentAuthor,

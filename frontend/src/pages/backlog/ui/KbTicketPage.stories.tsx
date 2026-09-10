@@ -75,6 +75,7 @@ function baseApi(over: ApiStubs = {}): ApiStubs {
     '/kb/tickets/t-1': resolvedResponse(),
     '/kb/workspaces/acme/tickets/t-1/history': { groups: [] },
     '/kb/workspaces/acme/tickets/t-1/comments': { comments: [] },
+    '/kb/workspaces/acme/tickets/t-1/attachments': { attachments: [] },
     '/profile/me': { userId: 1, displayName: 'norman6464', email: '', bio: '', avatarUrl: '', status: '', updatedAt: '' },
     '/kb/workspaces/acme/spaces/s-1/ticket-statuses': { statuses: [status()] },
     '/kb/workspaces/acme/spaces/s-1/ticket-types': { types: [type()] },

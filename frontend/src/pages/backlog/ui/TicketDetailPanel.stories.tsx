@@ -115,11 +115,13 @@ const meta = {
         <Story />
       </div>
     ),
-    // TicketCommentSection（コメント節）が自分の userId とコメント一覧を取得する。
+    // TicketCommentSection（コメント節）が自分の userId とコメント一覧を、
+    // TicketAttachmentSection（添付節）が添付一覧を取得する。
     // どの story にも共通で要る宛先なので meta 側の decorator に置く。
     withApi({
       '/profile/me': { userId: 1, displayName: 'norman6464', email: '', bio: '', avatarUrl: '', status: '', updatedAt: '' },
       '/kb/workspaces/acme/tickets/t-1/comments': { comments: [] },
+      '/kb/workspaces/acme/tickets/t-1/attachments': { attachments: [] },
     }),
   ],
 } satisfies Meta<typeof TicketDetailPanel>;

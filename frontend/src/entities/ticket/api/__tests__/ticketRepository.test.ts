@@ -1,13 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TicketRepository from '../ticketRepository';
 import apiClient from '@/shared/api/axios';
+import axios from 'axios';
 
 vi.mock('@/shared/api/axios');
+// putTicketAttachmentFile が素の axios を直接使うため個別に mock する。
+// shared/api/axios.ts の automock は実モジュールを一度読み込んで形を写すので、
+// ここでの axios.create もその読み込み時に呼ばれる（動く形を返しておかないと自動 mock 自体が落ちる）。
+vi.mock('axios', () => ({
+  default: {
+    put: vi.fn(),
+    create: vi.fn(() => ({
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
+    })),
+  },
+}));
 
 const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
 const mockPut = vi.mocked(apiClient.put);
 const mockDelete = vi.mocked(apiClient.delete);
+const mockAxiosPut = vi.mocked(axios.put);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -384,5 +401,82 @@ describe('TicketRepository.addTicketLabel / removeTicketLabel', () => {
     await TicketRepository.removeTicketLabel('acme', 't-1', 'l-1');
     expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/labels/l-1');
     expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/labels/l-1');
+  });
+});
+
+describe('TicketRepository.fetchTicketAttachments', () => {
+  it('GET /attachments を叩き attachments を取り出す', async () => {
+    mockGet.mockResolvedValue({
+      data: { attachments: [{ id: 'at-1', ticketId: 't-1', filename: 'a.png', contentType: 'image/png', sizeBytes: 1, uploadedByUserId: 1, createdAt: '' }] },
+    });
+    const attachments = await TicketRepository.fetchTicketAttachments('acme', 't-1');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/attachments');
+    expect(attachments).toHaveLength(1);
+  });
+
+  it('attachments が null でも空配列にする', async () => {
+    mockGet.mockResolvedValue({ data: { attachments: null } });
+    await expect(TicketRepository.fetchTicketAttachments('acme', 't-1')).resolves.toEqual([]);
+  });
+});
+
+describe('TicketRepository.issueTicketAttachmentUploadUrl', () => {
+  it('POST で contentType と size を渡す', async () => {
+    mockPost.mockResolvedValue({ data: { url: 'https://gcs/put?sig', key: 'k-1', expiresIn: 600 } });
+    const issued = await TicketRepository.issueTicketAttachmentUploadUrl('acme', 't-1', 'image/png', 1024);
+    expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/attachments/upload-url', {
+      contentType: 'image/png',
+      size: 1024,
+    });
+    expect(issued).toEqual({ url: 'https://gcs/put?sig', key: 'k-1', expiresIn: 600 });
+  });
+});
+
+describe('TicketRepository.putTicketAttachmentFile', () => {
+  it('素の axios で署名付き URL へ Content-Type 一致の PUT を送る（apiClient は使わない）', async () => {
+    mockAxiosPut.mockResolvedValue({});
+    const file = new File(['x'], 'a.pdf', { type: 'application/pdf' });
+    await TicketRepository.putTicketAttachmentFile('https://gcs/put?sig', file);
+    expect(mockAxiosPut).toHaveBeenCalledWith('https://gcs/put?sig', file, {
+      headers: { 'Content-Type': 'application/pdf' },
+    });
+    expect(mockPut).not.toHaveBeenCalled();
+  });
+});
+
+describe('TicketRepository.createTicketAttachment', () => {
+  it('POST で確定し、応答をそのまま返す（201）', async () => {
+    const created = { id: 'at-1', ticketId: 't-1', filename: 'a.pdf', contentType: 'application/pdf', sizeBytes: 10, uploadedByUserId: 1, createdAt: '' };
+    mockPost.mockResolvedValue({ data: created });
+    const result = await TicketRepository.createTicketAttachment('acme', 't-1', {
+      key: 'k-1',
+      filename: 'a.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 10,
+    });
+    expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/attachments', {
+      key: 'k-1',
+      filename: 'a.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 10,
+    });
+    expect(result).toEqual(created);
+  });
+});
+
+describe('TicketRepository.issueTicketAttachmentDownloadUrl', () => {
+  it('GET でダウンロード URL を発行する', async () => {
+    mockGet.mockResolvedValue({ data: { url: 'https://gcs/get?sig', expiresIn: 600 } });
+    const issued = await TicketRepository.issueTicketAttachmentDownloadUrl('acme', 't-1', 'at-1');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/attachments/at-1/download-url');
+    expect(issued).toEqual({ url: 'https://gcs/get?sig', expiresIn: 600 });
+  });
+});
+
+describe('TicketRepository.deleteTicketAttachment', () => {
+  it('DELETE を叩く（204）', async () => {
+    mockDelete.mockResolvedValue({ data: undefined });
+    await TicketRepository.deleteTicketAttachment('acme', 't-1', 'at-1');
+    expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/attachments/at-1');
   });
 });

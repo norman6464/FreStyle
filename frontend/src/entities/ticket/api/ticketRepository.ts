@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import axios from 'axios';
 import { TICKET_API } from '@/shared/config/apiRoutes';
 import { toArray } from '@/shared/lib/toArray';
 import { readCommentBody, buildCommentBody } from '../lib/commentBody';
@@ -16,6 +17,7 @@ import type {
   TicketCommentWire,
   TicketHierarchyLevel,
   TicketListFilter,
+  TicketAttachment,
   TicketPriority,
   TicketResolution,
   TicketStatus,
@@ -159,6 +161,18 @@ export interface LabelInput {
   name: string;
   /** `#rrggbb` の小文字 7 桁。 */
   color: string;
+}
+
+/** アップロード URL 発行の応答。key は Create の呼び出しにそのまま渡す。 */
+export interface AttachmentUploadUrl {
+  url: string;
+  key: string;
+  expiresIn: number;
+}
+
+export interface AttachmentDownloadUrl {
+  url: string;
+  expiresIn: number;
 }
 
 export interface TicketStatusInput {
@@ -491,6 +505,63 @@ const TicketRepository = {
   /** 204 応答・冪等（付いていなくても成功扱い）。 */
   async removeTicketLabel(workspaceSlug: string, ticketId: string, labelId: string): Promise<void> {
     await apiClient.delete(TICKET_API.ticketLabel(workspaceSlug, ticketId, labelId));
+  },
+
+  async fetchTicketAttachments(workspaceSlug: string, ticketId: string): Promise<TicketAttachment[]> {
+    const res = await apiClient.get<{ attachments: TicketAttachment[] }>(
+      TICKET_API.ticketAttachments(workspaceSlug, ticketId),
+    );
+    return toArray<TicketAttachment>(res.data?.attachments);
+  },
+
+  async issueTicketAttachmentUploadUrl(
+    workspaceSlug: string,
+    ticketId: string,
+    contentType: string,
+    size: number,
+  ): Promise<AttachmentUploadUrl> {
+    const res = await apiClient.post<AttachmentUploadUrl>(TICKET_API.ticketAttachmentUploadUrl(workspaceSlug, ticketId), {
+      contentType,
+      size,
+    });
+    return res.data;
+  },
+
+  /**
+   * 発行済みの署名付き URL へ File を直接 PUT する（Cloud Storage への実アップロード）。
+   *
+   * `apiClient` ではなく素の axios を使う — baseURL も認証ヘッダも乗せてはいけない宛先
+   * （`entities/user/api/imageUploadRepository.ts` と同じ理由）。Content-Type は
+   * upload-url 発行時に渡した値と厳密に一致させる（GCS V4 署名に含まれる）。
+   */
+  async putTicketAttachmentFile(uploadUrl: string, file: File): Promise<void> {
+    await axios.put(uploadUrl, file, { headers: { 'Content-Type': file.type } });
+  },
+
+  /** アップロード後の確定（メタデータの記録）。 */
+  async createTicketAttachment(
+    workspaceSlug: string,
+    ticketId: string,
+    input: { key: string; filename: string; contentType: string; sizeBytes: number },
+  ): Promise<TicketAttachment> {
+    const res = await apiClient.post<TicketAttachment>(TICKET_API.ticketAttachments(workspaceSlug, ticketId), input);
+    return res.data;
+  },
+
+  async issueTicketAttachmentDownloadUrl(
+    workspaceSlug: string,
+    ticketId: string,
+    attachmentId: string,
+  ): Promise<AttachmentDownloadUrl> {
+    const res = await apiClient.get<AttachmentDownloadUrl>(
+      TICKET_API.ticketAttachmentDownloadUrl(workspaceSlug, ticketId, attachmentId),
+    );
+    return res.data;
+  },
+
+  /** 204 応答。Cloud Storage の実ファイルは消えない（kb ページ画像と同じ割り切り）。 */
+  async deleteTicketAttachment(workspaceSlug: string, ticketId: string, attachmentId: string): Promise<void> {
+    await apiClient.delete(TICKET_API.ticketAttachment(workspaceSlug, ticketId, attachmentId));
   },
 };
 

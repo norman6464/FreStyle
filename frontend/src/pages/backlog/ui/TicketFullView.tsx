@@ -14,6 +14,7 @@ import Loading from '@/shared/ui/Loading';
 import { SaveStatusIndicator, emptyRichDoc, isRichDoc } from '@/shared/ui/RichTextEditor';
 import { useTicketEditor } from '../model/useTicketEditor';
 import TicketAncestorTrail from './TicketAncestorTrail';
+import TicketAttachmentSection from './TicketAttachmentSection';
 import TicketAttributePanel from './TicketAttributePanel';
 import TicketChangeHistory from './TicketChangeHistory';
 import TicketCommentSection from './TicketCommentSection';
@@ -138,7 +139,13 @@ export default function TicketFullView({
             </TicketSection>
           </div>
 
-          <div className="order-3 px-4 pb-6 lg:order-none lg:p-0">
+          <div className="order-3 px-4 pb-4 lg:order-none lg:p-0">
+            <TicketSection title="添付">
+              <TicketAttachmentSection workspaceSlug={workspaceSlug} ticketId={ticket.id} canEdit={canEdit && !archived} />
+            </TicketSection>
+          </div>
+
+          <div className="order-4 px-4 pb-6 lg:order-none lg:p-0">
             <TicketSection title="変更履歴">
               <TicketChangeHistory history={history} loading={historyLoading} error={historyError} />
             </TicketSection>

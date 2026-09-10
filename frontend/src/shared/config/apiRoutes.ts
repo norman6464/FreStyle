@@ -375,6 +375,18 @@ export const TICKET_API = {
   /** PUT(付ける) / DELETE(外す) — .../tickets/:ticketId/labels/:labelId。どちらも 204・冪等 */
   ticketLabel: (workspaceSlug: string, ticketId: string, labelId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/labels/${labelId}`,
+  /** GET(一覧) / POST(確定) — .../tickets/:ticketId/attachments */
+  ticketAttachments: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments`,
+  /** POST — .../attachments/upload-url。{contentType, size} → {url, key, expiresIn} */
+  ticketAttachmentUploadUrl: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments/upload-url`,
+  /** GET — .../attachments/:attachmentId/download-url。期限付き URL を都度発行する（保存しない） */
+  ticketAttachmentDownloadUrl: (workspaceSlug: string, ticketId: string, attachmentId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments/${attachmentId}/download-url`,
+  /** DELETE — .../attachments/:attachmentId（204。Cloud Storage の実ファイルは消えない） */
+  ticketAttachment: (workspaceSlug: string, ticketId: string, attachmentId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments/${attachmentId}`,
   ticketStatuses: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses`,
   /** PUT — .../ticket-statuses/:statusId（name / color / category をまとめて置換） */

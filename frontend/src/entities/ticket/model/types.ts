@@ -57,6 +57,22 @@ export interface Label {
 }
 
 /**
+ * チケット添付ファイル 1 件（メタデータのみ。本体は Cloud Storage）。
+ *
+ * `key`（保存先のオブジェクトキー）は応答に含まれない — ダウンロードは
+ * 都度期限付き URL を発行する専用の口を通す（`fetchTicketAttachmentDownloadUrl`）。
+ */
+export interface TicketAttachment {
+  id: string;
+  ticketId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedByUserId: number;
+  createdAt: string;
+}
+
+/**
  * チケット 1 件に対する実効権限。役割は閲覧 / 発言 / 編集 / 管理の 4 段で、
  * 編集できることと他人の発言を消せることは別の段。
  *

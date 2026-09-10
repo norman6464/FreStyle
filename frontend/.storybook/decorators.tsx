@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Decorator } from '@storybook/react-vite';
-import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import { configureStore } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -171,21 +172,37 @@ function stubAdapter(stubs: ApiStubs) {
  * 差し替えは effect ではなく描画の途中で行う。部品は最初の描画の直後に問い合わせるので、
  * effect まで待つと本物の通信が先に飛んでしまう。
  */
-export function withApi(stubs: ApiStubs): Decorator {
+function withStubbedAdapter(client: AxiosInstance, stubs: ApiStubs): Decorator {
   const Wrapped: Decorator = (Story) => {
     const original = useRef<unknown>(undefined);
     if (original.current === undefined) {
-      original.current = apiClient.defaults.adapter ?? null;
-      apiClient.defaults.adapter = stubAdapter(stubs);
+      original.current = client.defaults.adapter ?? null;
+      client.defaults.adapter = stubAdapter(stubs);
     }
     useEffect(
       () => () => {
         // story を離れたら必ず戻す。戻さないと、次に開いた story まで見本の通信のままになる。
-        apiClient.defaults.adapter = (original.current ?? undefined) as typeof apiClient.defaults.adapter;
+        client.defaults.adapter = (original.current ?? undefined) as typeof client.defaults.adapter;
       },
       [],
     );
     return <Story />;
   };
   return Wrapped;
+}
+
+export function withApi(stubs: ApiStubs): Decorator {
+  return withStubbedAdapter(apiClient, stubs);
+}
+
+/**
+ * withRawPut — 署名付き URL への直接アップロード（`ImageUploadRepository.upload` や
+ * `putTicketAttachmentFile` が使う「素の axios」。`@/shared/api/axios` の apiClient とは
+ * 別のインスタンス）を差し替える。`withApi` は apiClient だけを差し替えるので、宛先が
+ * Cloud Storage の署名付き URL であるこの経路はここで別に用意する。
+ *
+ * 既定（引数なし）はどの URL への PUT も無条件で成功にする（空文字は全 URL に一致する）。
+ */
+export function withRawPut(stubs: ApiStubs = { '': undefined }): Decorator {
+  return withStubbedAdapter(axios, stubs);
 }

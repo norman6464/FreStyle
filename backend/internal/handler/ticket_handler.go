@@ -47,6 +47,7 @@ type TicketHandler struct {
 	get           *ticket.GetTicketUseCase
 	getAssignment *ticket.GetTicketAssignmentUseCase
 	list          *ticket.ListTicketsUseCase
+	listChildren  *ticket.ListTicketChildrenUseCase
 	update        *ticket.UpdateTicketUseCase
 	move          *ticket.MoveTicketUseCase
 	archive       *ticket.ArchiveTicketUseCase
@@ -80,6 +81,7 @@ func NewTicketHandler(
 	get *ticket.GetTicketUseCase,
 	getAssignment *ticket.GetTicketAssignmentUseCase,
 	list *ticket.ListTicketsUseCase,
+	listChildren *ticket.ListTicketChildrenUseCase,
 	update *ticket.UpdateTicketUseCase,
 	move *ticket.MoveTicketUseCase,
 	archive *ticket.ArchiveTicketUseCase,
@@ -101,7 +103,7 @@ func NewTicketHandler(
 		checkSpace: checkSpace, checkTicket: checkTicket, resolveKey: resolveKey,
 		resolveLoc: resolveLoc,
 		enable:     enable, create: create, get: get, getAssignment: getAssignment,
-		list: list, update: update,
+		list: list, listChildren: listChildren, update: update,
 		move: move, archive: archive, restore: restore,
 		del: del, findDeleted: findDeleted, restoreDel: restoreDel, changeStat: changeStat,
 		changeParent: changeParent, assign: assign, unassign: unassign, history: history,
@@ -610,6 +612,45 @@ func (h *TicketHandler) List(c *gin.Context) {
 			AssigneePrincipalID: tickets[i].AssigneePrincipalID,
 			Labels:              labels,
 		})
+	}
+	c.JSON(http.StatusOK, ticketListResponse{Tickets: out})
+}
+
+// ListChildren は 1 件の直下の子を並び順で返す（孫は含まない・閲覧権限が要る）。
+// ラベルは付ける（子の行も一覧の行と同じ見た目にするため）。担当は付けない（段 6 で
+// 要ると分かったら ListTicketsUseCase と同じ形へ寄せる）。
+func (h *TicketHandler) ListChildren(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	ticketID := c.Param("ticketId")
+	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityView) {
+		return
+	}
+	children, err := h.listChildren.Execute(c.Request.Context(), ticket.ListTicketChildrenInput{
+		WorkspaceID: scope.workspaceID, ParentTicketID: ticketID,
+	})
+	if err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	childIDs := make([]string, len(children))
+	for i := range children {
+		childIDs[i] = children[i].ID
+	}
+	labelsByTicket, err := h.labelsByIDs.Execute(c.Request.Context(), scope.workspaceID, childIDs)
+	if err != nil {
+		slog.WarnContext(c.Request.Context(), "ticket: batch labels lookup failed", "err", err, "ticketId", ticketID)
+		labelsByTicket = nil
+	}
+	out := make([]ticketResponse, 0, len(children))
+	for i := range children {
+		labels := labelsByTicket[children[i].ID]
+		if labels == nil {
+			labels = []domain.Label{}
+		}
+		out = append(out, ticketResponse{Ticket: &children[i], Labels: labels})
 	}
 	c.JSON(http.StatusOK, ticketListResponse{Tickets: out})
 }

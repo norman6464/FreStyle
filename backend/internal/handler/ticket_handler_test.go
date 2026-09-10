@@ -616,6 +616,29 @@ func Test_チケット詳細_祖先列を根から順に返す(t *testing.T) {
 	assert.Empty(t, gotRoot.Ancestors)
 }
 
+// Test_チケット子一覧 は /tickets/:id/children が直下の子だけを並び順で返すことを固定する
+// （孫・アーカイブ済み・他チケットの子は含まない）。
+func Test_チケット子一覧(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleViewer)
+	parent := f.tickets.addTicket(domain.Ticket{ID: "ch-parent", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "親"})
+	second := f.tickets.addTicket(domain.Ticket{ID: "ch-2", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "子2", ParentID: &parent.ID, Position: "a1"})
+	first := f.tickets.addTicket(domain.Ticket{ID: "ch-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "子1", ParentID: &parent.ID, Position: "a0"})
+	f.tickets.addTicket(domain.Ticket{ID: "ch-grand", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "孫", ParentID: &first.ID, Position: "a0"})
+	archived := time.Now()
+	f.tickets.addTicket(domain.Ticket{ID: "ch-archived", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "アーカイブ済みの子", ParentID: &parent.ID, Position: "a2", ArchivedAt: &archived})
+	f.tickets.addTicket(domain.Ticket{ID: "ch-unrelated", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "無関係"})
+
+	w := f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+parent.ID+"/children", "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	got := decodeJSON[ticketListResponse](t, w)
+	require.Len(t, got.Tickets, 2, "孫・アーカイブ済み・無関係は含まない")
+	assert.Equal(t, first.ID, got.Tickets[0].ID, "position 順で子1が先")
+	assert.Equal(t, second.ID, got.Tickets[1].ID)
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/does-not-exist/children", "")
+	assert.Equal(t, http.StatusNotFound, w.Code, "親自体が存在しなければ404")
+}
+
 // Test_チケットのページ逆参照 は /tickets/:id/page-backlinks の権限配線を固定する
 // （中身の可視判定そのものは persistence の結合テストが固定する）。
 func Test_チケットのページ逆参照(t *testing.T) {

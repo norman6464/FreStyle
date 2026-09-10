@@ -69,8 +69,17 @@ function fillMissingBlockIds(doc: ProseMirrorNode, tr: Transaction): Transaction
  * 「マウント直後の描画がまだ済んでいないタイミングと衝突する」実測の不具合を起こした。
  * doc を渡す前に埋めてしまえば transaction は 1 つも発生せず、この経路の不具合が構造的に無くなる。
  */
-export function fillMissingBlockIdsInDoc<T extends JSONContent>(node: T): T {
-  const nextContent = fillContentIds(node.content);
+/**
+ * MAX_FILL_DEPTH は fillMissingBlockIdsInDoc ⇄ fillContentIds の相互再帰が辿る入れ子の上限。
+ * linkSafety.ts の MAX_DOC_WALK_DEPTH と同じ理由・同じ値（上限が無いと極端に深い doc で
+ * コールスタックを使い切る）。上限を超えた先は歩くのをやめ、その部分木をそのまま返す
+ * （id を埋めるのを諦める）。その深さの doc は敵対的な入力以外で作られる見込みが無く、
+ * backend 側は保存時にもっと厳しい上限（30 段）でそもそも保存を拒否する。
+ */
+const MAX_FILL_DEPTH = 300;
+
+export function fillMissingBlockIdsInDoc<T extends JSONContent>(node: T, depth = 0): T {
+  const nextContent = depth >= MAX_FILL_DEPTH ? node.content : fillContentIds(node.content, depth + 1);
   const needsId = typeof node.type === 'string' && BLOCK_NODE_TYPES.has(node.type) && !hasStableId(node.attrs?.id);
   if (!needsId && nextContent === node.content) return node;
 
@@ -80,11 +89,11 @@ export function fillMissingBlockIdsInDoc<T extends JSONContent>(node: T): T {
   return next as T;
 }
 
-function fillContentIds(content: JSONContent[] | undefined): JSONContent[] | undefined {
+function fillContentIds(content: JSONContent[] | undefined, depth: number): JSONContent[] | undefined {
   if (!Array.isArray(content)) return content;
   let changed = false;
   const next = content.map((child) => {
-    const filled = fillMissingBlockIdsInDoc(child);
+    const filled = fillMissingBlockIdsInDoc(child, depth);
     if (filled !== child) changed = true;
     return filled;
   });

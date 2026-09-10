@@ -121,9 +121,63 @@ export function normalizeLinkInput(rawInput: string): string | null {
 type DocMark = NonNullable<JSONContent['marks']>[number];
 
 /**
- * sanitizeDocLinks は doc JSON を歩いて、許可できない href のリンクマークを取り除く
- * （マークだけを外して文字は残す。読み手から本文が消えないようにするため）。
- * 許可できる href は正規化した値へ書き直す。
+ * 画像ノード（type: 'image'）の attrs.src に唯一許すオブジェクトキーの接頭辞。
+ * backend の kbInlineImageKeyPrefix（page_usecase.go）と同じ文字列で、保存時にサーバーが
+ * 最終的な関門になる。ここではページ ID を知らない汎用関数なので接頭辞までしか見ない
+ * （どのページの key かの一致は、ダウンロード URL 発行時にサーバー側で確かめる）。
+ */
+const KB_IMAGE_KEY_PREFIX = 'kb/';
+
+/**
+ * doc JSON を歩くときの入れ子の上限。content/marks を相互再帰で辿るため、上限が無いと
+ * 極端に深い doc（数千段）で JS のコールスタックを使い切って例外になる。
+ * エディタが実際に作れる深さ（数十段）よりずっと大きく取り、通常の文書には一切影響しない。
+ *
+ * 上限を超えた先は歩くのをやめ、その部分木をそのまま返す（サニタイズを諦める）。
+ * その深さの doc は敵対的な入力以外で作られる見込みが無く、この関数がクラッシュしないことの
+ * ほうが「深いところまで洗う」ことより優先度が高い。backend（page_usecase.go）側は保存時に
+ * もっと厳しい上限（30 段）でそもそも保存を拒否するため、通常の経路ではここまで到達しない。
+ */
+const MAX_DOC_WALK_DEPTH = 300;
+
+/** isPlainObject は「JSON のオブジェクトとして扱える値か」を返す（配列・null は除く）。 */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 埋め込み画像の data: URI（"data:image/…"）の接頭辞。ImageView.tsx が最初から
+ * サポートしている形（story・既存データとの互換）なので、image の src としてだけ許す。
+ *
+ * href の許可リスト（ALLOWED_LINK_PROTOCOLS）には data: を含めない ——
+ * `data:text/html,…` はナビゲートするとページ全体を差し替えられるが、
+ * `<img src>` の文脈では埋め込みスクリプト（SVG を含む）はブラウザの仕様上実行されないため、
+ * image に限れば同じ危険は無い。MIME を image/* に絞り、それ以外（text/html 等）は弾く。
+ */
+const DATA_IMAGE_URI_PATTERN = /^data:image\//i;
+
+/**
+ * sanitizeImageSrc は画像の attrs.src を「使ってよい形」に正規化する。許可できないものは null。
+ *
+ * 保管庫の key（"kb/" 接頭辞）と埋め込み画像（data:image/…）はそのまま許す。それ以外は
+ * href と同じ許可リスト（sanitizeLinkHref）を通す — 外部 URL の画像を tiptap の既定スキーマ・
+ * story・既存データとの互換のために許すが、リンクと同じ危険スキームは同様に弾く。
+ *
+ * sanitizeDocLinks（doc JSON を洗う）に加え、ImageView.tsx（描画直前の保険）・
+ * imageInsertion.ts（アップロード戻り値の検査）からも呼ぶ共有ロジックなのでここに置く。
+ */
+export function sanitizeImageSrc(src: unknown): string | null {
+  if (typeof src !== 'string') return null;
+  if (src.startsWith(KB_IMAGE_KEY_PREFIX)) return src;
+  const folded = foldAsUrlParserWould(src);
+  if (DATA_IMAGE_URI_PATTERN.test(folded)) return folded;
+  return sanitizeLinkHref(src);
+}
+
+/**
+ * sanitizeDocLinks は doc JSON を歩いて、許可できない href のリンクマークを取り除き
+ * （マークだけを外して文字は残す。読み手から本文が消えないようにするため）、
+ * 許可できない画像 src を持つノードを取り除く。許可できる値は正規化した形へ書き直す。
  *
  * なぜ「描画時に無害化する」だけでは足りないのか:
  * 入力・貼り付けの経路をエディタ側でいくら塞いでも、doc JSON は API から丸ごと差し込める。
@@ -131,11 +185,12 @@ type DocMark = NonNullable<JSONContent['marks']>[number];
  * 表示だけを直すやり方は「見えないところに攻撃文字列が残り続ける」状態を許すので、
  * 読み込み時と保存時の両方でこの関数を通し、doc そのものを綺麗にしておく。
  *
+ * depth は呼び出し側が渡す必要はない（内部の再帰でだけ使う）。
  * 変更が無ければ入力と同じ参照を返す（無用なコピーを避ける）。
  */
-export function sanitizeDocLinks<T extends JSONContent>(node: T): T {
+export function sanitizeDocLinks<T extends JSONContent>(node: T, depth = 0): T {
   const nextMarks = sanitizeMarks(node.marks);
-  const nextContent = sanitizeContent(node.content);
+  const nextContent = depth >= MAX_DOC_WALK_DEPTH ? node.content : sanitizeContent(node.content, depth + 1);
   if (nextMarks === node.marks && nextContent === node.content) return node;
 
   const next: JSONContent = { ...node };
@@ -146,38 +201,72 @@ export function sanitizeDocLinks<T extends JSONContent>(node: T): T {
   return next as T;
 }
 
-function sanitizeContent(content: JSONContent[] | undefined): JSONContent[] | undefined {
+/**
+ * sanitizeContent は content 配列を歩く。3 つの仕事をする:
+ * 1. object でない要素（null・数値など。壊れた doc や敵対的な入力が混じりうる）を落とす
+ * 2. 画像ノードで許可できない src を持つものをノードごと落とす
+ * 3. 残りを再帰的に sanitizeDocLinks へ通す
+ */
+function sanitizeContent(content: JSONContent[] | undefined, depth: number): JSONContent[] | undefined {
   if (!Array.isArray(content)) return content;
   let changed = false;
-  const next = content.map((child) => {
-    const sanitized = sanitizeDocLinks(child);
+  const next: JSONContent[] = [];
+  for (const child of content) {
+    if (!isPlainObject(child)) {
+      changed = true;
+      continue;
+    }
+    if (child.type === 'image') {
+      const src = sanitizeImageSrc((child as JSONContent).attrs?.src);
+      if (src === null) {
+        changed = true;
+        continue;
+      }
+      const fixed =
+        src === (child as JSONContent).attrs?.src
+          ? (child as JSONContent)
+          : { ...(child as JSONContent), attrs: { ...(child as JSONContent).attrs, src } };
+      const sanitized = sanitizeDocLinks(fixed, depth);
+      if (sanitized !== child) changed = true;
+      next.push(sanitized);
+      continue;
+    }
+    const sanitized = sanitizeDocLinks(child as JSONContent, depth);
     if (sanitized !== child) changed = true;
-    return sanitized;
-  });
+    next.push(sanitized);
+  }
   return changed ? next : content;
 }
 
+/**
+ * sanitizeMarks は marks 配列を歩く。object でない要素を落としたうえで、
+ * link マークだけ href を検査する（他のマークは素通し）。
+ */
 function sanitizeMarks(marks: DocMark[] | undefined): DocMark[] | undefined {
   if (!Array.isArray(marks)) return marks;
   let changed = false;
   const next: DocMark[] = [];
   for (const mark of marks) {
-    if (mark.type !== LINK_MARK_NAME) {
-      next.push(mark);
+    if (!isPlainObject(mark)) {
+      changed = true;
       continue;
     }
-    const href = sanitizeLinkHref(mark.attrs?.href);
+    if (mark.type !== LINK_MARK_NAME) {
+      next.push(mark as DocMark);
+      continue;
+    }
+    const href = sanitizeLinkHref((mark as DocMark).attrs?.href);
     if (href === null) {
       // 許可できないリンクはマークごと落とす（テキストは content 側に残る）。
       changed = true;
       continue;
     }
-    if (href === mark.attrs?.href) {
-      next.push(mark);
+    if (href === (mark as DocMark).attrs?.href) {
+      next.push(mark as DocMark);
       continue;
     }
     changed = true;
-    next.push({ ...mark, attrs: { ...mark.attrs, href } });
+    next.push({ ...(mark as DocMark), attrs: { ...(mark as DocMark).attrs, href } });
   }
   if (!changed) return marks;
   // マークが 1 つも残らなかったら marks 自体を落とす。tiptap の getJSON も空の marks は書かないので、

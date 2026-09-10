@@ -10,7 +10,7 @@ import { openClickedLink } from './linkClick';
 import { fillMissingBlockIdsInDoc } from './stableBlockId';
 import BubbleFormatMenu from './BubbleFormatMenu';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
-import type { RichDocContent } from './emptyRichDoc';
+import { emptyRichDoc, type RichDocContent } from './emptyRichDoc';
 import type { CommentAnchor } from './commentAnchor';
 import { useCommentBadgeSync, createCommentBadgesExtension, type CommentBadgeCounts } from './commentBadges';
 import './richTextEditor.css';
@@ -117,15 +117,26 @@ export interface RichTextEditorProps {
  * paragraph/blockquote 等はここを揃えないと「id 抜きの入力 doc」と「id 補充後の doc」が
  * 常に不一致になってしまう）。
  */
-function stableValueString(value: unknown, excludeId: boolean): string | undefined {
+/**
+ * MAX_STABLE_STRING_DEPTH は stableValueString の自己再帰が辿る入れ子の上限。
+ * linkSafety.ts / stableBlockId.ts と同じ理由・同じ値（上限が無いと極端に深い doc で
+ * コールスタックを使い切る）。上限を超えた先は固定のプレースホルダ文字列に丸め、
+ * それ以上は再帰しない — 比較専用の文字列化なので、そこだけ実際の値と食い違っても
+ * 「深すぎる doc 同士は同じ深さまでしか比較しない」という劣化で済む
+ * （誤って「差分あり」と判定して保存を止める側には倒れない）。
+ */
+const MAX_STABLE_STRING_DEPTH = 300;
+
+function stableValueString(value: unknown, excludeId: boolean, depth = 0): string | undefined {
   if (value === undefined) return undefined;
+  if (depth >= MAX_STABLE_STRING_DEPTH) return '"…"';
   if (Array.isArray(value)) {
-    return `[${value.map((v) => stableValueString(v, excludeId) ?? 'null').join(',')}]`;
+    return `[${value.map((v) => stableValueString(v, excludeId, depth + 1) ?? 'null').join(',')}]`;
   }
   if (value !== null && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([k]) => !(excludeId && k === 'id'))
-      .map(([k, v]) => [k, stableValueString(v, excludeId)] as [string, string | undefined])
+      .map(([k, v]) => [k, stableValueString(v, excludeId, depth + 1)] as [string, string | undefined])
       .filter((entry): entry is [string, string] => entry[1] !== undefined)
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([k, v]) => `${JSON.stringify(k)}:${v}`);
@@ -245,7 +256,19 @@ export default function RichTextEditor({
   // useEffect の両方が別々に呼んでしまうと、同じ内容でも id だけが食い違う 2 つの結果が
   // 生まれ、id を含めて比較する fullDocString が絶対に一致せず、マウント直後から
   // setContent が無限に（レンダーのたびに）呼ばれ続けてしまう。useMemo で 1 箇所に集約する。
-  const filledValue = useMemo(() => fillMissingBlockIdsInDoc(sanitizeDocLinks(value)), [value]);
+  // sanitizeDocLinks / fillMissingBlockIdsInDoc は入れ子の段数に上限を持つのでもう
+  // スタックオーバーフローでは落ちないが、doc は API から丸ごと差し込める値なので、
+  // ここで拾えていない壊れ方（想定と違う形の attrs 等）がまだあり得る。マウント前の
+  // useMemo で例外が漏れると React がエディタごと描画できず白画面になるため、
+  // 最後の保険として空文書へ落とす（本文が消えたように見えるが、白画面よりはましで、
+  // 元の value 自体は書き換えていないので保存し直しても失われない）。
+  const filledValue = useMemo(() => {
+    try {
+      return fillMissingBlockIdsInDoc(sanitizeDocLinks(value));
+    } catch {
+      return emptyRichDoc();
+    }
+  }, [value]);
 
   // '/' メニューの項目。ベースはレジストリ（ブロック変換＋挿入）。画像アップロードが
   // 配線されているときだけ /image（ファイル選択）を足す。onImageUpload の有無だけに依存させ、

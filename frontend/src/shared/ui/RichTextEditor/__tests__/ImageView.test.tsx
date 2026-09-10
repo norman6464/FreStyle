@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor, fireEvent, act, within } from '@testing-library/react';
 import RichTextEditor from '../RichTextEditor';
-import type { RichDocContent } from '../emptyRichDoc';
+import { emptyRichDoc, type RichDocContent } from '../emptyRichDoc';
 
 /**
  * ImageView（画像ノードの NodeView）は単体で置けない部品なので、CodeBlockView と同じく
@@ -155,5 +155,29 @@ describe('ImageView', () => {
     await waitFor(() => expect(resolveImageSrc).toHaveBeenCalledWith('kb/w-1/p-1/b.bin'));
     const imgB = await findImg(container, '画像A');
     await waitFor(() => expect(imgB).toHaveAttribute('src', 'https://s3.example.com/b-resolved'));
+  });
+
+  // RichTextEditor の value prop は sanitizeDocLinks（linkSafety.ts）を経由するため、
+  // docWithImage で不正な src を渡しても、ImageView へ届く前に木から落ちてしまい
+  // ImageView 自身の検査は試せない。ImageView.tsx 自体が持つ保険（描画直前の再検査）は、
+  // value の差し替えを経由しない経路（editor.commands 経由の直接操作）で確かめる。
+  it('editor.commands で不正な src の画像を直接差し込んでも <img> にしない（NodeView 自身の保険）', async () => {
+    let editor: import('@tiptap/react').Editor | null = null;
+    const { container } = render(
+      <RichTextEditor
+        value={emptyRichDoc()}
+        onCreate={(created) => {
+          editor = created;
+        }}
+      />,
+    );
+    await waitFor(() => expect(editor).not.toBeNull());
+
+    act(() => {
+      editor!.chain().focus().setImage({ src: 'javascript:alert(1)', alt: '危険' }).run();
+    });
+
+    await waitFor(() => expect(container.querySelector('[data-state="failed"]')).not.toBeNull());
+    expect(container.querySelector('img')).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { Node } from '@tiptap/core';
+import { mergeAttributes, Node } from '@tiptap/core';
 import type { AnyExtension, Extensions } from '@tiptap/core';
 import Blockquote from '@tiptap/extension-blockquote';
 import Code from '@tiptap/extension-code';
@@ -12,6 +12,7 @@ import Paragraph from '@tiptap/extension-paragraph';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
+import { sanitizeCodeBlockLanguage } from './codeBlockLanguages';
 import { isAllowedLinkHref, isInternalPageLinkHref, sanitizeLinkHref } from './linkSafety';
 
 /**
@@ -41,6 +42,64 @@ function withBlockId<T extends AnyExtension>(ext: T): T {
               : {},
         },
       };
+    },
+  }) as unknown as T;
+}
+
+/**
+ * withSafeCodeLanguage は codeBlock の language 属性を許可リストで検査してから使う。
+ *
+ * 素の CodeBlockLowlight（実体は @tiptap/extension-code-block）は language をそのまま
+ * class 名（"language-" + language）に埋め込む箇所を 3 つ持ち、そのどれも NodeView
+ * （CodeBlockView.tsx。編集画面の実際の描画）を経由しない:
+ *
+ *   1. parseHTML（属性単位）— 貼り付けた HTML の <pre> の子要素の classList から読む
+ *   2. renderHTML（属性単位）— 1 の値を <pre> 自身の class として書き戻す
+ *   3. renderHTML（ノード単位。extension-code-block の toDOM 相当）— node.attrs.language を
+ *      直接読み、内側の <code class="language-…"> を組み立てる。属性単位の 2 とは別経路で、
+ *      2 をいくら直しても素通しされる（実際に検証済み: 2 だけ直した状態では、貼り付け直後の
+ *      正規化は効くが editor.getHTML() の <code> 側にだけ生の値が残った）
+ *
+ * CodeBlockView.tsx は編集画面の描画だけをカバーするので、ここで 1〜3 を塞ぎ、貼り付け・
+ * コピー・将来の HTML 書き出し（editor.getHTML() 等、NodeView を経由しない経路）でも
+ * 同じ許可リストが効くようにする（エディタの状態そのものに不正な language 値を持たせない）。
+ *
+ * 「見つからなかった／未設定」はそのまま通す。既定のハイライト無しの扱いは
+ * CodeBlockLowlight 自身の defaultLanguage オプションに任せ、ここでは
+ * 「値がある場合にだけ許可リストへ通す」ことに徹する。
+ */
+function withSafeCodeLanguage<T extends AnyExtension>(ext: T): T {
+  return (ext as unknown as Node).extend({
+    addAttributes() {
+      const parentAttrs = this.parent?.() as
+        | Record<string, { parseHTML?: (element: HTMLElement) => unknown }>
+        | undefined;
+      const parseLanguageFromHTML = parentAttrs?.language?.parseHTML;
+      return {
+        ...parentAttrs,
+        language: {
+          default: null,
+          parseHTML: (element: HTMLElement) => {
+            const raw = parseLanguageFromHTML?.(element);
+            return typeof raw === 'string' ? sanitizeCodeBlockLanguage(raw) : raw;
+          },
+          renderHTML: (attributes: Record<string, unknown>) =>
+            attributes.language
+              ? { class: `language-${sanitizeCodeBlockLanguage(attributes.language)}` }
+              : {},
+        },
+      };
+    },
+    // ノード単位の renderHTML（上のコメントの 3）。親（extension-code-block）の実装を
+    // そのまま写し、node.attrs.language を渡す直前にだけ許可リストへ通す
+    // （options.languageClassPrefix・HTMLAttributes のマージ方は親と同じに保つ）。
+    renderHTML({ node, HTMLAttributes }) {
+      const language = node.attrs.language ? sanitizeCodeBlockLanguage(node.attrs.language) : null;
+      return [
+        'pre',
+        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+        ['code', language ? { class: `${this.options.languageClassPrefix}${language}` } : {}, 0],
+      ];
     },
   }) as unknown as T;
 }
@@ -271,7 +330,7 @@ export function createSchemaExtensions(
     // 見出しは 1〜3 のみ（エディタ UI・教材の章構造とも 3 段で揃える）。
     withBlockId(Heading).configure({ levels: [1, 2, 3] }),
     // 構文ハイライト付きコードブロック。ノード名は 'codeBlock' のまま既存 doc と互換。
-    withBlockId(CodeBlockLowlight).configure({ lowlight, defaultLanguage: 'plaintext' }),
+    withBlockId(withSafeCodeLanguage(CodeBlockLowlight)).configure({ lowlight, defaultLanguage: 'plaintext' }),
     // StarterKit から切り離した基本ブロック。configure オプションは既定のまま、id だけ足す。
     withBlockId(Paragraph),
     withBlockId(Blockquote),

@@ -4,6 +4,7 @@ import type { Editor, JSONContent } from '@tiptap/react';
 import RichTextEditor from '../RichTextEditor';
 import type { RichDocContent } from '../emptyRichDoc';
 import { emptyRichDoc } from '../emptyRichDoc';
+import { fillMissingBlockIdsInDoc } from '../stableBlockId';
 
 // crypto.randomUUID() が実際に振る形（UUID v4）。
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -141,5 +142,28 @@ describe('StableBlockId: 編集時', () => {
     const ids = blocks.map((b) => b.attrs?.id);
     expect(new Set(ids).size).toBe(ids.length);
     ids.forEach((id) => expect(id).toMatch(UUID_RE));
+  });
+});
+
+describe('fillMissingBlockIdsInDoc: 入れ子の段数に上限がある', () => {
+  /** nestedDoc は blockquote を levels 段だけ入れ子にした doc を返す。 */
+  function nestedDoc(levels: number): JSONContent {
+    let inner: JSONContent = { type: 'paragraph', content: [{ type: 'text', text: '底' }] };
+    for (let i = 0; i < levels; i += 1) {
+      inner = { type: 'blockquote', content: [inner] };
+    }
+    return { type: 'doc', content: [inner] };
+  }
+
+  it('数千段の入れ子でも例外を投げずに完走する', () => {
+    expect(() => fillMissingBlockIdsInDoc(nestedDoc(5000))).not.toThrow();
+  });
+
+  it('上限より浅い入れ子は通常どおり最奥まで id を埋める', () => {
+    const doc = nestedDoc(10);
+    const filled = fillMissingBlockIdsInDoc(doc);
+    let node = filled.content?.[0];
+    for (let i = 0; i < 10; i += 1) node = node?.content?.[0];
+    expect(node?.attrs?.id).toMatch(UUID_RE);
   });
 });

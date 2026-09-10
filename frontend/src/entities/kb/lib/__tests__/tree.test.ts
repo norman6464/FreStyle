@@ -156,6 +156,61 @@ describe('moveKbPageInTree', () => {
   );
 });
 
+describe('深い木でもクラッシュしない（FRESTYLE-509）', () => {
+  /** deepChain は 1 本鎖で levels 段の深さを持つ木を返す（末端が 'leaf'）。 */
+  function deepChain(levels: number): KbPageTreeNode[] {
+    let child: KbPageTreeNode[] = [node('leaf')];
+    for (let i = levels - 1; i >= 1; i -= 1) child = [node(`n${i}`, child)];
+    return child;
+  }
+
+  it('collectKbAncestorIds は数万段の入れ子でも例外を投げず完走する', () => {
+    const tree = deepChain(50_000);
+    // deepChain(N) は「n1 から leaf までの総ノード数が N」になる形なので、
+    // leaf の祖先数は N-1（n1〜n49999）。
+    expect(() => collectKbAncestorIds(tree, 'leaf')).not.toThrow();
+    // 5 万段は searchAncestors の反復上限（10万ノード）の内側なので実際に見つかる。
+    expect(collectKbAncestorIds(tree, 'leaf')).toHaveLength(49_999);
+  });
+
+  it('moveKbPageInTree は数万段の入れ子でも例外を投げず、壊れた木も作らずに諦める', () => {
+    const tree = deepChain(50_000);
+    // 上限（300 段）より深い場所を動かす操作は諦める（null）。ここで黙って進めると、
+    // findNode（段数上限なし）は見つけるのに removeNode（段数上限あり）は取り除けず、
+    // 同じページが元の深い位置と新しい浅い位置の 2 か所に重複するという、
+    // 例外は投げないが壊れた木を返す形になる。
+    expect(() => moveKbPageInTree(tree, 'leaf', { kind: 'after', pageId: 'n1' })).not.toThrow();
+    expect(moveKbPageInTree(tree, 'leaf', { kind: 'after', pageId: 'n1' })).toBeNull();
+  });
+
+  // moveKbPageInTree の深さの事前チェック（movedDepth/targetDepth）は「動かす本人・落下先」
+  // だけを見る。removeNode/insertNode は木全体を歩いて組み替えるため、動かす本人・落下先が
+  // どちらも浅くても、無関係な深い枝が同じ木に混ざっていれば、その枝を処理する間だけは
+  // removeNode/insertNode 自身の段数上限が独立して効く必要がある。
+  it('動かす本人・落下先が浅くても、無関係な深い枝が混ざった木で例外を投げない', () => {
+    const shallow = [node('x'), node('y')];
+    const tree = [...shallow, ...deepChain(50_000)];
+
+    expect(() => moveKbPageInTree(tree, 'x', { kind: 'after', pageId: 'y' })).not.toThrow();
+    const moved = moveKbPageInTree(tree, 'x', { kind: 'after', pageId: 'y' });
+    expect(moved).not.toBeNull();
+    expect(moved!.slice(0, 2).map((n) => n.page.id)).toEqual(['y', 'x']);
+  });
+
+  it('replaceKbPageInTree は数万段の入れ子でも例外を投げず完走する', () => {
+    const tree = deepChain(50_000);
+    expect(() => replaceKbPageInTree(tree, page('leaf', '新しい名前'))).not.toThrow();
+  });
+
+  it('300 段より浅い移動は上限の影響を受けず、これまでどおり動く', () => {
+    const tree = deepChain(50);
+    const moved = moveKbPageInTree(tree, 'leaf', { kind: 'after', pageId: 'n1' });
+    expect(moved).not.toBeNull();
+    // n1 の直後に leaf が兄弟として現れる（元は n1 の子孫の奥深くにあった）。
+    expect(moved!.map((n) => n.page.id)).toEqual(['n1', 'leaf']);
+  });
+});
+
 describe('kbMoveActions', () => {
   const siblings = [node('a'), node('b'), node('c')];
 

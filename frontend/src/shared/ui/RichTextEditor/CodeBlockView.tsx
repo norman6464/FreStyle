@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { CheckIcon, ChevronDownIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
-import { filterLanguages, languageLabel } from './codeBlockLanguages';
+import { filterLanguages, languageLabel, sanitizeCodeBlockLanguage } from './codeBlockLanguages';
 
 /**
  * CodeBlockView はコードブロックの NodeView。
@@ -10,7 +10,10 @@ import { filterLanguages, languageLabel } from './codeBlockLanguages';
  * CodeBlockLowlight のデコレーションによってハイライトが即時切り替わる。
  */
 export default function CodeBlockView({ node, updateAttributes, editor }: NodeViewProps) {
-  const language = (node.attrs.language as string | null) ?? 'plaintext';
+  // API から doc を直接書き込める経路があるため、attrs.language は許可リストに無い値
+  // （空白混じりの class 注入を含む）を持ちうる。ここで一度だけ丸め、以降の描画
+  // （バッジの表示名・class 名・メニューの選択状態）はすべてこの値を使う。
+  const language = sanitizeCodeBlockLanguage(node.attrs.language);
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [copied, setCopied] = useState(false);

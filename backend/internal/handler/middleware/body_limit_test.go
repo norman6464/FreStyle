@@ -16,15 +16,12 @@ func Test_MaxRequestBody(t *testing.T) {
 		r := gin.New()
 		r.Use(MaxRequestBody(maxBytes))
 		r.POST("/x", func(c *gin.Context) {
-			buf := make([]byte, 0)
 			b := new(bytes.Buffer)
-			_, err := b.ReadFrom(c.Request.Body)
-			if err != nil {
+			if _, err := b.ReadFrom(c.Request.Body); err != nil {
 				c.String(http.StatusRequestEntityTooLarge, "too large")
 				return
 			}
-			buf = b.Bytes()
-			c.String(http.StatusOK, "%d", len(buf))
+			c.String(http.StatusOK, "%d", b.Len())
 		})
 		return r
 	}

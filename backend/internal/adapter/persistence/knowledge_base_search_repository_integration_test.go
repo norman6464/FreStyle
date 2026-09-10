@@ -14,6 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -208,6 +209,143 @@ func TestKnowledgeBasePageSearchAndLinksWrite_Integration(t *testing.T) {
 	})
 }
 
+// ticketRefDoc は 1 段落・1 ticketRef だけの最小 doc を組み立てる（pageRefDoc のチケット版）。
+func ticketRefDoc(text, targetTicketID string) string {
+	return fmt.Sprintf(
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":%q},{"type":"ticketRef","attrs":{"ticketId":%q}}]}]}`,
+		text, targetTicketID,
+	)
+}
+
+// countPageTicketLinksForPage はページ 1 枚が持つ page_ticket_links の行数を数える
+// （countPageLinksForPage のチケット版）。
+func countPageTicketLinksForPage(t *testing.T, db *sql.DB, workspaceID, pageID string) int {
+	t.Helper()
+	var count int
+	require.NoError(t, db.QueryRow(`
+		SELECT count(*) FROM page_ticket_links ptl
+		JOIN blocks b ON b.id = ptl.source_block_id
+		WHERE b.workspace_id = $1 AND b.page_id = $2
+	`, workspaceID, pageID).Scan(&count))
+	return count
+}
+
+// TestKnowledgeBasePageTicketLinks_Integration は page_ticket_links（ページへのチケット埋め込みの
+// 派生索引。段 5）を実 Postgres で固定する。page_links の対の表なので、
+// TestKnowledgeBasePageSearchAndLinksWrite_Integration と同じ観点（張り替え・CASCADE・冪等性）を
+// 見るが、参照先がページではなくチケットである点だけが違う。
+func TestKnowledgeBasePageTicketLinks_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	uc := newKbUseCases(sqlDB)
+	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
+	tickets := persistence.NewTicketRepository(sqlDB)
+	ctx := context.Background()
+
+	setup := func(t *testing.T) (ws, space string) {
+		t.Helper()
+		testsupport.TruncateAll(t, sqlDB, kbTables...)
+		ws = createWorkspace(t, sqlDB, "ws-ticket-links")
+		space = createSpace(t, sqlDB, ws, "eng")
+		return ws, space
+	}
+
+	mustCreateTicket := func(t *testing.T, ws, space string) *domain.Ticket {
+		t.Helper()
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, tickets, ws, space)
+		created, err := tickets.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "埋め込み先チケット", Doc: []byte(`{"type":"doc","content":[]}`),
+			Position: "a0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		return created
+	}
+
+	t.Run("実在しないチケットを指すticketRefは黙って除外される", func(t *testing.T) {
+		ws, space := setup(t)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "参照切れページ")
+
+		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID, Doc: ticketRefDoc("参照", newID()), EditorUserID: 1,
+		})
+		require.NoError(t, err, "リンク切れ1本のために保存全体を失敗させない")
+		assert.Equal(t, 0, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+	})
+
+	t.Run("ticketRefを含むページを保存するとpage_ticket_linksが張られる", func(t *testing.T) {
+		ws, space := setup(t)
+		target := mustCreateTicket(t, ws, space)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "埋め込み元ページ")
+
+		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID, Doc: ticketRefDoc("参照", target.ID), EditorUserID: 1,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+
+		// ticketRefを含まない内容へ書き換えると張り替わって消える。
+		_, err = uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID,
+			Doc:          `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"埋め込み無し"}]}]}`,
+			EditorUserID: 1,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 0, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+	})
+
+	t.Run("ブロック削除でそのブロックのpage_ticket_linksが消える_CASCADE経由", func(t *testing.T) {
+		ws, space := setup(t)
+		target := mustCreateTicket(t, ws, space)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ")
+		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID, Doc: ticketRefDoc("本文", target.ID), EditorUserID: 1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+
+		var blockID string
+		require.NoError(t, sqlDB.QueryRow(`SELECT id::text FROM blocks WHERE page_id = $1`, page.ID).Scan(&blockID))
+		_, err = sqlDB.Exec(`DELETE FROM blocks WHERE id = $1`, blockID)
+		require.NoError(t, err)
+
+		assert.Equal(t, 0, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+	})
+
+	t.Run("埋め込み先チケット削除でpage_ticket_linksが消える_CASCADE経由", func(t *testing.T) {
+		ws, space := setup(t)
+		target := mustCreateTicket(t, ws, space)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ2")
+		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID, Doc: ticketRefDoc("本文", target.ID), EditorUserID: 1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+
+		// tickets は通常 DeleteTicket で「消えたことにする」だけだが、CASCADE 自体
+		// （fk_page_ticket_links_target_ticket）は物理削除でしか確かめられない。
+		_, err = sqlDB.Exec(`DELETE FROM tickets WHERE id = $1`, target.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, 0, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+	})
+
+	t.Run("再構築を2回流しても同じ結果になる_冪等性", func(t *testing.T) {
+		ws, space := setup(t)
+		target := mustCreateTicket(t, ws, space)
+		page := mustCreatePage(ctx, t, uc, ws, space, nil, "対象ページ3")
+		_, err := uc.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+			WorkspaceID: ws, PageID: page.ID, Doc: ticketRefDoc("本文", target.ID), EditorUserID: 1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, countPageTicketLinksForPage(t, sqlDB, ws, page.ID))
+
+		require.NoError(t, repo.RebuildPageSearchAndLinks(ctx, ws, page.ID))
+		assert.Equal(t, 1, countPageTicketLinksForPage(t, sqlDB, ws, page.ID), "1回目の再構築後も1行のまま")
+		require.NoError(t, repo.RebuildPageSearchAndLinks(ctx, ws, page.ID))
+		assert.Equal(t, 1, countPageTicketLinksForPage(t, sqlDB, ws, page.ID), "2回目の再構築後も重複せず1行のまま")
+	})
+}
+
 // TestKnowledgeBaseSearchBodyMatch_Integration は本文検索の
 // 日本語の部分一致・matchField/excerpt の判定・可視性のふるいを実 PostgreSQL で固定する。
 func TestKnowledgeBaseSearchBodyMatch_Integration(t *testing.T) {
@@ -324,4 +462,52 @@ func TestKnowledgeBaseBacklinks_Integration(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{visibleSource.ID, hiddenSource.ID}, idsForBob,
 		"両方のスペースが見える相手には両方の参照元が出る")
+}
+
+// TestKnowledgeBasePagesReferencingTicket_Integration は ListPagesReferencingTicketUseCase
+// （ページへのチケット埋め込みの逆参照。段 5）の可視判定を実 PostgreSQL で固定する。
+// TestKnowledgeBaseBacklinks_Integration と全く同じ観点（見えないスペースの参照元は
+// 一覧に出ない）を、参照先がページではなくチケットである形で見る。
+func TestKnowledgeBasePagesReferencingTicket_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+	tickets := persistence.NewTicketRepository(sqlDB)
+
+	statusID, typeID := seedTicketMasterViaRepo(ctx, t, tickets, f.ws, f.spaceA)
+	target, err := tickets.CreateTicket(ctx, repository.TicketCreateInput{
+		WorkspaceID: f.ws, SpaceID: f.spaceA, TypeID: typeID, StatusID: statusID,
+		Title: "参照される側", Doc: []byte(`{"type":"doc","content":[]}`),
+		Position: "a0", Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+	})
+	require.NoError(t, err)
+
+	visibleSource := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "見える埋め込み元")
+	_, err = f.pageUC.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+		WorkspaceID: f.ws, PageID: visibleSource.ID, Doc: ticketRefDoc("参照", target.ID), EditorUserID: 1,
+	})
+	require.NoError(t, err)
+
+	// 見えない埋め込み元: private スペース（alice には付与しない）。
+	secretSpace := createSpace(t, sqlDB, f.ws, "ticket-backlink-secret")
+	f.makePrivate(t, secretSpace)
+	hiddenSource := mustCreatePage(ctx, t, f.pageUC, f.ws, secretSpace, nil, "見えない埋め込み元")
+	_, err = f.pageUC.replace.Execute(ctx, kb.ReplacePageBlocksInput{
+		WorkspaceID: f.ws, PageID: hiddenSource.ID, Doc: ticketRefDoc("参照", target.ID), EditorUserID: 1,
+	})
+	require.NoError(t, err)
+
+	alice := f.principalFor(ctx, t, f.alice)
+	f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleViewer)
+
+	pages, err := kb.NewListPagesReferencingTicketUseCase(f.perm).Execute(ctx, kb.ListPagesReferencingTicketInput{
+		WorkspaceID: f.ws, UserID: f.alice, TicketID: target.ID,
+	})
+	require.NoError(t, err)
+	ids := make([]string, 0, len(pages))
+	for _, p := range pages {
+		ids = append(ids, p.ID)
+	}
+	assert.ElementsMatch(t, []string{visibleSource.ID}, ids,
+		"見える埋め込み元だけが出て、権限の無いスペースの埋め込み元は出ない")
 }

@@ -594,3 +594,39 @@ func Test_チケット一覧_期日での絞り込み(t *testing.T) {
 	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets?startAfter=2026/01/01", "")
 	assert.Equal(t, http.StatusBadRequest, w.Code, "区切りが違う形式も400")
 }
+
+// Test_チケット詳細_祖先列を根から順に返す は ancestors フィールド（段 5・パンくず用）を固定する。
+func Test_チケット詳細_祖先列を根から順に返す(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleViewer)
+	root := f.tickets.addTicket(domain.Ticket{ID: "anc-root", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "根"})
+	child := f.tickets.addTicket(domain.Ticket{ID: "anc-child", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "子", ParentID: &root.ID})
+	grand := f.tickets.addTicket(domain.Ticket{ID: "anc-grand", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "孫", ParentID: &child.ID})
+
+	w := f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+grand.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	got := decodeJSON[ticketResponse](t, w)
+	require.Len(t, got.Ancestors, 2, "根から順に2件")
+	assert.Equal(t, root.ID, got.Ancestors[0].ID)
+	assert.Equal(t, child.ID, got.Ancestors[1].ID)
+
+	// ルート自身には祖先が無い。
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+root.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	gotRoot := decodeJSON[ticketResponse](t, w)
+	assert.Empty(t, gotRoot.Ancestors)
+}
+
+// Test_チケットのページ逆参照 は /tickets/:id/page-backlinks の権限配線を固定する
+// （中身の可視判定そのものは persistence の結合テストが固定する）。
+func Test_チケットのページ逆参照(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleViewer)
+	target := f.tickets.addTicket(domain.Ticket{ID: "ref-target", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "対象"})
+
+	w := f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+target.ID+"/page-backlinks", "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	pages := decodeJSON[[]domain.Page](t, w)
+	assert.Empty(t, pages, "fakeは空配列を返す設定 — 200であること自体が配線の確認")
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/does-not-exist/page-backlinks", "")
+	assert.Equal(t, http.StatusNotFound, w.Code, "存在しないチケットは404")
+}

@@ -3089,3 +3089,93 @@ table "ticket_attachments" {
     expr = "size_bytes > 0"
   }
 }
+
+# ticket_paths: チケット親子（tickets.parent_id）の閉包表。page_paths と同じ設計
+# （祖先・子孫の全組み合わせを depth 付きで持つ派生表。正本は tickets.parent_id、
+# 壊れても parent_id から作り直せる）。tickets 側は最大深さ 3 なので ListTicketParentChain
+# の再帰 CTE でも検証には足りるが、パンくず表示のような読み取りを O(1) の索引で
+# 済ませるためにこの表を持つ（設計 Ⅳ-G）。
+table "ticket_paths" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "ancestor_id" {
+    null = false
+    type = uuid
+  }
+  # 祖先までの距離。自分自身が 0、親が 1。
+  column "depth" {
+    null = false
+    type = integer
+  }
+  primary_key {
+    columns = [column.ticket_id, column.ancestor_id]
+  }
+  # page_paths と同じ理由（コメント参照）: 行自身の workspace_id を軸にした複合 FK にして、
+  # 組になる 2 チケットが同じワークスペースに属することを DB 側で保証する。
+  foreign_key "fk_ticket_paths_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_paths_ancestor" {
+    columns     = [column.workspace_id, column.ancestor_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_paths_workspace_id" {
+    columns = [column.workspace_id]
+  }
+  # 祖先からサブツリーを引く経路（PK は (ticket_id, ancestor_id) なので ancestor_id 単独では効かない）。
+  index "idx_ticket_paths_ancestor_id" {
+    columns = [column.ancestor_id]
+  }
+  check "ck_ticket_paths_depth" {
+    expr = "(depth >= 0) AND ((depth = 0) = (ticket_id = ancestor_id))"
+  }
+}
+
+# page_ticket_links: ページ本文の ticketRef ノードから抽出する「ページ→チケット」の派生索引
+# （page_links の対の表。ticket_page_links の逆方向ではなく、ページ側が持つ埋め込みの参照）。
+# page_links と同じ流儀: source_block_id は単独 FK（テナント境界は書き込み・読み取り側の
+# JOIN で決める。schema.hcl の page_links コメント参照）、target_ticket_id も tickets.id への
+# 単独 FK（tickets.id 自体が主キーで全テナント一意なので単独 FK で足りる）。
+table "page_ticket_links" {
+  schema = schema.public
+  column "source_block_id" {
+    null = false
+    type = uuid
+  }
+  column "target_ticket_id" {
+    null = false
+    type = uuid
+  }
+  primary_key {
+    columns = [column.source_block_id, column.target_ticket_id]
+  }
+  foreign_key "fk_page_ticket_links_source_block" {
+    columns     = [column.source_block_id]
+    ref_columns = [table.blocks.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_page_ticket_links_target_ticket" {
+    columns     = [column.target_ticket_id]
+    ref_columns = [table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 逆参照一覧（target_ticket_id からの検索）用の索引。主キーは (source_block_id,
+  # target_ticket_id) なので target_ticket_id 単独では効かない。
+  index "idx_page_ticket_links_target_ticket_id" {
+    columns = [column.target_ticket_id]
+  }
+}

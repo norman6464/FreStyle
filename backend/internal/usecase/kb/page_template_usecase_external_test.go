@@ -146,7 +146,7 @@ func Test_雛形から作成_CreatePageとReplaceBlocksをこの順で正しい�
 	kbRepo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).
 		Run(func(mock.Arguments) { order = append(order, "TouchPageLastEditedBy") }).Return(nil)
 	var replacedDoc string
-	kbRepo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+	kbRepo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			order = append(order, "ReplacePageBlocks")
 			replacedDoc = args.String(4)

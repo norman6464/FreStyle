@@ -203,3 +203,76 @@ func Test_pageRef収集(t *testing.T) {
 		}
 	})
 }
+
+// extractPageTicketLinks は extractPageLinks と全く同じ考え方（対象ノード型が ticketRef /
+// 参照キーが ticketId というだけの違い）なので、上限（kbPageRefMaxResolve）の切り詰めは
+// Test_pageRef収集 が既に固定している。ここでは ticketRef 固有の分岐（ticketRefCollector と
+// 別の型を参照する経路）が正しく通ることだけを確かめる。
+func Test_ticketRef収集(t *testing.T) {
+	t.Run("異なるブロックの参照はそれぞれ1行になる", func(t *testing.T) {
+		target1 := uuid.NewString()
+		target2 := uuid.NewString()
+		doc := fmt.Sprintf(`{"type":"doc","content":[
+			{"type":"paragraph","content":[{"type":"ticketRef","attrs":{"ticketId":%q}}]},
+			{"type":"paragraph","content":[{"type":"ticketRef","attrs":{"ticketId":%q}}]}
+		]}`, target1, target2)
+		tree, err := parsePageDoc(doc)
+		require.NoError(t, err)
+		require.Len(t, tree, 2)
+
+		links := extractPageTicketLinks(tree)
+		require.Len(t, links, 2)
+		assert.Equal(t, tree[0].ID, links[0].SourceBlockID)
+		assert.Equal(t, target1, links[0].TargetTicketID)
+		assert.Equal(t, tree[1].ID, links[1].SourceBlockID)
+		assert.Equal(t, target2, links[1].TargetTicketID)
+	})
+
+	t.Run("同じブロックが同じチケットを複数回参照しても1行に畳む", func(t *testing.T) {
+		target := uuid.NewString()
+		doc := fmt.Sprintf(`{"type":"doc","content":[
+			{"type":"paragraph","content":[
+				{"type":"ticketRef","attrs":{"ticketId":%q}},
+				{"type":"text","text":"の間に"},
+				{"type":"ticketRef","attrs":{"ticketId":%q}}
+			]}
+		]}`, target, target)
+		tree, err := parsePageDoc(doc)
+		require.NoError(t, err)
+		require.Len(t, tree, 1)
+
+		links := extractPageTicketLinks(tree)
+		require.Len(t, links, 1, "同じ (ブロック, 参照先) の組は1行に畳む")
+	})
+
+	t.Run("UUIDとして読めないticketIdは無視する", func(t *testing.T) {
+		doc := `{"type":"doc","content":[
+			{"type":"paragraph","content":[{"type":"ticketRef","attrs":{"ticketId":"not-a-uuid"}}]}
+		]}`
+		tree, err := parsePageDoc(doc)
+		require.NoError(t, err)
+		links := extractPageTicketLinks(tree)
+		assert.Empty(t, links)
+	})
+
+	t.Run("pageRefとticketRefが混在しても取り違えない", func(t *testing.T) {
+		pageTarget := uuid.NewString()
+		ticketTarget := uuid.NewString()
+		doc := fmt.Sprintf(`{"type":"doc","content":[
+			{"type":"paragraph","content":[
+				{"type":"pageRef","attrs":{"pageId":%q}},
+				{"type":"ticketRef","attrs":{"ticketId":%q}}
+			]}
+		]}`, pageTarget, ticketTarget)
+		tree, err := parsePageDoc(doc)
+		require.NoError(t, err)
+
+		pageLinks := extractPageLinks(tree)
+		require.Len(t, pageLinks, 1)
+		assert.Equal(t, pageTarget, pageLinks[0].TargetPageID)
+
+		ticketLinks := extractPageTicketLinks(tree)
+		require.Len(t, ticketLinks, 1)
+		assert.Equal(t, ticketTarget, ticketLinks[0].TargetTicketID)
+	})
+}

@@ -131,6 +131,17 @@ func (u *CreateTicketUseCase) Execute(ctx context.Context, in CreateTicketInput)
 	}
 	created.Position = rankPos
 
+	// ticket_paths（閉包表。段 5）: 自己参照行（depth=0）は常に張る。親があれば
+	// 親の祖先集合を +1 して引き継ぐ（page_paths の CreatePage と同じ順序・同じ考え方）。
+	if err := u.repo.InsertTicketPathSelf(ctx, in.WorkspaceID, created.ID); err != nil {
+		return nil, err
+	}
+	if in.ParentID != nil {
+		if err := u.repo.InsertTicketPathAncestors(ctx, in.WorkspaceID, created.ID, *in.ParentID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 派生表（本文からの参照）は作成直後に張る。空スライスでも Replace を呼ぶことで
 	// 「参照 0 件」を明示し、後続の UpdateTicket と同じ経路に揃える。
 	if err := u.repo.ReplaceTicketPageLinks(ctx, in.WorkspaceID, created.ID, pageIDs); err != nil {

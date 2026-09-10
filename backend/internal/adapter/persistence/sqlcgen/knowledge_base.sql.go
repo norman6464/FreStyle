@@ -162,6 +162,33 @@ func (q *Queries) DeletePageLinksBySourceBlockIDsInPage(ctx context.Context, arg
 	return err
 }
 
+const deletePageTicketLinksBySourceBlockIDsInPage = `-- name: DeletePageTicketLinksBySourceBlockIDsInPage :exec
+
+DELETE FROM page_ticket_links
+WHERE source_block_id IN (
+  SELECT id FROM blocks
+  WHERE workspace_id = $1 AND page_id = $2
+)
+`
+
+type DeletePageTicketLinksBySourceBlockIDsInPageParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+}
+
+// =============================================================================
+// page_ticket_links（段 5: ページ本文の ticketRef からの派生索引。
+// page_links と同じ作法 — 対の表として並べて置く）
+// =============================================================================
+// ページ内チケット埋め込みの張り替え（前半）: そのページのブロックが持っていた埋め込みを
+// 一旦すべて消す。後半は InsertPageTicketLink による再構築。
+// page_ticket_links.source_block_id は blocks への単独 FK なので、ここで blocks 側から
+// workspace_id / page_id を確認してから消す（DeletePageLinksBySourceBlockIDsInPage と同じ理由）。
+func (q *Queries) DeletePageTicketLinksBySourceBlockIDsInPage(ctx context.Context, arg DeletePageTicketLinksBySourceBlockIDsInPageParams) error {
+	_, err := q.db.ExecContext(ctx, deletePageTicketLinksBySourceBlockIDsInPage, arg.WorkspaceID, arg.PageID)
+	return err
+}
+
 const deleteWorkspace = `-- name: DeleteWorkspace :execrows
 DELETE FROM workspaces w
 WHERE w.id = $1
@@ -565,6 +592,24 @@ func (q *Queries) InsertPagePathSelf(ctx context.Context, arg InsertPagePathSelf
 	return err
 }
 
+const insertPageTicketLink = `-- name: InsertPageTicketLink :exec
+INSERT INTO page_ticket_links (source_block_id, target_ticket_id)
+VALUES ($1, $2)
+ON CONFLICT (source_block_id, target_ticket_id) DO NOTHING
+`
+
+type InsertPageTicketLinkParams struct {
+	SourceBlockID  uuid.UUID
+	TargetTicketID uuid.UUID
+}
+
+// ページ内チケット埋め込み 1 本を張る。主キー (source_block_id, target_ticket_id) との
+// 衝突は無視するだけでよい（InsertPageLink と同じ理由）。
+func (q *Queries) InsertPageTicketLink(ctx context.Context, arg InsertPageTicketLinkParams) error {
+	_, err := q.db.ExecContext(ctx, insertPageTicketLink, arg.SourceBlockID, arg.TargetTicketID)
+	return err
+}
+
 const insertSpace = `-- name: InsertSpace :one
 INSERT INTO spaces (id, workspace_id, "key", name, visibility)
 VALUES ($1, $2, $3, $4, $5)
@@ -910,6 +955,39 @@ WHERE id IN (
 // 同じパターン。sqlc-vet の no-array-param ルール）。
 func (q *Queries) ListExistingPageIDsAmong(ctx context.Context, ids json.RawMessage) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, listExistingPageIDsAmong, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExistingTicketIDsAmong = `-- name: ListExistingTicketIDsAmong :many
+SELECT id FROM tickets
+WHERE id IN (
+  SELECT value::uuid FROM json_array_elements_text($1::json) AS t(value)
+)
+`
+
+// 与えた id 群のうち、tickets に実在するものだけを返す（ワークスペースを問わない。
+// ListExistingPageIDsAmong と同じ理由・同じパターン — page_ticket_links もテナントを
+// 跨いだ参照を書き込み時に禁じない設計で、実在しない ID は黙って除外する）。
+func (q *Queries) ListExistingTicketIDsAmong(ctx context.Context, ids json.RawMessage) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listExistingTicketIDsAmong, ids)
 	if err != nil {
 		return nil, err
 	}

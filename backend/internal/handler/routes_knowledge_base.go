@@ -12,6 +12,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/comment"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
 )
 
 // 共有リンクの検証と、メンバー追加に掛ける上限の数値。
@@ -51,6 +52,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewPageVersionRepository(deps.db),
 		persistence.NewPageTemplateRepository(deps.db),
 		persistence.NewPageSuggestionRepository(deps.db),
+		persistence.NewTicketRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 		newKbImagePresignerOrFallback(deps),
 	)
@@ -106,6 +108,7 @@ func registerKnowledgeBaseRoutesWith(
 	versions repository.PageVersionRepository,
 	templates repository.PageTemplateRepository,
 	suggestions repository.PageSuggestionRepository,
+	tickets repository.TicketRepository,
 	txManager repository.TxManager,
 	kbImagePresigner repository.KbImagePresigner,
 ) {
@@ -138,6 +141,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewSetPageCoverUseCase(pages),
 		kb.NewResolveCoverURLUseCase(kbImagePresigner),
 		kb.NewListPageBacklinksUseCase(permissions),
+		ticket.NewListTicketsReferencingPageUseCase(tickets),
 	)
 
 	// ページ全体へのコメント。認可は CommentHandler 内で
@@ -297,6 +301,7 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.ClearCover)
 	// 逆リンク: このページを参照しているページの一覧。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/backlinks", h.Backlinks)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/ticket-backlinks", h.TicketBacklinks)
 
 	// ページ全体へのコメント。一覧は CanView だけで許可し、
 	// 作成・返信・解決・再開は CanComment を要求する（CommentHandler.requireCommentPermission）。

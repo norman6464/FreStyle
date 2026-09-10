@@ -70,6 +70,16 @@ type PageLinkWrite struct {
 	TargetPageID string
 }
 
+// PageTicketLinkWrite は ReplacePageBlocks に渡す 1 件のページ内チケット埋め込み候補
+// （段 5）。PageLinkWrite のチケット版で、実在確認をしない理由・保存直前に
+// まとめて確認する理由も同一（page_ticket_links.target_ticket_id は tickets への FK）。
+type PageTicketLinkWrite struct {
+	// SourceBlockID は参照元のブロック（page_ticket_links.source_block_id）。
+	SourceBlockID string
+	// TargetTicketID は埋め込み先のチケット（page_ticket_links.target_ticket_id）。
+	TargetTicketID string
+}
+
 // BlockWrite は ReplacePageBlocks に渡す 1 ブロック行。
 //
 // ID は usecase 側（flattenPageDoc）が必ず埋める。クライアントが attrs.id で送った有効な
@@ -227,9 +237,11 @@ type KnowledgeBaseRepository interface {
 	// title / body は呼び出し元（ReplacePageBlocksUseCase）が渡す — title は既に取得済みの
 	// page.Title をそのまま流すことで、repository 側の余計な SELECT を増やさない。
 	// pageLinks は本文中の pageRef ノードから抽出した候補で、実在しない参照先は
-	// repository が黙って除外する（PageLinkWrite の doc 参照）。
+	// repository が黙って除外する（PageLinkWrite の doc 参照）。pageTicketLinks は同様に
+	// ticketRef ノードから抽出した候補（PageTicketLinkWrite の doc 参照。段 5）。
 	ReplacePageBlocks(
-		ctx context.Context, workspaceID, pageID string, blocks []BlockWrite, snapshotDoc, title, body string, pageLinks []PageLinkWrite,
+		ctx context.Context, workspaceID, pageID string, blocks []BlockWrite, snapshotDoc, title, body string,
+		pageLinks []PageLinkWrite, pageTicketLinks []PageTicketLinkWrite,
 	) error
 	// GetPageSnapshot はページの snapshot を返す。無ければ ErrPageSnapshotNotFound、
 	// ページ自体が別ワークスペースなら ErrPageSnapshotNotFound と同じ「無い」に落ちる。

@@ -63,6 +63,11 @@ type TicketHandler struct {
 	// ラベルを触らないので、応答を組み立てる直前に handler が補う。
 	labels      *ticket.ListLabelsForTicketUseCase
 	labelsByIDs *ticket.ListLabelsByTicketIDsUseCase
+	// ancestors / pagesReferencingTicket は段 5（階層の完成とノート連携の厚み）。
+	// pagesReferencingTicket は usecase/kb 側の usecase — usecase/ticket は usecase/kb を
+	// import しないが、handler 層は両方に依存してよい（routes_ticket.go の doc と同じ理由）。
+	ancestors              *ticket.ListTicketAncestorsUseCase
+	pagesReferencingTicket *kb.ListPagesReferencingTicketUseCase
 }
 
 func NewTicketHandler(
@@ -89,6 +94,8 @@ func NewTicketHandler(
 	history *ticket.ListTicketHistoryUseCase,
 	labels *ticket.ListLabelsForTicketUseCase,
 	labelsByIDs *ticket.ListLabelsByTicketIDsUseCase,
+	ancestors *ticket.ListTicketAncestorsUseCase,
+	pagesReferencingTicket *kb.ListPagesReferencingTicketUseCase,
 ) *TicketHandler {
 	return &TicketHandler{
 		checkSpace: checkSpace, checkTicket: checkTicket, resolveKey: resolveKey,
@@ -99,6 +106,7 @@ func NewTicketHandler(
 		del: del, findDeleted: findDeleted, restoreDel: restoreDel, changeStat: changeStat,
 		changeParent: changeParent, assign: assign, unassign: unassign, history: history,
 		labels: labels, labelsByIDs: labelsByIDs,
+		ancestors: ancestors, pagesReferencingTicket: pagesReferencingTicket,
 	}
 }
 
@@ -352,7 +360,7 @@ func (h *TicketHandler) Get(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
-		Labels: h.fetchLabels(c, scope, ticketID),
+		Labels: h.fetchLabels(c, scope, ticketID), Ancestors: h.fetchAncestors(c, scope, ticketID),
 	})
 }
 
@@ -383,7 +391,7 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
-		Labels: h.fetchLabels(c, scope, ticketID),
+		Labels: h.fetchLabels(c, scope, ticketID), Ancestors: h.fetchAncestors(c, scope, ticketID),
 	})
 }
 
@@ -439,7 +447,8 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 		WorkspaceName: loc.Workspace.Name,
 		Ticket: ticketResponse{
 			Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
-			Labels: h.fetchLabels(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
+			Labels:    h.fetchLabels(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
+			Ancestors: h.fetchAncestors(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
 		},
 		CanEdit: perm.CanEdit,
 	})
@@ -454,6 +463,10 @@ type ticketResponse struct {
 	*domain.Ticket
 	AssigneePrincipalID *string        `json:"assigneePrincipalId,omitempty"`
 	Labels              []domain.Label `json:"labels"`
+	// Ancestors は根から順の祖先列（パンくず用。段 5）。詳細系のレスポンス（Get /
+	// ResolveByKey / ResolveByID）でだけ埋める。一覧・作成・更新の応答には含めない
+	// （list.go の N+1 を避けるため — ラベルと違い ticketIDs のバッチ引きが自然に作れない）。
+	Ancestors []domain.Ticket `json:"ancestors,omitempty"`
 }
 
 // fetchLabels はチケット 1 件のラベルを引く。引けなければ空スライスとして応答を止めない
@@ -469,6 +482,20 @@ func (h *TicketHandler) fetchLabels(c *gin.Context, scope kbRequestScope, ticket
 		labels = []domain.Label{}
 	}
 	return labels
+}
+
+// fetchAncestors はチケット 1 件の祖先列（根から順）を引く。fetchLabels と同じ理由で
+// 引けなくても応答は止めない。
+func (h *TicketHandler) fetchAncestors(c *gin.Context, scope kbRequestScope, ticketID string) []domain.Ticket {
+	ancestors, err := h.ancestors.Execute(c.Request.Context(), scope.workspaceID, ticketID)
+	if err != nil {
+		slog.WarnContext(c.Request.Context(), "ticket: ancestors lookup failed", "err", err, "ticketId", ticketID)
+		return []domain.Ticket{}
+	}
+	if ancestors == nil {
+		ancestors = []domain.Ticket{}
+	}
+	return ancestors
 }
 
 // ticketListResponse は一覧の返却形。
@@ -893,4 +920,29 @@ func (h *TicketHandler) History(c *gin.Context) {
 		groups = []domain.TicketChangeGroup{}
 	}
 	c.JSON(http.StatusOK, ticketHistoryResponse{Groups: groups})
+}
+
+// PageBacklinks は、このチケットを本文の ticketRef で埋め込んでいるページ一覧を返す
+// （段 5・page_ticket_links の逆参照。閲覧できるページだけを返す — kb.ListPagesReferencingTicketUseCase
+// の doc 参照）。
+func (h *TicketHandler) PageBacklinks(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	ticketID := c.Param("ticketId")
+	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityView) {
+		return
+	}
+	pages, err := h.pagesReferencingTicket.Execute(c.Request.Context(), kb.ListPagesReferencingTicketInput{
+		WorkspaceID: scope.workspaceID, UserID: scope.userID, TicketID: ticketID,
+	})
+	if err != nil {
+		respondTicketErr(c, err)
+		return
+	}
+	if pages == nil {
+		pages = []domain.Page{}
+	}
+	c.JSON(http.StatusOK, pages)
 }

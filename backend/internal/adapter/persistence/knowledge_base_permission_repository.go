@@ -856,6 +856,56 @@ func (r *knowledgeBasePermissionRepository) ListPageLinkSourcePageViewFacts(
 	return out, nil
 }
 
+// ListPageTicketLinkSourcePageViewFacts は targetTicketID を埋め込んでいる参照元ページ全件と、
+// その閲覧の事実を返す（ListPageLinkSourcePageViewFacts のチケット版。doc 参照）。
+func (r *knowledgeBasePermissionRepository) ListPageTicketLinkSourcePageViewFacts(
+	ctx context.Context, workspaceID string, viewerUserID uint64, targetTicketID string,
+) ([]repository.PageWithViewFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	targetID, tok := kbParseID(targetTicketID)
+	if !tok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	uid, uok := toInt64ID(viewerUserID)
+	if !uok {
+		return []repository.PageWithViewFacts{}, nil
+	}
+	rows, err := r.queries(ctx).ListPageTicketLinkSourcePageViewFacts(ctx, sqlcgen.ListPageTicketLinkSourcePageViewFactsParams{
+		WorkspaceID:    wsID,
+		UserID:         sql.NullInt64{Int64: uid, Valid: true},
+		TargetTicketID: targetID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.PageWithViewFacts, 0, len(rows))
+	for _, row := range rows {
+		page := toDomainPage(sqlcgen.Page{
+			ID:                 row.ID,
+			WorkspaceID:        row.WorkspaceID,
+			SpaceID:            row.SpaceID,
+			ParentID:           row.ParentID,
+			Position:           row.Position,
+			Title:              row.Title,
+			CreatedByUserID:    row.CreatedByUserID,
+			ArchivedAt:         row.ArchivedAt,
+			CreatedAt:          row.CreatedAt,
+			UpdatedAt:          row.UpdatedAt,
+			Icon:               row.Icon,
+			Cover:              row.Cover,
+			LastEditedByUserID: row.LastEditedByUserID,
+		})
+		out = append(out, repository.PageWithViewFacts{
+			Page: page,
+			Role: domain.GrantRoleByRank(int(row.GrantRank)),
+		})
+	}
+	return out, nil
+}
+
 func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
 	ctx context.Context, workspaceID string, userID uint64, pageIDs []string,
 ) ([]repository.PageWithViewFacts, error) {

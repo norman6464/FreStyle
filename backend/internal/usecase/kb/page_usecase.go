@@ -808,6 +808,11 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 	for i, l := range linkRefs {
 		pageLinks[i] = repository.PageLinkWrite{SourceBlockID: l.SourceBlockID, TargetPageID: l.TargetPageID}
 	}
+	ticketLinkRefs := extractPageTicketLinks(tree)
+	pageTicketLinks := make([]repository.PageTicketLinkWrite, len(ticketLinkRefs))
+	for i, l := range ticketLinkRefs {
+		pageTicketLinks[i] = repository.PageTicketLinkWrite{SourceBlockID: l.SourceBlockID, TargetTicketID: l.TargetTicketID}
+	}
 	// 最終編集者の記録・本文の全消し全入れ・版の記録は同じトランザクションに入れる。
 	// Touch を先に呼ぶのは、UPDATE が pages の対象行を排他ロックするため
 	// （同じページへの同時保存がここで直列化される。TouchPageLastEditedBy の doc 参照）。
@@ -819,7 +824,7 @@ func (u *ReplacePageBlocksUseCase) Execute(ctx context.Context, in ReplacePageBl
 		if err := u.repo.TouchPageLastEditedBy(ctx, in.WorkspaceID, in.PageID, in.EditorUserID); err != nil {
 			return err
 		}
-		if err := u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized, page.Title, body, pageLinks); err != nil {
+		if err := u.repo.ReplacePageBlocks(ctx, in.WorkspaceID, in.PageID, rows, normalized, page.Title, body, pageLinks, pageTicketLinks); err != nil {
 			return err
 		}
 		_, _, err := u.versionRepo.CreateVersionIfDue(
@@ -1305,6 +1310,12 @@ const kbPageRefNodeType = "pageRef"
 // 本文に数百の参照が並ぶのは異常系で、そこに可視判定のコストを払わない。
 const kbPageRefMaxResolve = 100
 
+// kbTicketRefNodeType は本文中の「チケット埋め込み」インラインノードの type 名
+// （段 5）。usecase/ticket/doc.go の ticketTicketRefNodeType と同じ値・同じ形
+// （attrs.ticketId で指す）。チケット本文（ticket_ticket_links）・ページ本文
+// （page_ticket_links）の両方で同じノード型を使い回す。
+const kbTicketRefNodeType = "ticketRef"
+
 // ResolvePageRefTitlesUseCase は本文（ProseMirror doc）中のページ参照の題名を、
 // 読み手にとっての「いまの題名」へ差し替える。
 //
@@ -1625,7 +1636,8 @@ type kbInlineTextNode struct {
 	Type  string `json:"type"`
 	Text  string `json:"text"`
 	Attrs struct {
-		PageID string `json:"pageId"`
+		PageID   string `json:"pageId"`
+		TicketID string `json:"ticketId"`
 	} `json:"attrs"`
 }
 
@@ -1750,6 +1762,64 @@ func extractPageLinks(nodes []*kbDocNode) []pageLinkRef {
 				}
 				seenPair[pair] = struct{}{}
 				links = append(links, pageLinkRef{SourceBlockID: n.ID, TargetPageID: canonical})
+			}
+		}
+	}
+	walk(nodes)
+	return links
+}
+
+// pageTicketLinkRef は 1 本のページ内チケット埋め込み候補（page_ticket_links の 1 行に
+// 対応する材料）。extractPageLinks の pageLinkRef と同じ役割・同じ制約
+// （TargetTicketID の実在確認はしない。天井 kbPageRefMaxResolve を参照先の種類数に使う）。
+type pageTicketLinkRef struct {
+	SourceBlockID  string
+	TargetTicketID string
+}
+
+// extractPageTicketLinks は本文中の ticketRef ノードから (ブロック id, 参照先チケット id) の
+// 組を集める。extractPageLinks と全く同じ考え方・同じ天井を、対象ノード型だけ変えて
+// 独立に実装している（1 回の走査で両方集める形にもできるが、pageRef / ticketRef は
+// 保存頻度・呼び出し文脈が違う可能性を見込んで関数を分けておく — page_links /
+// page_ticket_links を別の表にしているのと同じ理由）。
+func extractPageTicketLinks(nodes []*kbDocNode) []pageTicketLinkRef {
+	var links []pageTicketLinkRef
+	seenTarget := map[string]struct{}{}
+	seenPair := map[[2]string]struct{}{}
+	var walk func(nodes []*kbDocNode)
+	walk = func(nodes []*kbDocNode) {
+		for _, n := range nodes {
+			if len(n.Children) > 0 {
+				walk(n.Children)
+				continue
+			}
+			if n.Inline == nil {
+				continue
+			}
+			var items []kbInlineTextNode
+			if err := json.Unmarshal([]byte(*n.Inline), &items); err != nil {
+				continue
+			}
+			for _, it := range items {
+				if it.Type != kbTicketRefNodeType {
+					continue
+				}
+				canonical, ok := canonicalPageRefID(it.Attrs.TicketID)
+				if !ok {
+					continue
+				}
+				if _, known := seenTarget[canonical]; !known {
+					if len(seenTarget) >= kbPageRefMaxResolve {
+						continue
+					}
+					seenTarget[canonical] = struct{}{}
+				}
+				pair := [2]string{n.ID, canonical}
+				if _, dup := seenPair[pair]; dup {
+					continue
+				}
+				seenPair[pair] = struct{}{}
+				links = append(links, pageTicketLinkRef{SourceBlockID: n.ID, TargetTicketID: canonical})
 			}
 		}
 	}

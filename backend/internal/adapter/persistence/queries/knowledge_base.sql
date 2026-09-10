@@ -547,6 +547,38 @@ WHERE id IN (
   SELECT value::uuid FROM json_array_elements_text(sqlc.arg(ids)::json) AS t(value)
 );
 
+-- =============================================================================
+-- page_ticket_links（段 5: ページ本文の ticketRef からの派生索引。
+-- page_links と同じ作法 — 対の表として並べて置く）
+-- =============================================================================
+
+-- name: DeletePageTicketLinksBySourceBlockIDsInPage :exec
+-- ページ内チケット埋め込みの張り替え（前半）: そのページのブロックが持っていた埋め込みを
+-- 一旦すべて消す。後半は InsertPageTicketLink による再構築。
+-- page_ticket_links.source_block_id は blocks への単独 FK なので、ここで blocks 側から
+-- workspace_id / page_id を確認してから消す（DeletePageLinksBySourceBlockIDsInPage と同じ理由）。
+DELETE FROM page_ticket_links
+WHERE source_block_id IN (
+  SELECT id FROM blocks
+  WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id)
+);
+
+-- name: InsertPageTicketLink :exec
+-- ページ内チケット埋め込み 1 本を張る。主キー (source_block_id, target_ticket_id) との
+-- 衝突は無視するだけでよい（InsertPageLink と同じ理由）。
+INSERT INTO page_ticket_links (source_block_id, target_ticket_id)
+VALUES (sqlc.arg(source_block_id), sqlc.arg(target_ticket_id))
+ON CONFLICT (source_block_id, target_ticket_id) DO NOTHING;
+
+-- name: ListExistingTicketIDsAmong :many
+-- 与えた id 群のうち、tickets に実在するものだけを返す（ワークスペースを問わない。
+-- ListExistingPageIDsAmong と同じ理由・同じパターン — page_ticket_links もテナントを
+-- 跨いだ参照を書き込み時に禁じない設計で、実在しない ID は黙って除外する）。
+SELECT id FROM tickets
+WHERE id IN (
+  SELECT value::uuid FROM json_array_elements_text(sqlc.arg(ids)::json) AS t(value)
+);
+
 -- name: ListPageAncestorIDs :many
 -- ページの祖先 ID を根から順（depth の大きい順）に返す。自分自身（depth=0）は含まない。
 -- パンくず用の骨組みで、**題名や可視性はここでは返さない** — 可視の判定は

@@ -871,3 +871,36 @@ func Test_所属ワークスペース一覧_失敗はそのまま伝える(t *te
 	_, err := uc.Execute(context.Background(), kb.ListMemberWorkspacesInput{UserID: 7})
 	assert.ErrorIs(t, err, wantErr)
 }
+
+func Test_チケットへのページ逆参照_必須項目の検証(t *testing.T) {
+	uc := kb.NewListPagesReferencingTicketUseCase(&mockKBPermissionRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, kb.ListPagesReferencingTicketInput{UserID: 1, TicketID: "t1"})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, kb.ListPagesReferencingTicketInput{WorkspaceID: kbWS, TicketID: "t1"})
+	require.Error(t, err, "userID 必須")
+	_, err = uc.Execute(ctx, kb.ListPagesReferencingTicketInput{WorkspaceID: kbWS, UserID: 1})
+	require.Error(t, err, "ticketID 必須")
+}
+
+// ListPageBacklinksUseCase（ページ⇔ページ）と同じ判定: 閲覧の役割が届いていない参照元は
+// 行ごと出さない（存在も題名も伏せる）。
+func Test_チケットへのページ逆参照_閲覧できる参照元だけを返す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	visible := "00000000-0000-7000-8000-000000000011"
+	unreachable := "00000000-0000-7000-8000-000000000012"
+	repo.On("ListPageTicketLinkSourcePageViewFacts", mock.Anything, kbWS, uint64(7), "ticket-1").
+		Return([]repository.PageWithViewFacts{
+			kbViewableFacts(visible, "埋め込み元ページ"),
+			kbUnreachableFacts(unreachable, "届かないページ"),
+		}, nil)
+
+	uc := kb.NewListPagesReferencingTicketUseCase(repo)
+	got, err := uc.Execute(context.Background(), kb.ListPagesReferencingTicketInput{
+		WorkspaceID: kbWS, UserID: 7, TicketID: "ticket-1",
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, visible, got[0].ID)
+}

@@ -636,6 +636,29 @@ func (f *ticketFakeRepo) ListTicketParentChain(_ context.Context, workspaceID, t
 	return chain, nil
 }
 
+// InsertTicketPathSelf / InsertTicketPathAncestors / DetachTicketPathSubtree /
+// AttachTicketPathSubtree は no-op — この fake は閉包表を別に持たず、祖先は常に
+// tickets の parent_id を辿って求める（ListTicketAncestors / ListTicketParentChain と
+// 同じ由来）。本物の repository はキャッシュとして閉包表を持つが、fake はテストのために
+// 常に最新の parent_id から計算するだけで足りる。
+func (f *ticketFakeRepo) InsertTicketPathSelf(_ context.Context, _, _ string) error { return nil }
+
+func (f *ticketFakeRepo) InsertTicketPathAncestors(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
+func (f *ticketFakeRepo) DetachTicketPathSubtree(_ context.Context, _, _ string) error { return nil }
+
+func (f *ticketFakeRepo) AttachTicketPathSubtree(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
+// ListTicketAncestors は ListTicketParentChain と同じ根から順の並びを返す
+// （fake は閉包表を持たないので同じ parent_id の辿り方を使い回す）。
+func (f *ticketFakeRepo) ListTicketAncestors(ctx context.Context, workspaceID, ticketID string) ([]domain.Ticket, error) {
+	return f.ListTicketParentChain(ctx, workspaceID, ticketID)
+}
+
 func (f *ticketFakeRepo) LastActiveTicketPosition(_ context.Context, workspaceID, spaceID string) (string, error) {
 	last := ""
 	for _, t := range f.tickets {
@@ -769,8 +792,21 @@ func (f *ticketFakeRepo) ListTicketPageLinks(_ context.Context, workspaceID, sou
 	return out, nil
 }
 
-func (f *ticketFakeRepo) ListPagesReferencingTicket(_ context.Context, workspaceID, targetTicketID string) ([]domain.TicketPageLink, error) {
-	return nil, nil
+func (f *ticketFakeRepo) ListTicketsReferencingPage(_ context.Context, workspaceID, pageID string) ([]domain.Ticket, error) {
+	var out []domain.Ticket
+	for ticketID, pageIDs := range f.pageLinks {
+		t, ok := f.tickets[ticketID]
+		if !ok || t.WorkspaceID != workspaceID || t.DeletedAt != nil {
+			continue
+		}
+		for _, pid := range pageIDs {
+			if pid == pageID {
+				out = append(out, *t)
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 func (f *ticketFakeRepo) ListTicketTicketLinks(_ context.Context, workspaceID, sourceTicketID string) ([]domain.TicketTicketLink, error) {

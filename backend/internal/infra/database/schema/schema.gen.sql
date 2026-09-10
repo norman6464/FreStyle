@@ -189,6 +189,14 @@ CREATE TABLE "public"."page_templates" (
 );
 -- Create index "idx_page_templates_workspace_id" to table: "page_templates"
 CREATE INDEX "idx_page_templates_workspace_id" ON "public"."page_templates" ("workspace_id");
+-- Create "page_ticket_links" table
+CREATE TABLE "public"."page_ticket_links" (
+  "source_block_id" uuid NOT NULL,
+  "target_ticket_id" uuid NOT NULL,
+  PRIMARY KEY ("source_block_id", "target_ticket_id")
+);
+-- Create index "idx_page_ticket_links_target_ticket_id" to table: "page_ticket_links"
+CREATE INDEX "idx_page_ticket_links_target_ticket_id" ON "public"."page_ticket_links" ("target_ticket_id");
 -- Create "page_versions" table
 CREATE TABLE "public"."page_versions" (
   "workspace_id" uuid NOT NULL,
@@ -484,6 +492,19 @@ CREATE TABLE "public"."ticket_page_links" (
 );
 -- Create index "idx_ticket_page_links_target" to table: "ticket_page_links"
 CREATE INDEX "idx_ticket_page_links_target" ON "public"."ticket_page_links" ("target_page_id");
+-- Create "ticket_paths" table
+CREATE TABLE "public"."ticket_paths" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "ancestor_id" uuid NOT NULL,
+  "depth" integer NOT NULL,
+  PRIMARY KEY ("ticket_id", "ancestor_id"),
+  CONSTRAINT "ck_ticket_paths_depth" CHECK ((depth >= 0) AND ((depth = 0) = (ticket_id = ancestor_id)))
+);
+-- Create index "idx_ticket_paths_ancestor_id" to table: "ticket_paths"
+CREATE INDEX "idx_ticket_paths_ancestor_id" ON "public"."ticket_paths" ("ancestor_id");
+-- Create index "idx_ticket_paths_workspace_id" to table: "ticket_paths"
+CREATE INDEX "idx_ticket_paths_workspace_id" ON "public"."ticket_paths" ("workspace_id");
 -- Create "ticket_ranks" table
 CREATE TABLE "public"."ticket_ranks" (
   "workspace_id" uuid NOT NULL,
@@ -721,6 +742,8 @@ ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FO
 ALTER TABLE "public"."page_suggestions" ADD CONSTRAINT "fk_page_suggestions_base_version" FOREIGN KEY ("page_id", "base_seq") REFERENCES "public"."page_versions" ("page_id", "seq") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_page_suggestions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_templates" table
 ALTER TABLE "public"."page_templates" ADD CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "page_ticket_links" table
+ALTER TABLE "public"."page_ticket_links" ADD CONSTRAINT "fk_page_ticket_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_ticket_links_target_ticket" FOREIGN KEY ("target_ticket_id") REFERENCES "public"."tickets" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_versions" table
 ALTER TABLE "public"."page_versions" ADD CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "pages" table
@@ -755,6 +778,8 @@ ALTER TABLE "public"."ticket_counters" ADD CONSTRAINT "fk_ticket_counters_space"
 ALTER TABLE "public"."ticket_labels" ADD CONSTRAINT "fk_ticket_labels_label" FOREIGN KEY ("workspace_id", "label_id") REFERENCES "public"."labels" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_labels_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_page_links" table
 ALTER TABLE "public"."ticket_page_links" ADD CONSTRAINT "fk_ticket_page_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_page_links_target" FOREIGN KEY ("workspace_id", "target_page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_paths" table
+ALTER TABLE "public"."ticket_paths" ADD CONSTRAINT "fk_ticket_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_paths_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_ranks" table
 ALTER TABLE "public"."ticket_ranks" ADD CONSTRAINT "fk_ticket_ranks_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_status_transitions" table

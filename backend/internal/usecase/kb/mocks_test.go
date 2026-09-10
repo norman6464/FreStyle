@@ -223,9 +223,10 @@ func (m *mockKnowledgeBaseRepo) ListBlocksByPage(ctx context.Context, workspaceI
 }
 
 func (m *mockKnowledgeBaseRepo) ReplacePageBlocks(
-	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string, pageLinks []repository.PageLinkWrite,
+	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string,
+	pageLinks []repository.PageLinkWrite, pageTicketLinks []repository.PageTicketLinkWrite,
 ) error {
-	return m.Called(ctx, workspaceID, pageID, blocks, snapshotDoc, title, body, pageLinks).Error(0)
+	return m.Called(ctx, workspaceID, pageID, blocks, snapshotDoc, title, body, pageLinks, pageTicketLinks).Error(0)
 }
 
 func (m *mockKnowledgeBaseRepo) GetPageSnapshot(ctx context.Context, workspaceID, pageID string) (*domain.PageSnapshot, error) {
@@ -386,6 +387,14 @@ func (m *mockKBPermissionRepo) ListPageLinkSourcePageViewFacts(
 	ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string,
 ) ([]repository.PageWithViewFacts, error) {
 	args := m.Called(ctx, workspaceID, viewerUserID, targetPageID)
+	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListPageTicketLinkSourcePageViewFacts(
+	ctx context.Context, workspaceID string, viewerUserID uint64, targetTicketID string,
+) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, viewerUserID, targetTicketID)
 	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
 	return rows, args.Error(1)
 }

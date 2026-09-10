@@ -1149,6 +1149,71 @@ func (r *ticketRepository) ListTicketParentChain(ctx context.Context, workspaceI
 	return out, nil
 }
 
+func (r *ticketRepository) InsertTicketPathSelf(ctx context.Context, workspaceID, ticketID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).InsertTicketPathSelf(ctx, sqlcgen.InsertTicketPathSelfParams{
+		WorkspaceID: wsID, TicketID: tID,
+	})
+}
+
+func (r *ticketRepository) InsertTicketPathAncestors(ctx context.Context, workspaceID, ticketID, parentID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	pID, ok3 := kbParseID(parentID)
+	if !ok || !ok2 || !ok3 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).InsertTicketPathAncestors(ctx, sqlcgen.InsertTicketPathAncestorsParams{
+		TicketID: tID, WorkspaceID: wsID, ParentID: pID,
+	})
+}
+
+func (r *ticketRepository) DetachTicketPathSubtree(ctx context.Context, workspaceID, ticketID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).DetachTicketPathSubtree(ctx, sqlcgen.DetachTicketPathSubtreeParams{
+		WorkspaceID: wsID, TicketID: tID,
+	})
+}
+
+func (r *ticketRepository) AttachTicketPathSubtree(ctx context.Context, workspaceID, ticketID, newParentID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	pID, ok3 := kbParseID(newParentID)
+	if !ok || !ok2 || !ok3 {
+		return repository.ErrTicketNotFound
+	}
+	return r.queries(ctx).AttachTicketPathSubtree(ctx, sqlcgen.AttachTicketPathSubtreeParams{
+		NewParentID: pID, WorkspaceID: wsID, TicketID: tID,
+	})
+}
+
+func (r *ticketRepository) ListTicketAncestors(ctx context.Context, workspaceID, ticketID string) ([]domain.Ticket, error) {
+	wsID, ok := kbParseID(workspaceID)
+	tID, ok2 := kbParseID(ticketID)
+	if !ok || !ok2 {
+		return nil, nil
+	}
+	rows, err := r.queries(ctx).ListTicketAncestors(ctx, sqlcgen.ListTicketAncestorsParams{
+		WorkspaceID: wsID, TicketID: tID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Ticket, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainTicket(row))
+	}
+	return out, nil
+}
+
 func (r *ticketRepository) LastActiveTicketPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)
@@ -1508,32 +1573,26 @@ func (r *ticketRepository) ListTicketPageLinks(ctx context.Context, workspaceID,
 	return out, nil
 }
 
-func (r *ticketRepository) ListPagesReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketPageLink, error) {
-	// 名前は「ページからチケットを引く」に見えるが、ticket_page_links は
-	// チケット→ページの派生表しか持たない（設計 段1）。呼び出し側の意図（そのチケットを
-	// 参照しているページ一覧）に対応する逆引きクエリはこの表には無い（段1の対象外。
-	// ticket-backlinks の逆方向は page_ticket_links が持つ段2の責務）。
-	// ここでは「そのチケットが参照しているページ」だけを返す（ListTicketPageLinks と同じ
-	// クエリを使う。sqlcgen.ListPagesReferencingTicket は target_page_id で絞る別物のクエリで、
-	// ticket の ID を渡しても target_page_id 列と一致し得ず常に 0 行になる — 呼び出し先の
-	// クエリを取り違えていた実装ミス。結合テストで気づいた）。
+// ListTicketsReferencingPage はページ詳細の逆参照一覧が使う（そのページを参照している
+// チケット一覧。）。以前は ListTicketPageLinksBySource（source_ticket_id 絞り = 逆方向）
+// を誤って呼ぶ実装ミスがあり、この口は常に「そのチケット自身が参照しているページ」を
+// 返していた（結合テストで発覚。呼び出し元が無かったため実害は無し）。
+// sqlcgen.ListTicketsReferencingPage（target_page_id 絞り）へ差し替えて修正している。
+func (r *ticketRepository) ListTicketsReferencingPage(ctx context.Context, workspaceID, pageID string) ([]domain.Ticket, error) {
 	wsID, ok := kbParseID(workspaceID)
-	tID, ok2 := kbParseID(targetTicketID)
+	pID, ok2 := kbParseID(pageID)
 	if !ok || !ok2 {
 		return nil, nil
 	}
-	rows, err := r.queries(ctx).ListTicketPageLinksBySource(ctx, sqlcgen.ListTicketPageLinksBySourceParams{
-		WorkspaceID: wsID, SourceTicketID: tID,
+	rows, err := r.queries(ctx).ListTicketsReferencingPage(ctx, sqlcgen.ListTicketsReferencingPageParams{
+		WorkspaceID: wsID, TargetPageID: pID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	out := make([]domain.TicketPageLink, 0, len(rows))
+	out := make([]domain.Ticket, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, domain.TicketPageLink{
-			WorkspaceID: row.WorkspaceID.String(), SourceTicketID: row.SourceTicketID.String(),
-			TargetPageID: row.TargetPageID.String(),
-		})
+		out = append(out, toDomainTicket(row))
 	}
 	return out, nil
 }

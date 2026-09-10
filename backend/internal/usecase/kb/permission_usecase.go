@@ -499,6 +499,57 @@ func (u *ListPageBacklinksUseCase) Execute(ctx context.Context, in ListPageBackl
 	return pages, nil
 }
 
+// ListPagesReferencingTicketUseCase は ListPageBacklinksUseCase のチケット版
+// （段 5）。対象チケットを本文の ticketRef ノードで埋め込んでいる
+// （page_ticket_links.target_ticket_id = 対象チケット）ページのうち、閲覧できるものだけを
+// 返す。判定・上限（listPageBacklinksMaxResults 流用）・SQL に LIMIT を掛けない理由は
+// ListPageBacklinksUseCase と同一。
+//
+// 対象チケット自体を見られるかどうかの判定は handler（requireTicketPermission）が
+// 先に行う。ticketID はここでは opaque な文字列として扱う — usecase/kb は usecase/ticket を
+// import しない（サブパッケージ同士は import しない規約）ため、handler 層で
+// usecase/ticket の権限判定と組み合わせて使う。
+type ListPagesReferencingTicketUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListPagesReferencingTicketUseCase(r repository.KnowledgeBasePermissionRepository) *ListPagesReferencingTicketUseCase {
+	return &ListPagesReferencingTicketUseCase{repo: r}
+}
+
+type ListPagesReferencingTicketInput struct {
+	WorkspaceID string
+	UserID      uint64
+	TicketID    string
+}
+
+func (u *ListPagesReferencingTicketUseCase) Execute(ctx context.Context, in ListPagesReferencingTicketInput) ([]domain.Page, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.UserID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	if in.TicketID == "" {
+		return nil, errors.New("ticketID is required")
+	}
+	rows, err := u.repo.ListPageTicketLinkSourcePageViewFacts(ctx, in.WorkspaceID, in.UserID, in.TicketID)
+	if err != nil {
+		return nil, err
+	}
+	pages := make([]domain.Page, 0, len(rows))
+	for _, row := range rows {
+		if !domain.ResolvePageView(row.Role) {
+			continue
+		}
+		pages = append(pages, row.Page)
+		if len(pages) >= listPageBacklinksMaxResults {
+			break
+		}
+	}
+	return pages, nil
+}
+
 // ErrInvalidGrantRole は既知でない役割を指定したときに返す。
 var ErrInvalidGrantRole = errors.New("invalid grant role")
 

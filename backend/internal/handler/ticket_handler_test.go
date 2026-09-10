@@ -55,7 +55,7 @@ func newTicketFixture(uid uint64, role domain.GrantRole) ticketFixture {
 			c.Next()
 		})
 	}
-	registerTicketRoutesWith(g, tickets, tickets, perms, pages, users, &fakeNotifRepo{}, fakeTxManager{})
+	registerTicketRoutesWith(g, tickets, tickets, tickets, tickets, perms, pages, users, &fakeNotifRepo{}, fakeTxManager{}, ticketAttachmentFakePresigner{})
 	return ticketFixture{tickets: tickets, pages: pages, perms: perms, router: r}
 }
 
@@ -559,4 +559,38 @@ func Test_状態種別マスタ_閲覧のみでは編集操作に403(t *testing.
 	w = f.do(t, http.MethodPost, ticketAPIBase+"/spaces/"+kbSpaceID+"/ticket-types",
 		`{"name":"x","hierarchyLevel":0,"color":"#2f6b47"}`)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// Test_チケット一覧_期日での絞り込み は ?dueBefore= / ?startAfter=（段 4）を固定する。
+// 壊れた形式は DB の ::date キャストで 500 になる前に 400 で断る。
+func Test_チケット一覧_期日での絞り込み(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	due, start := "2026-01-10", "2026-01-01"
+	inRange := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-due-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "対象",
+		DueDate: &due, StartDate: &start,
+	})
+	dueLate, startLate := "2026-03-10", "2026-03-01"
+	f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-due-2", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "対象外",
+		DueDate: &dueLate, StartDate: &startLate,
+	})
+
+	w := f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets?dueBefore=2026-02-01", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	byDue := decodeJSON[map[string][]map[string]any](t, w)
+	require.Len(t, byDue["tickets"], 1)
+	assert.Equal(t, inRange.ID, byDue["tickets"][0]["id"])
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets?startAfter=2026-02-01", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	byStart := decodeJSON[map[string][]map[string]any](t, w)
+	require.Len(t, byStart["tickets"], 1)
+	assert.NotEqual(t, inRange.ID, byStart["tickets"][0]["id"])
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets?dueBefore=not-a-date", "")
+	assert.Equal(t, http.StatusBadRequest, w.Code, "壊れた形式は400")
+
+	w = f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets?startAfter=2026/01/01", "")
+	assert.Equal(t, http.StatusBadRequest, w.Code, "区切りが違う形式も400")
 }

@@ -2907,3 +2907,185 @@ table "ticket_comment_reactions" {
     expr = "(emoji <> ''::text) AND (octet_length(emoji) <= 32)"
   }
 }
+
+# labels: スペースごとのラベル（名前 + 色）。同名は空白・大文字小文字違いも含めてスペース内で
+# 作れない（uq_labels_space_name の部分一意。ticket_statuses/ticket_types の name_lower と
+# 同じ「索引の足場としてだけ使う生成列」の作法だが、ここは trim も畳む — 空白違いだけの
+# 重複も同じラベル扱いにするため）。段 4・設計 Ⅵ。
+table "labels" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "space_id" {
+    null = false
+    type = uuid
+  }
+  column "name" {
+    null = false
+    type = character_varying(64)
+  }
+  column "name_key" {
+    null = true
+    type = character_varying(64)
+    as {
+      expr = "lower(btrim((name)::text))"
+      type = STORED
+    }
+  }
+  column "color" {
+    null = false
+    type = character_varying(7)
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  # ticket_labels からの複合 FK の参照先。
+  unique "uq_labels_workspace_id" {
+    columns = [column.workspace_id, column.id]
+  }
+  foreign_key "fk_labels_space" {
+    columns     = [column.workspace_id, column.space_id]
+    ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_labels_workspace_space" {
+    columns = [column.workspace_id, column.space_id]
+  }
+  index "uq_labels_space_name" {
+    unique  = true
+    columns = [column.space_id, column.name_key]
+  }
+  check "ck_labels_name_trimmed" {
+    expr = "((name)::text = btrim((name)::text)) AND ((name)::text <> ''::text)"
+  }
+  check "ck_labels_color_hex" {
+    expr = "(color)::text ~ '^#[0-9a-f]{6}$'::text"
+  }
+}
+
+# ticket_labels: チケットとラベルの多対多。付け外しは冪等（複合主キーが重複を吸収する。
+# ticket_comment_reactions と同じ形）。
+table "ticket_labels" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "label_id" {
+    null = false
+    type = uuid
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.ticket_id, column.label_id]
+  }
+  foreign_key "fk_ticket_labels_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_labels_label" {
+    columns     = [column.workspace_id, column.label_id]
+    ref_columns = [table.labels.column.workspace_id, table.labels.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_labels_label" {
+    columns = [column.label_id]
+  }
+}
+
+# ticket_attachments: チケットに添付したファイルのメタデータ。本体は Cloud Storage
+# （IMAGES_BUCKET を tickets/<workspaceId>/<ticketId>/ prefix で kb ページ画像等と共有する）。
+# 論理削除は持たない（このテーブルを指す子表が無く、undo が要る運用も無いため。ticket_comments
+# と違い「消したら本当に消える」でよい判断。段 4・設計 Ⅵ）。
+table "ticket_attachments" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  # Cloud Storage のオブジェクトキー。ファイル名をそのままキーへ使わない（経路の組み立て・
+  # 特殊文字を避けるため。実際のファイル名は filename に別で持つ。kb ページ画像と同じ流儀）。
+  column "key" {
+    null = false
+    type = text
+  }
+  column "filename" {
+    null = false
+    type = character_varying(255)
+  }
+  column "content_type" {
+    null = false
+    type = text
+  }
+  column "size_bytes" {
+    null = false
+    type = bigint
+  }
+  # アップロード者（users.id）。FK は張らない（tickets.created_by_user_id と同じ扱い）。
+  column "uploaded_by_user_id" {
+    null = false
+    type = bigint
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  foreign_key "fk_ticket_attachments_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_attachments_ticket_created" {
+    columns = [column.ticket_id, column.created_at]
+  }
+  check "ck_ticket_attachments_filename_not_empty" {
+    expr = "btrim((filename)::text) <> ''::text"
+  }
+  check "ck_ticket_attachments_content_type_not_empty" {
+    expr = "content_type <> ''::text"
+  }
+  check "ck_ticket_attachments_size_positive" {
+    expr = "size_bytes > 0"
+  }
+}

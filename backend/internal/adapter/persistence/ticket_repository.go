@@ -858,12 +858,14 @@ func (r *ticketRepository) ListTickets(ctx context.Context, in repository.ListTi
 	statusID, ok3 := kbNullID(in.StatusID)
 	typeID, ok4 := kbNullID(in.TypeID)
 	assigneeID, ok5 := kbNullID(in.AssigneePrincipalID)
-	if !ok3 || !ok4 || !ok5 {
+	labelID, ok6 := kbNullID(in.LabelID)
+	if !ok3 || !ok4 || !ok5 || !ok6 {
 		return nil, nil
 	}
 	rows, err := r.queries(ctx).ListTickets(ctx, sqlcgen.ListTicketsParams{
 		WorkspaceID: wsID, SpaceID: spID, IncludeArchived: in.IncludeArchived,
 		StatusID: statusID, TypeID: typeID, AssigneePrincipalID: assigneeID,
+		LabelID: labelID, DueBefore: nullDate(in.DueBefore), StartAfter: nullDate(in.StartAfter),
 	})
 	if err != nil {
 		return nil, err

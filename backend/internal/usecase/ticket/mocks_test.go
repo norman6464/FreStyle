@@ -625,3 +625,99 @@ func (m *mockKBPermissionRepo) ListSubtreePagePermissionFacts(ctx context.Contex
 	f, _ := args.Get(0).([]repository.PageWithPermissionFacts)
 	return f, args.Error(1)
 }
+
+// mockLabelRepo は repository.LabelRepository の testify/mock 実装（段 4）。
+type mockLabelRepo struct{ mock.Mock }
+
+var _ repository.LabelRepository = (*mockLabelRepo)(nil)
+
+func (m *mockLabelRepo) CreateLabel(ctx context.Context, l *domain.Label) error {
+	args := m.Called(ctx, l)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) FindLabel(ctx context.Context, workspaceID, labelID string) (*domain.Label, error) {
+	args := m.Called(ctx, workspaceID, labelID)
+	l, _ := args.Get(0).(*domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) ListLabels(ctx context.Context, workspaceID, spaceID string) ([]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	l, _ := args.Get(0).([]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) UpdateLabel(ctx context.Context, l *domain.Label) error {
+	args := m.Called(ctx, l)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) DeleteLabel(ctx context.Context, workspaceID, labelID string) error {
+	args := m.Called(ctx, workspaceID, labelID)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) AddTicketLabel(ctx context.Context, workspaceID, ticketID, labelID string) error {
+	args := m.Called(ctx, workspaceID, ticketID, labelID)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) RemoveTicketLabel(ctx context.Context, workspaceID, ticketID, labelID string) error {
+	args := m.Called(ctx, workspaceID, ticketID, labelID)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) ListLabelsByTicket(ctx context.Context, workspaceID, ticketID string) ([]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	l, _ := args.Get(0).([]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) ListLabelsByTicketIDs(ctx context.Context, workspaceID string, ticketIDs []string) (map[string][]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, ticketIDs)
+	l, _ := args.Get(0).(map[string][]domain.Label)
+	return l, args.Error(1)
+}
+
+// mockTicketAttachmentRepo は repository.TicketAttachmentRepository の testify/mock 実装（段 4）。
+type mockTicketAttachmentRepo struct{ mock.Mock }
+
+var _ repository.TicketAttachmentRepository = (*mockTicketAttachmentRepo)(nil)
+
+func (m *mockTicketAttachmentRepo) CreateTicketAttachment(ctx context.Context, a *domain.TicketAttachment) error {
+	args := m.Called(ctx, a)
+	return args.Error(0)
+}
+
+func (m *mockTicketAttachmentRepo) FindTicketAttachment(ctx context.Context, workspaceID, ticketID, attachmentID string) (*domain.TicketAttachment, error) {
+	args := m.Called(ctx, workspaceID, ticketID, attachmentID)
+	a, _ := args.Get(0).(*domain.TicketAttachment)
+	return a, args.Error(1)
+}
+
+func (m *mockTicketAttachmentRepo) ListTicketAttachments(ctx context.Context, workspaceID, ticketID string) ([]domain.TicketAttachment, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	a, _ := args.Get(0).([]domain.TicketAttachment)
+	return a, args.Error(1)
+}
+
+func (m *mockTicketAttachmentRepo) DeleteTicketAttachment(ctx context.Context, workspaceID, ticketID, attachmentID string) error {
+	args := m.Called(ctx, workspaceID, ticketID, attachmentID)
+	return args.Error(0)
+}
+
+// mockTicketAttachmentPresigner は repository.TicketAttachmentPresigner の testify/mock 実装。
+type mockTicketAttachmentPresigner struct{ mock.Mock }
+
+var _ repository.TicketAttachmentPresigner = (*mockTicketAttachmentPresigner)(nil)
+
+func (m *mockTicketAttachmentPresigner) PresignUpload(ctx context.Context, key, contentType string, size int64) (string, int, error) {
+	args := m.Called(ctx, key, contentType, size)
+	return args.String(0), args.Int(1), args.Error(2)
+}
+
+func (m *mockTicketAttachmentPresigner) PresignDownload(ctx context.Context, key string) (string, int, error) {
+	args := m.Called(ctx, key)
+	return args.String(0), args.Int(1), args.Error(2)
+}

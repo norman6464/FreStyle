@@ -67,6 +67,25 @@ CREATE TABLE "public"."comments" (
 );
 -- Create index "idx_comments_thread" to table: "comments"
 CREATE INDEX "idx_comments_thread" ON "public"."comments" ("thread_id");
+-- Create "labels" table
+CREATE TABLE "public"."labels" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
+  "name" character varying(64) NOT NULL,
+  "name_key" character varying(64) NULL GENERATED ALWAYS AS (lower(btrim((name)::text))) STORED,
+  "color" character varying(7) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_labels_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "ck_labels_color_hex" CHECK ((color)::text ~ '^#[0-9a-f]{6}$'::text),
+  CONSTRAINT "ck_labels_name_trimmed" CHECK (((name)::text = btrim((name)::text)) AND ((name)::text <> ''::text))
+);
+-- Create index "idx_labels_workspace_space" to table: "labels"
+CREATE INDEX "idx_labels_workspace_space" ON "public"."labels" ("workspace_id", "space_id");
+-- Create index "uq_labels_space_name" to table: "labels"
+CREATE UNIQUE INDEX "uq_labels_space_name" ON "public"."labels" ("space_id", "name_key");
 -- Create "notifications" table
 CREATE TABLE "public"."notifications" (
   "id" bigserial NOT NULL,
@@ -343,6 +362,24 @@ CREATE TABLE "public"."ticket_assignments" (
 );
 -- Create index "idx_ticket_assignments_principal" to table: "ticket_assignments"
 CREATE INDEX "idx_ticket_assignments_principal" ON "public"."ticket_assignments" ("workspace_id", "assignee_principal_id");
+-- Create "ticket_attachments" table
+CREATE TABLE "public"."ticket_attachments" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "key" text NOT NULL,
+  "filename" character varying(255) NOT NULL,
+  "content_type" text NOT NULL,
+  "size_bytes" bigint NOT NULL,
+  "uploaded_by_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_ticket_attachments_content_type_not_empty" CHECK (content_type <> ''::text),
+  CONSTRAINT "ck_ticket_attachments_filename_not_empty" CHECK (btrim((filename)::text) <> ''::text),
+  CONSTRAINT "ck_ticket_attachments_size_positive" CHECK (size_bytes > 0)
+);
+-- Create index "idx_ticket_attachments_ticket_created" to table: "ticket_attachments"
+CREATE INDEX "idx_ticket_attachments_ticket_created" ON "public"."ticket_attachments" ("ticket_id", "created_at");
 -- Create "ticket_change_groups" table
 CREATE TABLE "public"."ticket_change_groups" (
   "id" uuid NOT NULL,
@@ -427,6 +464,16 @@ CREATE TABLE "public"."ticket_counters" (
   PRIMARY KEY ("workspace_id", "space_id"),
   CONSTRAINT "ck_ticket_counters_last_number_positive" CHECK (last_number > 0)
 );
+-- Create "ticket_labels" table
+CREATE TABLE "public"."ticket_labels" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "label_id" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("ticket_id", "label_id")
+);
+-- Create index "idx_ticket_labels_label" to table: "ticket_labels"
+CREATE INDEX "idx_ticket_labels_label" ON "public"."ticket_labels" ("label_id");
 -- Create "ticket_page_links" table
 CREATE TABLE "public"."ticket_page_links" (
   "workspace_id" uuid NOT NULL,
@@ -658,6 +705,8 @@ ALTER TABLE "public"."blocks" ADD CONSTRAINT "fk_blocks_page" FOREIGN KEY ("work
 ALTER TABLE "public"."comment_threads" ADD CONSTRAINT "fk_comment_threads_block" FOREIGN KEY ("block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE SET NULL, ADD CONSTRAINT "fk_comment_threads_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "comments" table
 ALTER TABLE "public"."comments" ADD CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "labels" table
+ALTER TABLE "public"."labels" ADD CONSTRAINT "fk_labels_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_grants" table
 ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_links" table
@@ -688,6 +737,8 @@ ALTER TABLE "public"."space_grants" ADD CONSTRAINT "fk_space_grants_principal" F
 ALTER TABLE "public"."spaces" ADD CONSTRAINT "fk_spaces_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_assignments" table
 ALTER TABLE "public"."ticket_assignments" ADD CONSTRAINT "fk_ticket_assignments_principal" FOREIGN KEY ("workspace_id", "assignee_kind", "assignee_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_assignments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_attachments" table
+ALTER TABLE "public"."ticket_attachments" ADD CONSTRAINT "fk_ticket_attachments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_change_groups" table
 ALTER TABLE "public"."ticket_change_groups" ADD CONSTRAINT "fk_ticket_change_groups_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_change_items" table
@@ -700,6 +751,8 @@ ALTER TABLE "public"."ticket_comment_reactions" ADD CONSTRAINT "fk_ticket_commen
 ALTER TABLE "public"."ticket_comments" ADD CONSTRAINT "fk_ticket_comments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_counters" table
 ALTER TABLE "public"."ticket_counters" ADD CONSTRAINT "fk_ticket_counters_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_labels" table
+ALTER TABLE "public"."ticket_labels" ADD CONSTRAINT "fk_ticket_labels_label" FOREIGN KEY ("workspace_id", "label_id") REFERENCES "public"."labels" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_labels_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_page_links" table
 ALTER TABLE "public"."ticket_page_links" ADD CONSTRAINT "fk_ticket_page_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_page_links_target" FOREIGN KEY ("workspace_id", "target_page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_ranks" table

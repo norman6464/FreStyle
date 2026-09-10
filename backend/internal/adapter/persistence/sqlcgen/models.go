@@ -50,6 +50,17 @@ type CommentThread struct {
 	UpdatedAt        time.Time
 }
 
+type Label struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+	Name        string
+	NameKey     sql.NullString
+	Color       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Notification struct {
 	ID        int64
 	UserID    int64
@@ -244,6 +255,18 @@ type TicketAssignment struct {
 	DeletedAt           sql.NullTime
 }
 
+type TicketAttachment struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	TicketID         uuid.UUID
+	Key              string
+	Filename         string
+	ContentType      string
+	SizeBytes        int64
+	UploadedByUserID int64
+	CreatedAt        time.Time
+}
+
 type TicketChangeGroup struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -301,6 +324,13 @@ type TicketCounter struct {
 	LastNumber  int64
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime
+}
+
+type TicketLabel struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+	LabelID     uuid.UUID
+	CreatedAt   time.Time
 }
 
 type TicketPageLink struct {

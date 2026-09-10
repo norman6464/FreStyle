@@ -25,6 +25,11 @@ type ListTicketsInput struct {
 	StatusID            *string
 	TypeID              *string
 	AssigneePrincipalID *string
+	// LabelID / DueBefore / StartAfter は段 4 で追加した絞り込み。DueBefore / StartAfter は
+	// 'YYYY-MM-DD' 文字列。
+	LabelID    *string
+	DueBefore  *string
+	StartAfter *string
 }
 
 func (u *ListTicketsUseCase) Execute(ctx context.Context, in ListTicketsInput) ([]repository.TicketWithAssignee, error) {
@@ -41,5 +46,8 @@ func (u *ListTicketsUseCase) Execute(ctx context.Context, in ListTicketsInput) (
 		StatusID:            in.StatusID,
 		TypeID:              in.TypeID,
 		AssigneePrincipalID: in.AssigneePrincipalID,
+		LabelID:             in.LabelID,
+		DueBefore:           in.DueBefore,
+		StartAfter:          in.StartAfter,
 	})
 }

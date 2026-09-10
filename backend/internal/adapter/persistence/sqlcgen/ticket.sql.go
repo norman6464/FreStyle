@@ -1787,6 +1787,15 @@ WHERE t.workspace_id = $1 AND t.space_id = $2
     $6::uuid IS NULL
     OR a.assignee_principal_id = $6::uuid
   )
+  AND (
+    $7::uuid IS NULL
+    OR EXISTS (
+      SELECT 1 FROM ticket_labels tl
+      WHERE tl.workspace_id = t.workspace_id AND tl.ticket_id = t.id AND tl.label_id = $7::uuid
+    )
+  )
+  AND ($8::date IS NULL OR t.due_date <= $8::date)
+  AND ($9::date IS NULL OR t.start_date >= $9::date)
 ORDER BY COALESCE(r.position, t."position")
 `
 
@@ -1797,6 +1806,9 @@ type ListTicketsParams struct {
 	StatusID            uuid.NullUUID
 	TypeID              uuid.NullUUID
 	AssigneePrincipalID uuid.NullUUID
+	LabelID             uuid.NullUUID
+	DueBefore           pgtext.NullDate
+	StartAfter          pgtext.NullDate
 }
 
 type ListTicketsRow struct {
@@ -1825,7 +1837,11 @@ type ListTicketsRow struct {
 	RankPosition        string
 }
 
-// status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
+// status_id / type_id / assignee_principal_id / label_id / due_before / start_after はいずれも
+// sqlc.narg。NULL なら絞らない（段 4 で label_id / due_before / start_after を追加）。
+// label_id は ticket_labels への EXISTS で絞る（LEFT JOIN だとラベル数だけ行が重複するため）。
+// due_before / start_after は 'YYYY-MM-DD' 文字列を date として渡す（tickets.due_date /
+// start_date と同じ運び方。冒頭の作法参照）。
 // ticket_ranks を LEFT JOIN + COALESCE で並び順を rank_position として返す（GetTicket と同じ理由）。
 // deleted_at IS NULL は常に付ける（include_archived の有無に関わらず、削除済みは一覧に出さない）。
 func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]ListTicketsRow, error) {
@@ -1836,6 +1852,9 @@ func (q *Queries) ListTickets(ctx context.Context, arg ListTicketsParams) ([]Lis
 		arg.StatusID,
 		arg.TypeID,
 		arg.AssigneePrincipalID,
+		arg.LabelID,
+		arg.DueBefore,
+		arg.StartAfter,
 	)
 	if err != nil {
 		return nil, err

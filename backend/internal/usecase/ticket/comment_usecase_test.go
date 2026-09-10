@@ -239,3 +239,43 @@ func Test_発言一覧_反応をまとめて返す(t *testing.T) {
 	require.Len(t, out[1].Reactions, 1)
 	assert.Equal(t, "🎉", out[1].Reactions[0].Emoji)
 }
+
+func Test_発言の編集履歴一覧(t *testing.T) {
+	repo := &mockTicketCommentRepo{}
+	repo.On("FindTicketComment", mock.Anything, tkWS, tkTicket, tkComment).Return(&domain.TicketComment{ID: tkComment}, nil)
+	repo.On("ListTicketCommentEdits", mock.Anything, tkWS, tkComment).Return([]domain.TicketCommentEdit{
+		{ID: "edit-1", CommentID: tkComment, EditorUserID: 1, PreviousBody: tkSimpleBody("旧")},
+	}, nil)
+
+	out, err := ticket.NewListTicketCommentEditsUseCase(repo).Execute(context.Background(), tkWS, tkTicket, tkComment)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Equal(t, uint64(1), out[0].EditorUserID)
+}
+
+func Test_発言の編集履歴一覧_発言が無ければそのまま伝える(t *testing.T) {
+	repo := &mockTicketCommentRepo{}
+	repo.On("FindTicketComment", mock.Anything, tkWS, tkTicket, tkComment).Return(nil, repository.ErrTicketCommentNotFound)
+
+	_, err := ticket.NewListTicketCommentEditsUseCase(repo).Execute(context.Background(), tkWS, tkTicket, tkComment)
+	require.ErrorIs(t, err, repository.ErrTicketCommentNotFound)
+	repo.AssertNotCalled(t, "ListTicketCommentEdits", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_反応の削除(t *testing.T) {
+	repo := &mockTicketCommentRepo{}
+	repo.On("FindTicketComment", mock.Anything, tkWS, tkTicket, tkComment).Return(&domain.TicketComment{ID: tkComment}, nil)
+	repo.On("RemoveTicketCommentReaction", mock.Anything, tkWS, tkComment, uint64(1), "👍").Return(nil)
+
+	err := ticket.NewRemoveTicketCommentReactionUseCase(repo).Execute(context.Background(), tkWS, tkTicket, tkComment, 1, "👍")
+	require.NoError(t, err)
+}
+
+func Test_反応の削除_発言が無ければそのまま伝える(t *testing.T) {
+	repo := &mockTicketCommentRepo{}
+	repo.On("FindTicketComment", mock.Anything, tkWS, tkTicket, tkComment).Return(nil, repository.ErrTicketCommentNotFound)
+
+	err := ticket.NewRemoveTicketCommentReactionUseCase(repo).Execute(context.Background(), tkWS, tkTicket, tkComment, 1, "👍")
+	require.ErrorIs(t, err, repository.ErrTicketCommentNotFound)
+	repo.AssertNotCalled(t, "RemoveTicketCommentReaction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}

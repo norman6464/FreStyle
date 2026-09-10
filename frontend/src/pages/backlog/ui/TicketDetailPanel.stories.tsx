@@ -25,6 +25,7 @@ const ticket: Ticket = {
   createdAt: '2026-09-08T00:00:00Z',
   updatedAt: '2026-09-09T00:00:00Z',
   assigneePrincipalId: 'p-1',
+  labels: [],
 };
 
 const statuses: TicketStatus[] = [
@@ -111,7 +112,6 @@ const meta = {
     onUnassign: fn(async () => {}),
     onArchive: fn(async () => {}),
     onRestore: fn(async () => {}),
-    onClose: fn(),
   },
   decorators: [
     (Story) => (
@@ -167,5 +167,31 @@ export const 状態変更が失敗しても表示は元のまま: Story = {
     await waitFor(() => expect(args.onChangeStatus).toHaveBeenCalledWith('st-1'));
     // ticket prop 自体は変わっていないので、表示は選択中チケットの statusId のまま。
     await expect(select).toHaveValue('st-2');
+  },
+};
+
+export const ラベルつき: Story = {
+  args: {
+    ticket: {
+      ...ticket,
+      labels: [
+        { id: 'l-1', spaceId: 's-1', name: '不具合', color: '#1d4ed8', createdAt: '', updatedAt: '' },
+        { id: 'l-2', spaceId: 's-1', name: '要調査', color: '#8b7355', createdAt: '', updatedAt: '' },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('不具合')).toBeInTheDocument();
+    await expect(canvas.getByText('要調査')).toBeInTheDocument();
+  },
+};
+
+// 見出しと閉じるボタンは器（SecondaryPanel）が描く。ここで同じ見出しを出すと二重になる。
+export const 見出しを自分では描かない: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByText('詳細')).toBeNull();
+    await expect(canvas.queryByRole('button', { name: '詳細を閉じる' })).toBeNull();
   },
 };

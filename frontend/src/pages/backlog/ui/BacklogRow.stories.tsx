@@ -24,6 +24,7 @@ const baseTicket: Ticket = {
   createdAt: '2026-09-08T00:00:00Z',
   updatedAt: '2026-09-09T00:00:00Z',
   assigneePrincipalId: null,
+  labels: [],
 };
 
 const devType: TicketType = {

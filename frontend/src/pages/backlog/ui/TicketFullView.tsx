@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TicketKeyBadge,
+  type Label,
   type Ticket,
   type TicketChangeGroup,
   type TicketStatus,
@@ -16,7 +17,7 @@ import TicketAncestorTrail from './TicketAncestorTrail';
 import TicketAttributePanel from './TicketAttributePanel';
 import TicketChangeHistory from './TicketChangeHistory';
 import TicketCommentSection from './TicketCommentSection';
-import TicketLabelChip from './TicketLabelChip';
+import TicketLabelBar from './TicketLabelBar';
 import TicketSection from './TicketSection';
 
 const RichTextEditor = lazy(() => import('@/shared/ui/RichTextEditor').then((m) => ({ default: m.RichTextEditor })));
@@ -34,12 +35,15 @@ export interface TicketFullViewProps {
   historyError: string | null;
   canEdit: boolean;
   busy: boolean;
+  allLabels: Label[];
   onUpdate: (input: UpdateTicketInput) => Promise<Ticket>;
   onChangeStatus: (statusId: string) => void;
   onAssign: (principalId: string) => void;
   onUnassign: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onToggleLabel: (label: Label) => void;
+  onCreateLabel: (name: string, color: string) => Promise<Label>;
 }
 
 /**
@@ -67,12 +71,15 @@ export default function TicketFullView({
   historyError,
   canEdit,
   busy,
+  allLabels,
   onUpdate,
   onChangeStatus,
   onAssign,
   onUnassign,
   onArchive,
   onRestore,
+  onToggleLabel,
+  onCreateLabel,
 }: TicketFullViewProps) {
   const type = types.find((t) => t.id === ticket.typeId);
   const archived = ticket.archivedAt !== null;
@@ -167,13 +174,13 @@ export default function TicketFullView({
               <h1 className="mb-3 text-xl font-semibold text-[var(--color-text-primary)]">{ticket.title}</h1>
             )}
 
-            {ticket.labels.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-1.5">
-                {ticket.labels.map((label) => (
-                  <TicketLabelChip key={label.id} label={label} />
-                ))}
-              </div>
-            )}
+            <TicketLabelBar
+              attached={ticket.labels}
+              allLabels={allLabels}
+              canEdit={canEdit && !archived}
+              onToggle={onToggleLabel}
+              onCreate={onCreateLabel}
+            />
 
             <TicketSection title="本文">
               <Suspense fallback={<Loading />}>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   TicketRepository,
   type ChangeTicketStatusInput,
+  type Label,
   type Ticket,
   type TicketPermission,
   type UpdateTicketInput,
@@ -168,5 +169,23 @@ export function useTicketPage(ticketId: string | undefined) {
     [mutate],
   );
 
-  return { ...state, refresh, updateTicket, changeStatus, assign, unassign, archive, restore };
+  const addLabel = useCallback(
+    (label: Label) =>
+      mutate(
+        (slug, id) => TicketRepository.addTicketLabel(slug, id, label.id),
+        (prev) => (prev.labels.some((l) => l.id === label.id) ? prev : { ...prev, labels: [...prev.labels, label] }),
+      ),
+    [mutate],
+  );
+
+  const removeLabel = useCallback(
+    (labelId: string) =>
+      mutate(
+        (slug, id) => TicketRepository.removeTicketLabel(slug, id, labelId),
+        (prev) => ({ ...prev, labels: prev.labels.filter((l) => l.id !== labelId) }),
+      ),
+    [mutate],
+  );
+
+  return { ...state, refresh, updateTicket, changeStatus, assign, unassign, archive, restore, addLabel, removeLabel };
 }

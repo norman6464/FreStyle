@@ -9,6 +9,7 @@ import { getApiError } from '@/shared/lib/classifyApiError';
 import { TicketRepository } from '@/entities/ticket';
 import { useTicketList } from '../model/useTicketList';
 import { useTicketMasters } from '../model/useTicketMasters';
+import { useTicketLabels } from '../model/useTicketLabels';
 import { usePrincipalNames } from '../model/usePrincipalNames';
 import { useBacklogSpace } from '../model/useBacklogSpace';
 import { useBacklogUrlState } from '../model/useBacklogUrlState';
@@ -42,6 +43,7 @@ export default function KbBacklogPage() {
 
   const list = useTicketList(workspaceSlug ?? undefined, space?.id, { archived });
   const masters = useTicketMasters(workspaceSlug ?? undefined, space?.id);
+  const labels = useTicketLabels(workspaceSlug ?? undefined, space?.id);
   const { principals, nameOf, initialsOf } = usePrincipalNames(workspaceSlug ?? undefined);
 
   // スペースを切り替えたら文脈を捨てる（前のスペースのチケットを次の画面で引きずらない）。
@@ -307,6 +309,7 @@ export default function KbBacklogPage() {
             parentTicket={parentTicket}
             canEdit
             busy={list.busyId === selectedTicket.id}
+            allLabels={labels.labels}
             onUpdate={(ticketId, input) => list.updateTicket(ticketId, input)}
             onChangeStatus={(statusId) =>
               withToastOnFailure(() => list.changeStatus(selectedTicket.id, { statusId }), '状態を変更できませんでした。')
@@ -325,6 +328,17 @@ export default function KbBacklogPage() {
                 selectTicket(null),
               )
             }
+            onToggleLabel={(label) => {
+              const attached = selectedTicket.labels.some((l) => l.id === label.id);
+              void withToastOnFailure(
+                () =>
+                  attached
+                    ? list.removeLabel(selectedTicket.id, label.id)
+                    : list.addLabel(selectedTicket.id, label),
+                attached ? 'ラベルを外せませんでした。' : 'ラベルを付けられませんでした。',
+              );
+            }}
+            onCreateLabel={(name, color) => labels.createLabel({ name, color })}
           />
         </SecondaryPanel>
       )}

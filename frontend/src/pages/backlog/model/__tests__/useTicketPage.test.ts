@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useTicketPage } from '../useTicketPage';
-import type { Ticket, TicketPermission } from '@/entities/ticket';
+import type { Label, Ticket, TicketPermission } from '@/entities/ticket';
 
 const hoisted = vi.hoisted(() => ({
   resolveTicket: vi.fn(),
@@ -12,6 +12,8 @@ const hoisted = vi.hoisted(() => ({
   archiveTicket: vi.fn(),
   restoreTicket: vi.fn(),
   fetchSpaces: vi.fn(),
+  addTicketLabel: vi.fn(),
+  removeTicketLabel: vi.fn(),
 }));
 
 vi.mock('@/entities/ticket', async (importOriginal) => {
@@ -26,6 +28,8 @@ vi.mock('@/entities/ticket', async (importOriginal) => {
       unassignTicket: hoisted.unassignTicket,
       archiveTicket: hoisted.archiveTicket,
       restoreTicket: hoisted.restoreTicket,
+      addTicketLabel: hoisted.addTicketLabel,
+      removeTicketLabel: hoisted.removeTicketLabel,
     },
   };
 });
@@ -201,5 +205,64 @@ describe('useTicketPage', () => {
       }),
     ).rejects.toThrow('403');
     expect(result.current.busy).toBe(false);
+  });
+});
+
+describe('addLabel / removeLabel', () => {
+  const permission: TicketPermission = { canView: true, canComment: true, canEdit: true, canManage: false };
+  const label = (over: Partial<Label> & { id: string }): Label => ({
+    spaceId: 's-1',
+    name: 'ラベル',
+    color: '#1d4ed8',
+    createdAt: '',
+    updatedAt: '',
+    ...over,
+  });
+
+  it('付けると手元の labels に足す（重複しては足さない）', async () => {
+    hoisted.resolveTicket.mockResolvedValue({
+      workspaceSlug: 'acme',
+      workspaceName: 'Acme',
+      ticket: ticket(),
+      canEdit: true,
+      ancestors: [],
+      permission,
+    });
+    hoisted.addTicketLabel.mockResolvedValue(undefined);
+    const l1 = label({ id: 'l-1' });
+
+    const { result } = renderHook(() => useTicketPage('t-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.addLabel(l1);
+    });
+    expect(result.current.ticket?.labels).toEqual([l1]);
+    expect(hoisted.addTicketLabel).toHaveBeenCalledWith('acme', 't-1', 'l-1');
+
+    await act(async () => {
+      await result.current.addLabel(l1);
+    });
+    expect(result.current.ticket?.labels).toEqual([l1]);
+  });
+
+  it('外すと手元の labels から取り除く', async () => {
+    hoisted.resolveTicket.mockResolvedValue({
+      workspaceSlug: 'acme',
+      workspaceName: 'Acme',
+      ticket: ticket({ labels: [label({ id: 'l-1' })] }),
+      canEdit: true,
+      ancestors: [],
+      permission,
+    });
+    hoisted.removeTicketLabel.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useTicketPage('t-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.removeLabel('l-1');
+    });
+    expect(result.current.ticket?.labels).toEqual([]);
   });
 });

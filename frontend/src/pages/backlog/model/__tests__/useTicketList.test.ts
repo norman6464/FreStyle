@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useTicketList } from '../useTicketList';
-import type { Ticket } from '@/entities/ticket';
+import type { Label, Ticket } from '@/entities/ticket';
 
 const hoisted = vi.hoisted(() => ({
   fetchTickets: vi.fn(),
@@ -10,6 +10,8 @@ const hoisted = vi.hoisted(() => ({
   restoreTicket: vi.fn(),
   changeTicketStatus: vi.fn(),
   moveTicket: vi.fn(),
+  addTicketLabel: vi.fn(),
+  removeTicketLabel: vi.fn(),
 }));
 
 vi.mock('@/entities/ticket', async (importOriginal) => {
@@ -23,6 +25,8 @@ vi.mock('@/entities/ticket', async (importOriginal) => {
       restoreTicket: hoisted.restoreTicket,
       changeTicketStatus: hoisted.changeTicketStatus,
       moveTicket: hoisted.moveTicket,
+      addTicketLabel: hoisted.addTicketLabel,
+      removeTicketLabel: hoisted.removeTicketLabel,
     },
   };
 });
@@ -52,8 +56,13 @@ function ticket(over: Partial<Ticket>): Ticket {
     createdAt: '2026-09-08T00:00:00Z',
     updatedAt: '2026-09-08T00:00:00Z',
     assigneePrincipalId: null,
+    labels: [],
     ...over,
   };
+}
+
+function label(over: Partial<Label> & { id: string }): Label {
+  return { spaceId: SPACE, name: 'ラベル', color: '#1d4ed8', createdAt: '', updatedAt: '', ...over };
 }
 
 beforeEach(() => {
@@ -167,6 +176,41 @@ describe('useTicketList', () => {
       });
       expect(hoisted.moveTicket).toHaveBeenCalledWith(SLUG, 't-1', { anchorTicketId: 't-2', anchorAfter: true });
       expect(hoisted.fetchTickets).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('addLabel / removeLabel', () => {
+    it('付けると手元のチケットの labels に足す（重複しては足さない）', async () => {
+      const l1 = label({ id: 'l-1' });
+      hoisted.addTicketLabel.mockResolvedValue(undefined);
+      const { result } = renderHook(() => useTicketList(SLUG, SPACE, { archived: false }));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(async () => {
+        await result.current.addLabel('t-1', l1);
+      });
+
+      expect(result.current.tickets[0].labels).toEqual([l1]);
+      expect(hoisted.addTicketLabel).toHaveBeenCalledWith(SLUG, 't-1', 'l-1');
+
+      // 二重に付けても増えない。
+      await act(async () => {
+        await result.current.addLabel('t-1', l1);
+      });
+      expect(result.current.tickets[0].labels).toEqual([l1]);
+    });
+
+    it('外すと手元のチケットの labels から取り除く', async () => {
+      hoisted.fetchTickets.mockResolvedValue([ticket({ id: 't-1', number: 1, labels: [label({ id: 'l-1' })] })]);
+      hoisted.removeTicketLabel.mockResolvedValue(undefined);
+      const { result } = renderHook(() => useTicketList(SLUG, SPACE, { archived: false }));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await act(async () => {
+        await result.current.removeLabel('t-1', 'l-1');
+      });
+
+      expect(result.current.tickets[0].labels).toEqual([]);
     });
   });
 });

@@ -134,3 +134,42 @@ export const 操作中: Story = {
 export const 読むだけ_chevronを出さない: Story = {
   args: { canEdit: false },
 };
+
+export const ラベル2件: Story = {
+  args: {
+    ticket: {
+      ...baseTicket,
+      labels: [
+        { id: 'l-1', spaceId: 's-1', name: '不具合', color: '#1d4ed8', createdAt: '', updatedAt: '' },
+        { id: 'l-2', spaceId: 's-1', name: '要調査', color: '#8b7355', createdAt: '', updatedAt: '' },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('不具合')).toBeInTheDocument();
+    await expect(canvas.getByText('要調査')).toBeInTheDocument();
+    await expect(canvas.queryByText(/^\+/)).toBeNull();
+  },
+};
+
+export const ラベル4件は2件と件数に畳む: Story = {
+  args: {
+    ticket: {
+      ...baseTicket,
+      labels: [
+        { id: 'l-1', spaceId: 's-1', name: '不具合', color: '#1d4ed8', createdAt: '', updatedAt: '' },
+        { id: 'l-2', spaceId: 's-1', name: '検索', color: '#dbeafe', createdAt: '', updatedAt: '' },
+        { id: 'l-3', spaceId: 's-1', name: '今週', color: '#5c5850', createdAt: '', updatedAt: '' },
+        { id: 'l-4', spaceId: 's-1', name: '緊急', color: '#b3392c', createdAt: '', updatedAt: '' },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('不具合')).toBeInTheDocument();
+    await expect(canvas.getByText('検索')).toBeInTheDocument();
+    await expect(canvas.queryByText('今週')).toBeNull();
+    await expect(canvas.getByText('+2')).toBeInTheDocument();
+  },
+};

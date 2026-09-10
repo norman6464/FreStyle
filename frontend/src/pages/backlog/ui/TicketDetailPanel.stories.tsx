@@ -101,6 +101,12 @@ const meta = {
     onArchive: fn(async () => {}),
     onRestore: fn(async () => {}),
     workspaceSlug: 'acme',
+    allLabels: [
+      { id: 'l-1', spaceId: 's-1', name: '不具合', color: '#1d4ed8', createdAt: '', updatedAt: '' },
+      { id: 'l-2', spaceId: 's-1', name: '要調査', color: '#8b7355', createdAt: '', updatedAt: '' },
+    ],
+    onToggleLabel: fn(),
+    onCreateLabel: fn(async (name, color) => ({ id: 'l-new', spaceId: 's-1', name, color, createdAt: '', updatedAt: '' })),
   },
   decorators: [
     withToast,

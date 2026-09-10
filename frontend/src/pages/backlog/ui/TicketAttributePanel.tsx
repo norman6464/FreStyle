@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { formatTicketKey, type Ticket, type TicketPriority, type TicketStatus } from '@/entities/ticket';
 import type { KbGrantablePrincipal } from '@/entities/kb';
+import { useTicketParentCandidates } from '../model/useTicketParentCandidates';
+import TicketParentPicker from './TicketParentPicker';
 
 const PRIORITY_LABEL: Record<TicketPriority, string> = { 1: '高', 2: '中', 3: '低' };
 
 export interface TicketAttributePanelProps {
   ticket: Ticket;
+  workspaceSlug: string;
   spaceKey: string;
   statuses: TicketStatus[];
   principals: KbGrantablePrincipal[];
@@ -21,6 +25,7 @@ export interface TicketAttributePanelProps {
   onUnassign: () => void;
   onChangePriority: (value: TicketPriority) => void;
   onChangeDueDate: (value: string | null) => void;
+  onChangeParent: (parentId: string | null) => void;
 }
 
 /**
@@ -32,6 +37,7 @@ export interface TicketAttributePanelProps {
  */
 export default function TicketAttributePanel({
   ticket,
+  workspaceSlug,
   spaceKey,
   statuses,
   principals,
@@ -46,8 +52,21 @@ export default function TicketAttributePanel({
   onUnassign,
   onChangePriority,
   onChangeDueDate,
+  onChangeParent,
 }: TicketAttributePanelProps) {
   const assigneeUsers = principals.filter((p) => p.kind === 'user');
+  const [parentPickerOpen, setParentPickerOpen] = useState(false);
+  // 開くまで問い合わせない（親を触らないチケットのほうが多く、毎回スペース全件を
+  // 引くのは無駄なため）。
+  const parentCandidatesQuery = useTicketParentCandidates(
+    parentPickerOpen ? workspaceSlug : undefined,
+    parentPickerOpen ? ticket.spaceId : undefined,
+  );
+
+  const handleSelectParent = (parentId: string | null) => {
+    onChangeParent(parentId);
+    setParentPickerOpen(false);
+  };
 
   return (
     <dl className="mb-4 grid grid-cols-[64px_1fr] gap-x-2 gap-y-2 text-sm">
@@ -135,7 +154,30 @@ export default function TicketAttributePanel({
 
       <dt className="text-[var(--color-text-muted)]">親</dt>
       <dd>
-        {parentTicket ? (
+        {canEdit && !archived ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setParentPickerOpen((v) => !v)}
+              disabled={busy}
+              aria-expanded={parentPickerOpen}
+              aria-label="親を変更"
+              className="rounded border border-surface-3 bg-surface-1 px-1.5 py-0.5 text-sm hover:bg-surface-2 disabled:opacity-50"
+            >
+              {parentTicket ? formatTicketKey(spaceKey, parentTicket.number) : 'なし'}
+            </button>
+            {parentPickerOpen && (
+              <TicketParentPicker
+                candidates={parentCandidatesQuery.candidates.filter((c) => c.id !== ticket.id)}
+                loading={parentCandidatesQuery.loading}
+                error={parentCandidatesQuery.error}
+                spaceKey={spaceKey}
+                currentParentId={ticket.parentId}
+                onSelect={handleSelectParent}
+              />
+            )}
+          </>
+        ) : parentTicket ? (
           formatTicketKey(spaceKey, parentTicket.number)
         ) : (
           <span className="text-[var(--color-text-muted)]">なし</span>

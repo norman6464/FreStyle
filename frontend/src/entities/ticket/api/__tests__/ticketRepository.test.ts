@@ -93,6 +93,21 @@ describe('TicketRepository.fetchTickets', () => {
   });
 });
 
+describe('TicketRepository.fetchTicketChildren', () => {
+  it('GET /tickets/:ticketId/children を叩く', async () => {
+    mockGet.mockResolvedValue({ data: { tickets: [wireTicket({ id: 'c-1', parentId: 't-1' })] } });
+    const list = await TicketRepository.fetchTicketChildren('acme', 't-1');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/children');
+    expect(list).toHaveLength(1);
+    expect(list[0].parentId).toBe('t-1');
+  });
+
+  it('tickets が null で返っても空配列にする', async () => {
+    mockGet.mockResolvedValue({ data: { tickets: null } });
+    await expect(TicketRepository.fetchTicketChildren('acme', 't-1')).resolves.toEqual([]);
+  });
+});
+
 describe('TicketRepository.createTicket', () => {
   it('POST で作成し、省略項目は空文字/0 で送る', async () => {
     mockPost.mockResolvedValue({ data: wireTicket() });

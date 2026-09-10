@@ -13,6 +13,7 @@ import { SaveStatusIndicator, emptyRichDoc, isRichDoc } from '@/shared/ui/RichTe
 import { useTicketEditor } from '../model/useTicketEditor';
 import TicketAttachmentSection from './TicketAttachmentSection';
 import TicketAttributePanel from './TicketAttributePanel';
+import TicketChildrenSection from './TicketChildrenSection';
 import TicketCommentSection from './TicketCommentSection';
 import TicketLabelBar from './TicketLabelBar';
 import TicketSection from './TicketSection';
@@ -38,6 +39,7 @@ export interface TicketDetailPanelProps {
   onRestore: () => Promise<void>;
   onToggleLabel: (label: Label) => void;
   onCreateLabel: (name: string, color: string) => Promise<Label>;
+  onChangeParent: (parentId: string | null) => Promise<void>;
 }
 
 /**
@@ -65,6 +67,7 @@ export default function TicketDetailPanel({
   onRestore,
   onToggleLabel,
   onCreateLabel,
+  onChangeParent,
 }: TicketDetailPanelProps) {
   const type = types.find((t) => t.id === ticket.typeId);
   const archived = ticket.archivedAt !== null;
@@ -104,6 +107,7 @@ export default function TicketDetailPanel({
 
       <TicketAttributePanel
         ticket={ticket}
+        workspaceSlug={workspaceSlug}
         spaceKey={spaceKey}
         statuses={statuses}
         principals={principals}
@@ -118,7 +122,12 @@ export default function TicketDetailPanel({
         onUnassign={() => void onUnassign()}
         onChangePriority={editor.changePriority}
         onChangeDueDate={editor.changeDueDate}
+        onChangeParent={(parentId) => void onChangeParent(parentId)}
       />
+
+      <TicketSection title="子">
+        <TicketChildrenSection workspaceSlug={workspaceSlug} ticketId={ticket.id} spaceKey={spaceKey} statuses={statuses} />
+      </TicketSection>
 
       <TicketSection title="添付">
         <TicketAttachmentSection workspaceSlug={workspaceSlug} ticketId={ticket.id} canEdit={canEdit && !archived} />

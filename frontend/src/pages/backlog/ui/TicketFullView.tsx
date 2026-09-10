@@ -17,6 +17,7 @@ import TicketAncestorTrail from './TicketAncestorTrail';
 import TicketAttachmentSection from './TicketAttachmentSection';
 import TicketAttributePanel from './TicketAttributePanel';
 import TicketChangeHistory from './TicketChangeHistory';
+import TicketChildrenSection from './TicketChildrenSection';
 import TicketCommentSection from './TicketCommentSection';
 import TicketLabelBar from './TicketLabelBar';
 import TicketSection from './TicketSection';
@@ -45,6 +46,7 @@ export interface TicketFullViewProps {
   onRestore: () => void;
   onToggleLabel: (label: Label) => void;
   onCreateLabel: (name: string, color: string) => Promise<Label>;
+  onChangeParent: (parentId: string | null) => void;
 }
 
 /**
@@ -81,6 +83,7 @@ export default function TicketFullView({
   onRestore,
   onToggleLabel,
   onCreateLabel,
+  onChangeParent,
 }: TicketFullViewProps) {
   const type = types.find((t) => t.id === ticket.typeId);
   const archived = ticket.archivedAt !== null;
@@ -121,6 +124,7 @@ export default function TicketFullView({
             <TicketSection title="素性">
               <TicketAttributePanel
                 ticket={ticket}
+                workspaceSlug={workspaceSlug}
                 spaceKey={spaceKey}
                 statuses={statuses}
                 principals={principals}
@@ -135,7 +139,12 @@ export default function TicketFullView({
                 onUnassign={onUnassign}
                 onChangePriority={editor.changePriority}
                 onChangeDueDate={editor.changeDueDate}
+                onChangeParent={onChangeParent}
               />
+            </TicketSection>
+
+            <TicketSection title="子">
+              <TicketChildrenSection workspaceSlug={workspaceSlug} ticketId={ticket.id} spaceKey={spaceKey} statuses={statuses} />
             </TicketSection>
           </div>
 

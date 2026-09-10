@@ -187,5 +187,37 @@ export function useTicketPage(ticketId: string | undefined) {
     [mutate],
   );
 
-  return { ...state, refresh, updateTicket, changeStatus, assign, unassign, archive, restore, addLabel, removeLabel };
+  /**
+   * 親を変える。祖先列（パンくず）も変わるので、`ticket` だけ差し替える mutate では
+   * 済まず取り直す（useTicketList.move と同じ理由）。
+   */
+  const changeParent = useCallback(
+    async (parentId: string | null) => {
+      const id = active.current;
+      const slug = state.workspaceSlug;
+      if (!id || !slug) throw new Error('ticket page: not resolved');
+      setState((prev) => ({ ...prev, busy: true }));
+      try {
+        await TicketRepository.changeTicketParent(slug, id, parentId);
+      } finally {
+        setState((prev) => ({ ...prev, busy: false }));
+      }
+      if (active.current === id) refresh();
+    },
+    [state.workspaceSlug, refresh],
+  );
+
+  return {
+    ...state,
+    refresh,
+    updateTicket,
+    changeStatus,
+    assign,
+    unassign,
+    archive,
+    restore,
+    addLabel,
+    removeLabel,
+    changeParent,
+  };
 }

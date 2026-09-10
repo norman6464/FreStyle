@@ -4,6 +4,7 @@ import Avatar from '@/shared/ui/Avatar';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { formatDateTime, formatTime } from '@/shared/lib/formatters';
 import type { TicketComment, TicketCommentSegment } from '@/entities/ticket';
+import type { KbWorkspaceMember } from '@/entities/kb';
 import { useCommentEdits } from '../model/useCommentEdits';
 import { summarizeReactions } from '../lib/summarizeReactions';
 import TicketCommentBody from './TicketCommentBody';
@@ -20,6 +21,8 @@ export interface TicketCommentItemProps {
   compact?: boolean;
   workspaceSlug: string;
   ticketId: string;
+  /** 返信・編集欄の '@' 候補。 */
+  members: KbWorkspaceMember[];
   replyOpen: boolean;
   onToggleReply: () => void;
   onReply: (body: TicketCommentSegment[]) => Promise<void>;
@@ -30,16 +33,6 @@ export interface TicketCommentItemProps {
   hasReplies: boolean;
 }
 
-function segmentsFromComment(comment: TicketComment): TicketCommentSegment[] {
-  return comment.body;
-}
-
-function plainTextFromSegments(segments: TicketCommentSegment[]): string {
-  return segments
-    .map((s) => (s.kind === 'text' ? s.text : `@${s.userId}`))
-    .join('');
-}
-
 /** 発言 1 件。幹・返信のどちらも同じ部品で描く（返信は呼び出し側が字下げする）。 */
 export default function TicketCommentItem({
   comment,
@@ -48,6 +41,7 @@ export default function TicketCommentItem({
   compact = false,
   workspaceSlug,
   ticketId,
+  members,
   replyOpen,
   onToggleReply,
   onReply,
@@ -58,7 +52,6 @@ export default function TicketCommentItem({
   hasReplies,
 }: TicketCommentItemProps) {
   const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -92,14 +85,12 @@ export default function TicketCommentItem({
   const canReact = currentUserId !== null && !compact;
 
   const startEdit = () => {
-    setEditValue(plainTextFromSegments(segmentsFromComment(comment)));
     setEditing(true);
     setMenuOpen(false);
   };
 
-  const submitEdit = async () => {
-    if (editValue.trim() === '') return;
-    await onEdit([{ kind: 'text', text: editValue }]);
+  const submitEdit = async (body: TicketCommentSegment[]) => {
+    await onEdit(body);
     setEditing(false);
   };
 
@@ -137,32 +128,22 @@ export default function TicketCommentItem({
 
         {editing ? (
           <div className="mt-1">
-            <textarea
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setEditing(false);
-              }}
+            <TicketCommentComposer
+              onSubmit={submitEdit}
+              members={members}
+              initialSegments={comment.body}
+              resolveMentionName={resolveMentionName}
+              placeholder="発言を編集"
+              submitLabel="保存"
               autoFocus
-              rows={2}
-              aria-label="発言を編集"
-              className="w-full resize-none rounded border border-surface-3 bg-surface-1 px-2 py-1 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-brand-400"
             />
-            <div className="mt-1 flex justify-end gap-2">
+            <div className="mt-1 flex justify-end">
               <button
                 type="button"
                 onClick={() => setEditing(false)}
                 className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
               >
                 やめる
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitEdit()}
-                disabled={editValue.trim() === ''}
-                className="rounded bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-              >
-                保存
               </button>
             </div>
           </div>
@@ -230,7 +211,7 @@ export default function TicketCommentItem({
 
         {replyOpen && !compact && (
           <div className="mt-2">
-            <TicketCommentComposer onSubmit={onReply} placeholder="返信を書く" submitLabel="返信" autoFocus />
+            <TicketCommentComposer onSubmit={onReply} members={members} placeholder="返信を書く" submitLabel="返信" autoFocus />
           </div>
         )}
       </div>

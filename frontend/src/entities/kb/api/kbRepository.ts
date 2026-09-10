@@ -23,6 +23,7 @@ import type {
   KbSearchResult,
   KbSpace,
   KbWorkspace,
+  KbWorkspaceMember,
 } from '../model/types';
 
 /**
@@ -325,6 +326,15 @@ const KbRepository = {
       KB_API.pagePrincipals(workspaceSlug, pageId),
     );
     return toArray<KbGrantablePrincipal>(res.data);
+  },
+
+  /**
+   * ワークスペースに属する人を表示名つきで返す（発言での名指し・担当の表示名解決用）。
+   * 所属していれば誰でも叩ける（ページ管理権限は要らない）。
+   */
+  async fetchMembers(workspaceSlug: string): Promise<KbWorkspaceMember[]> {
+    const res = await apiClient.get<KbWorkspaceMember[]>(KB_API.members(workspaceSlug));
+    return toArray<KbWorkspaceMember>(res.data);
   },
 
   /**

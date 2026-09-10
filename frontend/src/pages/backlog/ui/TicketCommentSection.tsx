@@ -6,6 +6,7 @@ import { getApiError } from '@/shared/lib/classifyApiError';
 import type { TicketCommentSegment } from '@/entities/ticket';
 import { useTicketComments } from '../model/useTicketComments';
 import { useCurrentUserId } from '../model/useCurrentUserId';
+import { useWorkspaceMembers } from '../model/useWorkspaceMembers';
 import { buildCommentTree } from '../lib/buildCommentTree';
 import TicketCommentComposer from './TicketCommentComposer';
 import TicketCommentItem from './TicketCommentItem';
@@ -43,16 +44,22 @@ export default function TicketCommentSection({ workspaceSlug, ticketId, compact 
   const { comments, loading, error, refresh, createComment, editComment, deleteComment, addReaction, removeReaction } =
     useTicketComments(workspaceSlug, ticketId);
   const currentUserId = useCurrentUserId();
+  const { members } = useWorkspaceMembers(workspaceSlug);
   const { showToast } = useToast();
   const [showAllThreads, setShowAllThreads] = useState(false);
 
+  // ワークスペースの人一覧を主にし、そこに居ない相手（脱退済み等）だけ発言の author/editor
+  // から補う（PR3 時点の暫定名簿。人一覧 API が入った今もフォールバックとして残す）。
   const mentionNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of comments) {
       if (c.author.name) map.set(String(c.author.userId), c.author.name);
     }
+    for (const m of members) {
+      if (m.name) map.set(String(m.userId), m.name);
+    }
     return map;
-  }, [comments]);
+  }, [comments, members]);
   const resolveMentionName = (userId: string) => mentionNames.get(userId) ?? null;
 
   const handleCreate = (body: TicketCommentSegment[], parentCommentId?: string) =>
@@ -75,7 +82,11 @@ export default function TicketCommentSection({ workspaceSlug, ticketId, compact 
   };
 
   const composer = (
-    <TicketCommentComposer onSubmit={(body) => handleCreate(body).then(() => undefined)} placeholder="コメントを書く" />
+    <TicketCommentComposer
+      onSubmit={(body) => handleCreate(body).then(() => undefined)}
+      members={members}
+      placeholder="コメントを書く"
+    />
   );
 
   if (compact) {
@@ -102,6 +113,7 @@ export default function TicketCommentSection({ workspaceSlug, ticketId, compact 
               compact
               workspaceSlug={workspaceSlug}
               ticketId={ticketId}
+              members={members}
               replyOpen={false}
               onToggleReply={() => {}}
               onReply={async () => {}}
@@ -169,6 +181,7 @@ export default function TicketCommentSection({ workspaceSlug, ticketId, compact 
             currentUserId={currentUserId}
             workspaceSlug={workspaceSlug}
             ticketId={ticketId}
+            members={members}
             onReply={handleReply}
             onEdit={handleEdit}
             onDelete={handleDelete}

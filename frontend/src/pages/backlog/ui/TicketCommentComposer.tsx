@@ -1,43 +1,111 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { Placeholder } from '@tiptap/extensions';
+import type { KbWorkspaceMember } from '@/entities/kb';
 import type { TicketCommentSegment } from '@/entities/ticket';
+import { CommentComposerEnter, Mention, setMentionMembers } from './mentionExtension';
+import { editorContentToSegments, isEditorContentEmpty, segmentsToEditorContent } from '../lib/mentionComposerContent';
 
 export interface TicketCommentComposerProps {
   /** 失敗は投げてくる前提（投げられたら入力を保つ）。 */
   onSubmit: (body: TicketCommentSegment[]) => Promise<void>;
+  /** '@' の候補。ワークスペースに属する人（useWorkspaceMembers）。 */
+  members: KbWorkspaceMember[];
+  /** 発言の編集を開いたときの下書きの種。省略時は空欄から始める。 */
+  initialSegments?: TicketCommentSegment[];
+  /** initialSegments の mention に表示名を当てる（引けなければ「不明なユーザー」）。 */
+  resolveMentionName?: (userId: string) => string | null;
   placeholder?: string;
   submitLabel?: string;
   autoFocus?: boolean;
 }
 
 /**
- * 発言の入力欄。当面はふつうの複数行入力（@ の候補選択による名指しは、backend の
- * 人の一覧 API が入ってから別の入力欄に差し替える。それまでは打っても名指しにならない
- * ただの文字として送られる — 通知は飛ばないが、送信自体は妨げない）。
+ * 発言の入力欄。'@' に続けて日本語で打つと、ワークスペースに属する人の候補が出る
+ * （tiptap の Suggestion。shared/ui/RichTextEditor の '/' コマンドと同じ仕組み）。
+ * 選ぶと名指しは 1 個の不可分な単位になり、Backspace で丸ごと消える。
  *
- * 空判定は「trim 後が空」。backend は「配列が空」または「text ノードだけで trim 後が
- * 全部空」を本文全体ごと 400 で拒む境界を持つので、ここで先に止める
- * （サーバー応答は invalid_request に潰れて理由が分からないため）。
+ * エディタのスキーマは本文エディタ（RichTextEditor）とは別（段落を持たない一列・marks 無し）
+ * — 発言の本文は marks を一切保持しない方針（entities/ticket/lib/commentBody.ts）に、
+ * 入力側のスキーマも最初から合わせてある。
+ *
+ * 空判定は「文字も名指しも無い」。backend は「配列が空」または「text ノードだけで trim 後が
+ * 全部空」を本文全体ごと 400 で拒む境界を持つので、ここで先に止める。
  */
 export default function TicketCommentComposer({
   onSubmit,
+  members,
+  initialSegments = [],
+  resolveMentionName,
   placeholder = 'コメントを書く',
   submitLabel = '送信',
   autoFocus = false,
 }: TicketCommentComposerProps) {
-  const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const trimmed = value.trim();
-  const canSubmit = trimmed !== '' && !submitting;
+  // マウント時の下書きの種だけを見る（以降 initialSegments が変わっても打ち直さない —
+  // 発言の編集はコンポーザごと開閉されるたびに新しく積むので、この eslint-disable で十分）。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initialContent = useMemo(() => segmentsToEditorContent(initialSegments, resolveMentionName ?? (() => null)), []);
+  const [empty, setEmpty] = useState(() => isEditorContentEmpty(initialContent));
+
+  const editor = useEditor({
+    editable: !submitting,
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        code: false,
+        codeBlock: false,
+        link: false,
+        blockquote: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        horizontalRule: false,
+        bold: false,
+        italic: false,
+        strike: false,
+        dropcursor: false,
+        gapcursor: false,
+      }),
+      // members は初回描画時点の値で足りる。読み込みが遅れて後から届いた分は下の
+      // useEffect が editor.storage.mention へ書き足す（拡張一覧は生成時に固定されるため）。
+      Mention.configure({ members }),
+      CommentComposerEnter,
+      Placeholder.configure({ placeholder }),
+    ],
+    content: initialContent,
+    autofocus: autoFocus,
+    editorProps: {
+      attributes: {
+        class: 'text-sm text-[var(--color-text-primary)] focus:outline-none',
+        role: 'textbox',
+        'aria-multiline': 'true',
+        'aria-label': placeholder,
+      },
+    },
+    onUpdate: ({ editor: currentEditor }) => {
+      setEmpty(isEditorContentEmpty(currentEditor.getJSON()));
+    },
+  });
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) setMentionMembers(editor, members);
+  }, [editor, members]);
+
+  const canSubmit = !empty && !submitting;
 
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    if (!editor || !canSubmit) return;
+    const segments = editorContentToSegments(editor.getJSON());
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit([{ kind: 'text', text: value }]);
-      setValue('');
+      await onSubmit(segments);
+      editor.commands.clearContent();
+      setEmpty(true);
     } catch {
       setError('送信できませんでした。もう一度お試しください。');
     } finally {
@@ -47,16 +115,7 @@ export default function TicketCommentComposer({
 
   return (
     <div className="rounded-xl border border-surface-3 p-2">
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        rows={2}
-        disabled={submitting}
-        autoFocus={autoFocus}
-        className="w-full resize-none bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none disabled:opacity-60"
-      />
+      <EditorContent editor={editor} />
       {error && (
         <p role="alert" className="mt-1 text-xs leading-relaxed text-red-700">
           {error}

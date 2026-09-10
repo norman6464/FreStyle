@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test';
 import TicketCommentSection from './TicketCommentSection';
 import { withApi, withToast, type ApiStubs } from '../../../../.storybook/decorators';
 
@@ -18,10 +18,16 @@ function comment(over: Record<string, unknown> & { id: string }) {
   };
 }
 
+const MEMBERS = [
+  { principalId: 'p-1', userId: 1, name: 'norman6464' },
+  { principalId: 'p-2', userId: 2, name: '佐藤 花子' },
+];
+
 function baseApi(over: ApiStubs = {}): ApiStubs {
   return {
     '/profile/me': PROFILE,
     '/kb/workspaces/acme/tickets/t-1/comments': { comments: [] },
+    '/kb/workspaces/acme/members': MEMBERS,
     ...over,
   };
 }
@@ -43,7 +49,7 @@ export const 空: Story = {
     await waitFor(async () => {
       await expect(canvas.getByText('まだコメントはありません')).toBeInTheDocument();
     });
-    await expect(canvas.getByPlaceholderText('コメントを書く')).toBeInTheDocument();
+    await expect(canvas.getByRole('textbox', { name: 'コメントを書く' })).toBeInTheDocument();
   },
 };
 
@@ -173,12 +179,64 @@ export const 空白だけの返信は送信できない: Story = {
       await expect(canvas.getByRole('button', { name: '返信' })).toBeInTheDocument();
     });
     await userEvent.click(canvas.getByRole('button', { name: '返信' }));
-    const replyBox = await canvas.findByPlaceholderText('返信を書く');
+    const replyBox = await canvas.findByRole('textbox', { name: '返信を書く' });
     await userEvent.type(replyBox, '   ');
     // 「返信」という名前のボタンが開閉トグルと送信の 2 つあるので、送信ボタン
     // （入力欄と同じコンポーザの中）に絞って確かめる。
-    const composer = within(replyBox.parentElement as HTMLElement);
+    const composer = within(replyBox.closest('.rounded-xl') as HTMLElement);
     await expect(composer.getByRole('button', { name: '返信' })).toBeDisabled();
+  },
+};
+
+export const 名指しの候補から選んで送信する: Story = {
+  decorators: [
+    withApi(
+      baseApi({
+        '/kb/workspaces/acme/tickets/t-1/comments': (config: { method?: string; data?: unknown }) => {
+          if (config.method !== 'post') return { comments: [] };
+          const sent = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+          return comment({ id: 'c-new', author: { userId: 1, name: 'norman6464' }, body: (sent as { body: unknown }).body });
+        },
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const box = await canvas.findByRole('textbox', { name: 'コメントを書く' });
+    await userEvent.type(box, '@佐藤');
+    // 候補の一覧は floating-ui でキャンバスの外（document 直下）へ描かれるため、
+    // canvasElement には閉じない screen で探す（slashCommand.integration.test.tsx と同じ理由）。
+    await waitFor(async () => {
+      await expect(screen.getByRole('option', { name: /佐藤 花子/ })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole('option', { name: /佐藤 花子/ }));
+    await userEvent.click(canvas.getByRole('button', { name: '送信' }));
+    await waitFor(async () => {
+      await expect(canvas.getByText('@佐藤 花子')).toBeInTheDocument();
+    });
+  },
+};
+
+/**
+ * Enter は「選んでいる候補を確定する」（改行にならない）。CommentComposerEnter（改行を
+ * hardBreak に固定する拡張）が候補一覧より先に Enter を食ってしまう回帰を防ぐための story
+ * （実際に一度この壊れ方をした — mentionExtension.ts の doc 参照）。
+ */
+export const 候補が出ているときのEnterは改行にならず確定する: Story = {
+  decorators: [withApi(baseApi())],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const box = await canvas.findByRole('textbox', { name: 'コメントを書く' });
+    await userEvent.type(box, '@');
+    await waitFor(async () => {
+      await expect(screen.getByRole('option', { name: /norman6464/ })).toBeInTheDocument();
+    });
+    await userEvent.keyboard('{Enter}');
+    await waitFor(async () => {
+      await expect(canvas.getByText('@norman6464')).toBeInTheDocument();
+    });
+    // 改行（hardBreak）を挟んで二重に確定していない — 名指しは 1 個だけ。
+    await expect(canvas.getAllByText('@norman6464')).toHaveLength(1);
   },
 };
 

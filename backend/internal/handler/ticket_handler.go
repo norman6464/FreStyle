@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -14,6 +15,17 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
 )
+
+// ticketDateQueryLayout は一覧の絞り込みクエリパラメータ（dueBefore / startAfter）の形。
+// JSON ボディの binding:"datetime=2006-01-02" と同じ形を、クエリパラメータでも手で確かめる
+// （c.Query は gin の binding タグを通らないため）。壊れた値をそのまま usecase へ渡すと
+// DB の ::date キャストで 500 になってしまう。
+const ticketDateQueryLayout = "2006-01-02"
+
+func validTicketDateQuery(v string) bool {
+	_, err := time.Parse(ticketDateQueryLayout, v)
+	return err == nil
+}
 
 // TicketHandler はチケット本体の操作を受ける（有効化・作成・取得・一覧・更新・並び替え・
 // アーカイブ・状態変更・親変更・担当・履歴）。状態/種別マスタの管理は TicketStatusHandler /
@@ -47,6 +59,10 @@ type TicketHandler struct {
 	assign        *ticket.AssignTicketUseCase
 	unassign      *ticket.UnassignTicketUseCase
 	history       *ticket.ListTicketHistoryUseCase
+	// labels / labelsByIDs は段 4。担当（getAssignment）と同じ分担 — 変更系 usecase は
+	// ラベルを触らないので、応答を組み立てる直前に handler が補う。
+	labels      *ticket.ListLabelsForTicketUseCase
+	labelsByIDs *ticket.ListLabelsByTicketIDsUseCase
 }
 
 func NewTicketHandler(
@@ -71,6 +87,8 @@ func NewTicketHandler(
 	assign *ticket.AssignTicketUseCase,
 	unassign *ticket.UnassignTicketUseCase,
 	history *ticket.ListTicketHistoryUseCase,
+	labels *ticket.ListLabelsForTicketUseCase,
+	labelsByIDs *ticket.ListLabelsByTicketIDsUseCase,
 ) *TicketHandler {
 	return &TicketHandler{
 		checkSpace: checkSpace, checkTicket: checkTicket, resolveKey: resolveKey,
@@ -80,6 +98,7 @@ func NewTicketHandler(
 		move: move, archive: archive, restore: restore,
 		del: del, findDeleted: findDeleted, restoreDel: restoreDel, changeStat: changeStat,
 		changeParent: changeParent, assign: assign, unassign: unassign, history: history,
+		labels: labels, labelsByIDs: labelsByIDs,
 	}
 }
 
@@ -105,6 +124,8 @@ func respondTicketErr(c *gin.Context, err error) {
 		errors.Is(err, repository.ErrTicketStatusNotFound),
 		errors.Is(err, repository.ErrTicketTypeNotFound),
 		errors.Is(err, repository.ErrTicketCommentNotFound),
+		errors.Is(err, repository.ErrLabelNotFound),
+		errors.Is(err, repository.ErrTicketAttachmentNotFound),
 		errors.Is(err, repository.ErrSpaceNotFound),
 		errors.Is(err, repository.ErrWorkspaceNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
@@ -116,6 +137,14 @@ func respondTicketErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, errorResponse{Error: "status_name_taken"})
 	case errors.Is(err, repository.ErrTicketTypeNameTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "type_name_taken"})
+	case errors.Is(err, repository.ErrLabelNameTaken):
+		c.JSON(http.StatusConflict, errorResponse{Error: "label_name_taken"})
+	case errors.Is(err, domain.ErrUnsupportedAttachmentContentType):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "unsupported_content_type"})
+	case errors.Is(err, domain.ErrAttachmentTooLarge):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "attachment_too_large"})
+	case errors.Is(err, ticket.ErrInvalidAttachmentKey):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_attachment_key"})
 	case errors.Is(err, ticket.ErrTicketStatusInUse):
 		c.JSON(http.StatusConflict, errorResponse{Error: "status_in_use"})
 	case errors.Is(err, ticket.ErrTicketTypeInUse):
@@ -137,7 +166,10 @@ func respondTicketErr(c *gin.Context, err error) {
 		errors.Is(err, domain.ErrInvalidTicketStatusCategory),
 		errors.Is(err, domain.ErrInvalidTicketHierarchyLevel),
 		errors.Is(err, domain.ErrInvalidCommentBody),
-		errors.Is(err, domain.ErrInvalidTicketCommentReactionEmoji):
+		errors.Is(err, domain.ErrInvalidTicketCommentReactionEmoji),
+		errors.Is(err, domain.ErrInvalidLabelName),
+		errors.Is(err, domain.ErrInvalidLabelColor),
+		errors.Is(err, domain.ErrInvalidAttachmentFilename):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
@@ -320,6 +352,7 @@ func (h *TicketHandler) Get(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
+		Labels: h.fetchLabels(c, scope, ticketID),
 	})
 }
 
@@ -350,6 +383,7 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
+		Labels: h.fetchLabels(c, scope, ticketID),
 	})
 }
 
@@ -405,6 +439,7 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 		WorkspaceName: loc.Workspace.Name,
 		Ticket: ticketResponse{
 			Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
+			Labels: h.fetchLabels(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
 		},
 		CanEdit: perm.CanEdit,
 	})
@@ -417,7 +452,23 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 // 型を出し分けなくてよい（担当が居なければ assigneePrincipalId は出ない）。
 type ticketResponse struct {
 	*domain.Ticket
-	AssigneePrincipalID *string `json:"assigneePrincipalId,omitempty"`
+	AssigneePrincipalID *string        `json:"assigneePrincipalId,omitempty"`
+	Labels              []domain.Label `json:"labels"`
+}
+
+// fetchLabels はチケット 1 件のラベルを引く。引けなければ空スライスとして応答を止めない
+// （respondTicket が担当の引き失敗を warn ログに落として続けるのと同じ扱い — 変更そのものは
+// 既に成功しているため）。
+func (h *TicketHandler) fetchLabels(c *gin.Context, scope kbRequestScope, ticketID string) []domain.Label {
+	labels, err := h.labels.Execute(c.Request.Context(), scope.workspaceID, ticketID)
+	if err != nil {
+		slog.WarnContext(c.Request.Context(), "ticket: labels lookup failed", "err", err, "ticketId", ticketID)
+		return []domain.Label{}
+	}
+	if labels == nil {
+		labels = []domain.Label{}
+	}
+	return labels
 }
 
 // ticketListResponse は一覧の返却形。
@@ -429,7 +480,7 @@ type ticketListResponse struct {
 // ここで 1 回だけ引いて詰める（引けなければ担当なしとして返し、応答自体は止めない —
 // 変更そのものは既に成功しているため。kb が最終編集者の名前で採るのと同じ扱い）。
 func (h *TicketHandler) respondTicket(c *gin.Context, scope kbRequestScope, t *domain.Ticket, status int) {
-	res := ticketResponse{Ticket: t}
+	res := ticketResponse{Ticket: t, Labels: h.fetchLabels(c, scope, t.ID)}
 	a, err := h.getAssignment.Execute(c.Request.Context(), scope.workspaceID, t.ID)
 	if err != nil {
 		slog.WarnContext(c.Request.Context(), "ticket: assignee lookup failed", "err", err, "ticketId", t.ID)
@@ -450,7 +501,7 @@ func (h *TicketHandler) List(c *gin.Context) {
 	if !h.requireTicketSpacePermission(c, scope, spaceID, domain.CapabilityView) {
 		return
 	}
-	var statusID, typeID, assigneeID *string
+	var statusID, typeID, assigneeID, labelID, dueBefore, startAfter *string
 	if v := c.Query("statusId"); v != "" {
 		statusID = &v
 	}
@@ -460,20 +511,52 @@ func (h *TicketHandler) List(c *gin.Context) {
 	if v := c.Query("assigneePrincipalId"); v != "" {
 		assigneeID = &v
 	}
+	if v := c.Query("label"); v != "" {
+		labelID = &v
+	}
+	if v := c.Query("dueBefore"); v != "" {
+		if !validTicketDateQuery(v) {
+			c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+			return
+		}
+		dueBefore = &v
+	}
+	if v := c.Query("startAfter"); v != "" {
+		if !validTicketDateQuery(v) {
+			c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+			return
+		}
+		startAfter = &v
+	}
 	tickets, err := h.list.Execute(c.Request.Context(), ticket.ListTicketsInput{
 		WorkspaceID: scope.workspaceID, SpaceID: spaceID,
 		IncludeArchived: c.Query("archived") == "true",
 		StatusID:        statusID, TypeID: typeID, AssigneePrincipalID: assigneeID,
+		LabelID: labelID, DueBefore: dueBefore, StartAfter: startAfter,
 	})
 	if err != nil {
 		respondTicketErr(c, err)
 		return
 	}
+	ticketIDs := make([]string, len(tickets))
+	for i := range tickets {
+		ticketIDs[i] = tickets[i].Ticket.ID
+	}
+	labelsByTicket, err := h.labelsByIDs.Execute(c.Request.Context(), scope.workspaceID, ticketIDs)
+	if err != nil {
+		slog.WarnContext(c.Request.Context(), "ticket: batch labels lookup failed", "err", err, "spaceId", spaceID)
+		labelsByTicket = nil
+	}
 	out := make([]ticketResponse, 0, len(tickets))
 	for i := range tickets {
+		labels := labelsByTicket[tickets[i].Ticket.ID]
+		if labels == nil {
+			labels = []domain.Label{}
+		}
 		out = append(out, ticketResponse{
 			Ticket:              &tickets[i].Ticket,
 			AssigneePrincipalID: tickets[i].AssigneePrincipalID,
+			Labels:              labels,
 		})
 	}
 	c.JSON(http.StatusOK, ticketListResponse{Tickets: out})

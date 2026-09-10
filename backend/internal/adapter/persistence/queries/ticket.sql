@@ -211,7 +211,11 @@ WHERE t.workspace_id = sqlc.arg(workspace_id)
   AND t.number = sqlc.arg(number);
 
 -- name: ListTickets :many
--- status_id / type_id / assignee_principal_id はいずれも sqlc.narg。NULL なら絞らない。
+-- status_id / type_id / assignee_principal_id / label_id / due_before / start_after はいずれも
+-- sqlc.narg。NULL なら絞らない（段 4 で label_id / due_before / start_after を追加）。
+-- label_id は ticket_labels への EXISTS で絞る（LEFT JOIN だとラベル数だけ行が重複するため）。
+-- due_before / start_after は 'YYYY-MM-DD' 文字列を date として渡す（tickets.due_date /
+-- start_date と同じ運び方。冒頭の作法参照）。
 -- ticket_ranks を LEFT JOIN + COALESCE で並び順を rank_position として返す（GetTicket と同じ理由）。
 -- deleted_at IS NULL は常に付ける（include_archived の有無に関わらず、削除済みは一覧に出さない）。
 SELECT t.*, a.assignee_principal_id, COALESCE(r.position, t."position") AS rank_position FROM tickets t
@@ -226,6 +230,15 @@ WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.space_id = sqlc.arg(space_id
     sqlc.narg(assignee_principal_id)::uuid IS NULL
     OR a.assignee_principal_id = sqlc.narg(assignee_principal_id)::uuid
   )
+  AND (
+    sqlc.narg(label_id)::uuid IS NULL
+    OR EXISTS (
+      SELECT 1 FROM ticket_labels tl
+      WHERE tl.workspace_id = t.workspace_id AND tl.ticket_id = t.id AND tl.label_id = sqlc.narg(label_id)::uuid
+    )
+  )
+  AND (sqlc.narg(due_before)::date IS NULL OR t.due_date <= sqlc.narg(due_before)::date)
+  AND (sqlc.narg(start_after)::date IS NULL OR t.start_date >= sqlc.narg(start_after)::date)
 ORDER BY COALESCE(r.position, t."position");
 
 -- name: ListTicketChildren :many

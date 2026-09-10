@@ -34,6 +34,12 @@ type ticketFakeRepo struct {
 	comments         map[string]*domain.TicketComment      // commentID -> comment
 	commentEdits     map[string][]domain.TicketCommentEdit // commentID -> 編集履歴（追加順）
 	commentReactions map[string][]domain.TicketCommentReaction
+
+	// 段 4: ラベル・添付（LabelRepository / TicketAttachmentRepository も同じ struct に
+	// 実装する。段 3 の comments と同じ判断）。
+	labels       map[string]*domain.Label
+	ticketLabels map[string][]string // ticketID -> labelID（追加順）
+	attachments  map[string]*domain.TicketAttachment
 }
 
 func newTicketFakeRepo() *ticketFakeRepo {
@@ -49,6 +55,9 @@ func newTicketFakeRepo() *ticketFakeRepo {
 		comments:         map[string]*domain.TicketComment{},
 		commentEdits:     map[string][]domain.TicketCommentEdit{},
 		commentReactions: map[string][]domain.TicketCommentReaction{},
+		labels:           map[string]*domain.Label{},
+		ticketLabels:     map[string][]string{},
+		attachments:      map[string]*domain.TicketAttachment{},
 	}
 }
 
@@ -453,6 +462,24 @@ func (f *ticketFakeRepo) ListTickets(_ context.Context, in repository.ListTicket
 			if !ok || a.AssigneePrincipalID != *in.AssigneePrincipalID {
 				continue
 			}
+		}
+		if in.LabelID != nil {
+			has := false
+			for _, lID := range f.ticketLabels[t.ID] {
+				if lID == *in.LabelID {
+					has = true
+					break
+				}
+			}
+			if !has {
+				continue
+			}
+		}
+		if in.DueBefore != nil && (t.DueDate == nil || *t.DueDate > *in.DueBefore) {
+			continue
+		}
+		if in.StartAfter != nil && (t.StartDate == nil || *t.StartDate < *in.StartAfter) {
+			continue
 		}
 		row := repository.TicketWithAssignee{Ticket: *t}
 		if a, ok := f.assignments[t.ID]; ok {
@@ -869,3 +896,186 @@ func (f *ticketFakeRepo) ListTicketCommentReactions(_ context.Context, workspace
 }
 
 var _ repository.TicketCommentRepository = (*ticketFakeRepo)(nil)
+
+// --- 段 4: ラベル ---
+
+func (f *ticketFakeRepo) CreateLabel(_ context.Context, l *domain.Label) error {
+	for _, other := range f.labels {
+		if other.WorkspaceID == l.WorkspaceID && other.SpaceID == l.SpaceID &&
+			strings.EqualFold(strings.TrimSpace(other.Name), strings.TrimSpace(l.Name)) {
+			return repository.ErrLabelNameTaken
+		}
+	}
+	l.ID = f.newID("label")
+	l.CreatedAt = time.Now()
+	l.UpdatedAt = l.CreatedAt
+	stored := *l
+	f.labels[l.ID] = &stored
+	return nil
+}
+
+func (f *ticketFakeRepo) FindLabel(_ context.Context, workspaceID, labelID string) (*domain.Label, error) {
+	l, ok := f.labels[labelID]
+	if !ok || l.WorkspaceID != workspaceID {
+		return nil, repository.ErrLabelNotFound
+	}
+	cp := *l
+	return &cp, nil
+}
+
+func (f *ticketFakeRepo) ListLabels(_ context.Context, workspaceID, spaceID string) ([]domain.Label, error) {
+	var out []domain.Label
+	for _, l := range f.labels {
+		if l.WorkspaceID == workspaceID && l.SpaceID == spaceID {
+			out = append(out, *l)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (f *ticketFakeRepo) UpdateLabel(_ context.Context, l *domain.Label) error {
+	existing, ok := f.labels[l.ID]
+	if !ok || existing.WorkspaceID != l.WorkspaceID {
+		return repository.ErrLabelNotFound
+	}
+	for _, other := range f.labels {
+		if other.ID != l.ID && other.WorkspaceID == l.WorkspaceID && other.SpaceID == existing.SpaceID &&
+			strings.EqualFold(strings.TrimSpace(other.Name), strings.TrimSpace(l.Name)) {
+			return repository.ErrLabelNameTaken
+		}
+	}
+	l.SpaceID = existing.SpaceID
+	l.CreatedAt = existing.CreatedAt
+	l.UpdatedAt = time.Now()
+	stored := *l
+	f.labels[l.ID] = &stored
+	return nil
+}
+
+func (f *ticketFakeRepo) DeleteLabel(_ context.Context, workspaceID, labelID string) error {
+	l, ok := f.labels[labelID]
+	if !ok || l.WorkspaceID != workspaceID {
+		return repository.ErrLabelNotFound
+	}
+	delete(f.labels, labelID)
+	for tID, ids := range f.ticketLabels {
+		kept := ids[:0]
+		for _, id := range ids {
+			if id != labelID {
+				kept = append(kept, id)
+			}
+		}
+		f.ticketLabels[tID] = kept
+	}
+	return nil
+}
+
+func (f *ticketFakeRepo) AddTicketLabel(_ context.Context, workspaceID, ticketID, labelID string) error {
+	if _, ok := f.labels[labelID]; !ok {
+		return repository.ErrLabelNotFound
+	}
+	for _, id := range f.ticketLabels[ticketID] {
+		if id == labelID {
+			return nil // 冪等
+		}
+	}
+	f.ticketLabels[ticketID] = append(f.ticketLabels[ticketID], labelID)
+	return nil
+}
+
+func (f *ticketFakeRepo) RemoveTicketLabel(_ context.Context, workspaceID, ticketID, labelID string) error {
+	kept := f.ticketLabels[ticketID][:0]
+	for _, id := range f.ticketLabels[ticketID] {
+		if id != labelID {
+			kept = append(kept, id)
+		}
+	}
+	f.ticketLabels[ticketID] = kept
+	return nil
+}
+
+func (f *ticketFakeRepo) ListLabelsByTicket(_ context.Context, workspaceID, ticketID string) ([]domain.Label, error) {
+	var out []domain.Label
+	for _, id := range f.ticketLabels[ticketID] {
+		if l, ok := f.labels[id]; ok {
+			out = append(out, *l)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (f *ticketFakeRepo) ListLabelsByTicketIDs(_ context.Context, workspaceID string, ticketIDs []string) (map[string][]domain.Label, error) {
+	out := map[string][]domain.Label{}
+	for _, tID := range ticketIDs {
+		var labels []domain.Label
+		for _, id := range f.ticketLabels[tID] {
+			if l, ok := f.labels[id]; ok {
+				labels = append(labels, *l)
+			}
+		}
+		if len(labels) > 0 {
+			sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
+			out[tID] = labels
+		}
+	}
+	return out, nil
+}
+
+var _ repository.LabelRepository = (*ticketFakeRepo)(nil)
+
+// --- 段 4: 添付 ---
+
+func (f *ticketFakeRepo) CreateTicketAttachment(_ context.Context, a *domain.TicketAttachment) error {
+	a.ID = f.newID("attachment")
+	a.CreatedAt = time.Now()
+	stored := *a
+	f.attachments[a.ID] = &stored
+	return nil
+}
+
+func (f *ticketFakeRepo) FindTicketAttachment(_ context.Context, workspaceID, ticketID, attachmentID string) (*domain.TicketAttachment, error) {
+	a, ok := f.attachments[attachmentID]
+	if !ok || a.WorkspaceID != workspaceID || a.TicketID != ticketID {
+		return nil, repository.ErrTicketAttachmentNotFound
+	}
+	cp := *a
+	return &cp, nil
+}
+
+func (f *ticketFakeRepo) ListTicketAttachments(_ context.Context, workspaceID, ticketID string) ([]domain.TicketAttachment, error) {
+	var out []domain.TicketAttachment
+	for _, a := range f.attachments {
+		if a.WorkspaceID == workspaceID && a.TicketID == ticketID {
+			out = append(out, *a)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (f *ticketFakeRepo) DeleteTicketAttachment(_ context.Context, workspaceID, ticketID, attachmentID string) error {
+	a, ok := f.attachments[attachmentID]
+	if !ok || a.WorkspaceID != workspaceID || a.TicketID != ticketID {
+		return repository.ErrTicketAttachmentNotFound
+	}
+	delete(f.attachments, attachmentID)
+	return nil
+}
+
+var _ repository.TicketAttachmentRepository = (*ticketFakeRepo)(nil)
+
+// ticketAttachmentFakePresigner は TicketAttachmentPresigner の in-memory fake
+// （実際の署名は行わず、key を埋め込んだだけの決定的な URL を返す）。
+type ticketAttachmentFakePresigner struct{}
+
+func (ticketAttachmentFakePresigner) PresignUpload(_ context.Context, key, _ string, _ int64) (string, int, error) {
+	return "https://fake-storage.example/" + key + "?mode=put", 600, nil
+}
+
+func (ticketAttachmentFakePresigner) PresignDownload(_ context.Context, key string) (string, int, error) {
+	return "https://fake-storage.example/" + key + "?mode=get", 600, nil
+}
+
+var _ repository.TicketAttachmentPresigner = ticketAttachmentFakePresigner{}

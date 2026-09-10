@@ -706,6 +706,57 @@ func TestTicketRepository_Integration(t *testing.T) {
 		require.Len(t, assigned, 1)
 		assert.Equal(t, created.ID, assigned[0].ID)
 	})
+
+	// 段 4 で ListTickets へ足した label_id / due_before / start_after の絞り込みを、
+	// 実 Postgres の EXISTS サブクエリ・date キャストで固定する（fake の同等ロジックは
+	// handler 層のテストで別途確かめているが、生 SQL 自体の正しさはここでしか見られない）。
+	t.Run("一覧はlabel_id_due_before_start_afterで絞り込める", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		labels := persistence.NewLabelRepository(sqlDB)
+		label := &domain.Label{WorkspaceID: ws, SpaceID: space, Name: "緊急", Color: "#ff0000"}
+		require.NoError(t, labels.CreateLabel(ctx, label))
+
+		due1, start1 := "2026-01-10", "2026-01-01"
+		tagged, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "対象", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a0",
+			Priority: domain.TicketPriorityDefault, StartDate: &start1, DueDate: &due1, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		require.NoError(t, labels.AddTicketLabel(ctx, ws, tagged.ID, label.ID))
+
+		due2, start2 := "2026-03-10", "2026-03-01"
+		_, err = repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID,
+			Title: "対象外", Doc: []byte(`{"type":"doc","content":[]}`), Position: "a1",
+			Priority: domain.TicketPriorityDefault, StartDate: &start2, DueDate: &due2, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+
+		byLabel, err := repo.ListTickets(ctx, repository.ListTicketsInput{
+			WorkspaceID: ws, SpaceID: space, LabelID: &label.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, byLabel, 1)
+		assert.Equal(t, tagged.ID, byLabel[0].Ticket.ID)
+
+		dueBefore := "2026-02-01"
+		byDue, err := repo.ListTickets(ctx, repository.ListTicketsInput{
+			WorkspaceID: ws, SpaceID: space, DueBefore: &dueBefore,
+		})
+		require.NoError(t, err)
+		require.Len(t, byDue, 1)
+		assert.Equal(t, tagged.ID, byDue[0].Ticket.ID)
+
+		startAfter := "2026-02-01"
+		byStart, err := repo.ListTickets(ctx, repository.ListTicketsInput{
+			WorkspaceID: ws, SpaceID: space, StartAfter: &startAfter,
+		})
+		require.NoError(t, err)
+		require.Len(t, byStart, 1)
+		assert.NotEqual(t, tagged.ID, byStart[0].Ticket.ID, "start_afterは指定日以降のみ")
+	})
 }
 
 // seedTicketMasterViaRepo は repository 経由で状態・種別を 1 つずつ用意する

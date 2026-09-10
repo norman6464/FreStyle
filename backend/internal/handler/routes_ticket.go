@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"context"
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	infraGCS "github.com/norman6464/FreStyle/backend/internal/infra/gcs"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
@@ -21,12 +25,32 @@ func registerTicketRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		g,
 		persistence.NewTicketRepository(deps.db),
 		persistence.NewTicketCommentRepository(deps.db),
+		persistence.NewLabelRepository(deps.db),
+		persistence.NewTicketAttachmentRepository(deps.db),
 		persistence.NewKnowledgeBasePermissionRepository(deps.db),
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewUserRepository(deps.db),
 		persistence.NewNotificationRepository(deps.db),
 		persistence.NewTxManager(deps.db),
+		newTicketAttachmentPresignerOrFallback(deps),
 	)
+}
+
+// newTicketAttachmentPresignerOrFallback は newKbImagePresignerOrFallback と同じ判断
+// （routes_knowledge_base.go 参照）— IMAGES_BUCKET 未設定なら stub、設定済みで初期化に
+// 失敗すれば起動を止める。添付は kb ページ画像・rich-text 画像と同じバケットを
+// tickets/ prefix で共有する（新しいバケットを増やさない。段 4 着手時の判断）。
+func newTicketAttachmentPresignerOrFallback(deps *routeDeps) repository.TicketAttachmentPresigner {
+	bucket := deps.cfg.Images.Bucket
+	if bucket == "" {
+		log.Printf("[ticket-attachment] IMAGES_BUCKET unset — using stub presigner (DEV)")
+		return persistence.NewStubTicketAttachmentPresigner("stub-bucket")
+	}
+	pre, err := infraGCS.NewPresigner(context.Background(), bucket)
+	if err != nil {
+		log.Fatalf("[ticket-attachment] IMAGES_BUCKET=%q is set but GCS presigner init failed: %v", bucket, err)
+	}
+	return persistence.NewTicketAttachmentPresigner(pre)
 }
 
 // registerTicketRoutesWith は repository を受け取ってルートと middleware を組み立てる
@@ -35,11 +59,14 @@ func registerTicketRoutesWith(
 	g *gin.RouterGroup,
 	tickets repository.TicketRepository,
 	comments repository.TicketCommentRepository,
+	labels repository.LabelRepository,
+	attachments repository.TicketAttachmentRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
 	pages repository.KnowledgeBaseRepository,
 	users repository.UserRepository,
 	notifs repository.NotificationRepository,
 	txManager repository.TxManager,
+	attachmentPresigner repository.TicketAttachmentPresigner,
 ) {
 	checkSpace := kb.NewCheckSpacePermissionUseCase(permissions)
 	checkTicket := ticket.NewCheckTicketPermissionUseCase(tickets, permissions)
@@ -66,6 +93,8 @@ func registerTicketRoutesWith(
 		ticket.NewAssignTicketUseCase(tickets),
 		ticket.NewUnassignTicketUseCase(tickets),
 		ticket.NewListTicketHistoryUseCase(tickets),
+		ticket.NewListLabelsForTicketUseCase(labels),
+		ticket.NewListLabelsByTicketIDsUseCase(labels),
 	)
 	sh := NewTicketStatusHandler(
 		checkSpace,
@@ -95,6 +124,24 @@ func registerTicketRoutesWith(
 		ticket.NewAddTicketCommentReactionUseCase(comments),
 		ticket.NewRemoveTicketCommentReactionUseCase(comments),
 		kb.NewLookupUserNameUseCase(users),
+	)
+	lh := NewTicketLabelHandler(
+		checkSpace,
+		checkTicket,
+		ticket.NewListLabelsUseCase(labels),
+		ticket.NewCreateLabelUseCase(labels),
+		ticket.NewUpdateLabelUseCase(labels),
+		ticket.NewDeleteLabelUseCase(labels),
+		ticket.NewAddTicketLabelUseCase(labels, tickets),
+		ticket.NewRemoveTicketLabelUseCase(labels),
+	)
+	ah := NewTicketAttachmentHandler(
+		checkTicket,
+		ticket.NewIssueTicketAttachmentUploadURLUseCase(tickets, attachmentPresigner),
+		ticket.NewCreateTicketAttachmentUseCase(tickets, attachments),
+		ticket.NewListTicketAttachmentsUseCase(attachments),
+		ticket.NewIssueTicketAttachmentDownloadURLUseCase(attachments, attachmentPresigner),
+		ticket.NewDeleteTicketAttachmentUseCase(attachments),
 	)
 
 	// slug 無しの解決だけは middleware.KnowledgeBaseWorkspace を通さない
@@ -135,6 +182,21 @@ func registerTicketRoutesWith(
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/edits", ch.ListEdits)
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/reactions/:emoji", ch.AddReaction)
 	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/reactions/:emoji", ch.RemoveReaction)
+
+	// ラベル（段 4）。管理はスペース単位、チケットへの付け外しはチケット単位。
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/labels", lh.List)
+	tkGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/labels", lh.Create)
+	tkGroup.PUT("/kb/workspaces/:workspaceSlug/spaces/:spaceId/labels/:labelId", lh.Update)
+	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/spaces/:spaceId/labels/:labelId", lh.Delete)
+	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/labels/:labelId", lh.AddToTicket)
+	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/labels/:labelId", lh.RemoveFromTicket)
+
+	// 添付（段 4）。
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/attachments", ah.List)
+	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/attachments/upload-url", ah.IssueUploadURL)
+	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/attachments", ah.Create)
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/attachments/:attachmentId/download-url", ah.IssueDownloadURL)
+	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/attachments/:attachmentId", ah.Delete)
 
 	// 状態マスタ（管理画面）。
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/ticket-statuses", sh.List)

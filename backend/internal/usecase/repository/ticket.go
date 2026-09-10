@@ -92,6 +92,11 @@ type ListTicketsInput struct {
 	StatusID            *string
 	TypeID              *string
 	AssigneePrincipalID *string
+	// LabelID / DueBefore / StartAfter は段 4 で追加した絞り込み。DueBefore / StartAfter は
+	// 'YYYY-MM-DD' 文字列（tickets.due_date / start_date と同じ運び方）。
+	LabelID    *string
+	DueBefore  *string
+	StartAfter *string
 }
 
 // TicketRepository はチケット（段 1: 骨格）の永続化を担う。

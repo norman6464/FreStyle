@@ -50,6 +50,20 @@ describe('KbRepository', () => {
     await expect(KbRepository.fetchSpaces('acme')).resolves.toEqual([]);
   });
 
+  it('fetchMembers は GET /kb/workspaces/:slug/members を叩き、裸の配列をそのまま返す', async () => {
+    mockGet.mockResolvedValue({ data: [{ principalId: 'p-1', userId: 42, name: '田中 太郎' }] });
+
+    const members = await KbRepository.fetchMembers('acme');
+
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/members');
+    expect(members).toEqual([{ principalId: 'p-1', userId: 42, name: '田中 太郎' }]);
+  });
+
+  it('fetchMembers も null 応答は空配列にする', async () => {
+    mockGet.mockResolvedValue({ data: null });
+    await expect(KbRepository.fetchMembers('acme')).resolves.toEqual([]);
+  });
+
   describe('fetchPageTree', () => {
     it('slug と spaceId を URL に埋める', async () => {
       mockGet.mockResolvedValue({ data: { pages: [], hasHiddenChildren: false } });

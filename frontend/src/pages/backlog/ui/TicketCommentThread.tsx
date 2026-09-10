@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { TicketComment, TicketCommentSegment } from '@/entities/ticket';
+import type { KbWorkspaceMember } from '@/entities/kb';
 import type { CommentThread } from '../lib/buildCommentTree';
 import TicketCommentItem from './TicketCommentItem';
 
@@ -8,6 +9,8 @@ export interface TicketCommentThreadProps {
   currentUserId: number | null;
   workspaceSlug: string;
   ticketId: string;
+  /** 返信欄の '@' 候補。 */
+  members: KbWorkspaceMember[];
   onReply: (parentCommentId: string, body: TicketCommentSegment[]) => Promise<void>;
   onEdit: (commentId: string, body: TicketCommentSegment[]) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
@@ -29,6 +32,7 @@ export default function TicketCommentThread({
   currentUserId,
   workspaceSlug,
   ticketId,
+  members,
   onReply,
   onEdit,
   onDelete,
@@ -55,6 +59,7 @@ export default function TicketCommentThread({
         currentUserId={currentUserId}
         workspaceSlug={workspaceSlug}
         ticketId={ticketId}
+        members={members}
         replyOpen={replyOpenFor === thread.root.id}
         onToggleReply={() => toggleReply(thread.root.id)}
         onReply={(body) => onReply(thread.root.id, body).then(() => setReplyOpenFor(null))}
@@ -84,6 +89,7 @@ export default function TicketCommentThread({
               currentUserId={currentUserId}
               workspaceSlug={workspaceSlug}
               ticketId={ticketId}
+              members={members}
               replyOpen={replyOpenFor === comment.id}
               onToggleReply={() => toggleReply(comment.id)}
               onReply={(body) => onReply(comment.id, body).then(() => setReplyOpenFor(null))}

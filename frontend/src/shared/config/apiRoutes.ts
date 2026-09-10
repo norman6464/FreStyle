@@ -128,6 +128,8 @@ export const KB_API = {
   workspaces: `${API_V2}/kb/workspaces`,
   /** DELETE(削除) — /api/v2/kb/workspaces/:slug。配下ごと消える。会社のものは消せない */
   workspace: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}`,
+  /** GET — /api/v2/kb/workspaces/:slug/members。所属していれば誰でも叩ける（裸の配列で返る） */
+  members: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/members`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
   spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/spaces`,
   /**

@@ -29,6 +29,7 @@ export type {
   KbGrantRole,
   KbPageGrant,
   KbGrantablePrincipal,
+  KbWorkspaceMember,
   KbCommentAuthorRef,
   KbComment,
   KbCommentThread,

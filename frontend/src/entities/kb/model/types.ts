@@ -238,6 +238,22 @@ export interface KbGrantablePrincipal {
 }
 
 /**
+ * ワークスペースに属する人 1 件（発言での名指し用）。
+ *
+ * `KbGrantablePrincipal` とは別の口から来る — あちらは権限を張る相手（グループ・
+ * スペース全体も含む）を返すページ管理権限つきの口、こちらは所属していれば誰でも
+ * 引ける「人」だけの口（担当の表示名解決と、発言の名指しの両方がここを使う）。
+ * userId は名指し（TicketCommentSegment の mention）が指す ID、principalId は
+ * 担当の割り当て先が指す ID で、用途が違うので両方持つ。
+ */
+export interface KbWorkspaceMember {
+  principalId: string;
+  userId: number;
+  /** 表示名。引けなかった場合は空文字（行は落とさない）。 */
+  name: string;
+}
+
+/**
  * コメントの投稿者・解決者などの参照 1 件。
  *
  * name は表示名で、**引けなければ空文字**（KbEditorRef / KbGrantablePrincipal と同じ約束）。

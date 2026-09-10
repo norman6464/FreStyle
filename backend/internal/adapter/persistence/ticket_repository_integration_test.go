@@ -884,6 +884,24 @@ func TestTicketPaths_Integration(t *testing.T) {
 		assert.Equal(t, child.ID, grandAncestors[1].ID)
 	})
 
+	// DeleteTicketUseCase は削除を子へ連鎖させないので、子が生きたまま親だけ論理削除された
+	// 状態があり得る。パンくず（ListTicketAncestors）が削除済みの祖先まで題名・本文ごと
+	// 返すと、削除より後にスペースへ権限を得た利用者が、削除前の内容を読めてしまう。
+	t.Run("論理削除済みの祖先はパンくずに含めない", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		root := mkTicket(t, ws, space, statusID, typeID, nil, "d0")
+		child := mkTicket(t, ws, space, statusID, typeID, &root.ID, "d1")
+		grand := mkTicket(t, ws, space, statusID, typeID, &child.ID, "d2")
+
+		require.NoError(t, repo.DeleteTicket(ctx, ws, child.ID))
+
+		grandAncestors, err := repo.ListTicketAncestors(ctx, ws, grand.ID)
+		require.NoError(t, err)
+		require.Len(t, grandAncestors, 1, "削除済みの child を除いた root だけが残る")
+		assert.Equal(t, root.ID, grandAncestors[0].ID)
+	})
+
 	t.Run("親の付け替えでサブツリー全体の祖先集合が張り替わる", func(t *testing.T) {
 		ws, space := setup(t)
 		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)

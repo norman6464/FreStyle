@@ -377,9 +377,16 @@ WHERE sub.workspace_id = sqlc.arg(workspace_id) AND sub.ancestor_id = sqlc.arg(t
 -- （depth=0）は含まない。チケットの親は常に同一スペース限定（fk_tickets_parent）なので、
 -- ページの ListAncestorPageIDsと違い祖先ごとの可視判定は要らない（このチケット自体が
 -- 見えるなら、同じスペースの祖先もすべて見える。設計 Ⅳ-H）。
+--
+-- 論理削除済みの祖先は除く。DeleteTicketUseCase は削除を子へ連鎖させないため、
+-- 子が生きたまま親だけ削除された状態があり得る。ここで絞らないと、削除後に
+-- スペースへ権限を得た利用者が、削除より前の題名・本文をパンくず経由で読めてしまう
+-- （ListTicketsReferencingPage が既にこの形で deleted_at を見ている）。
+-- アーカイブ済みの祖先は含める（GetTicket 等の個票取得と同じ扱い。アーカイブは
+-- 「隠す」ではなく「畳む」ための状態で、経路から抜くと場所を偽ることになる）。
 SELECT t.* FROM ticket_paths tp
 JOIN tickets t ON t.workspace_id = tp.workspace_id AND t.id = tp.ancestor_id
-WHERE tp.workspace_id = $1 AND tp.ticket_id = $2 AND tp.depth > 0
+WHERE tp.workspace_id = $1 AND tp.ticket_id = $2 AND tp.depth > 0 AND t.deleted_at IS NULL
 ORDER BY tp.depth DESC;
 
 -- name: LastActiveTicketPosition :one

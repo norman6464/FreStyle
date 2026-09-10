@@ -318,6 +318,9 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodGet + " " + kbRoutePattern(kbSearchPath):       true,
 		// ワークスペース削除。Test_ナレッジAPI_ワークスペース削除 が直接叩く。
 		http.MethodDelete + " " + kbRoutePattern(kbWorkspacePath): true,
+		// ワークスペースの人の一覧。判定は所属のみ（役割を見ない）ので表にせず、
+		// Test_ナレッジAPI_人の一覧は* が直接叩く。
+		http.MethodGet + " " + kbRoutePattern(kbMembersPath): true,
 		// /p/{pageId} の解決。Test_ナレッジAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
 		// ページの雛形 API。判定の軸がそれぞれ違う

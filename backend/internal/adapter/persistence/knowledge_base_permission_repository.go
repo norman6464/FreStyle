@@ -582,6 +582,26 @@ func (r *knowledgeBasePermissionRepository) ListGrantablePrincipals(ctx context.
 	return out, nil
 }
 
+func (r *knowledgeBasePermissionRepository) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []domain.WorkspaceMember{}, nil
+	}
+	rows, err := r.queries(ctx).ListWorkspaceMembers(ctx, wsID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.WorkspaceMember, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.WorkspaceMember{
+			PrincipalID: row.PrincipalID.String(),
+			UserID:      uint64(row.UserID),
+			Name:        row.Name,
+		})
+	}
+	return out, nil
+}
+
 func (r *knowledgeBasePermissionRepository) UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)

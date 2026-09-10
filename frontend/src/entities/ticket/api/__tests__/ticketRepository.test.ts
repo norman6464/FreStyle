@@ -337,3 +337,52 @@ describe('TicketRepository.addTicketCommentReaction / removeTicketCommentReactio
     expect(mockDelete).toHaveBeenCalledWith(expectedUrl);
   });
 });
+
+describe('TicketRepository.fetchLabels', () => {
+  it('GET /labels を叩く', async () => {
+    mockGet.mockResolvedValue({
+      data: { labels: [{ id: 'l-1', spaceId: 's-1', name: '不具合', color: '#1d4ed8', createdAt: '', updatedAt: '' }] },
+    });
+    const labels = await TicketRepository.fetchLabels('acme', 's-1');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s-1/labels');
+    expect(labels).toHaveLength(1);
+  });
+
+  it('labels が null でも空配列にする', async () => {
+    mockGet.mockResolvedValue({ data: { labels: null } });
+    await expect(TicketRepository.fetchLabels('acme', 's-1')).resolves.toEqual([]);
+  });
+});
+
+describe('TicketRepository.createLabel / updateLabel', () => {
+  it('POST で作成する', async () => {
+    mockPost.mockResolvedValue({ data: { id: 'l-1', spaceId: 's-1', name: '検索', color: '#dbeafe', createdAt: '', updatedAt: '' } });
+    await TicketRepository.createLabel('acme', 's-1', { name: '検索', color: '#dbeafe' });
+    expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s-1/labels', { name: '検索', color: '#dbeafe' });
+  });
+
+  it('PUT で更新する', async () => {
+    mockPut.mockResolvedValue({ data: { id: 'l-1', spaceId: 's-1', name: '検索2', color: '#dbeafe', createdAt: '', updatedAt: '' } });
+    await TicketRepository.updateLabel('acme', 's-1', 'l-1', { name: '検索2', color: '#dbeafe' });
+    expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s-1/labels/l-1', { name: '検索2', color: '#dbeafe' });
+  });
+});
+
+describe('TicketRepository.deleteLabel', () => {
+  it('DELETE を叩く（204）', async () => {
+    mockDelete.mockResolvedValue({ data: undefined });
+    await TicketRepository.deleteLabel('acme', 's-1', 'l-1');
+    expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/spaces/s-1/labels/l-1');
+  });
+});
+
+describe('TicketRepository.addTicketLabel / removeTicketLabel', () => {
+  it('PUT/DELETE でチケットへの付け外しをする（どちらも204・冪等）', async () => {
+    mockPut.mockResolvedValue({ data: undefined });
+    mockDelete.mockResolvedValue({ data: undefined });
+    await TicketRepository.addTicketLabel('acme', 't-1', 'l-1');
+    await TicketRepository.removeTicketLabel('acme', 't-1', 'l-1');
+    expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/labels/l-1');
+    expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/labels/l-1');
+  });
+});

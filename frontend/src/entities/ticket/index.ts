@@ -6,6 +6,7 @@ export type {
   ChangeTicketStatusInput,
   TicketStatusInput,
   TicketTypeInput,
+  LabelInput,
 } from './api/ticketRepository';
 
 export { default as TicketKeyBadge } from './ui/TicketKeyBadge';

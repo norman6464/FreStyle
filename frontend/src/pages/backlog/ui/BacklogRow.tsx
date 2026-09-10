@@ -1,4 +1,8 @@
 import { TicketKeyBadge, TicketStatusPill, type Ticket, type TicketStatus, type TicketType } from '@/entities/ticket';
+import TicketLabelChip from './TicketLabelChip';
+
+/** 一覧の行では場所を取りすぎないよう、ラベルは最大でこの件数だけチップにし、残りは件数へ畳む。 */
+const MAX_VISIBLE_LABELS = 2;
 
 export interface BacklogRowProps {
   ticket: Ticket;
@@ -78,15 +82,29 @@ export default function BacklogRow({
           <TicketKeyBadge spaceKey={spaceKey} number={ticket.number} className="tabular-nums" />
           <span>{type?.name ?? ''}</span>
         </span>
-        <span
-          className={`block truncate ${done ? 'text-[var(--color-text-muted)] line-through' : 'text-[var(--color-text-primary)]'}`}
-        >
-          {indented && (
-            <span className="mr-1 text-[var(--color-text-muted)]" aria-hidden="true">
-              └
+        <span className="flex items-center gap-1.5">
+          <span
+            className={`min-w-0 truncate ${done ? 'text-[var(--color-text-muted)] line-through' : 'text-[var(--color-text-primary)]'}`}
+          >
+            {indented && (
+              <span className="mr-1 text-[var(--color-text-muted)]" aria-hidden="true">
+                └
+              </span>
+            )}
+            {ticket.title}
+          </span>
+          {ticket.labels.length > 0 && (
+            <span className="flex flex-shrink-0 items-center gap-1">
+              {ticket.labels.slice(0, MAX_VISIBLE_LABELS).map((label) => (
+                <TicketLabelChip key={label.id} label={label} />
+              ))}
+              {ticket.labels.length > MAX_VISIBLE_LABELS && (
+                <span className="text-[11px] text-[var(--color-text-muted)]">
+                  +{ticket.labels.length - MAX_VISIBLE_LABELS}
+                </span>
+              )}
             </span>
           )}
-          {ticket.title}
         </span>
       </span>
 

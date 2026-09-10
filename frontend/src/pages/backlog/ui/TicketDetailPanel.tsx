@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import {
   TicketKeyBadge,
+  type Label,
   type Ticket,
   type TicketStatus,
   type TicketType,
@@ -12,7 +13,7 @@ import { SaveStatusIndicator, emptyRichDoc, isRichDoc } from '@/shared/ui/RichTe
 import { useTicketEditor } from '../model/useTicketEditor';
 import TicketAttributePanel from './TicketAttributePanel';
 import TicketCommentSection from './TicketCommentSection';
-import TicketLabelChip from './TicketLabelChip';
+import TicketLabelBar from './TicketLabelBar';
 import TicketSection from './TicketSection';
 
 const RichTextEditor = lazy(() => import('@/shared/ui/RichTextEditor').then((m) => ({ default: m.RichTextEditor })));
@@ -27,12 +28,15 @@ export interface TicketDetailPanelProps {
   parentTicket: Ticket | undefined;
   canEdit: boolean;
   busy: boolean;
+  allLabels: Label[];
   onUpdate: (ticketId: string, input: UpdateTicketInput) => Promise<Ticket>;
   onChangeStatus: (statusId: string) => Promise<void>;
   onAssign: (principalId: string) => Promise<void>;
   onUnassign: () => Promise<void>;
   onArchive: () => Promise<void>;
   onRestore: () => Promise<void>;
+  onToggleLabel: (label: Label) => void;
+  onCreateLabel: (name: string, color: string) => Promise<Label>;
 }
 
 /**
@@ -51,12 +55,15 @@ export default function TicketDetailPanel({
   parentTicket,
   canEdit,
   busy,
+  allLabels,
   onUpdate,
   onChangeStatus,
   onAssign,
   onUnassign,
   onArchive,
   onRestore,
+  onToggleLabel,
+  onCreateLabel,
 }: TicketDetailPanelProps) {
   const type = types.find((t) => t.id === ticket.typeId);
   const archived = ticket.archivedAt !== null;
@@ -73,13 +80,13 @@ export default function TicketDetailPanel({
         <TicketKeyBadge spaceKey={spaceKey} number={ticket.number} />
       </div>
 
-      {ticket.labels.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {ticket.labels.map((label) => (
-            <TicketLabelChip key={label.id} label={label} />
-          ))}
-        </div>
-      )}
+      <TicketLabelBar
+        attached={ticket.labels}
+        allLabels={allLabels}
+        canEdit={canEdit && !archived}
+        onToggle={onToggleLabel}
+        onCreate={onCreateLabel}
+      />
 
       {canEdit && !archived ? (
         <input

@@ -3,6 +3,7 @@ import {
   TicketRepository,
   type ChangeTicketStatusInput,
   type CreateTicketInput,
+  type Label,
   type Ticket,
   type TicketListFilter,
   type UpdateTicketInput,
@@ -260,6 +261,32 @@ export function useTicketList(
     [refresh],
   );
 
+  const addLabel = useCallback(
+    (ticketId: string, label: Label) =>
+      mutate(
+        ticketId,
+        (to) => TicketRepository.addTicketLabel(to.workspaceSlug, ticketId, label.id),
+        (tickets) =>
+          tickets.map((t) =>
+            t.id === ticketId && !t.labels.some((l) => l.id === label.id)
+              ? { ...t, labels: [...t.labels, label] }
+              : t,
+          ),
+      ),
+    [mutate],
+  );
+
+  const removeLabel = useCallback(
+    (ticketId: string, labelId: string) =>
+      mutate(
+        ticketId,
+        (to) => TicketRepository.removeTicketLabel(to.workspaceSlug, ticketId, labelId),
+        (tickets) =>
+          tickets.map((t) => (t.id === ticketId ? { ...t, labels: t.labels.filter((l) => l.id !== labelId) } : t)),
+      ),
+    [mutate],
+  );
+
   return {
     ...state,
     refresh,
@@ -272,5 +299,7 @@ export function useTicketList(
     assign,
     unassign,
     move,
+    addLabel,
+    removeLabel,
   };
 }

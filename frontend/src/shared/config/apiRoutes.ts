@@ -366,6 +366,15 @@ export const TICKET_API = {
    *
    * 一覧の各行は activeTicketCount（現役チケットでの使用数）を持つ（管理画面の「使用中 N 件」）。
    */
+  /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/labels */
+  labels: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/labels`,
+  /** PUT(更新) / DELETE(削除・204) — .../labels/:labelId。名前の重複は 409 label_name_taken */
+  label: (workspaceSlug: string, spaceId: string, labelId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/labels/${labelId}`,
+  /** PUT(付ける) / DELETE(外す) — .../tickets/:ticketId/labels/:labelId。どちらも 204・冪等 */
+  ticketLabel: (workspaceSlug: string, ticketId: string, labelId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/labels/${labelId}`,
   ticketStatuses: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses`,
   /** PUT — .../ticket-statuses/:statusId（name / color / category をまとめて置換） */

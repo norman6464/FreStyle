@@ -4,6 +4,7 @@ import { getApiError } from '@/shared/lib/classifyApiError';
 import Loading from '@/shared/ui/Loading';
 import { useTicketPage } from '../model/useTicketPage';
 import { useTicketMasters } from '../model/useTicketMasters';
+import { useTicketLabels } from '../model/useTicketLabels';
 import { usePrincipalNames } from '../model/usePrincipalNames';
 import { useTicketDetail } from '../model/useTicketDetail';
 import TicketFullView from './TicketFullView';
@@ -22,6 +23,7 @@ export default function KbTicketPage() {
 
   const page = useTicketPage(ticketId);
   const masters = useTicketMasters(page.workspaceSlug ?? undefined, page.ticket?.spaceId);
+  const labels = useTicketLabels(page.workspaceSlug ?? undefined, page.ticket?.spaceId);
   const { principals } = usePrincipalNames(page.workspaceSlug ?? undefined);
   const history = useTicketDetail(page.workspaceSlug ?? undefined, page.ticket ? (ticketId ?? null) : null);
 
@@ -61,6 +63,7 @@ export default function KbTicketPage() {
       historyError={history.error}
       canEdit={page.permission.canEdit}
       busy={page.busy}
+      allLabels={labels.labels}
       onUpdate={(input) => page.updateTicket(input)}
       onChangeStatus={(statusId) =>
         void withToastOnFailure(() => page.changeStatus({ statusId }), '状態を変更できませんでした。')
@@ -71,6 +74,14 @@ export default function KbTicketPage() {
       onUnassign={() => void withToastOnFailure(() => page.unassign(), '担当を外せませんでした。')}
       onArchive={() => void withToastOnFailure(() => page.archive(), 'アーカイブできませんでした。')}
       onRestore={() => void withToastOnFailure(() => page.restore(), '現役に戻せませんでした。')}
+      onToggleLabel={(label) => {
+        const attached = page.ticket?.labels.some((l) => l.id === label.id) ?? false;
+        void withToastOnFailure(
+          () => (attached ? page.removeLabel(label.id) : page.addLabel(label)),
+          attached ? 'ラベルを外せませんでした。' : 'ラベルを付けられませんでした。',
+        );
+      }}
+      onCreateLabel={(name, color) => labels.createLabel({ name, color })}
     />
   );
 }

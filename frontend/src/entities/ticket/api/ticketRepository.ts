@@ -155,6 +155,12 @@ export interface ChangeTicketStatusInput {
   resolution?: TicketResolution;
 }
 
+export interface LabelInput {
+  name: string;
+  /** `#rrggbb` の小文字 7 桁。 */
+  color: string;
+}
+
 export interface TicketStatusInput {
   name: string;
   category: TicketStatusCategory;
@@ -455,6 +461,36 @@ const TicketRepository = {
   /** 204 応答・冪等。 */
   async removeTicketCommentReaction(workspaceSlug: string, ticketId: string, commentId: string, emoji: string): Promise<void> {
     await apiClient.delete(TICKET_API.ticketCommentReaction(workspaceSlug, ticketId, commentId, emoji));
+  },
+
+  async fetchLabels(workspaceSlug: string, spaceId: string): Promise<Label[]> {
+    const res = await apiClient.get<{ labels: Label[] }>(TICKET_API.labels(workspaceSlug, spaceId));
+    return toArray<Label>(res.data?.labels);
+  },
+
+  async createLabel(workspaceSlug: string, spaceId: string, input: LabelInput): Promise<Label> {
+    const res = await apiClient.post<Label>(TICKET_API.labels(workspaceSlug, spaceId), input);
+    return res.data;
+  },
+
+  async updateLabel(workspaceSlug: string, spaceId: string, labelId: string, input: LabelInput): Promise<Label> {
+    const res = await apiClient.put<Label>(TICKET_API.label(workspaceSlug, spaceId, labelId), input);
+    return res.data;
+  },
+
+  /** 204 応答。使用中でも通る（付け外しの中間行は CASCADE で外れる）。 */
+  async deleteLabel(workspaceSlug: string, spaceId: string, labelId: string): Promise<void> {
+    await apiClient.delete(TICKET_API.label(workspaceSlug, spaceId, labelId));
+  },
+
+  /** 204 応答・冪等。 */
+  async addTicketLabel(workspaceSlug: string, ticketId: string, labelId: string): Promise<void> {
+    await apiClient.put(TICKET_API.ticketLabel(workspaceSlug, ticketId, labelId));
+  },
+
+  /** 204 応答・冪等（付いていなくても成功扱い）。 */
+  async removeTicketLabel(workspaceSlug: string, ticketId: string, labelId: string): Promise<void> {
+    await apiClient.delete(TICKET_API.ticketLabel(workspaceSlug, ticketId, labelId));
   },
 };
 

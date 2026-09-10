@@ -57,6 +57,7 @@ function baseApi(over: ApiStubs = {}): ApiStubs {
   return {
     '/kb/workspaces/acme/spaces/s-1/ticket-statuses': { statuses: [status({})] },
     '/kb/workspaces/acme/spaces/s-1/ticket-types': { types: [type({})] },
+    '/kb/workspaces/acme/spaces/s-1/labels': { labels: [] },
     '/kb/workspaces/acme/spaces/s-1/tickets': { tickets: [ticket({})] },
     '/kb/workspaces/acme/spaces/s-1/pages': { pages: [], hasHiddenChildren: false },
     '/kb/workspaces/acme/spaces': spaces,

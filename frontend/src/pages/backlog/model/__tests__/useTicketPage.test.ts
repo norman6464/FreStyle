@@ -11,6 +11,7 @@ const hoisted = vi.hoisted(() => ({
   unassignTicket: vi.fn(),
   archiveTicket: vi.fn(),
   restoreTicket: vi.fn(),
+  changeTicketParent: vi.fn(),
   fetchSpaces: vi.fn(),
   addTicketLabel: vi.fn(),
   removeTicketLabel: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@/entities/ticket', async (importOriginal) => {
       unassignTicket: hoisted.unassignTicket,
       archiveTicket: hoisted.archiveTicket,
       restoreTicket: hoisted.restoreTicket,
+      changeTicketParent: hoisted.changeTicketParent,
       addTicketLabel: hoisted.addTicketLabel,
       removeTicketLabel: hoisted.removeTicketLabel,
     },
@@ -205,6 +207,39 @@ describe('useTicketPage', () => {
       }),
     ).rejects.toThrow('403');
     expect(result.current.busy).toBe(false);
+  });
+
+  it('親を変えると祖先が変わりうるので取り直す（部分差し替えしない）', async () => {
+    hoisted.resolveTicket
+      .mockResolvedValueOnce({
+        workspaceSlug: 'acme',
+        workspaceName: 'Acme',
+        ticket: ticket({ parentId: null }),
+        canEdit: true,
+        ancestors: [],
+        permission,
+      })
+      .mockResolvedValueOnce({
+        workspaceSlug: 'acme',
+        workspaceName: 'Acme',
+        ticket: ticket({ parentId: 'p-1' }),
+        canEdit: true,
+        ancestors: [ticket({ id: 'p-1', title: '親' })],
+        permission,
+      });
+    hoisted.changeTicketParent.mockResolvedValue(ticket({ parentId: 'p-1' }));
+
+    const { result } = renderHook(() => useTicketPage('t-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.ancestors).toEqual([]);
+
+    await act(async () => {
+      await result.current.changeParent('p-1');
+    });
+
+    expect(hoisted.changeTicketParent).toHaveBeenCalledWith('acme', 't-1', 'p-1');
+    expect(hoisted.resolveTicket).toHaveBeenCalledTimes(2);
+    expect(result.current.ancestors).toHaveLength(1);
   });
 });
 

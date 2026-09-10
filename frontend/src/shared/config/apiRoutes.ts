@@ -345,6 +345,9 @@ export const TICKET_API = {
   /** GET — .../tickets/:ticketId/history（変更履歴・新しい順） */
   ticketHistory: (workspaceSlug: string, ticketId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/history`,
+  /** GET — .../tickets/:ticketId/children（直下の子・並び順。孫は含まない） */
+  ticketChildren: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/children`,
   /** GET(一覧・古い順) / POST(投稿) — .../tickets/:ticketId/comments */
   ticketComments: (workspaceSlug: string, ticketId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments`,

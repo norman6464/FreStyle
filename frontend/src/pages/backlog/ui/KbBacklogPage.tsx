@@ -339,6 +339,21 @@ export default function KbBacklogPage() {
               );
             }}
             onCreateLabel={(name, color) => labels.createLabel({ name, color })}
+            onChangeParent={async (parentId) => {
+              try {
+                await list.changeParent(selectedTicket.id, parentId);
+              } catch (cause) {
+                const info = getApiError(cause);
+                showToast(
+                  'error',
+                  info.status === 403
+                    ? 'この操作を行う権限がありません。'
+                    : info.serverCode === 'ticket_hierarchy_rejected'
+                      ? 'その親には移せません（循環になる、または階層の深さの上限を超えます）。'
+                      : '親を変更できませんでした。',
+                );
+              }
+            }}
           />
         </SecondaryPanel>
       )}

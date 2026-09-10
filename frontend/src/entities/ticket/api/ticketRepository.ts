@@ -215,6 +215,12 @@ const TicketRepository = {
     return toArray<TicketWire>(res.data?.tickets).map(normalizeTicket);
   },
 
+  /** 直下の子だけ（孫は含まない）。並び順は一覧と同じ position 準拠。 */
+  async fetchTicketChildren(workspaceSlug: string, ticketId: string): Promise<Ticket[]> {
+    const res = await apiClient.get<{ tickets: TicketWire[] }>(TICKET_API.ticketChildren(workspaceSlug, ticketId));
+    return toArray<TicketWire>(res.data?.tickets).map(normalizeTicket);
+  },
+
   async createTicket(workspaceSlug: string, spaceId: string, input: CreateTicketInput): Promise<Ticket> {
     const res = await apiClient.post<TicketWire>(TICKET_API.tickets(workspaceSlug, spaceId), {
       parentId: input.parentId ?? '',

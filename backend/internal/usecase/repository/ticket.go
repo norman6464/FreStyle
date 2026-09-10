@@ -186,7 +186,9 @@ type TicketRepository interface {
 	RestoreDeletedTicket(ctx context.Context, workspaceID, ticketID, position string) error
 	CountActiveTicketChildren(ctx context.Context, workspaceID, ticketID string) (int64, error)
 	// ListTicketParentChain は親を根まで辿った列（自分を含まない、根に近い順）を返す。
-	// 深さの検査・周期の検出・レベル整合性の検査に使う（最大 3 段なので閉包表は持たない）。
+	// 深さの検査・周期の検出・レベル整合性の検査に使う（親付け替え時の検証はこちらの
+	// 再帰 CTE を使い続ける。ticket_paths は読み取り側の最適化のための派生表で、
+	// 検証ロジックの置き換えは対象外 — 設計 Ⅳ-G）。
 	ListTicketParentChain(ctx context.Context, workspaceID, ticketID string) ([]domain.Ticket, error)
 	LastActiveTicketPosition(ctx context.Context, workspaceID, spaceID string) (string, error)
 	// HasActiveTicketPosition は move の before/after 指定チケットが、指定スペースの
@@ -232,7 +234,25 @@ type TicketRepository interface {
 	DeleteTicketPageLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error
 	DeleteTicketTicketLinksBySourceCascade(ctx context.Context, workspaceID, sourceTicketID string) error
 	ListTicketPageLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketPageLink, error)
-	ListPagesReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketPageLink, error)
+	// ListTicketsReferencingPage はページ詳細の逆参照一覧が使う（そのページを参照している
+	// チケット一覧。）。リンク行ではなくチケット本体を返す（handler が
+	// 題名・状態をそのまま出せるように）。
+	ListTicketsReferencingPage(ctx context.Context, workspaceID, pageID string) ([]domain.Ticket, error)
 	ListTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketTicketLink, error)
 	ListTicketsReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketTicketLink, error)
+
+	// --- ticket_paths（段 5: parent_id の閉包表） ---
+
+	// InsertTicketPathSelf / InsertTicketPathAncestors はチケット作成の直後に usecase が呼ぶ
+	// （tickets への INSERT とは別文。InsertTicketRank と同じ流儀）。InsertTicketPathAncestors は
+	// 親があるときだけ呼ぶ。
+	InsertTicketPathSelf(ctx context.Context, workspaceID, ticketID string) error
+	InsertTicketPathAncestors(ctx context.Context, workspaceID, ticketID, parentID string) error
+	// DetachTicketPathSubtree / AttachTicketPathSubtree は親の付け替え（ChangeTicketParentUseCase）
+	// が呼ぶ。Detach は常に呼び、Attach は新しい親があるときだけ呼ぶ（呼び出し順は固定。
+	// page_paths の MovePage と同じ形）。
+	DetachTicketPathSubtree(ctx context.Context, workspaceID, ticketID string) error
+	AttachTicketPathSubtree(ctx context.Context, workspaceID, ticketID, newParentID string) error
+	// ListTicketAncestors はパンくず用（根から順、自分自身は含まない）。
+	ListTicketAncestors(ctx context.Context, workspaceID, ticketID string) ([]domain.Ticket, error)
 }

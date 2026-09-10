@@ -911,7 +911,8 @@ func (r *knowledgeBaseRepository) ListBlocksByPage(ctx context.Context, workspac
 // 消えた id だけ DELETE し、生き残る id は UPDATE で中身を書き換え（行そのものは同一なので
 // FK は外れない）、新しい id だけ INSERT する。
 func (r *knowledgeBaseRepository) ReplacePageBlocks(
-	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string, pageLinks []repository.PageLinkWrite,
+	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string,
+	pageLinks []repository.PageLinkWrite, pageTicketLinks []repository.PageTicketLinkWrite,
 ) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
@@ -1074,7 +1075,7 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 
 		// 8. page_search / page_links を同期する。書き込みの中核ロジックは
 		// RebuildPageSearchAndLinks と共有する（writePageSearchAndLinks の doc 参照）。
-		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, title, body, pageLinks)
+		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, title, body, pageLinks, pageTicketLinks)
 	})
 }
 

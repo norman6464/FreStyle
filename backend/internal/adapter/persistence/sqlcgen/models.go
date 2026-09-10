@@ -147,6 +147,11 @@ type PageTemplate struct {
 	UpdatedAt       time.Time
 }
 
+type PageTicketLink struct {
+	SourceBlockID  uuid.UUID
+	TargetTicketID uuid.UUID
+}
+
 type PageVersion struct {
 	WorkspaceID  uuid.UUID
 	PageID       uuid.UUID
@@ -338,6 +343,13 @@ type TicketPageLink struct {
 	SourceTicketID uuid.UUID
 	TargetPageID   uuid.UUID
 	DeletedAt      sql.NullTime
+}
+
+type TicketPath struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+	AncestorID  uuid.UUID
+	Depth       int32
 }
 
 type TicketRank struct {

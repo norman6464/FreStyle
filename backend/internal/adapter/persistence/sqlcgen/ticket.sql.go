@@ -74,6 +74,30 @@ func (q *Queries) ArchiveTicketType(ctx context.Context, arg ArchiveTicketTypePa
 	return result.RowsAffected()
 }
 
+const attachTicketPathSubtree = `-- name: AttachTicketPathSubtree :exec
+INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth)
+SELECT sub.workspace_id, sub.ticket_id, sup.ancestor_id, sub.depth + sup.depth + 1
+FROM ticket_paths sub
+JOIN ticket_paths sup
+  ON sup.workspace_id = sub.workspace_id AND sup.ticket_id = $1
+WHERE sub.workspace_id = $2 AND sub.ancestor_id = $3
+`
+
+type AttachTicketPathSubtreeParams struct {
+	NewParentID uuid.UUID
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+}
+
+// 親の付け替え（後半）: 新しい親の祖先集合（親自身を含む）×サブツリー全員の直積を張る。
+// 深さは「サブツリー内での深さ + 親までの深さ + 1」。ルートへ戻す付け替え（親なし）では
+// このクエリは呼ばない（Detach だけで完結する）。呼び出し順は Detach → Attach 固定
+// （逆にすると Attach で張った行を Detach が消してしまう。page_paths と同じ注意）。
+func (q *Queries) AttachTicketPathSubtree(ctx context.Context, arg AttachTicketPathSubtreeParams) error {
+	_, err := q.db.ExecContext(ctx, attachTicketPathSubtree, arg.NewParentID, arg.WorkspaceID, arg.TicketID)
+	return err
+}
+
 const changeTicketStatus = `-- name: ChangeTicketStatus :one
 UPDATE tickets
 SET status_id = $3, closed_at = $4, resolution = $5, updated_at = now()
@@ -497,6 +521,32 @@ type DeleteTicketTicketLinksBySourceCascadeParams struct {
 
 func (q *Queries) DeleteTicketTicketLinksBySourceCascade(ctx context.Context, arg DeleteTicketTicketLinksBySourceCascadeParams) error {
 	_, err := q.db.ExecContext(ctx, deleteTicketTicketLinksBySourceCascade, arg.WorkspaceID, arg.SourceTicketID)
+	return err
+}
+
+const detachTicketPathSubtree = `-- name: DetachTicketPathSubtree :exec
+DELETE FROM ticket_paths
+WHERE ticket_paths.workspace_id = $1
+  AND ticket_paths.ticket_id IN (
+      SELECT tp.ticket_id FROM ticket_paths tp
+      WHERE tp.workspace_id = $1 AND tp.ancestor_id = $2
+  )
+  AND ticket_paths.ancestor_id NOT IN (
+      SELECT tp.ticket_id FROM ticket_paths tp
+      WHERE tp.workspace_id = $1 AND tp.ancestor_id = $2
+  )
+`
+
+type DetachTicketPathSubtreeParams struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+}
+
+// 親の付け替え（前半）: サブツリー内の各チケットと「サブツリー外の祖先」との組を消す。
+// サブツリー内部同士の組（自己参照 depth=0 を含む）は付け替え後も変わらないため残す。
+// page_paths の DetachPageSubtreePaths と同じ形（doc 参照）。
+func (q *Queries) DetachTicketPathSubtree(ctx context.Context, arg DetachTicketPathSubtreeParams) error {
+	_, err := q.db.ExecContext(ctx, detachTicketPathSubtree, arg.WorkspaceID, arg.TicketID)
 	return err
 }
 
@@ -982,6 +1032,45 @@ func (q *Queries) InsertTicketPageLink(ctx context.Context, arg InsertTicketPage
 	return err
 }
 
+const insertTicketPathAncestors = `-- name: InsertTicketPathAncestors :exec
+INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth)
+SELECT tp.workspace_id, $1::uuid, tp.ancestor_id, tp.depth + 1
+FROM ticket_paths tp
+WHERE tp.workspace_id = $2 AND tp.ticket_id = $3
+`
+
+type InsertTicketPathAncestorsParams struct {
+	TicketID    uuid.UUID
+	WorkspaceID uuid.UUID
+	ParentID    uuid.UUID
+}
+
+// チケット作成時に親の祖先集合（親自身 depth=0 を含む）を +1 して引き継ぐ。
+func (q *Queries) InsertTicketPathAncestors(ctx context.Context, arg InsertTicketPathAncestorsParams) error {
+	_, err := q.db.ExecContext(ctx, insertTicketPathAncestors, arg.TicketID, arg.WorkspaceID, arg.ParentID)
+	return err
+}
+
+const insertTicketPathSelf = `-- name: InsertTicketPathSelf :exec
+
+INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth)
+VALUES ($1, $2, $2, 0)
+`
+
+type InsertTicketPathSelfParams struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
+}
+
+// =============================================================================
+// ticket_paths（段 5: parent_id の閉包表。page_paths と同じ設計・同じ作法）
+// =============================================================================
+// closure の自己参照行（depth=0）。チケット作成と同じタイミングで張る。
+func (q *Queries) InsertTicketPathSelf(ctx context.Context, arg InsertTicketPathSelfParams) error {
+	_, err := q.db.ExecContext(ctx, insertTicketPathSelf, arg.WorkspaceID, arg.TicketID)
+	return err
+}
+
 const insertTicketRank = `-- name: InsertTicketRank :exec
 
 INSERT INTO ticket_ranks (workspace_id, ticket_id, context_kind, context_id, "position", created_at, updated_at)
@@ -1280,35 +1369,53 @@ func (q *Queries) ListExistingTicketIDsInWorkspace(ctx context.Context, arg List
 	return items, nil
 }
 
-const listPagesReferencingTicket = `-- name: ListPagesReferencingTicket :many
-SELECT workspace_id, source_ticket_id, target_page_id, deleted_at FROM ticket_page_links
-WHERE workspace_id = $1 AND target_page_id = $2 AND deleted_at IS NULL
+const listTicketAncestors = `-- name: ListTicketAncestors :many
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at FROM ticket_paths tp
+JOIN tickets t ON t.workspace_id = tp.workspace_id AND t.id = tp.ancestor_id
+WHERE tp.workspace_id = $1 AND tp.ticket_id = $2 AND tp.depth > 0
+ORDER BY tp.depth DESC
 `
 
-type ListPagesReferencingTicketParams struct {
-	WorkspaceID  uuid.UUID
-	TargetPageID uuid.UUID
+type ListTicketAncestorsParams struct {
+	WorkspaceID uuid.UUID
+	TicketID    uuid.UUID
 }
 
-// ticket-backlinks API の逆方向（そのページを参照しているチケット一覧）。
-// deleted_at IS NULL: 参照元チケットが削除されていれば、削除時に DeleteTicketPageLinksBySourceCascade
-// がこの行にも deleted_at を立てている。ここで除かないと、消えたはずのチケットの存在が
-// ページ側の逆参照一覧から漏れる（参照元チケットの deleted_at を都度 JOIN で見る代わりに、
-// 削除時に伝播させて 1 列で判定できるようにしてある。設計 Ⅳ-J の「読み出しの述語を単純に保つ」）。
-func (q *Queries) ListPagesReferencingTicket(ctx context.Context, arg ListPagesReferencingTicketParams) ([]TicketPageLink, error) {
-	rows, err := q.db.QueryContext(ctx, listPagesReferencingTicket, arg.WorkspaceID, arg.TargetPageID)
+// パンくず用。根から順（depth の大きい方が根に近い）に祖先チケットを返す。自分自身
+// （depth=0）は含まない。チケットの親は常に同一スペース限定（fk_tickets_parent）なので、
+// ページの ListAncestorPageIDsと違い祖先ごとの可視判定は要らない（このチケット自体が
+// 見えるなら、同じスペースの祖先もすべて見える。設計 Ⅳ-H）。
+func (q *Queries) ListTicketAncestors(ctx context.Context, arg ListTicketAncestorsParams) ([]Ticket, error) {
+	rows, err := q.db.QueryContext(ctx, listTicketAncestors, arg.WorkspaceID, arg.TicketID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TicketPageLink{}
+	items := []Ticket{}
 	for rows.Next() {
-		var i TicketPageLink
+		var i Ticket
 		if err := rows.Scan(
+			&i.ID,
 			&i.WorkspaceID,
-			&i.SourceTicketID,
-			&i.TargetPageID,
+			&i.SpaceID,
+			&i.Number,
+			&i.TypeID,
+			&i.StatusID,
+			&i.ParentID,
+			&i.Title,
+			&i.Doc,
+			&i.PlainText,
+			&i.Priority,
+			&i.StartDate,
+			&i.DueDate,
+			&i.Position,
+			&i.ClosedAt,
+			&i.Resolution,
+			&i.CreatedByUserID,
+			&i.ArchivedAt,
 			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1915,6 +2022,72 @@ type ListTicketsAssignedToPrincipalParams struct {
 
 func (q *Queries) ListTicketsAssignedToPrincipal(ctx context.Context, arg ListTicketsAssignedToPrincipalParams) ([]Ticket, error) {
 	rows, err := q.db.QueryContext(ctx, listTicketsAssignedToPrincipal, arg.WorkspaceID, arg.AssigneePrincipalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Ticket{}
+	for rows.Next() {
+		var i Ticket
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpaceID,
+			&i.Number,
+			&i.TypeID,
+			&i.StatusID,
+			&i.ParentID,
+			&i.Title,
+			&i.Doc,
+			&i.PlainText,
+			&i.Priority,
+			&i.StartDate,
+			&i.DueDate,
+			&i.Position,
+			&i.ClosedAt,
+			&i.Resolution,
+			&i.CreatedByUserID,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketsReferencingPage = `-- name: ListTicketsReferencingPage :many
+SELECT t.id, t.workspace_id, t.space_id, t.number, t.type_id, t.status_id, t.parent_id, t.title, t.doc, t.plain_text, t.priority, t.start_date, t.due_date, t.position, t.closed_at, t.resolution, t.created_by_user_id, t.archived_at, t.deleted_at, t.created_at, t.updated_at FROM ticket_page_links tpl
+JOIN tickets t ON t.workspace_id = tpl.workspace_id AND t.id = tpl.source_ticket_id
+WHERE tpl.workspace_id = $1 AND tpl.target_page_id = $2
+  AND tpl.deleted_at IS NULL AND t.deleted_at IS NULL
+`
+
+type ListTicketsReferencingPageParams struct {
+	WorkspaceID  uuid.UUID
+	TargetPageID uuid.UUID
+}
+
+// ページ詳細の逆参照一覧（そのページを参照しているチケット一覧。）。
+// target_page_id を起点に tickets を JOIN し、チケットの行そのものを返す
+// （handler が題名・状態をそのまま出せるように、リンク行だけでなくチケット本体を返す）。
+//
+// deleted_at IS NULL（ticket_page_links）: 参照元チケットが削除されていれば、削除時に
+// DeleteTicketPageLinksBySourceCascade がこの行にも deleted_at を立てている。ここで除かないと、
+// 消えたはずのチケットの存在がページ側の逆参照一覧から漏れる（参照元チケットの deleted_at を
+// 都度 JOIN で見る代わりに、削除時に伝播させて 1 列で判定できるようにしてある。設計 Ⅳ-J の
+// 「読み出しの述語を単純に保つ」）。t.deleted_at IS NULL は伝播が万一漏れた場合の二重の安全弁。
+func (q *Queries) ListTicketsReferencingPage(ctx context.Context, arg ListTicketsReferencingPageParams) ([]Ticket, error) {
+	rows, err := q.db.QueryContext(ctx, listTicketsReferencingPage, arg.WorkspaceID, arg.TargetPageID)
 	if err != nil {
 		return nil, err
 	}

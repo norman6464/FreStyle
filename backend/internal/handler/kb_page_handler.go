@@ -13,6 +13,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
 )
 
 // KnowledgeBasePageHandler はナレッジのページ操作を受ける。
@@ -44,6 +45,9 @@ type KnowledgeBasePageHandler struct {
 	setCover       *kb.SetPageCoverUseCase
 	resolveCover   *kb.ResolveCoverURLUseCase
 	backlinks      *kb.ListPageBacklinksUseCase
+	// ticketBacklinks は段 5（階層の完成とノート連携の厚み）。usecase/kb は usecase/ticket を
+	// import しないが、handler 層は両方に依存してよい（routes_ticket.go の doc と同じ理由）。
+	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -72,32 +76,34 @@ func NewKnowledgeBasePageHandler(
 	setCover *kb.SetPageCoverUseCase,
 	resolveCover *kb.ResolveCoverURLUseCase,
 	backlinks *kb.ListPageBacklinksUseCase,
+	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
-		check:          check,
-		checkWorkspace: checkWorkspace,
-		resolve:        resolve,
-		checkSpace:     checkSpace,
-		canEditSubtree: canEditSubtree,
-		listViewable:   listViewable,
-		get:            get,
-		findPage:       findPage,
-		create:         create,
-		rename:         rename,
-		move:           move,
-		archive:        archive,
-		unarchive:      unarchive,
-		replaceBlocks:  replaceBlocks,
-		resolveRefs:    resolveRefs,
-		ancestors:      ancestors,
-		deletePage:     deletePage,
-		setIcon:        setIcon,
-		userName:       userName,
-		issueImageUp:   issueImageUp,
-		issueImageDown: issueImageDown,
-		setCover:       setCover,
-		resolveCover:   resolveCover,
-		backlinks:      backlinks,
+		check:           check,
+		checkWorkspace:  checkWorkspace,
+		resolve:         resolve,
+		checkSpace:      checkSpace,
+		canEditSubtree:  canEditSubtree,
+		listViewable:    listViewable,
+		get:             get,
+		findPage:        findPage,
+		create:          create,
+		rename:          rename,
+		move:            move,
+		archive:         archive,
+		unarchive:       unarchive,
+		replaceBlocks:   replaceBlocks,
+		resolveRefs:     resolveRefs,
+		ancestors:       ancestors,
+		deletePage:      deletePage,
+		setIcon:         setIcon,
+		userName:        userName,
+		issueImageUp:    issueImageUp,
+		issueImageDown:  issueImageDown,
+		setCover:        setCover,
+		resolveCover:    resolveCover,
+		backlinks:       backlinks,
+		ticketBacklinks: ticketBacklinks,
 	}
 }
 
@@ -599,6 +605,45 @@ func (h *KnowledgeBasePageHandler) Backlinks(c *gin.Context) {
 	out := make([]kbPageResponse, 0, len(pages))
 	for i := range pages {
 		out = append(out, toKbPageResponse(&pages[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// TicketBacklinks は、このページを本文の pageRef で参照しているチケット一覧を返す
+// （段 5・ticket_page_links の逆参照）。
+//
+// チケットには pages のような個票の権限が無く、実効権限はスペース単位（設計 Ⅳ-H）。
+// 候補は複数スペースにまたがりうるので、登場したスペースごとに 1 回だけ CanView を判定する
+// （チケット 1 件ごとに判定すると同じスペースを何度も引き直すことになる）。
+// 見えないスペースのチケットは行ごと出さない（Backlinks が見えないページを出さないのと同じ扱い）。
+func (h *KnowledgeBasePageHandler) TicketBacklinks(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityView) {
+		return
+	}
+	tickets, err := h.ticketBacklinks.Execute(c.Request.Context(), scope.workspaceID, pageID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	visibleSpaces := make(map[string]bool)
+	out := make([]domain.Ticket, 0, len(tickets))
+	for _, t := range tickets {
+		visible, checked := visibleSpaces[t.SpaceID]
+		if !checked {
+			perm, permErr := h.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
+				WorkspaceID: scope.workspaceID, SpaceID: t.SpaceID, UserID: scope.userID,
+			})
+			visible = permErr == nil && perm.CanView
+			visibleSpaces[t.SpaceID] = visible
+		}
+		if visible {
+			out = append(out, t)
+		}
 	}
 	c.JSON(http.StatusOK, out)
 }

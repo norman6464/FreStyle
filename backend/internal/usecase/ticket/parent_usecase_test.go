@@ -23,11 +23,14 @@ func Test_チケット親変更_トップレベルへ戻す(t *testing.T) {
 		return f.ParentID == nil
 	})).Return(&domain.Ticket{ID: tkTicket}, nil)
 	repo.On("InsertTicketChangeGroup", mock.Anything, mock.AnythingOfType("*domain.TicketChangeGroup")).Return(nil)
+	repo.On("DetachTicketPathSubtree", mock.Anything, tkWS, tkTicket).Return(nil)
 
 	_, err := ticket.NewChangeTicketParentUseCase(repo).Execute(context.Background(), ticket.ChangeTicketParentInput{
 		WorkspaceID: tkWS, TicketID: tkTicket, ActorUserID: 1, NewParentID: nil,
 	})
 	require.NoError(t, err)
+	repo.AssertCalled(t, "DetachTicketPathSubtree", mock.Anything, tkWS, tkTicket)
+	repo.AssertNotCalled(t, "AttachTicketPathSubtree")
 }
 
 // 自分自身、または自分の子孫の下へは移せない（周期を作る）。
@@ -80,11 +83,15 @@ func Test_チケット親変更_正常な移動は履歴を残す(t *testing.T) 
 	repo.On("InsertTicketChangeGroup", mock.Anything, mock.MatchedBy(func(g *domain.TicketChangeGroup) bool {
 		return len(g.Items) == 1 && g.Items[0].Field == domain.TicketChangeFieldParent
 	})).Return(nil)
+	repo.On("DetachTicketPathSubtree", mock.Anything, tkWS, tkTicket).Return(nil)
+	repo.On("AttachTicketPathSubtree", mock.Anything, tkWS, tkTicket, newParent).Return(nil)
 
 	_, err := ticket.NewChangeTicketParentUseCase(repo).Execute(context.Background(), ticket.ChangeTicketParentInput{
 		WorkspaceID: tkWS, TicketID: tkTicket, ActorUserID: 1, NewParentID: &newParent,
 	})
 	require.NoError(t, err)
+	repo.AssertCalled(t, "DetachTicketPathSubtree", mock.Anything, tkWS, tkTicket)
+	repo.AssertCalled(t, "AttachTicketPathSubtree", mock.Anything, tkWS, tkTicket, newParent)
 }
 
 func Test_チケット親変更_変化が無ければ履歴を残さない(t *testing.T) {
@@ -99,4 +106,6 @@ func Test_チケット親変更_変化が無ければ履歴を残さない(t *te
 	})
 	require.NoError(t, err)
 	repo.AssertNotCalled(t, "InsertTicketChangeGroup")
+	repo.AssertNotCalled(t, "DetachTicketPathSubtree")
+	repo.AssertNotCalled(t, "AttachTicketPathSubtree")
 }

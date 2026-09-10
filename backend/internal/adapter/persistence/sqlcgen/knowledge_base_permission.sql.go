@@ -819,6 +819,158 @@ func (q *Queries) ListPageShareLinks(ctx context.Context, arg ListPageShareLinks
 	return items, nil
 }
 
+const listPageTicketLinkSourcePageViewFacts = `-- name: ListPageTicketLinkSourcePageViewFacts :many
+WITH me AS (
+    SELECT pr.id
+    FROM principals pr
+    WHERE pr.workspace_id = $1
+      AND pr.kind = 'user' AND pr.user_id = $2
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pmb.group_principal_id
+    FROM principal_members pmb
+    JOIN me ON me.id = pmb.member_principal_id
+    WHERE pmb.workspace_id = $1
+),
+space_allp AS (
+    -- private のスペースには space_all を届かせない（Search 側と同じ規則）。
+    SELECT spx.space_id, spx.id
+    FROM principals spx
+    JOIN spaces svz ON svz.workspace_id = $1 AND svz.id = spx.space_id
+     AND svz.visibility = 'workspace'
+    WHERE spx.workspace_id = $1
+      AND spx.kind = 'space_all'
+      AND EXISTS (SELECT 1 FROM me)
+),
+cand AS (
+    SELECT DISTINCT src.id, src.workspace_id, src.space_id, src.parent_id, src.position, src.title, src.created_by_user_id, src.archived_at, src.created_at, src.updated_at, src.icon, src.cover, src.last_edited_by_user_id
+    FROM page_ticket_links ptl
+    JOIN blocks blk ON blk.id = ptl.source_block_id
+    JOIN pages src ON src.workspace_id = blk.workspace_id AND src.id = blk.page_id
+    WHERE ptl.target_ticket_id = $3
+      AND src.workspace_id = $1
+),
+wsrank AS (
+    SELECT COALESCE(max(CASE wg."role"
+                          WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                          WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END), 0) AS v
+    FROM workspace_grants wg
+    WHERE wg.workspace_id = $1
+      AND wg.principal_id IN (SELECT id FROM mine)
+),
+sgrank AS (
+    SELECT sg.space_id,
+           max(CASE sg."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM space_grants sg
+    LEFT JOIN space_allp sap2 ON sap2.space_id = sg.space_id
+    WHERE sg.workspace_id = $1
+      AND (sg.principal_id IN (SELECT id FROM mine) OR sg.principal_id = sap2.id)
+    GROUP BY sg.space_id
+),
+pgrank AS (
+    SELECT pp.page_id,
+           max(CASE pgt."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS v
+    FROM page_paths pp
+    JOIN cand c ON c.id = pp.page_id
+    JOIN page_grants pgt
+      ON pgt.workspace_id = pp.workspace_id AND pgt.page_id = pp.ancestor_id
+    LEFT JOIN space_allp sap3 ON sap3.space_id = c.space_id
+    WHERE pp.workspace_id = $1
+      AND (pgt.principal_id IN (SELECT id FROM mine) OR pgt.principal_id = sap3.id)
+    GROUP BY pp.page_id
+)
+SELECT
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
+    GREATEST(
+      CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
+      COALESCE(sr.v, 0),
+      COALESCE(pgr.v, 0)
+    )::integer AS grant_rank
+FROM cand cnd
+JOIN spaces spvis ON spvis.workspace_id = $1 AND spvis.id = cnd.space_id
+LEFT JOIN sgrank sr ON sr.space_id = cnd.space_id
+LEFT JOIN pgrank pgr ON pgr.page_id = cnd.id
+ORDER BY cnd.title, cnd.id
+`
+
+type ListPageTicketLinkSourcePageViewFactsParams struct {
+	WorkspaceID    uuid.UUID
+	UserID         sql.NullInt64
+	TargetTicketID uuid.UUID
+}
+
+type ListPageTicketLinkSourcePageViewFactsRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	SpaceID            uuid.UUID
+	ParentID           uuid.NullUUID
+	Position           string
+	Title              string
+	CreatedByUserID    int64
+	ArchivedAt         sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Icon               *json.RawMessage
+	Cover              *json.RawMessage
+	LastEditedByUserID sql.NullInt64
+	GrantRank          int32
+}
+
+// 指定チケット（target_ticket_id）を埋め込んでいる「参照元ページ」全件と、それぞれの
+// 「閲覧の事実」を 1 回のクエリで返す（ページへのチケット埋め込みの逆参照。）。
+//
+// ListPageLinkSourcePageViewFacts と全く同じ形（事実の組み立て・grant_rank の計算は丸ごと
+// 同一）で、違いは cand の絞り方だけ: page_links.target_page_id ではなく
+// page_ticket_links.target_ticket_id を起点に source_block_id → blocks → pages と辿る。
+//
+// page_ticket_links は workspace_id を持たない（schema.hcl の page_ticket_links コメント
+// 参照 — page_links と同じ理由）。ここで src.workspace_id = 引数の workspace_id を要求する
+// ことが唯一の防波堤（page_links 版と同じ）。
+// ページ付与。候補に絞ってから経路を辿る（意味は検索側と同じ）。
+func (q *Queries) ListPageTicketLinkSourcePageViewFacts(ctx context.Context, arg ListPageTicketLinkSourcePageViewFactsParams) ([]ListPageTicketLinkSourcePageViewFactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPageTicketLinkSourcePageViewFacts, arg.WorkspaceID, arg.UserID, arg.TargetTicketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPageTicketLinkSourcePageViewFactsRow{}
+	for rows.Next() {
+		var i ListPageTicketLinkSourcePageViewFactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpaceID,
+			&i.ParentID,
+			&i.Position,
+			&i.Title,
+			&i.CreatedByUserID,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Icon,
+			&i.Cover,
+			&i.LastEditedByUserID,
+			&i.GrantRank,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSpaceGrants = `-- name: ListSpaceGrants :many
 SELECT workspace_id, space_id, principal_id, role, created_at, updated_at FROM space_grants
 WHERE workspace_id = $1 AND space_id = $2

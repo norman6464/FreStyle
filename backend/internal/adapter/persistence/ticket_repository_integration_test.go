@@ -115,6 +115,57 @@ func TestTicketSchema_Integration(t *testing.T) {
 		)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_ticket_assignments_principal")
 	})
+
+	// closure table の depth は 1 行だけで判定できる範囲を DB で守る（page_paths と同じ規則。
+	// 祖先の連鎖に抜けが無いかといった複数行の整合は行を書く側の責務）。
+	t.Run("ticket_pathsのdepthは自己行だけが0で負にできない", func(t *testing.T) {
+		parentID := newID()
+		childID := newID()
+		require.NoError(t, insertTicketRaw(sqlDB, parentID, ws, space, 201, "b1", typeID, statusID, nil, 2, nil, nil))
+		require.NoError(t, insertTicketRaw(sqlDB, childID, ws, space, 202, "b2", typeID, statusID, &parentID, 2, nil, nil))
+
+		insertTicketPath := func(ticketID, ancestorID string, depth int) error {
+			_, err := sqlDB.Exec(
+				`INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth) VALUES ($1, $2, $3, $4)`,
+				ws, ticketID, ancestorID, depth,
+			)
+			return err
+		}
+
+		err := insertTicketPath(childID, childID, 1)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_ticket_paths_depth")
+
+		err = insertTicketPath(childID, parentID, 0)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_ticket_paths_depth")
+
+		err = insertTicketPath(childID, parentID, -1)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_ticket_paths_depth")
+
+		require.NoError(t, insertTicketPath(childID, childID, 0))
+		require.NoError(t, insertTicketPath(childID, parentID, 1))
+	})
+
+	t.Run("ticket_pathsは別ワークスペースのチケットを組にできない", func(t *testing.T) {
+		wsB := createWorkspace(t, sqlDB, "tk-schema-other-paths")
+		spaceB := createSpace(t, sqlDB, wsB, "eng")
+		statusB, typeB := seedTicketMaster(t, sqlDB, wsB, spaceB)
+		ticketA := newID()
+		ticketB := newID()
+		require.NoError(t, insertTicketRaw(sqlDB, ticketA, ws, space, 301, "c1", typeID, statusID, nil, 2, nil, nil))
+		require.NoError(t, insertTicketRaw(sqlDB, ticketB, wsB, spaceB, 1, "c1", typeB, statusB, nil, 2, nil, nil))
+
+		_, err := sqlDB.Exec(
+			`INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth) VALUES ($1, $2, $3, $4)`,
+			ws, ticketA, ticketB, 1,
+		)
+		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_ticket_paths_ancestor")
+
+		_, err = sqlDB.Exec(
+			`INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth) VALUES ($1, $2, $3, $4)`,
+			ws, ticketB, ticketA, 1,
+		)
+		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_ticket_paths_ticket")
+	})
 }
 
 // TestTicketRepository_Integration は persistence.ticketRepository を実 Postgres 相手に検証する。
@@ -376,17 +427,21 @@ func TestTicketRepository_Integration(t *testing.T) {
 		require.Len(t, links, 1, "実在しないページIDは黙って除外される")
 		assert.Equal(t, pageID, links[0].TargetPageID)
 
-		// ListPagesReferencingTicket は名前と裏腹に、現状は ListTicketPageLinks と同じ
-		// （そのチケットが参照しているページ）を返す。ticket_repository.go の doc 参照
-		// （逆引きは段 2 の page_ticket_links の責務で、段 1 の対象外）。
-		sameAsForward, err := repo.ListPagesReferencingTicket(ctx, ws, src.ID)
+		// ListTicketsReferencingPage はページ詳細の逆参照一覧が使う（そのページを参照している
+		// チケット一覧）。ticket_repository.go の doc 参照。
+		referencing, err := repo.ListTicketsReferencingPage(ctx, ws, pageID)
 		require.NoError(t, err)
-		assert.Equal(t, links, sameAsForward)
+		require.Len(t, referencing, 1)
+		assert.Equal(t, src.ID, referencing[0].ID)
 
 		require.NoError(t, repo.ReplaceTicketPageLinks(ctx, ws, src.ID, nil))
 		links, err = repo.ListTicketPageLinks(ctx, ws, src.ID)
 		require.NoError(t, err)
 		assert.Empty(t, links, "空へ張り替えると消える")
+
+		referencing, err = repo.ListTicketsReferencingPage(ctx, ws, pageID)
+		require.NoError(t, err)
+		assert.Empty(t, referencing, "張り替えで空にすれば逆参照からも消える")
 	})
 
 	t.Run("状態マスタのCRUD一式", func(t *testing.T) {
@@ -771,6 +826,108 @@ func seedTicketMasterViaRepo(ctx context.Context, t *testing.T, repo repository.
 	typ := &domain.TicketType{WorkspaceID: ws, SpaceID: space, Name: "タスク", Color: "#2f6b47", Position: "a0", IsDefault: true}
 	require.NoError(t, repo.InsertTicketType(ctx, typ))
 	return status.ID, typ.ID
+}
+
+// TestTicketPaths_Integration は ticket_paths（parent_id の閉包表）の SQL そのものを固定する。
+// InsertTicketPathSelf/InsertTicketPathAncestors/DetachTicketPathSubtree/AttachTicketPathSubtree
+// を usecase を介さず直接呼ぶ（CreateTicketUseCase / ChangeTicketParentUseCase が正しい順で
+// 呼ぶことはモックテストが別に固定するので、ここでは SQL の正しさだけを見る）。
+func TestTicketPaths_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	repo := persistence.NewTicketRepository(sqlDB)
+	ctx := context.Background()
+
+	setup := func(t *testing.T) (ws, space string) {
+		t.Helper()
+		testsupport.TruncateAll(t, sqlDB, kbTables...)
+		ws = createWorkspace(t, sqlDB, "tk-paths")
+		space = createSpace(t, sqlDB, ws, "eng")
+		return ws, space
+	}
+
+	// mkTicket は CreateTicketUseCase.Execute の閉包表まわりと同じ順序（自己参照 →
+	// 親があれば祖先集合の継承）を手で並べる。
+	mkTicket := func(t *testing.T, ws, space, statusID, typeID string, parentID *string, position string) *domain.Ticket {
+		t.Helper()
+		created, err := repo.CreateTicket(ctx, repository.TicketCreateInput{
+			WorkspaceID: ws, SpaceID: space, TypeID: typeID, StatusID: statusID, ParentID: parentID,
+			Title: "x", Doc: []byte(`{"type":"doc","content":[]}`), Position: position, Priority: domain.TicketPriorityDefault, CreatedByUserID: 1,
+		})
+		require.NoError(t, err)
+		require.NoError(t, repo.InsertTicketPathSelf(ctx, ws, created.ID))
+		if parentID != nil {
+			require.NoError(t, repo.InsertTicketPathAncestors(ctx, ws, created.ID, *parentID))
+		}
+		return created
+	}
+
+	t.Run("直下作成は自己参照のみ_親付き作成は親の祖先集合を引き継ぐ", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		root := mkTicket(t, ws, space, statusID, typeID, nil, "a0")
+		child := mkTicket(t, ws, space, statusID, typeID, &root.ID, "a1")
+		grand := mkTicket(t, ws, space, statusID, typeID, &child.ID, "a2")
+
+		rootAncestors, err := repo.ListTicketAncestors(ctx, ws, root.ID)
+		require.NoError(t, err)
+		assert.Empty(t, rootAncestors, "ルートに祖先は無い")
+
+		childAncestors, err := repo.ListTicketAncestors(ctx, ws, child.ID)
+		require.NoError(t, err)
+		require.Len(t, childAncestors, 1)
+		assert.Equal(t, root.ID, childAncestors[0].ID)
+
+		grandAncestors, err := repo.ListTicketAncestors(ctx, ws, grand.ID)
+		require.NoError(t, err)
+		require.Len(t, grandAncestors, 2, "根から順")
+		assert.Equal(t, root.ID, grandAncestors[0].ID)
+		assert.Equal(t, child.ID, grandAncestors[1].ID)
+	})
+
+	t.Run("親の付け替えでサブツリー全体の祖先集合が張り替わる", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		// 旧木: oldRoot - a - b（b は a の子で、付け替え時に a と一緒に動くはず）。
+		oldRoot := mkTicket(t, ws, space, statusID, typeID, nil, "a0")
+		a := mkTicket(t, ws, space, statusID, typeID, &oldRoot.ID, "a1")
+		b := mkTicket(t, ws, space, statusID, typeID, &a.ID, "a2")
+		newRoot := mkTicket(t, ws, space, statusID, typeID, nil, "a3")
+
+		// a を newRoot の下へ付け替える。Detach → Attach の順（page_paths の MovePage と同じ）。
+		require.NoError(t, repo.DetachTicketPathSubtree(ctx, ws, a.ID))
+		require.NoError(t, repo.AttachTicketPathSubtree(ctx, ws, a.ID, newRoot.ID))
+
+		aAncestors, err := repo.ListTicketAncestors(ctx, ws, a.ID)
+		require.NoError(t, err)
+		require.Len(t, aAncestors, 1)
+		assert.Equal(t, newRoot.ID, aAncestors[0].ID, "a の祖先は newRoot だけになる（oldRoot は外れる）")
+
+		bAncestors, err := repo.ListTicketAncestors(ctx, ws, b.ID)
+		require.NoError(t, err)
+		require.Len(t, bAncestors, 2, "子孫 b も一緒に付け替わる")
+		assert.Equal(t, newRoot.ID, bAncestors[0].ID)
+		assert.Equal(t, a.ID, bAncestors[1].ID)
+
+		var oldRootDescendantCount int
+		require.NoError(t, sqlDB.QueryRow(
+			`SELECT count(*) FROM ticket_paths WHERE workspace_id = $1 AND ancestor_id = $2`, ws, oldRoot.ID,
+		).Scan(&oldRootDescendantCount))
+		assert.Equal(t, 1, oldRootDescendantCount, "oldRoot自身の自己行だけが残る（a・bはもう子孫ではない）")
+	})
+
+	t.Run("トップレベルへ戻すとDetachだけで祖先行が全て消える", func(t *testing.T) {
+		ws, space := setup(t)
+		statusID, typeID := seedTicketMasterViaRepo(ctx, t, repo, ws, space)
+		root := mkTicket(t, ws, space, statusID, typeID, nil, "a0")
+		child := mkTicket(t, ws, space, statusID, typeID, &root.ID, "a1")
+
+		require.NoError(t, repo.DetachTicketPathSubtree(ctx, ws, child.ID))
+		// Attach は呼ばない（トップレベルへ戻すケース。ChangeTicketParentUseCase と同じ分岐）。
+
+		ancestors, err := repo.ListTicketAncestors(ctx, ws, child.ID)
+		require.NoError(t, err)
+		assert.Empty(t, ancestors, "親を無くしたら祖先行も消える")
+	})
 }
 
 // TestTicketSimpleProtocol_Integration は simple query protocol（本番の transaction pooler と

@@ -249,6 +249,32 @@ func (m *mockTicketRepo) ListTicketParentChain(ctx context.Context, workspaceID,
 	return t, args.Error(1)
 }
 
+func (m *mockTicketRepo) InsertTicketPathSelf(ctx context.Context, workspaceID, ticketID string) error {
+	args := m.Called(ctx, workspaceID, ticketID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) InsertTicketPathAncestors(ctx context.Context, workspaceID, ticketID, parentID string) error {
+	args := m.Called(ctx, workspaceID, ticketID, parentID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) DetachTicketPathSubtree(ctx context.Context, workspaceID, ticketID string) error {
+	args := m.Called(ctx, workspaceID, ticketID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) AttachTicketPathSubtree(ctx context.Context, workspaceID, ticketID, newParentID string) error {
+	args := m.Called(ctx, workspaceID, ticketID, newParentID)
+	return args.Error(0)
+}
+
+func (m *mockTicketRepo) ListTicketAncestors(ctx context.Context, workspaceID, ticketID string) ([]domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	t, _ := args.Get(0).([]domain.Ticket)
+	return t, args.Error(1)
+}
+
 func (m *mockTicketRepo) LastActiveTicketPosition(ctx context.Context, workspaceID, spaceID string) (string, error) {
 	args := m.Called(ctx, workspaceID, spaceID)
 	return args.String(0), args.Error(1)
@@ -325,10 +351,10 @@ func (m *mockTicketRepo) ListTicketPageLinks(ctx context.Context, workspaceID, s
 	return l, args.Error(1)
 }
 
-func (m *mockTicketRepo) ListPagesReferencingTicket(ctx context.Context, workspaceID, targetTicketID string) ([]domain.TicketPageLink, error) {
-	args := m.Called(ctx, workspaceID, targetTicketID)
-	l, _ := args.Get(0).([]domain.TicketPageLink)
-	return l, args.Error(1)
+func (m *mockTicketRepo) ListTicketsReferencingPage(ctx context.Context, workspaceID, pageID string) ([]domain.Ticket, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	t, _ := args.Get(0).([]domain.Ticket)
+	return t, args.Error(1)
 }
 
 func (m *mockTicketRepo) ListTicketTicketLinks(ctx context.Context, workspaceID, sourceTicketID string) ([]domain.TicketTicketLink, error) {
@@ -592,6 +618,12 @@ func (m *mockKBPermissionRepo) SearchWorkspacePageViewFacts(ctx context.Context,
 
 func (m *mockKBPermissionRepo) ListPageLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string) ([]repository.PageWithViewFacts, error) {
 	args := m.Called(ctx, workspaceID, viewerUserID, targetPageID)
+	f, _ := args.Get(0).([]repository.PageWithViewFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListPageTicketLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetTicketID string) ([]repository.PageWithViewFacts, error) {
+	args := m.Called(ctx, workspaceID, viewerUserID, targetTicketID)
 	f, _ := args.Get(0).([]repository.PageWithViewFacts)
 	return f, args.Error(1)
 }

@@ -95,6 +95,8 @@ func registerTicketRoutesWith(
 		ticket.NewListTicketHistoryUseCase(tickets),
 		ticket.NewListLabelsForTicketUseCase(labels),
 		ticket.NewListLabelsByTicketIDsUseCase(labels),
+		ticket.NewListTicketAncestorsUseCase(tickets),
+		kb.NewListPagesReferencingTicketUseCase(permissions),
 	)
 	sh := NewTicketStatusHandler(
 		checkSpace,
@@ -173,6 +175,8 @@ func registerTicketRoutesWith(
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/assignee", h.Assign)
 	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/assignee", h.Unassign)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/history", h.History)
+	// ページへのチケット埋め込みの逆参照（段 5）。
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/page-backlinks", h.PageBacklinks)
 
 	// 発言（段 3）。
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments", ch.List)

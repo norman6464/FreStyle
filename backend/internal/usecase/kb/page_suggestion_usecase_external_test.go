@@ -161,7 +161,7 @@ func Test_提案採用_ForceVersionは必ずtrue(t *testing.T) {
 	kbRepo := &mockKnowledgeBaseRepo{}
 	kbRepo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
 	kbRepo.On("TouchPageLastEditedBy", mock.Anything, kbWS, kbPage, kbEditorUserID).Return(nil)
-	kbRepo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	kbRepo.On("ReplacePageBlocks", mock.Anything, kbWS, kbPage, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	kbRepo.On("GetPageSnapshot", mock.Anything, kbWS, kbPage).
 		Return(&domain.PageSnapshot{PageID: kbPage, Doc: kbSuggestionDoc}, nil)
 

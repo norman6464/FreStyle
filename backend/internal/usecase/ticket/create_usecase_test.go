@@ -69,6 +69,7 @@ func Test_チケット作成_既定の種別と状態を解決して作る(t *te
 		Run(func(args mock.Arguments) { captured = args.Get(1).(repository.TicketCreateInput) }).
 		Return(&domain.Ticket{ID: "01a00000-0000-7000-8000-000000000040", WorkspaceID: tkWS, SpaceID: tkSpace, Number: 1}, nil)
 	repo.On("InsertTicketRank", mock.Anything, tkWS, "01a00000-0000-7000-8000-000000000040", mock.AnythingOfType("string")).Return(nil)
+	repo.On("InsertTicketPathSelf", mock.Anything, tkWS, "01a00000-0000-7000-8000-000000000040").Return(nil)
 	repo.On("ReplaceTicketPageLinks", mock.Anything, tkWS, mock.Anything, []string(nil)).Return(nil)
 	repo.On("ReplaceTicketTicketLinks", mock.Anything, tkWS, mock.Anything, []string(nil)).Return(nil)
 
@@ -143,6 +144,37 @@ func Test_チケット作成_親を指定する場合の階層規則(t *testing.
 		require.ErrorIs(t, err, domain.ErrTicketHierarchyRejected)
 	})
 
+	t.Run("親が実在し規則を満たせば閉包表の自己参照と祖先集合の両方を張る", func(t *testing.T) {
+		repo := &mockTicketRepo{}
+		defaultType := tkDefaultType() // level 0
+		initialStatus := tkInitialStatus()
+		parentType := domain.TicketType{ID: "type-task", HierarchyLevel: 0}
+		parent := domain.Ticket{ID: tkParent, WorkspaceID: tkWS, SpaceID: tkSpace, TypeID: "type-task"}
+		repo.On("GetDefaultTicketType", mock.Anything, tkWS, tkSpace).Return(&defaultType, nil)
+		repo.On("GetInitialTicketStatus", mock.Anything, tkWS, tkSpace).Return(&initialStatus, nil)
+		repo.On("FindTicket", mock.Anything, tkWS, tkParent).Return(&parent, nil)
+		repo.On("FindTicketType", mock.Anything, tkWS, tkSpace, "type-task").Return(&parentType, nil)
+		repo.On("ListTicketParentChain", mock.Anything, tkWS, tkParent).Return([]domain.Ticket{}, nil)
+		repo.On("LastActiveTicketPosition", mock.Anything, tkWS, tkSpace).Return("a0", nil)
+		repo.On("LastActiveTicketRankPosition", mock.Anything, tkWS, tkSpace).Return("a0", nil)
+		newID := "01a00000-0000-7000-8000-000000000050"
+		repo.On("CreateTicket", mock.Anything, mock.AnythingOfType("repository.TicketCreateInput")).
+			Return(&domain.Ticket{ID: newID, WorkspaceID: tkWS, SpaceID: tkSpace}, nil)
+		repo.On("InsertTicketRank", mock.Anything, tkWS, newID, mock.AnythingOfType("string")).Return(nil)
+		repo.On("InsertTicketPathSelf", mock.Anything, tkWS, newID).Return(nil)
+		repo.On("InsertTicketPathAncestors", mock.Anything, tkWS, newID, tkParent).Return(nil)
+		repo.On("ReplaceTicketPageLinks", mock.Anything, tkWS, newID, []string(nil)).Return(nil)
+		repo.On("ReplaceTicketTicketLinks", mock.Anything, tkWS, newID, []string(nil)).Return(nil)
+
+		_, err := ticket.NewCreateTicketUseCase(repo).Execute(context.Background(), ticket.CreateTicketInput{
+			WorkspaceID: tkWS, SpaceID: tkSpace, Title: "x", Doc: `{"type":"doc","content":[]}`,
+			CreatedByUserID: 1, ParentID: &tkParent,
+		})
+		require.NoError(t, err)
+		repo.AssertCalled(t, "InsertTicketPathSelf", mock.Anything, tkWS, newID)
+		repo.AssertCalled(t, "InsertTicketPathAncestors", mock.Anything, tkWS, newID, tkParent)
+	})
+
 	t.Run("別スペースの親は404相当", func(t *testing.T) {
 		repo := &mockTicketRepo{}
 		defaultType := tkDefaultType()
@@ -177,6 +209,7 @@ func Test_チケット作成_本文から参照を張る(t *testing.T) {
 		Run(func(args mock.Arguments) { captured = args.Get(1).(repository.TicketCreateInput) }).
 		Return(&domain.Ticket{ID: "ticket-1", WorkspaceID: tkWS, SpaceID: tkSpace}, nil)
 	repo.On("InsertTicketRank", mock.Anything, tkWS, "ticket-1", mock.AnythingOfType("string")).Return(nil)
+	repo.On("InsertTicketPathSelf", mock.Anything, tkWS, "ticket-1").Return(nil)
 	repo.On("ReplaceTicketPageLinks", mock.Anything, tkWS, "ticket-1", []string{pageID}).Return(nil)
 	repo.On("ReplaceTicketTicketLinks", mock.Anything, tkWS, "ticket-1", []string(nil)).Return(nil)
 

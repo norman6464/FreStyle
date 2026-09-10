@@ -329,6 +329,59 @@ FROM chain
 WHERE depth > 0
 ORDER BY depth DESC;
 
+-- =============================================================================
+-- ticket_paths（段 5: parent_id の閉包表。page_paths と同じ設計・同じ作法）
+-- =============================================================================
+
+-- name: InsertTicketPathSelf :exec
+-- closure の自己参照行（depth=0）。チケット作成と同じタイミングで張る。
+INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth)
+VALUES ($1, $2, $2, 0);
+
+-- name: InsertTicketPathAncestors :exec
+-- チケット作成時に親の祖先集合（親自身 depth=0 を含む）を +1 して引き継ぐ。
+INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth)
+SELECT tp.workspace_id, sqlc.arg(ticket_id)::uuid, tp.ancestor_id, tp.depth + 1
+FROM ticket_paths tp
+WHERE tp.workspace_id = sqlc.arg(workspace_id) AND tp.ticket_id = sqlc.arg(parent_id);
+
+-- name: DetachTicketPathSubtree :exec
+-- 親の付け替え（前半）: サブツリー内の各チケットと「サブツリー外の祖先」との組を消す。
+-- サブツリー内部同士の組（自己参照 depth=0 を含む）は付け替え後も変わらないため残す。
+-- page_paths の DetachPageSubtreePaths と同じ形（doc 参照）。
+DELETE FROM ticket_paths
+WHERE ticket_paths.workspace_id = sqlc.arg(workspace_id)
+  AND ticket_paths.ticket_id IN (
+      SELECT tp.ticket_id FROM ticket_paths tp
+      WHERE tp.workspace_id = sqlc.arg(workspace_id) AND tp.ancestor_id = sqlc.arg(ticket_id)
+  )
+  AND ticket_paths.ancestor_id NOT IN (
+      SELECT tp.ticket_id FROM ticket_paths tp
+      WHERE tp.workspace_id = sqlc.arg(workspace_id) AND tp.ancestor_id = sqlc.arg(ticket_id)
+  );
+
+-- name: AttachTicketPathSubtree :exec
+-- 親の付け替え（後半）: 新しい親の祖先集合（親自身を含む）×サブツリー全員の直積を張る。
+-- 深さは「サブツリー内での深さ + 親までの深さ + 1」。ルートへ戻す付け替え（親なし）では
+-- このクエリは呼ばない（Detach だけで完結する）。呼び出し順は Detach → Attach 固定
+-- （逆にすると Attach で張った行を Detach が消してしまう。page_paths と同じ注意）。
+INSERT INTO ticket_paths (workspace_id, ticket_id, ancestor_id, depth)
+SELECT sub.workspace_id, sub.ticket_id, sup.ancestor_id, sub.depth + sup.depth + 1
+FROM ticket_paths sub
+JOIN ticket_paths sup
+  ON sup.workspace_id = sub.workspace_id AND sup.ticket_id = sqlc.arg(new_parent_id)
+WHERE sub.workspace_id = sqlc.arg(workspace_id) AND sub.ancestor_id = sqlc.arg(ticket_id);
+
+-- name: ListTicketAncestors :many
+-- パンくず用。根から順（depth の大きい方が根に近い）に祖先チケットを返す。自分自身
+-- （depth=0）は含まない。チケットの親は常に同一スペース限定（fk_tickets_parent）なので、
+-- ページの ListAncestorPageIDsと違い祖先ごとの可視判定は要らない（このチケット自体が
+-- 見えるなら、同じスペースの祖先もすべて見える。設計 Ⅳ-H）。
+SELECT t.* FROM ticket_paths tp
+JOIN tickets t ON t.workspace_id = tp.workspace_id AND t.id = tp.ancestor_id
+WHERE tp.workspace_id = $1 AND tp.ticket_id = $2 AND tp.depth > 0
+ORDER BY tp.depth DESC;
+
 -- name: LastActiveTicketPosition :one
 -- tickets.position 自体は段 2 で並び順の正本ではなくなったが、CreateTicket の INSERT が
 -- NOT NULL 列を埋めるためにまだこれを呼ぶ（列は残す。読み手は誰も居ない・書き手だけ残る）。
@@ -466,14 +519,20 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 SELECT * FROM ticket_page_links
 WHERE workspace_id = $1 AND source_ticket_id = $2;
 
--- name: ListPagesReferencingTicket :many
--- ticket-backlinks API の逆方向（そのページを参照しているチケット一覧）。
--- deleted_at IS NULL: 参照元チケットが削除されていれば、削除時に DeleteTicketPageLinksBySourceCascade
--- がこの行にも deleted_at を立てている。ここで除かないと、消えたはずのチケットの存在が
--- ページ側の逆参照一覧から漏れる（参照元チケットの deleted_at を都度 JOIN で見る代わりに、
--- 削除時に伝播させて 1 列で判定できるようにしてある。設計 Ⅳ-J の「読み出しの述語を単純に保つ」）。
-SELECT * FROM ticket_page_links
-WHERE workspace_id = $1 AND target_page_id = $2 AND deleted_at IS NULL;
+-- name: ListTicketsReferencingPage :many
+-- ページ詳細の逆参照一覧（そのページを参照しているチケット一覧。）。
+-- target_page_id を起点に tickets を JOIN し、チケットの行そのものを返す
+-- （handler が題名・状態をそのまま出せるように、リンク行だけでなくチケット本体を返す）。
+--
+-- deleted_at IS NULL（ticket_page_links）: 参照元チケットが削除されていれば、削除時に
+-- DeleteTicketPageLinksBySourceCascade がこの行にも deleted_at を立てている。ここで除かないと、
+-- 消えたはずのチケットの存在がページ側の逆参照一覧から漏れる（参照元チケットの deleted_at を
+-- 都度 JOIN で見る代わりに、削除時に伝播させて 1 列で判定できるようにしてある。設計 Ⅳ-J の
+-- 「読み出しの述語を単純に保つ」）。t.deleted_at IS NULL は伝播が万一漏れた場合の二重の安全弁。
+SELECT t.* FROM ticket_page_links tpl
+JOIN tickets t ON t.workspace_id = tpl.workspace_id AND t.id = tpl.source_ticket_id
+WHERE tpl.workspace_id = $1 AND tpl.target_page_id = $2
+  AND tpl.deleted_at IS NULL AND t.deleted_at IS NULL;
 
 -- name: ListTicketTicketLinksBySource :many
 SELECT * FROM ticket_ticket_links

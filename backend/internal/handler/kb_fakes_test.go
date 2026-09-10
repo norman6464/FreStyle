@@ -539,7 +539,8 @@ func (f *kbFakePages) ListBlocksByPage(_ context.Context, _, _ string) ([]domain
 }
 
 func (f *kbFakePages) ReplacePageBlocks(
-	_ context.Context, workspaceID, pageID string, _ []repository.BlockWrite, snapshotDoc, _, _ string, _ []repository.PageLinkWrite,
+	_ context.Context, workspaceID, pageID string, _ []repository.BlockWrite, snapshotDoc, _, _ string,
+	_ []repository.PageLinkWrite, _ []repository.PageTicketLinkWrite,
 ) error {
 	p, ok := f.pages[pageID]
 	if !ok || p.WorkspaceID != workspaceID {
@@ -940,6 +941,12 @@ func (f *kbFakePerms) SearchWorkspacePageViewFacts(
 // （逆リンクは page_links を必要とし、この in-memory fake は持たない。逆リンクの確認は
 // 本物の PostgreSQL を使う結合テストが行う）。呼ばれたら空を返す。
 func (f *kbFakePerms) ListPageLinkSourcePageViewFacts(
+	_ context.Context, _ string, _ uint64, _ string,
+) ([]repository.PageWithViewFacts, error) {
+	return []repository.PageWithViewFacts{}, nil
+}
+
+func (f *kbFakePerms) ListPageTicketLinkSourcePageViewFacts(
 	_ context.Context, _ string, _ uint64, _ string,
 ) ([]repository.PageWithViewFacts, error) {
 	return []repository.PageWithViewFacts{}, nil

@@ -15,6 +15,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +51,7 @@ type kbFixture struct {
 	templates   *kbFakePageTemplates
 	suggestions *kbFakePageSuggestions
 	presigner   *kbFakeImagePresigner
+	tickets     *ticketFakeRepo
 	router      *gin.Engine
 }
 
@@ -96,8 +98,9 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	templates := newKbFakePageTemplates()
 	suggestions := newKbFakePageSuggestions()
 	presigner := &kbFakeImagePresigner{}
+	tickets := newTicketFakeRepo()
 	registerKnowledgeBaseRoutesWith(
-		g, pages, perms, perms, provisioner, users, comments, versions, templates, suggestions, fakeTxManager{}, presigner,
+		g, pages, perms, perms, provisioner, users, comments, versions, templates, suggestions, tickets, fakeTxManager{}, presigner,
 	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
@@ -106,7 +109,7 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	return kbFixture{
 		pages: pages, perms: perms, provisioner: provisioner, users: users,
 		comments: comments, versions: versions, templates: templates, suggestions: suggestions,
-		presigner: presigner, router: r,
+		presigner: presigner, tickets: tickets, router: r,
 	}
 }
 
@@ -156,6 +159,11 @@ var kbEndpoints = []kbEndpoint{
 	{
 		name: "逆リンク", method: http.MethodGet,
 		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/backlinks",
+		capability: domain.CapabilityView, okStatus: http.StatusOK,
+	},
+	{
+		name: "チケットからの逆参照", method: http.MethodGet,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/ticket-backlinks",
 		capability: domain.CapabilityView, okStatus: http.StatusOK,
 	},
 	{
@@ -1680,6 +1688,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewSetPageCoverUseCase(pages),
 		kb.NewResolveCoverURLUseCase(&kbFakeImagePresigner{}),
 		kb.NewListPageBacklinksUseCase(perms),
+		ticket.NewListTicketsReferencingPageUseCase(newTicketFakeRepo()),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -2089,4 +2098,30 @@ func Test_ナレッジAPI_IDだけでの解決(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, missing.Code)
 		assert.Equal(t, missing.Body.String(), real.Body.String())
 	})
+}
+
+// Test_チケットからの逆参照_見えるスペースのチケットだけ返す は TicketBacklinks（段 5）の
+// スペース単位の可視判定を固定する。チケットには pages のような個票の権限が無いため、
+// 登場したスペースごとに CanView を確かめる分岐（1 件目で判定・2 件目以降はキャッシュ再利用・
+// 見えなければ行ごと落とす）を実際のデータで通す。
+func Test_チケットからの逆参照_見えるスペースのチケットだけ返す(t *testing.T) {
+	f := newKbFixture(kbCanView, kbUserID)
+	f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleViewer)
+
+	visible := f.tickets.addTicket(domain.Ticket{ID: "tb-visible", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "見える"})
+
+	hiddenSpace := "tb-hidden-space"
+	f.pages.addSpace(kbWorkspaceID, hiddenSpace) // 実在はするが setScopeRole していない = CanView false
+	hidden1 := f.tickets.addTicket(domain.Ticket{ID: "tb-hidden-1", WorkspaceID: kbWorkspaceID, SpaceID: hiddenSpace, Title: "見えない1"})
+	hidden2 := f.tickets.addTicket(domain.Ticket{ID: "tb-hidden-2", WorkspaceID: kbWorkspaceID, SpaceID: hiddenSpace, Title: "見えない2"})
+
+	f.tickets.pageLinks[visible.ID] = []string{kbRootPageID}
+	f.tickets.pageLinks[hidden1.ID] = []string{kbRootPageID}
+	f.tickets.pageLinks[hidden2.ID] = []string{kbRootPageID}
+
+	w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/ticket-backlinks", "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	got := decodeJSON[[]domain.Ticket](t, w)
+	require.Len(t, got, 1, "見えないスペースの2件は落ちる")
+	assert.Equal(t, visible.ID, got[0].ID)
 }

@@ -75,6 +75,17 @@ func (u *ChangeTicketParentUseCase) Execute(ctx context.Context, in ChangeTicket
 		if err := u.recordParentChange(ctx, in, current.ParentID); err != nil {
 			return nil, err
 		}
+		// ticket_paths（閉包表。段 5）の付け替え。このチケットとその子孫すべてが
+		// 対象になる（Detach/Attach 自体がサブツリー全体に効く。page_paths の MovePage と同じ
+		// 順序 — Detach → Attach 固定。逆にすると Attach で張った行を Detach が消してしまう）。
+		if err := u.repo.DetachTicketPathSubtree(ctx, in.WorkspaceID, in.TicketID); err != nil {
+			return nil, err
+		}
+		if in.NewParentID != nil {
+			if err := u.repo.AttachTicketPathSubtree(ctx, in.WorkspaceID, in.TicketID, *in.NewParentID); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return updated, nil
 }

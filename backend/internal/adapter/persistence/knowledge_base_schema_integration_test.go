@@ -34,7 +34,8 @@ var kbTables = []string{
 	// page_search / page_links は blocks / pages への CASCADE FK を
 	// 持つため、blocks・pages を TRUNCATE ... CASCADE すれば自動的に一緒に空になるが、
 	// page_snapshots と同じく明示しておく（この表の作法に揃える）。
-	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "pages", "spaces", "workspaces",
+	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "page_ticket_links",
+	"pages", "spaces", "workspaces",
 }
 
 // TestKnowledgeBaseSchema_Integration は明示 DDL（infra/database/schema/knowledge_base.sql）が
@@ -498,6 +499,10 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		createPageSnapshot(t, db, page)
 		createPageSearch(t, db, ws, page)
 		createPageLink(t, db, block, page)
+		ticketStatusID, ticketTypeID := seedTicketMaster(t, db, ws, space)
+		ticketID := newID()
+		require.NoError(t, insertTicketRaw(db, ticketID, ws, space, 1, "a0", ticketTypeID, ticketStatusID, nil, 2, nil, nil))
+		createPageTicketLink(t, db, block, ticketID)
 		seedPermissionRows(t, db, ws, space, page)
 		for _, table := range kbTables {
 			require.NotZerof(t, countRows(t, db, table), "%s に検証用の行が入っていること", table)
@@ -713,6 +718,21 @@ func insertPageLink(db *sql.DB, sourceBlockID, targetPageID string) error {
 func createPageLink(t *testing.T, db *sql.DB, sourceBlockID, targetPageID string) {
 	t.Helper()
 	require.NoError(t, insertPageLink(db, sourceBlockID, targetPageID))
+}
+
+// insertPageTicketLink / createPageTicketLink は page_ticket_links へ検証用の行を入れる
+// （insertPageLink / createPageLink のチケット版。段 5）。
+func insertPageTicketLink(db *sql.DB, sourceBlockID, targetTicketID string) error {
+	_, err := db.Exec(
+		`INSERT INTO page_ticket_links (source_block_id, target_ticket_id) VALUES ($1, $2)`,
+		sourceBlockID, targetTicketID,
+	)
+	return err
+}
+
+func createPageTicketLink(t *testing.T, db *sql.DB, sourceBlockID, targetTicketID string) {
+	t.Helper()
+	require.NoError(t, insertPageTicketLink(db, sourceBlockID, targetTicketID))
 }
 
 func countRows(t *testing.T, db *sql.DB, table string) int {

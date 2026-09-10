@@ -17,8 +17,9 @@ import (
 // このパッケージからは import できない定数として独立して持つ
 // （extractPageSearchFromBlocks の doc 参照 — 依存の向きの理由）。
 const (
-	pageSearchTextNodeType    = "text"
-	pageSearchPageRefNodeType = "pageRef"
+	pageSearchTextNodeType      = "text"
+	pageSearchPageRefNodeType   = "pageRef"
+	pageSearchTicketRefNodeType = "ticketRef"
 )
 
 // pageSearchInlineNode は inline 配列の 1 要素を最小限に読むための型。
@@ -27,7 +28,8 @@ type pageSearchInlineNode struct {
 	Type  string `json:"type"`
 	Text  string `json:"text"`
 	Attrs struct {
-		PageID string `json:"pageId"`
+		PageID   string `json:"pageId"`
+		TicketID string `json:"ticketId"`
 	} `json:"attrs"`
 }
 
@@ -43,7 +45,8 @@ type pageSearchInlineNode struct {
 //   - RebuildPageSearchAndLinks はこのファイル内の extractPageSearchFromBlocks が、
 //     既に保存済みの blocks 行から抽出したものを渡す。
 func writePageSearchAndLinks(
-	ctx context.Context, qtx *sqlcgen.Queries, wsID, pgID uuid.UUID, title, body string, pageLinks []repository.PageLinkWrite,
+	ctx context.Context, qtx *sqlcgen.Queries, wsID, pgID uuid.UUID, title, body string,
+	pageLinks []repository.PageLinkWrite, pageTicketLinks []repository.PageTicketLinkWrite,
 ) error {
 	// 1. page_search を焼き直す。
 	if err := qtx.UpsertPageSearch(ctx, sqlcgen.UpsertPageSearchParams{
@@ -62,13 +65,28 @@ func writePageSearchAndLinks(
 	}); err != nil {
 		return err
 	}
+	if err := writePageLinks(ctx, qtx, pageLinks); err != nil {
+		return err
+	}
+
+	// 3. page_ticket_links を張り替える（段 5。page_links と同じ前半・後半の形）。
+	if err := qtx.DeletePageTicketLinksBySourceBlockIDsInPage(ctx, sqlcgen.DeletePageTicketLinksBySourceBlockIDsInPageParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+	}); err != nil {
+		return err
+	}
+	return writePageTicketLinks(ctx, qtx, pageTicketLinks)
+}
+
+// writePageLinks は page_links の張り替え（後半）— 参照先が実在するものだけに絞って
+// INSERT する（リンク切れは黙って除外する — PageLinkWrite の doc 参照。target_page_id は
+// pages への FK なので、存在しない ID のまま INSERT すると外部キー違反で保存全体が
+// 落ちてしまう）。呼び出し元が前半（DeletePageLinksBySourceBlockIDsInPage）を先に済ませること。
+func writePageLinks(ctx context.Context, qtx *sqlcgen.Queries, pageLinks []repository.PageLinkWrite) error {
 	if len(pageLinks) == 0 {
 		return nil
 	}
-
-	// 3. 参照先が実在するものだけに絞る（リンク切れは黙って除外する — PageLinkWrite の
-	// doc 参照。target_page_id は pages への FK なので、存在しない ID のまま INSERT すると
-	// 外部キー違反で保存全体が落ちてしまう）。
 	targetSet := make(map[uuid.UUID]struct{}, len(pageLinks))
 	targetIDs := make([]uuid.UUID, 0, len(pageLinks))
 	for _, l := range pageLinks {
@@ -100,8 +118,8 @@ func writePageSearchAndLinks(
 		existing[id] = struct{}{}
 	}
 
-	// 4. (後半) 実在確認済みの参照先ごとに INSERT する。1 つのブロックが同じページを
-	// 複数回参照する場合は InsertPageLink の ON CONFLICT DO NOTHING で 1 行に畳まれる。
+	// 実在確認済みの参照先ごとに INSERT する。1 つのブロックが同じページを複数回参照する
+	// 場合は InsertPageLink の ON CONFLICT DO NOTHING で 1 行に畳まれる。
 	for _, l := range pageLinks {
 		tgtID, err := uuid.Parse(l.TargetPageID)
 		if err != nil {
@@ -117,6 +135,65 @@ func writePageSearchAndLinks(
 		if err := qtx.InsertPageLink(ctx, sqlcgen.InsertPageLinkParams{
 			SourceBlockID: srcID,
 			TargetPageID:  tgtID,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writePageTicketLinks は page_ticket_links の張り替え（後半）。writePageLinks のチケット版
+// （段 5）— ListExistingTicketIDsAmong / InsertPageTicketLink を使うだけで
+// 判断の筋は同一。呼び出し元が前半（DeletePageTicketLinksBySourceBlockIDsInPage）を
+// 先に済ませること。
+func writePageTicketLinks(ctx context.Context, qtx *sqlcgen.Queries, pageTicketLinks []repository.PageTicketLinkWrite) error {
+	if len(pageTicketLinks) == 0 {
+		return nil
+	}
+	targetSet := make(map[uuid.UUID]struct{}, len(pageTicketLinks))
+	targetIDs := make([]uuid.UUID, 0, len(pageTicketLinks))
+	for _, l := range pageTicketLinks {
+		id, err := uuid.Parse(l.TargetTicketID)
+		if err != nil {
+			continue
+		}
+		if _, dup := targetSet[id]; dup {
+			continue
+		}
+		targetSet[id] = struct{}{}
+		targetIDs = append(targetIDs, id)
+	}
+	if len(targetIDs) == 0 {
+		return nil
+	}
+	idsJSON, err := json.Marshal(targetIDs)
+	if err != nil {
+		return err
+	}
+	existingRows, err := qtx.ListExistingTicketIDsAmong(ctx, idsJSON)
+	if err != nil {
+		return err
+	}
+	existing := make(map[uuid.UUID]struct{}, len(existingRows))
+	for _, id := range existingRows {
+		existing[id] = struct{}{}
+	}
+
+	for _, l := range pageTicketLinks {
+		tgtID, err := uuid.Parse(l.TargetTicketID)
+		if err != nil {
+			continue
+		}
+		if _, ok := existing[tgtID]; !ok {
+			continue
+		}
+		srcID, err := uuid.Parse(l.SourceBlockID)
+		if err != nil {
+			continue
+		}
+		if err := qtx.InsertPageTicketLink(ctx, sqlcgen.InsertPageTicketLinkParams{
+			SourceBlockID:  srcID,
+			TargetTicketID: tgtID,
 		}); err != nil {
 			return err
 		}
@@ -146,8 +223,8 @@ func (r *knowledgeBaseRepository) RebuildPageSearchAndLinks(ctx context.Context,
 		for _, row := range rows {
 			blocks = append(blocks, toDomainBlock(row))
 		}
-		body, links := extractPageSearchFromBlocks(blocks)
-		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, page.Title, body, links)
+		body, links, ticketLinks := extractPageSearchFromBlocks(blocks)
+		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, page.Title, body, links, ticketLinks)
 	})
 }
 
@@ -211,22 +288,28 @@ func buildOrderedBlockForest(blocks []domain.Block) []*orderedBlockNode {
 }
 
 // extractPageSearchFromBlocks は保存済みの blocks 行から body（本文プレーンテキスト）と
-// pageLinks（page_links の材料）を組み立てる。RebuildPageSearchAndLinks が使う。
+// pageLinks（page_links の材料）・pageTicketLinks（page_ticket_links の材料）を組み立てる。
+// RebuildPageSearchAndLinks が使う。
 //
-// usecase/kb.extractPageBodyText / extractPageLinks と同じ考え方（"text" 型インライン
-// ノードの .text を連結する・pageRef ノードの attrs.pageId を集める）を、
-// buildOrderedBlockForest の doc に書いた理由でこのパッケージに閉じて独立に実装している。
+// usecase/kb.extractPageBodyText / extractPageLinks / extractPageTicketLinks と同じ考え方
+// （"text" 型インラインノードの .text を連結する・pageRef / ticketRef ノードの
+// attrs.pageId / attrs.ticketId を集める）を、buildOrderedBlockForest の doc に書いた理由で
+// このパッケージに閉じて独立に実装している。
 //
-// pageSearchMaxDistinctTargets は参照先ページの種類数の天井。usecase/kb.kbPageRefMaxResolve
-// と同じ値（100）——このパッケージからは import できないため値として独立して持つが、通常の
-// 保存経路（ReplacePageBlocks）と一回限りの再構築（RebuildPageSearchAndLinks）で同じページに
-// 対し異なる page_links が生成される食い違いを避けるため、揃えておく。
+// pageSearchMaxDistinctTargets は参照先の種類数の天井（pageRef / ticketRef 別々に数える）。
+// usecase/kb.kbPageRefMaxResolve と同じ値（100）——このパッケージからは import できないため
+// 値として独立して持つが、通常の保存経路（ReplacePageBlocks）と一回限りの再構築
+// （RebuildPageSearchAndLinks）で同じページに対し異なる page_links / page_ticket_links が
+// 生成される食い違いを避けるため、揃えておく。
 const pageSearchMaxDistinctTargets = 100
 
-func extractPageSearchFromBlocks(blocks []domain.Block) (body string, pageLinks []repository.PageLinkWrite) {
+func extractPageSearchFromBlocks(
+	blocks []domain.Block,
+) (body string, pageLinks []repository.PageLinkWrite, pageTicketLinks []repository.PageTicketLinkWrite) {
 	roots := buildOrderedBlockForest(blocks)
 	var textBuf strings.Builder
 	seenTarget := map[string]struct{}{}
+	seenTicketTarget := map[string]struct{}{}
 	var walk func(nodes []*orderedBlockNode)
 	walk = func(nodes []*orderedBlockNode) {
 		for _, n := range nodes {
@@ -262,6 +345,22 @@ func extractPageSearchFromBlocks(blocks []domain.Block) (body string, pageLinks 
 						SourceBlockID: n.id,
 						TargetPageID:  target,
 					})
+				case pageSearchTicketRefNodeType:
+					id, err := uuid.Parse(it.Attrs.TicketID)
+					if err != nil {
+						continue
+					}
+					target := id.String()
+					if _, known := seenTicketTarget[target]; !known {
+						if len(seenTicketTarget) >= pageSearchMaxDistinctTargets {
+							continue
+						}
+						seenTicketTarget[target] = struct{}{}
+					}
+					pageTicketLinks = append(pageTicketLinks, repository.PageTicketLinkWrite{
+						SourceBlockID:  n.id,
+						TargetTicketID: target,
+					})
 				}
 			}
 			if blockText.Len() > 0 {
@@ -273,5 +372,5 @@ func extractPageSearchFromBlocks(blocks []domain.Block) (body string, pageLinks 
 		}
 	}
 	walk(roots)
-	return textBuf.String(), pageLinks
+	return textBuf.String(), pageLinks, pageTicketLinks
 }

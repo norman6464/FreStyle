@@ -220,6 +220,11 @@ type KnowledgeBasePermissionRepository interface {
 	// で行う。アーカイブ済みの参照元も候補から外さない（ListWorkspacePageViewFactsByIDs と
 	// 同じ考え方 — パンくずと同じく、参照元が現役かどうかでふるい落とす理由が無い）。
 	ListPageLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string) ([]PageWithViewFacts, error)
+	// ListPageTicketLinkSourcePageViewFacts は ListPageLinkSourcePageViewFacts のチケット版
+	// （段 5）。targetTicketID を埋め込んでいる「参照元ページ」全件と、その
+	// 閲覧の事実を返す（ページへのチケット埋め込みの逆参照用）。事実の組み立て・判定の
+	// 責務分担は ListPageLinkSourcePageViewFacts と同一。
+	ListPageTicketLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetTicketID string) ([]PageWithViewFacts, error)
 	// ListWorkspacePageViewFactsByIDs は指定 ID 群のページの閲覧の事実を返す
 	// （ページ参照の題名解決とパンくずが使う）。事実の見方は検索と同一で、判定は
 	// 呼び出し側が domain.ResolvePageView で行う。UUID として読めない ID・

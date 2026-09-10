@@ -74,6 +74,8 @@ function baseApi(over: ApiStubs = {}): ApiStubs {
   return {
     '/kb/tickets/t-1': resolvedResponse(),
     '/kb/workspaces/acme/tickets/t-1/history': { groups: [] },
+    '/kb/workspaces/acme/tickets/t-1/comments': { comments: [] },
+    '/profile/me': { userId: 1, displayName: 'norman6464', email: '', bio: '', avatarUrl: '', status: '', updatedAt: '' },
     '/kb/workspaces/acme/spaces/s-1/ticket-statuses': { statuses: [status()] },
     '/kb/workspaces/acme/spaces/s-1/ticket-types': { types: [type()] },
     // 担当の表示名解決（usePrincipalNames）が経由するページ木。空でよい。

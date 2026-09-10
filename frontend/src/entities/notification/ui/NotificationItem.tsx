@@ -15,8 +15,14 @@ import type { Notification } from '../model/types';
  * 実在を確かめた種別だけを足す。**
  *
  * 空のあいだは、下のフォールバックで種別文字列がそのまま出る。
+ *
+ * `ticket_mentioned` / `ticket_commented` は発言の作成 usecase から実際に発火することを
+ * backend 側で確認して追加した（上の注意どおり、実在を確かめてから足す）。
  */
-const TYPE_LABELS: Record<string, string> = {};
+const TYPE_LABELS: Record<string, string> = {
+  ticket_mentioned: 'チケットで名指し',
+  ticket_commented: '担当チケットにコメント',
+};
 
 interface NotificationItemProps {
   notification: Notification;

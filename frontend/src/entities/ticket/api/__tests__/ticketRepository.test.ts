@@ -178,3 +178,162 @@ describe('TicketRepository.updateTicketStatus', () => {
     expect(status.activeTicketCount).toBe(0);
   });
 });
+
+describe('TicketRepository.fetchTicketComments', () => {
+  it('GET /comments を叩き、本文をインラインノードの配列から区間の列へ畳む', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        comments: [
+          {
+            id: 'c-1',
+            author: { userId: 1, name: '田中 太郎' },
+            body: [{ type: 'text', text: 'こんにちは' }],
+            edited: false,
+            reactions: [{ userId: 2, emoji: '👍' }],
+            createdAt: '2026-09-10T00:00:00Z',
+            updatedAt: '2026-09-10T00:00:00Z',
+          },
+        ],
+      },
+    });
+
+    const comments = await TicketRepository.fetchTicketComments('acme', 't-1');
+
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/comments');
+    expect(comments).toEqual([
+      {
+        id: 'c-1',
+        parentCommentId: null,
+        author: { userId: 1, name: '田中 太郎' },
+        body: [{ kind: 'text', text: 'こんにちは' }],
+        edited: false,
+        reactions: [{ userId: 2, emoji: '👍' }],
+        createdAt: '2026-09-10T00:00:00Z',
+        updatedAt: '2026-09-10T00:00:00Z',
+      },
+    ]);
+  });
+
+  it('reactions が無ければ空配列にする', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        comments: [
+          {
+            id: 'c-1',
+            author: { userId: 1, name: '田中 太郎' },
+            body: [],
+            edited: false,
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+      },
+    });
+    const [comment] = await TicketRepository.fetchTicketComments('acme', 't-1');
+    expect(comment.reactions).toEqual([]);
+  });
+
+  it('comments が null でも空配列にする', async () => {
+    mockGet.mockResolvedValue({ data: { comments: null } });
+    await expect(TicketRepository.fetchTicketComments('acme', 't-1')).resolves.toEqual([]);
+  });
+});
+
+describe('TicketRepository.createTicketComment', () => {
+  it('POST で区間の列を送信できる本文へ組み立てて送る', async () => {
+    mockPost.mockResolvedValue({
+      data: {
+        id: 'c-1',
+        author: { userId: 1, name: '田中 太郎' },
+        body: [{ type: 'text', text: 'お願いします' }],
+        edited: false,
+        reactions: [],
+        createdAt: '',
+        updatedAt: '',
+      },
+    });
+
+    await TicketRepository.createTicketComment('acme', 't-1', [{ kind: 'text', text: 'お願いします' }], 'c-parent');
+
+    expect(mockPost).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/comments', {
+      parentCommentId: 'c-parent',
+      body: [{ type: 'text', text: 'お願いします' }],
+    });
+  });
+});
+
+describe('TicketRepository.updateTicketComment', () => {
+  it('PUT で本文を置き換える（応答の reactions は常に空配列で返る）', async () => {
+    mockPut.mockResolvedValue({
+      data: {
+        id: 'c-1',
+        author: { userId: 1, name: '田中 太郎' },
+        body: [{ type: 'text', text: '直しました' }],
+        edited: true,
+        reactions: [],
+        createdAt: '',
+        updatedAt: '',
+      },
+    });
+
+    const updated = await TicketRepository.updateTicketComment('acme', 't-1', 'c-1', [
+      { kind: 'text', text: '直しました' },
+    ]);
+
+    expect(mockPut).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/comments/c-1', {
+      body: [{ type: 'text', text: '直しました' }],
+    });
+    expect(updated.reactions).toEqual([]);
+  });
+});
+
+describe('TicketRepository.deleteTicketComment', () => {
+  it('DELETE を叩く（204）', async () => {
+    mockDelete.mockResolvedValue({ data: undefined });
+    await TicketRepository.deleteTicketComment('acme', 't-1', 'c-1');
+    expect(mockDelete).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/comments/c-1');
+  });
+});
+
+describe('TicketRepository.fetchTicketCommentEdits', () => {
+  it('GET /edits を叩き、編集前の本文も区間の列へ畳む', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        edits: [
+          {
+            id: 'e-1',
+            editor: { userId: 1, name: '田中 太郎' },
+            previousBody: [{ type: 'text', text: '直す前' }],
+            editedAt: '2026-09-10T00:00:00Z',
+          },
+        ],
+      },
+    });
+
+    const edits = await TicketRepository.fetchTicketCommentEdits('acme', 't-1', 'c-1');
+
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/kb/workspaces/acme/tickets/t-1/comments/c-1/edits');
+    expect(edits).toEqual([
+      {
+        id: 'e-1',
+        editor: { userId: 1, name: '田中 太郎' },
+        previousBody: [{ kind: 'text', text: '直す前' }],
+        editedAt: '2026-09-10T00:00:00Z',
+      },
+    ]);
+  });
+});
+
+describe('TicketRepository.addTicketCommentReaction / removeTicketCommentReaction', () => {
+  it('絵文字を URL エンコードして PUT/DELETE する（204・冪等）', async () => {
+    mockPut.mockResolvedValue({ data: undefined });
+    mockDelete.mockResolvedValue({ data: undefined });
+
+    await TicketRepository.addTicketCommentReaction('acme', 't-1', 'c-1', '👍');
+    await TicketRepository.removeTicketCommentReaction('acme', 't-1', 'c-1', '👍');
+
+    const expectedUrl = `/api/v2/kb/workspaces/acme/tickets/t-1/comments/c-1/reactions/${encodeURIComponent('👍')}`;
+    expect(mockPut).toHaveBeenCalledWith(expectedUrl);
+    expect(mockDelete).toHaveBeenCalledWith(expectedUrl);
+  });
+});

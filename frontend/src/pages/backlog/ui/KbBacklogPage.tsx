@@ -300,6 +300,7 @@ export default function KbBacklogPage() {
             key={selectedTicket.id}
             ticket={selectedTicket}
             spaceKey={space?.key ?? ''}
+            workspaceSlug={workspaceSlug ?? ''}
             statuses={masters.statuses}
             types={masters.types}
             principals={principals}

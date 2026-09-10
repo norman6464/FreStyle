@@ -11,6 +11,7 @@ import Loading from '@/shared/ui/Loading';
 import { SaveStatusIndicator, emptyRichDoc, isRichDoc } from '@/shared/ui/RichTextEditor';
 import { useTicketEditor } from '../model/useTicketEditor';
 import TicketAttributePanel from './TicketAttributePanel';
+import TicketCommentSection from './TicketCommentSection';
 import TicketLabelChip from './TicketLabelChip';
 import TicketSection from './TicketSection';
 
@@ -19,6 +20,7 @@ const RichTextEditor = lazy(() => import('@/shared/ui/RichTextEditor').then((m) 
 export interface TicketDetailPanelProps {
   ticket: Ticket;
   spaceKey: string;
+  workspaceSlug: string;
   statuses: TicketStatus[];
   types: TicketType[];
   principals: KbGrantablePrincipal[];
@@ -42,6 +44,7 @@ export interface TicketDetailPanelProps {
 export default function TicketDetailPanel({
   ticket,
   spaceKey,
+  workspaceSlug,
   statuses,
   types,
   principals,
@@ -119,6 +122,10 @@ export default function TicketDetailPanel({
             placeholder="本文を書く"
           />
         </Suspense>
+      </TicketSection>
+
+      <TicketSection title="コメント">
+        <TicketCommentSection workspaceSlug={workspaceSlug} ticketId={ticket.id} compact />
       </TicketSection>
 
       {canEdit && (

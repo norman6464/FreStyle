@@ -1,6 +1,7 @@
 import apiClient from '@/shared/api/axios';
 import { TICKET_API } from '@/shared/config/apiRoutes';
 import { toArray } from '@/shared/lib/toArray';
+import { readCommentBody, buildCommentBody } from '../lib/commentBody';
 import type {
   EnableTicketsResult,
   Label,
@@ -8,6 +9,11 @@ import type {
   Ticket,
   TicketAssignment,
   TicketChangeGroup,
+  TicketComment,
+  TicketCommentEdit,
+  TicketCommentEditWire,
+  TicketCommentSegment,
+  TicketCommentWire,
   TicketHierarchyLevel,
   TicketListFilter,
   TicketPriority,
@@ -92,6 +98,30 @@ function normalizeTicketType(wire: TicketTypeWire): TicketType {
     createdAt: wire.createdAt,
     updatedAt: wire.updatedAt,
     activeTicketCount: wire.activeTicketCount ?? 0,
+  };
+}
+
+function normalizeComment(wire: TicketCommentWire): TicketComment {
+  return {
+    id: wire.id,
+    parentCommentId: wire.parentCommentId ?? null,
+    author: wire.author,
+    body: readCommentBody(wire.body),
+    edited: wire.edited,
+    // 応答は必ず配列（0 件でも []）。それでも防御的に toArray を通す
+    // （編集応答は reactions を運ばないので、呼び出し側が手元の値を残す判断をする）。
+    reactions: toArray(wire.reactions),
+    createdAt: wire.createdAt,
+    updatedAt: wire.updatedAt,
+  };
+}
+
+function normalizeCommentEdit(wire: TicketCommentEditWire): TicketCommentEdit {
+  return {
+    id: wire.id,
+    editor: wire.editor,
+    previousBody: readCommentBody(wire.previousBody),
+    editedAt: wire.editedAt,
   };
 }
 
@@ -367,6 +397,64 @@ const TicketRepository = {
   /** 204 応答。 */
   async restoreTicketType(workspaceSlug: string, spaceId: string, typeId: string): Promise<void> {
     await apiClient.post(TICKET_API.restoreTicketType(workspaceSlug, spaceId, typeId));
+  },
+
+  /** 古い順（backend の並びのまま）。 */
+  async fetchTicketComments(workspaceSlug: string, ticketId: string): Promise<TicketComment[]> {
+    const res = await apiClient.get<{ comments: TicketCommentWire[] }>(TICKET_API.ticketComments(workspaceSlug, ticketId));
+    return toArray<TicketCommentWire>(res.data?.comments).map(normalizeComment);
+  },
+
+  async createTicketComment(
+    workspaceSlug: string,
+    ticketId: string,
+    body: TicketCommentSegment[],
+    parentCommentId?: string,
+  ): Promise<TicketComment> {
+    const res = await apiClient.post<TicketCommentWire>(TICKET_API.ticketComments(workspaceSlug, ticketId), {
+      parentCommentId,
+      body: buildCommentBody(body),
+    });
+    return normalizeComment(res.data);
+  },
+
+  /**
+   * 本文を置き換える。応答は反応を運ばない（backend が常に空配列で返す）ので、
+   * 呼び出し側は応答の reactions を使わず、手元の値を残すこと。
+   */
+  async updateTicketComment(
+    workspaceSlug: string,
+    ticketId: string,
+    commentId: string,
+    body: TicketCommentSegment[],
+  ): Promise<TicketComment> {
+    const res = await apiClient.put<TicketCommentWire>(TICKET_API.ticketComment(workspaceSlug, ticketId, commentId), {
+      body: buildCommentBody(body),
+    });
+    return normalizeComment(res.data);
+  },
+
+  /** 204 応答。 */
+  async deleteTicketComment(workspaceSlug: string, ticketId: string, commentId: string): Promise<void> {
+    await apiClient.delete(TICKET_API.ticketComment(workspaceSlug, ticketId, commentId));
+  },
+
+  /** 新しい順（backend の並びのまま）。 */
+  async fetchTicketCommentEdits(workspaceSlug: string, ticketId: string, commentId: string): Promise<TicketCommentEdit[]> {
+    const res = await apiClient.get<{ edits: TicketCommentEditWire[] }>(
+      TICKET_API.ticketCommentEdits(workspaceSlug, ticketId, commentId),
+    );
+    return toArray<TicketCommentEditWire>(res.data?.edits).map(normalizeCommentEdit);
+  },
+
+  /** 204 応答・冪等。 */
+  async addTicketCommentReaction(workspaceSlug: string, ticketId: string, commentId: string, emoji: string): Promise<void> {
+    await apiClient.put(TICKET_API.ticketCommentReaction(workspaceSlug, ticketId, commentId, emoji));
+  },
+
+  /** 204 応答・冪等。 */
+  async removeTicketCommentReaction(workspaceSlug: string, ticketId: string, commentId: string, emoji: string): Promise<void> {
+    await apiClient.delete(TICKET_API.ticketCommentReaction(workspaceSlug, ticketId, commentId, emoji));
   },
 };
 

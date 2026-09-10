@@ -19,6 +19,14 @@ type bucket struct {
 	last   time.Time
 }
 
+// defaultMaxBuckets は 1 つの Limiter が同時に保持するバケツ数の上限。
+//
+// 鍵は呼び出し側が決める（IP・ユーザー ID・リンクのトークンなど）ので、攻撃者が
+// 鍵を無尽蔵に変えられる経路（例: 未認証の要求で毎回ランダムな鍵を送る）では、
+// 上限が無いと 1 要求ごとに 1 バケツが増え続け、掃除が回る前（idleTTL 分）は
+// ヒープを埋め尽くせてしまう。実運用でこの数の異なる鍵が同時に生きることはまず無い。
+const defaultMaxBuckets = 100_000
+
 // Limiter は鍵ごとのトークンバケットで流量を制限する。ゼロ値は使えない（New を使う）。
 type Limiter struct {
 	mu          sync.Mutex
@@ -26,6 +34,7 @@ type Limiter struct {
 	rate        float64 // 毎秒の補充トークン数
 	burst       float64 // バケット上限
 	idleTTL     time.Duration
+	maxBuckets  int
 	lastCleanup time.Time
 	now         func() time.Time // テスト差し替え用
 }
@@ -37,6 +46,7 @@ func New(perMinute float64, burst int) *Limiter {
 		rate:        perMinute / 60.0,
 		burst:       float64(burst),
 		idleTTL:     10 * time.Minute,
+		maxBuckets:  defaultMaxBuckets,
 		lastCleanup: time.Now(),
 		now:         time.Now,
 	}
@@ -52,6 +62,16 @@ func (l *Limiter) Allow(key string) bool {
 
 	b, ok := l.buckets[key]
 	if !ok {
+		if len(l.buckets) >= l.maxBuckets {
+			// 定期掃除（idleTTL ごと）の周期を待たず、この場で即座に掃除を試みる。
+			// それでも空かなければ、新しい鍵のぶんは表を増やさず拒否する
+			// （表そのものが上限に張り付いている＝異常な鍵の量産が起きている状況なので、
+			// 素通しして表を無制限に増やすより、上限として機能させることを優先する）。
+			l.forceCleanupLocked(now)
+			if len(l.buckets) >= l.maxBuckets {
+				return false
+			}
+		}
 		b = &bucket{tokens: l.burst, last: now}
 		l.buckets[key] = b
 	}
@@ -82,11 +102,19 @@ func (l *Limiter) Forget(key string) {
 	delete(l.buckets, key)
 }
 
-// cleanupLocked は idleTTL を超えて使われていないバケツを掃除する（メモリ肥大化防止）。
+// cleanupLocked は idleTTL を超えて使われていないバケツを、周期（idleTTL ごと）でのみ掃除する
+// （メモリ肥大化防止）。
 func (l *Limiter) cleanupLocked(now time.Time) {
 	if now.Sub(l.lastCleanup) < l.idleTTL {
 		return
 	}
+	l.forceCleanupLocked(now)
+}
+
+// forceCleanupLocked は周期を待たず、その場で idle なバケツを掃除する。
+// 表がバケツ数の上限に張り付いたとき、次の周期を待たずに空きを作るための経路
+// （Allow から呼ぶ。単体では呼ばない — lastCleanup の更新も込みで cleanupLocked と共有する）。
+func (l *Limiter) forceCleanupLocked(now time.Time) {
 	for k, b := range l.buckets {
 		if now.Sub(b.last) > l.idleTTL {
 			delete(l.buckets, k)

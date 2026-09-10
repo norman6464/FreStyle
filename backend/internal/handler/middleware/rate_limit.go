@@ -24,21 +24,18 @@ func RespondRateLimited(c *gin.Context) {
 // RateLimitPerMinute は IP あたり perMinute 回（短期 burst まで許容）に制限する middleware を返す。
 // 超過時は 429 + Retry-After。各呼び出しが独立した limiter を持つ。
 //
-// # 鍵が攻撃者に選べることに注意（この middleware だけを防御の根拠にしない）
+// # 鍵は RealClientIP（Cloud Run が追記した末尾の IP）
 //
-// 鍵は gin の ClientIP() で、これは X-Forwarded-For の最左を読む。このリポジトリは
-// SetTrustedProxies を呼んでいないため gin の既定（全 IP を信頼）のままで、**要求ごとに
-// XFF を変えれば鍵も変わり、この制限は事実上効かない**（実測: XFF 無しなら 11 回目で 429、
-// XFF を毎回変えると 200 回連続で 200 が返る）。
+// 鍵は RealClientIP（client_ip.go）で、X-Forwarded-For の末尾（Cloud Run 自身が観測した
+// 接続元）を読む。先頭側の要素は要求元が自由に書けるが、末尾だけは詐称できないので、
+// XFF を偽って鍵を変え続けることはできない（client_ip.go の doc 参照）。
 //
-// したがってここで止められるのは「同じ経路から素直に来る大量アクセス」までで、
-// 総当たりの緩和にはならない。秘密（パスワード等）を守る上限は、鍵を攻撃者が
-// 変えられない側 ＝ **守る対象そのもの** に取ること。共有リンクの検証がその例で、
-// リンク 1 本ごとの上限を handler 側で別に掛けている（kb_share_link_handler.go）。
+// とはいえ IP は「その場所にいる全員」で共有される値で、家庭やオフィスの NAT の裏に
+// いる複数人が同じ IP を踏むこともある。秘密（パスワード等）を守る上限は、鍵を
+// **守る対象そのもの** に取ること。共有リンクの検証がその例で、リンク 1 本ごとの
+// 上限を handler 側で別に掛けている（kb_share_link_handler.go）。
 func RateLimitPerMinute(perMinute float64, burst int) gin.HandlerFunc {
-	return RateLimitPerMinuteBy(perMinute, burst, func(c *gin.Context) string {
-		return c.ClientIP()
-	})
+	return RateLimitPerMinuteBy(perMinute, burst, RealClientIP)
 }
 
 // RateLimitPerMinuteBy は鍵の作り方を差し替えられる RateLimitPerMinute。

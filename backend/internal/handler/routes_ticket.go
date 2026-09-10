@@ -13,6 +13,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
 )
 
+// チケットへの発言作成に掛ける上限。@mention は件数を打ち切ってあるが（comment_doc.go の
+// maxTicketCommentMentions）、通知作成そのものは要求のたびに走るので、連投そのものの速さも
+// 別に頭打ちにする。人が打つ速さとしては十分に余裕を見つつ（kbAddMemberPerMinute と同じ桁）、
+// 自動化した連投は抑える。
+const (
+	ticketCreateCommentPerMinute = 30
+	ticketCreateCommentBurst     = 10
+)
+
 // registerTicketRoutes はチケット（設計 Ⅵ・段 1: 骨格）のエンドポイントを登録する。
 //
 // チケットは既存の spaces に属する（設計 Ⅱ）ので、URL は kb と同じ
@@ -183,7 +192,8 @@ func registerTicketRoutesWith(
 
 	// 発言（段 3）。
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments", ch.List)
-	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments", ch.Create)
+	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments",
+		middleware.RateLimitPerMinutePerUser(ticketCreateCommentPerMinute, ticketCreateCommentBurst), ch.Create)
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId", ch.Update)
 	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId", ch.Delete)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/edits", ch.ListEdits)

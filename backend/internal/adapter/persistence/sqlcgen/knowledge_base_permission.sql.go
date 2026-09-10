@@ -1438,6 +1438,47 @@ func (q *Queries) ListWorkspaceGrants(ctx context.Context, workspaceID uuid.UUID
 	return items, nil
 }
 
+const listWorkspaceMemberUserIDsAmong = `-- name: ListWorkspaceMemberUserIDsAmong :many
+SELECT user_id FROM principals
+WHERE workspace_id = $1 AND kind = 'user' AND user_id IN (
+    SELECT value::bigint FROM json_array_elements_text($2::json) AS t(value)
+)
+`
+
+type ListWorkspaceMemberUserIDsAmongParams struct {
+	WorkspaceID uuid.UUID
+	UserIds     json.RawMessage
+}
+
+// 与えた userId 群のうち、そのワークスペースの所属者（kind='user' の principal）である
+// ものだけを返す。@メンション通知の宛先解決を、メンション数ぶんの IsWorkspaceMember
+// 逐次呼び出しから 1 回のまとめ問い合わせへ寄せるためのもの。
+//
+// user_id 群は json 配列 1 個のパラメータで渡す（comment.sql の ListCommentsByThreadIDs と
+// 同じ作法。database/sql モードの sqlc では = ANY(...) が pq.Array() 依存を持ち込む）。
+func (q *Queries) ListWorkspaceMemberUserIDsAmong(ctx context.Context, arg ListWorkspaceMemberUserIDsAmongParams) ([]sql.NullInt64, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceMemberUserIDsAmong, arg.WorkspaceID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []sql.NullInt64{}
+	for rows.Next() {
+		var user_id sql.NullInt64
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
 SELECT p.id AS principal_id, u.id AS user_id, u.name
 FROM principals p

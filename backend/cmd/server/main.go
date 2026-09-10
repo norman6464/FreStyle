@@ -2,7 +2,9 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler"
@@ -10,6 +12,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/infra/logging"
 	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
+)
+
+// readHeaderTimeout / readTimeout は net/http の既定（無制限）を明示的に上書きする。
+// 上限が無いと、ヘッダ・本文を極端に遅く送り続けるだけの接続がゴルーチンと
+// ファイルディスクリプタを専有し続けられる（Slowloris 型）。本文サイズそのものの
+// 上限は別に持つ（middleware.MaxRequestBody）ので、ここは「読み切るまでの時間」を縛る。
+const (
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 30 * time.Second
 )
 
 // fatal は致命的エラーを構造化ログで出して終了する（log.Fatalf の slog 版）。
@@ -53,8 +64,14 @@ func main() {
 
 	r := handler.NewRouter(sqlDB, cfg, verifier)
 	addr := ":" + cfg.ServerPort
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+	}
 	slog.Info("FreStyle Go backend listening", slog.String("addr", addr), slog.String("env", cfg.AppEnv))
-	if err := r.Run(addr); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		fatal("server stopped", err)
 	}
 }

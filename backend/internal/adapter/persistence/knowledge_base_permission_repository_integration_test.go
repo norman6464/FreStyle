@@ -438,6 +438,28 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		assert.False(t, member, "同じユーザーでも別テナントでは非メンバー")
 	})
 
+	t.Run("複数人まとめての所属判定はIsWorkspaceMemberと同じ答えを返す", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		f.principalFor(ctx, t, f.bob)
+		// carol は主体を作らない（非メンバーのまま）。
+
+		out, err := f.perm.IsWorkspaceMemberBulk(ctx, f.ws, []uint64{f.alice, f.bob, f.carol})
+		require.NoError(t, err)
+		assert.Equal(t, map[uint64]bool{f.alice: true, f.bob: true}, out,
+			"メンバーの2人だけが集合に含まれる。非メンバーはキーごと出ない")
+
+		// 空スライスは問い合わせを出さずに空集合を返す。
+		out, err = f.perm.IsWorkspaceMemberBulk(ctx, f.ws, nil)
+		require.NoError(t, err)
+		assert.Empty(t, out)
+
+		// 別ワークスペースの所属は独立している（単体版と同じ境界）。
+		out, err = f.perm.IsWorkspaceMemberBulk(ctx, f.otherWS, []uint64{f.alice})
+		require.NoError(t, err)
+		assert.Empty(t, out, "同じユーザーでも別テナントでは非メンバー")
+	})
+
 	t.Run("別ワークスペースのprincipalにgrantを張れない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		// alice を「別ワークスペース」のメンバーにして、その主体 ID を本命ワークスペースで使う。

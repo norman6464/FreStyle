@@ -337,6 +337,46 @@ func (r *knowledgeBasePermissionRepository) IsWorkspaceMember(ctx context.Contex
 	})
 }
 
+func (r *knowledgeBasePermissionRepository) IsWorkspaceMemberBulk(ctx context.Context, workspaceID string, userIDs []uint64) (map[uint64]bool, error) {
+	if len(userIDs) == 0 {
+		return map[uint64]bool{}, nil
+	}
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return map[uint64]bool{}, nil
+	}
+	// bigint に収まらない id は他の行とも一致し得ないので、問い合わせに含めず false のまま返す
+	// （IsWorkspaceMember の同じ分岐と同じ理由）。
+	ids := make([]int64, 0, len(userIDs))
+	for _, id := range userIDs {
+		if iid, iok := toInt64ID(id); iok {
+			ids = append(ids, iid)
+		}
+	}
+	out := make(map[uint64]bool, len(userIDs))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	idsJSON, err := json.Marshal(ids)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries(ctx).ListWorkspaceMemberUserIDsAmong(ctx, sqlcgen.ListWorkspaceMemberUserIDsAmongParams{
+		WorkspaceID: wsID,
+		UserIds:     idsJSON,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		// SQL 側で kind = 'user' に絞っているので、principals.user_id が NULL の行は
+		// そもそも返らない（列 CHECK も同じことを強制する）。row.Int64 は非負の
+		// bigint（principals.user_id は users.id への FK）なので uint64 への変換は常に安全。
+		out[uint64(row.Int64)] = true
+	}
+	return out, nil
+}
+
 func (r *knowledgeBasePermissionRepository) AddGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	gID, ok2 := kbParseID(groupPrincipalID)

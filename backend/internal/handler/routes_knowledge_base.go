@@ -29,6 +29,13 @@ const (
 	kbShareLinkVerifyBurst     = 5
 	kbAddMemberPerMinute       = 30
 	kbAddMemberBurst           = 10
+	// ワークスペース作成: ユーザー 1 人あたり 1 分 10 回（短期は 5 回まで）。IP ではなく
+	// ユーザーを鍵にする — 未認証では叩けない経路なので JWT 由来のユーザー ID が
+	// 必ず決まっており、これは詐称できない（IP は RealClientIP で詐称は防げても、
+	// 同じ NAT の裏にいる無関係な相手を巻き添えにし得る。ここは 1 人の利用者が
+	// 自動化で slug を先取りし続ける状況だけを抑えたいので、鍵は本人に絞れる）。
+	kbCreateWorkspacePerMinute = 10
+	kbCreateWorkspaceBurst     = 5
 	// スペース作成はプライベートの導入でメンバー全員に開いた書き込みの口。
 	// 人が手で作る回数としては十分に余裕があり、連打での作り散らかしだけを抑える。
 	kbCreateSpacePerMinute = 20
@@ -278,7 +285,8 @@ func registerKnowledgeBaseRoutesWith(
 	// 作成は認証済みなら誰でも叩けて、slug はテナントをまたいで一意。
 	// 上限が無いと 1 人で短い slug を取り尽くせてしまい、取り返す手段が運用の手作業しか無い。
 	// 保有数の上限までは塞げないが、掴み取りの速度は他の作成系と同じ土俵に落とす。
-	g.POST("/kb/workspaces", middleware.RateLimitPerMinute(10, 5), wh.Create)
+	// 鍵はユーザー単位（kbCreateWorkspacePerMinute の doc 参照）。
+	g.POST("/kb/workspaces", middleware.RateLimitPerMinutePerUser(kbCreateWorkspacePerMinute, kbCreateWorkspaceBurst), wh.Create)
 
 	kbGroup := g.Group("", middleware.KnowledgeBaseWorkspace(
 		kb.NewResolveWorkspaceUseCase(pages, permissions, users),

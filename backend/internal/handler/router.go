@@ -12,6 +12,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// defaultRequestBodyBytes は全ルート共通の本文上限（middleware.MaxRequestBody）。
+// ナレッジページ本文 API の上限（maxKnowledgeBaseBodyBytes）をそのまま使う —
+// この API 群の中で最も大きな正当な本文がこれなので、他のどのハンドラにとっても
+// 十分に緩い上限になる。個別に厳しい上限が要るハンドラは自分で重ねて呼べる
+// （middleware.MaxRequestBody の doc 参照）。
+const defaultRequestBodyBytes = maxKnowledgeBaseBodyBytes
+
 // routeDeps はドメインごとの register*Routes 関数に渡す共通依存。
 type routeDeps struct {
 	db       *sql.DB
@@ -29,6 +36,9 @@ type routeDeps struct {
 func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	// 本文サイズの上限。認証の有無に関わらず全ルートへ効かせるので、ログ・CORS より前、
+	// 一番手前に置く（本文を読む前に切れるようにする）。
+	r.Use(middleware.MaxRequestBody(defaultRequestBodyBytes))
 	// 構造化アクセスログ(slog/JSON)。request_id 採番 + status 別レベルで出力する。
 	// ヘルスチェック (ALB が 30 秒間隔で叩く /api/v2/health) と root の access log は出さない。
 	// 大量の health ログが CloudWatch の取り込み課金を押し上げるのを防ぐ。

@@ -31,6 +31,22 @@ type MemberWorkspace struct {
 	CanManage bool `json:"canManage"`
 }
 
+// WorkspaceMember はワークスペースに属する人 1 人。
+//
+// GrantablePrincipal とは用途が別で、こちらは**人だけ**を返す。あちらは権限を張る相手なので
+// グループやスペース全員のような人でない主体も含み、閲覧にページの管理権限を要求する。
+// 担当の表示名を出すことと、発言で人を名指すことは、権限を変えられない人にも要るので
+// 所属していれば読める口が別に要る。
+//
+// PrincipalID と UserID の両方を持つのは、指す先が用途で違うため。担当は主体（principals）に
+// 割り当てるので PrincipalID、発言中の名指しは users を指すので UserID を使う。
+type WorkspaceMember struct {
+	PrincipalID string `json:"principalId"`
+	UserID      uint64 `json:"userId"`
+	// Name は表示名。空文字のことがある（登録時に名前を持たない発行者があるため）。
+	Name string `json:"name"`
+}
+
 // WorkspaceSlugMaxLen / WorkspaceNameMaxLen は workspaces の列幅（varchar(64) / varchar(200)）。
 // DB の CHECK / 列幅と同じ値を入口でも見て、桁あふれを 500 ではなく 400 で返せるようにする。
 const (

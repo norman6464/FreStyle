@@ -185,6 +185,11 @@ type KnowledgeBasePermissionRepository interface {
 	// 名前が引けなかった行も落とさず、Name を空文字にして返す。一覧から黙って消すと、
 	// その主体に張った権限が画面に出たまま選べない（取り消せない行）になる。
 	ListGrantablePrincipals(ctx context.Context, workspaceID string) ([]domain.GrantablePrincipal, error)
+	// ListWorkspaceMembers はワークスペースに属する人を表示名つきで返す（名前 → id 順）。
+	//
+	// ListGrantablePrincipals と違い、人でない主体は含まず、消えたユーザーは落とす。
+	// 担当の表示名と発言での名指しに使う（どちらも権限を変えられない人にも要る）。
+	ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
 	//
 	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、

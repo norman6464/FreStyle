@@ -215,14 +215,27 @@ func requireTicketSpacePermissionWith(
 func (h *TicketHandler) requireTicketPermission(
 	c *gin.Context, scope kbRequestScope, ticketID string, capability domain.Capability,
 ) bool {
+	_, ok := h.ticketPermission(c, scope, ticketID, capability)
+	return ok
+}
+
+// ticketPermission は requireTicketPermission と同じ判定をして、使った実効権限をそのまま返す。
+// 応答に権限を載せる詳細系の口だけがこちらを使う（載せるためにもう一度引くと、同じ判定を
+// 1 リクエストで 2 回問い合わせることになる）。
+func (h *TicketHandler) ticketPermission(
+	c *gin.Context, scope kbRequestScope, ticketID string, capability domain.Capability,
+) (*domain.ScopePermission, bool) {
 	perm, err := h.checkTicket.Execute(c.Request.Context(), ticket.CheckTicketPermissionInput{
 		WorkspaceID: scope.workspaceID, TicketID: ticketID, UserID: scope.userID,
 	})
 	if err != nil {
 		respondTicketErr(c, err)
-		return false
+		return nil, false
 	}
-	return requireScopeCapability(c, perm, capability)
+	if !requireScopeCapability(c, perm, capability) {
+		return nil, false
+	}
+	return perm, true
 }
 
 // requireScopeCapability は ScopePermission から 404/403 を書き分ける共通の末尾処理。
@@ -348,7 +361,8 @@ func (h *TicketHandler) Get(c *gin.Context) {
 		return
 	}
 	ticketID := c.Param("ticketId")
-	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityView) {
+	perm, ok := h.ticketPermission(c, scope, ticketID, domain.CapabilityView)
+	if !ok {
 		return
 	}
 	found, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
@@ -361,6 +375,7 @@ func (h *TicketHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
 		Labels: h.fetchLabels(c, scope, ticketID), Ancestors: h.fetchAncestors(c, scope, ticketID),
+		Permission: perm,
 	})
 }
 
@@ -379,7 +394,8 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	if !h.requireTicketPermission(c, scope, ticketID, domain.CapabilityView) {
+	perm, ok := h.ticketPermission(c, scope, ticketID, domain.CapabilityView)
+	if !ok {
 		return
 	}
 	found, err := h.get.Execute(c.Request.Context(), ticket.GetTicketInput{
@@ -392,6 +408,7 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
 		Labels: h.fetchLabels(c, scope, ticketID), Ancestors: h.fetchAncestors(c, scope, ticketID),
+		Permission: perm,
 	})
 }
 
@@ -447,8 +464,9 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 		WorkspaceName: loc.Workspace.Name,
 		Ticket: ticketResponse{
 			Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
-			Labels:    h.fetchLabels(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
-			Ancestors: h.fetchAncestors(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
+			Labels:     h.fetchLabels(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
+			Ancestors:  h.fetchAncestors(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
+			Permission: perm,
 		},
 		CanEdit: perm.CanEdit,
 	})
@@ -467,6 +485,13 @@ type ticketResponse struct {
 	// ResolveByKey / ResolveByID）でだけ埋める。一覧・作成・更新の応答には含めない
 	// （list.go の N+1 を避けるため — ラベルと違い ticketIDs のバッチ引きが自然に作れない）。
 	Ancestors []domain.Ticket `json:"ancestors,omitempty"`
+	// Permission はこのチケットに対する実効権限。詳細系のレスポンスでだけ埋める。
+	//
+	// 画面が操作を出し分けるのに要る。発言できるか（CanComment）と、他人の発言を
+	// 消せるか（CanManage）は編集権限（CanEdit）とは別の段なので、CanEdit だけでは
+	// 判断できない。一覧の応答に含めないのは、実効権限がスペース単位で行ごとに
+	// 変わらないため（同じ値が全行に並ぶだけで通信が太る）。
+	Permission *domain.ScopePermission `json:"permission,omitempty"`
 }
 
 // fetchLabels はチケット 1 件のラベルを引く。引けなければ空スライスとして応答を止めない

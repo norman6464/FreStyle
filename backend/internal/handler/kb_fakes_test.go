@@ -1337,6 +1337,30 @@ func (f *kbFakePerms) ListGrantablePrincipals(_ context.Context, workspaceID str
 	return out, nil
 }
 
+// ListWorkspaceMembers は人だけを名前 → id の順で返す（本番の SQL と同じく、
+// 人でない主体と名前を引けないユーザーを落とす）。
+func (f *kbFakePerms) ListWorkspaceMembers(_ context.Context, workspaceID string) ([]domain.WorkspaceMember, error) {
+	out := []domain.WorkspaceMember{}
+	for _, p := range f.principals {
+		if p.WorkspaceID != workspaceID || p.Kind != domain.PrincipalKindUser || p.UserID == nil {
+			continue
+		}
+		name, ok := f.userNames[*p.UserID]
+		if !ok {
+			// 本番は users との内部結合なので、ユーザーの行が無ければ主体ごと落ちる。
+			continue
+		}
+		out = append(out, domain.WorkspaceMember{PrincipalID: p.ID, UserID: *p.UserID, Name: name})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].UserID < out[j].UserID
+	})
+	return out, nil
+}
+
 // DeletePrincipal は主体と、それに紐づく例外・グループ所属を消す（本番の FK CASCADE と同じ）。
 // 許可リスト制の印には触れない。載っていた主体が全員消えた段は「誰も載っていない許可リスト」
 // として残り、閉じたままになる。

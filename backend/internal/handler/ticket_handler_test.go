@@ -630,3 +630,52 @@ func Test_チケットのページ逆参照(t *testing.T) {
 	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/does-not-exist/page-backlinks", "")
 	assert.Equal(t, http.StatusNotFound, w.Code, "存在しないチケットは404")
 }
+
+// 詳細の応答に載る実効権限。画面はこれを見て「発言できるか」「他人の発言を消せるか」を
+// 出し分ける。編集できること（CanEdit）とは別の段なので、CanEdit だけでは判断できない。
+func Test_チケット取得_役割ごとの実効権限を応答に載せる(t *testing.T) {
+	cases := []struct {
+		role       domain.GrantRole
+		canComment bool
+		canEdit    bool
+		canManage  bool
+	}{
+		{domain.GrantRoleViewer, false, false, false},
+		{domain.GrantRoleCommenter, true, false, false},
+		{domain.GrantRoleEditor, true, true, false},
+		{domain.GrantRoleAdmin, true, true, true},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.role), func(t *testing.T) {
+			f := newTicketFixture(kbUserID, tc.role)
+			tk := f.tickets.addTicket(domain.Ticket{
+				ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "x", Number: 1,
+			})
+
+			w := f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+tk.ID, "")
+
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			got := decodeJSON[struct {
+				Permission *domain.ScopePermission `json:"permission"`
+			}](t, w)
+			require.NotNil(t, got.Permission, "詳細の応答には必ず権限が載る")
+			assert.True(t, got.Permission.CanView)
+			assert.Equal(t, tc.canComment, got.Permission.CanComment)
+			assert.Equal(t, tc.canEdit, got.Permission.CanEdit)
+			assert.Equal(t, tc.canManage, got.Permission.CanManage)
+		})
+	}
+}
+
+// 一覧には載せない。実効権限はスペース単位で行ごとに変わらないので、同じ値が全行に並ぶだけ。
+func Test_チケット一覧_実効権限は載せない(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "x", Number: 1,
+	})
+
+	w := f.do(t, http.MethodGet, ticketAPIBase+"/spaces/"+kbSpaceID+"/tickets", "")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.NotContains(t, w.Body.String(), `"permission"`)
+}

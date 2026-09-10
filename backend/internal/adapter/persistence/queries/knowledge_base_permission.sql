@@ -183,6 +183,27 @@ WITH grantable AS (
 SELECT id, kind, name FROM grantable
 ORDER BY kind, name, id;
 
+-- name: ListWorkspaceMembers :many
+-- ワークスペースに属する人の一覧（担当の表示名と、発言での名指しの候補に使う）。
+--
+-- ListGrantablePrincipals とは別に持つ。あちらは「権限を張る相手」を選ぶための一覧で、
+-- グループやスペース全員も含み、閲覧にページの管理権限が要る。既定の役割は編集者なので、
+-- あちらを名前解決に流用すると管理者以外では 403 になり、担当の名前が出ない・
+-- 名指しの候補が空になる。こちらは所属を確かめる middleware を通っていれば読める。
+--
+-- 人でない主体（グループ / スペース全員 / 共有リンク）は user_id を持たないので、
+-- users との内部結合だけで落ちる。kind の条件はそれでも重ねて書く — 名前が引けない人を
+-- 残したくなって外部結合へ緩めた瞬間に、人でない主体が黙って混ざるため。
+-- 消えたユーザーは落とす（名指しても届かず、担当にも選べない）。
+-- 並びは表示名 → id。名前が空の行が混ざっても順序が決まるように id まで入れる。
+SELECT p.id AS principal_id, u.id AS user_id, u.name
+FROM principals p
+JOIN users u ON u.id = p.user_id
+WHERE p.workspace_id = sqlc.arg(workspace_id)
+  AND p.kind = 'user'
+  AND u.deleted_at IS NULL
+ORDER BY u.name, u.id;
+
 -- name: UpsertPageGrant :one
 -- ページでの既定の役割の付与（同じ主体には 1 行だけ）。
 --

@@ -207,6 +207,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewCheckSpacePermissionUseCase(permissions),
 		kb.NewRenameSpaceUseCase(pages),
 		kb.NewSearchViewablePagesUseCase(permissions),
+		kb.NewListWorkspaceMembersUseCase(permissions),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
@@ -276,6 +277,9 @@ func registerKnowledgeBaseRoutesWith(
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
 	// 見せてよいスペースの選別は handler ではなく usecase 側のふるいが行う。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/spaces", wh.ListSpaces)
+	// ワークスペースの人の一覧。所属していれば誰でも叩ける（担当の表示名・発言での名指しに使う）。
+	// 権限を張る相手を選ぶ /pages/:pageId/principals とは別の口（あちらはページの管理権限が要る）。
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/members", wh.ListMembers)
 	// ワークスペースの削除（配下ごと・戻せない）。会社のワークスペースは SQL 側で守る。
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug", wh.Delete)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces",

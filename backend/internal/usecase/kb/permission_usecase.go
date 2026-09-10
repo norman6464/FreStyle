@@ -814,6 +814,26 @@ func (u *ListGrantablePrincipalsUseCase) Execute(
 	return u.repo.ListGrantablePrincipals(ctx, in.WorkspaceID)
 }
 
+// ListWorkspaceMembersUseCase はワークスペースに属する人を表示名つきで返す。
+//
+// ListGrantablePrincipalsUseCase とは呼べる範囲が違う。あちらは権限を張る画面のための
+// 一覧で、認可をページの管理権限で掛ける。こちらは担当の表示名と発言での名指しに使うので、
+// 所属していれば読める（既定の役割は編集者で、管理権限は持たない）。
+type ListWorkspaceMembersUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListWorkspaceMembersUseCase(r repository.KnowledgeBasePermissionRepository) *ListWorkspaceMembersUseCase {
+	return &ListWorkspaceMembersUseCase{repo: r}
+}
+
+func (u *ListWorkspaceMembersUseCase) Execute(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	return u.repo.ListWorkspaceMembers(ctx, workspaceID)
+}
+
 // ErrPrincipalKindMismatch は主体の種類が操作に合わないときに返す
 // （グループでないものをグループとして扱おうとした等）。
 var ErrPrincipalKindMismatch = errors.New("principal kind does not match the operation")

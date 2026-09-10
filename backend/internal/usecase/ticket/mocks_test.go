@@ -586,6 +586,12 @@ func (m *mockKBPermissionRepo) ListGrantablePrincipals(ctx context.Context, work
 	return p, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error) {
+	args := m.Called(ctx, workspaceID)
+	p, _ := args.Get(0).([]domain.WorkspaceMember)
+	return p, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	g, _ := args.Get(0).([]domain.PageGrant)

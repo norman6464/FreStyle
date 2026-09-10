@@ -31,6 +31,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	checkSpace      *kb.CheckSpacePermissionUseCase
 	renameSpace     *kb.RenameSpaceUseCase
 	searchPages     *kb.SearchViewablePagesUseCase
+	listMembers     *kb.ListWorkspaceMembersUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -45,6 +46,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 	checkSpace *kb.CheckSpacePermissionUseCase,
 	renameSpace *kb.RenameSpaceUseCase,
 	searchPages *kb.SearchViewablePagesUseCase,
+	listMembers *kb.ListWorkspaceMembersUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:  listWorkspaces,
@@ -57,6 +59,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 		checkSpace:      checkSpace,
 		renameSpace:     renameSpace,
 		searchPages:     searchPages,
+		listMembers:     listMembers,
 	}
 }
 
@@ -202,6 +205,38 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 	out := make([]kbSpaceResponse, 0, len(spaces))
 	for i := range spaces {
 		out = append(out, toKbSpaceResponse(&spaces[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// kbWorkspaceMemberResponse はワークスペースに属する人 1 件の返却形。
+type kbWorkspaceMemberResponse struct {
+	// PrincipalID は担当の割り当て先として使う ID（主体を指す）。
+	PrincipalID string `json:"principalId" example:"0198a000-0000-7000-8000-00000000000a"`
+	// UserID は発言中の名指しが指す ID（ユーザーを指す）。用途が違うので両方返す。
+	UserID uint64 `json:"userId" example:"42"`
+	// Name は表示名。引けなかった場合は空文字（行は落とさない）。
+	Name string `json:"name" example:"田中 太郎"`
+}
+
+// ListMembers はワークスペースに属する人を表示名つきで返す。
+//
+// 所属していれば誰でも叩ける。担当の名前を出すことと発言で人を名指すことは、
+// 権限を変えられない人にも要るため（権限を張る相手を選ぶ ListGrantablePrincipals とは
+// 別の口にしてある。あちらはページの管理権限を要求する）。
+func (h *KnowledgeBaseWorkspaceHandler) ListMembers(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	members, err := h.listMembers.Execute(c.Request.Context(), scope.workspaceID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	out := make([]kbWorkspaceMemberResponse, 0, len(members))
+	for _, m := range members {
+		out = append(out, kbWorkspaceMemberResponse{PrincipalID: m.PrincipalID, UserID: m.UserID, Name: m.Name})
 	}
 	c.JSON(http.StatusOK, out)
 }

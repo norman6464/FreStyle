@@ -1794,3 +1794,58 @@ func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
 		assert.Empty(t, rows, "ワークスペース境界を跨いで題名を引けない")
 	})
 }
+
+// ワークスペースの人の一覧。担当の表示名と発言での名指しに使うので、権限を張る相手の一覧
+// （ListGrantablePrincipals）とは返す中身の条件が違う。
+func TestKnowledgeBaseListWorkspaceMembers_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	t.Run("人だけを名前順で返し_principalIdとuserIdを対で持つ", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		bob := f.principalFor(ctx, t, f.bob)
+		// 人でない主体を混ぜる。どちらも一覧に出てはいけない。
+		f.everyoneOf(ctx, t, f.spaceA)
+		_, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "開発チーム")
+		require.NoError(t, err)
+
+		members, err := f.perm.ListWorkspaceMembers(ctx, f.ws)
+		require.NoError(t, err)
+
+		require.Len(t, members, 2, "人でない主体（スペース全員 / グループ）は含めない")
+		assert.Equal(t, "alice", members[0].Name, "並びは表示名の順")
+		assert.Equal(t, "bob", members[1].Name)
+		assert.Equal(t, alice.ID, members[0].PrincipalID)
+		assert.Equal(t, f.alice, members[0].UserID)
+		assert.Equal(t, bob.ID, members[1].PrincipalID)
+		assert.Equal(t, f.bob, members[1].UserID)
+	})
+
+	t.Run("消えたユーザーは落とす", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		f.principalFor(ctx, t, f.bob)
+		_, err := f.db.Exec(`UPDATE users SET deleted_at = now() WHERE id = $1`, f.bob)
+		require.NoError(t, err)
+
+		members, err := f.perm.ListWorkspaceMembers(ctx, f.ws)
+		require.NoError(t, err)
+
+		require.Len(t, members, 1, "消えたユーザーは名指しても届かず担当にも選べない")
+		assert.Equal(t, f.alice, members[0].UserID)
+	})
+
+	t.Run("他ワークスペースの人は返らない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.carol)
+		require.NoError(t, err)
+
+		members, err := f.perm.ListWorkspaceMembers(ctx, f.ws)
+		require.NoError(t, err)
+
+		require.Len(t, members, 1)
+		assert.Equal(t, f.alice, members[0].UserID, "よそのワークスペースの所属は混ざらない")
+	})
+}

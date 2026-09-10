@@ -666,3 +666,76 @@ func Test_ナレッジAPI_スペース一覧は事実の収集に失敗したら
 	assert.Equal(t, http.StatusInternalServerError, w.Code,
 		"確かめられないなら見せない（空配列で「無い」と答えない）")
 }
+
+// kbMembersPath はワークスペースの人の一覧。担当の表示名と発言での名指しに使う。
+const kbMembersPath = "/api/v2/kb/workspaces/{slug}/members"
+
+func kbListMembers(t *testing.T, f kbFixture, slug string) (*httptest.ResponseRecorder, []kbWorkspaceMemberResponse) {
+	t.Helper()
+	w := f.do(t, http.MethodGet, kbFill(kbMembersPath, slug, ""), "")
+	if w.Code != http.StatusOK {
+		return w, nil
+	}
+	var got []kbWorkspaceMemberResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	return w, got
+}
+
+func Test_ナレッジAPI_人の一覧は所属していれば誰でも叩ける(t *testing.T) {
+	// 権限を張る相手の一覧（/pages/:pageId/principals）はページの管理権限を要求する。
+	// 既定の役割は編集者なので、そちらを名前解決に流用すると管理者以外では 403 になる。
+	// こちらは役割を 1 つも持たないメンバーでも読める（所属の確認は middleware が済ませている）。
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.userNames[kbUserID] = "田中 太郎"
+
+	w, got := kbListMembers(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, got, 1)
+	assert.Equal(t, kbUserID, got[0].UserID, "名指しはユーザーを指すので userId が要る")
+	assert.Equal(t, "田中 太郎", got[0].Name)
+	assert.NotEmpty(t, got[0].PrincipalID, "担当は主体に割り当てるので principalId も要る")
+}
+
+func Test_ナレッジAPI_人の一覧は人でない主体を返さない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.userNames[kbUserID] = "田中 太郎"
+	_, err := f.perms.CreateGroupPrincipal(context.Background(), kbWorkspaceID, "開発チーム")
+	require.NoError(t, err)
+	_, err = f.perms.EnsureSpaceEveryonePrincipal(context.Background(), kbWorkspaceID, kbSpaceID)
+	require.NoError(t, err)
+
+	_, got := kbListMembers(t, f, kbWorkspaceSlug)
+
+	require.Len(t, got, 1, "グループとスペース全員は名指しの相手にも担当にもならない")
+	assert.Equal(t, kbUserID, got[0].UserID)
+}
+
+func Test_ナレッジAPI_人の一覧は名前を引けない人を返さない(t *testing.T) {
+	// 本番の SQL は users との内部結合なので、消えたユーザーの主体は行ごと落ちる。
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w, got := kbListMembers(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, got)
+	assert.JSONEq(t, `[]`, w.Body.String(), "null を返すとフロントの .map が落ちる")
+}
+
+func Test_ナレッジAPI_人の一覧は所属していないワークスペースでは404(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	unknown, _ := kbListMembers(t, f, "no-such-workspace")
+	foreign, _ := kbListMembers(t, f, kbOtherWorkspaceSlug)
+
+	assert.Equal(t, http.StatusNotFound, unknown.Code)
+	assert.Equal(t, unknown.Body.String(), foreign.Body.String(), "実在の有無を撃ち分けない")
+}
+
+func Test_ナレッジAPI_人の一覧は未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+
+	w, _ := kbListMembers(t, f, kbWorkspaceSlug)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}

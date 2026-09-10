@@ -904,3 +904,23 @@ func Test_チケットへのページ逆参照_閲覧できる参照元だけを
 	require.Len(t, got, 1)
 	assert.Equal(t, visible, got[0].ID)
 }
+
+func Test_ワークスペースの人の一覧_repositoryの結果をそのまま返す(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	want := []domain.WorkspaceMember{{PrincipalID: kbPrincipal, UserID: 42, Name: "田中 太郎"}}
+	repo.On("ListWorkspaceMembers", mock.Anything, kbWS).Return(want, nil)
+
+	got, err := kb.NewListWorkspaceMembersUseCase(repo).Execute(context.Background(), kbWS)
+
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func Test_ワークスペースの人の一覧_ワークスペースIDが無ければ拒む(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+
+	_, err := kb.NewListWorkspaceMembersUseCase(repo).Execute(context.Background(), "")
+
+	require.Error(t, err)
+	repo.AssertNotCalled(t, "ListWorkspaceMembers")
+}

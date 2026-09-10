@@ -70,12 +70,16 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
+// 各項目の上限は、本文サイズの全体上限（middleware.MaxRequestBody）とは別に、
+// 1 項目だけが極端に大きい値で DB へ届くのを入口で弾くためのもの
+// （DB の列自体は text で無制限。ここで切らないと、表示側が想定しない長さの値に
+// 対処し続けることになる）。
 type updateProfileReq struct {
-	Name      string `json:"displayName"`
-	Bio       string `json:"bio"`
-	AvatarURL string `json:"avatarUrl"`
-	IconURL   string `json:"iconUrl"` // 旧フロント互換。avatarUrl を優先。
-	Status    string `json:"status"`
+	Name      string `json:"displayName" binding:"omitempty,max=200"`
+	Bio       string `json:"bio"         binding:"omitempty,max=2000"`
+	AvatarURL string `json:"avatarUrl"   binding:"omitempty,max=2000"`
+	IconURL   string `json:"iconUrl"     binding:"omitempty,max=2000"` // 旧フロント互換。avatarUrl を優先。
+	Status    string `json:"status"      binding:"omitempty,max=200"`
 }
 
 // Update は current user のプロフィールを更新する。

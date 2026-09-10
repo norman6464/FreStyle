@@ -83,13 +83,24 @@ func (u *CreateTicketCommentUseCase) notify(ctx context.Context, in CreateTicket
 
 	mentioned := ExtractTicketCommentMentions([]byte(in.Body))
 	seen := map[uint64]struct{}{in.AuthorUserID: {}} // 自分への通知は作らない
+	// 所属確認は 1 件ずつではなく、名指しされた全員をまとめて 1 回の問い合わせで解決する
+	// （メンション数だけ逐次 SELECT が飛ぶと、接続プールを 1 要求が占有し続けてしまう）。
+	// メンションが無い発言のほうが多いので、その場合は問い合わせ自体を出さない。
+	var members map[uint64]bool
+	if len(mentioned) > 0 {
+		var err error
+		members, err = u.perms.IsWorkspaceMemberBulk(ctx, in.WorkspaceID, mentioned)
+		if err != nil {
+			slog.WarnContext(ctx, "ticket comment: mention membership check failed", "err", err, "ticketId", in.TicketID)
+			members = nil
+		}
+	}
 	for _, userID := range mentioned {
 		if _, dup := seen[userID]; dup {
 			continue
 		}
 		seen[userID] = struct{}{}
-		isMember, err := u.perms.IsWorkspaceMember(ctx, in.WorkspaceID, userID)
-		if err != nil || !isMember {
+		if !members[userID] {
 			continue
 		}
 		notifs = append(notifs, domain.Notification{

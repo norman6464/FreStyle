@@ -49,7 +49,7 @@ func RequestLogger(skipPaths ...string) gin.HandlerFunc {
 			slog.String("path", c.FullPath()),
 			slog.Int("status", c.Writer.Status()),
 			slog.Int64("latency_ms", time.Since(start).Milliseconds()),
-			slog.String("client_ip", c.ClientIP()),
+			slog.String("client_ip", RealClientIP(c)),
 		}
 		if uid := CurrentUserIDOrZero(c); uid != 0 {
 			attrs = append(attrs, slog.Uint64("user_id", uid))

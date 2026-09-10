@@ -514,6 +514,12 @@ func (m *mockKBPermissionRepo) IsWorkspaceMember(ctx context.Context, workspaceI
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) IsWorkspaceMemberBulk(ctx context.Context, workspaceID string, userIDs []uint64) (map[uint64]bool, error) {
+	args := m.Called(ctx, workspaceID, userIDs)
+	out, _ := args.Get(0).(map[uint64]bool)
+	return out, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error) {
 	args := m.Called(ctx, userID)
 	w, _ := args.Get(0).([]domain.MemberWorkspace)

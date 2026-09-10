@@ -77,8 +77,8 @@ func Test_発言作成_メンションはワークスペースの一員にだけ
 	comments.On("CreateTicketComment", mock.Anything, mock.AnythingOfType("*domain.TicketComment")).Return(nil)
 
 	perms := &mockKBPermissionRepo{}
-	perms.On("IsWorkspaceMember", mock.Anything, tkWS, uint64(2)).Return(true, nil)  // メンバー
-	perms.On("IsWorkspaceMember", mock.Anything, tkWS, uint64(9)).Return(false, nil) // 非メンバー
+	perms.On("IsWorkspaceMemberBulk", mock.Anything, tkWS, []uint64{1, 2, 9}).
+		Return(map[uint64]bool{1: true, 2: true}, nil) // 9 は非メンバーなので集合に含めない
 
 	notifs := &mockNotificationRepo{}
 	var captured []domain.Notification

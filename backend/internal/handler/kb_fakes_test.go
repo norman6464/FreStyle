@@ -804,6 +804,19 @@ func (f *kbFakePerms) IsWorkspaceMember(_ context.Context, workspaceID string, u
 	return f.userPrincipal(workspaceID, userID) != nil, nil
 }
 
+func (f *kbFakePerms) IsWorkspaceMemberBulk(_ context.Context, workspaceID string, userIDs []uint64) (map[uint64]bool, error) {
+	if f.membersErr != nil {
+		return nil, f.membersErr
+	}
+	out := make(map[uint64]bool, len(userIDs))
+	for _, userID := range userIDs {
+		if f.userPrincipal(workspaceID, userID) != nil {
+			out[userID] = true
+		}
+	}
+	return out, nil
+}
+
 // PagePermissionFactsForUser はそのページに届いている既定の役割と、経路上の例外を返す。
 //
 // 既定は 3 段（ワークスペース / スペース / ページ）から届き、**最も強いものが実効**になる。

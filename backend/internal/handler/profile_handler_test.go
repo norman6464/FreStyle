@@ -152,6 +152,26 @@ func Test_プロフィール更新_氏名省略時はUpdateNameを呼ばない(t
 	}
 }
 
+func Test_プロフィール更新_各項目に長さの上限がある(t *testing.T) {
+	tooLongName := strings.Repeat("あ", 201)
+	w, users, profiles := doProfileUpdate(t, `{"displayName":"`+tooLongName+`"}`)
+	if w.Code != 400 {
+		t.Fatalf("displayName が上限（200）を超えたら 400 のはず: status=%d body=%s", w.Code, w.Body.String())
+	}
+	if users.updateCalled {
+		t.Fatal("入力検証で落ちた要求は UpdateName まで届かないはず")
+	}
+	if profiles.saved != nil {
+		t.Fatal("入力検証で落ちた要求は Upsert まで届かないはず")
+	}
+
+	tooLongBio := strings.Repeat("a", 2001)
+	w2, _, _ := doProfileUpdate(t, `{"bio":"`+tooLongBio+`"}`)
+	if w2.Code != 400 {
+		t.Fatalf("bio が上限（2000）を超えたら 400 のはず: status=%d", w2.Code)
+	}
+}
+
 func Test_プロフィール表示_JSONの氏名キーはdisplayName(t *testing.T) {
 	// フロントの Profile 型は displayName を読む。name で返すと氏名欄・ヘッダーが空になる。
 	b, err := json.Marshal(domain.ProfileView{Name: "河野拓真"})

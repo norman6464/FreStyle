@@ -133,6 +133,11 @@ type KnowledgeBasePermissionRepository interface {
 	DeletePrincipal(ctx context.Context, workspaceID, principalID string) error
 	// IsWorkspaceMember はユーザーがワークスペースのメンバーかを返す。
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
+	// IsWorkspaceMemberBulk は IsWorkspaceMember の複数人版。userIDs のうち実際に
+	// メンバーである ID の集合を 1 回の問い合わせで返す（呼び出し元の個数だけ
+	// 逐次 SELECT を発行しない。@メンション通知の宛先解決が本来の用途）。
+	// userIDs が空なら問い合わせずに空集合を返す。
+	IsWorkspaceMemberBulk(ctx context.Context, workspaceID string, userIDs []uint64) (map[uint64]bool, error)
 	// ListMemberWorkspaces はそのユーザーが所属するワークスペースと、そこでの CanManage
 	// （DeleteWorkspace が要求する admin 権限と同じ）を返す（slug 順）。
 	// 所属は principals（kind='user'）の行が唯一の表現なので、その JOIN がそのまま答えになる。

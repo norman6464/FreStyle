@@ -140,6 +140,16 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 		assert.False(t, member, "巻き戻った値でおとりの所属を拾わないこと")
 	})
 
+	t.Run("複数人版の所属判定も巻き戻った値をおとりへ一致させない", func(t *testing.T) {
+		f := setupDecoy(ctx, t, sqlDB)
+
+		out, err := f.perm.IsWorkspaceMemberBulk(ctx, f.ws, []uint64{wrappedUserID(), f.alice})
+
+		require.NoError(t, err)
+		assert.False(t, out[wrappedUserID()], "巻き戻った値でおとりの所属を拾わないこと")
+		assert.NotContains(t, out, wrappedUserID(), "非メンバーはキーごと出ない")
+	})
+
 	t.Run("主体の取得はnot foundへ倒れる", func(t *testing.T) {
 		f := setupDecoy(ctx, t, sqlDB)
 

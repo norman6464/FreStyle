@@ -62,6 +62,29 @@ func Test_レートリミッタ_Forgetでバケツごと消える(t *testing.T) 
 	}
 }
 
+func Test_レートリミッタ_バケツ数に上限がある(t *testing.T) {
+	// 鍵を無尽蔵に変えられる経路（例: 詐称した IP・毎回変わるトークン）でも、
+	// 表そのものの大きさに歯止めが掛かることを固定する。maxBuckets はテストから直接
+	// 小さく差し替える（New の外へ公開のノブは無い — 実運用は defaultMaxBuckets で十分）。
+	l := New(60, 1)
+	l.maxBuckets = 2
+
+	if !l.Allow("a") || !l.Allow("b") {
+		t.Fatal("上限内の異なる鍵は独立して通るはず")
+	}
+	if l.Allow("c") {
+		t.Fatal("表が上限に達したら、新しい鍵は拒否するはず")
+	}
+	if got := len(l.buckets); got > 2 {
+		t.Fatalf("表の大きさが上限を超えて増えてはいけない: %d", got)
+	}
+	// 既存の鍵（a・b）は表が満杯でも、自分のバケツを普通に消費できる
+	// （新しい鍵の作成だけを拒むのであって、既存の利用者を巻き添えにしない）。
+	if l.Allow("a") {
+		t.Fatal("aはburst=1を使い切っているので2回目は拒否のはず")
+	}
+}
+
 func Test_レートリミッタ_放置されたバケツは掃除される(t *testing.T) {
 	cur := time.Now()
 	l := New(60, 1)

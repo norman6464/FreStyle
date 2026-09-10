@@ -49,6 +49,18 @@ SELECT EXISTS (
     WHERE workspace_id = $1 AND kind = 'user' AND user_id = $2
 ) AS is_member;
 
+-- name: ListWorkspaceMemberUserIDsAmong :many
+-- 与えた userId 群のうち、そのワークスペースの所属者（kind='user' の principal）である
+-- ものだけを返す。@メンション通知の宛先解決を、メンション数ぶんの IsWorkspaceMember
+-- 逐次呼び出しから 1 回のまとめ問い合わせへ寄せるためのもの。
+--
+-- user_id 群は json 配列 1 個のパラメータで渡す（comment.sql の ListCommentsByThreadIDs と
+-- 同じ作法。database/sql モードの sqlc では = ANY(...) が pq.Array() 依存を持ち込む）。
+SELECT user_id FROM principals
+WHERE workspace_id = $1 AND kind = 'user' AND user_id IN (
+    SELECT value::bigint FROM json_array_elements_text(sqlc.arg(user_ids)::json) AS t(value)
+);
+
 -- name: InsertPrincipalMember :exec
 -- グループへの所属追加。既にあれば何もしない（冪等）。
 -- group / member の kind は DB 側の生成列 + 複合 FK が固定するため、ここでは渡さない。

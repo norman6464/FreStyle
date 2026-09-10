@@ -20,9 +20,11 @@ func registerTicketRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	registerTicketRoutesWith(
 		g,
 		persistence.NewTicketRepository(deps.db),
+		persistence.NewTicketCommentRepository(deps.db),
 		persistence.NewKnowledgeBasePermissionRepository(deps.db),
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewUserRepository(deps.db),
+		persistence.NewNotificationRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 	)
 }
@@ -32,16 +34,19 @@ func registerTicketRoutes(g *gin.RouterGroup, deps *routeDeps) {
 func registerTicketRoutesWith(
 	g *gin.RouterGroup,
 	tickets repository.TicketRepository,
+	comments repository.TicketCommentRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
 	pages repository.KnowledgeBaseRepository,
 	users repository.UserRepository,
+	notifs repository.NotificationRepository,
 	txManager repository.TxManager,
 ) {
 	checkSpace := kb.NewCheckSpacePermissionUseCase(permissions)
+	checkTicket := ticket.NewCheckTicketPermissionUseCase(tickets, permissions)
 
 	h := NewTicketHandler(
 		checkSpace,
-		ticket.NewCheckTicketPermissionUseCase(tickets, permissions),
+		checkTicket,
 		ticket.NewResolveTicketKeyUseCase(tickets),
 		ticket.NewResolveTicketLocationUseCase(tickets, pages),
 		ticket.NewEnableTicketsForSpaceUseCase(tickets, txManager),
@@ -80,6 +85,17 @@ func registerTicketRoutesWith(
 		ticket.NewArchiveTicketTypeUseCase(tickets),
 		ticket.NewRestoreTicketTypeUseCase(tickets),
 	)
+	ch := NewTicketCommentHandler(
+		checkTicket,
+		ticket.NewCreateTicketCommentUseCase(comments, tickets, permissions, notifs),
+		ticket.NewUpdateTicketCommentUseCase(comments, txManager),
+		ticket.NewDeleteTicketCommentUseCase(comments),
+		ticket.NewListTicketCommentsUseCase(comments),
+		ticket.NewListTicketCommentEditsUseCase(comments),
+		ticket.NewAddTicketCommentReactionUseCase(comments),
+		ticket.NewRemoveTicketCommentReactionUseCase(comments),
+		kb.NewLookupUserNameUseCase(users),
+	)
 
 	// slug 無しの解決だけは middleware.KnowledgeBaseWorkspace を通さない
 	// （URL にワークスペースが無いので slug から確定できない。handler が ID から
@@ -110,6 +126,15 @@ func registerTicketRoutesWith(
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/assignee", h.Assign)
 	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/assignee", h.Unassign)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/history", h.History)
+
+	// 発言（段 3）。
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments", ch.List)
+	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments", ch.Create)
+	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId", ch.Update)
+	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId", ch.Delete)
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/edits", ch.ListEdits)
+	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/reactions/:emoji", ch.AddReaction)
+	tkGroup.DELETE("/kb/workspaces/:workspaceSlug/tickets/:ticketId/comments/:commentId/reactions/:emoji", ch.RemoveReaction)
 
 	// 状態マスタ（管理画面）。
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/ticket-statuses", sh.List)

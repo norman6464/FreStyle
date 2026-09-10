@@ -31,6 +31,7 @@ func Test_チケット状態変更_closedAtとresolutionをcategoryから導く(
 			}),
 		).Return(&domain.Ticket{ID: tkTicket, StatusID: "status-done"}, nil)
 		repo.On("InsertTicketChangeGroup", mock.Anything, mock.AnythingOfType("*domain.TicketChangeGroup")).Return(nil)
+		repo.On("InsertTicketStatusTransition", mock.Anything, tkWS, "", tkTicket, "status-todo", "status-done", uint64(1)).Return(nil)
 
 		_, err := ticket.NewChangeTicketStatusUseCase(repo).Execute(context.Background(), ticket.ChangeTicketStatusInput{
 			WorkspaceID: tkWS, TicketID: tkTicket, StatusID: "status-done", ActorUserID: 1,
@@ -51,6 +52,7 @@ func Test_チケット状態変更_closedAtとresolutionをcategoryから導く(
 			(*time.Time)(nil), (*domain.TicketResolution)(nil),
 		).Return(&domain.Ticket{ID: tkTicket, StatusID: "status-prog"}, nil)
 		repo.On("InsertTicketChangeGroup", mock.Anything, mock.AnythingOfType("*domain.TicketChangeGroup")).Return(nil)
+		repo.On("InsertTicketStatusTransition", mock.Anything, tkWS, "", tkTicket, "status-todo", "status-prog", uint64(1)).Return(nil)
 
 		_, err := ticket.NewChangeTicketStatusUseCase(repo).Execute(context.Background(), ticket.ChangeTicketStatusInput{
 			WorkspaceID: tkWS, TicketID: tkTicket, StatusID: "status-prog", ActorUserID: 1,
@@ -77,6 +79,7 @@ func Test_チケット状態変更_変化が無ければ履歴を残さない(t 
 	})
 	require.NoError(t, err)
 	repo.AssertNotCalled(t, "InsertTicketChangeGroup", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "InsertTicketStatusTransition", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_チケット状態変更_必須項目の検証(t *testing.T) {

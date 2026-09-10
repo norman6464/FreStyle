@@ -27,18 +27,28 @@ type ticketFakeRepo struct {
 	nextID      int
 	// numbers はスペースごとの採番カウンタ（本番の ticket_counters の代わり）。
 	numbers map[string]int64
+
+	// 段 3: 発言・編集履歴・反応（TicketCommentRepository も同じ struct に実装する。
+	// 別の fake 構造体に分けずに済ませる — 本番も別 repository だが同じ *sql.DB を指すのと
+	// 同じ理由）。
+	comments         map[string]*domain.TicketComment      // commentID -> comment
+	commentEdits     map[string][]domain.TicketCommentEdit // commentID -> 編集履歴（追加順）
+	commentReactions map[string][]domain.TicketCommentReaction
 }
 
 func newTicketFakeRepo() *ticketFakeRepo {
 	return &ticketFakeRepo{
-		statuses:    map[string]*domain.TicketStatus{},
-		types:       map[string]*domain.TicketType{},
-		tickets:     map[string]*domain.Ticket{},
-		assignments: map[string]*domain.TicketAssignment{},
-		changes:     map[string][]domain.TicketChangeGroup{},
-		pageLinks:   map[string][]string{},
-		ticketLinks: map[string][]string{},
-		numbers:     map[string]int64{},
+		statuses:         map[string]*domain.TicketStatus{},
+		types:            map[string]*domain.TicketType{},
+		tickets:          map[string]*domain.Ticket{},
+		assignments:      map[string]*domain.TicketAssignment{},
+		changes:          map[string][]domain.TicketChangeGroup{},
+		pageLinks:        map[string][]string{},
+		ticketLinks:      map[string][]string{},
+		numbers:          map[string]int64{},
+		comments:         map[string]*domain.TicketComment{},
+		commentEdits:     map[string][]domain.TicketCommentEdit{},
+		commentReactions: map[string][]domain.TicketCommentReaction{},
 	}
 }
 
@@ -683,6 +693,14 @@ func (f *ticketFakeRepo) InsertTicketChangeGroup(_ context.Context, g *domain.Ti
 	return nil
 }
 
+func (f *ticketFakeRepo) InsertTicketStatusTransition(
+	_ context.Context, workspaceID, spaceID, ticketID, fromStatusID, toStatusID string, changedByUserID uint64,
+) error {
+	// テストではこの表を検証しない（handler テストは status 変更の応答だけを見る）ので、
+	// 何もせず成功扱いにする。
+	return nil
+}
+
 func (f *ticketFakeRepo) ListTicketChangeGroups(_ context.Context, workspaceID, ticketID string) ([]domain.TicketChangeGroup, error) {
 	groups := f.changes[ticketID]
 	out := make([]domain.TicketChangeGroup, 0, len(groups))
@@ -749,3 +767,105 @@ func (f *ticketFakeRepo) ListTicketsReferencingTicket(_ context.Context, workspa
 }
 
 var _ repository.TicketRepository = (*ticketFakeRepo)(nil)
+
+// --- repository.TicketCommentRepository（段 3） ---
+
+func (f *ticketFakeRepo) CreateTicketComment(_ context.Context, c *domain.TicketComment) error {
+	c.ID = f.newID("comment")
+	c.CreatedAt, c.UpdatedAt = time.Now(), time.Now()
+	stored := *c
+	f.comments[c.ID] = &stored
+	return nil
+}
+
+func (f *ticketFakeRepo) FindTicketComment(_ context.Context, workspaceID, ticketID, commentID string) (*domain.TicketComment, error) {
+	c, ok := f.comments[commentID]
+	if !ok || c.WorkspaceID != workspaceID || c.TicketID != ticketID || c.DeletedAt != nil {
+		return nil, repository.ErrTicketCommentNotFound
+	}
+	cp := *c
+	return &cp, nil
+}
+
+func (f *ticketFakeRepo) ListTicketComments(_ context.Context, workspaceID, ticketID string) ([]domain.TicketComment, error) {
+	var out []domain.TicketComment
+	for _, c := range f.comments {
+		if c.WorkspaceID == workspaceID && c.TicketID == ticketID && c.DeletedAt == nil {
+			out = append(out, *c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (f *ticketFakeRepo) UpdateTicketCommentBody(_ context.Context, workspaceID, ticketID, commentID, body string) (*domain.TicketComment, error) {
+	c, ok := f.comments[commentID]
+	if !ok || c.WorkspaceID != workspaceID || c.TicketID != ticketID || c.DeletedAt != nil {
+		return nil, repository.ErrTicketCommentNotFound
+	}
+	now := time.Now()
+	c.Body = body
+	c.EditedAt = &now
+	c.UpdatedAt = now
+	cp := *c
+	return &cp, nil
+}
+
+func (f *ticketFakeRepo) DeleteTicketComment(_ context.Context, workspaceID, ticketID, commentID string) error {
+	c, ok := f.comments[commentID]
+	if !ok || c.WorkspaceID != workspaceID || c.TicketID != ticketID || c.DeletedAt != nil {
+		return repository.ErrTicketCommentNotFound
+	}
+	now := time.Now()
+	c.DeletedAt = &now
+	return nil
+}
+
+func (f *ticketFakeRepo) InsertTicketCommentEdit(_ context.Context, e *domain.TicketCommentEdit) error {
+	e.ID = f.newID("edit")
+	e.EditedAt = time.Now()
+	f.commentEdits[e.CommentID] = append(f.commentEdits[e.CommentID], *e)
+	return nil
+}
+
+func (f *ticketFakeRepo) ListTicketCommentEdits(_ context.Context, workspaceID, commentID string) ([]domain.TicketCommentEdit, error) {
+	edits := f.commentEdits[commentID]
+	out := make([]domain.TicketCommentEdit, len(edits))
+	copy(out, edits)
+	sort.Slice(out, func(i, j int) bool { return out[i].EditedAt.After(out[j].EditedAt) })
+	return out, nil
+}
+
+func (f *ticketFakeRepo) AddTicketCommentReaction(_ context.Context, workspaceID, commentID string, userID uint64, emoji string) error {
+	for _, r := range f.commentReactions[commentID] {
+		if r.UserID == userID && r.Emoji == emoji {
+			return nil // 冪等
+		}
+	}
+	f.commentReactions[commentID] = append(f.commentReactions[commentID], domain.TicketCommentReaction{
+		CommentID: commentID, UserID: userID, Emoji: emoji, CreatedAt: time.Now(),
+	})
+	return nil
+}
+
+func (f *ticketFakeRepo) RemoveTicketCommentReaction(_ context.Context, workspaceID, commentID string, userID uint64, emoji string) error {
+	kept := f.commentReactions[commentID][:0]
+	for _, r := range f.commentReactions[commentID] {
+		if r.UserID == userID && r.Emoji == emoji {
+			continue
+		}
+		kept = append(kept, r)
+	}
+	f.commentReactions[commentID] = kept
+	return nil
+}
+
+func (f *ticketFakeRepo) ListTicketCommentReactions(_ context.Context, workspaceID string, commentIDs []string) ([]domain.TicketCommentReaction, error) {
+	var out []domain.TicketCommentReaction
+	for _, id := range commentIDs {
+		out = append(out, f.commentReactions[id]...)
+	}
+	return out, nil
+}
+
+var _ repository.TicketCommentRepository = (*ticketFakeRepo)(nil)

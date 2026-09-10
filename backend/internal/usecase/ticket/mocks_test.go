@@ -286,6 +286,13 @@ func (m *mockTicketRepo) InsertTicketChangeGroup(ctx context.Context, g *domain.
 	return args.Error(0)
 }
 
+func (m *mockTicketRepo) InsertTicketStatusTransition(
+	ctx context.Context, workspaceID, spaceID, ticketID, fromStatusID, toStatusID string, changedByUserID uint64,
+) error {
+	args := m.Called(ctx, workspaceID, spaceID, ticketID, fromStatusID, toStatusID, changedByUserID)
+	return args.Error(0)
+}
+
 func (m *mockTicketRepo) ListTicketChangeGroups(ctx context.Context, workspaceID, ticketID string) ([]domain.TicketChangeGroup, error) {
 	args := m.Called(ctx, workspaceID, ticketID)
 	g, _ := args.Get(0).([]domain.TicketChangeGroup)
@@ -334,6 +341,103 @@ func (m *mockTicketRepo) ListTicketsReferencingTicket(ctx context.Context, works
 	args := m.Called(ctx, workspaceID, targetTicketID)
 	l, _ := args.Get(0).([]domain.TicketTicketLink)
 	return l, args.Error(1)
+}
+
+// mockTicketCommentRepo は repository.TicketCommentRepository の testify/mock 実装。
+type mockTicketCommentRepo struct{ mock.Mock }
+
+var _ repository.TicketCommentRepository = (*mockTicketCommentRepo)(nil)
+
+func (m *mockTicketCommentRepo) CreateTicketComment(ctx context.Context, c *domain.TicketComment) error {
+	args := m.Called(ctx, c)
+	return args.Error(0)
+}
+
+func (m *mockTicketCommentRepo) FindTicketComment(ctx context.Context, workspaceID, ticketID, commentID string) (*domain.TicketComment, error) {
+	args := m.Called(ctx, workspaceID, ticketID, commentID)
+	c, _ := args.Get(0).(*domain.TicketComment)
+	return c, args.Error(1)
+}
+
+func (m *mockTicketCommentRepo) ListTicketComments(ctx context.Context, workspaceID, ticketID string) ([]domain.TicketComment, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	c, _ := args.Get(0).([]domain.TicketComment)
+	return c, args.Error(1)
+}
+
+func (m *mockTicketCommentRepo) UpdateTicketCommentBody(ctx context.Context, workspaceID, ticketID, commentID, body string) (*domain.TicketComment, error) {
+	args := m.Called(ctx, workspaceID, ticketID, commentID, body)
+	c, _ := args.Get(0).(*domain.TicketComment)
+	return c, args.Error(1)
+}
+
+func (m *mockTicketCommentRepo) DeleteTicketComment(ctx context.Context, workspaceID, ticketID, commentID string) error {
+	args := m.Called(ctx, workspaceID, ticketID, commentID)
+	return args.Error(0)
+}
+
+func (m *mockTicketCommentRepo) InsertTicketCommentEdit(ctx context.Context, e *domain.TicketCommentEdit) error {
+	args := m.Called(ctx, e)
+	return args.Error(0)
+}
+
+func (m *mockTicketCommentRepo) ListTicketCommentEdits(ctx context.Context, workspaceID, commentID string) ([]domain.TicketCommentEdit, error) {
+	args := m.Called(ctx, workspaceID, commentID)
+	e, _ := args.Get(0).([]domain.TicketCommentEdit)
+	return e, args.Error(1)
+}
+
+func (m *mockTicketCommentRepo) AddTicketCommentReaction(ctx context.Context, workspaceID, commentID string, userID uint64, emoji string) error {
+	args := m.Called(ctx, workspaceID, commentID, userID, emoji)
+	return args.Error(0)
+}
+
+func (m *mockTicketCommentRepo) RemoveTicketCommentReaction(ctx context.Context, workspaceID, commentID string, userID uint64, emoji string) error {
+	args := m.Called(ctx, workspaceID, commentID, userID, emoji)
+	return args.Error(0)
+}
+
+func (m *mockTicketCommentRepo) ListTicketCommentReactions(ctx context.Context, workspaceID string, commentIDs []string) ([]domain.TicketCommentReaction, error) {
+	args := m.Called(ctx, workspaceID, commentIDs)
+	r, _ := args.Get(0).([]domain.TicketCommentReaction)
+	return r, args.Error(1)
+}
+
+// mockNotificationRepo は repository.NotificationRepository の testify/mock 実装。
+type mockNotificationRepo struct{ mock.Mock }
+
+var _ repository.NotificationRepository = (*mockNotificationRepo)(nil)
+
+func (m *mockNotificationRepo) Create(ctx context.Context, n *domain.Notification) error {
+	args := m.Called(ctx, n)
+	return args.Error(0)
+}
+
+func (m *mockNotificationRepo) CreateMany(ctx context.Context, ns []domain.Notification) error {
+	args := m.Called(ctx, ns)
+	return args.Error(0)
+}
+
+func (m *mockNotificationRepo) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
+	args := m.Called(ctx, userID)
+	n, _ := args.Get(0).([]domain.Notification)
+	return n, args.Error(1)
+}
+
+func (m *mockNotificationRepo) MarkRead(ctx context.Context, userID, id uint64) error {
+	args := m.Called(ctx, userID, id)
+	return args.Error(0)
+}
+
+func (m *mockNotificationRepo) MarkAllRead(ctx context.Context, userID uint64) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *mockNotificationRepo) CountUnread(ctx context.Context, userID uint64) (int64, error) {
+	args := m.Called(ctx, userID)
+	n, _ := args.Get(0).(int64)
+	return n, args.Error(1)
 }
 
 // mockKBPermissionRepo は repository.KnowledgeBasePermissionRepository の testify/mock 実装。

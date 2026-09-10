@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import { KbSidebar } from '@/widgets/kb-sidebar';
@@ -12,12 +12,11 @@ import { useTicketMasters } from '../model/useTicketMasters';
 import { useTicketDetail } from '../model/useTicketDetail';
 import { usePrincipalNames } from '../model/usePrincipalNames';
 import { useBacklogSpace } from '../model/useBacklogSpace';
+import { useBacklogUrlState } from '../model/useBacklogUrlState';
 import BacklogList from './BacklogList';
 import TicketDetailPanel from './TicketDetailPanel';
 import TicketStatusAdmin from './TicketStatusAdmin';
 import TicketTypeAdmin from './TicketTypeAdmin';
-
-type Tab = 'tickets' | 'statuses' | 'types';
 
 /**
  * KbBacklogPage はバックログ画面の container（設計 0・Ⅲ・Ⅵ）。
@@ -31,9 +30,9 @@ export default function KbBacklogPage() {
   const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
 
-  const [tab, setTab] = useState<Tab>('tickets');
-  const [archived, setArchived] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 面・アーカイブの切り替え・選択中のチケットは URL に持つ。チケットを開いて戻ったときに
+  // 絞り込みと選択が残るようにするため（useBacklogUrlState）。
+  const { tab, archived, selectedId, setTab, setArchived, selectTicket, reset } = useBacklogUrlState();
   const [detailMobileOpen, setDetailMobileOpen] = useState(false);
   const [enabling, setEnabling] = useState(false);
 
@@ -47,12 +46,14 @@ export default function KbBacklogPage() {
   const { principals, nameOf, initialsOf } = usePrincipalNames(workspaceSlug ?? undefined);
   const detail = useTicketDetail(workspaceSlug ?? undefined, tab === 'tickets' ? selectedId : null);
 
-  // スペースを切り替えたら選択を捨てる（前のスペースのチケットを次の画面で引きずらない）。
+  // スペースを切り替えたら文脈を捨てる（前のスペースのチケットを次の画面で引きずらない）。
+  // 初回の読み込みでは捨てない — URL に載っている選択や絞り込みを開いた直後に消してしまう。
+  const shownSpace = useRef<string | null>(null);
   useEffect(() => {
-    setSelectedId(null);
-    setTab('tickets');
-    setArchived(false);
-  }, [space?.id]);
+    const id = space?.id ?? null;
+    if (shownSpace.current !== null && shownSpace.current !== id) reset();
+    shownSpace.current = id;
+  }, [space?.id, reset]);
 
   const enabled = !masters.loading && !masters.error && masters.statuses.length > 0;
   const selectedTicket = selectedId ? list.tickets.find((t) => t.id === selectedId) ?? null : null;
@@ -75,7 +76,7 @@ export default function KbBacklogPage() {
   };
 
   const handleSelect = (ticketId: string) => {
-    setSelectedId(ticketId);
+    selectTicket(ticketId);
     setDetailMobileOpen(true);
   };
 
@@ -279,6 +280,15 @@ export default function KbBacklogPage() {
           side="right"
           mobileOpen={detailMobileOpen}
           onMobileClose={() => setDetailMobileOpen(false)}
+          headerContent={
+            <button
+              type="button"
+              onClick={() => selectTicket(null)}
+              className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+            >
+              詳細を閉じる
+            </button>
+          }
         >
           <TicketDetailPanel
             key={selectedTicket.id}
@@ -302,15 +312,14 @@ export default function KbBacklogPage() {
             onUnassign={() => withToastOnFailure(() => list.unassign(selectedTicket.id), '担当を外せませんでした。')}
             onArchive={() =>
               withToastOnFailure(() => list.archiveTicket(selectedTicket.id), 'アーカイブできませんでした。').then(() =>
-                setSelectedId(null),
+                selectTicket(null),
               )
             }
             onRestore={() =>
               withToastOnFailure(() => list.restoreTicket(selectedTicket.id), '現役に戻せませんでした。').then(() =>
-                setSelectedId(null),
+                selectTicket(null),
               )
             }
-            onClose={() => setSelectedId(null)}
           />
         </SecondaryPanel>
       )}

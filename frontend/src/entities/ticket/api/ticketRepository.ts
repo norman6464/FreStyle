@@ -3,6 +3,7 @@ import { TICKET_API } from '@/shared/config/apiRoutes';
 import { toArray } from '@/shared/lib/toArray';
 import type {
   EnableTicketsResult,
+  Label,
   ResolvedTicket,
   Ticket,
   TicketAssignment,
@@ -50,6 +51,7 @@ function normalizeTicket(wire: TicketWire): Ticket {
     createdAt: wire.createdAt,
     updatedAt: wire.updatedAt,
     assigneePrincipalId: wire.assigneePrincipalId ?? null,
+    labels: toArray<Label>(wire.labels),
   };
 }
 

@@ -41,6 +41,21 @@ export type TicketChangeField =
   | 'milestone'
   | 'link';
 
+/**
+ * ラベル（スペースごとに定義し、チケットへ付け外しする）。
+ *
+ * color は `#rrggbb` の小文字 7 桁で、利用者が自由に決める。読みやすさの担保は
+ * 画面側の仕事になる（lib/labelTextColor.ts）。
+ */
+export interface Label {
+  id: string;
+  spaceId: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** backend の wire 形（ticketRepository.ts の内部でのみ使う。外へは Ticket として出す）。 */
 export interface TicketWire {
   id: string;
@@ -63,6 +78,7 @@ export interface TicketWire {
   createdAt: string;
   updatedAt: string;
   assigneePrincipalId?: string;
+  labels?: Label[] | null;
 }
 
 /** normalizeTicket 後の形。すべてのフィールドが揃っている（省略は無い）。 */
@@ -87,6 +103,8 @@ export interface Ticket {
   createdAt: string;
   updatedAt: string;
   assigneePrincipalId: string | null;
+  /** 付いているラベル。一覧・詳細のどちらの応答にも入っている（0 件なら空配列）。 */
+  labels: Label[];
 }
 
 /** チケットの表示キー（例 FRESTYLE-12）。spaceKey + number から組み立てる（lib/ticketKey.ts）。 */

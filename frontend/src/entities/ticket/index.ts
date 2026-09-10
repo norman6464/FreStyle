@@ -19,6 +19,7 @@ export type { ParsedTicketKey } from './lib/ticketKey';
 export type {
   Ticket,
   Label,
+  TicketPermission,
   TicketStatus,
   TicketType,
   TicketAssignment,

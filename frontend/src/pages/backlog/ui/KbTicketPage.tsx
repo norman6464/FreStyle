@@ -1,56 +1,75 @@
-import { useEffect, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
-import { TicketRepository } from '@/entities/ticket';
+import { useParams } from 'react-router-dom';
+import { useToast } from '@/shared/lib/hooks/useToast';
 import { getApiError } from '@/shared/lib/classifyApiError';
 import Loading from '@/shared/ui/Loading';
+import { useTicketPage } from '../model/useTicketPage';
+import { useTicketMasters } from '../model/useTicketMasters';
+import { usePrincipalNames } from '../model/usePrincipalNames';
+import { useTicketDetail } from '../model/useTicketDetail';
+import TicketFullView from './TicketFullView';
 
 /**
- * KbTicketPage は `/kb/tickets/:ticketId`（ワークスペースを URL に持たない解決の口）の
- * 受け皿。設計 Ⅳ-H・kb の `/kb/:pageId` と同じ役割 — 通知・本文中の ticketRef の href・
- * ブックマークからの再訪はワークスペースを知らないまま来るので、ID だけで開ける必要がある。
+ * KbTicketPage は `/kb/tickets/:ticketId`（ワークスペースを URL に持たない口）の受け皿で、
+ * チケット 1 件を全画面で開く。
  *
- * バックログ画面自体はスペース単位（`/kb/backlog/:spaceId`）なので、ここでは
- * `GET /kb/tickets/:id` でチケットの所在（spaceId）を解決し、そのスペースの
- * バックログへ差し替える。チケット自体の選択（詳細パネルを開く）まではしない
- * （段 1 の簡略化 — アーカイブ済みだと現役タブに現れず選べないため）。
+ * 通知・本文中の参照・ブックマークからの再訪はワークスペースを知らないまま来るので、
+ * ID だけで開ける必要がある。アーカイブ済みでも普通に開ける（一覧の現役タブには
+ * 現れないので、こちらが唯一の入口になる）。
  */
 export default function KbTicketPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
-  const [state, setState] = useState<{ spaceId: string | null; error: string | null }>({
-    spaceId: null,
-    error: null,
-  });
+  const { showToast } = useToast();
 
-  useEffect(() => {
-    if (!ticketId) return;
-    let active = true;
-    TicketRepository.resolveTicket(ticketId)
-      .then((resolved) => {
-        if (active) setState({ spaceId: resolved.ticket.spaceId, error: null });
-      })
-      .catch((cause) => {
-        if (!active) return;
-        setState({
-          spaceId: null,
-          error: getApiError(cause).status === 404 ? 'チケットが見つかりませんでした。' : 'チケットを開けませんでした。',
-        });
-      });
-    return () => {
-      active = false;
-    };
-  }, [ticketId]);
+  const page = useTicketPage(ticketId);
+  const masters = useTicketMasters(page.workspaceSlug ?? undefined, page.ticket?.spaceId);
+  const { principals } = usePrincipalNames(page.workspaceSlug ?? undefined);
+  const history = useTicketDetail(page.workspaceSlug ?? undefined, page.ticket ? (ticketId ?? null) : null);
 
-  if (state.error) {
+  const withToastOnFailure = async (action: () => Promise<unknown>, failureMessage: string) => {
+    try {
+      await action();
+    } catch (cause) {
+      showToast('error', getApiError(cause).status === 403 ? 'この操作を行う権限がありません。' : failureMessage);
+      throw cause;
+    }
+  };
+
+  if (page.error) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--color-text-muted)]">
-        {state.error}
+        {page.error}
       </div>
     );
   }
 
-  if (state.spaceId) {
-    return <Navigate to={`/kb/backlog/${state.spaceId}`} replace />;
+  if (page.loading || !page.ticket || !page.permission) {
+    return <Loading />;
   }
 
-  return <Loading />;
+  return (
+    <TicketFullView
+      key={page.ticket.id}
+      ticket={page.ticket}
+      ancestors={page.ancestors}
+      spaceKey={page.space?.key ?? ''}
+      statuses={masters.statuses}
+      types={masters.types}
+      principals={principals}
+      history={history.history}
+      historyLoading={history.loading}
+      historyError={history.error}
+      canEdit={page.permission.canEdit}
+      busy={page.busy}
+      onUpdate={(input) => page.updateTicket(input)}
+      onChangeStatus={(statusId) =>
+        void withToastOnFailure(() => page.changeStatus({ statusId }), '状態を変更できませんでした。')
+      }
+      onAssign={(principalId) =>
+        void withToastOnFailure(() => page.assign(principalId), '担当を設定できませんでした。')
+      }
+      onUnassign={() => void withToastOnFailure(() => page.unassign(), '担当を外せませんでした。')}
+      onArchive={() => void withToastOnFailure(() => page.archive(), 'アーカイブできませんでした。')}
+      onRestore={() => void withToastOnFailure(() => page.restore(), '現役に戻せませんでした。')}
+    />
+  );
 }

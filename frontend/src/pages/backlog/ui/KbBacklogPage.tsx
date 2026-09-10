@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import { KbSidebar } from '@/widgets/kb-sidebar';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
@@ -9,7 +9,6 @@ import { getApiError } from '@/shared/lib/classifyApiError';
 import { TicketRepository } from '@/entities/ticket';
 import { useTicketList } from '../model/useTicketList';
 import { useTicketMasters } from '../model/useTicketMasters';
-import { useTicketDetail } from '../model/useTicketDetail';
 import { usePrincipalNames } from '../model/usePrincipalNames';
 import { useBacklogSpace } from '../model/useBacklogSpace';
 import { useBacklogUrlState } from '../model/useBacklogUrlState';
@@ -44,7 +43,6 @@ export default function KbBacklogPage() {
   const list = useTicketList(workspaceSlug ?? undefined, space?.id, { archived });
   const masters = useTicketMasters(workspaceSlug ?? undefined, space?.id);
   const { principals, nameOf, initialsOf } = usePrincipalNames(workspaceSlug ?? undefined);
-  const detail = useTicketDetail(workspaceSlug ?? undefined, tab === 'tickets' ? selectedId : null);
 
   // スペースを切り替えたら文脈を捨てる（前のスペースのチケットを次の画面で引きずらない）。
   // 初回の読み込みでは捨てない — URL に載っている選択や絞り込みを開いた直後に消してしまう。
@@ -281,13 +279,21 @@ export default function KbBacklogPage() {
           mobileOpen={detailMobileOpen}
           onMobileClose={() => setDetailMobileOpen(false)}
           headerContent={
-            <button
-              type="button"
-              onClick={() => selectTicket(null)}
-              className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-            >
-              詳細を閉じる
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                to={`/kb/tickets/${selectedTicket.id}`}
+                className="text-xs font-medium text-brand-700 hover:underline"
+              >
+                全画面で開く
+              </Link>
+              <button
+                type="button"
+                onClick={() => selectTicket(null)}
+                className="ml-auto text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                詳細を閉じる
+              </button>
+            </div>
           }
         >
           <TicketDetailPanel
@@ -298,8 +304,6 @@ export default function KbBacklogPage() {
             types={masters.types}
             principals={principals}
             parentTicket={parentTicket}
-            history={detail.history}
-            historyLoading={detail.loading}
             canEdit
             busy={list.busyId === selectedTicket.id}
             onUpdate={(ticketId, input) => list.updateTicket(ticketId, input)}

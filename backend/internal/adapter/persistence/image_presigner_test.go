@@ -27,7 +27,7 @@ func Test_画像の表示URLに配信ドメインを含めないこと(t *testin
 			publicURL: func(t *testing.T) string {
 				t.Helper()
 				out, err := NewStubProfileImagePresigner("bucket").
-					Generate(ctx, 7, "icon.png", "image/png")
+					Generate(ctx, 7, "image/png", 1024)
 				require.NoError(t, err)
 				return out.ImageURL
 			},
@@ -64,7 +64,7 @@ func Test_アップロード先URLは絶対URLのままであること(t *testin
 	ctx := context.Background()
 
 	profile, err := NewStubProfileImagePresigner("bucket").
-		Generate(ctx, 7, "icon.png", "image/png")
+		Generate(ctx, 7, "image/png", 1024)
 	require.NoError(t, err)
 	assert.Contains(t, profile.UploadURL, "://", "アップロード先は絶対 URL であること")
 
@@ -78,7 +78,7 @@ func Test_画像のキーは表示URLから先頭のスラッシュを外した�
 
 	// 将来キー保存方式へ移す場合に、相対パスから機械的にキーを得られることを担保する。
 	profile, err := NewStubProfileImagePresigner("bucket").
-		Generate(ctx, 7, "icon.png", "image/png")
+		Generate(ctx, 7, "image/png", 1024)
 	require.NoError(t, err)
 	assert.Equal(t, profile.Key, strings.TrimPrefix(profile.ImageURL, "/"))
 

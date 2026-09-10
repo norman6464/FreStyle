@@ -62,11 +62,11 @@ describe('ProfileRepository', () => {
     const mockData = { uploadUrl: 'https://s3.example.com/upload', imageUrl: 'https://cdn.example.com/image.png' };
     vi.mocked(apiClient.post).mockResolvedValue({ data: mockData });
 
-    const result = await ProfileRepository.getImagePresignedUrl('avatar.png', 'image/png');
+    const result = await ProfileRepository.getImagePresignedUrl('image/png', 1024);
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/v2/profile/me/image/presigned-url', {
-      fileName: 'avatar.png',
       contentType: 'image/png',
+      size: 1024,
     });
     expect(result).toEqual(mockData);
   });

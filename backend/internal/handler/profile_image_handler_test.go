@@ -19,7 +19,7 @@ type fakeProfileImagePresigner struct {
 	err error
 }
 
-func (f fakeProfileImagePresigner) Generate(context.Context, uint64, string, string) (*domain.ProfileImageUploadURL, error) {
+func (f fakeProfileImagePresigner) Generate(context.Context, uint64, string, int64) (*domain.ProfileImageUploadURL, error) {
 	return f.url, f.err
 }
 
@@ -63,10 +63,31 @@ func Test_プロフィール画像ハンドラ_アップロードURL発行(t *te
 		}
 	})
 	t.Run("正常系", func(t *testing.T) {
-		w, c := userIDCtx(`{"contentType":"image/png"}`, 7, "me")
+		w, c := userIDCtx(`{"contentType":"image/png","size":1024}`, 7, "me")
 		newProfileImageHandler(fakeProfileImagePresigner{url: &domain.ProfileImageUploadURL{}}).IssueUploadURL(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
+		}
+	})
+	t.Run("本文省略(EOF)は既定値のまま続ける", func(t *testing.T) {
+		w, c := userIDCtx(``, 7, "me")
+		newProfileImageHandler(fakeProfileImagePresigner{url: &domain.ProfileImageUploadURL{}}).IssueUploadURL(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d", w.Code)
+		}
+	})
+	t.Run("壊れたJSONは400_以前は握り潰して既定値で処理を続けていた", func(t *testing.T) {
+		w, c := userIDCtx(`{not json`, 7, "me")
+		newProfileImageHandler(fakeProfileImagePresigner{url: &domain.ProfileImageUploadURL{}}).IssueUploadURL(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("presignerが許可リスト外のContent_Typeを拒否したら400", func(t *testing.T) {
+		w, c := userIDCtx(`{"contentType":"text/html","size":10}`, 7, "me")
+		newProfileImageHandler(fakeProfileImagePresigner{err: domain.ErrUnsupportedImageContentType}).IssueUploadURL(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
 }

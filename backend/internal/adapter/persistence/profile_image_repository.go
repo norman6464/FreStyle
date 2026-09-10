@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -25,17 +24,18 @@ func NewStubProfileImagePresigner(bucket string) repository.ProfileImagePresigne
 	return &profileImagePresigner{pre: &stubPresigner{bucket: bucket}}
 }
 
-func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
+func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, contentType string, size int64) (*domain.ProfileImageUploadURL, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("userID is required")
 	}
-	if contentType == "" {
-		contentType = "image/png"
+	// Content-Type とサイズの検証は presign より前に済ませる（rich_text_image_repository.go
+	// と同じ形。以前はここが素通しで、任意の Content-Type・上限の無い PUT presigned URL を
+	// いくらでも発行できた）。
+	if err := domain.ValidateImageUpload(contentType, size); err != nil {
+		return nil, err
 	}
-	ext := guessExt(fileName, contentType)
-	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UnixNano(), ext)
-	// サイズ制限は本チケットのスコープ外（動作は変えない）。0 は「制約しない」の意味。
-	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, 0)
+	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UnixNano(), extForContentType(contentType))
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, size)
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +47,13 @@ func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fil
 	}, nil
 }
 
-// guessExt は fileName または contentType から拡張子を返す。
-func guessExt(fileName, contentType string) string {
-	if i := strings.LastIndex(fileName, "."); i != -1 && i < len(fileName)-1 {
-		return strings.ToLower(fileName[i:])
-	}
+// extForContentType は検査済みの Content-Type から拡張子を返す。利用者が指定する
+// ファイル名からは導かない（Content-Type と食い違う拡張子を選べてしまうため）。
+// domain.ValidateImageUpload を通った後に呼ぶ前提（domain.AcceptedImageContentTypes に
+// 無い値が来ることは無い）。
+func extForContentType(contentType string) string {
 	switch contentType {
-	case "image/jpeg", "image/jpg":
+	case "image/jpeg":
 		return ".jpg"
 	case "image/png":
 		return ".png"

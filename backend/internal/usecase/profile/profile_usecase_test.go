@@ -73,16 +73,16 @@ func Test_プロフィール更新_status_messageに書き込む(t *testing.T) {
 type stubProfileImagePresigner struct {
 	called    bool
 	gotUserID uint64
-	gotFile   string
 	gotCType  string
+	gotSize   int64
 	err       error
 }
 
-func (s *stubProfileImagePresigner) Generate(_ context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
+func (s *stubProfileImagePresigner) Generate(_ context.Context, userID uint64, contentType string, size int64) (*domain.ProfileImageUploadURL, error) {
 	s.called = true
 	s.gotUserID = userID
-	s.gotFile = fileName
 	s.gotCType = contentType
+	s.gotSize = size
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -96,7 +96,7 @@ func (s *stubProfileImagePresigner) Generate(_ context.Context, userID uint64, f
 
 func Test_プロフィール画像アップロードURL発行_ユーザーIDが必須(t *testing.T) {
 	uc := NewIssueProfileImageUploadURLUseCase(&stubProfileImagePresigner{})
-	if _, err := uc.Execute(context.Background(), 0, "a.png", "image/png"); err == nil {
+	if _, err := uc.Execute(context.Background(), 0, "image/png", 1024); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -104,14 +104,14 @@ func Test_プロフィール画像アップロードURL発行_ユーザーIDが�
 func Test_プロフィール画像アップロードURL発行_presignerへ引数を渡す(t *testing.T) {
 	stub := &stubProfileImagePresigner{}
 	uc := NewIssueProfileImageUploadURLUseCase(stub)
-	got, err := uc.Execute(context.Background(), 7, "icon.jpg", "image/jpeg")
+	got, err := uc.Execute(context.Background(), 7, "image/jpeg", 2048)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	if got.UploadURL == "" || got.ImageURL == "" {
 		t.Errorf("URLs should be set: %+v", got)
 	}
-	if !stub.called || stub.gotUserID != 7 || stub.gotFile != "icon.jpg" || stub.gotCType != "image/jpeg" {
+	if !stub.called || stub.gotUserID != 7 || stub.gotCType != "image/jpeg" || stub.gotSize != 2048 {
 		t.Errorf("presigner not called with expected args: %+v", stub)
 	}
 }

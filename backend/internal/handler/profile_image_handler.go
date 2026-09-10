@@ -2,10 +2,12 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
 )
@@ -19,9 +21,12 @@ func NewProfileImageHandler(i *profile.IssueProfileImageUploadURLUseCase) *Profi
 	return &ProfileImageHandler{issue: i}
 }
 
+// issueProfileImageReq は body 受け取り。fileName は受け取らない（オブジェクトの拡張子は
+// 検査済みの contentType からのみ導く。rich_text_image_handler.go と同じ形）。
 type issueProfileImageReq struct {
-	FileName    string `json:"fileName"`
 	ContentType string `json:"contentType"`
+	// Size はバイト数。省略時は 0 になり、domain.ValidateImageUpload が「0 以下は拒否」で弾く。
+	Size int64 `json:"size"`
 }
 
 var (
@@ -50,7 +55,7 @@ func (h *ProfileImageHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	return uid, nil
 }
 
-// IssueUploadURL は { fileName, contentType } を受けて PUT 署名 URL 等を返す。
+// IssueUploadURL は { contentType, size } を受けて PUT 署名 URL 等を返す。
 func (h *ProfileImageHandler) IssueUploadURL(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {
@@ -65,13 +70,22 @@ func (h *ProfileImageHandler) IssueUploadURL(c *gin.Context) {
 		return
 	}
 	var req issueProfileImageReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// body 無しで叩かれても 400 にせず、デフォルト値で処理を続ける。
-		req = issueProfileImageReq{}
-	}
-	got, err := h.issue.Execute(c.Request.Context(), uid, req.FileName, req.ContentType)
-	if err != nil {
+	// body 無し（EOF）は許容するが、不正 JSON は 400 で弾く
+	// （以前はここが全エラーを握り潰し、壊れた JSON でも既定値のまま処理を続けていた）。
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	got, err := h.issue.Execute(c.Request.Context(), uid, req.ContentType, req.Size)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrUnsupportedImageContentType):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported_content_type"})
+		case errors.Is(err, domain.ErrImageTooLarge):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "image_too_large"})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 	c.JSON(http.StatusOK, got)

@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/react';
 import { isAcceptedImageMimeType } from '@/shared/config/imageUpload';
+import { sanitizeImageSrc } from './linkSafety';
 
 /** ImageUploader は File を受け取り、表示用 URL を返す関数。 */
 export type ImageUploader = (file: File) => Promise<string>;
@@ -20,6 +21,11 @@ export function acceptedImageFiles(files: FileList | File[] | null | undefined):
  * - alt にはファイル名を既定で入れる（代替テキストの土台。専用 UI は後続）
  *
  * アップロード失敗は握りつぶす（通知は呼び出し側の uploader 内の方針に委ねる）。
+ * uploader が返す url も挿入前に検査する — uploader 自体はこの画面のコード（例:
+ * KbRepository.uploadPageImage）で信頼できる形（"kb/…" の key）を返す前提だが、
+ * doc へ実際に書き込む直前の検査を linkSafety.ts の許可リストへ揃えておくことで、
+ * uploader の実装が将来変わっても doc 側の不変条件（sanitizeDocLinks が許す src だけを
+ * 持つ）が保たれる。
  */
 export async function insertUploadedImages(
   editor: Editor,
@@ -30,8 +36,10 @@ export async function insertUploadedImages(
   for (const file of files) {
     try {
       const url = await upload(file);
+      const safeUrl = sanitizeImageSrc(url);
+      if (safeUrl === null) continue;
       if (!isAlive() || editor.isDestroyed) continue;
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      editor.chain().focus().setImage({ src: safeUrl, alt: file.name }).run();
     } catch {
       /* アップロード失敗は無視（通知は呼び出し側） */
     }

@@ -116,4 +116,15 @@ describe('insertUploadedImages', () => {
     const srcs = collectImages(e.getJSON()).map((img) => img.attrs?.src);
     expect(srcs).toEqual(['https://cdn.example.com/ok.png']);
   });
+
+  // uploader 自体はこの画面のコードで信頼できる url を返す前提だが、doc へ書き込む直前の
+  // 検査を linkSafety.ts の許可リストへ揃えておく（uploader の実装が将来変わっても
+  // doc 側の不変条件が保たれるようにするための保険）。1 ファイルだけで確かめる
+  // （2 ファイル目以降は headless では焦点復元が無く挿入位置が安定しない — 上のテストの
+  // コメント参照。ここでは「挿入しない」ことだけを純粋に見たいので confound を避ける）。
+  it('uploader が許可リストに無い url を返したら挿入しない', async () => {
+    const e = makeEditor();
+    await insertUploadedImages(e, [imageFile('bad.png')], async () => 'javascript:alert(1)');
+    expect(collectImages(e.getJSON())).toHaveLength(0);
+  });
 });

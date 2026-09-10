@@ -209,6 +209,39 @@ describe('RichTextEditor', () => {
     expect(await screen.findByText('外部から差し替え')).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  // 数千段の入れ子でも sanitizeDocLinks / fillMissingBlockIdsInDoc がコールスタックを
+  // 使い切らないことを、マウントの成功で end-to-end に確かめる（各関数の単体テストは
+  // linkSafety.test.ts / stableBlockId.test.tsx 側にある）。
+  it('数千段の入れ子を持つ value でもクラッシュせずマウントできる', async () => {
+    let inner: RichDocContent['content'] = [{ type: 'paragraph', content: [{ type: 'text', text: '底' }] }];
+    for (let i = 0; i < 5000; i += 1) inner = [{ type: 'blockquote', content: inner }];
+    const deep: RichDocContent = { type: 'doc', content: inner };
+
+    const { container } = render(<RichTextEditor value={deep} />);
+    await waitFor(() => expect(container.querySelector('.ProseMirror')).not.toBeNull());
+  });
+
+  // useMemo 本体（sanitizeDocLinks → fillMissingBlockIdsInDoc）が想定外の理由で例外を投げても、
+  // React がエディタごと描画できず白画面になることを避け、空文書へ落として描画は続ける。
+  it('value の読み取りで例外が起きても白画面にならず空文書で描画する', async () => {
+    // getter が投げる Proxy で、useMemo の中で初めて例外を発生させる
+    // （プロパティへ実際にアクセスするまでは通常の value と見分けが付かない）。
+    const throwing = new Proxy(
+      { type: 'doc' },
+      {
+        get(target, prop, receiver) {
+          if (prop === 'content') throw new Error('boom');
+          return Reflect.get(target, prop, receiver);
+        },
+      },
+    ) as unknown as RichDocContent;
+
+    const { container } = render(<RichTextEditor value={throwing} />);
+    await waitFor(() => expect(container.querySelector('.ProseMirror')).not.toBeNull());
+    // 空文書（段落 1 つ、中身なし）で描画されている。
+    expect(container.querySelectorAll('.ProseMirror > p')).toHaveLength(1);
+  });
 });
 
 describe('doc の同一性はキー順に依らない', () => {

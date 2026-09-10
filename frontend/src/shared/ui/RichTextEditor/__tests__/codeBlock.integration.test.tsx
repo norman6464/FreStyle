@@ -114,4 +114,19 @@ describe('コードブロック NodeView（統合）', () => {
       expect(screen.getByRole('button', { name: /コードの言語を選択/ })).toBeInTheDocument(),
     );
   });
+
+  // language は class 名にそのまま埋め込まれる（"language-" + language）。API から doc を
+  // 直接書き込める経路があるため、許可リストに無い値（空白混じりの class 注入を含む）が
+  // 保存されていても、描画側で必ず既定（plaintext）へ丸めることを固定する
+  // （backend 側の保存時検査 parseBlockNode / normalizeBlockAttrs とは独立の防御線）。
+  it('許可リストに無い language は class 注入を許さずプレーンテキストへ丸める', async () => {
+    await setup('x', 'go fixed inset-0 z-50 bg-white');
+    const code = document.querySelector('code');
+    expect(code).not.toBeNull();
+    expect(code).toHaveClass('language-plaintext');
+    expect(code!.className).not.toContain('fixed');
+    expect(code!.className).not.toContain('inset-0');
+    // バッジの表示名も、許可リストに無い値をそのまま出さない（既定表示へ丸める）。
+    expect(screen.getByRole('button', { name: /コードの言語を選択/ })).toHaveTextContent('プレーンテキスト');
+  });
 });

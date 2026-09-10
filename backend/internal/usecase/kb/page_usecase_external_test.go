@@ -1192,8 +1192,8 @@ func Test_ページ画像ダウンロード_キー空文字は専用エラー(t 
 }
 
 // Test_ページ画像ダウンロード_自ページのキーは無条件で許可 は、そのページ自身がアップロードした
-// key（"kb/<workspaceId>/<pageId>/..." に完全一致する prefix）なら PageReferencesImageKey
-// （DB 問い合わせ）を経由せずに許可することを固定する。
+// key（"kb/<workspaceId>/<pageId>/..." に完全一致する prefix）なら DB 問い合わせを経由せずに
+// 許可することを固定する。
 func Test_ページ画像ダウンロード_自ページのキーは無条件で許可(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	presigner := &mockKbImagePresigner{}
@@ -1206,18 +1206,11 @@ func Test_ページ画像ダウンロード_自ページのキーは無条件で
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "https://example/download", got.URL)
-	repo.AssertNotCalled(t, "PageReferencesImageKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-// Test_ページ画像ダウンロード_別ワークスペースのキーはPageReferencesImageKeyを呼ばず404 は、
-// ワークスペースの境界を越える key を DB 問い合わせより前に弾くことを固定する
-// （usecase 側のコメント参照 — ページの本文は呼び出し側が自由に書ける値なので、
-// このチェックが無いと他ページの key 文字列を本文に書き込むだけで別テナントの画像が
-// 読めてしまう）。
-//
-// 変異確認: 同一ワークスペース限定の prefix チェックを外すと、このテストの
-// 「PageReferencesImageKey が呼ばれない」検証が落ちる（別テナントの key 漏洩を検出できなくなる）。
-func Test_ページ画像ダウンロード_別ワークスペースのキーはPageReferencesImageKeyを呼ばず404(t *testing.T) {
+// Test_ページ画像ダウンロード_別ワークスペースのキーは404 は、ワークスペースの境界を越える
+// key を弾くことを固定する。
+func Test_ページ画像ダウンロード_別ワークスペースのキーは404(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	presigner := &mockKbImagePresigner{}
 	otherWS := "0198a000-0000-7000-8000-0000000000ff"
@@ -1228,35 +1221,22 @@ func Test_ページ画像ダウンロード_別ワークスペースのキーは
 		WorkspaceID: kbWS, PageID: kbPage, Key: key,
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
-	repo.AssertNotCalled(t, "PageReferencesImageKey", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	presigner.AssertNotCalled(t, "PresignDownload", mock.Anything, mock.Anything)
 }
 
-// Test_ページ画像ダウンロード_同一ワークスペースの他ページ参照は問い合わせて許可 は、
-// 同一ワークスペース内で prefix だけ違う（他ページ由来の）key を、本文またはカバーに
-// 実際に使われているか PageReferencesImageKey で確かめたうえで許可することを固定する。
-func Test_ページ画像ダウンロード_同一ワークスペースの他ページ参照は問い合わせて許可(t *testing.T) {
+// Test_ページ画像ダウンロード_同一ワークスペースの他ページ由来のキーも404 は、以前あった
+// 「同一ワークスペース内なら本文に貼られていれば許可する」フォールバックを撤去したことを
+// 固定する。このフォールバックは自作自演で破れた — blocks.attrs は image 特有のフィールドを
+// パースせず素通しするため、自分が編集できるページに他ページの key を書き込むだけで
+// 「貼られている」を自分で作れ、その画像の持ち主のページへの権限が無くても読めてしまっていた。
+//
+// 変異確認: kbImageKeyPrefix(workspaceID, pageID) の一致条件を「ワークスペースが同じなら
+// 常に許可」に緩めると、このテストが落ちる。
+func Test_ページ画像ダウンロード_同一ワークスペースの他ページ由来のキーも404(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	presigner := &mockKbImagePresigner{}
 	otherPage := "0198a000-0000-7000-8000-0000000000ee"
 	key := "kb/" + kbWS + "/" + otherPage + "/1.bin"
-	repo.On("PageReferencesImageKey", mock.Anything, kbWS, kbPage, key).Return(true, nil)
-	presigner.On("PresignDownload", mock.Anything, key).Return("https://example/download", 600, nil)
-	uc := kb.NewIssuePageImageDownloadURLUseCase(repo, presigner)
-
-	got, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
-		WorkspaceID: kbWS, PageID: kbPage, Key: key,
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "https://example/download", got.URL)
-}
-
-func Test_ページ画像ダウンロード_参照されていないキーは404(t *testing.T) {
-	repo := &mockKnowledgeBaseRepo{}
-	presigner := &mockKbImagePresigner{}
-	otherPage := "0198a000-0000-7000-8000-0000000000ee"
-	key := "kb/" + kbWS + "/" + otherPage + "/1.bin"
-	repo.On("PageReferencesImageKey", mock.Anything, kbWS, kbPage, key).Return(false, nil)
 	uc := kb.NewIssuePageImageDownloadURLUseCase(repo, presigner)
 
 	_, err := uc.Execute(context.Background(), kb.IssuePageImageDownloadURLInput{
@@ -1264,6 +1244,7 @@ func Test_ページ画像ダウンロード_参照されていないキーは404
 	})
 	require.ErrorIs(t, err, repository.ErrPageNotFound)
 	presigner.AssertNotCalled(t, "PresignDownload", mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
 }
 
 // =====================================================================================

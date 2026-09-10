@@ -691,8 +691,8 @@ func (m *mockLabelRepo) UpdateLabel(ctx context.Context, l *domain.Label) error 
 	return args.Error(0)
 }
 
-func (m *mockLabelRepo) DeleteLabel(ctx context.Context, workspaceID, labelID string) error {
-	args := m.Called(ctx, workspaceID, labelID)
+func (m *mockLabelRepo) DeleteLabel(ctx context.Context, workspaceID, spaceID, labelID string) error {
+	args := m.Called(ctx, workspaceID, spaceID, labelID)
 	return args.Error(0)
 }
 

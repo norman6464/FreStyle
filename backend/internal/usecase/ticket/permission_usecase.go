@@ -122,5 +122,11 @@ func (u *ResolveTicketLocationUseCase) Execute(ctx context.Context, ticketID str
 	if err != nil {
 		return nil, err
 	}
+	// 停止中のワークスペースは無いものとして扱う。slug の経路は解決の入口
+	// （ResolveWorkspaceUseCase）が同じ判定をしているが、この id の経路はそこを通らない。
+	// ここで見ないと、停止しても id さえ控えていれば読み続けられる。
+	if !ws.IsActive {
+		return nil, repository.ErrTicketNotFound
+	}
 	return &ResolveTicketLocationOutput{Workspace: *ws}, nil
 }

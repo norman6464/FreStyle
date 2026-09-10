@@ -199,10 +199,6 @@ type KnowledgeBaseRepository interface {
 	// UpdatePageIcon 側の同じ穴は本メソッドのスコープ外なので直さない）。
 	// 入力の妥当性（key の形）は呼び出し側（usecase）が保証済みという前提で、ここでは検証しない。
 	UpdatePageCover(ctx context.Context, workspaceID, pageID string, cover *domain.PageCover) (*domain.Page, error)
-	// PageReferencesImageKey は、このページの blocks（画像ノードの attrs.src）または
-	// pages.cover のいずれかが key と一致する行を持つかを返す。ダウンロード URL 発行時に
-	// 「このページの本文またはカバーで実際に使われている key か」を確かめるために使う。
-	PageReferencesImageKey(ctx context.Context, workspaceID, pageID, key string) (bool, error)
 	// TouchPageLastEditedBy は最終編集者を記録する。対象が無ければ ErrPageNotFound。
 	//
 	// 呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより**先に**これを呼ぶ。

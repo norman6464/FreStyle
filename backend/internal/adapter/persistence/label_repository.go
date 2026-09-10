@@ -101,12 +101,13 @@ func (r *labelRepository) ListLabels(ctx context.Context, workspaceID, spaceID s
 
 func (r *labelRepository) UpdateLabel(ctx context.Context, l *domain.Label) error {
 	wsID, ok := kbParseID(l.WorkspaceID)
-	lID, ok2 := kbParseID(l.ID)
-	if !ok || !ok2 {
+	spID, ok2 := kbParseID(l.SpaceID)
+	lID, ok3 := kbParseID(l.ID)
+	if !ok || !ok2 || !ok3 {
 		return repository.ErrLabelNotFound
 	}
 	row, err := r.queries(ctx).UpdateLabel(ctx, sqlcgen.UpdateLabelParams{
-		WorkspaceID: wsID, ID: lID, Name: l.Name, Color: l.Color,
+		WorkspaceID: wsID, SpaceID: spID, ID: lID, Name: l.Name, Color: l.Color,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return repository.ErrLabelNotFound
@@ -121,13 +122,14 @@ func (r *labelRepository) UpdateLabel(ctx context.Context, l *domain.Label) erro
 	return nil
 }
 
-func (r *labelRepository) DeleteLabel(ctx context.Context, workspaceID, labelID string) error {
+func (r *labelRepository) DeleteLabel(ctx context.Context, workspaceID, spaceID, labelID string) error {
 	wsID, ok := kbParseID(workspaceID)
-	lID, ok2 := kbParseID(labelID)
-	if !ok || !ok2 {
+	spID, ok2 := kbParseID(spaceID)
+	lID, ok3 := kbParseID(labelID)
+	if !ok || !ok2 || !ok3 {
 		return repository.ErrLabelNotFound
 	}
-	n, err := r.queries(ctx).DeleteLabel(ctx, sqlcgen.DeleteLabelParams{WorkspaceID: wsID, ID: lID})
+	n, err := r.queries(ctx).DeleteLabel(ctx, sqlcgen.DeleteLabelParams{WorkspaceID: wsID, SpaceID: spID, ID: lID})
 	if err != nil {
 		return err
 	}

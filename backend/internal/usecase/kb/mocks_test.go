@@ -195,11 +195,6 @@ func (m *mockKnowledgeBaseRepo) UpdatePageCover(ctx context.Context, workspaceID
 	return p, args.Error(1)
 }
 
-func (m *mockKnowledgeBaseRepo) PageReferencesImageKey(ctx context.Context, workspaceID, pageID, key string) (bool, error) {
-	args := m.Called(ctx, workspaceID, pageID, key)
-	return args.Bool(0), args.Error(1)
-}
-
 func (m *mockKnowledgeBaseRepo) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
 	return m.Called(ctx, workspaceID, pageID, userID).Error(0)
 }

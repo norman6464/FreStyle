@@ -75,12 +75,29 @@ func TestLabelRepository_Integration(t *testing.T) {
 		l := &domain.Label{WorkspaceID: ws, SpaceID: space, Name: "旧", Color: "#ff0000"}
 		require.NoError(t, repo.CreateLabel(ctx, l))
 
-		update := &domain.Label{ID: l.ID, WorkspaceID: ws, Name: "新", Color: "#00ff00"}
+		update := &domain.Label{ID: l.ID, WorkspaceID: ws, SpaceID: space, Name: "新", Color: "#00ff00"}
 		require.NoError(t, repo.UpdateLabel(ctx, update))
 		got, err := repo.FindLabel(ctx, ws, l.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "新", got.Name)
 		assert.Equal(t, "#00ff00", got.Color)
+	})
+
+	// UPDATE / DELETE は space_id でも絞る。呼び出し側が権限を確かめる相手は URL のスペースで、
+	// そこから外れた行に届いてしまうと「確かめた相手」と「触った相手」が別物になる。
+	t.Run("別スペースのラベルは更新も削除もできない", func(t *testing.T) {
+		ws, space, _ := setup(t)
+		other := createSpace(t, sqlDB, ws, "other")
+		l := &domain.Label{WorkspaceID: ws, SpaceID: other, Name: "隣の", Color: "#ff0000"}
+		require.NoError(t, repo.CreateLabel(ctx, l))
+
+		update := &domain.Label{ID: l.ID, WorkspaceID: ws, SpaceID: space, Name: "改名", Color: "#00ff00"}
+		require.ErrorIs(t, repo.UpdateLabel(ctx, update), repository.ErrLabelNotFound)
+		require.ErrorIs(t, repo.DeleteLabel(ctx, ws, space, l.ID), repository.ErrLabelNotFound)
+
+		got, err := repo.FindLabel(ctx, ws, l.ID)
+		require.NoError(t, err, "行はそのまま残っている")
+		assert.Equal(t, "隣の", got.Name)
 	})
 
 	t.Run("削除でticket_labelsも一緒に消える", func(t *testing.T) {
@@ -89,12 +106,12 @@ func TestLabelRepository_Integration(t *testing.T) {
 		require.NoError(t, repo.CreateLabel(ctx, l))
 		require.NoError(t, repo.AddTicketLabel(ctx, ws, ticketID, l.ID))
 
-		require.NoError(t, repo.DeleteLabel(ctx, ws, l.ID))
+		require.NoError(t, repo.DeleteLabel(ctx, ws, space, l.ID))
 		labels, err := repo.ListLabelsByTicket(ctx, ws, ticketID)
 		require.NoError(t, err)
 		assert.Empty(t, labels, "ON DELETE CASCADE でticket_labelsの行も消える")
 
-		require.ErrorIs(t, repo.DeleteLabel(ctx, ws, l.ID), repository.ErrLabelNotFound, "二重削除は404相当")
+		require.ErrorIs(t, repo.DeleteLabel(ctx, ws, space, l.ID), repository.ErrLabelNotFound, "二重削除は404相当")
 	})
 
 	t.Run("付け外しは冪等", func(t *testing.T) {

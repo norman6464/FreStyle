@@ -143,6 +143,24 @@ func Test_チケットslug無し解決_閲覧できなければ404(t *testing.T)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// Test_チケットslug無し解決_停止中ワークスペースは404 は、id だけの解決経路
+// （/kb/tickets/:ticketId）が slug 経由の入口（middleware.KnowledgeBaseWorkspace）を
+// 通らないため、is_active を別途確かめないと停止後も id さえ控えていれば読み続けられて
+// しまうことの修正を固定する。
+//
+// 変異確認: ResolveTicketLocationUseCase.Execute の !ws.IsActive 分岐を外すと、
+// このテストの 404 判定が落ちる。
+func Test_チケットslug無し解決_停止中ワークスペースは404(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	tk := f.tickets.addTicket(domain.Ticket{
+		ID: "ticket-1", WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Title: "停止後",
+	})
+	f.pages.workspaces[kbWorkspaceSlug].IsActive = false
+
+	w := f.do(t, http.MethodGet, "/api/v2/kb/tickets/"+tk.ID, "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 func Test_チケット取得_他ワークスペースのチケットは404(t *testing.T) {
 	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
 	other := f.tickets.addTicket(domain.Ticket{ID: "ticket-x", WorkspaceID: kbOtherWorkspaceID, SpaceID: "other-space", Title: "x"})

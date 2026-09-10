@@ -151,3 +151,25 @@ func Test_ラベル_違うスペースのラベルはチケットへ付けられ
 	w := f.do(t, http.MethodPut, ticketAPIBase+"/tickets/"+target.ID+"/labels/label-other", "")
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
+
+// Test_ラベル_URLのスペースと違うラベルは更新も削除もできない は、handler が URL の
+// :spaceId（ここでは自分が編集できる kbSpaceID）に対する権限しか確かめないことを悪用し、
+// 実際には別スペース所属のラベルを改名・削除できてしまっていた穴の修正を固定する。
+// 攻撃者は「他スペースの編集権限」を一切持たない（そもそもラベルの実在すら知らなくてよい）。
+//
+// 変異確認: UpdateLabelUseCase / DeleteLabelUseCase のスペース突き合わせを外すと、
+// このテストの 404 判定・「行はそのまま残っている」判定が落ちる。
+func Test_ラベル_URLのスペースと違うラベルは更新も削除もできない(t *testing.T) {
+	f := newTicketFixture(kbUserID, domain.GrantRoleEditor)
+	spaceBase := ticketAPIBase + "/spaces/" + kbSpaceID
+	f.tickets.labels["label-other"] = &domain.Label{
+		ID: "label-other", WorkspaceID: kbWorkspaceID, SpaceID: "other-space", Name: "他スペースの名前", Color: "#2f6b47",
+	}
+
+	w := f.do(t, http.MethodPut, spaceBase+"/labels/label-other", `{"name":"乗っ取り","color":"#ff0000"}`)
+	assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+	w = f.do(t, http.MethodDelete, spaceBase+"/labels/label-other", "")
+	assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+
+	assert.Equal(t, "他スペースの名前", f.tickets.labels["label-other"].Name, "書き換えられていない")
+}

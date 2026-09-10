@@ -180,15 +180,16 @@ func registerKnowledgeBaseRoutesWith(
 	// ページの雛形。作成・削除はワークスペース全体への CanEdit、
 	// 一覧はワークスペース所属者なら誰でも、使用（雛形からページを作る）は既存のページ作成
 	// （h.Create）と全く同じ認可分岐で判定する（PageTemplateHandler 参照）。
+	tplCheckSpace := kb.NewCheckSpacePermissionUseCase(permissions)
 	th := NewPageTemplateHandler(
 		kb.NewIsWorkspaceMemberUseCase(permissions),
 		kb.NewCheckWorkspacePermissionUseCase(permissions),
 		kb.NewCheckPagePermissionUseCase(permissions),
-		kb.NewCheckSpacePermissionUseCase(permissions),
-		kb.NewListPageTemplatesUseCase(templates),
-		kb.NewCreateTemplateFromPageUseCase(pages, templates),
-		kb.NewDeletePageTemplateUseCase(templates),
-		kb.NewCreatePageFromTemplateUseCase(templates, kb.NewCreatePageUseCase(pages), replaceBlocks, kb.NewDeletePageUseCase(pages)),
+		tplCheckSpace,
+		kb.NewListPageTemplatesUseCase(templates, tplCheckSpace),
+		kb.NewCreateTemplateFromPageUseCase(pages, templates, tplCheckSpace),
+		kb.NewDeletePageTemplateUseCase(templates, tplCheckSpace),
+		kb.NewCreatePageFromTemplateUseCase(templates, tplCheckSpace, kb.NewCreatePageUseCase(pages), replaceBlocks, kb.NewDeletePageUseCase(pages)),
 	)
 
 	// 提案。作成は CanComment、一覧の閲覧は CanView、採用・却下は CanEdit

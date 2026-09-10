@@ -65,20 +65,32 @@ func NewUpdateLabelUseCase(r repository.LabelRepository) *UpdateLabelUseCase {
 
 type UpdateLabelInput struct {
 	WorkspaceID string
-	LabelID     string
-	Name        string
-	Color       string
+	// SpaceID は呼び出し側が権限を確かめた相手（URL のスペース）。ラベルの所属と
+	// 食い違えば ErrLabelNotFound として拒む（AddTicketLabelUseCase と同じ形）。
+	SpaceID string
+	LabelID string
+	Name    string
+	Color   string
 }
 
 func (u *UpdateLabelUseCase) Execute(ctx context.Context, in UpdateLabelInput) (*domain.Label, error) {
-	if in.WorkspaceID == "" || in.LabelID == "" {
-		return nil, errors.New("workspaceID and labelID are required")
+	if in.WorkspaceID == "" || in.SpaceID == "" || in.LabelID == "" {
+		return nil, errors.New("workspaceID, spaceID and labelID are required")
 	}
 	name, color, err := validateLabel(in.Name, in.Color)
 	if err != nil {
 		return nil, err
 	}
-	label := &domain.Label{ID: in.LabelID, WorkspaceID: in.WorkspaceID, Name: name, Color: color}
+	current, err := u.repo.FindLabel(ctx, in.WorkspaceID, in.LabelID)
+	if err != nil {
+		return nil, err
+	}
+	if current.SpaceID != in.SpaceID {
+		return nil, repository.ErrLabelNotFound
+	}
+	label := &domain.Label{
+		ID: in.LabelID, WorkspaceID: in.WorkspaceID, SpaceID: in.SpaceID, Name: name, Color: color,
+	}
 	if err := u.repo.UpdateLabel(ctx, label); err != nil {
 		return nil, err
 	}
@@ -95,11 +107,20 @@ func NewDeleteLabelUseCase(r repository.LabelRepository) *DeleteLabelUseCase {
 	return &DeleteLabelUseCase{repo: r}
 }
 
-func (u *DeleteLabelUseCase) Execute(ctx context.Context, workspaceID, labelID string) error {
-	if workspaceID == "" || labelID == "" {
-		return errors.New("workspaceID and labelID are required")
+// Execute の spaceID は呼び出し側が権限を確かめた相手（URL のスペース）。
+// ラベルの所属と食い違えば ErrLabelNotFound として拒む。
+func (u *DeleteLabelUseCase) Execute(ctx context.Context, workspaceID, spaceID, labelID string) error {
+	if workspaceID == "" || spaceID == "" || labelID == "" {
+		return errors.New("workspaceID, spaceID and labelID are required")
 	}
-	return u.repo.DeleteLabel(ctx, workspaceID, labelID)
+	label, err := u.repo.FindLabel(ctx, workspaceID, labelID)
+	if err != nil {
+		return err
+	}
+	if label.SpaceID != spaceID {
+		return repository.ErrLabelNotFound
+	}
+	return u.repo.DeleteLabel(ctx, workspaceID, spaceID, labelID)
 }
 
 // ListLabelsUseCase はスペースのラベル一覧を返す。

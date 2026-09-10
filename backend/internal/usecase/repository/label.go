@@ -23,8 +23,12 @@ type LabelRepository interface {
 	CreateLabel(ctx context.Context, l *domain.Label) error
 	FindLabel(ctx context.Context, workspaceID, labelID string) (*domain.Label, error)
 	ListLabels(ctx context.Context, workspaceID, spaceID string) ([]domain.Label, error)
+	// UpdateLabel / DeleteLabel は workspace_id と id に加えて **space_id でも行を絞る**。
+	// 権限を確かめる相手は URL のスペースなので、実際に触る行もそのスペースに限らないと
+	// 「確かめた相手」と「触った相手」が別物になる。l.SpaceID / spaceID は呼び出し側が
+	// URL から渡す値で、食い違えば ErrLabelNotFound になる。
 	UpdateLabel(ctx context.Context, l *domain.Label) error
-	DeleteLabel(ctx context.Context, workspaceID, labelID string) error
+	DeleteLabel(ctx context.Context, workspaceID, spaceID, labelID string) error
 
 	AddTicketLabel(ctx context.Context, workspaceID, ticketID, labelID string) error
 	RemoveTicketLabel(ctx context.Context, workspaceID, ticketID, labelID string) error

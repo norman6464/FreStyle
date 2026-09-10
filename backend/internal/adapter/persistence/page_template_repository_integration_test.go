@@ -158,12 +158,13 @@ func TestCreatePageFromTemplate_TwoPagesDoNotCollide_Integration(t *testing.T) {
 	txManager := persistence.NewTxManager(sqlDB)
 	versionRepo := persistence.NewPageVersionRepository(sqlDB)
 	templateRepo := persistence.NewPageTemplateRepository(sqlDB)
+	checkSpace := kb.NewCheckSpacePermissionUseCase(persistence.NewKnowledgeBasePermissionRepository(sqlDB))
 
 	replaceUC := kb.NewReplacePageBlocksUseCase(kbRepo, txManager, versionRepo)
 	createPageUC := kb.NewCreatePageUseCase(kbRepo)
 	deletePageUC := kb.NewDeletePageUseCase(kbRepo)
-	createTemplateUC := kb.NewCreateTemplateFromPageUseCase(kbRepo, templateRepo)
-	createFromTemplateUC := kb.NewCreatePageFromTemplateUseCase(templateRepo, createPageUC, replaceUC, deletePageUC)
+	createTemplateUC := kb.NewCreateTemplateFromPageUseCase(kbRepo, templateRepo, checkSpace)
+	createFromTemplateUC := kb.NewCreatePageFromTemplateUseCase(templateRepo, checkSpace, createPageUC, replaceUC, deletePageUC)
 
 	// 元ページに本文を保存し、それを雛形として保存する。
 	sourceDoc := `{"type":"doc","content":[
@@ -229,7 +230,8 @@ func TestCreateTemplateFromPage_StripsPageRefAndImage_Integration(t *testing.T) 
 	versionRepo := persistence.NewPageVersionRepository(sqlDB)
 	templateRepo := persistence.NewPageTemplateRepository(sqlDB)
 	replaceUC := kb.NewReplacePageBlocksUseCase(kbRepo, txManager, versionRepo)
-	createTemplateUC := kb.NewCreateTemplateFromPageUseCase(kbRepo, templateRepo)
+	checkSpace := kb.NewCheckSpacePermissionUseCase(persistence.NewKnowledgeBasePermissionRepository(sqlDB))
+	createTemplateUC := kb.NewCreateTemplateFromPageUseCase(kbRepo, templateRepo, checkSpace)
 
 	docWithRefAndImage := `{"type":"doc","content":[
 		{"type":"paragraph","content":[

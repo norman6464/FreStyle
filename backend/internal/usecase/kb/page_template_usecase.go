@@ -15,21 +15,25 @@ import (
 // CreateTemplateFromPageUseCase は既存ページの「今の」本文を雛形として保存する
 // （「雛形として保存」）。
 type CreateTemplateFromPageUseCase struct {
-	kbRepo    repository.KnowledgeBaseRepository
-	templates repository.PageTemplateRepository
+	kbRepo     repository.KnowledgeBaseRepository
+	templates  repository.PageTemplateRepository
+	checkSpace *CheckSpacePermissionUseCase
 }
 
 func NewCreateTemplateFromPageUseCase(
 	kbRepo repository.KnowledgeBaseRepository, templates repository.PageTemplateRepository,
+	checkSpace *CheckSpacePermissionUseCase,
 ) *CreateTemplateFromPageUseCase {
-	return &CreateTemplateFromPageUseCase{kbRepo: kbRepo, templates: templates}
+	return &CreateTemplateFromPageUseCase{kbRepo: kbRepo, templates: templates, checkSpace: checkSpace}
 }
 
 type CreateTemplateFromPageInput struct {
 	WorkspaceID string
 	PageID      string
 	// SpaceID が nil ならワークスペース全体で見える雛形になる。非 nil ならそのスペース限定
-	// （実在確認をする。同じワークスペース内の実在するスペースでなければ repository.ErrSpaceNotFound）。
+	// （実在確認に加え、呼び出し者がそのスペースを閲覧できることも確かめる。
+	// どちらも満たさなければ repository.ErrSpaceNotFound — 「見えない」と「無い」を
+	// 区別しない既存の方針どおり）。
 	SpaceID      *string
 	Name         string
 	AuthorUserID uint64
@@ -61,6 +65,19 @@ func (u *CreateTemplateFromPageUseCase) Execute(ctx context.Context, in CreateTe
 		if _, err := u.kbRepo.FindSpace(ctx, in.WorkspaceID, *in.SpaceID); err != nil {
 			return nil, err
 		}
+		// 本文を読んだ・書けたページ（in.PageID）と、雛形をひも付けようとしている先の
+		// スペース（in.SpaceID）は別物になり得る。クライアントが SpaceID を自由に選べる
+		// リクエストなので、実在確認だけでは「見たこともない非公開スペースへ、
+		// 自分が読める別ページの本文を紐付ける」ことを止められない。
+		perm, err := u.checkSpace.Execute(ctx, CheckSpacePermissionInput{
+			WorkspaceID: in.WorkspaceID, SpaceID: *in.SpaceID, UserID: in.AuthorUserID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if !perm.CanView {
+			return nil, repository.ErrSpaceNotFound
+		}
 	}
 	tpl := &domain.PageTemplate{
 		WorkspaceID: in.WorkspaceID,
@@ -80,37 +97,79 @@ func (u *CreateTemplateFromPageUseCase) Execute(ctx context.Context, in CreateTe
 
 // ListPageTemplatesUseCase はワークスペース（または特定のスペース）の雛形一覧を返す。
 type ListPageTemplatesUseCase struct {
-	templates repository.PageTemplateRepository
+	templates  repository.PageTemplateRepository
+	checkSpace *CheckSpacePermissionUseCase
 }
 
-func NewListPageTemplatesUseCase(templates repository.PageTemplateRepository) *ListPageTemplatesUseCase {
-	return &ListPageTemplatesUseCase{templates: templates}
+func NewListPageTemplatesUseCase(
+	templates repository.PageTemplateRepository, checkSpace *CheckSpacePermissionUseCase,
+) *ListPageTemplatesUseCase {
+	return &ListPageTemplatesUseCase{templates: templates, checkSpace: checkSpace}
 }
 
 type ListPageTemplatesInput struct {
 	WorkspaceID string
 	SpaceID     *string
+	UserID      uint64
 }
 
 func (u *ListPageTemplatesUseCase) Execute(ctx context.Context, in ListPageTemplatesInput) ([]domain.PageTemplate, error) {
+	// SpaceID 指定は「そのスペースの一覧」を名乗る。repository.List はワークスペース全体向け
+	// （space_id IS NULL）の行にこの spaceID の行を足して返す仕様なので、閲覧権限を
+	// 確かめずに通すと、非公開スペースの雛形名・アイコンを spaceId さえ分かれば
+	// 誰でも読めてしまう。
+	if in.SpaceID != nil {
+		perm, err := u.checkSpace.Execute(ctx, CheckSpacePermissionInput{
+			WorkspaceID: in.WorkspaceID, SpaceID: *in.SpaceID, UserID: in.UserID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if !perm.CanView {
+			return nil, repository.ErrSpaceNotFound
+		}
+	}
 	return u.templates.List(ctx, in.WorkspaceID, in.SpaceID)
 }
 
 // DeletePageTemplateUseCase は雛形を削除する。
 type DeletePageTemplateUseCase struct {
-	templates repository.PageTemplateRepository
+	templates  repository.PageTemplateRepository
+	checkSpace *CheckSpacePermissionUseCase
 }
 
-func NewDeletePageTemplateUseCase(templates repository.PageTemplateRepository) *DeletePageTemplateUseCase {
-	return &DeletePageTemplateUseCase{templates: templates}
+func NewDeletePageTemplateUseCase(
+	templates repository.PageTemplateRepository, checkSpace *CheckSpacePermissionUseCase,
+) *DeletePageTemplateUseCase {
+	return &DeletePageTemplateUseCase{templates: templates, checkSpace: checkSpace}
 }
 
 type DeletePageTemplateInput struct {
 	WorkspaceID string
 	TemplateID  string
+	UserID      uint64
 }
 
 func (u *DeletePageTemplateUseCase) Execute(ctx context.Context, in DeletePageTemplateInput) error {
+	// handler はワークスペース全体への CanEdit しか確かめていない。雛形自身が非公開スペースに
+	// ひも付いている（かつ呼び出し者がそのスペースを見られない）場合、それだけでは
+	// 「そのスペースの雛形が存在すること」自体を実質的に確認・削除できてしまう
+	// （List・CreateFromPage 側で塞いだ閲覧の穴と対になる書き込み側の穴）。
+	tpl, err := u.templates.Get(ctx, in.WorkspaceID, in.TemplateID)
+	if err != nil {
+		return err
+	}
+	if tpl.SpaceID != nil {
+		perm, err := u.checkSpace.Execute(ctx, CheckSpacePermissionInput{
+			WorkspaceID: in.WorkspaceID, SpaceID: *tpl.SpaceID, UserID: in.UserID,
+		})
+		if err != nil {
+			return err
+		}
+		if !perm.CanView {
+			return domain.ErrPageTemplateNotFound
+		}
+	}
 	return u.templates.Delete(ctx, in.WorkspaceID, in.TemplateID)
 }
 
@@ -121,6 +180,7 @@ func (u *DeletePageTemplateUseCase) Execute(ctx context.Context, in DeletePageTe
 // （RestorePageVersionUseCase が ReplacePageBlocksUseCase を注入されて呼ぶのと同じ形）。
 type CreatePageFromTemplateUseCase struct {
 	templates     repository.PageTemplateRepository
+	checkSpace    *CheckSpacePermissionUseCase
 	createPage    *CreatePageUseCase
 	replaceBlocks *ReplacePageBlocksUseCase
 	deletePage    *DeletePageUseCase
@@ -128,12 +188,14 @@ type CreatePageFromTemplateUseCase struct {
 
 func NewCreatePageFromTemplateUseCase(
 	templates repository.PageTemplateRepository,
+	checkSpace *CheckSpacePermissionUseCase,
 	createPage *CreatePageUseCase,
 	replaceBlocks *ReplacePageBlocksUseCase,
 	deletePage *DeletePageUseCase,
 ) *CreatePageFromTemplateUseCase {
 	return &CreatePageFromTemplateUseCase{
-		templates: templates, createPage: createPage, replaceBlocks: replaceBlocks, deletePage: deletePage,
+		templates: templates, checkSpace: checkSpace,
+		createPage: createPage, replaceBlocks: replaceBlocks, deletePage: deletePage,
 	}
 }
 
@@ -151,6 +213,21 @@ func (u *CreatePageFromTemplateUseCase) Execute(ctx context.Context, in CreatePa
 	tpl, err := u.templates.Get(ctx, in.WorkspaceID, in.TemplateID)
 	if err != nil {
 		return nil, err
+	}
+	// handler が確かめているのは「作成先の場所（親ページ or スペース直下）を編集できるか」
+	// だけで、雛形そのものを見てよいかは一度も問われていない。雛形が非公開スペースに
+	// ひも付いていれば、その本文（doc）はそのスペースの閲覧者だけに見せるべきもの
+	// ——templateId さえ知っていれば作成先とは無関係に本文を抜き出せてしまう穴を塞ぐ。
+	if tpl.SpaceID != nil {
+		perm, err := u.checkSpace.Execute(ctx, CheckSpacePermissionInput{
+			WorkspaceID: in.WorkspaceID, SpaceID: *tpl.SpaceID, UserID: in.AuthorUserID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if !perm.CanView {
+			return nil, domain.ErrPageTemplateNotFound
+		}
 	}
 	// 同じ雛形から複数のページを作ると、剥がさないままだと blocks.id（グローバルに一意な PK）が
 	// 衝突して 2 ページ目以降の保存が失敗する（regenerateBlockIDs の doc 参照）。

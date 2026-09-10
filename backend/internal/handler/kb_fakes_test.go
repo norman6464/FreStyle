@@ -36,9 +36,6 @@ type kbFakePages struct {
 	// findPageCalls は FindPage が呼ばれた回数。権限の入口が「認可の前に対象を読む」形へ
 	// 戻っていないことをテストから確かめるために数える。
 	findPageCalls int
-	// blockImageKeys はページの本文（blocks）に貼られていることにする画像 key の集合
-	// （pageID -> key -> true）。PageReferencesImageKey の fake 実装が見る。
-	blockImageKeys map[string]map[string]bool
 }
 
 var _ repository.KnowledgeBaseRepository = (*kbFakePages)(nil)
@@ -445,32 +442,6 @@ func (f *kbFakePages) UpdatePageCover(_ context.Context, workspaceID, pageID str
 	}
 	p.Cover = cover
 	return copyPage(p), nil
-}
-
-// blockImageKeys は fake 上の「ページの本文（blocks）に貼られている画像 key」の集合
-// （pageID -> keys）。本番の blocks.attrs->>'src' の代わりに、テストからこの集合へ
-// 直接足し込む（addBlockImageKey）。
-func (f *kbFakePages) PageReferencesImageKey(_ context.Context, workspaceID, pageID, key string) (bool, error) {
-	p, ok := f.pages[pageID]
-	if !ok || p.WorkspaceID != workspaceID {
-		return false, nil
-	}
-	if p.Cover != nil && p.Cover.Key == key {
-		return true, nil
-	}
-	return f.blockImageKeys[pageID][key], nil
-}
-
-// addBlockImageKey はテスト用に「このページの本文にこの画像 key が貼られている」ことにする
-// （本番の PageReferencesImageKey が blocks.attrs->>'src' を見るのと同じ効果を fake で作る）。
-func (f *kbFakePages) addBlockImageKey(pageID, key string) {
-	if f.blockImageKeys == nil {
-		f.blockImageKeys = map[string]map[string]bool{}
-	}
-	if f.blockImageKeys[pageID] == nil {
-		f.blockImageKeys[pageID] = map[string]bool{}
-	}
-	f.blockImageKeys[pageID][key] = true
 }
 
 func (f *kbFakePages) TouchPageLastEditedBy(_ context.Context, workspaceID, pageID string, userID uint64) error {

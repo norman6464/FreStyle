@@ -500,6 +500,7 @@ JOIN principals p
   ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = $1
 LEFT JOIN workspace_grants wg
   ON wg.workspace_id = w.id AND wg.principal_id = p.id
+WHERE w.is_active = true
 ORDER BY w.slug
 `
 
@@ -530,6 +531,8 @@ type ListMemberWorkspacesRow struct {
 // 比較結果そのものは NULL になり得ない。COALESCE(bool式, false) だと sqlc の型推論が
 // interface{} に落ちてしまうため、text 側で COALESCE する形にしている
 // （driver が NULL を bool へ Scan できずに落ちることをローカル PostgreSQL で確認済み）。
+// 停止中のワークスペースは一覧に出さない。個々の解決（slug / id）が「無いもの」として
+// 扱うのに一覧にだけ残ると、開けない行が並ぶだけで意味が無い。
 func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64) ([]ListMemberWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMemberWorkspaces, userID)
 	if err != nil {

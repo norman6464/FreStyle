@@ -702,17 +702,6 @@ func (r *knowledgeBaseRepository) UpdatePageCover(ctx context.Context, workspace
 	return &p, nil
 }
 
-func (r *knowledgeBaseRepository) PageReferencesImageKey(ctx context.Context, workspaceID, pageID, key string) (bool, error) {
-	wsID, ok := kbParseID(workspaceID)
-	pgID, ok2 := kbParseID(pageID)
-	if !ok || !ok2 {
-		return false, repository.ErrPageNotFound
-	}
-	return r.queries(ctx).PageReferencesImageKey(ctx, sqlcgen.PageReferencesImageKeyParams{
-		WorkspaceID: wsID, PageID: pgID, Key: key,
-	})
-}
-
 func (r *knowledgeBaseRepository) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)

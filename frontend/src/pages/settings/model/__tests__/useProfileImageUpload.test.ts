@@ -30,7 +30,7 @@ describe('useProfileImageUpload', () => {
       imageUrl = await result.current.upload(file);
     });
 
-    expect(ProfileRepository.getImagePresignedUrl).toHaveBeenCalledWith('avatar.png', 'image/png');
+    expect(ProfileRepository.getImagePresignedUrl).toHaveBeenCalledWith('image/png', file.size);
     expect(ProfileRepository.uploadToS3).toHaveBeenCalledWith('https://s3.example.com/upload', file);
     expect(imageUrl).toBe('https://cdn.example.com/profiles/1/avatar.png');
   });

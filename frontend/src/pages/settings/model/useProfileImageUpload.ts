@@ -14,7 +14,7 @@ export function useProfileImageUpload() {
 
     setUploading(true);
     try {
-      const { uploadUrl, imageUrl } = await ProfileRepository.getImagePresignedUrl(file.name, file.type);
+      const { uploadUrl, imageUrl } = await ProfileRepository.getImagePresignedUrl(file.type, file.size);
       await ProfileRepository.uploadToS3(uploadUrl, file);
       return imageUrl;
     } catch (error) {

@@ -31,10 +31,10 @@ const ProfileRepository = {
     return res.data;
   },
 
-  async getImagePresignedUrl(fileName: string, contentType: string): Promise<PresignedUrlResponse> {
+  async getImagePresignedUrl(contentType: string, size: number): Promise<PresignedUrlResponse> {
     const res = await apiClient.post<PresignedUrlResponse>(PROFILE.meImagePresignedUrl, {
-      fileName,
       contentType,
+      size,
     });
     return res.data;
   },

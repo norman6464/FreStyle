@@ -65,9 +65,9 @@ func NewIssueProfileImageUploadURLUseCase(p repository.ProfileImagePresigner) *I
 	return &IssueProfileImageUploadURLUseCase{presigner: p}
 }
 
-func (u *IssueProfileImageUploadURLUseCase) Execute(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
+func (u *IssueProfileImageUploadURLUseCase) Execute(ctx context.Context, userID uint64, contentType string, size int64) (*domain.ProfileImageUploadURL, error) {
 	if userID == 0 {
 		return nil, errors.New("userID is required")
 	}
-	return u.presigner.Generate(ctx, userID, fileName, contentType)
+	return u.presigner.Generate(ctx, userID, contentType, size)
 }

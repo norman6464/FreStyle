@@ -355,6 +355,35 @@ var ErrPageDocInvalid = errors.New("invalid prosemirror doc")
 // スキーマに無いノード名を保存すると読み出したドキュメントがエディタで開けなくなるため、入口で弾く。
 var ErrPageDocUnknownNodeType = errors.New("unknown block node type")
 
+// ProseMirror ドキュメントを解釈するときの入れ子と規模の上限。
+//
+// **段数の上限が本体。** 解釈は入れ子の各段で部分木の JSON を読み直す（json.RawMessage は
+// 中身を複製する）ため、要した記憶域は「入力の大きさ × 段数」で効く。段数に上限が無いと、
+// 本文の大きさの上限（1MiB 強）に収まる要求 1 本で数百 MB を確保させられ、数本並べるだけで
+// プロセスごと落とせる。段数を止めれば最悪でも「本文の上限 × 段数」の定数倍に収まる。
+//
+// 30 段は、エディタで作れる入れ子（引用の中の箇条書きの中の表の升目…）より十分に深い。
+// ノード総数のほうは、1 ページ = 1 万行というありえない規模で頭打ちにするための保険。
+// どちらも人が書いた文書が引っかかる水準ではない。
+const (
+	kbDocMaxDepth = 30
+	kbDocMaxNodes = 10000
+)
+
+// kbCodeBlockLanguages はコードブロックの language 属性に受け付ける値。画面の選択肢と
+// 同じ一覧（frontend の codeBlockLanguages.ts）を写したもの。ここに無い値は保存時に落とす。
+//
+// 落とす理由は見た目の話ではない。language は読み手の画面で class 属性に文字列として
+// 埋め込まれるため、空白を含む値を通すと任意の class を足せてしまう。
+var kbCodeBlockLanguages = map[string]bool{
+	"plaintext": true, "sql": true, "typescript": true, "javascript": true, "go": true,
+	"python": true, "bash": true, "json": true, "yaml": true, "xml": true,
+	"css": true, "markdown": true, "diff": true, "java": true, "kotlin": true,
+	"swift": true, "php": true, "ruby": true, "rust": true, "c": true,
+	"cpp": true, "csharp": true, "graphql": true, "ini": true, "makefile": true,
+	"scss": true, "shell": true, "lua": true, "perl": true, "r": true,
+}
+
 // kbContainerBlockTypes は子がブロック行になる「容器ノード」。それ以外の既知ノードは
 // 「葉ノード」で、content（text ノードとマークの配列）を行にせず inline に丸ごと持つ。
 // 粒度の境界はスキーマ設計（blocks.inline のコメント）で決めたもの: 文字単位で行を作ると
@@ -404,13 +433,29 @@ func parsePageDoc(doc string) ([]*kbDocNode, error) {
 	if root.Type != "doc" {
 		return nil, fmt.Errorf("%w: ルートは type='doc' が必要（got %q）", ErrPageDocInvalid, root.Type)
 	}
-	return parseBlockNodes(root.Content)
+	return parseBlockNodes(root.Content, 1, &kbDocBudget{remaining: kbDocMaxNodes})
+}
+
+// kbDocBudget は 1 回の解釈で読み進めてよいノードの残数。木のどの枝を降りていても
+// 同じ 1 つを共有するので、幅で稼ぐ入力も深さで稼ぐ入力も同じ 1 本の物差しで止まる。
+type kbDocBudget struct{ remaining int }
+
+func (b *kbDocBudget) take() error {
+	if b.remaining <= 0 {
+		return fmt.Errorf("%w: ノードが多すぎます（上限 %d 個）", ErrPageDocInvalid, kbDocMaxNodes)
+	}
+	b.remaining--
+	return nil
 }
 
 // parseBlockNodes は content 配列（JSON）をブロックノード列として解釈する。空・省略は 0 件。
-func parseBlockNodes(content json.RawMessage) ([]*kbDocNode, error) {
+// depth は今いる段（doc 直下が 1）。
+func parseBlockNodes(content json.RawMessage, depth int, budget *kbDocBudget) ([]*kbDocNode, error) {
 	if len(content) == 0 || string(content) == "null" {
 		return []*kbDocNode{}, nil
+	}
+	if depth > kbDocMaxDepth {
+		return nil, fmt.Errorf("%w: 入れ子が深すぎます（上限 %d 段）", ErrPageDocInvalid, kbDocMaxDepth)
 	}
 	var items []json.RawMessage
 	if err := json.Unmarshal(content, &items); err != nil {
@@ -418,7 +463,7 @@ func parseBlockNodes(content json.RawMessage) ([]*kbDocNode, error) {
 	}
 	nodes := make([]*kbDocNode, 0, len(items))
 	for _, item := range items {
-		n, err := parseBlockNode(item)
+		n, err := parseBlockNode(item, depth, budget)
 		if err != nil {
 			return nil, err
 		}
@@ -427,7 +472,10 @@ func parseBlockNodes(content json.RawMessage) ([]*kbDocNode, error) {
 	return nodes, nil
 }
 
-func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
+func parseBlockNode(raw json.RawMessage, depth int, budget *kbDocBudget) (*kbDocNode, error) {
+	if err := budget.take(); err != nil {
+		return nil, err
+	}
 	var rn kbRawNode
 	if err := json.Unmarshal(raw, &rn); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
@@ -462,6 +510,9 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 	// attrs JSONB には id を絶対に含めない — id は blocks.id という別の列で管理する
 	// 唯一の情報源にする（attrs と PK の二重管理を避けるための設計判断）。
 	delete(m, "id")
+	if err := normalizeBlockAttrs(t, m); err != nil {
+		return nil, err
+	}
 	if len(m) > 0 {
 		attrs, err := json.Marshal(m)
 		if err != nil {
@@ -471,7 +522,7 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 	}
 
 	if kbContainerBlockTypes[t] {
-		children, err := parseBlockNodes(rn.Content)
+		children, err := parseBlockNodes(rn.Content, depth+1, budget)
 		if err != nil {
 			return nil, err
 		}
@@ -486,6 +537,9 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 		if err := json.Unmarshal(rn.Content, &items); err != nil {
 			return nil, fmt.Errorf("%w: content が配列ではありません: %w", ErrPageDocInvalid, err)
 		}
+		if err := validateInlineNodes(items, depth+1, budget); err != nil {
+			return nil, err
+		}
 		if len(items) > 0 {
 			compact, err := json.Marshal(items)
 			if err != nil {
@@ -496,6 +550,98 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 		}
 	}
 	return node, nil
+}
+
+// kbInlineImageKeyPrefix は本文に置ける画像 src の唯一の形。実体は
+// kbImageKeyPrefix が採番する "kb/<workspaceId>/<pageId>/…" で、ここでは
+// ワークスペースもページも分からないので接頭辞だけを見る（テナントの照合は
+// ダウンロード URL の発行時に key を突き合わせて行う）。
+const kbInlineImageKeyPrefix = "kb/"
+
+// normalizeBlockAttrs は種別ごとに attrs を検査する。m は id を除いたあとの属性で、
+// 直せるものはここで直し、直せないものは ErrPageDocInvalid にする。
+//
+// 画像だけ「落とさず断る」なのは、src を黙って消すと本人には何も起きていないように
+// 見えたまま画像が消えるため。一方コードブロックの language は見た目の手がかりでしか
+// ないので、知らない値なら外して既定（ハイライト無し）に落とすだけにする。
+func normalizeBlockAttrs(t domain.BlockType, m map[string]json.RawMessage) error {
+	switch t {
+	case domain.BlockTypeImage:
+		var src string
+		raw, ok := m["src"]
+		if ok {
+			if err := json.Unmarshal(raw, &src); err != nil {
+				return fmt.Errorf("%w: 画像の src が文字列ではありません", ErrPageDocInvalid)
+			}
+		}
+		// 外部の URL を通すと、そのページを開いた全員のブラウザが、書いた人の選んだ
+		// 相手へ黙って要求を出す（読んだ人の IP・時刻がそこへ渡る）。本文に置けるのは
+		// 自分たちの保管庫の key だけにする。
+		if !strings.HasPrefix(src, kbInlineImageKeyPrefix) {
+			return fmt.Errorf("%w: 画像の src は %q で始まる保管庫の key だけを受け付けます", ErrPageDocInvalid, kbInlineImageKeyPrefix)
+		}
+	case domain.BlockTypeCodeBlock:
+		raw, ok := m["language"]
+		if !ok {
+			return nil
+		}
+		var lang string
+		if err := json.Unmarshal(raw, &lang); err != nil || !kbCodeBlockLanguages[lang] {
+			delete(m, "language")
+		}
+	}
+	return nil
+}
+
+// validateInlineNodes は葉ノードの content（インライン列）を検査する。
+//
+// 見るのは「要素が {"type": 文字列, …} の object か」だけで、中身の意味には踏み込まない。
+// null や数値を混ぜた content をそのまま保存できてしまうと、読み出して描く側は要素の
+// .type を読んだ瞬間に必ず落ちる（保存した本人ではなく、そのページを開いた全員が落ちる）。
+// marks も同じ理由で見る。入れ子の content には段数とノード数の上限をそのまま引き継ぐ。
+func validateInlineNodes(items []json.RawMessage, depth int, budget *kbDocBudget) error {
+	if len(items) == 0 {
+		return nil
+	}
+	if depth > kbDocMaxDepth {
+		return fmt.Errorf("%w: 入れ子が深すぎます（上限 %d 段）", ErrPageDocInvalid, kbDocMaxDepth)
+	}
+	for _, item := range items {
+		if err := budget.take(); err != nil {
+			return err
+		}
+		var n struct {
+			Type    string            `json:"type"`
+			Marks   []json.RawMessage `json:"marks"`
+			Content []json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal(item, &n); err != nil {
+			return fmt.Errorf("%w: content の要素が object ではありません: %w", ErrPageDocInvalid, err)
+		}
+		if n.Type == "" {
+			return fmt.Errorf("%w: content の要素に type がありません", ErrPageDocInvalid)
+		}
+		for _, mark := range n.Marks {
+			if err := budget.take(); err != nil {
+				return err
+			}
+			var mk struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(mark, &mk); err != nil {
+				return fmt.Errorf("%w: marks の要素が object ではありません: %w", ErrPageDocInvalid, err)
+			}
+			if mk.Type == "" {
+				return fmt.Errorf("%w: marks の要素に type がありません", ErrPageDocInvalid)
+			}
+		}
+		if len(n.Content) > 0 {
+			if err := validateInlineNodes(n.Content, depth+1, budget); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // flattenPageDoc はブロック木を保存用の行（文書順・親が先）へ平坦化する。

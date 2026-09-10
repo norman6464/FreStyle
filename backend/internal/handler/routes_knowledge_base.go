@@ -33,6 +33,15 @@ const (
 	// 人が手で作る回数としては十分に余裕があり、連打での作り散らかしだけを抑える。
 	kbCreateSpacePerMinute = 20
 	kbCreateSpaceBurst     = 10
+	// 本文の JSON を解釈する 3 つの口（本文の保存・提案の作成・雛形からの作成）。
+	// 1 本の要求で確保する記憶域は入力の上限と入れ子の段数で頭打ちにしてあるが、
+	// 速さの側にも壁を置く。本文の保存は打っている最中に 0.8 秒ごとの自動保存が
+	// 走るので、人が書き続けても詰まらない水準（1 分 120 回）に取る。
+	// 提案と雛形からの作成は都度の操作なので、もっと絞ってよい。
+	kbReplaceContentPerMinute = 120
+	kbReplaceContentBurst     = 30
+	kbParseDocPerMinute       = 30
+	kbParseDocBurst           = 10
 )
 
 // registerKnowledgeBaseRoutes はナレッジのページ操作と権限操作のエンドポイントを登録する。
@@ -295,7 +304,8 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/move", h.Move)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/archive", h.Archive)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/unarchive", h.Unarchive)
-	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content", h.ReplaceContent)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/content",
+		middleware.RateLimitPerMinutePerUser(kbReplaceContentPerMinute, kbReplaceContentBurst), h.ReplaceContent)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.SetIcon)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.ClearIcon)
 	// ページに閉じた画像の読み取り経路。
@@ -328,11 +338,13 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/templates", th.List)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/templates", th.CreateFromPage)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/templates/:templateId", th.Delete)
-	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template", th.CreatePage)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages/from-template",
+		middleware.RateLimitPerMinutePerUser(kbParseDocPerMinute, kbParseDocBurst), th.CreatePage)
 
 	// 提案。作成は CanComment、一覧の閲覧は CanView、採用・却下は CanEdit
 	// を要求する（PageSuggestionHandler 参照）。
-	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions", sgh.Create)
+	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions",
+		middleware.RateLimitPerMinutePerUser(kbParseDocPerMinute, kbParseDocBurst), sgh.Create)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions", sgh.ListOpen)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions/:suggestionId/accept", sgh.Accept)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/suggestions/:suggestionId/reject", sgh.Reject)

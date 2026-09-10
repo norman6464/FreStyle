@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -154,7 +155,7 @@ func Test_doc往復_分解して組み立てると同値(t *testing.T) {
 		{
 			name: "画像と区切り線と引用",
 			doc: `{"type":"doc","content":[
-				{"type":"image","attrs":{"src":"https://example.com/a.png","alt":"代替","title":null}},
+				{"type":"image","attrs":{"src":"kb/ws1/page1/1.bin","alt":"代替","title":null}},
 				{"type":"horizontalRule"},
 				{"type":"blockquote","content":[{"type":"paragraph","content":[{"type":"text","text":"引用文"}]}]}
 			]}`,
@@ -195,6 +196,46 @@ func Test_doc分解_不正な入力を弾く(t *testing.T) {
 		{"容器の中の未知ノード", `{"type":"doc","content":[{"type":"bulletList","content":[{"type":"video"}]}]}`, ErrPageDocUnknownNodeType},
 		{"インラインノードがトップレベルに来る", `{"type":"doc","content":[{"type":"text","text":"裸のテキスト"}]}`, ErrPageDocUnknownNodeType},
 		{"attrsがobjectでない", `{"type":"doc","content":[{"type":"paragraph","attrs":[1,2]}]}`, ErrPageDocInvalid},
+		{
+			"インラインの要素がnull",
+			`{"type":"doc","content":[{"type":"paragraph","content":[null]}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"インラインの要素が数値",
+			`{"type":"doc","content":[{"type":"paragraph","content":[42]}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"インラインの要素にtypeが無い",
+			`{"type":"doc","content":[{"type":"paragraph","content":[{"text":"x"}]}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"marksの要素がnull",
+			`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[null]}]}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"marksの要素にtypeが無い",
+			`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"attrs":{}}]}]}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"画像のsrcが外部URL",
+			`{"type":"doc","content":[{"type":"image","attrs":{"src":"https://example.com/a.png"}}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"画像にsrcが無い",
+			`{"type":"doc","content":[{"type":"image","attrs":{"alt":"代替"}}]}`,
+			ErrPageDocInvalid,
+		},
+		{
+			"画像のsrcが文字列でない",
+			`{"type":"doc","content":[{"type":"image","attrs":{"src":123}}]}`,
+			ErrPageDocInvalid,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -202,6 +243,103 @@ func Test_doc分解_不正な入力を弾く(t *testing.T) {
 			require.ErrorIs(t, err, tc.wantErr)
 		})
 	}
+}
+
+// nestedBlockDoc は「中身の入った content 配列」がちょうど levels 段になる doc を返す。
+// doc 直下が 1 段目。blockquote を levels-1 段重ねて、最内に content を持たない
+// horizontalRule を 1 つ置く（葉が content を持つとインライン側でもう 1 段増えるため）。
+func nestedBlockDoc(levels int) string {
+	inner := `{"type":"horizontalRule"}`
+	for i := 0; i < levels-1; i++ {
+		inner = `{"type":"blockquote","content":[` + inner + `]}`
+	}
+	return `{"type":"doc","content":[` + inner + `]}`
+}
+
+// nestedInlineDoc は段落 1 つ（1 段目）の下に、インラインの content を levels-1 段
+// 重ねた doc を返す。合計の段数は levels になる。
+func nestedInlineDoc(levels int) string {
+	inner := `{"type":"text","text":"底"}`
+	for i := 0; i < levels-2; i++ {
+		inner = `{"type":"text","content":[` + inner + `]}`
+	}
+	return `{"type":"doc","content":[{"type":"paragraph","content":[` + inner + `]}]}`
+}
+
+func Test_doc分解_入れ子の段数に上限がある(t *testing.T) {
+	t.Run("上限ちょうどは通る", func(t *testing.T) {
+		_, err := parsePageDoc(nestedBlockDoc(kbDocMaxDepth))
+		require.NoError(t, err)
+	})
+	t.Run("上限を1段超えると弾く", func(t *testing.T) {
+		_, err := parsePageDoc(nestedBlockDoc(kbDocMaxDepth + 1))
+		require.ErrorIs(t, err, ErrPageDocInvalid)
+	})
+	t.Run("インラインの入れ子も同じ物差しで数える_上限ちょうど", func(t *testing.T) {
+		_, err := parsePageDoc(nestedInlineDoc(kbDocMaxDepth))
+		require.NoError(t, err)
+	})
+	t.Run("インラインの入れ子も同じ物差しで数える_上限超過", func(t *testing.T) {
+		_, err := parsePageDoc(nestedInlineDoc(kbDocMaxDepth + 1))
+		require.ErrorIs(t, err, ErrPageDocInvalid)
+	})
+}
+
+func Test_doc分解_ノード数に上限がある(t *testing.T) {
+	build := func(n int) string {
+		nodes := make([]string, 0, n)
+		for i := 0; i < n; i++ {
+			nodes = append(nodes, `{"type":"horizontalRule"}`)
+		}
+		return `{"type":"doc","content":[` + strings.Join(nodes, ",") + `]}`
+	}
+	t.Run("上限ちょうどは通る", func(t *testing.T) {
+		_, err := parsePageDoc(build(kbDocMaxNodes))
+		require.NoError(t, err)
+	})
+	t.Run("上限を1つ超えると弾く", func(t *testing.T) {
+		_, err := parsePageDoc(build(kbDocMaxNodes + 1))
+		require.ErrorIs(t, err, ErrPageDocInvalid)
+	})
+}
+
+func Test_doc分解_コードブロックの言語は許可済みだけ残す(t *testing.T) {
+	cases := []struct {
+		name  string
+		attrs string
+		want  string // 残ってほしい language（空なら属性ごと消える）
+	}{
+		{"許可済みの言語は残る", `{"language":"go"}`, "go"},
+		{"知らない言語は落とす", `{"language":"brainfuck"}`, ""},
+		{"class を混ぜた値は落とす", `{"language":"go fixed inset-0 z-50 bg-white"}`, ""},
+		{"文字列でない値は落とす", `{"language":123}`, ""},
+		{"language が無いときはそのまま", `{}`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := `{"type":"doc","content":[{"type":"codeBlock","attrs":` + tc.attrs +
+				`,"content":[{"type":"text","text":"x"}]}]}`
+			tree, err := parsePageDoc(doc)
+			require.NoError(t, err)
+			require.Len(t, tree, 1)
+
+			var attrs map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tree[0].Attrs), &attrs))
+			if tc.want == "" {
+				require.NotContains(t, attrs, "language")
+				return
+			}
+			require.Equal(t, tc.want, attrs["language"])
+		})
+	}
+}
+
+func Test_doc分解_画像は保管庫のkeyだけ受け付ける(t *testing.T) {
+	doc := `{"type":"doc","content":[{"type":"image","attrs":{"src":"kb/ws1/page1/1.bin","alt":"代替"}}]}`
+	tree, err := parsePageDoc(doc)
+	require.NoError(t, err)
+	require.Len(t, tree, 1)
+	require.Equal(t, domain.BlockTypeImage, tree[0].Type)
 }
 
 func Test_doc分解_行の形が正しい(t *testing.T) {

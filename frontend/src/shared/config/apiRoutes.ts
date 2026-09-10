@@ -53,24 +53,24 @@ export const RANKING = `${API_V2}/ranking` as const;
 /** 練習モード（シナリオ / セッション / ブックマーク / 共有セッション） */
 export const PRACTICE = {
   scenarios: `${API_V2}/practice/scenarios`,
-  scenario: (scenarioId: number | string) => `${API_V2}/practice/scenarios/${scenarioId}`,
+  scenario: (scenarioId: number | string) => `${API_V2}/practice/scenarios/${encodeURIComponent(scenarioId)}`,
   sessions: `${API_V2}/practice/sessions`,
 } as const;
 
 export const SHARED_SESSIONS = {
   list: `${API_V2}/shared-sessions`,
-  byId: (sessionId: number | string) => `${API_V2}/shared-sessions/${sessionId}`,
+  byId: (sessionId: number | string) => `${API_V2}/shared-sessions/${encodeURIComponent(sessionId)}`,
 } as const;
 
 /** 会話テンプレート / お気に入りフレーズ */
 export const TEMPLATES = {
   list: `${API_V2}/templates`,
-  byId: (id: number | string) => `${API_V2}/templates/${id}`,
+  byId: (id: number | string) => `${API_V2}/templates/${encodeURIComponent(id)}`,
 } as const;
 
 export const FAVORITE_PHRASES = {
   list: `${API_V2}/favorite-phrases`,
-  byId: (id: number | string) => `${API_V2}/favorite-phrases/${id}`,
+  byId: (id: number | string) => `${API_V2}/favorite-phrases/${encodeURIComponent(id)}`,
 } as const;
 
 /** 通知 */
@@ -78,7 +78,7 @@ export const NOTIFICATIONS = {
   list: `${API_V2}/notifications`,
   unreadCount: `${API_V2}/notifications/unread-count`,
   read: (notificationId: number | string) =>
-    `${API_V2}/notifications/${notificationId}/read`,
+    `${API_V2}/notifications/${encodeURIComponent(notificationId)}/read`,
   readAll: `${API_V2}/notifications/read-all`,
 } as const;
 
@@ -94,13 +94,13 @@ export const WEEKLY_CHALLENGE = {
 export const ADMIN = {
   members: `${API_V2}/admin/members`,
   /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
-  memberActive: (userId: number | string) => `${API_V2}/admin/members/${userId}/active`,
+  memberActive: (userId: number | string) => `${API_V2}/admin/members/${encodeURIComponent(userId)}/active`,
   /** DELETE /api/v2/admin/members/:userId — 従業員の論理削除 */
-  member: (userId: number | string) => `${API_V2}/admin/members/${userId}`,
+  member: (userId: number | string) => `${API_V2}/admin/members/${encodeURIComponent(userId)}`,
   invitations: `${API_V2}/admin/invitations`,
-  invitationById: (id: number | string) => `${API_V2}/admin/invitations/${id}`,
+  invitationById: (id: number | string) => `${API_V2}/admin/invitations/${encodeURIComponent(id)}`,
   scenarios: `${API_V2}/admin/scenarios`,
-  scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${id}`,
+  scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${encodeURIComponent(id)}`,
 } as const;
 
 /** 招待マジックリンク受諾フロー（認証不要） */
@@ -127,11 +127,11 @@ export const KB_API = {
   /** GET(所属一覧) / POST(作成) — /api/v2/kb/workspaces */
   workspaces: `${API_V2}/kb/workspaces`,
   /** DELETE(削除) — /api/v2/kb/workspaces/:slug。配下ごと消える。会社のものは消せない */
-  workspace: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}`,
+  workspace: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}`,
   /** GET — /api/v2/kb/workspaces/:slug/members。所属していれば誰でも叩ける（裸の配列で返る） */
-  members: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/members`,
+  members: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/members`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
-  spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/spaces`,
+  spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces`,
   /**
    * GET(ツリー) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/pages
    *
@@ -140,13 +140,13 @@ export const KB_API = {
    * （枚数も題名も返らない）。
    */
   pages: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/pages`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/pages`,
   /** GET(本文込み) / PATCH(改名) — /api/v2/kb/workspaces/:slug/pages/:pageId */
   page: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}`,
   /** PUT(設定) / DELETE(解除) — /api/v2/kb/workspaces/:slug/pages/:pageId/icon */
   pageIcon: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/icon`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/icon`,
   /**
    * POST — /api/v2/kb/workspaces/:slug/pages/:pageId/images/upload-url
    *
@@ -156,7 +156,7 @@ export const KB_API = {
    * （presigned URL は期限があるので doc に書き込まない）。
    */
   pageImageUploadUrl: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/images/upload-url`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/images/upload-url`,
   /**
    * GET — /api/v2/kb/workspaces/:slug/pages/:pageId/images/download-url?key=…
    *
@@ -164,30 +164,30 @@ export const KB_API = {
    * key は 404 になり得る。
    */
   pageImageDownloadUrl: (workspaceSlug: string, pageId: string, key: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/images/download-url?key=${encodeURIComponent(key)}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/images/download-url?key=${encodeURIComponent(key)}`,
   /** PUT(設定) / DELETE(解除) — /api/v2/kb/workspaces/:slug/pages/:pageId/cover */
   pageCover: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/cover`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/cover`,
   /**
    * GET — /api/v2/kb/pages/:pageId
    *
    * /kb/{pageId} の URL からの解決。URL にワークスペースを出さないための口で、
    * 応答の workspaceSlug を以降の呼び出し（木・保存）に使う。
    */
-  resolvePage: (pageId: string) => `${API_V2}/kb/pages/${pageId}`,
+  resolvePage: (pageId: string) => `${API_V2}/kb/pages/${encodeURIComponent(pageId)}`,
   /** PUT(本文の置き換え) — /api/v2/kb/workspaces/:slug/pages/:pageId/content */
   pageContent: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/content`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/content`,
   /** PATCH(表示名の変更) — /api/v2/kb/workspaces/:slug/spaces/:spaceId。key は変えられない */
   space: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}`,
   /**
    * GET — /api/v2/kb/workspaces/:slug/search?q=
    *
    * ワークスペース全体の題名検索。返るのは閲覧できる現役ページだけで、
    * 判定はツリーと同じ規則をサーバーが持つ（検索だけ別の判定にしない）。
    */
-  search: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/search`,
+  search: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/search`,
   /**
    * GET — /api/v2/kb/workspaces/:slug/pages/:pageId/backlinks
    *
@@ -195,7 +195,7 @@ export const KB_API = {
    * （追加フィールドなし）。見える範囲の判定は木・検索と同じ規則をサーバーが持つ。
    */
   pageBacklinks: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/backlinks`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/backlinks`,
   /**
    * GET(一覧) — /api/v2/kb/workspaces/:slug/pages/:pageId/grants
    *
@@ -203,10 +203,10 @@ export const KB_API = {
    * 祖先のページ）から届いている相手は含まない。空 = 誰も見られない、ではない。
    */
   pageGrants: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/grants`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/grants`,
   /** PUT(付与) / DELETE(取り消し) — 同じ 1 行を指す（DB の主キーと同じ形） */
   pageGrant: (workspaceSlug: string, pageId: string, principalId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/grants/${principalId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/grants/${encodeURIComponent(principalId)}`,
   /**
    * GET — /api/v2/kb/workspaces/:slug/pages/:pageId/principals
    *
@@ -214,7 +214,7 @@ export const KB_API = {
    * 呼べるかはページ単位で決まる。
    */
   pagePrincipals: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/principals`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/principals`,
   /**
    * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/comment-threads
    *
@@ -222,32 +222,32 @@ export const KB_API = {
    * 同じ形（comments に作った最初の 1 件が入ったスレッド 1 件）。
    */
   commentThreads: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/comment-threads`,
   /** POST(返信の追加) — /api/v2/kb/workspaces/:slug/pages/:pageId/comment-threads/:threadId/comments */
   comments: (workspaceSlug: string, pageId: string, threadId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/comments`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/comment-threads/${encodeURIComponent(threadId)}/comments`,
   /** POST(解決) — .../comment-threads/:threadId/resolve。更新後のスレッドを返す */
   resolveCommentThread: (workspaceSlug: string, pageId: string, threadId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/resolve`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/comment-threads/${encodeURIComponent(threadId)}/resolve`,
   /** POST(再開) — .../comment-threads/:threadId/reopen。更新後のスレッドを返す */
   reopenCommentThread: (workspaceSlug: string, pageId: string, threadId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/comment-threads/${threadId}/reopen`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/comment-threads/${encodeURIComponent(threadId)}/reopen`,
   /**
    * GET(一覧・新しい順) / POST(明示的な版の作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/versions
    *
    * 一覧・単体取得は閲覧できれば誰でもできる（canView）。作成（版を残す）は編集権限が要る。
    */
   pageVersions: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/versions`,
   /** GET(1件・doc込み) — /api/v2/kb/workspaces/:slug/pages/:pageId/versions/:seq */
   pageVersion: (workspaceSlug: string, pageId: string, seq: number) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions/${seq}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/versions/${encodeURIComponent(seq)}`,
   /**
    * POST(復元・body無し) — .../versions/:seq/restore。編集権限が要る。
    * 応答は本文保存（PUT .../content）と同じ形（KbPageContentSaveResult）。
    */
   restorePageVersion: (workspaceSlug: string, pageId: string, seq: number) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/versions/${seq}/restore`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/versions/${encodeURIComponent(seq)}/restore`,
   /**
    * GET(一覧・?spaceId= は任意) — /api/v2/kb/workspaces/:slug/templates
    *
@@ -255,24 +255,24 @@ export const KB_API = {
    * テンプレート + ワークスペース全体のテンプレートの両方が返る想定（backend 未実装の段階の
    * 想定であり確定ではない — 要すり合わせ）。
    */
-  templates: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${workspaceSlug}/templates`,
+  templates: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/templates`,
   /**
    * POST(作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/templates
    *
    * 今のページの内容からテンプレートを作る。ワークスペースの編集者（editor）以上が要る。
    */
   pageTemplates: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/templates`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/templates`,
   /** DELETE(削除) — /api/v2/kb/workspaces/:slug/templates/:templateId。編集者以上が要る。 */
   template: (workspaceSlug: string, templateId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/templates/${templateId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/templates/${encodeURIComponent(templateId)}`,
   /**
    * POST(テンプレートからページを作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/pages/from-template
    *
    * 応答は通常のページ作成（POST .../pages）と同じ形（KbPage）。
    */
   pageFromTemplate: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/pages/from-template`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/pages/from-template`,
   /**
    * GET(openな一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/pages/:pageId/suggestions
    *
@@ -280,16 +280,16 @@ export const KB_API = {
    * （採用・却下が済んだものは含まない）。
    */
   pageSuggestions: (workspaceSlug: string, pageId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/suggestions`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/suggestions`,
   /**
    * POST(採用・body無し) — .../suggestions/:suggestionId/accept。CanEdit が要る。
    * 本文へ反映し版を1つ切る。応答は反映後の提案そのもの（doc が反映後の本文と同じ）。
    */
   acceptPageSuggestion: (workspaceSlug: string, pageId: string, suggestionId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/suggestions/${suggestionId}/accept`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/suggestions/${encodeURIComponent(suggestionId)}/accept`,
   /** POST(却下・body無し) — .../suggestions/:suggestionId/reject。CanEdit が要る。本文は一切変えない。 */
   rejectPageSuggestion: (workspaceSlug: string, pageId: string, suggestionId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/pages/${pageId}/suggestions/${suggestionId}/reject`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/suggestions/${encodeURIComponent(suggestionId)}/reject`,
 } as const;
 
 // WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。
@@ -304,7 +304,7 @@ export const KB_API = {
 export const TICKET_API = {
   /** POST — /api/v2/kb/workspaces/:slug/spaces/:spaceId/tickets/enable。body は省略可 */
   enable: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/tickets/enable`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/tickets/enable`,
   /**
    * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/tickets
    *
@@ -312,60 +312,60 @@ export const TICKET_API = {
    * archived（'true' でアーカイブだけを返す。省略時は現役だけ。「込み」は取れない）。
    */
   tickets: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/tickets`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/tickets`,
   /** GET — /api/v2/kb/workspaces/:slug/tickets/by-key/:key（例 FRESTYLE-12） */
   ticketByKey: (workspaceSlug: string, key: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/by-key/${encodeURIComponent(key)}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/by-key/${encodeURIComponent(key)}`,
   /** GET(取得) / PUT(全置換) — /api/v2/kb/workspaces/:slug/tickets/:ticketId */
   ticket: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}`,
   /**
    * GET — /api/v2/kb/tickets/:ticketId
    *
    * /kb/tickets/{ticketId} の URL からの解決。ワークスペースを出さないための口で、
    * 応答の workspaceSlug を以降の呼び出しに使う（KB_API.resolvePage と同じ役割）。
    */
-  resolveTicket: (ticketId: string) => `${API_V2}/kb/tickets/${ticketId}`,
+  resolveTicket: (ticketId: string) => `${API_V2}/kb/tickets/${encodeURIComponent(ticketId)}`,
   /** POST(並び替え・204) — .../tickets/:ticketId/move。anchorTicketId 省略で末尾へ */
   moveTicket: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/move`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/move`,
   /** POST(アーカイブ) — .../tickets/:ticketId/archive */
   archiveTicket: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/archive`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/archive`,
   /** POST(復元) — .../tickets/:ticketId/restore */
   restoreTicket: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/restore`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/restore`,
   /** POST — .../tickets/:ticketId/status。resolution は category=done のときだけ意味を持つ */
   changeTicketStatus: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/status`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/status`,
   /** PUT — .../tickets/:ticketId/parent。parentId 省略でトップレベルへ */
   changeTicketParent: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/parent`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/parent`,
   /** PUT(設定) / DELETE(解除・204) — .../tickets/:ticketId/assignee */
   ticketAssignee: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/assignee`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/assignee`,
   /** GET — .../tickets/:ticketId/history（変更履歴・新しい順） */
   ticketHistory: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/history`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/history`,
   /** GET — .../tickets/:ticketId/children（直下の子・並び順。孫は含まない） */
   ticketChildren: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/children`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/children`,
   /** GET(一覧・古い順) / POST(投稿) — .../tickets/:ticketId/comments */
   ticketComments: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/comments`,
   /** PUT(本文の置換) / DELETE(削除・204) — .../comments/:commentId。投稿者本人以外は 403 */
   ticketComment: (workspaceSlug: string, ticketId: string, commentId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments/${commentId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/comments/${encodeURIComponent(commentId)}`,
   /** GET — .../comments/:commentId/edits（編集前の本文・新しい順） */
   ticketCommentEdits: (workspaceSlug: string, ticketId: string, commentId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments/${commentId}/edits`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/comments/${encodeURIComponent(commentId)}/edits`,
   /**
    * PUT(付ける) / DELETE(外す) — .../comments/:commentId/reactions/:emoji。どちらも 204・冪等。
    *
    * 絵文字は URL の一部なので必ず encodeURIComponent を通す（生のままだと多バイト文字で経路が壊れる）。
    */
   ticketCommentReaction: (workspaceSlug: string, ticketId: string, commentId: string, emoji: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments/${commentId}/reactions/${encodeURIComponent(emoji)}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/comments/${encodeURIComponent(commentId)}/reactions/${encodeURIComponent(emoji)}`,
   /**
    * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/ticket-statuses
    *
@@ -373,52 +373,52 @@ export const TICKET_API = {
    */
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/labels */
   labels: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/labels`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/labels`,
   /** PUT(更新) / DELETE(削除・204) — .../labels/:labelId。名前の重複は 409 label_name_taken */
   label: (workspaceSlug: string, spaceId: string, labelId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/labels/${labelId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/labels/${encodeURIComponent(labelId)}`,
   /** PUT(付ける) / DELETE(外す) — .../tickets/:ticketId/labels/:labelId。どちらも 204・冪等 */
   ticketLabel: (workspaceSlug: string, ticketId: string, labelId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/labels/${labelId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/labels/${encodeURIComponent(labelId)}`,
   /** GET(一覧) / POST(確定) — .../tickets/:ticketId/attachments */
   ticketAttachments: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/attachments`,
   /** POST — .../attachments/upload-url。{contentType, size} → {url, key, expiresIn} */
   ticketAttachmentUploadUrl: (workspaceSlug: string, ticketId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments/upload-url`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/attachments/upload-url`,
   /** GET — .../attachments/:attachmentId/download-url。期限付き URL を都度発行する（保存しない） */
   ticketAttachmentDownloadUrl: (workspaceSlug: string, ticketId: string, attachmentId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments/${attachmentId}/download-url`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,
   /** DELETE — .../attachments/:attachmentId（204。Cloud Storage の実ファイルは消えない） */
   ticketAttachment: (workspaceSlug: string, ticketId: string, attachmentId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/attachments/${attachmentId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/tickets/${encodeURIComponent(ticketId)}/attachments/${encodeURIComponent(attachmentId)}`,
   ticketStatuses: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-statuses`,
   /** PUT — .../ticket-statuses/:statusId（name / color / category をまとめて置換） */
   ticketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-statuses/${encodeURIComponent(statusId)}`,
   /** POST(body 無し) — .../ticket-statuses/:statusId/set-initial */
   setInitialTicketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}/set-initial`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-statuses/${encodeURIComponent(statusId)}/set-initial`,
   /** POST(body 無し) — .../ticket-statuses/:statusId/archive。使用中は 409 status_in_use */
   archiveTicketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}/archive`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-statuses/${encodeURIComponent(statusId)}/archive`,
   /** POST(body 無し) — .../ticket-statuses/:statusId/restore */
   restoreTicketStatus: (workspaceSlug: string, spaceId: string, statusId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-statuses/${statusId}/restore`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-statuses/${encodeURIComponent(statusId)}/restore`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/ticket-types */
   ticketTypes: (workspaceSlug: string, spaceId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-types`,
   /** PUT — .../ticket-types/:typeId */
   ticketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-types/${encodeURIComponent(typeId)}`,
   /** POST(body 無し) — .../ticket-types/:typeId/set-default */
   setDefaultTicketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}/set-default`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-types/${encodeURIComponent(typeId)}/set-default`,
   /** POST(body 無し) — .../ticket-types/:typeId/archive。使用中は 409 type_in_use */
   archiveTicketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}/archive`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-types/${encodeURIComponent(typeId)}/archive`,
   /** POST(body 無し) — .../ticket-types/:typeId/restore */
   restoreTicketType: (workspaceSlug: string, spaceId: string, typeId: string) =>
-    `${API_V2}/kb/workspaces/${workspaceSlug}/spaces/${spaceId}/ticket-types/${typeId}/restore`,
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/ticket-types/${encodeURIComponent(typeId)}/restore`,
 } as const;

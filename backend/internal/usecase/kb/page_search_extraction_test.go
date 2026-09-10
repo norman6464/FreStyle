@@ -82,7 +82,7 @@ func Test_本文プレーンテキスト抽出(t *testing.T) {
 		{
 			name: "画像や区切り線など inline を持たないブロックは何も出さない",
 			doc: `{"type":"doc","content":[
-				{"type":"image","attrs":{"src":"https://example.com/a.png"}},
+				{"type":"image","attrs":{"src":"kb/ws1/page1/1.bin"}},
 				{"type":"horizontalRule"},
 				{"type":"paragraph","content":[{"type":"text","text":"本文"}]}
 			]}`,

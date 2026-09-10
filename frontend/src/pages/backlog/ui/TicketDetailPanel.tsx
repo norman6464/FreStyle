@@ -11,6 +11,7 @@ import type { KbGrantablePrincipal } from '@/entities/kb';
 import Loading from '@/shared/ui/Loading';
 import { SaveStatusIndicator, emptyRichDoc, isRichDoc } from '@/shared/ui/RichTextEditor';
 import { useTicketEditor } from '../model/useTicketEditor';
+import TicketAttachmentSection from './TicketAttachmentSection';
 import TicketAttributePanel from './TicketAttributePanel';
 import TicketCommentSection from './TicketCommentSection';
 import TicketLabelBar from './TicketLabelBar';
@@ -118,6 +119,10 @@ export default function TicketDetailPanel({
         onChangePriority={editor.changePriority}
         onChangeDueDate={editor.changeDueDate}
       />
+
+      <TicketSection title="添付">
+        <TicketAttachmentSection workspaceSlug={workspaceSlug} ticketId={ticket.id} canEdit={canEdit && !archived} />
+      </TicketSection>
 
       <TicketSection title="本文" action={<SaveStatusIndicator status={editor.saveStatus} />}>
         <Suspense fallback={<Loading />}>

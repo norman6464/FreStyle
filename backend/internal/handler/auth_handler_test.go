@@ -21,6 +21,8 @@ type fakeUserRepo struct {
 	updateWorkspaceVal *string
 	updateNameID       uint64
 	updateNameVal      string
+	updateEmailID      uint64
+	updateEmailVal     string
 }
 
 func (r *fakeUserRepo) FindByOidcSubject(_ context.Context, sub string) (*domain.User, error) {
@@ -64,6 +66,11 @@ func (fakeOidcIdentityRepo) EnsureIdentity(context.Context, uint64, string, stri
 
 func (r *fakeUserRepo) UpdateName(_ context.Context, id uint64, name string) error {
 	r.updateNameID, r.updateNameVal = id, name
+	return nil
+}
+
+func (r *fakeUserRepo) UpdateEmail(_ context.Context, id uint64, email string) error {
+	r.updateEmailID, r.updateEmailVal = id, email
 	return nil
 }
 
@@ -145,9 +152,10 @@ func Test_IDトークンからユーザー登録_新規はOIDC名をメールよ
 	users := &fakeUserRepo{}
 	h := newTestAuthHandler(t, idp, users)
 	idToken := makeIDToken(t, idp, map[string]any{
-		"sub":   "google-1",
-		"email": "taro@example.com",
-		"name":  "山田 太郎",
+		"sub":            "google-1",
+		"email":          "taro@example.com",
+		"email_verified": true,
+		"name":           "山田 太郎",
 	})
 
 	if !upsertAllowed(h, newGinCtx(), idToken) {
@@ -166,13 +174,34 @@ func Test_IDトークンからユーザー登録_新規でOIDC名なしはメー
 	idp := newTestIdP(t)
 	users := &fakeUserRepo{}
 	h := newTestAuthHandler(t, idp, users)
-	idToken := makeIDToken(t, idp, map[string]any{"sub": "g-3", "email": "a@example.com"})
+	idToken := makeIDToken(t, idp, map[string]any{"sub": "g-3", "email": "a@example.com", "email_verified": true})
 
 	if !upsertAllowed(h, newGinCtx(), idToken) {
 		t.Fatal("must be allowed")
 	}
 	if users.created.Name != "a@example.com" {
 		t.Errorf("Name = %q, want a@example.com (fallback)", users.created.Name)
+	}
+}
+
+// email_verified が無い（＝未検証）トークンでは、handler が読んだクレームが
+// usecase まで正しく伝わり、email を保存しないことを end-to-end で確かめる。
+// usecase 単体のテストは有るが、handler 側のクレーム抽出（claims["email_verified"]）
+// 自体にバグがあると usecase のテストだけでは検出できない。
+func Test_IDトークンからユーザー登録_新規は未検証だとemailを保存しない(t *testing.T) {
+	idp := newTestIdP(t)
+	users := &fakeUserRepo{}
+	h := newTestAuthHandler(t, idp, users)
+	idToken := makeIDToken(t, idp, map[string]any{"sub": "unverified-g", "email": "victim@example.com"})
+
+	if !upsertAllowed(h, newGinCtx(), idToken) {
+		t.Fatal("must be allowed (同一性は subject だけで決まる)")
+	}
+	if users.created == nil {
+		t.Fatal("expected user created")
+	}
+	if users.created.Email != "" {
+		t.Errorf("email_verified の無いトークンから email を保存してはいけない: got %q", users.created.Email)
 	}
 }
 

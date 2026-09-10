@@ -13,6 +13,7 @@ import {
 } from '@/features/auth';
 import { setAuthHint } from '@/shared/lib/authHint';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
+import { useToast } from '@/shared/lib/hooks/useToast';
 
 export interface SignupPageState {
   readonly mode: AuthMode;
@@ -49,6 +50,7 @@ export function useSignupPage(): SignupPageState {
   const mode = useMemo(() => resolveAuthMode(), []);
   const dexLogin = useOidcLogin();
   const firebaseAuth = useFirebaseAuth();
+  const { showToast } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,7 +72,12 @@ export function useSignupPage(): SignupPageState {
     if (!firebaseAuth.available) return;
     setSessionError(null);
     firebaseAuth.signUpWithEmail(email, password).then((ok) => {
-      if (ok) void establishSessionAndNavigate();
+      if (ok) {
+        // メール/パスワード登録は確認メール送信が完了するまでアドレスが「未検証」扱いになる
+        // （backend は email_verified を確認できるまでこのアドレスを保存しない）。
+        showToast('info', '確認メールを送信しました。届いたメールのリンクからメールアドレスを確認してください。');
+        void establishSessionAndNavigate();
+      }
     });
   };
 

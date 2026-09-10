@@ -131,13 +131,17 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (u *
 	sub, _ := claims["sub"].(string)
 	email, _ := claims["email"].(string)
 	name, _ := claims["name"].(string)
+	// email_verified が無いクレームは「未検証」に倒す（ゼロ値 false）。この型アサーションは
+	// クレームが欠けている・bool でない場合に false, false を返すため、それで正しい。
+	emailVerified, _ := claims["email_verified"].(bool)
 
 	u, err = h.upsertUser.Execute(
 		c.Request.Context(),
 		user.UpsertUserFromIDTokenInput{
-			Subject: sub,
-			Email:   email,
-			Name:    name,
+			Subject:       sub,
+			Email:         email,
+			Name:          name,
+			EmailVerified: emailVerified,
 		},
 	)
 	if err != nil || u == nil {

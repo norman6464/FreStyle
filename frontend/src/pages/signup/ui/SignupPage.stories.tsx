@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
-import { withApi, withRouter, withStore } from '../../../../.storybook/decorators';
+import { withApi, withRouter, withStore, withToast } from '../../../../.storybook/decorators';
 import SignupPage from './SignupPage';
 
 /**
@@ -19,6 +19,7 @@ const meta = {
     withRouter,
     withStore({ isAuthenticated: false, loading: false }),
     withApi({}),
+    withToast,
     (Story) => (
       <div className="h-[640px]">
         <Story />

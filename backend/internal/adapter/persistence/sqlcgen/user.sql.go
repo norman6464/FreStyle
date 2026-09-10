@@ -386,6 +386,26 @@ func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActivePara
 	return result.RowsAffected()
 }
 
+const updateUserEmail = `-- name: UpdateUserEmail :execrows
+UPDATE users SET email = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserEmailParams struct {
+	ID    int64
+	Email string
+}
+
+// email だけを更新する。0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
+// uq_users_email_active に既に使われている値を渡すと一意制約違反になる
+// （呼び出し側 repository が isUniqueViolation で ErrEmailTaken に変換する）。
+func (q *Queries) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserEmail, arg.ID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateUserName = `-- name: UpdateUserName :execrows
 UPDATE users SET name = $2, updated_at = now() WHERE id = $1
 `

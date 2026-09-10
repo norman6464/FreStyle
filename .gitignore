@@ -11,6 +11,9 @@ frestyle-infrastructure/
 # Supabase CLI のローカルリンク状態（pooler-url 等を含むため追跡しない）
 supabase/
 
+# compose の個人的な上書き（LAN の実機から叩きたい等）。docker compose が自動で読む。
+docker-compose.override.yml
+
 # IntelliJ IDEA / GoLand
 .idea/
 

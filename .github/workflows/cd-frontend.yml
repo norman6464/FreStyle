@@ -199,8 +199,16 @@ jobs:
 
       # --non-interactive を付けないと、CI で確認プロンプトが出た場合に無応答のまま
       # ハングする（対話端末が無いのでタイムアウトまで進まない）。
+      #
+      # **版は厳密に固定する。** この job だけが本番デプロイ用サービスアカウントを引き受けており、
+      # ここで動く第三者コードは資格情報に手が届く。版を書かない npx は実行のたびに
+      # レジストリが返す最新版を取ってきてしまうため、乗っ取られた新版が出た瞬間に
+      # 何の変更も無しに本番へ入る。上げるときは手で書き換えてレビューを通す。
+      # --ignore-scripts は依存の install / postinstall を走らせない。deploy に要る経路は
+      # これで壊れない（唯一の native 依存 re2 は superstatic の optional で、
+      # ローカル配信 firebase serve 専用）。
       - name: Deploy to Firebase Hosting
-        run: npx firebase-tools deploy --only hosting --project "${{ env.FIREBASE_PROJECT_ID }}" --non-interactive
+        run: npx --yes --ignore-scripts firebase-tools@15.30.0 deploy --only hosting --project "${{ env.FIREBASE_PROJECT_ID }}" --non-interactive
 
       # **バケットではなく、配信された実物を見る。**
       # deploy コマンドの成功は「Firebase へリリースを登録できた」ことしか意味しない。

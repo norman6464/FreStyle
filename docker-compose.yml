@@ -11,7 +11,10 @@ services:
       POSTGRES_DB: ${LOCAL_DB_NAME:-frestyle}
       POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
     ports:
-      - '${LOCAL_DB_PORT:-5432}:5432'
+      # ループバックにだけ配る。既定の資格情報(frestyle/frestyle)を持つ DB なので、
+      # 0.0.0.0 に開くと同じ LAN に居る誰でも接続できてしまう(公衆 Wi-Fi・社内ネットワーク)。
+      # コンテナ間はこの ports に関係なく compose のネットワーク越しにサービス名 `db` で届く。
+      - '127.0.0.1:${LOCAL_DB_PORT:-5432}:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./backend/scripts/local-db-init:/docker-entrypoint-initdb.d:ro
@@ -68,7 +71,10 @@ services:
       OIDC_JWKS_URI: ${OIDC_JWKS_URI:-http://idp:5556/dex/keys}
       OIDC_AUDIENCES: ${OIDC_AUDIENCES:-frestyle-local}
     ports:
-      - '${LOCAL_BACKEND_PORT:-8080}:8080'
+      # db と同じくループバックにだけ配る。frontend の dev server もホスト上で動くので
+      # これで足りる。LAN 内の実機から叩きたいときだけ docker-compose.override.yml
+      # (git 管理外) でこの行を上書きする。
+      - '127.0.0.1:${LOCAL_BACKEND_PORT:-8080}:8080'
     depends_on:
       db:
         condition: service_healthy

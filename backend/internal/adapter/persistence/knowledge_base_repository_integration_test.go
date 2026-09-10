@@ -808,49 +808,6 @@ func TestKnowledgeBaseUpdatePageCoverRejectsArchived_Integration(t *testing.T) {
 	assert.Nil(t, got.Cover, "拒否されているのでカバーは設定されない")
 }
 
-// TestKnowledgeBasePageReferencesImageKey_Integration は PageReferencesImageKey が
-// blocks 経由（画像ノードの attrs.src）・cover 経由のどちらでも一致行を見つけ、
-// どちらにも無ければ false を返すことを固定する。
-func TestKnowledgeBasePageReferencesImageKey_Integration(t *testing.T) {
-	sqlDB := testsupport.OpenTestDB(t)
-	repo := persistence.NewKnowledgeBaseRepository(sqlDB)
-	ctx := context.Background()
-	testsupport.TruncateAll(t, sqlDB, kbTables...)
-
-	ws := createWorkspace(t, sqlDB, "ws-ref-image")
-	space := createSpace(t, sqlDB, ws, "eng")
-	pageID := createPage(t, sqlDB, ws, space, nil, "a0")
-
-	imageKey := "kb/" + ws + "/" + pageID + "/1.bin"
-	coverKey := "kb/" + ws + "/" + pageID + "/2.bin"
-	unrelatedKey := "kb/" + ws + "/" + pageID + "/3.bin"
-
-	require.NoError(t, insertBlock(sqlDB, newID(), ws, pageID, nil, "a0",
-		domain.BlockTypeImage, `{"src":"`+imageKey+`","alt":""}`, nil))
-
-	cover := &domain.PageCover{Type: domain.PageCoverTypeFile, Key: coverKey}
-	_, err := repo.UpdatePageCover(ctx, ws, pageID, cover)
-	require.NoError(t, err)
-
-	t.Run("blocksの画像ノード経由で見つかる", func(t *testing.T) {
-		got, err := repo.PageReferencesImageKey(ctx, ws, pageID, imageKey)
-		require.NoError(t, err)
-		assert.True(t, got)
-	})
-
-	t.Run("pages.cover経由で見つかる", func(t *testing.T) {
-		got, err := repo.PageReferencesImageKey(ctx, ws, pageID, coverKey)
-		require.NoError(t, err)
-		assert.True(t, got)
-	})
-
-	t.Run("どちらにも無ければfalse", func(t *testing.T) {
-		got, err := repo.PageReferencesImageKey(ctx, ws, pageID, unrelatedKey)
-		require.NoError(t, err)
-		assert.False(t, got)
-	})
-}
-
 // TestKnowledgeBaseReplaceBlocksTransaction_Integration は「最終編集者の記録と本文置換は
 // 外側のトランザクションで一体になる」ことを固定する。TouchPageLastEditedBy → 壊れた
 // rows での ReplacePageBlocks を同じ DoInTx でくくり、失敗後に両方とも元の状態のまま

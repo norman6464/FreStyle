@@ -82,17 +82,19 @@ func (q *Queries) CreateLabel(ctx context.Context, arg CreateLabelParams) (Label
 }
 
 const deleteLabel = `-- name: DeleteLabel :execrows
-DELETE FROM labels WHERE workspace_id = $1 AND id = $2
+DELETE FROM labels WHERE workspace_id = $1 AND space_id = $2 AND id = $3
 `
 
 type DeleteLabelParams struct {
 	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
 	ID          uuid.UUID
 }
 
 // ticket_labels は ON DELETE CASCADE で一緒に消える。
+// space_id で絞る理由は UpdateLabel と同じ。
 func (q *Queries) DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteLabel, arg.WorkspaceID, arg.ID)
+	result, err := q.db.ExecContext(ctx, deleteLabel, arg.WorkspaceID, arg.SpaceID, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -294,7 +296,7 @@ func (q *Queries) RemoveTicketLabel(ctx context.Context, arg RemoveTicketLabelPa
 const updateLabel = `-- name: UpdateLabel :one
 UPDATE labels
 SET name = $1, color = $2, updated_at = now()
-WHERE workspace_id = $3 AND id = $4
+WHERE workspace_id = $3 AND space_id = $4 AND id = $5
 RETURNING id, workspace_id, space_id, name, name_key, color, created_at, updated_at
 `
 
@@ -302,14 +304,19 @@ type UpdateLabelParams struct {
 	Name        string
 	Color       string
 	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
 	ID          uuid.UUID
 }
 
+// space_id で絞るのは、呼び出し側が権限を確かめた相手（URL のスペース）と
+// 実際に書き換える行を必ず一致させるため。usecase 側でも同じ突き合わせをしているが、
+// 新しい呼び出し元がその一手を忘れても、ここで 0 行に落ちて黙って通ることはない。
 func (q *Queries) UpdateLabel(ctx context.Context, arg UpdateLabelParams) (Label, error) {
 	row := q.db.QueryRowContext(ctx, updateLabel,
 		arg.Name,
 		arg.Color,
 		arg.WorkspaceID,
+		arg.SpaceID,
 		arg.ID,
 	)
 	var i Label

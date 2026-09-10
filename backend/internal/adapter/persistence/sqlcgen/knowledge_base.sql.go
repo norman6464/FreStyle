@@ -1175,38 +1175,6 @@ func (q *Queries) PageHasDescendant(ctx context.Context, arg PageHasDescendantPa
 	return found, err
 }
 
-const pageReferencesImageKey = `-- name: PageReferencesImageKey :one
-SELECT EXISTS (
-  SELECT 1 FROM blocks b
-  WHERE b.workspace_id = $1 AND b.page_id = $2
-    AND b.type = 'image' AND b.attrs->>'src' = $3::text
-  UNION ALL
-  SELECT 1 FROM pages p
-  WHERE p.workspace_id = $1 AND p.id = $2
-    AND p.cover->>'key' = $3::text
-) AS referenced
-`
-
-type PageReferencesImageKeyParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	Key         string
-}
-
-// このページの本文（blocks の画像ノード）またはカバーが key を実際に使っているかを返す。
-// ダウンロード URL 発行時、他ページ由来の key（同一ワークスペース内のフォールバック経路）が
-// 「このページの本文に貼られている」ことを確かめるのに使う（usecase 側のコメント参照）。
-//
-// blocks.attrs は ProseMirror の attrs をそのまま持つ jsonb で、画像ノードなら
-// {"src": "<key>", ...} の形（backend は image 特有のフィールド名をパースせず素通しする設計。
-// ここで初めて src を覗く）。UNION ALL で十分（blocks 行と pages 行は別表なので重複しない）。
-func (q *Queries) PageReferencesImageKey(ctx context.Context, arg PageReferencesImageKeyParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, pageReferencesImageKey, arg.WorkspaceID, arg.PageID, arg.Key)
-	var referenced bool
-	err := row.Scan(&referenced)
-	return referenced, err
-}
-
 const parkBlockPositions = `-- name: ParkBlockPositions :exec
 UPDATE blocks
 SET position = chr(127) || id::text

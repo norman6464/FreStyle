@@ -132,7 +132,8 @@ func (h *TicketLabelHandler) Update(c *gin.Context) {
 		return
 	}
 	label, err := h.update.Execute(c.Request.Context(), ticket.UpdateLabelInput{
-		WorkspaceID: scope.workspaceID, LabelID: c.Param("labelId"), Name: req.Name, Color: req.Color,
+		WorkspaceID: scope.workspaceID, SpaceID: spaceID,
+		LabelID: c.Param("labelId"), Name: req.Name, Color: req.Color,
 	})
 	if err != nil {
 		respondTicketErr(c, err)
@@ -151,7 +152,7 @@ func (h *TicketLabelHandler) Delete(c *gin.Context) {
 	if !h.requireSpacePermission(c, scope, spaceID, domain.CapabilityEdit) {
 		return
 	}
-	if err := h.del.Execute(c.Request.Context(), scope.workspaceID, c.Param("labelId")); err != nil {
+	if err := h.del.Execute(c.Request.Context(), scope.workspaceID, spaceID, c.Param("labelId")); err != nil {
 		respondTicketErr(c, err)
 		return
 	}

@@ -277,6 +277,26 @@ func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 		assert.Empty(t, got, "所属は principals の行が唯一の表現")
 	})
 
+	// 停止中のワークスペースは一覧に出さない。個々の解決（slug / id）が「無いもの」として
+	// 扱うのに一覧にだけ残ると、開けない行が並ぶだけで意味が無い。
+	//
+	// 変異確認: ListMemberWorkspaces の SQL から `AND w.is_active = true` を外すと、
+	// このテストの Len(got, 1) が 2 に増えて落ちる。
+	t.Run("停止中のワークスペースは一覧に出ない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
+		require.NoError(t, err)
+		_, err = f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.alice)
+		require.NoError(t, err)
+		_, err = sqlDB.Exec(`UPDATE workspaces SET is_active = false WHERE id = $1`, f.otherWS)
+		require.NoError(t, err)
+
+		got, err := f.perm.ListMemberWorkspaces(ctx, f.alice)
+		require.NoError(t, err)
+		require.Len(t, got, 1, "停止した perm-other は落ちる")
+		assert.Equal(t, "perm-main", got[0].Slug)
+	})
+
 	t.Run("CanManageはadmin grantを持つ人だけtrue", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)

@@ -972,7 +972,7 @@ func (f *ticketFakeRepo) ListLabels(_ context.Context, workspaceID, spaceID stri
 
 func (f *ticketFakeRepo) UpdateLabel(_ context.Context, l *domain.Label) error {
 	existing, ok := f.labels[l.ID]
-	if !ok || existing.WorkspaceID != l.WorkspaceID {
+	if !ok || existing.WorkspaceID != l.WorkspaceID || existing.SpaceID != l.SpaceID {
 		return repository.ErrLabelNotFound
 	}
 	for _, other := range f.labels {
@@ -989,9 +989,9 @@ func (f *ticketFakeRepo) UpdateLabel(_ context.Context, l *domain.Label) error {
 	return nil
 }
 
-func (f *ticketFakeRepo) DeleteLabel(_ context.Context, workspaceID, labelID string) error {
+func (f *ticketFakeRepo) DeleteLabel(_ context.Context, workspaceID, spaceID, labelID string) error {
 	l, ok := f.labels[labelID]
-	if !ok || l.WorkspaceID != workspaceID {
+	if !ok || l.WorkspaceID != workspaceID || l.SpaceID != spaceID {
 		return repository.ErrLabelNotFound
 	}
 	delete(f.labels, labelID)

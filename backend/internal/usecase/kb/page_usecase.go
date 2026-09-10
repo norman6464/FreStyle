@@ -325,6 +325,12 @@ func (u *ResolvePageLocationUseCase) Execute(ctx context.Context, pageID string)
 	if err != nil {
 		return nil, err
 	}
+	// 停止中のワークスペースは無いものとして扱う。slug の経路は解決の入口
+	// （ResolveWorkspaceUseCase）が同じ判定をしているが、この id の経路はそこを通らない。
+	// ここで見ないと、停止しても id さえ控えていれば読み続けられる。
+	if !ws.IsActive {
+		return nil, repository.ErrPageNotFound
+	}
 	return &ResolvePageLocationOutput{Page: *page, Workspace: *ws}, nil
 }
 
@@ -1021,12 +1027,6 @@ func kbImageKeyPrefix(workspaceID, pageID string) string {
 	return "kb/" + workspaceID + "/" + pageID + "/"
 }
 
-// kbWorkspaceImageKeyPrefix はワークスペース 1 つに閉じた画像 key の接頭辞（"kb/<workspaceId>/"）を返す。
-// ダウンロード URL 発行で「別テナントの key かどうか」を、ページの実在確認より先に振り分けるために使う。
-func kbWorkspaceImageKeyPrefix(workspaceID string) string {
-	return "kb/" + workspaceID + "/"
-}
-
 // IssuePageImageUploadURLUseCase はページに閉じた画像（本文・カバー共通）の PUT presigned URL を
 // 発行する。key は "kb/<workspaceId>/<pageId>/<epochNs>.bin" の形で採番する
 // （rich-text の rich-text/{userId}/{epochNs}.bin と同じ発想。ページを名指しする経路なので、
@@ -1103,36 +1103,15 @@ func (u *IssuePageImageDownloadURLUseCase) Execute(ctx context.Context, in Issue
 	if in.Key == "" {
 		return nil, ErrInvalidImageKey
 	}
-	// 自ページ由来の key（このページのアップロードで採番された形）は無条件で許可する。
-	if strings.HasPrefix(in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
-		return u.presignDownload(ctx, in.Key)
-	}
-	// ここから下は「自ページ由来ではない key」。まず別テナントの key かどうかを、
-	// ページ本文の中身を見に行く（PageReferencesImageKey の DB 問い合わせ）より先に振り分ける。
+	// **通すのは自ページ由来の key だけ。** 画像はページに閉じた持ち物で、カバーと同じ扱いにする。
 	//
-	// **ここが本チケット原文には無い追加の防御。** blocks.attrs は ProseMirror の attrs を
-	// そのまま持つ jsonb で、backend は image 特有のフィールド名を一切パースせず素通しする設計
-	// のため、本文に他ページの key 文字列を書き込むだけなら誰でもできてしまう
-	// （書き込む本人はそのページの編集権限を持つ）。ワークスペースの境界を越える漏洩だけは
-	// 絶対に通さないため、別ワークスペースの key は存在の有無に関わらずここで
-	// repository.ErrPageNotFound にし、PageReferencesImageKey 自体を呼ばない。
-	if !strings.HasPrefix(in.Key, kbWorkspaceImageKeyPrefix(in.WorkspaceID)) {
-		return nil, repository.ErrPageNotFound
-	}
-	// 同一ワークスペース内で prefix だけ違う（他ページ由来）場合だけ、その key が実際に
-	// このページの本文またはカバーに使われているかを確かめる。
-	//
-	// **この「同一ワークスペース限定のフォールバック」もチケット原文には無い設計選択**
-	// （原文がそもそも許している「本文に他ページの画像を貼れば読める」という動作の範囲を、
-	// ワークスペースの境界の内側だけに絞ったもの）。同じワークスペース内の他ページからの
-	// 参照はチケットの元の設計どおり許容する — 「そのワークスペースの画像を本文に貼れる人は、
-	// 貼った画像を読める」という前提を崩さないため。塞いでいるのはワークスペースを
-	// 越える漏洩だけで、同じワークスペース内の他ページ参照は意図して許している。
-	referenced, err := u.repo.PageReferencesImageKey(ctx, in.WorkspaceID, in.PageID, in.Key)
-	if err != nil {
-		return nil, err
-	}
-	if !referenced {
+	// 以前はここに「同じワークスペース内なら、その key が自分の本文に貼られていれば通す」
+	// というフォールバックがあった。これは自作自演で破れる: blocks.attrs は ProseMirror の
+	// attrs をそのまま持つ jsonb で、自分が編集できるページに他ページの key を書き込むだけで
+	// 「貼られている」を自分で作れてしまう。結果、そのページの閲覧権限を失ったあとでも
+	// 画像へ届き続けられた。判定していたのは「要求したページを読めるか」で、
+	// 「その画像の持ち主のページを読めるか」は一度も見ていなかった。
+	if !strings.HasPrefix(in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
 		return nil, repository.ErrPageNotFound
 	}
 	return u.presignDownload(ctx, in.Key)

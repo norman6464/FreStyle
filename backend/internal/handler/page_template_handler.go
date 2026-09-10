@@ -17,7 +17,12 @@ import (
 // 一覧はワークスペース所属者なら誰でも読める（IsWorkspaceMemberUseCase）。
 // 「雛形から作る」（実際にページを作る操作）は既存のページ作成（KnowledgeBasePageHandler.Create）
 // と全く同じ認可分岐——親の有無で requireSpacePermission / requirePagePermission を切り替える。
-// 雛形そのものへの特別な権限軸は無い（読める・使えるかは行き先の権限で決まる）。
+//
+// ここまでは handler の役割。**特定のスペースに限定した雛形**（PageTemplate.SpaceID != nil）
+// については、この handler の判定だけでは足りない — ワークスペース全体への CanEdit や
+// 作成先の場所への権限は、雛形自身がひも付く非公開スペースを見てよいかとは別物のため、
+// 一覧の spaceId 絞り込み・作成・削除・使用のそれぞれで usecase 側が対象スペースへの
+// CanView を追加で確かめる（kb.ListPageTemplatesUseCase 等の doc コメント参照）。
 type PageTemplateHandler struct {
 	isMember       *kb.IsWorkspaceMemberUseCase
 	checkWorkspace *kb.CheckWorkspacePermissionUseCase
@@ -124,6 +129,7 @@ func (h *PageTemplateHandler) List(c *gin.Context) {
 	templates, err := h.list.Execute(c.Request.Context(), kb.ListPageTemplatesInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
+		UserID:      scope.userID,
 	})
 	if err != nil {
 		respondKnowledgeBaseErr(c, err)
@@ -192,6 +198,7 @@ func (h *PageTemplateHandler) Delete(c *gin.Context) {
 	if err := h.deleteTemplate.Execute(c.Request.Context(), kb.DeletePageTemplateInput{
 		WorkspaceID: scope.workspaceID,
 		TemplateID:  templateID,
+		UserID:      scope.userID,
 	}); err != nil {
 		respondKnowledgeBaseErr(c, err)
 		return

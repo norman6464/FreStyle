@@ -1234,23 +1234,19 @@ func Test_ナレッジ画像_アップロードURL発行からカバー設定解
 	assert.Nil(t, resolvedAfterClearResp.Cover, "解除が ResolveByID にも映る")
 }
 
-// Test_ナレッジ画像ダウンロード_同一ワークスペースの他ページ参照は本文にあれば許可 は、
-// 別ページ由来の key でも、開いているページの本文に実際に貼られていれば許可することを
-// HTTP 経路の端から端まで固定する（usecase 単体のテストと違い、fake の
-// PageReferencesImageKey まで実際に通す）。
-func Test_ナレッジ画像ダウンロード_同一ワークスペースの他ページ参照は本文にあれば許可(t *testing.T) {
+// Test_ナレッジ画像ダウンロード_他ページ由来のキーは同一ワークスペースでも404 は、
+// 別ページ由来の key は、開いているページの本文に貼られていても許可しないことを
+// HTTP 経路の端から端まで固定する。画像はページに閉じた持ち物で、他ページの key を
+// 自分の本文に書き込むだけで読めてしまう自作自演の穴を塞いだ側を確かめる。
+func Test_ナレッジ画像ダウンロード_他ページ由来のキーは同一ワークスペースでも404(t *testing.T) {
 	f := newKbFixture(kbCanEdit, kbUserID)
-	// kbRootPageID がアップロードした体で key を作り、それを kbChildPageID の本文に
-	// 貼ったことにする。
+	// kbRootPageID がアップロードした体の key を、権限は持っている kbChildPageID から
+	// 読もうとする。
 	key := "kb/" + kbWorkspaceID + "/" + kbRootPageID + "/1.bin"
-	f.pages.addBlockImageKey(kbChildPageID, key)
 
 	w := f.do(t, http.MethodGet,
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/images/download-url?key="+key, "")
-	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
-	var resp kbImageDownloadURLResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.NotEmpty(t, resp.URL)
+	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
 }
 
 // Test_ナレッジAPI_本文保存でブロックID衝突は409 は、repository.ErrBlockIDConflict
@@ -2100,6 +2096,20 @@ func Test_ナレッジAPI_IDだけでの解決(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, real.Code)
 		require.Equal(t, http.StatusNotFound, missing.Code)
 		assert.Equal(t, missing.Body.String(), real.Body.String())
+	})
+
+	// 停止中のワークスペースは id 経由でも無いものとして扱う。slug 経由の入口
+	// （middleware.KnowledgeBaseWorkspace）はこの経路を通らないため、
+	// ResolvePageLocationUseCase 側で別途確かめていないと、停止後も id さえ控えていれば
+	// 読み続けられてしまう。
+	//
+	// 変異確認: ResolvePageLocationUseCase.Execute の !ws.IsActive 分岐を外すと、
+	// このテストの 404 判定が落ちる。
+	t.Run("停止中のワークスペースは404", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		f.pages.workspaces[kbWorkspaceSlug].IsActive = false
+		w := resolve(f, t, kbRootPageID)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 

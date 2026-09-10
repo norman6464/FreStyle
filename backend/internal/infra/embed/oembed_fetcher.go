@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -39,25 +40,49 @@ type Card struct {
 type Fetcher struct {
 	client *http.Client
 	cache  *cache
-	// allowLoopback は httptest (127.0.0.1) で動かすときの test bypass。
-	// 本番経路で生成する NewFetcher は false 固定。
-	allowLoopback bool
 }
+
+// maxRedirects は追うリダイレクトの最大ホップ数。CheckRedirect を独自に設定すると
+// net/http の既定（10 ホップ）が効かなくなるため、同じ値をここで明示する。
+const maxRedirects = 10
 
 // NewFetcher は本番デフォルト設定で Fetcher を返す。
+//
+// Transport.DialContext を safeDialContext に差し替えることで、最初の接続だけでなく
+// リダイレクトで新しく張る接続も含め、すべての接続が「解決した IP が外部向けか」の
+// 検査を通る（safeDialContext の doc 参照）。CheckRedirect は IP の再検査までは
+// 担わず、スキームの検査（https のみ）だけをホップごとにやり直す。
 func NewFetcher() *Fetcher {
-	return &Fetcher{
-		client: &http.Client{Timeout: defaultHTTPTimeout},
-		cache:  newCache(cacheMaxEntries),
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	dialer := &net.Dialer{Timeout: defaultHTTPTimeout}
+	transport.DialContext = safeDialContext(defaultResolve, dialer.DialContext)
+	f := &Fetcher{cache: newCache(cacheMaxEntries)}
+	f.client = &http.Client{
+		Timeout:       defaultHTTPTimeout,
+		Transport:     transport,
+		CheckRedirect: f.checkRedirect,
 	}
+	return f
 }
 
-// NewFetcherWithClient はテスト用。http.Client を差し替え、allowLoopback=true で httptest を許可する。
+// NewFetcherWithClient はテスト用。http.Client を丸ごと差し替える
+// （safeDialContext / checkRedirect は適用されない。テストは httptest サーバの
+// Transport をそのまま使うため、これらの本番専用の防御には元々乗らない経路）。
 func NewFetcherWithClient(c *http.Client) *Fetcher {
 	if c == nil {
 		c = &http.Client{Timeout: defaultHTTPTimeout}
 	}
-	return &Fetcher{client: c, cache: newCache(cacheMaxEntries), allowLoopback: true}
+	return &Fetcher{client: c, cache: newCache(cacheMaxEntries)}
+}
+
+// checkRedirect はリダイレクト追跡のホップごとに呼ばれる。IP の安全性そのものは
+// safeDialContext がホップごとの新規接続で必ず検査するので、ここでは
+// スキーム（https のみ）とホップ数だけを見る。
+func (f *Fetcher) checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("%w: stopped after %d redirects", ErrUnreachable, maxRedirects)
+	}
+	return validateScheme(req.URL)
 }
 
 var (
@@ -87,51 +112,33 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (*Card, error) {
 	return card, nil
 }
 
-// validateURL は scheme=https / host 非空 / 既知のローカル/プライベートホストでないことを検証する。
-// allowLoopback=true (test 経路) のときは loopback / private を許可する。
+// validateURL は URL をパースし、scheme=https / host 非空 を検証する。
+//
+// 「private / local なホストでないか」はここでは見ない。文字列の照合（旧実装）は
+// ホスト名にしか効かず、公開ドメインを private / metadata の IP へ向ける変種
+// （DNS リバインディングを含む）を素通りさせてしまう。その検査は実際に接続する
+// 瞬間の IP に対して行うべきなので、safeDialContext（ssrf_guard.go）へ寄せてある。
 func (f *Fetcher) validateURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
-	if u.Scheme != "https" {
-		return nil, fmt.Errorf("%w: scheme must be https", ErrInvalidURL)
-	}
-	if u.Host == "" {
-		return nil, fmt.Errorf("%w: empty host", ErrInvalidURL)
-	}
-	if f.allowLoopback {
-		return u, nil
-	}
-	host := strings.ToLower(u.Hostname())
-	if isPrivateOrLocalHost(host) {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedHost, host)
+	if err := validateScheme(u); err != nil {
+		return nil, err
 	}
 	return u, nil
 }
 
-// isPrivateOrLocalHost は SSRF 対策のため、localhost / プライベートレンジ / link-local /
-// metadata IP（AWS / GCP）に向けた解決を弾く。十分に厳格にしたいわけではなく、最低限の毒抜き。
-func isPrivateOrLocalHost(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
+// validateScheme は https のみを許可する。初回の URL・リダイレクト先の双方から
+// 呼ぶ共通ロジック（f.checkRedirect 参照）。
+func validateScheme(u *url.URL) error {
+	if u.Scheme != "https" {
+		return fmt.Errorf("%w: scheme must be https", ErrInvalidURL)
 	}
-	// AWS / GCP の instance metadata。
-	if host == "169.254.169.254" || host == "metadata.google.internal" {
-		return true
+	if u.Host == "" {
+		return fmt.Errorf("%w: empty host", ErrInvalidURL)
 	}
-	// 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8
-	privateIPv4 := regexp.MustCompile(
-		`^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`,
-	)
-	if privateIPv4.MatchString(host) {
-		return true
-	}
-	// IPv6 loopback / link-local
-	if host == "::1" || strings.HasPrefix(host, "fe80:") || strings.HasPrefix(host, "[fe80:") {
-		return true
-	}
-	return false
+	return nil
 }
 
 // resolveOGP はシンプルな OGP 抽出。
@@ -145,6 +152,12 @@ func (f *Fetcher) resolveOGP(ctx context.Context, u *url.URL) (*Card, error) {
 
 	resp, err := f.client.Do(req)
 	if err != nil {
+		// err はここでさらに ErrUnreachable として包むが、safeDialContext /
+		// checkRedirect が返した ErrUnsupportedHost・ErrInvalidURL は err の中に
+		// （net/http が挟む *url.Error / *net.OpError 越しでも）残ったままなので、
+		// errors.Is で拾える（embed_handler.go の switch は ErrUnsupportedHost /
+		// ErrInvalidURL を ErrUnreachable より先に判定している。両方に一致する
+		// エラーでも、より具体的な方の分岐が先に選ばれる）。
 		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	defer resp.Body.Close()

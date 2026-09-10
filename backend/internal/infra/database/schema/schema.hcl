@@ -2661,3 +2661,249 @@ table "ticket_ranks" {
     expr = "(context_kind)::text = ANY (ARRAY[('backlog'::character varying)::text])"
   }
 }
+
+# ticket_status_transitions: 状態が変わるたびに 1 行（段 3・設計 Ⅵ「状態遷移だけを別に記録する
+# 表」）。汎用の ticket_change_items（field='status'）と役割が違う — あちらは「何が変わったか」を
+# 人が読む履歴として残す（旧値・新値を ID と表示文字列の両方で）、こちらは「いつどの状態に
+# いたか」を集計で引くための専用ログ（状態の当時の表示名は持たず、常に ticket_statuses への
+# FK を辿る。改名されれば集計は現在の名前で出る想定）。ChangeTicketStatusUseCase が
+# 同一の状態変更で ticket_change_items と両方に書く（recordStatusChange 参照）。
+table "ticket_status_transitions" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  # ticket_statuses への複合 FK（workspace_id, space_id, id）に要る。tickets 経由で
+  # 辿ればわかる値だが、集計クエリと FK の両方でこの表単体から要るので非正規化して持つ。
+  column "space_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  column "from_status_id" {
+    null = false
+    type = uuid
+  }
+  column "to_status_id" {
+    null = false
+    type = uuid
+  }
+  column "changed_by_user_id" {
+    null = false
+    type = bigint
+  }
+  column "changed_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  foreign_key "fk_ticket_status_transitions_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_status_transitions_from" {
+    columns     = [column.workspace_id, column.space_id, column.from_status_id]
+    ref_columns = [table.ticket_statuses.column.workspace_id, table.ticket_statuses.column.space_id, table.ticket_statuses.column.id]
+    on_update   = NO_ACTION
+    on_delete   = NO_ACTION
+  }
+  foreign_key "fk_ticket_status_transitions_to" {
+    columns     = [column.workspace_id, column.space_id, column.to_status_id]
+    ref_columns = [table.ticket_statuses.column.workspace_id, table.ticket_statuses.column.space_id, table.ticket_statuses.column.id]
+    on_update   = NO_ACTION
+    on_delete   = NO_ACTION
+  }
+  index "idx_ticket_status_transitions_ticket_changed" {
+    columns = [column.ticket_id, column.changed_at]
+  }
+  check "ck_ticket_status_transitions_distinct" {
+    expr = "from_status_id <> to_status_id"
+  }
+}
+
+# ticket_comments: チケットへの発言（段 3）。ノート側の comment_threads/comments とは別表
+# （設計判断・着手前にユーザー確認済み）— ノート側は本文の特定位置への「錨付け」が主目的で
+# page_id が NOT NULL の専用の形をしており、チケットには錨の概念が無い（チケット全体への
+# フラットな発言列で足りる）。parent_comment_id で返信をスレッド化する（深さの上限は設けない
+# — 表示側がインデントを畳めばよく、チケットの親子のような周期検出は要らない）。
+table "ticket_comments" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "ticket_id" {
+    null = false
+    type = uuid
+  }
+  # NULL はトップレベルの発言。返信は親発言を指す（同じチケット内に限る制約は usecase 側）。
+  column "parent_comment_id" {
+    null = true
+    type = uuid
+  }
+  column "author_user_id" {
+    null = false
+    type = bigint
+  }
+  # Body は ProseMirror インラインノードの配列。ノート側 comments.body と同じ形・同じ検証
+  # （domain.ValidateCommentBody を流用）。
+  column "body" {
+    null = false
+    type = jsonb
+  }
+  # 編集済みかどうかの印。NULL は未編集。編集履歴の本体（以前の本文）は
+  # ticket_comment_edits に積む（この列はここでは正本を持たない）。
+  column "edited_at" {
+    null = true
+    type = timestamptz
+  }
+  column "deleted_at" {
+    null = true
+    type = timestamptz
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  unique "uq_ticket_comments_workspace_id" {
+    columns = [column.workspace_id, column.id]
+  }
+  foreign_key "fk_ticket_comments_ticket" {
+    columns     = [column.workspace_id, column.ticket_id]
+    ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 自己参照。親発言は物理削除しない（deleted_at で隠すだけ）ので CASCADE は実質発火しないが、
+  # 万一の整合性のために張っておく（他の派生表と同じ防御的な扱い）。
+  foreign_key "fk_ticket_comments_parent" {
+    columns     = [column.workspace_id, column.parent_comment_id]
+    ref_columns = [table.ticket_comments.column.workspace_id, table.ticket_comments.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_comments_ticket_created" {
+    columns = [column.ticket_id, column.created_at]
+  }
+  index "idx_ticket_comments_parent" {
+    columns = [column.parent_comment_id]
+  }
+  check "ck_ticket_comments_body_array" {
+    expr = "jsonb_typeof(body) = 'array'::text"
+  }
+}
+
+# ticket_comment_edits: 発言 1 件の編集履歴（段 3）。編集のたびに「編集前」の本文をここへ
+# 積んでから ticket_comments.body を書き換える（page_versions と同じ「古い方を退避する」作法）。
+# 最新の本文は常に ticket_comments.body にあるので、この表は「昔どうだったか」だけを持つ。
+table "ticket_comment_edits" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "comment_id" {
+    null = false
+    type = uuid
+  }
+  column "editor_user_id" {
+    null = false
+    type = bigint
+  }
+  column "previous_body" {
+    null = false
+    type = jsonb
+  }
+  column "edited_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  foreign_key "fk_ticket_comment_edits_comment" {
+    columns     = [column.workspace_id, column.comment_id]
+    ref_columns = [table.ticket_comments.column.workspace_id, table.ticket_comments.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_ticket_comment_edits_comment" {
+    columns = [column.comment_id, column.edited_at]
+  }
+  check "ck_ticket_comment_edits_previous_body_array" {
+    expr = "jsonb_typeof(previous_body) = 'array'::text"
+  }
+}
+
+# ticket_comment_reactions: 発言への絵文字反応（段 3）。principals ではなく users.id を直接
+# 持つ（担当・ウォッチャーと違い、反応は「その場にいる本人」の行為で、グループ/チームを
+# 代理に立てる余地が無いため。ticket_change_groups.actor_user_id と同じ分担）。
+table "ticket_comment_reactions" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "comment_id" {
+    null = false
+    type = uuid
+  }
+  column "user_id" {
+    null = false
+    type = bigint
+  }
+  # 絵文字そのもの（例 "👍"）。ZWJ 連結の家族絵文字等でバイト数が伸びる余地を見て上限は
+  # 緩め（32 byte）に取る。1 grapheme かどうかは検証しない（kb ページアイコンと同じ判断）。
+  column "emoji" {
+    null = false
+    type = text
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.comment_id, column.user_id, column.emoji]
+  }
+  foreign_key "fk_ticket_comment_reactions_comment" {
+    columns     = [column.workspace_id, column.comment_id]
+    ref_columns = [table.ticket_comments.column.workspace_id, table.ticket_comments.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  check "ck_ticket_comment_reactions_emoji_not_empty" {
+    expr = "(emoji <> ''::text) AND (octet_length(emoji) <= 32)"
+  }
+}

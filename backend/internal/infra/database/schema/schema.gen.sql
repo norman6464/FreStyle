@@ -373,6 +373,50 @@ CREATE TABLE "public"."ticket_change_items" (
 );
 -- Create index "idx_ticket_change_items_group_id" to table: "ticket_change_items"
 CREATE INDEX "idx_ticket_change_items_group_id" ON "public"."ticket_change_items" ("group_id");
+-- Create "ticket_comment_edits" table
+CREATE TABLE "public"."ticket_comment_edits" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "comment_id" uuid NOT NULL,
+  "editor_user_id" bigint NOT NULL,
+  "previous_body" jsonb NOT NULL,
+  "edited_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_ticket_comment_edits_previous_body_array" CHECK (jsonb_typeof(previous_body) = 'array'::text)
+);
+-- Create index "idx_ticket_comment_edits_comment" to table: "ticket_comment_edits"
+CREATE INDEX "idx_ticket_comment_edits_comment" ON "public"."ticket_comment_edits" ("comment_id", "edited_at");
+-- Create "ticket_comment_reactions" table
+CREATE TABLE "public"."ticket_comment_reactions" (
+  "workspace_id" uuid NOT NULL,
+  "comment_id" uuid NOT NULL,
+  "user_id" bigint NOT NULL,
+  "emoji" text NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("comment_id", "user_id", "emoji"),
+  CONSTRAINT "ck_ticket_comment_reactions_emoji_not_empty" CHECK ((emoji <> ''::text) AND (octet_length(emoji) <= 32))
+);
+-- Create "ticket_comments" table
+CREATE TABLE "public"."ticket_comments" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "parent_comment_id" uuid NULL,
+  "author_user_id" bigint NOT NULL,
+  "body" jsonb NOT NULL,
+  "edited_at" timestamptz NULL,
+  "deleted_at" timestamptz NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_ticket_comments_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "fk_ticket_comments_parent" FOREIGN KEY ("workspace_id", "parent_comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_comments_body_array" CHECK (jsonb_typeof(body) = 'array'::text)
+);
+-- Create index "idx_ticket_comments_parent" to table: "ticket_comments"
+CREATE INDEX "idx_ticket_comments_parent" ON "public"."ticket_comments" ("parent_comment_id");
+-- Create index "idx_ticket_comments_ticket_created" to table: "ticket_comments"
+CREATE INDEX "idx_ticket_comments_ticket_created" ON "public"."ticket_comments" ("ticket_id", "created_at");
 -- Create "ticket_counters" table
 CREATE TABLE "public"."ticket_counters" (
   "workspace_id" uuid NOT NULL,
@@ -409,6 +453,21 @@ CREATE TABLE "public"."ticket_ranks" (
 );
 -- Create index "idx_ticket_ranks_workspace_ticket" to table: "ticket_ranks"
 CREATE INDEX "idx_ticket_ranks_workspace_ticket" ON "public"."ticket_ranks" ("workspace_id", "ticket_id");
+-- Create "ticket_status_transitions" table
+CREATE TABLE "public"."ticket_status_transitions" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "from_status_id" uuid NOT NULL,
+  "to_status_id" uuid NOT NULL,
+  "changed_by_user_id" bigint NOT NULL,
+  "changed_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_ticket_status_transitions_distinct" CHECK (from_status_id <> to_status_id)
+);
+-- Create index "idx_ticket_status_transitions_ticket_changed" to table: "ticket_status_transitions"
+CREATE INDEX "idx_ticket_status_transitions_ticket_changed" ON "public"."ticket_status_transitions" ("ticket_id", "changed_at");
 -- Create "ticket_statuses" table
 CREATE TABLE "public"."ticket_statuses" (
   "id" uuid NOT NULL,
@@ -633,12 +692,20 @@ ALTER TABLE "public"."ticket_assignments" ADD CONSTRAINT "fk_ticket_assignments_
 ALTER TABLE "public"."ticket_change_groups" ADD CONSTRAINT "fk_ticket_change_groups_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_change_items" table
 ALTER TABLE "public"."ticket_change_items" ADD CONSTRAINT "fk_ticket_change_items_group" FOREIGN KEY ("workspace_id", "group_id") REFERENCES "public"."ticket_change_groups" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_comment_edits" table
+ALTER TABLE "public"."ticket_comment_edits" ADD CONSTRAINT "fk_ticket_comment_edits_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_comment_reactions" table
+ALTER TABLE "public"."ticket_comment_reactions" ADD CONSTRAINT "fk_ticket_comment_reactions_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_comments" table
+ALTER TABLE "public"."ticket_comments" ADD CONSTRAINT "fk_ticket_comments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_counters" table
 ALTER TABLE "public"."ticket_counters" ADD CONSTRAINT "fk_ticket_counters_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_page_links" table
 ALTER TABLE "public"."ticket_page_links" ADD CONSTRAINT "fk_ticket_page_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_page_links_target" FOREIGN KEY ("workspace_id", "target_page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_ranks" table
 ALTER TABLE "public"."ticket_ranks" ADD CONSTRAINT "fk_ticket_ranks_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "ticket_status_transitions" table
+ALTER TABLE "public"."ticket_status_transitions" ADD CONSTRAINT "fk_ticket_status_transitions_from" FOREIGN KEY ("workspace_id", "space_id", "from_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_ticket_status_transitions_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_status_transitions_to" FOREIGN KEY ("workspace_id", "space_id", "to_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "ticket_statuses" table
 ALTER TABLE "public"."ticket_statuses" ADD CONSTRAINT "fk_ticket_statuses_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_ticket_links" table

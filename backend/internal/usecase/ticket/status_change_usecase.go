@@ -74,6 +74,13 @@ func (u *ChangeTicketStatusUseCase) Execute(ctx context.Context, in ChangeTicket
 		if err := u.recordStatusChange(ctx, in.WorkspaceID, in.TicketID, in.ActorUserID, oldStatus, newStatus); err != nil {
 			return nil, err
 		}
+		// ticket_status_transitions は ticket_change_items（人が読む履歴）とは別の専用ログ
+		// （設計 Ⅵ）。同じ状態変更の一部として両方へ書く。
+		if err := u.repo.InsertTicketStatusTransition(
+			ctx, in.WorkspaceID, before.SpaceID, in.TicketID, oldStatus.ID, newStatus.ID, in.ActorUserID,
+		); err != nil {
+			return nil, err
+		}
 	}
 	return updated, nil
 }

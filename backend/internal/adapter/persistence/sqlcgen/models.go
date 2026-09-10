@@ -265,6 +265,36 @@ type TicketChangeItem struct {
 	DeletedAt   sql.NullTime
 }
 
+type TicketComment struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	TicketID        uuid.UUID
+	ParentCommentID uuid.NullUUID
+	AuthorUserID    int64
+	Body            json.RawMessage
+	EditedAt        sql.NullTime
+	DeletedAt       sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type TicketCommentEdit struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	CommentID    uuid.UUID
+	EditorUserID int64
+	PreviousBody json.RawMessage
+	EditedAt     time.Time
+}
+
+type TicketCommentReaction struct {
+	WorkspaceID uuid.UUID
+	CommentID   uuid.UUID
+	UserID      int64
+	Emoji       string
+	CreatedAt   time.Time
+}
+
 type TicketCounter struct {
 	WorkspaceID uuid.UUID
 	SpaceID     uuid.UUID
@@ -304,6 +334,17 @@ type TicketStatus struct {
 	DeletedAt   sql.NullTime
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type TicketStatusTransition struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	TicketID        uuid.UUID
+	FromStatusID    uuid.UUID
+	ToStatusID      uuid.UUID
+	ChangedByUserID int64
+	ChangedAt       time.Time
 }
 
 type TicketTicketLink struct {

@@ -1267,6 +1267,37 @@ func (r *ticketRepository) ListTicketsAssignedToPrincipal(ctx context.Context, w
 
 // --- 変更履歴 ---
 
+func (r *ticketRepository) InsertTicketStatusTransition(
+	ctx context.Context, workspaceID, spaceID, ticketID, fromStatusID, toStatusID string, changedByUserID uint64,
+) error {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	tID, ok3 := kbParseID(ticketID)
+	fromID, ok4 := kbParseID(fromStatusID)
+	toID, ok5 := kbParseID(toStatusID)
+	if !ok || !ok2 || !ok3 || !ok4 || !ok5 {
+		return repository.ErrTicketNotFound
+	}
+	id, err := ticketNewID()
+	if err != nil {
+		return err
+	}
+	changedBy, okChangedBy := toInt64ID(changedByUserID)
+	if !okChangedBy {
+		return outOfRangeIDError("changed_by_user_id", changedByUserID)
+	}
+	if err := r.queries(ctx).InsertTicketStatusTransition(ctx, sqlcgen.InsertTicketStatusTransitionParams{
+		ID: id, WorkspaceID: wsID, SpaceID: spID, TicketID: tID,
+		FromStatusID: fromID, ToStatusID: toID, ChangedByUserID: changedBy,
+	}); err != nil {
+		if isForeignKeyViolation(err) {
+			return repository.ErrTicketNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 func (r *ticketRepository) InsertTicketChangeGroup(ctx context.Context, g *domain.TicketChangeGroup) error {
 	wsID, ok := kbParseID(g.WorkspaceID)
 	tID, ok2 := kbParseID(g.TicketID)

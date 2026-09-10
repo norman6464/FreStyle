@@ -208,6 +208,12 @@ type TicketRepository interface {
 	// （呼び出し側は usecase から TxManager.DoInTx で境界を引く）。
 	InsertTicketChangeGroup(ctx context.Context, g *domain.TicketChangeGroup) error
 	ListTicketChangeGroups(ctx context.Context, workspaceID, ticketID string) ([]domain.TicketChangeGroup, error)
+	// InsertTicketStatusTransition は「いつどの状態にいたか」を集計するための専用ログ
+	// （段 3・設計 Ⅵ）。ChangeTicketStatusUseCase が InsertTicketChangeGroup と同じ状態変更で
+	// 両方に書く。
+	InsertTicketStatusTransition(
+		ctx context.Context, workspaceID, spaceID, ticketID, fromStatusID, toStatusID string, changedByUserID uint64,
+	) error
 
 	// --- 派生表（本文からの参照） ---
 

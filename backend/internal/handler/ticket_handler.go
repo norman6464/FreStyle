@@ -104,9 +104,12 @@ func respondTicketErr(c *gin.Context, err error) {
 		errors.Is(err, repository.ErrTicketNotDeleted),
 		errors.Is(err, repository.ErrTicketStatusNotFound),
 		errors.Is(err, repository.ErrTicketTypeNotFound),
+		errors.Is(err, repository.ErrTicketCommentNotFound),
 		errors.Is(err, repository.ErrSpaceNotFound),
 		errors.Is(err, repository.ErrWorkspaceNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+	case errors.Is(err, ticket.ErrNotCommentAuthor):
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
 	case errors.Is(err, repository.ErrTicketsAlreadyEnabled):
 		c.JSON(http.StatusConflict, errorResponse{Error: "tickets_already_enabled"})
 	case errors.Is(err, repository.ErrTicketStatusNameTaken):
@@ -132,7 +135,9 @@ func respondTicketErr(c *gin.Context, err error) {
 	case errors.Is(err, domain.ErrInvalidTicketName),
 		errors.Is(err, domain.ErrInvalidTicketColor),
 		errors.Is(err, domain.ErrInvalidTicketStatusCategory),
-		errors.Is(err, domain.ErrInvalidTicketHierarchyLevel):
+		errors.Is(err, domain.ErrInvalidTicketHierarchyLevel),
+		errors.Is(err, domain.ErrInvalidCommentBody),
+		errors.Is(err, domain.ErrInvalidTicketCommentReactionEmoji):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})

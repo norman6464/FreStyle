@@ -2,9 +2,11 @@ package ticket_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -184,4 +186,45 @@ func Test_チケット更新_本文の参照を張り替える(t *testing.T) {
 	})
 	require.NoError(t, err)
 	repo.AssertCalled(t, "ReplaceTicketPageLinks", mock.Anything, tkWS, tkTicket, []string{pageID})
+}
+
+// URL 由来の ticketID が正規形と綴り違い（大文字）でも、1 度だけ正規化した後の
+// 同じ値が以降のすべての呼び出しへ渡ることを固定する。正規化しないと、本文中の
+// ticketRef を正規化して取り出す ExtractDocRefs 側の値と食い違い、自己リンクの防護
+// （リポジトリ層の文字列比較）が綴り違いの自己参照を弾けなくなる（FRESTYLE-514 の core）。
+func Test_チケット更新_ticketIDの綴り違いを正規化してから使う(t *testing.T) {
+	repo := &mockTicketRepo{}
+	before := tkBaseTicket()
+	upper := strings.ToUpper(tkTicket)
+	require.NotEqual(t, upper, tkTicket, "テストの前提: 大文字化で実際に文字列が変わること")
+
+	// リポジトリへの呼び出しはすべて正規化後（＝ tkTicket、小文字）の値だけを期待する。
+	// upper（大文字）のままでは一致せず、mockery が予期しない呼び出しとして失敗させる。
+	repo.On("FindTicket", mock.Anything, tkWS, tkTicket).Return(before, nil)
+	repo.On("UpdateTicket", mock.Anything, tkWS, tkTicket, mock.AnythingOfType("repository.TicketUpdateFields")).
+		Return(&domain.Ticket{ID: tkTicket, WorkspaceID: tkWS, Title: "新タイトル"}, nil)
+	repo.On("ReplaceTicketPageLinks", mock.Anything, tkWS, tkTicket, []string(nil)).Return(nil)
+	repo.On("ReplaceTicketTicketLinks", mock.Anything, tkWS, tkTicket, []string(nil)).Return(nil)
+	repo.On("InsertTicketChangeGroup", mock.Anything, mock.MatchedBy(func(g *domain.TicketChangeGroup) bool {
+		return g.TicketID == tkTicket // 履歴側にも正規化後の id が渡ること
+	})).Return(nil)
+
+	_, err := ticket.NewUpdateTicketUseCase(repo).Execute(context.Background(), ticket.UpdateTicketInput{
+		WorkspaceID: tkWS, TicketID: upper, ActorUserID: 1,
+		Title: "新タイトル", Doc: `{"type":"doc","content":[]}`, TypeID: "type-task", Priority: domain.TicketPriorityDefault,
+	})
+	require.NoError(t, err)
+}
+
+// uuid として解釈できない ticketID は、正規化せずそのまま下流（FindTicket 等の
+// 既存の not-found 処理）へ渡す。ここで新たにエラーを作らない。
+func Test_チケット更新_uuidでないticketIDは無加工で渡す(t *testing.T) {
+	repo := &mockTicketRepo{}
+	repo.On("FindTicket", mock.Anything, tkWS, "not-a-uuid").Return(nil, repository.ErrTicketNotFound)
+
+	_, err := ticket.NewUpdateTicketUseCase(repo).Execute(context.Background(), ticket.UpdateTicketInput{
+		WorkspaceID: tkWS, TicketID: "not-a-uuid", ActorUserID: 1,
+		Title: "x", Doc: `{"type":"doc","content":[]}`, TypeID: "type-task", Priority: domain.TicketPriorityDefault,
+	})
+	require.ErrorIs(t, err, repository.ErrTicketNotFound)
 }

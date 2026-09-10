@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -41,6 +42,16 @@ func (u *UpdateTicketUseCase) Execute(ctx context.Context, in UpdateTicketInput)
 	}
 	if in.TicketID == "" {
 		return nil, errors.New("ticketID is required")
+	}
+	// ticketID はここで 1 度だけ正規化し、以降のすべての呼び出し（repo への各引数・
+	// recordChanges・ReplaceTicketTicketLinks の対象）へ同じ値を渡す。ExtractDocRefs が
+	// 本文中の ticketRef を uuid.Parse().String() で正規化して取り出す（doc.go の
+	// canonicalRefID）のに対し、この URL 由来の ticketID は無加工のまま比較に使われていた。
+	// 同じ UUID でも綴り（大文字/小文字）が違えば別の文字列として扱われるため、
+	// 自己リンクの防護（リポジトリ層の文字列比較）が綴り違いの自己参照を弾けなかった
+	// （不正な形式ならここでは変えず、下流の既存の not-found 処理に委ねる）。
+	if parsed, err := uuid.Parse(in.TicketID); err == nil {
+		in.TicketID = parsed.String()
 	}
 	if in.ActorUserID == 0 {
 		return nil, errors.New("actorUserID is required")

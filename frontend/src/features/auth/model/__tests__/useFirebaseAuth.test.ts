@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { useFirebaseAuth } from '../useFirebaseAuth';
 
@@ -17,6 +18,7 @@ vi.mock('firebase/auth', async () => {
     createUserWithEmailAndPassword: vi.fn(),
     signInWithPopup: vi.fn(),
     sendPasswordResetEmail: vi.fn(),
+    sendEmailVerification: vi.fn(),
   };
 });
 
@@ -118,6 +120,42 @@ describe('useFirebaseAuth', () => {
     if (result.current.available) {
       expect(result.current.errorMessage).toBe('このメールアドレスは既に登録されています。');
     }
+  });
+
+  it('signUpWithEmail: 成功したら確認メールを送る', async () => {
+    stubConfigured();
+    const fakeUser = { uid: 'u1' };
+    vi.mocked(createUserWithEmailAndPassword).mockResolvedValue({ user: fakeUser } as never);
+    vi.mocked(sendEmailVerification).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useFirebaseAuth());
+
+    let ok = false;
+    await act(async () => {
+      if (result.current.available) {
+        ok = await result.current.signUpWithEmail('u@example.com', 'password123');
+      }
+    });
+
+    expect(ok).toBe(true);
+    expect(sendEmailVerification).toHaveBeenCalledWith(fakeUser);
+  });
+
+  // backend は email_verified を確認できるまでアドレスを保存しない。確認メールが
+  // 送れなくてもアカウント作成自体は完了させる（次回ログイン時に再送・再検証の余地を残す）。
+  it('signUpWithEmail: 確認メールの送信に失敗してもアカウント作成は成功のまま', async () => {
+    stubConfigured();
+    vi.mocked(createUserWithEmailAndPassword).mockResolvedValue({ user: { uid: 'u1' } } as never);
+    vi.mocked(sendEmailVerification).mockRejectedValue(new Error('smtp down'));
+    const { result } = renderHook(() => useFirebaseAuth());
+
+    let ok = false;
+    await act(async () => {
+      if (result.current.available) {
+        ok = await result.current.signUpWithEmail('u@example.com', 'password123');
+      }
+    });
+
+    expect(ok).toBe(true);
   });
 
   it('signInWithGoogle: ポップアップが閉じられたら案内文言を出す', async () => {

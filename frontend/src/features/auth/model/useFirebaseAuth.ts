@@ -5,6 +5,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { readFirebaseAuthConfig } from '@/shared/lib/auth/firebaseConfig';
 import { getFirebaseAuth } from '@/shared/lib/auth/firebaseApp';
@@ -78,7 +79,15 @@ export function useFirebaseAuth(): FirebaseAuthActions {
       run(async () => {
         const auth = getFirebaseAuth();
         if (!auth) throw new Error('firebase auth not initialized');
-        await createUserWithEmailAndPassword(auth, email, password);
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        // 確認メールの送信は best-effort。backend は email_verified を確認できるまで
+        // このアドレスを「無い」ものとして扱うため、送信に失敗してもアカウント作成自体は
+        // 失敗させない（次回ログイン時の再送・再検証の余地を残す）。
+        try {
+          await sendEmailVerification(credential.user);
+        } catch {
+          // 握りつぶす。UI からは成功と失敗の区別をしない。
+        }
       }, 'アカウントを作成できませんでした。'),
     [run],
   );

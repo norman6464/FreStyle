@@ -64,6 +64,10 @@ func (m *mockUserRepo) UpdateName(ctx context.Context, userID uint64, name strin
 	return m.Called(ctx, userID, name).Error(0)
 }
 
+func (m *mockUserRepo) UpdateEmail(ctx context.Context, userID uint64, email string) error {
+	return m.Called(ctx, userID, email).Error(0)
+}
+
 func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {
 	return m.Called(ctx, userID, workspaceID).Error(0)
 }

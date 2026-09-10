@@ -10,6 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,6 +61,41 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Nil(t, got.WorkspaceID)
+	})
+
+	t.Run("UpdateEmail は email だけを更新する", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
+		u := &domain.User{Email: "", Name: "未検証だった人"}
+		require.NoError(t, repo.Create(ctx, u))
+
+		require.NoError(t, repo.UpdateEmail(ctx, u.ID, "verified@example.com"))
+
+		got, err := repo.FindByID(ctx, u.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, "verified@example.com", got.Email)
+		require.Equal(t, "未検証だった人", got.Name, "name は変わらないこと")
+	})
+
+	t.Run("UpdateEmail は既に別のアクティブユーザーが使っている値だとErrEmailTakenを返す", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
+		taken := &domain.User{Email: "taken@example.com", Name: "先に取った人"}
+		require.NoError(t, repo.Create(ctx, taken))
+		u := &domain.User{Email: "", Name: "後から検証した人"}
+		require.NoError(t, repo.Create(ctx, u))
+
+		err := repo.UpdateEmail(ctx, u.ID, "taken@example.com")
+		require.ErrorIs(t, err, repository.ErrEmailTaken)
+
+		got, err := repo.FindByID(ctx, u.ID)
+		require.NoError(t, err)
+		require.Equal(t, "", got.Email, "失敗したので email は空のままのはず")
+	})
+
+	t.Run("UpdateEmail は存在しないユーザーにはErrNotFoundを返す", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
+		err := repo.UpdateEmail(ctx, 999999, "nobody@example.com")
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("見つからない場合は (nil, nil)", func(t *testing.T) {

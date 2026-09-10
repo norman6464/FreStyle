@@ -30,6 +30,7 @@ func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, er
 
 func (s *stubUsers) OidcSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
 func (s *stubUsers) UpdateName(context.Context, uint64, string) error            { return nil }
+func (s *stubUsers) UpdateEmail(context.Context, uint64, string) error           { return nil }
 func (s *stubUsers) UpdateWorkspaceID(context.Context, uint64, *string) error    { return nil }
 func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error            { return nil }
 func (s *stubUsers) SoftDelete(context.Context, uint64) error                    { return nil }

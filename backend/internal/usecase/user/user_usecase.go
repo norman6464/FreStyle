@@ -28,6 +28,12 @@ type UpsertUserFromIDTokenInput struct {
 	Subject string
 	Email   string
 	Name    string
+	// EmailVerified は id_token の email_verified クレーム。false のときは Email を
+	// 「無い」ものとして扱う（同一性は Subject だけで決める）。発行者が未検証のメール
+	// アドレスでのサインアップを許す設定だと、検証していない相手が他人のアドレスを
+	// 名乗って先取りできてしまうため（そのアドレスは users.email の一意索引に載るので、
+	// 本当の持ち主が以後登録できなくなる）。
+	EmailVerified bool
 }
 
 // UpsertUserFromIDTokenUseCase は認証済みユーザーの作成・更新を行う。
@@ -79,7 +85,14 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	// email はここで 1 度だけ正規形へ畳み、以後の照会・比較・保存すべてでこの値を使う。
 	// 生の claim 値のまま保存すると、DB の一意索引・byte 一致検索（畳まない）と
 	// 同一性の定義がずれ、同じアドレスの行が複数作れてしまう。
-	email := domain.NormalizeEmail(in.Email)
+	//
+	// 検証していないアドレスは畳む前に「無い」ものとして扱う（UpsertUserFromIDTokenInput.
+	// EmailVerified の doc 参照）。同一性は Subject だけで決まるので、これで作成・照会の
+	// どちらも壊れない（uq_users_email_active は email が空文字の行を対象外にしている）。
+	email := ""
+	if in.EmailVerified {
+		email = domain.NormalizeEmail(in.Email)
+	}
 	oidcName := in.Name
 
 	existing, findErr := u.users.FindByOidcSubject(ctx, sub)
@@ -97,6 +110,22 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			}
 			existing.Name = oidcName
 		}
+		// 検証済みのアドレスを、それまで持っていなかった相手へ後から付ける。
+		// サインアップ時点では未検証で email を持てなかった相手が、後日
+		// （発行者側で）確認リンクを踏んでから改めてログインしてきた場合の経路。
+		// 既に別のアクティブユーザーがそのアドレスを使っていれば ErrEmailTaken が返るが、
+		// ログイン自体は成立させる（identity の自己修復と同じ非致命扱い）。
+		if email != "" && existing.Email == "" {
+			if err := u.users.UpdateEmail(ctx, existing.ID, email); err != nil {
+				if errors.Is(err, repository.ErrEmailTaken) {
+					slog.WarnContext(ctx, "backfill verified email skipped: already used by another active user (non-fatal)", "userID", existing.ID)
+				} else {
+					slog.WarnContext(ctx, "backfill verified email failed (non-fatal)", "userID", existing.ID, "err", err)
+				}
+			} else {
+				existing.Email = email
+			}
+		}
 		// user_oidc_identities への冪等な保険。FindByOidcSubject は identity を突き合わせ条件に
 		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
 		// おく（失敗してもログイン自体は成立しているため致命扱いにしない）。
@@ -105,13 +134,6 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		}
 		return existing, nil
 	}
-
-	slog.InfoContext(
-		ctx,
-		"self signup: creating a new user",
-		"subject", sub,
-		"email", email,
-	)
 
 	name := email
 	if oidcName != "" {
@@ -135,12 +157,17 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		if errors.Is(err, repository.ErrEmailTaken) {
 			// 同じ email で同時にサインアップが競合した（同一人物の二重送信など）。
 			// 別の sub で先に確定しているだけなので、呼び出し元が区別できるよう
-			// ErrEmailTaken をそのまま返す。
-			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup", "subject", sub, "email", email)
+			// ErrEmailTaken をそのまま返す。ログには生の subject / email を書かない
+			// （ログの保管先は DB より読める人が広いことがある）。
+			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup")
 			return nil, repository.ErrEmailTaken
 		}
 		return nil, fmt.Errorf("create user with oidc identity: %w", err)
 	}
+
+	// 生の subject / email ではなく、確定した内部 user.ID だけを記録する
+	// （この関数の「既存ユーザー」側の各ログが既に同じ扱い）。
+	slog.InfoContext(ctx, "self signup: created a new user", "userID", user.ID)
 
 	return user, nil
 }

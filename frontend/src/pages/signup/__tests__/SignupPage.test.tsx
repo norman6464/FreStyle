@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import SignupPage from '../ui/SignupPage';
 import authReducer from '@/entities/user/model/authSlice';
+import { ToastProvider } from '@/app/providers/ToastProvider';
 
 vi.mock('firebase/auth', async () => {
   const actual = await vi.importActual<typeof import('firebase/auth')>('firebase/auth');
@@ -13,6 +14,7 @@ vi.mock('firebase/auth', async () => {
     ...actual,
     createUserWithEmailAndPassword: vi.fn(),
     signInWithPopup: vi.fn(),
+    sendEmailVerification: vi.fn(),
   };
 });
 
@@ -27,9 +29,11 @@ function renderSignupPage() {
   });
   return render(
     <Provider store={store}>
-      <MemoryRouter>
-        <SignupPage />
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter>
+          <SignupPage />
+        </MemoryRouter>
+      </ToastProvider>
     </Provider>,
   );
 }

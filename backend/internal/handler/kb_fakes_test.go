@@ -1220,6 +1220,8 @@ func (f *kbFakeUsers) SoftDelete(context.Context, uint64) error { return nil }
 
 func (f *kbFakeUsers) UpdateName(context.Context, uint64, string) error { return nil }
 
+func (f *kbFakeUsers) UpdateEmail(context.Context, uint64, string) error { return nil }
+
 func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, *string) error { return nil }
 
 // fakeTxManager は repository.TxManager のテスト用 no-op 実装。

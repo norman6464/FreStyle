@@ -35,6 +35,11 @@ type UserRepository interface {
 	SoftDelete(ctx context.Context, userID uint64) error
 	// UpdateName は氏名変更、および OIDC ログイン時の name 自動補正で呼ばれる。
 	UpdateName(ctx context.Context, userID uint64, name string) error
+	// UpdateEmail は email だけを更新する。email_verified を確認できたログインで、
+	// それまで email を持たなかったユーザーへ後から付ける場合に呼ぶ
+	// （UpsertUserFromIDTokenUseCase 参照）。既に別のアクティブユーザーに使われている
+	// 値を渡すと ErrEmailTaken を返す。
+	UpdateEmail(ctx context.Context, userID uint64, email string) error
 	// UpdateWorkspaceID は既存ユーザーが workspace に紐付くときに呼ばれる。
 	UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error
 }

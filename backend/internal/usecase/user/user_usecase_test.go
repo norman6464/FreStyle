@@ -35,6 +35,10 @@ func (s *stubUserRepo) UpdateName(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
 
+func (s *stubUserRepo) UpdateEmail(_ context.Context, _ uint64, _ string) error {
+	return s.err
+}
+
 func (s *stubUserRepo) UpdateWorkspaceID(_ context.Context, _ uint64, _ *string) error {
 	return s.err
 }
@@ -98,6 +102,10 @@ type upsertUserRepoSpy struct {
 	createErr              error
 	nameUpdateCalls        int
 	nameUpdateErr          error
+	emailUpdateCalls       int
+	emailUpdateErr         error
+	emailUpdateUserID      uint64
+	emailUpdateValue       string
 }
 
 func (s *upsertUserRepoSpy) FindByOidcSubject(
@@ -129,6 +137,17 @@ func (s *upsertUserRepoSpy) UpdateName(
 ) error {
 	s.nameUpdateCalls++
 	return s.nameUpdateErr
+}
+
+func (s *upsertUserRepoSpy) UpdateEmail(
+	_ context.Context,
+	userID uint64,
+	email string,
+) error {
+	s.emailUpdateCalls++
+	s.emailUpdateUserID = userID
+	s.emailUpdateValue = email
+	return s.emailUpdateErr
 }
 
 // upsertOidcIdentitySpy は UpsertUserFromIDTokenUseCase の呼び出しを記録する
@@ -168,8 +187,9 @@ func Test_UpsertUserFromIDToken_新規ユーザーは自己サインアップで
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "new-sub",
-			Email:   "new@example.com",
+			Subject:       "new-sub",
+			Email:         "new@example.com",
+			EmailVerified: true,
 		},
 	)
 	if err != nil {
@@ -194,9 +214,10 @@ func Test_UpsertUserFromIDToken_新規はOIDC名をメールより優先(t *test
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "new-sub",
-			Email:   "taro@example.com",
-			Name:    "山田 太郎",
+			Subject:       "new-sub",
+			Email:         "taro@example.com",
+			EmailVerified: true,
+			Name:          "山田 太郎",
 		},
 	)
 	if err != nil {
@@ -218,8 +239,9 @@ func Test_UpsertUserFromIDToken_新規でOIDC名なしはメールにフォー�
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "new-sub",
-			Email:   "a@example.com",
+			Subject:       "new-sub",
+			Email:         "a@example.com",
+			EmailVerified: true,
 		},
 	)
 	if err != nil {
@@ -293,8 +315,9 @@ func Test_UpsertUserFromIDToken_同じemailでの同時サインアップはErrE
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "race-sub",
-			Email:   "race@example.com",
+			Subject:       "race-sub",
+			Email:         "race@example.com",
+			EmailVerified: true,
 		},
 	)
 
@@ -314,8 +337,9 @@ func Test_UpsertUserFromIDToken_ユーザー作成に失敗する(t *testing.T) 
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "new-user-error",
-			Email:   "new-user@example.com",
+			Subject:       "new-user-error",
+			Email:         "new-user@example.com",
+			EmailVerified: true,
 		},
 	)
 
@@ -337,8 +361,9 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "new-sub-1",
-			Email:   "new@example.com",
+			Subject:       "new-sub-1",
+			Email:         "new@example.com",
+			EmailVerified: true,
 		},
 	)
 	if err != nil {
@@ -480,8 +505,9 @@ func Test_UpsertUserFromIDToken_emailは正規形で保存する(t *testing.T) {
 	user, err := uc.Execute(
 		context.Background(),
 		UpsertUserFromIDTokenInput{
-			Subject: "member-sub",
-			Email:   " Member@Example.com ",
+			Subject:       "member-sub",
+			Email:         " Member@Example.com ",
+			EmailVerified: true,
 		},
 	)
 	if err != nil {
@@ -495,5 +521,162 @@ func Test_UpsertUserFromIDToken_emailは正規形で保存する(t *testing.T) {
 	}
 	if users.created.Email != "member@example.com" {
 		t.Fatalf("保存された email = %q, want %q", users.created.Email, "member@example.com")
+	}
+}
+
+// email_verified が false（または省略）のときは、新規ユーザーの email を
+// 「無い」ものとして扱う。同一性は Subject だけで決める。未検証のアドレスを
+// そのまま保存すると、その持ち主でない相手が本当の持ち主の登録を先に塞げてしまう。
+func Test_UpsertUserFromIDToken_新規は未検証のemailを保存しない(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	uc, _ := newUpsertUserUseCase(users)
+
+	user, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			Subject:       "unverified-sub",
+			Email:         "victim@example.com",
+			EmailVerified: false,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user == nil {
+		t.Fatal("未検証でもサインアップ自体は許可されるべき（同一性は subject だけで決まる）")
+	}
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Email != "" {
+		t.Fatalf("未検証の email を保存してはいけない: got %q", users.created.Email)
+	}
+}
+
+// email_verified が false のときは name のメールへのフォールバックも起きない
+// （email 自体を「無い」ものとして扱うため）。oidcName も無ければ name は空のまま。
+func Test_UpsertUserFromIDToken_新規は未検証だとnameのフォールバック先も空になる(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	uc, _ := newUpsertUserUseCase(users)
+
+	_, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			Subject:       "unverified-noname-sub",
+			Email:         "victim2@example.com",
+			EmailVerified: false,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.created.Name != "" {
+		t.Fatalf("未検証の email を name のフォールバックに使ってはいけない: got %q", users.created.Name)
+	}
+}
+
+// 既存ユーザーが email を持っていない（サインアップ時点では未検証だった）状態で、
+// 後日 email_verified=true のトークンでログインしてきたら、そのアドレスを付ける。
+func Test_UpsertUserFromIDToken_既存ユーザーへ検証済みemailを後から付ける(t *testing.T) {
+	existing := &domain.User{ID: 42, Email: ""}
+	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
+	uc, _ := newUpsertUserUseCase(users)
+
+	user, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			Subject:       "now-verified-sub",
+			Email:         " Now@Example.com ",
+			EmailVerified: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.emailUpdateCalls != 1 {
+		t.Fatalf("UpdateEmail calls = %d, want 1", users.emailUpdateCalls)
+	}
+	if users.emailUpdateUserID != 42 || users.emailUpdateValue != "now@example.com" {
+		t.Fatalf("UpdateEmail(42, now@example.com) を期待, got UpdateEmail(%d, %q)",
+			users.emailUpdateUserID, users.emailUpdateValue)
+	}
+	if user.Email != "now@example.com" {
+		t.Fatalf("返す user にも反映されるべき: got %q", user.Email)
+	}
+}
+
+// 既に email を持っている既存ユーザーは、後付けの対象にしない
+// （上書きしてよいかはこの経路の関心事ではない。空だった場合だけを埋める）。
+func Test_UpsertUserFromIDToken_既にemailがある既存ユーザーは上書きしない(t *testing.T) {
+	existing := &domain.User{ID: 9, Email: "already@example.com"}
+	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
+	uc, _ := newUpsertUserUseCase(users)
+
+	_, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			Subject:       "already-has-email-sub",
+			Email:         "different@example.com",
+			EmailVerified: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.emailUpdateCalls != 0 {
+		t.Fatalf("既に email がある相手には UpdateEmail を呼んではいけない: calls=%d", users.emailUpdateCalls)
+	}
+}
+
+// 未検証のトークンでは既存ユーザーへの email 後付けも起きない。
+func Test_UpsertUserFromIDToken_既存ユーザーでも未検証なら後付けしない(t *testing.T) {
+	existing := &domain.User{ID: 11, Email: ""}
+	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
+	uc, _ := newUpsertUserUseCase(users)
+
+	_, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			Subject:       "still-unverified-sub",
+			Email:         "maybe@example.com",
+			EmailVerified: false,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.emailUpdateCalls != 0 {
+		t.Fatalf("未検証では後付けしないはず: calls=%d", users.emailUpdateCalls)
+	}
+}
+
+// 後付けしようとしたアドレスが既に別のアクティブユーザーに使われていた場合は、
+// ErrEmailTaken が返っても非致命に扱い、ログイン自体は成立させる
+// （identity の自己修復と同じ方針。既に他人が使っている以上、今すぐ付け替えるべきではない
+// というだけで、この人自身のログインを妨げる理由にはならない）。
+func Test_UpsertUserFromIDToken_email後付けが競合しても非致命(t *testing.T) {
+	existing := &domain.User{ID: 13, Email: ""}
+	users := &upsertUserRepoSpy{
+		stubUserRepo:   stubUserRepo{user: existing},
+		emailUpdateErr: repository.ErrEmailTaken,
+	}
+	uc, _ := newUpsertUserUseCase(users)
+
+	user, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			Subject:       "conflict-sub",
+			Email:         "taken@example.com",
+			EmailVerified: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("email 後付けの競合でログイン自体を失敗させてはいけない: %v", err)
+	}
+	if user == nil {
+		t.Fatal("ログインは成立するべき")
+	}
+	if user.Email != "" {
+		t.Fatalf("後付けに失敗した以上、返す user の email も空のままのはず: got %q", user.Email)
 	}
 }

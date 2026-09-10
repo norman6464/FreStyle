@@ -286,6 +286,27 @@ func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name str
 	return nil
 }
 
+// UpdateEmail は email だけを更新する。対象が存在しなければ domain.ErrNotFound、
+// 値が既に別のアクティブユーザーに使われていれば repository.ErrEmailTaken を返す。
+func (r *userRepository) UpdateEmail(ctx context.Context, userID uint64, email string) error {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return domain.ErrNotFound // 存在し得ない id = not found
+	}
+	q := r.queries(ctx)
+	affected, err := q.UpdateUserEmail(ctx, sqlcgen.UpdateUserEmailParams{ID: id64, Email: email})
+	if err != nil {
+		if isUniqueViolation(err) {
+			return repository.ErrEmailTaken
+		}
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 // UpdateWorkspaceID は所属ワークスペースを付け替える。
 // workspaceID は呼び出し側が既に解決した値をそのまま渡す（サブクエリで引き直さない）。
 func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {

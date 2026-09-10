@@ -219,6 +219,67 @@ export interface TicketChangeGroup {
   items: TicketChangeItem[];
 }
 
+/** 発言・編集履歴の書き手（backend が userId から名前まで解決して返す）。 */
+export interface TicketCommentAuthor {
+  userId: number;
+  name: string;
+}
+
+/** 1 人 1 絵文字ぶんの反応。同じ発言に同じ人が複数の絵文字を付けられる。 */
+export interface TicketCommentReaction {
+  userId: number;
+  emoji: string;
+}
+
+/**
+ * 発言の本文を組み立てる 1 単位。
+ *
+ * backend の本文はチケット本体の `doc` とは別物で、段落を持たないインラインノードの配列
+ * （`[{type:'text',text:'…'},{type:'mention',attrs:{userId:'42'}}]`）。ここではその配列を
+ * 画面が扱いやすい形へ畳んだものを持つ。往復は `lib/commentBody.ts` が受け持つ。
+ */
+export type TicketCommentSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'mention'; userId: string };
+
+export interface TicketCommentWire {
+  id: string;
+  parentCommentId?: string;
+  author: TicketCommentAuthor;
+  body: unknown;
+  edited: boolean;
+  reactions?: TicketCommentReaction[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketComment {
+  id: string;
+  /** 返信先。トップレベルの発言は null。 */
+  parentCommentId: string | null;
+  author: TicketCommentAuthor;
+  body: TicketCommentSegment[];
+  /** 一度でも編集されていれば true（編集前の本文は別の口で引く）。 */
+  edited: boolean;
+  reactions: TicketCommentReaction[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketCommentEditWire {
+  id: string;
+  editor: TicketCommentAuthor;
+  previousBody: unknown;
+  editedAt: string;
+}
+
+export interface TicketCommentEdit {
+  id: string;
+  editor: TicketCommentAuthor;
+  previousBody: TicketCommentSegment[];
+  editedAt: string;
+}
+
 /** GET /api/v2/kb/tickets/:ticketId（slug 無し解決）の応答。 */
 export interface ResolvedTicket {
   workspaceSlug: string;

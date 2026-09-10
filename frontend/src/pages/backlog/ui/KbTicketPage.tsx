@@ -52,6 +52,7 @@ export default function KbTicketPage() {
       ticket={page.ticket}
       ancestors={page.ancestors}
       spaceKey={page.space?.key ?? ''}
+      workspaceSlug={page.workspaceSlug ?? ''}
       statuses={masters.statuses}
       types={masters.types}
       principals={principals}

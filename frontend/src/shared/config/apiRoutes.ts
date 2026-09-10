@@ -345,6 +345,22 @@ export const TICKET_API = {
   /** GET — .../tickets/:ticketId/history（変更履歴・新しい順） */
   ticketHistory: (workspaceSlug: string, ticketId: string) =>
     `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/history`,
+  /** GET(一覧・古い順) / POST(投稿) — .../tickets/:ticketId/comments */
+  ticketComments: (workspaceSlug: string, ticketId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments`,
+  /** PUT(本文の置換) / DELETE(削除・204) — .../comments/:commentId。投稿者本人以外は 403 */
+  ticketComment: (workspaceSlug: string, ticketId: string, commentId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments/${commentId}`,
+  /** GET — .../comments/:commentId/edits（編集前の本文・新しい順） */
+  ticketCommentEdits: (workspaceSlug: string, ticketId: string, commentId: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments/${commentId}/edits`,
+  /**
+   * PUT(付ける) / DELETE(外す) — .../comments/:commentId/reactions/:emoji。どちらも 204・冪等。
+   *
+   * 絵文字は URL の一部なので必ず encodeURIComponent を通す（生のままだと多バイト文字で経路が壊れる）。
+   */
+  ticketCommentReaction: (workspaceSlug: string, ticketId: string, commentId: string, emoji: string) =>
+    `${API_V2}/kb/workspaces/${workspaceSlug}/tickets/${ticketId}/comments/${commentId}/reactions/${encodeURIComponent(emoji)}`,
   /**
    * GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces/:spaceId/ticket-statuses
    *

@@ -15,6 +15,7 @@ import { useTicketEditor } from '../model/useTicketEditor';
 import TicketAncestorTrail from './TicketAncestorTrail';
 import TicketAttributePanel from './TicketAttributePanel';
 import TicketChangeHistory from './TicketChangeHistory';
+import TicketCommentSection from './TicketCommentSection';
 import TicketLabelChip from './TicketLabelChip';
 import TicketSection from './TicketSection';
 
@@ -24,6 +25,7 @@ export interface TicketFullViewProps {
   ticket: Ticket;
   ancestors: Ticket[];
   spaceKey: string;
+  workspaceSlug: string;
   statuses: TicketStatus[];
   types: TicketType[];
   principals: KbGrantablePrincipal[];
@@ -56,6 +58,7 @@ export default function TicketFullView({
   ticket,
   ancestors,
   spaceKey,
+  workspaceSlug,
   statuses,
   types,
   principals,
@@ -182,6 +185,10 @@ export default function TicketFullView({
                   placeholder="本文を書く"
                 />
               </Suspense>
+            </TicketSection>
+
+            <TicketSection title="コメント">
+              <TicketCommentSection workspaceSlug={workspaceSlug} ticketId={ticket.id} />
             </TicketSection>
           </div>
         </div>

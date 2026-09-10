@@ -16,10 +16,17 @@ export type { TicketStatusPillProps } from './ui/TicketStatusPill';
 export { formatTicketKey, parseTicketKey } from './lib/ticketKey';
 export type { ParsedTicketKey } from './lib/ticketKey';
 
+export { readCommentBody, buildCommentBody } from './lib/commentBody';
+
 export type {
   Ticket,
   Label,
   TicketPermission,
+  TicketComment,
+  TicketCommentAuthor,
+  TicketCommentEdit,
+  TicketCommentReaction,
+  TicketCommentSegment,
   TicketStatus,
   TicketType,
   TicketAssignment,

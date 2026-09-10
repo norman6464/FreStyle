@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import TicketDetailPanel from './TicketDetailPanel';
 import type { Ticket, TicketStatus, TicketType } from '@/entities/ticket';
 import type { KbGrantablePrincipal } from '@/entities/kb';
+import { withApi, withToast } from '../../../../.storybook/decorators';
 
 const ticket: Ticket = {
   id: 't-1',
@@ -99,13 +100,21 @@ const meta = {
     onUnassign: fn(async () => {}),
     onArchive: fn(async () => {}),
     onRestore: fn(async () => {}),
+    workspaceSlug: 'acme',
   },
   decorators: [
+    withToast,
     (Story) => (
       <div className="h-[640px] w-[360px] border-l border-surface-3 bg-surface-1">
         <Story />
       </div>
     ),
+    // TicketCommentSection（コメント節）が自分の userId とコメント一覧を取得する。
+    // どの story にも共通で要る宛先なので meta 側の decorator に置く。
+    withApi({
+      '/profile/me': { userId: 1, displayName: 'norman6464', email: '', bio: '', avatarUrl: '', status: '', updatedAt: '' },
+      '/kb/workspaces/acme/tickets/t-1/comments': { comments: [] },
+    }),
   ],
 } satisfies Meta<typeof TicketDetailPanel>;
 

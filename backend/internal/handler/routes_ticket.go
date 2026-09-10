@@ -81,6 +81,7 @@ func registerTicketRoutesWith(
 		ticket.NewGetTicketUseCase(tickets),
 		ticket.NewGetTicketAssignmentUseCase(tickets),
 		ticket.NewListTicketsUseCase(tickets),
+		ticket.NewListTicketChildrenUseCase(tickets),
 		ticket.NewUpdateTicketUseCase(tickets),
 		ticket.NewMoveTicketUseCase(tickets),
 		ticket.NewArchiveTicketUseCase(tickets),
@@ -164,6 +165,8 @@ func registerTicketRoutesWith(
 	// （ticketId は UUID、key はハイフン入りの自由文字列）。
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/by-key/:key", h.ResolveByKey)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId", h.Get)
+	// 直下の子の一覧（孫は含まない）。
+	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId/children", h.ListChildren)
 	tkGroup.PUT("/kb/workspaces/:workspaceSlug/tickets/:ticketId", h.Update)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/move", h.Move)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/tickets/:ticketId/archive", h.Archive)

@@ -9,7 +9,9 @@ import (
 )
 
 // EmbedHandler は外部 URL のメタ情報 (OGP / oEmbed) を取得して返す。
-// SSRF / DNS rebinding 対策は infra/embed.Fetcher 内で完結している。
+// SSRF / DNS rebinding 対策は infra/embed.Fetcher 内で完結している
+// （NewFetcher が組む http.Transport.DialContext が接続のたびに解決先 IP を検査する。
+// 詳細は infra/embed/ssrf_guard.go の doc）。
 type EmbedHandler struct {
 	fetcher *embed.Fetcher
 }

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import TicketDetailPanel from './TicketDetailPanel';
-import type { Ticket, TicketChangeGroup, TicketStatus, TicketType } from '@/entities/ticket';
+import type { Ticket, TicketStatus, TicketType } from '@/entities/ticket';
 import type { KbGrantablePrincipal } from '@/entities/kb';
 
 const ticket: Ticket = {
@@ -80,17 +80,6 @@ const types: TicketType[] = [
 
 const principals: KbGrantablePrincipal[] = [{ id: 'p-1', kind: 'user', name: 'norman6464' }];
 
-const history: TicketChangeGroup[] = [
-  {
-    id: 'g-1',
-    workspaceId: 'w-1',
-    ticketId: 't-1',
-    actorUserId: 1,
-    createdAt: '2026-09-09T15:20:00Z',
-    items: [{ id: 'i-1', groupId: 'g-1', field: 'status', oldValue: 'st-1', newValue: 'st-2', oldLabel: 'To Do', newLabel: '開発' }],
-  },
-];
-
 const meta = {
   title: 'pages/backlog/TicketDetailPanel',
   component: TicketDetailPanel,
@@ -102,8 +91,6 @@ const meta = {
     types,
     principals,
     parentTicket: undefined,
-    history,
-    historyLoading: false,
     canEdit: true,
     busy: false,
     onUpdate: fn(async (_id, _input) => ticket),
@@ -139,22 +126,6 @@ export const 読むだけ: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByLabelText('状態')).toBeNull();
     await expect(canvas.getByText(ticket.title)).toBeInTheDocument();
-  },
-};
-
-export const 履歴あり: Story = {
-  play: async ({ canvasElement }) => {
-    // 「開発」は状態セレクトの option にも現れるため、履歴 1 件の行の textContent で確かめる。
-    const item = within(canvasElement).getByRole('listitem');
-    await expect(item).toHaveTextContent('状態を');
-    await expect(item).toHaveTextContent('開発');
-  },
-};
-
-export const 履歴なし: Story = {
-  args: { history: [] },
-  play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText('まだ変更はありません')).toBeInTheDocument();
   },
 };
 

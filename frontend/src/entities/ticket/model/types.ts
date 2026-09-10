@@ -56,6 +56,19 @@ export interface Label {
   updatedAt: string;
 }
 
+/**
+ * チケット 1 件に対する実効権限。役割は閲覧 / 発言 / 編集 / 管理の 4 段で、
+ * 編集できることと他人の発言を消せることは別の段。
+ *
+ * 詳細の応答にだけ入る（一覧には入らない — 権限はスペース単位で行ごとに変わらない）。
+ */
+export interface TicketPermission {
+  canView: boolean;
+  canComment: boolean;
+  canEdit: boolean;
+  canManage: boolean;
+}
+
 /** backend の wire 形（ticketRepository.ts の内部でのみ使う。外へは Ticket として出す）。 */
 export interface TicketWire {
   id: string;
@@ -79,6 +92,9 @@ export interface TicketWire {
   updatedAt: string;
   assigneePrincipalId?: string;
   labels?: Label[] | null;
+  /** 根から順の祖先（自分自身は含まない）。詳細の応答にだけ入る。 */
+  ancestors?: TicketWire[] | null;
+  permission?: TicketPermission | null;
 }
 
 /** normalizeTicket 後の形。すべてのフィールドが揃っている（省略は無い）。 */
@@ -209,6 +225,9 @@ export interface ResolvedTicket {
   workspaceName: string;
   ticket: Ticket;
   canEdit: boolean;
+  /** 根から順の祖先（自分自身は含まない）。親が無ければ空配列。 */
+  ancestors: Ticket[];
+  permission: TicketPermission;
 }
 
 /** チケット一覧の絞り込み（List のクエリパラメータに対応）。 */

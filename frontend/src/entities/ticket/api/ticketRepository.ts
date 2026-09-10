@@ -196,11 +196,21 @@ const TicketRepository = {
       ticket: TicketWire;
       canEdit: boolean;
     }>(TICKET_API.resolveTicket(ticketId));
+    const wire = res.data.ticket;
     return {
       workspaceSlug: res.data.workspaceSlug,
       workspaceName: res.data.workspaceName,
-      ticket: normalizeTicket(res.data.ticket),
+      ticket: normalizeTicket(wire),
       canEdit: res.data.canEdit,
+      ancestors: toArray<TicketWire>(wire.ancestors).map(normalizeTicket),
+      // 権限が応答に無いときは、発言は塞がず・他人の発言への操作は出さない側へ倒す。
+      // 塞ぐ方の間違い（権限があるのに使えない）は気づかれにくく、直す手立ても無い。
+      permission: wire.permission ?? {
+        canView: true,
+        canComment: true,
+        canEdit: res.data.canEdit,
+        canManage: false,
+      },
     };
   },
 

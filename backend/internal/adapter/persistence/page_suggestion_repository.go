@@ -96,8 +96,15 @@ func (r *pageSuggestionRepository) ListOpen(ctx context.Context, workspaceID, pa
 	if !ok || !ok2 {
 		return []domain.PageSuggestion{}, nil
 	}
+	// limit は usecase 側で上限（maxOpenSuggestionsLimit=200）まで挟んだ値が渡ってくるが、
+	// ticket_repository.go の toInt32 と同じ理由で「あり得ないから確認しない」を採らず、
+	// ここでも明示的に範囲チェックする（gosec G115 対応）。
+	rowLimit, ok3 := toInt32(limit)
+	if !ok3 {
+		return nil, outOfRangeInt32Error("limit", limit)
+	}
 	rows, err := r.queries(ctx).ListOpenPageSuggestions(ctx, sqlcgen.ListOpenPageSuggestionsParams{
-		WorkspaceID: wsID, PageID: pgID, RowLimit: int32(limit),
+		WorkspaceID: wsID, PageID: pgID, RowLimit: rowLimit,
 	})
 	if err != nil {
 		return nil, err

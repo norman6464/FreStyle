@@ -20,22 +20,6 @@ FROM users u
 WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC;
 
--- name: ListActiveUsersByEmail :many
--- email で有効ユーザーを引く（論理削除・無効化は除外）。ローカルのパスワードログイン専用で、
--- ハッシュを含む唯一のクエリ。email は uq_users_email_active（lower(btrim(email, ...)) /
--- deleted_at IS NULL AND btrim(email, ...) <> ''）でアクティブ行に対して一意だが、既存データの
--- 重複で index 未作成のまま起動している環境では複数行になり得るため :many で受け、
--- 呼び出し側が曖昧さを拒否する。
--- 突き合わせは domain.NormalizeEmail と同じ正規形 lower(btrim(email, E'\t\n\x0B\f\r ')) で行う
--- （索引・述語と同じ式なのでそのまま部分索引が使われ、正規化される前に入った大文字混じり・
--- 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
--- ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
--- 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash
-FROM users u
-WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::text, E'\t\n\x0B\f\r '))
-  AND btrim(u.email, E'\t\n\x0B\f\r ') <> '' AND u.deleted_at IS NULL AND u.is_active;
-
 -- name: GetOidcSubjectByUserID :one
 -- ユーザーの OIDC subject を引く。
 -- (user_id, provider) は uq_user_oidc_user_provider で一意（最大 1 行）。
@@ -49,11 +33,11 @@ WHERE user_id = $1 AND provider = 'oidc';
 --
 -- workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 INSERT INTO users (
-  email, password_hash, name, workspace_id,
+  email, name, workspace_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, true, $5, $6, $7
+  $1, $2, $3, true, $4, $5, $6
 )
 RETURNING id, created_at, updated_at;
 
@@ -61,11 +45,11 @@ RETURNING id, created_at, updated_at;
 -- id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
 -- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 INSERT INTO users (
-  id, email, password_hash, name, workspace_id,
+  id, email, name, workspace_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, $5, true, $6, $7, $8
+  $1, $2, $3, $4, true, $5, $6, $7
 )
 RETURNING id, created_at, updated_at;
 

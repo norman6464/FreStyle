@@ -47,10 +47,6 @@ table "users" {
     type    = text
     default = ""
   }
-  column "password_hash" {
-    null = true
-    type = text
-  }
   column "name" {
     null    = false
     type    = text

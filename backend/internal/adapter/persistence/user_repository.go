@@ -68,35 +68,6 @@ func (r *userRepository) FindByOidcSubject(ctx context.Context, sub string) (*do
 	return toDomainUser(userRow(row)), nil
 }
 
-func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
-	q := r.queries(ctx)
-	rows, err := q.ListActiveUsersByEmail(ctx, email)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-	// uq_users_email_active があれば最大 1 行。既存データの重複で index 未作成のまま起動して
-	// いる環境では複数行になり得るが、その状態でのログインは別人アカウントへの解決になり得る
-	// ため拒否する（起動時 WARNING の重複解消を促す）。
-	if len(rows) > 1 {
-		return nil, fmt.Errorf("email %q のアクティブユーザーが %d 件あります（uq_users_email_active 未作成。重複を解消してください）", email, len(rows))
-	}
-	row := rows[0]
-	u := toDomainUser(userRow{
-		ID: row.ID, Email: row.Email, Name: row.Name,
-		WorkspaceID: row.WorkspaceID,
-		IsActive:    row.IsActive,
-		CreatedAt:   row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
-	})
-	if row.PasswordHash.Valid {
-		v := row.PasswordHash.String
-		u.PasswordHash = &v
-	}
-	return u, nil
-}
-
 func (r *userRepository) OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
 	id64, ok := toInt64ID(userID)
 	if !ok {
@@ -171,9 +142,6 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
-	if user.PasswordHash != nil {
-		params.PasswordHash = sql.NullString{String: *user.PasswordHash, Valid: true}
-	}
 	wid, ok := nullWorkspaceID(user.WorkspaceID)
 	if !ok {
 		return fmt.Errorf("workspace_id が不正な形式です: %q", *user.WorkspaceID)
@@ -203,14 +171,13 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			return fmt.Errorf("user id %d が int64 の範囲外です", user.ID)
 		}
 		row, err := q.InsertUserWithID(ctx, sqlcgen.InsertUserWithIDParams{
-			ID:           fixedID,
-			Email:        params.Email,
-			PasswordHash: params.PasswordHash,
-			Name:         params.Name,
-			WorkspaceID:  params.WorkspaceID,
-			CreatedAt:    params.CreatedAt,
-			UpdatedAt:    params.UpdatedAt,
-			DeletedAt:    params.DeletedAt,
+			ID:          fixedID,
+			Email:       params.Email,
+			Name:        params.Name,
+			WorkspaceID: params.WorkspaceID,
+			CreatedAt:   params.CreatedAt,
+			UpdatedAt:   params.UpdatedAt,
+			DeletedAt:   params.DeletedAt,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {

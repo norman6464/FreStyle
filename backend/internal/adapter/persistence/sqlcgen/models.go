@@ -415,15 +415,14 @@ type TicketType struct {
 }
 
 type User struct {
-	ID           int64
-	Email        string
-	PasswordHash sql.NullString
-	Name         string
-	IsActive     bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    sql.NullTime
-	WorkspaceID  uuid.NullUUID
+	ID          int64
+	Email       string
+	Name        string
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
+	WorkspaceID uuid.NullUUID
 }
 
 type UserOidcIdentity struct {

@@ -41,12 +41,6 @@ func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
 	return m.Called(ctx, u).Error(0)
 }
 
-func (m *mockUserRepo) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
-	args := m.Called(ctx, email)
-	u, _ := args.Get(0).(*domain.User)
-	return u, args.Error(1)
-}
-
 func (m *mockUserRepo) OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
 	args := m.Called(ctx, userID)
 	return args.String(0), args.Error(1)

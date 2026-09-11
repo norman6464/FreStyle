@@ -35,10 +35,6 @@ func (r *fakeUserRepo) FindByOidcSubject(_ context.Context, sub string) (*domain
 	return nil, nil
 }
 
-func (r *fakeUserRepo) FindActiveByEmail(_ context.Context, _ string) (*domain.User, error) {
-	return nil, nil
-}
-
 func (r *fakeUserRepo) OidcSubjectByUserID(_ context.Context, _ uint64) (string, error) {
 	return "", nil
 }

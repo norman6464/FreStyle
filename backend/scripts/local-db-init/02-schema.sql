@@ -682,7 +682,6 @@ CREATE UNIQUE INDEX "uq_user_oidc_user_provider" ON "public"."user_oidc_identiti
 CREATE TABLE "public"."users" (
   "id" bigserial NOT NULL,
   "email" text NOT NULL DEFAULT '',
-  "password_hash" text NULL,
   "name" text NOT NULL DEFAULT '',
   "is_active" boolean NOT NULL DEFAULT true,
   "created_at" timestamptz NOT NULL,

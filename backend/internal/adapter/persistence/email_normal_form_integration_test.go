@@ -55,21 +55,6 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		}
 	})
 
-	// 正規化が入る前に保存された「前後に空白の付いた」行。式が lower(email) だけだと引けない。
-	t.Run("FindActiveByEmail は前後空白付きの既存行を正規形で引く", func(t *testing.T) {
-		truncate(t)
-		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, is_active, created_at, updated_at)
-			 VALUES ('  Pad@Example.com'||chr(9), 'pad', true, NOW(), NOW())`,
-		)
-		require.NoError(t, err)
-
-		got, err := repo.FindActiveByEmail(ctx, "pad@example.com")
-		require.NoError(t, err)
-		require.NotNil(t, got)
-		require.Equal(t, "  Pad@Example.com\t", got.Email)
-	})
-
 	// 一意索引のキーも同じ正規形。空白だけ違う 2 行を別キーとして通してはいけない。
 	t.Run("DB 制約: 前後空白だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)

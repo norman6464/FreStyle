@@ -4,7 +4,6 @@ package persistence_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
@@ -42,20 +41,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 	truncate := func(t *testing.T) {
 		t.Helper()
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
-	}
-
-	// recreateUniqueEmailActiveIndex は uq_users_email_active を schema.hcl と同じ定義で張り直す。
-	// 索引を意図的に落とすテスト（重複が index 未作成環境を再現する）専用の後始末で、
-	// database.ApplySchema は「まだ何も無い空の DB」専用（IF NOT EXISTS を持たない）なので
-	// ここでは使えない。
-	recreateUniqueEmailActiveIndex := func(t *testing.T, db *sql.DB) {
-		t.Helper()
-		_, err := db.Exec(
-			`CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_active
-			   ON users (lower(btrim(email, E'\t\n\x0B\f\r ')))
-			 WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''`,
-		)
-		require.NoError(t, err)
 	}
 
 	t.Run("CreateWithOidcIdentity は users 行と identity を対で作る", func(t *testing.T) {
@@ -209,53 +194,11 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, createWithOidcIdentity(e2, domain.OidcProviderDefault, "nomail-2"))
 	})
 
-	t.Run("FindActiveByEmail はハッシュ込みで 1 件返し、無効・削除行は除外する", func(t *testing.T) {
-		truncate(t)
-		hash := "$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm"
-		u := &domain.User{Email: "find@example.com", PasswordHash: &hash}
-		require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, "mail-find-1"))
-
-		got, err := repo.FindActiveByEmail(ctx, "find@example.com")
-		require.NoError(t, err)
-		require.NotNil(t, got)
-		require.NotNil(t, got.PasswordHash)
-		require.Equal(t, hash, *got.PasswordHash)
-
-		// 無効化すると引けない。
-		require.NoError(t, repo.UpdateActive(ctx, u.ID, false))
-		got, err = repo.FindActiveByEmail(ctx, "find@example.com")
-		require.NoError(t, err)
-		require.Nil(t, got)
-	})
-
-	t.Run("FindActiveByEmail は email 重複（index 未作成環境）で曖昧ログインを拒否する", func(t *testing.T) {
-		truncate(t)
-		// uq_users_email_active が作れない既存環境を再現するため一時的に index を落とす。
-		_, err := sqlDB.Exec(`DROP INDEX IF EXISTS uq_users_email_active`)
-		require.NoError(t, err)
-		defer func() {
-			// このサブテストが残す重複行を消してから張り直す（重複が残ったままだと
-			// CREATE UNIQUE INDEX 自体が失敗する。宣言的スキーマは黙って作らず失敗を選ぶ）。
-			truncate(t)
-			recreateUniqueEmailActiveIndex(t, sqlDB)
-		}()
-
-		for _, sub := range []string{"dup-a", "dup-b"} {
-			u := &domain.User{Email: "dup2@example.com"}
-			require.NoError(t, createWithOidcIdentity(u, domain.OidcProviderDefault, sub))
-		}
-
-		_, err = repo.FindActiveByEmail(ctx, "dup2@example.com")
-		require.ErrorContains(t, err, "重複を解消")
-	})
-
 	// 一意索引のキーは domain.NormalizeEmail と同じ正規形 lower(btrim(email, ...))。アプリは
 	// 畳んだ値を保存するが、索引が生の byte 一致だと「畳めば同じだがバイトが違う」2 行が
 	// 両方作れてしまう。
 	t.Run("DB 制約: 大小文字だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
-		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
-		recreateUniqueEmailActiveIndex(t, sqlDB)
 		u1 := &domain.User{Email: "case@example.com"}
 		require.NoError(t, createWithOidcIdentity(u1, domain.OidcProviderDefault, "case-1"))
 
@@ -265,22 +208,5 @@ func TestUserNormalization_Integration(t *testing.T) {
 			createWithOidcIdentity(dup, domain.OidcProviderDefault, "case-2"),
 			repository.ErrEmailTaken,
 		)
-	})
-
-	// FindActiveByEmail の突き合わせも索引と同じ正規形の式。保存値が正規化される前に作られた
-	// 大文字混じりの既存行も、同じアドレスとして 1 件に解決できる。
-	t.Run("FindActiveByEmail は大小文字を無視して引く", func(t *testing.T) {
-		truncate(t)
-		// 正規化前の既存行を再現するため、アプリを通さず直接 INSERT する。
-		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, is_active, created_at, updated_at)
-			 VALUES ('Legacy@Example.com', 'legacy', true, NOW(), NOW())`,
-		)
-		require.NoError(t, err)
-
-		got, err := repo.FindActiveByEmail(ctx, "legacy@example.com")
-		require.NoError(t, err)
-		require.NotNil(t, got)
-		require.Equal(t, "Legacy@Example.com", got.Email)
 	})
 }

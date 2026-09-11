@@ -150,23 +150,22 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, password_hash, name, workspace_id,
+  email, name, workspace_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, true, $5, $6, $7
+  $1, $2, $3, true, $4, $5, $6
 )
 RETURNING id, created_at, updated_at
 `
 
 type InsertUserParams struct {
-	Email        string
-	PasswordHash sql.NullString
-	Name         string
-	WorkspaceID  uuid.NullUUID
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    sql.NullTime
+	Email       string
+	Name        string
+	WorkspaceID uuid.NullUUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
 }
 
 type InsertUserRow struct {
@@ -183,7 +182,6 @@ type InsertUserRow struct {
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.Email,
-		arg.PasswordHash,
 		arg.Name,
 		arg.WorkspaceID,
 		arg.CreatedAt,
@@ -197,24 +195,23 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, password_hash, name, workspace_id,
+  id, email, name, workspace_id,
   is_active, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, $5, true, $6, $7, $8
+  $1, $2, $3, $4, true, $5, $6, $7
 )
 RETURNING id, created_at, updated_at
 `
 
 type InsertUserWithIDParams struct {
-	ID           int64
-	Email        string
-	PasswordHash sql.NullString
-	Name         string
-	WorkspaceID  uuid.NullUUID
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    sql.NullTime
+	ID          int64
+	Email       string
+	Name        string
+	WorkspaceID uuid.NullUUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
 }
 
 type InsertUserWithIDRow struct {
@@ -229,7 +226,6 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 	row := q.db.QueryRowContext(ctx, insertUserWithID,
 		arg.ID,
 		arg.Email,
-		arg.PasswordHash,
 		arg.Name,
 		arg.WorkspaceID,
 		arg.CreatedAt,
@@ -239,68 +235,6 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 	var i InsertUserWithIDRow
 	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 	return i, err
-}
-
-const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
-SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash
-FROM users u
-WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B\f\r '))
-  AND btrim(u.email, E'\t\n\x0B\f\r ') <> '' AND u.deleted_at IS NULL AND u.is_active
-`
-
-type ListActiveUsersByEmailRow struct {
-	ID           int64
-	Email        string
-	Name         string
-	WorkspaceID  uuid.NullUUID
-	IsActive     bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    sql.NullTime
-	PasswordHash sql.NullString
-}
-
-// email で有効ユーザーを引く（論理削除・無効化は除外）。ローカルのパスワードログイン専用で、
-// ハッシュを含む唯一のクエリ。email は uq_users_email_active（lower(btrim(email, ...)) /
-// deleted_at IS NULL AND btrim(email, ...) <> ”）でアクティブ行に対して一意だが、既存データの
-// 重複で index 未作成のまま起動している環境では複数行になり得るため :many で受け、
-// 呼び出し側が曖昧さを拒否する。
-// 突き合わせは domain.NormalizeEmail と同じ正規形 lower(btrim(email, E'\t\n\x0B\f\r ')) で行う
-// （索引・述語と同じ式なのでそのまま部分索引が使われ、正規化される前に入った大文字混じり・
-// 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
-// ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
-// 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
-func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]ListActiveUsersByEmailRow, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveUsersByEmail, email)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListActiveUsersByEmailRow{}
-	for rows.Next() {
-		var i ListActiveUsersByEmailRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.WorkspaceID,
-			&i.IsActive,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.PasswordHash,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listUsersByWorkspaceID = `-- name: ListUsersByWorkspaceID :many

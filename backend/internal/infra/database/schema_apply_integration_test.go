@@ -105,6 +105,14 @@ func TestApplySchema_Integration(t *testing.T) {
 		).Scan(&hasDefault))
 		require.False(t, hasDefault, "profiles.user_id が bigserial の default を残している")
 	})
+
+	t.Run("password_hash は撤去されている（段 4）", func(t *testing.T) {
+		// ログイン経路は発行者のトークン検証に一本化されており、ローカルのパスワード
+		// 照合は行わない。列を残すと「パスワードログインもある」という誤解を招くため落とした。
+		// share_links.password_hash（共有リンクを開くための別物のパスワード）は対象外。
+		require.False(t, columnExists(t, db, "users", "password_hash"))
+		require.True(t, columnExists(t, db, "share_links", "password_hash"))
+	})
 }
 
 // TestApplySchema_二重呼び出しは何もしない_Integration は、同じ PostgreSQL を複数のテスト

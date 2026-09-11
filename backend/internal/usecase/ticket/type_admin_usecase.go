@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/pkg/fracindex"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // CreateTicketTypeUseCase はスペースに種別を 1 つ追加する。雛形（TemplateTitle/TemplateDoc）は

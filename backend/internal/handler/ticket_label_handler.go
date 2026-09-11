@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
 )
 
 // TicketLabelHandler はラベルの管理（スペース単位）とチケットへの付け外し（チケット単位）を

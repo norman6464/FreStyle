@@ -5,10 +5,10 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	infraGCS "github.com/norman6464/FreStyle/backend/internal/infra/gcs"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	infraGCS "github.com/norman6464/frestyle/backend/internal/infra/gcs"
+	"github.com/norman6464/frestyle/backend/internal/usecase/profile"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // registerProfileRoutes は profile 関連の REST エンドポイントを登録する。

@@ -7,9 +7,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // pageVersionMinInterval は、直近の版からこの時間未満しか経っていなければ新しい版を

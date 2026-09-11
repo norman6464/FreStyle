@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // RichTextImagePresigner はオブジェクトストレージへの PUT 用 presigned URL を発行する。

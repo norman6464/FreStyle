@@ -3,7 +3,7 @@ package persistence
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // kbImagePresigner はナレッジのページ画像用 presigner

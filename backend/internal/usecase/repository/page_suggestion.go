@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // PageSuggestionRepository は page_suggestions テーブルへのアクセスを提供する。

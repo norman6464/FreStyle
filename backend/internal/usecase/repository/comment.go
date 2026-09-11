@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ErrCommentThreadNotFound はスレッドが存在しない・別ページ/別テナントのものだったときに返す。

@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ErrEmailTaken は作成しようとした email が既に別のアクティブユーザーに使われているときに返す

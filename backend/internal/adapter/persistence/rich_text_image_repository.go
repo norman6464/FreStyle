@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // richTextImagePresigner はリッチテキスト画像用の presigner（rich-text/{userId}/{epochNs}.bin キー）。

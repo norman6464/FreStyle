@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
 )
 
 // baseRepository は db への接続保持と、トランザクション対応のクエリ実行先解決を

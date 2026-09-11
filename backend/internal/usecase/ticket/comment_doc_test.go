@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 type stubPresigner struct {

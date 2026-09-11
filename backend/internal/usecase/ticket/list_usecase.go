@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ListTicketsUseCase はスペース内のチケット一覧を返す（position 順）。担当は同じ

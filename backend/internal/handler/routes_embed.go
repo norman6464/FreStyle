@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/infra/embed"
+	"github.com/norman6464/frestyle/backend/internal/infra/embed"
 )
 
 // registerEmbedRoutes は外部 URL の OGP / oEmbed メタ取得エンドポイントを登録する。

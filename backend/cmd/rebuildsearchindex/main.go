@@ -25,10 +25,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
-	"github.com/norman6464/FreStyle/backend/internal/infra/logging"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/infra/config"
+	"github.com/norman6464/frestyle/backend/internal/infra/database"
+	"github.com/norman6464/frestyle/backend/internal/infra/logging"
 )
 
 // fatal は cmd/server/main.go の fatal と同じ形（致命的エラーを構造化ログで出して終了する）。

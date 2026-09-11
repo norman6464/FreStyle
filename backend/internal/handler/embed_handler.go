@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/infra/embed"
+	"github.com/norman6464/frestyle/backend/internal/infra/embed"
 )
 
 // EmbedHandler は外部 URL のメタ情報 (OGP / oEmbed) を取得して返す。

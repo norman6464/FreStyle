@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
+	"github.com/norman6464/frestyle/backend/internal/infra/oidc"
 )
 
 // テスト用の発行者。実際に鍵を作り、JWKS を配り、その鍵で署名する。

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/pkg/fracindex"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // 既定の雛形（sourceSpaceId 未指定のとき）の色。画面の見本と同じ配色を使う

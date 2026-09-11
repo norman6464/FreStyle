@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // 非公開の構造体型をキーにすることで、他パッケージの context.WithValue と衝突しない。

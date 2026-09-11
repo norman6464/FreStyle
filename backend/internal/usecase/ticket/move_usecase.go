@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/pkg/fracindex"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ErrTicketMoveAnchorNotSibling は move で指定された「隣のチケット」が、移動先の

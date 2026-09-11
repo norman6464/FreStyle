@@ -5,12 +5,12 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	infraGCS "github.com/norman6464/FreStyle/backend/internal/infra/gcs"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	infraGCS "github.com/norman6464/frestyle/backend/internal/infra/gcs"
+	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
 )
 
 // チケットへの発言作成に掛ける上限。@mention は件数を打ち切ってあるが（comment_doc.go の

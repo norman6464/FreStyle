@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/pgtext"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/pgtext"
 )
 
 const archiveTicket = `-- name: ArchiveTicket :execrows

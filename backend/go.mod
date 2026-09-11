@@ -1,4 +1,4 @@
-module github.com/norman6464/FreStyle/backend
+module github.com/norman6464/frestyle/backend
 
 go 1.26.1
 

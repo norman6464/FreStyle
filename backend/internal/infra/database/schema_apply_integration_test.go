@@ -12,8 +12,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
-	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/frestyle/backend/internal/infra/database"
+	"github.com/norman6464/frestyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
 

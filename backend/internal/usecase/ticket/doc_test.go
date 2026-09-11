@@ -3,7 +3,7 @@ package ticket_test
 import (
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

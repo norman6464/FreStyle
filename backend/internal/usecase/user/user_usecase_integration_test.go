@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/testsupport"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/user"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/testsupport"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 	"github.com/stretchr/testify/require"
 )
 

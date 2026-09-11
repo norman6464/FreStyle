@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ErrTicketNotFound は対象チケットが存在しない（または別ワークスペース / 別スペースのもの）

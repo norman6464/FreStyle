@@ -10,8 +10,8 @@ package comment
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // CreateCommentThreadUseCase はページに新しいスレッドを立て、最初の発言を同時に作る。

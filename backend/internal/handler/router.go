@@ -4,12 +4,12 @@ import (
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/health"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	"github.com/norman6464/frestyle/backend/internal/infra/config"
+	"github.com/norman6464/frestyle/backend/internal/infra/oidc"
+	"github.com/norman6464/frestyle/backend/internal/usecase/health"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // defaultRequestBodyBytes は全ルート共通の本文上限（middleware.MaxRequestBody）。

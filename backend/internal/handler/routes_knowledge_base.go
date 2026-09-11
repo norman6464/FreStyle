@@ -5,14 +5,14 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	infraGCS "github.com/norman6464/FreStyle/backend/internal/infra/gcs"
-	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/comment"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	infraGCS "github.com/norman6464/frestyle/backend/internal/infra/gcs"
+	"github.com/norman6464/frestyle/backend/internal/infra/ratelimit"
+	"github.com/norman6464/frestyle/backend/internal/usecase/comment"
+	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
 )
 
 // 共有リンクの検証と、メンバー追加に掛ける上限の数値。

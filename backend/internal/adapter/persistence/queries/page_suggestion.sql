@@ -12,10 +12,24 @@ VALUES (
 RETURNING *;
 
 -- name: ListOpenPageSuggestions :many
--- そのページの open な提案一覧を created_at 昇順で返す（先に出した提案から見えるように）。
+-- そのページの open な提案一覧を created_at 昇順で最大 limit 件返す（先に出した提案から
+-- 見えるように）。limit は呼び出し元（usecase）が上限を挟んだ値を渡す — ここで LIMIT を
+-- 掛けること自体が目的で、doc を含む全行を一度に読み出させない。
 SELECT * FROM page_suggestions
 WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id) AND status = 'open'
-ORDER BY created_at;
+ORDER BY created_at
+LIMIT sqlc.arg(row_limit);
+
+-- name: CountOpenPageSuggestions :one
+-- そのページの open な提案の総数（doc 抜きで数えるだけなので軽い）。
+SELECT count(*) FROM page_suggestions
+WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id) AND status = 'open';
+
+-- name: CountOpenPageSuggestionsByAuthor :one
+-- そのページ・その投稿者本人の open な提案数。投稿者 1 人があたりの上限を判定するための数。
+SELECT count(*) FROM page_suggestions
+WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id) AND status = 'open'
+  AND author_user_id = sqlc.arg(author_user_id);
 
 -- name: GetPageSuggestion :one
 -- 提案 1 件の取得。workspace_id まで絞ることで、他ページ・他テナントの id を渡されても

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KbRepository } from '@/entities/kb';
+import { getApiError } from '@/shared/lib/classifyApiError';
 
 export interface KbSuggestionDraftState {
   /** ドラフトモード中か。true の間だけ本文表示エリアが編集可能な下書きに切り替わる。 */
@@ -66,9 +67,13 @@ export function useKbSuggestionDraft(workspaceSlug: string | undefined, pageId: 
       await KbRepository.createSuggestion(workspaceSlug, pageId, state.draft);
       if (generation.current === requestGeneration) setState(CLOSED);
       return true;
-    } catch {
+    } catch (cause) {
       if (generation.current === requestGeneration) {
-        setState((prev) => ({ ...prev, submitting: false, error: '提案を送信できませんでした。' }));
+        const error =
+          getApiError(cause).serverCode === 'too_many_open_suggestions'
+            ? '未解決の提案が多すぎます。既存の提案が解決されるのを待ってから送信してください。'
+            : '提案を送信できませんでした。';
+        setState((prev) => ({ ...prev, submitting: false, error }));
       }
       return false;
     }

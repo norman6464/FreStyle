@@ -90,14 +90,14 @@ func (r *pageSuggestionRepository) Create(ctx context.Context, s *domain.PageSug
 	return nil
 }
 
-func (r *pageSuggestionRepository) ListOpen(ctx context.Context, workspaceID, pageID string) ([]domain.PageSuggestion, error) {
+func (r *pageSuggestionRepository) ListOpen(ctx context.Context, workspaceID, pageID string, limit int) ([]domain.PageSuggestion, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
 	if !ok || !ok2 {
 		return []domain.PageSuggestion{}, nil
 	}
 	rows, err := r.queries(ctx).ListOpenPageSuggestions(ctx, sqlcgen.ListOpenPageSuggestionsParams{
-		WorkspaceID: wsID, PageID: pgID,
+		WorkspaceID: wsID, PageID: pgID, RowLimit: int32(limit),
 	})
 	if err != nil {
 		return nil, err
@@ -107,6 +107,41 @@ func (r *pageSuggestionRepository) ListOpen(ctx context.Context, workspaceID, pa
 		out = append(out, toDomainPageSuggestion(row))
 	}
 	return out, nil
+}
+
+func (r *pageSuggestionRepository) CountOpen(ctx context.Context, workspaceID, pageID string) (int, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return 0, nil
+	}
+	count, err := r.queries(ctx).CountOpenPageSuggestions(ctx, sqlcgen.CountOpenPageSuggestionsParams{
+		WorkspaceID: wsID, PageID: pgID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
+func (r *pageSuggestionRepository) CountOpenByAuthor(ctx context.Context, workspaceID, pageID string, authorUserID uint64) (int, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return 0, nil
+	}
+	authorID, ok3 := toInt64ID(authorUserID)
+	if !ok3 {
+		// 表現できない ID は「そのユーザー本人の open 提案」が存在しようがないので 0 件。
+		return 0, nil
+	}
+	count, err := r.queries(ctx).CountOpenPageSuggestionsByAuthor(ctx, sqlcgen.CountOpenPageSuggestionsByAuthorParams{
+		WorkspaceID: wsID, PageID: pgID, AuthorUserID: authorID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 func (r *pageSuggestionRepository) Get(ctx context.Context, workspaceID, pageID, suggestionID string) (*domain.PageSuggestion, error) {

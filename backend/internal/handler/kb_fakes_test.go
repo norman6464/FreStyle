@@ -2006,7 +2006,7 @@ func (f *kbFakePageSuggestions) Create(_ context.Context, s *domain.PageSuggesti
 	return nil
 }
 
-func (f *kbFakePageSuggestions) ListOpen(_ context.Context, workspaceID, pageID string) ([]domain.PageSuggestion, error) {
+func (f *kbFakePageSuggestions) ListOpen(_ context.Context, workspaceID, pageID string, limit int) ([]domain.PageSuggestion, error) {
 	if f.failWith != nil {
 		return nil, f.failWith
 	}
@@ -2017,7 +2017,36 @@ func (f *kbFakePageSuggestions) ListOpen(_ context.Context, workspaceID, pageID 
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
 	return out, nil
+}
+
+func (f *kbFakePageSuggestions) CountOpen(_ context.Context, workspaceID, pageID string) (int, error) {
+	if f.failWith != nil {
+		return 0, f.failWith
+	}
+	count := 0
+	for _, s := range f.suggestions {
+		if s.WorkspaceID == workspaceID && s.PageID == pageID && s.Status == domain.PageSuggestionStatusOpen {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (f *kbFakePageSuggestions) CountOpenByAuthor(_ context.Context, workspaceID, pageID string, authorUserID uint64) (int, error) {
+	if f.failWith != nil {
+		return 0, f.failWith
+	}
+	count := 0
+	for _, s := range f.suggestions {
+		if s.WorkspaceID == workspaceID && s.PageID == pageID && s.Status == domain.PageSuggestionStatusOpen && s.AuthorUserID == authorUserID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (f *kbFakePageSuggestions) Get(_ context.Context, workspaceID, pageID, suggestionID string) (*domain.PageSuggestion, error) {

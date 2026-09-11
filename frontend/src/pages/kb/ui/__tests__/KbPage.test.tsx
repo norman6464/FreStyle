@@ -16,6 +16,16 @@ function blockIdConflictError(): AxiosError {
   });
 }
 
+function suggestionStaleError(): AxiosError {
+  return new AxiosError('Conflict', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status: 409,
+    statusText: 'Conflict',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data: { error: 'suggestion_stale' },
+  });
+}
+
 const hoisted = vi.hoisted(() => ({
   resolvePage: vi.fn(),
   replaceContent: vi.fn(),
@@ -1414,6 +1424,23 @@ describe('KbPage の提案パネル（開閉・採用・却下）', () => {
 
     await waitFor(() =>
       expect(hoisted.showToast).toHaveBeenCalledWith('error', '提案を採用できませんでした'),
+    );
+  });
+
+  it('提案作成後にページが編集されている（409 suggestion_stale）ときは専用のメッセージを出す', async () => {
+    hoisted.listOpenSuggestions.mockResolvedValue([suggestion('s-1')]);
+    hoisted.acceptSuggestion.mockRejectedValue(suggestionStaleError());
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '提案' }));
+    await screen.findAllByText('田中 太郎');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '採用' })[0]);
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith(
+        'error',
+        'この提案が作られた後にページが編集されています。最新の内容を確認してから、却下するか提案を出し直してもらってください。',
+      ),
     );
   });
 

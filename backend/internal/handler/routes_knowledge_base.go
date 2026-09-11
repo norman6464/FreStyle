@@ -207,7 +207,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewCheckPagePermissionUseCase(permissions),
 		kb.NewCreateSuggestionUseCase(pages, versions, suggestions),
 		kb.NewListOpenPageSuggestionsUseCase(suggestions),
-		kb.NewAcceptPageSuggestionUseCase(suggestions, replaceBlocks, txManager),
+		kb.NewAcceptPageSuggestionUseCase(suggestions, versions, replaceBlocks, txManager),
 		kb.NewRejectPageSuggestionUseCase(suggestions),
 		kb.NewGetPageVersionUseCase(versions),
 		kb.NewLookupUserNameUseCase(users),

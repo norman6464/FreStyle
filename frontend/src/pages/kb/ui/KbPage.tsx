@@ -15,6 +15,7 @@ import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { getApiError } from '@/shared/lib/classifyApiError';
 import {
   DocumentTextIcon,
   Bars3Icon,
@@ -470,7 +471,12 @@ export default function KbPage() {
         await suggestions.accept(suggestionId);
         await reloadPage(targetPageId);
       } catch (cause) {
-        showToast('error', '提案を採用できませんでした');
+        showToast(
+          'error',
+          getApiError(cause).serverCode === 'suggestion_stale'
+            ? 'この提案が作られた後にページが編集されています。最新の内容を確認してから、却下するか提案を出し直してもらってください。'
+            : '提案を採用できませんでした',
+        );
         // KbSuggestionsPanel 側がボタンを押し直せる状態へ戻すため、再 throw する。
         throw cause;
       }

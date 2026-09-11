@@ -1227,12 +1227,12 @@ func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]
 }
 
 // kbFakeUsers は [repository.UserRepository] の最小 fake。
-// LookupUserNameUseCase が読む FindByID の Name だけをテストが制御できればよく、
+// user.LookupUserDisplayUseCase が読む FindDisplayByID の Name だけをテストが制御できればよく、
 // それ以外のメソッドは kb 系のテストでは呼ばれないため未実装のスタブでよい。
 type kbFakeUsers struct {
-	// names は users.name の写し（LookupUserNameUseCase のテスト用の設定口）。
+	// names は users.name の写し（LookupUserDisplayUseCase のテスト用の設定口）。
 	names map[uint64]string
-	// failWith は次の FindByID 呼び出しを失敗させる（LookupUserNameUseCase の
+	// failWith は次の FindByID / FindDisplayByID 呼び出しを失敗させる（LookupUserDisplayUseCase の
 	// 「失敗は伝える」を確かめるため）。
 	failWith error
 }
@@ -1257,6 +1257,19 @@ func (f *kbFakeUsers) FindByID(_ context.Context, userID uint64) (*domain.User, 
 		return nil, nil
 	}
 	return &domain.User{ID: userID, Name: name}, nil
+}
+
+// FindDisplayByID は user.LookupUserDisplayUseCase が読む経路（本番の GetUserDisplayByID
+// 相当）。テストが制御できるのは names だけで、アイコン・状態メッセージは常に空文字。
+func (f *kbFakeUsers) FindDisplayByID(_ context.Context, userID uint64) (*domain.UserDisplay, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	name, hasName := f.names[userID]
+	if !hasName {
+		return nil, nil
+	}
+	return &domain.UserDisplay{UserID: userID, Name: name}, nil
 }
 
 func (f *kbFakeUsers) FindByOidcSubject(context.Context, string) (*domain.User, error) {

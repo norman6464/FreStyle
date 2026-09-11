@@ -100,6 +100,44 @@ func (q *Queries) GetUserByOidcSubject(ctx context.Context, subject string) (Use
 	return i, err
 }
 
+const getUserDisplayByID = `-- name: GetUserDisplayByID :one
+SELECT u.id, u.name,
+       COALESCE(p.avatar_url, '') AS avatar_url,
+       COALESCE(p.status_message, '') AS status_message
+FROM users u
+LEFT JOIN profiles p ON p.user_id = u.id
+WHERE u.id = $1
+`
+
+type GetUserDisplayByIDRow struct {
+	ID            int64
+	Name          string
+	AvatarUrl     string
+	StatusMessage string
+}
+
+// 人を表示するのに要る最小限（表示名・アイコン・状態メッセージ）を 1 件返す。
+//
+// チケットの作成者・変更履歴の実行者・発言の投稿者・ページの最終編集者、どの画面も
+// この経路で解決する（画面ごとに users / profiles を別々に JOIN すると、一方だけ
+// アイコンが出せない・フィルタ条件がずれるという事故を生む）。
+//
+// GetUserByID と違い status を絞らない。コメントや変更履歴は投稿者が退会・停止した
+// 後も表示できる必要があるため（消えたことにして応答ごと空にすると、過去の記録が
+// 誰の発言だったか分からなくなる）。「今選べる相手か」の判定は
+// ListGrantablePrincipals / ListWorkspaceMembers が別に持つ。
+func (q *Queries) GetUserDisplayByID(ctx context.Context, id int64) (GetUserDisplayByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserDisplayByID, id)
+	var i GetUserDisplayByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AvatarUrl,
+		&i.StatusMessage,
+	)
+	return i, err
+}
+
 const insertOidcIdentityIfAbsent = `-- name: InsertOidcIdentityIfAbsent :execrows
 INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 VALUES ($1, $2, $3, now(), now())

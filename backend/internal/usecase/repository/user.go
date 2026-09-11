@@ -20,6 +20,10 @@ type UserRepository interface {
 	// 無ければ ("", nil)。
 	OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
+	// FindDisplayByID は人を表示するのに要る最小限（表示名・アイコン・状態メッセージ）を返す。
+	// FindByID と違い、退会・停止していても解決する（過去の記録の投稿者表示を壊さないため。
+	// domain.UserDisplay の doc 参照）。見つからなければ (nil, nil)。
+	FindDisplayByID(ctx context.Context, id uint64) (*domain.UserDisplay, error)
 	// Create は users 行を 1 件作る。OIDC identity と不可分に作りたい場合は、
 	// 呼び出し側（usecase）が TxManager.DoInTx の中で UserOidcIdentityRepository.EnsureIdentity と
 	// 併せて呼ぶ（repository 層はまたがるテーブルのトランザクションを自前で持たない）。

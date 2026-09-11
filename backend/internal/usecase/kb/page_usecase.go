@@ -1183,7 +1183,8 @@ type ResolvedCover struct {
 
 // Execute は cover が nil なら (nil, nil) を返す（「カバーが無い」を表す）。
 // presigner の失敗はそのまま呼び出し側へ伝える。失敗時に応答全体を止めるか、
-// LookupUserNameUseCase のように空のまま続けるかは呼び出し側（handler）の判断に委ねる。
+// user.LookupUserDisplayUseCase のように空のまま続けるかは呼び出し側（handler）の
+// 判断に委ねる。
 func (u *ResolveCoverURLUseCase) Execute(ctx context.Context, cover *domain.PageCover) (*ResolvedCover, error) {
 	if cover == nil {
 		return nil, nil
@@ -1193,32 +1194,6 @@ func (u *ResolveCoverURLUseCase) Execute(ctx context.Context, cover *domain.Page
 		return nil, err
 	}
 	return &ResolvedCover{Type: string(cover.Type), URL: url, ExpiresIn: expiresIn}, nil
-}
-
-// LookupUserNameUseCase はユーザー ID から表示名を引く。
-//
-// kb パッケージと user パッケージは互いを import しない規約（usecase サブパッケージ同士は
-// import しない）のため、user.GetCurrentUserUseCase 等を再利用せず
-// repository.UserRepository を直接受け取ってここに置く。
-type LookupUserNameUseCase struct {
-	users repository.UserRepository
-}
-
-func NewLookupUserNameUseCase(users repository.UserRepository) *LookupUserNameUseCase {
-	return &LookupUserNameUseCase{users: users}
-}
-
-// Execute はユーザーの表示名を返す。見つからなければ空文字（「最終編集者」のような
-// 付随情報のために、本体の応答自体を失敗にはしない）。repository の失敗はそのまま伝える。
-func (u *LookupUserNameUseCase) Execute(ctx context.Context, userID uint64) (string, error) {
-	user, err := u.users.FindByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if user == nil {
-		return "", nil
-	}
-	return user.Name, nil
 }
 
 // MovePageUseCase はページ（とその子孫）を別の親・別のスペースへ移す。

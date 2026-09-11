@@ -577,6 +577,79 @@ func TestGrantablePrincipals_名前が引けなくても行を落とさない_In
 	assert.True(t, found, "名前が無くても行は残る")
 }
 
+// TestGrantablePrincipals_停止退会は共有候補から外れアイコンも返る_Integration は段 5 の
+// 実質的な修理（ListGrantablePrincipals へ status='active' を足す）そのものを固定する。
+// 退会・停止したユーザーの principal 行はユーザー側の操作だけでは消えないため、
+// フィルタを外すと退会済みでも共有候補に残り続ける — ここではそれを確かめたあと、
+// わざとフィルタを緩めた形（SQL 側の条件を外した想定）でも壊れることを見るのではなく、
+// 生きている行（alice）にアイコン・状態メッセージが正しく付くことも合わせて固定する。
+func TestGrantablePrincipals_停止退会は共有候補から外れアイコンも返る_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	alice := f.principalFor(ctx, t, f.alice)
+	_, err := sqlDB.Exec(
+		`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+		 VALUES ($1, '', $2, $3, now())`,
+		f.alice, "https://example.test/alice.png", "会議中",
+	)
+	require.NoError(t, err)
+
+	deactivated := f.principalFor(ctx, t, f.bob)
+	_, err = sqlDB.Exec(`UPDATE users SET status = 'deactivated', deleted_at = now() WHERE id = $1`, f.bob)
+	require.NoError(t, err)
+
+	suspended := f.principalFor(ctx, t, f.carol)
+	_, err = sqlDB.Exec(`UPDATE users SET status = 'suspended' WHERE id = $1`, f.carol)
+	require.NoError(t, err)
+
+	got, err := f.perm.ListGrantablePrincipals(ctx, f.ws)
+	require.NoError(t, err)
+
+	byID := map[string]domain.GrantablePrincipal{}
+	for _, p := range got {
+		byID[p.ID] = p
+	}
+
+	require.Contains(t, byID, alice.ID, "アカウントも所属も有効なら共有候補に残る")
+	assert.Equal(t, "https://example.test/alice.png", byID[alice.ID].AvatarURL)
+	assert.Equal(t, "会議中", byID[alice.ID].StatusMessage)
+
+	assert.NotContains(t, byID, deactivated.ID, "退会済みは principal 行が残っていても共有候補から外す")
+	assert.NotContains(t, byID, suspended.ID, "停止中も同様に外す")
+}
+
+// TestGrantablePrincipals_所属が有効でないと共有候補から外れる_Integration は
+// TestGrantablePrincipals_停止退会は共有候補から外れアイコンも返る_Integration の変異
+// （users.status ではなく workspace_members.status 側が原因のケース）を確かめる。
+// principal(kind=user) がある ⟺ workspace_members が active、という段 2 の不変条件は
+// アプリ側の約束でしかなく DB 制約では縛られていないため、崩れた場合の防御を
+// workspace_members 側の JOIN 単独でも確かめておく。
+func TestGrantablePrincipals_所属が有効でないと共有候補から外れる_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	f := setupKBPermission(t, sqlDB)
+
+	// principalFor を使わず、principal だけを作って workspace_members は意図的に
+	// left のまま残す（不変条件が崩れた状態を人為的に作る）。
+	left, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
+	require.NoError(t, err)
+	_, err = sqlDB.Exec(
+		`INSERT INTO workspace_members (workspace_id, user_id, status, joined_at, left_at)
+		 VALUES ($1, $2, 'left', now(), now())`,
+		f.ws, f.alice,
+	)
+	require.NoError(t, err)
+
+	got, err := f.perm.ListGrantablePrincipals(ctx, f.ws)
+	require.NoError(t, err)
+
+	for _, p := range got {
+		assert.NotEqual(t, left.ID, p.ID, "所属が active でなければアカウントが有効でも共有候補から外す")
+	}
+}
+
 // 木を下るほど役割が弱くならないことを、**実 PostgreSQL のクエリで**確かめる。
 //
 // これが要るのは、domain 側の単調性（StrongestGrantRole のテスト）だけでは証明にならないため。

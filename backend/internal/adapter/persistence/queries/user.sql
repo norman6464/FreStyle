@@ -13,6 +13,24 @@ SELECT u.id, u.email, u.name, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.id = $1 AND u.status <> 'deactivated';
 
+-- name: GetUserDisplayByID :one
+-- 人を表示するのに要る最小限（表示名・アイコン・状態メッセージ）を 1 件返す。
+--
+-- チケットの作成者・変更履歴の実行者・発言の投稿者・ページの最終編集者、どの画面も
+-- この経路で解決する（画面ごとに users / profiles を別々に JOIN すると、一方だけ
+-- アイコンが出せない・フィルタ条件がずれるという事故を生む）。
+--
+-- GetUserByID と違い status を絞らない。コメントや変更履歴は投稿者が退会・停止した
+-- 後も表示できる必要があるため（消えたことにして応答ごと空にすると、過去の記録が
+-- 誰の発言だったか分からなくなる）。「今選べる相手か」の判定は
+-- ListGrantablePrincipals / ListWorkspaceMembers が別に持つ。
+SELECT u.id, u.name,
+       COALESCE(p.avatar_url, '') AS avatar_url,
+       COALESCE(p.status_message, '') AS status_message
+FROM users u
+LEFT JOIN profiles p ON p.user_id = u.id
+WHERE u.id = $1;
+
 -- name: GetOidcSubjectByUserID :one
 -- ユーザーの OIDC subject を引く。
 -- (user_id, provider) は uq_user_oidc_user_provider で一意（最大 1 行）。

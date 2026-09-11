@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,22 +12,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // PageVersionHandler はページ本文の版（page_versions・FRESTYLE-433 段 3）を受ける。
 // comment_handler.go の CommentHandler と同じ形 — requirePagePermissionWith を再利用し、
-// LookupUserNameUseCase を注入して著者名を解決する、独自の nameCache を持つ。
+// user.LookupUserDisplayUseCase を注入して著者を解決する（キャッシュは
+// user_display_response.go の userDisplayCache を共有）。
 //
 // バージョンは comment のような新しい権限軸（CanComment）を持たない。ページ本文そのものの
 // 履歴なので、認可は CapabilityView / CapabilityEdit の 2 値だけで足りる
 // （一覧・単体取得は閲覧できれば誰でも、作成・復元は編集できる人だけ）。
 type PageVersionHandler struct {
-	check    *kb.CheckPagePermissionUseCase
-	create   *kb.CreateExplicitPageVersionUseCase
-	list     *kb.ListPageVersionsUseCase
-	get      *kb.GetPageVersionUseCase
-	restore  *kb.RestorePageVersionUseCase
-	userName *kb.LookupUserNameUseCase
+	check       *kb.CheckPagePermissionUseCase
+	create      *kb.CreateExplicitPageVersionUseCase
+	list        *kb.ListPageVersionsUseCase
+	get         *kb.GetPageVersionUseCase
+	restore     *kb.RestorePageVersionUseCase
+	userDisplay *user.LookupUserDisplayUseCase
 }
 
 // NewPageVersionHandler は PageVersionHandler を組み立てる。
@@ -38,43 +39,24 @@ func NewPageVersionHandler(
 	list *kb.ListPageVersionsUseCase,
 	get *kb.GetPageVersionUseCase,
 	restore *kb.RestorePageVersionUseCase,
-	userName *kb.LookupUserNameUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 ) *PageVersionHandler {
-	return &PageVersionHandler{check: check, create: create, list: list, get: get, restore: restore, userName: userName}
-}
-
-// pageVersionNameCache は 1 リクエストの応答を組み立てる間だけ使う著者名のその場限りの
-// キャッシュ（commentNameCache と同じ役割。リクエストをまたいでは使わない）。
-type pageVersionNameCache map[uint64]string
-
-// resolveAuthorRef はユーザー ID を著者参照の応答形へ解決する。名前の解決に失敗しても
-// 応答は止めない（CommentHandler.resolveAuthorRef と同じ扱い。空文字で埋めてログだけ残す）。
-func (h *PageVersionHandler) resolveAuthorRef(ctx context.Context, userID uint64, cache pageVersionNameCache) commentAuthorRefResponse {
-	name, ok := cache[userID]
-	if !ok {
-		var err error
-		name, err = h.userName.Execute(ctx, userID)
-		if err != nil {
-			slog.WarnContext(ctx, "page version: author name resolve failed", "err", err)
-		}
-		cache[userID] = name
-	}
-	return commentAuthorRefResponse{UserID: userID, Name: name}
+	return &PageVersionHandler{check: check, create: create, list: list, get: get, restore: restore, userDisplay: userDisplay}
 }
 
 // pageVersionSummaryResponse は一覧の 1 要素。doc は含まない（一覧はメタ情報だけで十分で、
 // ページの版が多いほど doc を毎回積むと応答が重くなるため）。
 type pageVersionSummaryResponse struct {
-	Seq       int64                    `json:"seq"`
-	Author    commentAuthorRefResponse `json:"author"`
-	Note      *string                  `json:"note,omitempty"`
-	CreatedAt time.Time                `json:"createdAt"`
+	Seq       int64               `json:"seq"`
+	Author    userDisplayResponse `json:"author"`
+	Note      *string             `json:"note,omitempty"`
+	CreatedAt time.Time           `json:"createdAt"`
 }
 
-func (h *PageVersionHandler) toSummaryResponse(ctx context.Context, v domain.PageVersion, cache pageVersionNameCache) pageVersionSummaryResponse {
+func (h *PageVersionHandler) toSummaryResponse(ctx context.Context, v domain.PageVersion, cache userDisplayCache) pageVersionSummaryResponse {
 	return pageVersionSummaryResponse{
 		Seq:       v.Seq,
-		Author:    h.resolveAuthorRef(ctx, v.AuthorUserID, cache),
+		Author:    resolveUserDisplay(ctx, h.userDisplay, v.AuthorUserID, cache),
 		Note:      v.Note,
 		CreatedAt: v.CreatedAt,
 	}
@@ -82,18 +64,18 @@ func (h *PageVersionHandler) toSummaryResponse(ctx context.Context, v domain.Pag
 
 // pageVersionDetailResponse は単体取得・作成の応答（一覧の形 + doc）。
 type pageVersionDetailResponse struct {
-	Seq       int64                    `json:"seq"`
-	Author    commentAuthorRefResponse `json:"author"`
-	Note      *string                  `json:"note,omitempty"`
-	CreatedAt time.Time                `json:"createdAt"`
+	Seq       int64               `json:"seq"`
+	Author    userDisplayResponse `json:"author"`
+	Note      *string             `json:"note,omitempty"`
+	CreatedAt time.Time           `json:"createdAt"`
 	// Doc は ProseMirror ドキュメント（tiptap の getJSON() 相当）。
 	Doc json.RawMessage `json:"doc"`
 }
 
-func (h *PageVersionHandler) toDetailResponse(ctx context.Context, v domain.PageVersion, cache pageVersionNameCache) pageVersionDetailResponse {
+func (h *PageVersionHandler) toDetailResponse(ctx context.Context, v domain.PageVersion, cache userDisplayCache) pageVersionDetailResponse {
 	return pageVersionDetailResponse{
 		Seq:       v.Seq,
-		Author:    h.resolveAuthorRef(ctx, v.AuthorUserID, cache),
+		Author:    resolveUserDisplay(ctx, h.userDisplay, v.AuthorUserID, cache),
 		Note:      v.Note,
 		CreatedAt: v.CreatedAt,
 		Doc:       json.RawMessage(v.Doc),
@@ -119,7 +101,7 @@ func (h *PageVersionHandler) List(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageVersionNameCache{}
+	cache := userDisplayCache{}
 	versions := make([]pageVersionSummaryResponse, 0, len(out))
 	for _, v := range out {
 		versions = append(versions, h.toSummaryResponse(c.Request.Context(), v, cache))
@@ -162,7 +144,7 @@ func (h *PageVersionHandler) Get(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageVersionNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusOK, h.toDetailResponse(c.Request.Context(), *v, cache))
 }
 
@@ -200,7 +182,7 @@ func (h *PageVersionHandler) Create(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageVersionNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusCreated, h.toDetailResponse(c.Request.Context(), *v, cache))
 }
 
@@ -237,7 +219,7 @@ func (h *PageVersionHandler) Restore(c *gin.Context) {
 	c.JSON(http.StatusOK, kbPageContentResponse{
 		Doc:          json.RawMessage(snap.Doc),
 		BuiltAt:      snap.BuiltAt,
-		LastEditedBy: kbLastEditedByResponseWith(c.Request.Context(), h.userName, &editorID),
+		LastEditedBy: kbLastEditedByResponseWith(c.Request.Context(), h.userDisplay, &editorID),
 		LastEditedAt: &builtAt,
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // PageSuggestionHandler は commenter が保存した提案（page_suggestions）を受ける。
@@ -19,13 +20,13 @@ import (
 // 認可の方針: 作成は CanComment（requireCommentPermissionWith — comment_handler.go と同じ判定）、
 // 一覧の閲覧は CanView（コメント一覧が誰でも見られるのと同じ考え方）、採用・却下は CanEdit。
 type PageSuggestionHandler struct {
-	check      *kb.CheckPagePermissionUseCase
-	create     *kb.CreateSuggestionUseCase
-	listOpen   *kb.ListOpenPageSuggestionsUseCase
-	accept     *kb.AcceptPageSuggestionUseCase
-	reject     *kb.RejectPageSuggestionUseCase
-	getVersion *kb.GetPageVersionUseCase
-	userName   *kb.LookupUserNameUseCase
+	check       *kb.CheckPagePermissionUseCase
+	create      *kb.CreateSuggestionUseCase
+	listOpen    *kb.ListOpenPageSuggestionsUseCase
+	accept      *kb.AcceptPageSuggestionUseCase
+	reject      *kb.RejectPageSuggestionUseCase
+	getVersion  *kb.GetPageVersionUseCase
+	userDisplay *user.LookupUserDisplayUseCase
 }
 
 // NewPageSuggestionHandler は PageSuggestionHandler を組み立てる。
@@ -36,31 +37,12 @@ func NewPageSuggestionHandler(
 	accept *kb.AcceptPageSuggestionUseCase,
 	reject *kb.RejectPageSuggestionUseCase,
 	getVersion *kb.GetPageVersionUseCase,
-	userName *kb.LookupUserNameUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 ) *PageSuggestionHandler {
 	return &PageSuggestionHandler{
 		check: check, create: create, listOpen: listOpen, accept: accept, reject: reject,
-		getVersion: getVersion, userName: userName,
+		getVersion: getVersion, userDisplay: userDisplay,
 	}
-}
-
-// pageSuggestionNameCache は 1 リクエストの応答を組み立てる間だけ使うユーザー名のその場限りの
-// キャッシュ（commentNameCache / pageVersionNameCache と同じ役割）。
-type pageSuggestionNameCache map[uint64]string
-
-// resolveRef はユーザー ID を著者・解決者の応答形へ解決する。名前の解決に失敗しても応答は
-// 止めない（CommentHandler.resolveAuthorRef と同じ扱い。空文字で埋めてログだけ残す）。
-func (h *PageSuggestionHandler) resolveRef(ctx context.Context, userID uint64, cache pageSuggestionNameCache) kbEditorRefResponse {
-	name, ok := cache[userID]
-	if !ok {
-		var err error
-		name, err = h.userName.Execute(ctx, userID)
-		if err != nil {
-			slog.WarnContext(ctx, "page suggestion: name resolve failed", "err", err)
-		}
-		cache[userID] = name
-	}
-	return kbEditorRefResponse{UserID: userID, Name: name}
 }
 
 // kbPageSuggestionResponse は提案 1 件の返却形。
@@ -69,10 +51,10 @@ type kbPageSuggestionResponse struct {
 	BaseSeq    *int64               `json:"baseSeq,omitempty"`
 	Doc        json.RawMessage      `json:"doc"`
 	Status     string               `json:"status"`
-	Author     kbEditorRefResponse  `json:"author"`
+	Author     userDisplayResponse  `json:"author"`
 	CreatedAt  time.Time            `json:"createdAt"`
 	ResolvedAt *time.Time           `json:"resolvedAt,omitempty"`
-	ResolvedBy *kbEditorRefResponse `json:"resolvedBy,omitempty"`
+	ResolvedBy *userDisplayResponse `json:"resolvedBy,omitempty"`
 	// BaseDoc は BaseSeq が指す版の本文（差分表示用の付随情報）。BaseSeq が nil、または
 	// その版が既に引けない場合は省略する（診断情報でしかないので、それだけで提案自体の
 	// 応答を止めない）。
@@ -83,19 +65,19 @@ type kbPageSuggestionResponse struct {
 // GetPageVersionUseCase 呼び出しに使う（提案自体は WorkspaceID を持つが、呼び出し元が
 // 既に検証済みの scope をそのまま使う方が、handler 内の他の変換と作法が揃う）。
 func (h *PageSuggestionHandler) toResponse(
-	ctx context.Context, scope kbRequestScope, s domain.PageSuggestion, cache pageSuggestionNameCache,
+	ctx context.Context, scope kbRequestScope, s domain.PageSuggestion, cache userDisplayCache,
 ) kbPageSuggestionResponse {
 	resp := kbPageSuggestionResponse{
 		ID:         s.ID,
 		BaseSeq:    s.BaseSeq,
 		Doc:        json.RawMessage(s.Doc),
 		Status:     string(s.Status),
-		Author:     h.resolveRef(ctx, s.AuthorUserID, cache),
+		Author:     resolveUserDisplay(ctx, h.userDisplay, s.AuthorUserID, cache),
 		CreatedAt:  s.CreatedAt,
 		ResolvedAt: s.ResolvedAt,
 	}
 	if s.ResolvedByUserID != nil {
-		ref := h.resolveRef(ctx, *s.ResolvedByUserID, cache)
+		ref := resolveUserDisplay(ctx, h.userDisplay, *s.ResolvedByUserID, cache)
 		resp.ResolvedBy = &ref
 	}
 	if s.BaseSeq != nil {
@@ -143,7 +125,7 @@ func (h *PageSuggestionHandler) Create(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageSuggestionNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusCreated, h.toResponse(c.Request.Context(), scope, *out, cache))
 }
 
@@ -165,7 +147,7 @@ func (h *PageSuggestionHandler) ListOpen(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageSuggestionNameCache{}
+	cache := userDisplayCache{}
 	// 0 件でも [] を返す（PageTemplateHandler.List と同じ理由 — null だとフロントの .map が落ちる）。
 	items := make([]kbPageSuggestionResponse, 0, len(out))
 	for _, s := range out {
@@ -195,7 +177,7 @@ func (h *PageSuggestionHandler) Accept(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageSuggestionNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusOK, h.toResponse(c.Request.Context(), scope, *out, cache))
 }
 
@@ -220,6 +202,6 @@ func (h *PageSuggestionHandler) Reject(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := pageSuggestionNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusOK, h.toResponse(c.Request.Context(), scope, *out, cache))
 }

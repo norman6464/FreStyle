@@ -23,6 +23,16 @@ func (s *stubUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 	return s.user, s.err
 }
 
+func (s *stubUserRepo) FindDisplayByID(_ context.Context, userID uint64) (*domain.UserDisplay, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.user == nil {
+		return nil, nil
+	}
+	return &domain.UserDisplay{UserID: userID, Name: s.user.Name}, nil
+}
+
 func (s *stubUserRepo) ListByWorkspaceID(_ context.Context, _ string) ([]domain.User, error) {
 	return nil, s.err
 }

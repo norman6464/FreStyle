@@ -438,33 +438,52 @@ WITH grantable AS (
                WHEN 'user' THEN COALESCE(u.name, '')
                WHEN 'space_all' THEN COALESCE(s.name, '')
                ELSE ''
-           END AS name
+           END AS name,
+           CASE p.kind WHEN 'user' THEN COALESCE(pr.avatar_url, '') ELSE '' END AS avatar_url,
+           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_message, '') ELSE '' END AS status_message
     FROM principals p
     LEFT JOIN users u
            ON p.kind = 'user' AND u.id = p.user_id
+    LEFT JOIN profiles pr
+           ON p.kind = 'user' AND pr.user_id = p.user_id
     LEFT JOIN spaces s
            ON p.kind = 'space_all' AND s.workspace_id = p.workspace_id AND s.id = p.space_id
+    LEFT JOIN workspace_members wm
+           ON p.kind = 'user' AND wm.workspace_id = p.workspace_id AND wm.user_id = p.user_id
     WHERE p.workspace_id = $1
       AND p.kind <> 'share_link'
+      AND (p.kind <> 'user' OR (u.status = 'active' AND wm.status = 'active'))
 )
-SELECT id, kind, name FROM grantable
+SELECT id, kind, name, avatar_url, status_message FROM grantable
 ORDER BY kind, name, id
 `
 
 type ListGrantablePrincipalsRow struct {
-	ID   uuid.UUID
-	Kind string
-	Name string
+	ID            uuid.UUID
+	Kind          string
+	Name          string
+	AvatarUrl     string
+	StatusMessage string
 }
 
 // 権限を張れる相手の一覧（画面の相手選びに使う）。
 //
 // 表示名の正本はそれぞれ別の表にある。principals.name が埋まるのは group だけで、
 // ユーザー名は users、スペース名は spaces が持つ（principals へ写すと二重管理になる）。
-// 画面には名前が要るので、ここで 1 回だけ突き合わせる。
+// アイコン・状態メッセージは profiles が持つ（人でない主体には無い）。画面には
+// 名前・アイコンが要るので、ここで 1 回だけ突き合わせる。
 //
 // share_link は除く。あれは「リンクを踏んだ来訪者」を表す主体で、リンクを発行したときに
 // 自動で作られる。人が選んで役割を与える相手ではない（与えても意味を持たない）。
+//
+// 人（kind='user'）は、アカウントが有効（users.status = 'active'）で、かつ所属も有効
+// （workspace_members.status = 'active'）なものだけを返す。principal 行はユーザーの
+// 退会・停止だけでは消えないため（SoftDelete / UpdateActive は users しか触らない）、
+// ここで絞らないと停止・退会したユーザーが名前つきで共有候補に出続け、その人に
+// 配られた権限も生きたまま残ってしまう。workspace_members の JOIN は「principal(kind=user)
+// がある ⟺ workspace_members が active」という段 2 の不変条件への防御的な二重チェック
+// （不変条件が何かの理由で崩れても、ここでは必ず絞られる）。
+// 人でない主体（group / space_all）はこの絞り込みの対象外。
 //
 // 並びは kind → 名前 → id。名前が空でも順序が決まるように id まで入れる
 // （ユーザーが消えた直後など、名前が引けない行が混ざり得る）。
@@ -480,7 +499,13 @@ func (q *Queries) ListGrantablePrincipals(ctx context.Context, workspaceID uuid.
 	items := []ListGrantablePrincipalsRow{}
 	for rows.Next() {
 		var i ListGrantablePrincipalsRow
-		if err := rows.Scan(&i.ID, &i.Kind, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Name,
+			&i.AvatarUrl,
+			&i.StatusMessage,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1439,8 +1464,9 @@ func (q *Queries) ListWorkspaceGrants(ctx context.Context, workspaceID uuid.UUID
 }
 
 const listWorkspaceMemberUserIDsAmong = `-- name: ListWorkspaceMemberUserIDsAmong :many
-SELECT user_id FROM principals
-WHERE workspace_id = $1 AND kind = 'user' AND user_id IN (
+SELECT p.user_id FROM principals p
+JOIN users u ON u.id = p.user_id AND u.status = 'active'
+WHERE p.workspace_id = $1 AND p.kind = 'user' AND p.user_id IN (
     SELECT value::bigint FROM json_array_elements_text($2::json) AS t(value)
 )
 `
@@ -1450,9 +1476,14 @@ type ListWorkspaceMemberUserIDsAmongParams struct {
 	UserIds     json.RawMessage
 }
 
-// 与えた userId 群のうち、そのワークスペースの所属者（kind='user' の principal）である
-// ものだけを返す。@メンション通知の宛先解決を、メンション数ぶんの IsWorkspaceMember
-// 逐次呼び出しから 1 回のまとめ問い合わせへ寄せるためのもの。
+// 与えた userId 群のうち、そのワークスペースの所属者（kind='user' の principal）で、
+// かつアカウントが有効（active）なものだけを返す。@メンション通知の宛先解決を、
+// メンション数ぶんの IsWorkspaceMember 逐次呼び出しから 1 回のまとめ問い合わせへ寄せる
+// ためのもの。
+//
+// users を突き合わせるのは、退会・停止したユーザーへメンション通知を送らないため
+// （principal 行はユーザーの退会・停止だけでは消えない。段 5・ListGrantablePrincipals の
+// コメント参照）。
 //
 // user_id 群は json 配列 1 個のパラメータで渡す（comment.sql の ListCommentsByThreadIDs と
 // 同じ作法。database/sql モードの sqlc では = ANY(...) が pq.Array() 依存を持ち込む）。
@@ -1480,22 +1511,29 @@ func (q *Queries) ListWorkspaceMemberUserIDsAmong(ctx context.Context, arg ListW
 }
 
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
-SELECT p.id AS principal_id, u.id AS user_id, u.name
+SELECT p.id AS principal_id, u.id AS user_id, u.name,
+       COALESCE(pr.avatar_url, '') AS avatar_url,
+       COALESCE(pr.status_message, '') AS status_message
 FROM principals p
 JOIN users u ON u.id = p.user_id
+JOIN workspace_members wm ON wm.workspace_id = p.workspace_id AND wm.user_id = p.user_id
+LEFT JOIN profiles pr ON pr.user_id = u.id
 WHERE p.workspace_id = $1
   AND p.kind = 'user'
-  AND u.status <> 'deactivated'
+  AND u.status = 'active'
+  AND wm.status = 'active'
 ORDER BY u.name, u.id
 `
 
 type ListWorkspaceMembersRow struct {
-	PrincipalID uuid.UUID
-	UserID      int64
-	Name        string
+	PrincipalID   uuid.UUID
+	UserID        int64
+	Name          string
+	AvatarUrl     string
+	StatusMessage string
 }
 
-// ワークスペースに属する人の一覧（担当の表示名と、発言での名指しの候補に使う）。
+// ワークスペースに属する人の一覧（担当の表示名・アイコンと、発言での名指しの候補に使う）。
 //
 // ListGrantablePrincipals とは別に持つ。あちらは「権限を張る相手」を選ぶための一覧で、
 // グループやスペース全員も含み、閲覧にページの管理権限が要る。既定の役割は編集者なので、
@@ -1505,7 +1543,11 @@ type ListWorkspaceMembersRow struct {
 // 人でない主体（グループ / スペース全員 / 共有リンク）は user_id を持たないので、
 // users との内部結合だけで落ちる。kind の条件はそれでも重ねて書く — 名前が引けない人を
 // 残したくなって外部結合へ緩めた瞬間に、人でない主体が黙って混ざるため。
-// 消えたユーザーは落とす（名指しても届かず、担当にも選べない）。
+//
+// 停止・退会したユーザー（users.status <> 'active'）と、所属自体が今は有効でない行
+// （workspace_members.status <> 'active'。principal 行はユーザーの退会・停止・所属の
+// 変化だけでは自動では消えない）は落とす（名指しても届かず、担当にも選べない。
+// ListGrantablePrincipals と同じ判断基準に揃える — 段 5）。
 // 並びは表示名 → id。名前が空の行が混ざっても順序が決まるように id まで入れる。
 func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID uuid.UUID) ([]ListWorkspaceMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspaceMembers, workspaceID)
@@ -1516,7 +1558,13 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID uuid.UUI
 	items := []ListWorkspaceMembersRow{}
 	for rows.Next() {
 		var i ListWorkspaceMembersRow
-		if err := rows.Scan(&i.PrincipalID, &i.UserID, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.PrincipalID,
+			&i.UserID,
+			&i.Name,
+			&i.AvatarUrl,
+			&i.StatusMessage,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

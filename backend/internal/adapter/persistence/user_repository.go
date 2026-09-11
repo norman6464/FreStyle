@@ -95,6 +95,29 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	return toDomainUser(row), nil
 }
 
+// FindDisplayByID は人を表示するのに要る最小限（表示名・アイコン・状態メッセージ）を返す。
+// GetUserByID と違い status を絞らないクエリを使う（domain.UserDisplay の doc 参照）。
+func (r *userRepository) FindDisplayByID(ctx context.Context, id uint64) (*domain.UserDisplay, error) {
+	id64, ok := toInt64ID(id)
+	if !ok {
+		return nil, nil // int64 範囲外 = 存在し得ない id
+	}
+	q := r.queries(ctx)
+	row, err := q.GetUserDisplayByID(ctx, id64)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &domain.UserDisplay{
+		UserID:        uint64(row.ID),
+		Name:          row.Name,
+		AvatarURL:     row.AvatarUrl,
+		StatusMessage: row.StatusMessage,
+	}, nil
+}
+
 // Create は users 行を 1 件作る。OIDC identity と不可分に作りたい場合は、
 // 呼び出し側（usecase）が TxManager.DoInTx の中で UserOidcIdentityRepository.EnsureIdentity と
 // 併せて呼ぶ（このメソッド自身はトランザクションを開始しない。ctx に乗っていればそれに乗る）。

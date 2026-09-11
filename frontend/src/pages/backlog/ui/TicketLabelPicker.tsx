@@ -102,6 +102,9 @@ export default function TicketLabelPicker({ labels, attachedIds, onToggle, onCre
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => {
+            // 日本語入力の変換確定 Enter は入力欄の確定ではない。isComposing を見ないと、
+            // 変換のたびに打ちかけの名前でラベル作成が飛ぶ（keyCode 229 は Safari の変換中の値）。
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
             if (e.key === 'Enter') void handleCreate();
           }}
           placeholder="新しいラベルの名前"

@@ -109,6 +109,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
             showToast('error', 'ワークスペースを削除できませんでした');
           }
         }}
+        onManageMembers={(slug) => navigate(`/kb/${slug}/members`)}
       />
 
       {workspacesLoading && (

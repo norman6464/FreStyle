@@ -319,12 +319,21 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodGet + " " + kbRoutePattern(kbSearchPath):       true,
 		// ワークスペース削除。Test_ナレッジAPI_ワークスペース削除 が直接叩く。
 		http.MethodDelete + " " + kbRoutePattern(kbWorkspacePath): true,
+		// アカウントの停止・復帰（段 7）。usecase 側で users.FindByID を読むため
+		// kbFakeUsers に名前を設定した専用の fixture が要り、共有の kbPermissionEndpoints
+		// では賄えない。kb_permission_handler_test.go の Test_ナレッジ権限API_停止*・
+		// Test_ナレッジ権限API_復帰* が直接叩く。
+		http.MethodPut + " " + kbSuspendPattern: true,
+		http.MethodPut + " " + kbRestorePattern: true,
 		// ワークスペースの人の一覧。判定は所属のみ（役割を見ない）ので表にせず、
 		// Test_ナレッジAPI_人の一覧は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembersPath): true,
 		// 所属・権限の変更履歴（段 6・監査）。判定が admin（CanManage）で他の GET と軸が違うので
 		// 表にせず、Test_ナレッジAPI_変更履歴は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembershipEventsPath): true,
+		// メンバー管理画面向けの一覧（段 7）。判定は変更履歴と同じ admin（CanManage）なので
+		// 表にせず、Test_ナレッジAPI_管理者向け一覧は* が直接叩く。
+		http.MethodGet + " " + kbRoutePattern(kbAdminMembersPath): true,
 		// 自分宛の招待（段 2）。認証だけで所属は問わない特殊な経路（受諾するまで
 		// 非メンバーが叩く）ので表にせず、kb_invitation_handler_test.go の
 		// Test_招待API_* が直接叩く。

@@ -147,3 +147,52 @@ export const 読み取り専用: Story = {
 export const 空の本文: Story = {
   args: { value: emptyRichDoc(), editable: true },
 };
+
+/** タスクリスト（TaskList / TaskItem）だけの本文。 */
+const taskListDoc = (): RichDocContent => ({
+  type: 'doc',
+  content: [
+    {
+      type: 'taskList',
+      content: [
+        {
+          type: 'taskItem',
+          attrs: { checked: false },
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '研修資料を読む' }] }],
+        },
+        {
+          type: 'taskItem',
+          attrs: { checked: true },
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '環境構築を終える' }] }],
+        },
+      ],
+    },
+  ],
+});
+
+/**
+ * タスクリスト。チェックボックスの大きさと項目間の余白の回帰確認
+ * （通常の箇条書きより不自然に間延びして見える不具合があった。jsdom はレイアウトを
+ * 持たないため単体テストでは検知できず、ここが唯一の検知場所）。
+ */
+export const タスクリスト: Story = {
+  args: { value: taskListDoc(), editable: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const items = canvasElement.querySelectorAll("li[data-checked]");
+    await expect(items).toHaveLength(2);
+
+    // 段落の既定マージンが残ったままだと、flex 化した li との二重計上で
+    // 項目間が通常の箇条書きより間延びして見える。
+    const paragraph = items[0]!.querySelector('div > p');
+    await expect(paragraph).not.toBeNull();
+    await expect(getComputedStyle(paragraph!).marginBottom).toBe('0px');
+
+    // チェックボックスは裸のブラウザ既定サイズではなく明示サイズで描く。
+    const checkbox = items[0]!.querySelector("input[type='checkbox']");
+    await expect(checkbox).not.toBeNull();
+    await expect(getComputedStyle(checkbox!).width).toBe('16px');
+
+    await expect(canvas.getByText('環境構築を終える')).toBeInTheDocument();
+  },
+};

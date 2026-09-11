@@ -492,17 +492,39 @@
 
 .rte-content .ProseMirror ul[data-type='taskList'] li {
   display: flex;
+  align-items: flex-start;
   gap: 0.5rem;
 }
 
 .rte-content .ProseMirror ul[data-type='taskList'] li > label {
   flex: 0 0 auto;
-  margin-top: 0.3rem;
+  /* テキストの 1 行目に高さを揃える。チェックボックス自体の高さ(1rem)と
+     本文の line-height の差分だけ、テキスト側に近づける。 */
+  padding-top: 0.2rem;
   user-select: none;
+}
+
+.rte-content .ProseMirror ul[data-type='taskList'] li > label input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--color-brand, #3b82f6);
+  cursor: pointer;
 }
 
 .rte-content .ProseMirror ul[data-type='taskList'] li > div {
   flex: 1 1 auto;
+}
+
+/* 段落の既定余白（Typography）を打ち消す。li 側で行間を制御しているため、
+   ここが残っていると flex コンテナ化で margin collapse が効かず二重に余白が付く
+   （th/td の段落リセットと同じ理由）。 */
+.rte-content .ProseMirror ul[data-type='taskList'] li > div > p {
+  margin: 0;
+}
+
+.rte-content .ProseMirror ul[data-type='taskList'] li + li {
+  margin-top: 0.35rem;
 }
 
 /*

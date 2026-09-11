@@ -236,6 +236,10 @@ type KnowledgeBasePermissionRepository interface {
 	// 所属も有効な人だけを返す（ListGrantablePrincipals と同じ判断基準 — 段 5）。
 	// 担当の表示名と発言での名指しに使う（どちらも権限を変えられない人にも要る）。
 	ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error)
+	// ListWorkspaceMembersForAdmin はメンバー管理画面（段 7）向け。ListWorkspaceMembers と
+	// 違い、停止中のアカウントも含み（復帰の入口になるため）、現在のワークスペース全体の
+	// 役割も一緒に返す。
+	ListWorkspaceMembersForAdmin(ctx context.Context, workspaceID string) ([]domain.AdminWorkspaceMember, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
 	//
 	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、
@@ -246,6 +250,17 @@ type KnowledgeBasePermissionRepository interface {
 
 	// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
 	ListMembershipEvents(ctx context.Context, workspaceID string) ([]domain.MembershipEvent, error)
+	// RecordMembershipEvent は所属・権限の変更 1 件を追記する（段 6・監査）。
+	//
+	// InviteWorkspaceMember 等の専用メソッドが対象の書き込みと同じトランザクションで
+	// 自動的に記録するのに対し、こちらは対象の書き込みがこの repository の外
+	// （usecase/user.SetUserActiveUseCase の users.status 変更等）にある場合向けの、
+	// 汎用の書き込み口。呼び出し側が repository.TxManager.DoInTx で対象の書き込みと
+	// 同じトランザクションにまとめること（片方だけ書けると履歴が実際の状態とずれる）。
+	RecordMembershipEvent(
+		ctx context.Context, workspaceID string, targetUserID, actorUserID uint64,
+		action domain.MembershipEventAction, oldLabel, newLabel *string,
+	) error
 
 	// PagePermissionFactsForUser はログイン済みユーザーとして、1 ページの実効権限を決める
 	// 事実を 1 回のクエリで集める。判定は domain.ResolvePagePermission が行う。

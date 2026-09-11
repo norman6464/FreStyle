@@ -248,6 +248,31 @@ WHERE p.workspace_id = sqlc.arg(workspace_id)
   AND wm.status = 'active'
 ORDER BY u.name, u.id;
 
+-- name: ListWorkspaceMembersForAdmin :many
+-- メンバー管理画面（段 7）向け。ListWorkspaceMembers と違い、停止中のアカウント
+-- （users.status = 'suspended'）も落とさない — 管理画面の目的そのものが「停止した相手を
+-- 見つけて復帰させる」ことなので、ここで落とすと復帰の手段が無くなる。退会
+-- （users.status = 'deactivated'）は RetireSelfUseCase が全ワークスペースを退出させてから
+-- 匿名化するため、通常は wm.status = 'active' の時点で自然と対象外になる
+-- （残っていても事故ではないので、ここでは重ねて弾かない）。
+--
+-- ワークスペース全体の既定役割（workspace_grants）を LEFT JOIN で合わせて返す。
+-- NULL は「ワークスペース全体には役割を持たない（スペース/ページ単位の grant だけで
+-- 見えている）」ことを表す — 実在しうる状態なので、あえて内部結合にしない。
+SELECT p.id AS principal_id, u.id AS user_id, u.name, u.status AS account_status,
+       COALESCE(pr.avatar_url, '') AS avatar_url,
+       COALESCE(pr.status_message, '') AS status_message,
+       wg.role AS role
+FROM principals p
+JOIN users u ON u.id = p.user_id
+JOIN workspace_members wm ON wm.workspace_id = p.workspace_id AND wm.user_id = p.user_id
+LEFT JOIN profiles pr ON pr.user_id = u.id
+LEFT JOIN workspace_grants wg ON wg.workspace_id = p.workspace_id AND wg.principal_id = p.id
+WHERE p.workspace_id = sqlc.arg(workspace_id)
+  AND p.kind = 'user'
+  AND wm.status = 'active'
+ORDER BY u.name, u.id;
+
 -- name: UpsertPageGrant :one
 -- ページでの既定の役割の付与（同じ主体には 1 行だけ）。
 --

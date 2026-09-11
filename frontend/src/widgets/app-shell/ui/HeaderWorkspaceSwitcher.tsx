@@ -40,6 +40,7 @@ export default function HeaderWorkspaceSwitcher() {
             showToast('error', 'ワークスペースを削除できませんでした');
           }
         }}
+        onManageMembers={(slug) => navigate(`/kb/${slug}/members`)}
       />
     </div>
   );

@@ -684,3 +684,209 @@ func Test_UpsertUserFromIDToken_email後付けが競合しても非致命(t *tes
 		t.Fatalf("後付けに失敗した以上、返す user の email も空のままのはず: got %q", user.Email)
 	}
 }
+
+// setActiveUserRepoSpy は SetUserActiveUseCase / RetireSelfUseCase の呼び出しを記録する
+// UserRepository の spy。
+type setActiveUserRepoSpy struct {
+	stubUserRepo
+	updateActiveCalls  int
+	updateActiveUserID uint64
+	updateActiveValue  bool
+	updateActiveErr    error
+	softDeleteCalls    int
+	softDeleteUserID   uint64
+	softDeleteErr      error
+}
+
+func (s *setActiveUserRepoSpy) UpdateActive(_ context.Context, userID uint64, active bool) error {
+	s.updateActiveCalls++
+	s.updateActiveUserID = userID
+	s.updateActiveValue = active
+	return s.updateActiveErr
+}
+
+func (s *setActiveUserRepoSpy) SoftDelete(_ context.Context, userID uint64) error {
+	s.softDeleteCalls++
+	s.softDeleteUserID = userID
+	return s.softDeleteErr
+}
+
+// membershipRepoSpy は SetUserActiveUseCase / RetireSelfUseCase が使う membershipRepository の
+// 最小 spy（4 メソッドだけの narrow interface なので、フル interface を mock する
+// 既存の mockKBPermissionRepo 各種は使わない — 詳細は membershipRepository の doc 参照）。
+type membershipRepoSpy struct {
+	isMember    bool
+	isMemberErr error
+
+	workspaces    []domain.MemberWorkspace
+	workspacesErr error
+
+	leaveCalls     []string // workspaceID を呼ばれた順に記録
+	leaveErrByWS   map[string]error
+	leaveActorSeen []uint64
+
+	recordCalls  int
+	recordAction domain.MembershipEventAction
+	recordOld    *string
+	recordNew    *string
+	recordTarget uint64
+	recordActor  uint64
+	recordErr    error
+	recordWSSeen string
+}
+
+func (m *membershipRepoSpy) IsWorkspaceMember(_ context.Context, _ string, _ uint64) (bool, error) {
+	return m.isMember, m.isMemberErr
+}
+
+func (m *membershipRepoSpy) ListMemberWorkspaces(_ context.Context, _ uint64) ([]domain.MemberWorkspace, error) {
+	return m.workspaces, m.workspacesErr
+}
+
+func (m *membershipRepoSpy) LeaveWorkspaceMembership(_ context.Context, workspaceID string, _, actorUserID uint64) error {
+	m.leaveCalls = append(m.leaveCalls, workspaceID)
+	m.leaveActorSeen = append(m.leaveActorSeen, actorUserID)
+	if err, ok := m.leaveErrByWS[workspaceID]; ok {
+		return err
+	}
+	return nil
+}
+
+func (m *membershipRepoSpy) RecordMembershipEvent(
+	_ context.Context, workspaceID string, targetUserID, actorUserID uint64,
+	action domain.MembershipEventAction, oldLabel, newLabel *string,
+) error {
+	m.recordCalls++
+	m.recordWSSeen = workspaceID
+	m.recordTarget = targetUserID
+	m.recordActor = actorUserID
+	m.recordAction = action
+	m.recordOld = oldLabel
+	m.recordNew = newLabel
+	return m.recordErr
+}
+
+func Test_アカウント停止_自分自身は停止できない(t *testing.T) {
+	uc := NewSetUserActiveUseCase(&setActiveUserRepoSpy{}, &membershipRepoSpy{}, fakeTxManager{})
+
+	err := uc.Execute(context.Background(), SetUserActiveInput{
+		WorkspaceID: "ws-1", TargetUserID: 7, ActorUserID: 7, Active: false,
+	})
+	if !errors.Is(err, ErrCannotSuspendSelf) {
+		t.Fatalf("自分自身を対象にしたら ErrCannotSuspendSelf のはず: %v", err)
+	}
+}
+
+func Test_アカウント停止_対象がそのワークスペースのメンバーでなければ拒否(t *testing.T) {
+	perm := &membershipRepoSpy{isMember: false}
+	users := &setActiveUserRepoSpy{stubUserRepo: stubUserRepo{user: &domain.User{ID: 7, Status: domain.UserStatusActive}}}
+	uc := NewSetUserActiveUseCase(users, perm, fakeTxManager{})
+
+	err := uc.Execute(context.Background(), SetUserActiveInput{
+		WorkspaceID: "ws-1", TargetUserID: 7, ActorUserID: 1, Active: false,
+	})
+	if !errors.Is(err, ErrTargetNotWorkspaceMember) {
+		t.Fatalf("対象が非メンバーなら ErrTargetNotWorkspaceMember のはず: %v", err)
+	}
+	if users.updateActiveCalls != 0 {
+		t.Fatalf("権限境界を通らない限り users.status を書いてはいけない: calls=%d", users.updateActiveCalls)
+	}
+}
+
+func Test_アカウント停止_成功すると停止しラベル付きで記録する(t *testing.T) {
+	perm := &membershipRepoSpy{isMember: true}
+	users := &setActiveUserRepoSpy{stubUserRepo: stubUserRepo{user: &domain.User{ID: 7, Status: domain.UserStatusActive}}}
+	uc := NewSetUserActiveUseCase(users, perm, fakeTxManager{})
+
+	err := uc.Execute(context.Background(), SetUserActiveInput{
+		WorkspaceID: "ws-1", TargetUserID: 7, ActorUserID: 1, Active: false,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.updateActiveCalls != 1 || users.updateActiveUserID != 7 || users.updateActiveValue != false {
+		t.Fatalf("UpdateActive(7, false) が呼ばれるはず: calls=%d id=%d active=%v",
+			users.updateActiveCalls, users.updateActiveUserID, users.updateActiveValue)
+	}
+	if perm.recordCalls != 1 {
+		t.Fatalf("監査記録が 1 件呼ばれるはず: calls=%d", perm.recordCalls)
+	}
+	if perm.recordAction != domain.MembershipEventSuspended {
+		t.Fatalf("action は MembershipEventSuspended のはず: got %v", perm.recordAction)
+	}
+	if perm.recordOld == nil || *perm.recordOld != "active" {
+		t.Fatalf("old label は停止前の active のはず: %v", perm.recordOld)
+	}
+	if perm.recordNew == nil || *perm.recordNew != "suspended" {
+		t.Fatalf("new label は suspended のはず: %v", perm.recordNew)
+	}
+	if perm.recordWSSeen != "ws-1" || perm.recordTarget != 7 || perm.recordActor != 1 {
+		t.Fatalf("workspace/target/actor が入力どおりでないといけない: ws=%s target=%d actor=%d",
+			perm.recordWSSeen, perm.recordTarget, perm.recordActor)
+	}
+}
+
+func Test_アカウント復帰_旧ラベルはsuspended新ラベルはactive(t *testing.T) {
+	perm := &membershipRepoSpy{isMember: true}
+	users := &setActiveUserRepoSpy{stubUserRepo: stubUserRepo{user: &domain.User{ID: 7, Status: domain.UserStatusSuspended}}}
+	uc := NewSetUserActiveUseCase(users, perm, fakeTxManager{})
+
+	err := uc.Execute(context.Background(), SetUserActiveInput{
+		WorkspaceID: "ws-1", TargetUserID: 7, ActorUserID: 1, Active: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.updateActiveValue != true {
+		t.Fatalf("UpdateActive の active は true のはず: got %v", users.updateActiveValue)
+	}
+	if perm.recordOld == nil || *perm.recordOld != "suspended" || perm.recordNew == nil || *perm.recordNew != "active" {
+		t.Fatalf("old=suspended new=active のはず: old=%v new=%v", perm.recordOld, perm.recordNew)
+	}
+}
+
+func Test_退会_所属する全ワークスペースを退出してから退会する(t *testing.T) {
+	perm := &membershipRepoSpy{
+		workspaces: []domain.MemberWorkspace{
+			{Workspace: domain.Workspace{ID: "ws-a"}},
+			{Workspace: domain.Workspace{ID: "ws-b"}},
+		},
+	}
+	users := &setActiveUserRepoSpy{}
+	uc := NewRetireSelfUseCase(users, perm, fakeTxManager{})
+
+	if err := uc.Execute(context.Background(), 9); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(perm.leaveCalls) != 2 || perm.leaveCalls[0] != "ws-a" || perm.leaveCalls[1] != "ws-b" {
+		t.Fatalf("所属する 2 つのワークスペースを順に退出するはず: %v", perm.leaveCalls)
+	}
+	for _, actor := range perm.leaveActorSeen {
+		if actor != 9 {
+			t.Fatalf("退出の actor は本人自身のはず: got %d", actor)
+		}
+	}
+	if users.softDeleteCalls != 1 || users.softDeleteUserID != 9 {
+		t.Fatalf("最後に SoftDelete(9) が呼ばれるはず: calls=%d id=%d", users.softDeleteCalls, users.softDeleteUserID)
+	}
+}
+
+func Test_退会_最後のadminのワークスペースがあれば全体を断る(t *testing.T) {
+	perm := &membershipRepoSpy{
+		workspaces: []domain.MemberWorkspace{
+			{Workspace: domain.Workspace{ID: "ws-a"}},
+			{Workspace: domain.Workspace{ID: "ws-b"}},
+		},
+		leaveErrByWS: map[string]error{"ws-b": repository.ErrLastWorkspaceAdmin},
+	}
+	users := &setActiveUserRepoSpy{}
+	uc := NewRetireSelfUseCase(users, perm, fakeTxManager{})
+
+	err := uc.Execute(context.Background(), 9)
+	if !errors.Is(err, repository.ErrLastWorkspaceAdmin) {
+		t.Fatalf("ErrLastWorkspaceAdmin のはず: %v", err)
+	}
+	if users.softDeleteCalls != 0 {
+		t.Fatalf("途中で断られたら SoftDelete は呼ばれないはず（全体が同じトランザクション）: calls=%d", users.softDeleteCalls)
+	}
+}

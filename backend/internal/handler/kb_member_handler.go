@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // KnowledgeBaseMemberHandler はナレッジの主体（principals）の出し入れを受ける。
@@ -27,6 +28,7 @@ type KnowledgeBaseMemberHandler struct {
 	removeGroupMember *kb.RemoveGroupMemberUseCase
 	ensureEveryone    *kb.EnsureSpaceEveryonePrincipalUseCase
 	canRemoveAdmin    *kb.CanRemoveWorkspaceAdminUseCase
+	setActive         *user.SetUserActiveUseCase
 }
 
 // NewKnowledgeBaseMemberHandler は KnowledgeBaseMemberHandler を組み立てる。
@@ -39,6 +41,7 @@ func NewKnowledgeBaseMemberHandler(
 	removeGroupMember *kb.RemoveGroupMemberUseCase,
 	ensureEveryone *kb.EnsureSpaceEveryonePrincipalUseCase,
 	canRemoveAdmin *kb.CanRemoveWorkspaceAdminUseCase,
+	setActive *user.SetUserActiveUseCase,
 ) *KnowledgeBaseMemberHandler {
 	return &KnowledgeBaseMemberHandler{
 		kbPermissionGate:  gate,
@@ -49,6 +52,7 @@ func NewKnowledgeBaseMemberHandler(
 		removeGroupMember: removeGroupMember,
 		ensureEveryone:    ensureEveryone,
 		canRemoveAdmin:    canRemoveAdmin,
+		setActive:         setActive,
 	}
 }
 
@@ -149,6 +153,39 @@ func (h *KnowledgeBaseMemberHandler) RemoveMember(c *gin.Context) {
 		WorkspaceID: scope.workspaceID,
 		UserID:      userID,
 		ActorUserID: scope.userID,
+	}); err != nil {
+		respondKbPermissionOperationErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// Suspend はユーザーアカウントを停止する（段 7）。効果は users.status を通じて
+// 全ワークスペースに及ぶが、実行できるのは対象が現に所属するこのワークスペースの
+// admin だけ（user.ErrTargetNotWorkspaceMember の doc 参照 — 権限昇格を防ぐ境界）。
+func (h *KnowledgeBaseMemberHandler) Suspend(c *gin.Context) {
+	h.setActiveHandler(c, false)
+}
+
+// Restore は停止したユーザーアカウントを復帰する（段 7）。権限境界は Suspend と同じ。
+func (h *KnowledgeBaseMemberHandler) Restore(c *gin.Context) {
+	h.setActiveHandler(c, true)
+}
+
+func (h *KnowledgeBaseMemberHandler) setActiveHandler(c *gin.Context, active bool) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	if !h.requireWorkspaceAdmin(c, scope) {
+		return
+	}
+	userID, ok := kbUserIDParam(c)
+	if !ok {
+		return
+	}
+	if err := h.setActive.Execute(c.Request.Context(), user.SetUserActiveInput{
+		WorkspaceID: scope.workspaceID, TargetUserID: userID, ActorUserID: scope.userID, Active: active,
 	}); err != nil {
 		respondKbPermissionOperationErr(c, err)
 		return

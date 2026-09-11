@@ -643,6 +643,9 @@ type kbFakePerms struct {
 	// 本物の repository が「最後の admin」を書き込みと同じトランザクションで断る経路
 	// （競合で手前の検査をすり抜けたとき）を、fake でも再現するために使う。
 	revokeGrantErr error
+	// leaveWorkspaceErr は LeaveWorkspaceMembership を失敗させる。revokeGrantErr と同じ理由で、
+	// 「最後の admin の退会」を本物の repository の実装をなぞらず fake から直接再現する。
+	leaveWorkspaceErr error
 }
 
 // kbScopeKey は入れ物（ワークスペース ID / スペース ID）と利用者の組。
@@ -886,6 +889,9 @@ func (f *kbFakePerms) ListMyWorkspaceInvitations(_ context.Context, userID uint6
 // LeaveWorkspaceMembership は所属を終える（principal があれば消し、invited の行も消す）。
 // actorUserID（段 6・監査）は fake では追跡しない — 実際の記録内容の検証は結合テストが持つ。
 func (f *kbFakePerms) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, _ uint64) error {
+	if f.leaveWorkspaceErr != nil {
+		return f.leaveWorkspaceErr
+	}
 	delete(f.invitations, kbScopeKey{scopeID: workspaceID, userID: userID})
 	principal := f.userPrincipal(workspaceID, userID)
 	if principal == nil {
@@ -1412,6 +1418,41 @@ func (f *kbFakePerms) ListWorkspaceMembers(_ context.Context, workspaceID string
 	return out, nil
 }
 
+// ListWorkspaceMembersForAdmin は ListWorkspaceMembers と同じ主体集合を返すが、
+// ワークスペース全体の役割（f.grants）も一緒に載せる。AccountStatus は常に active —
+// アカウントの状態（users.status）は fake の管轄外（handler パッケージの fakeUserRepo が持つ）
+// なので、停止中でも一覧から落ちないことそのものは結合テストが検証する。
+func (f *kbFakePerms) ListWorkspaceMembersForAdmin(_ context.Context, workspaceID string) ([]domain.AdminWorkspaceMember, error) {
+	out := []domain.AdminWorkspaceMember{}
+	for _, p := range f.principals {
+		if p.WorkspaceID != workspaceID || p.Kind != domain.PrincipalKindUser || p.UserID == nil {
+			continue
+		}
+		name, ok := f.userNames[*p.UserID]
+		if !ok {
+			continue
+		}
+		m := domain.AdminWorkspaceMember{
+			PrincipalID:   p.ID,
+			UserID:        *p.UserID,
+			Name:          name,
+			AccountStatus: domain.UserStatusActive,
+		}
+		if role, ok := f.grants[kbGrantKey{scopeID: workspaceID, principalID: p.ID}]; ok {
+			r := role
+			m.Role = &r
+		}
+		out = append(out, m)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].UserID < out[j].UserID
+	})
+	return out, nil
+}
+
 // DeletePrincipal は主体と、それに紐づく例外・グループ所属を消す（本番の FK CASCADE と同じ）。
 // 許可リスト制の印には触れない。載っていた主体が全員消えた段は「誰も載っていない許可リスト」
 // として残り、閉じたままになる。
@@ -1511,6 +1552,15 @@ func (f *kbFakePerms) ListWorkspaceGrants(_ context.Context, workspaceID string)
 // 専用の fake/mock を別に持つ）。呼ばれても落ちないよう空を返すだけの最小実装。
 func (f *kbFakePerms) ListMembershipEvents(context.Context, string) ([]domain.MembershipEvent, error) {
 	return []domain.MembershipEvent{}, nil
+}
+
+// RecordMembershipEvent も同様に、kb 系のテストでは記録内容を検証しない
+// （usecase/user.SetUserActiveUseCase 側の単体テストが専用の spy を持つ）。呼ばれても
+// 落ちないだけの最小実装。
+func (f *kbFakePerms) RecordMembershipEvent(
+	context.Context, string, uint64, uint64, domain.MembershipEventAction, *string, *string,
+) error {
+	return nil
 }
 
 func (f *kbFakePerms) UpsertSpaceGrant(

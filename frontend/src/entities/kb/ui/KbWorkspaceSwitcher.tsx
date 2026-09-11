@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, ChevronUpDownIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import {
+  CheckIcon,
+  ChevronUpDownIcon,
+  PlusIcon,
+  TrashIcon,
+  UsersIcon,
+} from '@heroicons/react/24/outline';
 import { ConfirmModal, NameCreateForm } from '@/shared/ui';
 import type { KbWorkspace } from '../model/types';
 
@@ -14,6 +20,11 @@ export interface KbWorkspaceSwitcherProps {
    * 未指定なら削除の入口自体を出さない（押せない印を並べない）。
    */
   onDelete?: (slug: string) => Promise<void>;
+  /**
+   * メンバー管理画面（段 7）を開く。未指定なら入口自体を出さない（onDelete と同じ理由）。
+   * canManage を持つワークスペースにだけ出す（admin でなければ開いても弾かれるだけ）。
+   */
+  onManageMembers?: (slug: string) => void;
 }
 
 /**
@@ -29,6 +40,7 @@ export default function KbWorkspaceSwitcher({
   onSelect,
   onCreate,
   onDelete,
+  onManageMembers,
 }: KbWorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   // ポップアップ内の「ワークスペースを追加」フォームの開閉。閉じるたびに畳む。
@@ -115,6 +127,19 @@ export default function KbWorkspaceSwitcher({
                   <CheckIcon className="h-4 w-4 shrink-0 text-brand-500" aria-hidden="true" />
                 )}
               </button>
+              {onManageMembers && workspace.canManage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onManageMembers(workspace.slug);
+                    setOpen(false);
+                  }}
+                  aria-label={`${workspace.name} のメンバーを管理`}
+                  className="mr-1 shrink-0 rounded p-1 text-[var(--color-text-tertiary)] opacity-0 transition-opacity hover:bg-surface-3 hover:text-[var(--color-text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <UsersIcon className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
               {onDelete && workspace.canManage && (
                 <button
                   type="button"

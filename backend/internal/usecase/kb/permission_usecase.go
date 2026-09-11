@@ -838,6 +838,24 @@ func (u *ListWorkspaceMembersUseCase) Execute(ctx context.Context, workspaceID s
 	return u.repo.ListWorkspaceMembers(ctx, workspaceID)
 }
 
+// ListWorkspaceMembersForAdminUseCase はメンバー管理画面（段 7）向けの一覧を返す。
+// ListWorkspaceMembersUseCase と違い、停止中のアカウントも含み、現在のワークスペース
+// 全体の役割も一緒に返す。呼べるのは admin だけ（handler 側の判定を参照）。
+type ListWorkspaceMembersForAdminUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListWorkspaceMembersForAdminUseCase(r repository.KnowledgeBasePermissionRepository) *ListWorkspaceMembersForAdminUseCase {
+	return &ListWorkspaceMembersForAdminUseCase{repo: r}
+}
+
+func (u *ListWorkspaceMembersForAdminUseCase) Execute(ctx context.Context, workspaceID string) ([]domain.AdminWorkspaceMember, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	return u.repo.ListWorkspaceMembersForAdmin(ctx, workspaceID)
+}
+
 // ErrPrincipalKindMismatch は主体の種類が操作に合わないときに返す
 // （グループでないものをグループとして扱おうとした等）。
 var ErrPrincipalKindMismatch = errors.New("principal kind does not match the operation")

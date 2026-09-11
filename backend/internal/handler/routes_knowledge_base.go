@@ -225,6 +225,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewRenameSpaceUseCase(pages),
 		kb.NewSearchViewablePagesUseCase(permissions),
 		kb.NewListWorkspaceMembersUseCase(permissions),
+		kb.NewListWorkspaceMembersForAdminUseCase(permissions),
 		kb.NewListMembershipEventsUseCase(permissions),
 		user.NewLookupUserDisplayUseCase(users),
 	)
@@ -261,6 +262,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewRemoveGroupMemberUseCase(permissions),
 		kb.NewEnsureSpaceEveryonePrincipalUseCase(permissions),
 		canRemoveAdmin,
+		user.NewSetUserActiveUseCase(users, permissions, txManager),
 	)
 
 	// この group には検証（Verify）を登録しないので、渡す limiter は使われない。
@@ -313,6 +315,7 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/members", wh.ListMembers)
 	// 所属・権限の変更履歴（段 6・監査）。admin だけが見られる（handler 内で CanManage を確認）。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/membership-events", wh.ListMembershipEvents)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/admin/members", wh.ListMembersForAdmin)
 	// ワークスペースの削除（配下ごと・戻せない）。会社のワークスペースは SQL 側で守る。
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug", wh.Delete)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces",
@@ -400,6 +403,11 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
 		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.InviteMember)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)
+	// アカウントの停止・復帰（段 7）。効果は全ワークスペースに及ぶが、実行できるのは
+	// 対象が現に所属するこのワークスペースの admin だけ（kb_member_handler.go の
+	// KnowledgeBaseMemberHandler.Suspend の doc 参照）。
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/members/:userId/suspend", mh.Suspend)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/members/:userId/restore", mh.Restore)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/groups", mh.CreateGroup)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.AddGroupMember)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.RemoveGroupMember)

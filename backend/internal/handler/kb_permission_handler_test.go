@@ -530,6 +530,65 @@ func Test_ナレッジ権限API_競合で断られた取り消しも409(t *testi
 	assert.JSONEq(t, `{"error":"last_workspace_admin"}`, w.Body.String())
 }
 
+// kbSuspendPath / kbRestorePath はアカウントの停止・復帰（段 7）。members/:userId の
+// サブリソースなので、認可の軸はメンバー削除と同じ「そのワークスペースの admin」。
+// pattern 版は kb_page_handler_test.go のルート登録漏れ検査（kbRoutePattern を通さず
+// gin のパターンをそのまま使う。kbPermissionEndpoints.pattern と同じ作法）が使う。
+const (
+	kbSuspendPath    = "/api/v2/kb/workspaces/{slug}/members/" + "43" + "/suspend"
+	kbRestorePath    = "/api/v2/kb/workspaces/{slug}/members/" + "43" + "/restore"
+	kbSuspendPattern = "/api/v2/kb/workspaces/:workspaceSlug/members/:userId/suspend"
+	kbRestorePattern = "/api/v2/kb/workspaces/:workspaceSlug/members/:userId/restore"
+)
+
+func Test_ナレッジ権限API_停止はadminだけが通る(t *testing.T) {
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	f.users.setUserName(kbSecondUserID, "対象ユーザー")
+
+	w := f.do(t, http.MethodPut, f.fill(kbSuspendPath), "")
+	assert.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
+}
+
+func Test_ナレッジ権限API_停止はeditorでは通らない(t *testing.T) {
+	// requireWorkspaceAdmin は他の権限操作 API と同じく、admin 以外は理由を返さず
+	// 404 に揃える（存在オラクル対策。kbDenied 参照）。
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleEditor))
+	f.users.setUserName(kbSecondUserID, "対象ユーザー")
+
+	w := f.do(t, http.MethodPut, f.fill(kbSuspendPath), "")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.JSONEq(t, kbDenied, w.Body.String())
+}
+
+func Test_ナレッジ権限API_停止は自分自身を対象にすると400(t *testing.T) {
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	f.users.setUserName(kbUserID, "呼び出し本人")
+
+	w := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/members/"+strconv.FormatUint(kbUserID, 10)+"/suspend", "")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"cannot_suspend_self"}`, w.Body.String())
+}
+
+func Test_ナレッジ権限API_停止は所属していない相手には404(t *testing.T) {
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	f.users.setUserName(kbOutsiderUserID, "非メンバー")
+
+	w := f.do(t, http.MethodPut,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/members/"+strconv.FormatUint(kbOutsiderUserID, 10)+"/suspend", "")
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"対象が現に所属していないと、無関係な他人のアカウントを止められてしまう（権限境界そのもの）")
+	assert.JSONEq(t, kbDenied, w.Body.String())
+}
+
+func Test_ナレッジ権限API_復帰はadminだけが通る(t *testing.T) {
+	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
+	f.users.setUserName(kbSecondUserID, "対象ユーザー")
+
+	w := f.do(t, http.MethodPut, f.fill(kbRestorePath), "")
+	assert.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
+}
+
 func Test_ナレッジ権限API_共有リンクは発行時の1回だけトークンを返す(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	base := "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/share-links"

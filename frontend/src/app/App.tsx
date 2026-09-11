@@ -31,6 +31,10 @@ const KbTicketPage = lazyWithReload(
   () => import('@/pages/backlog').then((m) => ({ default: m.KbTicketPage })),
   'KbTicketPage',
 );
+const KbMembersPage = lazyWithReload(
+  () => import('@/pages/kb-members').then((m) => ({ default: m.KbMembersPage })),
+  'KbMembersPage',
+);
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
 const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
@@ -112,6 +116,9 @@ export default function App() {
         <Route path="/kb/backlog" element={<KbBacklogPage />} />
         <Route path="/kb/backlog/:spaceId" element={<KbBacklogPage />} />
         <Route path="/kb/tickets/:ticketId" element={<KbTicketPage />} />
+        {/* メンバー管理（段 7）。role 変更・停止 / 復帰・削除。ワークスペース自体の設定なので
+            /kb/{pageId} と違い workspaceSlug を URL に出す（backlog の :spaceId と同じ判断）。 */}
+        <Route path="/kb/:workspaceSlug/members" element={<KbMembersPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/help" element={<HelpPage />} />
       </Route>

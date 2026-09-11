@@ -48,6 +48,10 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
       return;
     }
     if (e.key === 'Enter') {
+      // 日本語入力の変換確定 Enter は選択の確定ではない。isComposing を見ないと、
+      // 検索語を変換するたびに、そのとき選ばれているコマンドが実行されてしまう
+      // （keyCode 229 は Safari の変換中の値）。
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
       e.preventDefault();
       if (filteredItems[selectedIndex]) {
         executeCommand(filteredItems[selectedIndex]);

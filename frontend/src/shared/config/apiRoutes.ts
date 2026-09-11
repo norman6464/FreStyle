@@ -130,6 +130,26 @@ export const KB_API = {
   workspace: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}`,
   /** GET — /api/v2/kb/workspaces/:slug/members。所属していれば誰でも叩ける（裸の配列で返る） */
   members: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/members`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/admin/members
+   *
+   * メンバー管理画面（段 7）向け。members と違い admin だけが叩ける。停止中のアカウントも
+   * 含み、ワークスペース全体の役割も一緒に返す。
+   */
+  adminMembers: (workspaceSlug: string) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/admin/members`,
+  /** DELETE(削除) — /api/v2/kb/workspaces/:slug/members/:userId。冪等 */
+  member: (workspaceSlug: string, userId: number) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/members/${encodeURIComponent(userId)}`,
+  /** PUT — /api/v2/kb/workspaces/:slug/members/:userId/suspend（段 7・admin だけ） */
+  memberSuspend: (workspaceSlug: string, userId: number) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/members/${encodeURIComponent(userId)}/suspend`,
+  /** PUT — /api/v2/kb/workspaces/:slug/members/:userId/restore（段 7・admin だけ） */
+  memberRestore: (workspaceSlug: string, userId: number) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/members/${encodeURIComponent(userId)}/restore`,
+  /** PUT(付与) / DELETE(取り消し) — /api/v2/kb/workspaces/:slug/grants/:principalId */
+  workspaceGrant: (workspaceSlug: string, principalId: string) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/grants/${encodeURIComponent(principalId)}`,
   /** GET(一覧) / POST(作成) — /api/v2/kb/workspaces/:slug/spaces。一覧は見えるものだけ返る */
   spaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces`,
   /**

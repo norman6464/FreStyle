@@ -584,6 +584,13 @@ func (m *mockKBPermissionRepo) ListMembershipEvents(ctx context.Context, workspa
 	return rows, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) RecordMembershipEvent(
+	ctx context.Context, workspaceID string, targetUserID, actorUserID uint64,
+	action domain.MembershipEventAction, oldLabel, newLabel *string,
+) error {
+	return m.Called(ctx, workspaceID, targetUserID, actorUserID, action, oldLabel, newLabel).Error(0)
+}
+
 func (m *mockKBPermissionRepo) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
 	args := m.Called(ctx, workspaceID)
 	g, _ := args.Get(0).([]domain.WorkspaceGrant)
@@ -627,6 +634,12 @@ func (m *mockKBPermissionRepo) ListGrantablePrincipals(ctx context.Context, work
 func (m *mockKBPermissionRepo) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error) {
 	args := m.Called(ctx, workspaceID)
 	p, _ := args.Get(0).([]domain.WorkspaceMember)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListWorkspaceMembersForAdmin(ctx context.Context, workspaceID string) ([]domain.AdminWorkspaceMember, error) {
+	args := m.Called(ctx, workspaceID)
+	p, _ := args.Get(0).([]domain.AdminWorkspaceMember)
 	return p, args.Error(1)
 }
 

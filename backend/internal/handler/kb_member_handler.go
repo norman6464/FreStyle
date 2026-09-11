@@ -20,7 +20,7 @@ import (
 // 認可はすべて kbPermissionGate が持つ。判断の根拠は kb_permission_gate.go の冒頭を参照。
 type KnowledgeBaseMemberHandler struct {
 	*kbPermissionGate
-	addMember         *kb.AddWorkspaceMemberUseCase
+	inviteMember      *kb.InviteWorkspaceMemberUseCase
 	removeMember      *kb.RemoveWorkspaceMemberUseCase
 	createGroup       *kb.CreatePrincipalGroupUseCase
 	addGroupMember    *kb.AddGroupMemberUseCase
@@ -32,7 +32,7 @@ type KnowledgeBaseMemberHandler struct {
 // NewKnowledgeBaseMemberHandler は KnowledgeBaseMemberHandler を組み立てる。
 func NewKnowledgeBaseMemberHandler(
 	gate *kbPermissionGate,
-	addMember *kb.AddWorkspaceMemberUseCase,
+	inviteMember *kb.InviteWorkspaceMemberUseCase,
 	removeMember *kb.RemoveWorkspaceMemberUseCase,
 	createGroup *kb.CreatePrincipalGroupUseCase,
 	addGroupMember *kb.AddGroupMemberUseCase,
@@ -42,7 +42,7 @@ func NewKnowledgeBaseMemberHandler(
 ) *KnowledgeBaseMemberHandler {
 	return &KnowledgeBaseMemberHandler{
 		kbPermissionGate:  gate,
-		addMember:         addMember,
+		inviteMember:      inviteMember,
 		removeMember:      removeMember,
 		createGroup:       createGroup,
 		addGroupMember:    addGroupMember,
@@ -97,8 +97,14 @@ func kbUserIDParam(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
-// AddMember はユーザーをワークスペースのメンバーにする（冪等）。
-func (h *KnowledgeBaseMemberHandler) AddMember(c *gin.Context) {
+// InviteMember はユーザーをワークスペースへ招待する（冪等）。
+//
+// 段 2 より前は users.id を受け取ってその場で principal と editor 権限を作っていたため、
+// 相手の同意なくワークスペースへ追加でき、かつ成功（200）と 404 の差でユーザーの実在が
+// 分かった（FRESTYLE-486）。今は workspace_members に invited の行を作るだけで、
+// principal・権限は本人が招待を受諾する（AcceptInvitation。/kb/invitations 配下、
+// kb_invitation_handler.go）まで一切発生しない。
+func (h *KnowledgeBaseMemberHandler) InviteMember(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
 		return
@@ -110,20 +116,15 @@ func (h *KnowledgeBaseMemberHandler) AddMember(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// 既知の残り穴: この経路は users.id をそのまま受け取るので、admin から見ると
-	// 成功（200）と 404 の差でユーザーの実在が分かる。ワークスペースを作れば誰でも
-	// admin になれる以上、ユーザー ID 空間の走査を完全には塞げていない。
-	// 塞ぐには「誰を招けるか」を会社などで絞る必要があり、それは権限モデルの外側の
-	// 設計判断になるため別途扱う（このチケットの範囲は既存 usecase の配線）。
-	principal, err := h.addMember.Execute(c.Request.Context(), kb.AddWorkspaceMemberInput{
-		WorkspaceID: scope.workspaceID,
-		UserID:      userID,
-	})
-	if err != nil {
+	if err := h.inviteMember.Execute(c.Request.Context(), kb.InviteWorkspaceMemberInput{
+		WorkspaceID:     scope.workspaceID,
+		UserID:          userID,
+		InvitedByUserID: scope.userID,
+	}); err != nil {
 		respondKbPermissionOperationErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toKbPrincipalResponse(principal))
+	c.Status(http.StatusNoContent)
 }
 
 // RemoveMember はユーザーをワークスペースから外す（冪等）。

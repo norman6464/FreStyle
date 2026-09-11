@@ -52,20 +52,21 @@ RETURNING *;
 -- name: DeleteWorkspace :execrows
 -- ワークスペースを消す。**そこに所属している人がいるものは消さない**（WHERE で弾く）。
 --
--- 配下（spaces / pages / blocks / page_paths / principals / grants / 共有リンク）は
--- すべて workspaces への FK が ON DELETE CASCADE で連なっているので、この 1 文で消える。
+-- 配下（spaces / pages / blocks / page_paths / principals / grants / 共有リンク /
+-- workspace_members）はすべて workspaces への FK が ON DELETE CASCADE で連なっているので、
+-- この 1 文で消える。
 --
 -- 人が居るワークスペースを守るのは、そこに全員のナレッジが入るため。1 人の操作でみんなの
--- 資産が消えてよいはずがない。users.workspace_id の FK（fk_users_workspace）も同じ削除を
--- 物理的に止めるが、それに任せると理由が制約違反エラーの文面でしか分からない。WHERE で
--- 明示して 0 行で返し、呼び出し側が「無い」と「人が居る」を撃ち分けられるようにする。
+-- 資産が消えてよいはずがない。WHERE で明示して 0 行で返し、呼び出し側が「無い」と
+-- 「人が居る」を撃ち分けられるようにする。
 --
--- 判定は users を見る。呼び出し側の引数に頼ると、そこを間違えたときに守りが消える。
+-- 判定は workspace_members の active な行（段 2）。invited（まだ受諾していない）だけの
+-- ワークスペースは「人が居る」に数えない — 誰もまだ実際にはアクセスしていないため。
 DELETE FROM workspaces w
 WHERE w.id = $1
   AND NOT EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.workspace_id = w.id
+      SELECT 1 FROM workspace_members wm
+      WHERE wm.workspace_id = w.id AND wm.status = 'active'
   );
 
 -- name: GetSpace :one

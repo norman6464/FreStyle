@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-
-	"github.com/google/uuid"
 )
 
 // toInt64ID は domain の uint64 id を DB の bigint(int64) へ変換する。
@@ -30,31 +28,4 @@ var errOutOfRangeID = errors.New("id が bigint の範囲を超えている")
 // outOfRangeIDError は書き込みを諦めた列を添えて errOutOfRangeID を返す。
 func outOfRangeIDError(column string, id uint64) error {
 	return fmt.Errorf("%w: %s=%d", errOutOfRangeID, column, id)
-}
-
-// toNullUUID は domain の string id（workspaceID 等）を DB の uuid へ変換する。
-// 空文字列・不正な形式は ok=false（読み取りは「存在し得ない id」= 該当レコードなしで良い）。
-func toNullUUID(id string) (uuid.NullUUID, bool) {
-	if id == "" {
-		return uuid.NullUUID{}, false
-	}
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return uuid.NullUUID{}, false
-	}
-	return uuid.NullUUID{UUID: parsed, Valid: true}, true
-}
-
-// nullWorkspaceID は domain の *string（workspace_id）を書き込み用の uuid.NullUUID へ変換する。
-// nil（未所属）は NULL を書く正当な値なので ok=true のまま返す。不正な形式の文字列だけを
-// ok=false にする（1 行も書けていないと呼び出し側へ伝えるため。toInt64ID と同じ役割分担）。
-func nullWorkspaceID(workspaceID *string) (uuid.NullUUID, bool) {
-	if workspaceID == nil {
-		return uuid.NullUUID{}, true
-	}
-	nu, ok := toNullUUID(*workspaceID)
-	if !ok {
-		return uuid.NullUUID{}, false
-	}
-	return nu, true
 }

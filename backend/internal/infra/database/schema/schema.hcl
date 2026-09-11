@@ -25,17 +25,15 @@ schema "public" {
 # 中核（users / workspaces / notifications …）
 # =====================================================================
 
-# 利用者。deleted_at は実際に NULL になり得る。workspace_id は未所属で NULL。
+# 利用者。deleted_at は実際に NULL になり得る。
 #
 # アプリ全体のロール（かつての users.role）は撤去済み。権限は per-workspace の
 # grant（workspace_grants / space_grants / page_grants / course_grants / chapter_grants、
 # domain.GrantRole）だけで表現する。
 #
-# workspace_id → workspaces.id は、users と workspaces が互いを参照する真の循環依存
-# （workspaces.personal_owner_user_id が users を参照する）。Atlas は FK をまとめて
-# 末尾の ALTER で張るため、宣言側は普通の foreign_key ブロックのままで済む
-# （かつては「workspaces の CREATE TABLE より後でなければ張れない」ために DO ブロックで
-# 追加していた唯一の例外だった）。
+# 段 2: 所属の正本だった workspace_id は撤去した（1 人 1 ワークスペースの単一列で、
+# 実運用では一度も書かれず常に NULL だった）。所属は workspace_members が表す
+# （1 人が複数のワークスペースに所属できる。table "workspace_members" のコメント参照）。
 table "users" {
   schema = schema.public
   column "id" {
@@ -74,19 +72,8 @@ table "users" {
     null = true
     type = timestamptz
   }
-  # 所属の正本（company_id は撤去済み）。
-  column "workspace_id" {
-    null = true
-    type = uuid
-  }
   primary_key {
     columns = [column.id]
-  }
-  foreign_key "fk_users_workspace" {
-    columns     = [column.workspace_id]
-    ref_columns = [table.workspaces.column.id]
-    on_update   = NO_ACTION
-    on_delete   = NO_ACTION
   }
   check "ck_users_status" {
     expr = "status = ANY (ARRAY['active'::text, 'suspended'::text, 'deactivated'::text])"
@@ -241,6 +228,103 @@ table "workspaces" {
   # URL に出る識別子は空文字禁止・長さ上限（アプリ側検証と二重の壁）。
   check "ck_workspaces_slug_len" {
     expr = "(char_length((slug)::text) >= 1) AND (char_length((slug)::text) <= 64)"
+  }
+}
+
+# workspace_members: ユーザーとワークスペースの所属そのもの（段 2）。1 人が複数の
+# ワークスペースに所属できる（ユーザー決定 2026-09-10。個人ワークスペースと会社の
+# ワークスペースを両方持つ実態に合わせる）。
+#
+# status は招待から離脱までのライフサイクルを表す:
+#   invited   … 管理者が招いたが、本人はまだ受諾していない（権限はまだ何も届かない）。
+#   active    … 実際のメンバー。principals(kind='user') の対応する行がある状態と対で成り立つ
+#               （下の対応関係を参照）。
+#   suspended … 運営判断で一時的に外した状態（今の usecase はまだ書き込まない。将来の
+#               管理操作のための予約）。
+#   left      … 離脱・招待の辞退・削除。行は消さずここに残す（いつ誰が居たかの記録）。
+#
+# # principals との対応関係（procedural invariant。DB の制約では表現しない）
+#
+# 「status = 'active' の行がある」⟺「principals(kind='user') の対応する行がある」。
+# 主体（principals）は**権限を張る宛先**に意味を絞り、作成・削除は必ず workspace_members の
+# 状態遷移と同じトランザクションで行う:
+#   - 自分でワークスペースを作る／個人ワークスペースの自動作成 → 作成者を active で直接作り、
+#     同じトランザクションで principal も作る（招待の手順を踏む理由が無いため）。
+#   - 管理者が他人を招く → まず invited の行だけを作る（principal は作らない＝権限はまだ無い）。
+#   - 招待された本人が受諾する → invited → active に進め、そこで初めて principal を作る。
+#   - 外す／辞退する → active/invited → left に進め、principal があれば削除する
+#     （grant も FK の CASCADE でついて消える）。
+#
+# 招待を「同意なく他人を追加できる穴」にしないための設計（メンバー追加が任意の users.id を
+# 受け付ける問題の根本対応）。invited の間は principal が無いので、相手のワークスペースへの
+# アクセス権は本人が受諾するまで一切発生しない。
+table "workspace_members" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "user_id" {
+    null = false
+    type = bigint
+  }
+  column "status" {
+    null = false
+    type = text
+  }
+  # invited_by_user_id は招待した人の記録。自分でワークスペースを作った／個人ワークスペースを
+  # 自動作成した場合は誰にも招かれていないので NULL。
+  column "invited_by_user_id" {
+    null = true
+    type = bigint
+  }
+  # joined_at は active になった日時（invited のままなら NULL）。
+  column "joined_at" {
+    null = true
+    type = timestamptz
+  }
+  # left_at は left になった日時（active/invited のままなら NULL）。
+  column "left_at" {
+    null = true
+    type = timestamptz
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  column "updated_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.workspace_id, column.user_id]
+  }
+  # ワークスペースが消えれば所属の記録も一緒に消えてよい（持ち物。workspaces の削除は
+  # DeleteWorkspaceUseCase が配下ごと消す操作で、その一部として扱う）。
+  foreign_key "fk_workspace_members_workspace" {
+    columns     = [column.workspace_id]
+    ref_columns = [table.workspaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 本人自身の所属の記録なので持ち物（CASCADE）。段 1 の方針参照（users テーブル直後のコメント）。
+  foreign_key "fk_workspace_members_user" {
+    columns     = [column.user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # invited_by_user_id は「誰が招いたか」という記録なので RESTRICT（段 1 の方針）。
+  foreign_key "fk_workspace_members_invited_by" {
+    columns     = [column.invited_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
+  check "ck_workspace_members_status" {
+    expr = "status = ANY (ARRAY['invited'::text, 'active'::text, 'suspended'::text, 'left'::text])"
   }
 }
 
@@ -1395,11 +1479,12 @@ table "comments" {
 
 # principals: 権限を与える相手（主体）。
 #
-# **この表がワークスペース所属の唯一の表現**（「そのワークスペースに kind='user' の行がある」
-# ＝ そのユーザーはメンバー）。workspace_memberships のようなメンバーシップ専用の表は
-# 作らない・足さないこと。作ると「principal はあるがメンバーではない」「メンバーだが
-# principal が無い」の 2 通りのずれが生まれ、どちらが正かを決められなくなる。
-# 所属の追加 / 削除はこの表への 1 行の INSERT / DELETE で表す。
+# 段 2 以降、所属そのものの正本は workspace_members（招待・受諾・離脱のライフサイクルを
+# 持つ）。この表（kind='user' の行）は「権限を張る宛先」に意味を絞り、workspace_members が
+# status='active' になった行とだけ対で存在する（workspace_members のコメントにある procedural
+# invariant を参照。principal はあるが active な所属が無い / active な所属はあるが principal が
+# 無い、という 2 通りのずれを作らないよう、作成・削除は必ず workspace_members の状態遷移と
+# 同じトランザクションで行うこと）。
 #
 # 「未所属」は行が無いことで表す。専用の値（0 や空文字）は置かない。既存の users.company_id が
 # NULL と 0 の 2 通りで未所属を表していて層をまたいで混在していた轍を踏まないため。

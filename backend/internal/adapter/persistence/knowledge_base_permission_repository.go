@@ -138,48 +138,61 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 	if !uok {
 		return nil, repository.ErrUserNotFound
 	}
-	// 先に引いてから作る。ユーザーの主体は (workspace_id, user_id) の部分 UNIQUE で 1 つに限られ、
-	// 競合したら INSERT が一意制約で落ちるので、その場合はもう一度引き直して既存を返す。
-	row, err := r.queries(ctx).GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
-		WorkspaceID: wsID,
-		UserID:      sql.NullInt64{Int64: uid, Valid: true},
-	})
-	if err == nil {
-		p := toDomainPrincipal(row)
-		return &p, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	id, err := kbNewID()
+	row, err := ensureUserPrincipalInTx(ctx, r.queries(ctx), wsID, uid)
 	if err != nil {
 		return nil, err
 	}
-	created, err := r.queries(ctx).InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
+	p := toDomainPrincipal(row)
+	return &p, nil
+}
+
+// ensureUserPrincipalInTx は EnsureUserPrincipal の本体（qtx を直接受け取る形）。
+// AcceptWorkspaceInvitation のように、複数の書き込みを 1 つのトランザクションへ
+// まとめたい呼び出し元向け（runInTx の mutate 内では r.queries(ctx) ではなく必ず
+// 引数の qtx を使う — ctx には runInTx が開いた tx が乗っていないため、r.queries(ctx) を
+// 使うと別の接続・別のトランザクションを掴んでしまう）。
+func ensureUserPrincipalInTx(
+	ctx context.Context, qtx *sqlcgen.Queries, workspaceID uuid.UUID, userID int64,
+) (sqlcgen.Principal, error) {
+	// 先に引いてから作る。ユーザーの主体は (workspace_id, user_id) の部分 UNIQUE で 1 つに限られ、
+	// 競合したら INSERT が一意制約で落ちるので、その場合はもう一度引き直して既存を返す。
+	row, err := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+		WorkspaceID: workspaceID,
+		UserID:      sql.NullInt64{Int64: userID, Valid: true},
+	})
+	if err == nil {
+		return row, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return sqlcgen.Principal{}, err
+	}
+	id, err := kbNewID()
+	if err != nil {
+		return sqlcgen.Principal{}, err
+	}
+	created, err := qtx.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
 		ID:          id,
-		WorkspaceID: wsID,
+		WorkspaceID: workspaceID,
 		Kind:        string(domain.PrincipalKindUser),
-		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		UserID:      sql.NullInt64{Int64: userID, Valid: true},
 	})
 	if err != nil {
 		// 実在しないユーザー ID を渡された場合は users への FK で落ちる。入力の誤りなので
 		// 制約違反のまま上へ流さず、「そのユーザーは居ない」として返す（500 にしない）。
 		if isForeignKeyViolation(err) {
-			return nil, repository.ErrUserNotFound
+			return sqlcgen.Principal{}, repository.ErrUserNotFound
 		}
 		// 同時に同じユーザーを追加したときは一意制約で落ちる。既存を返して冪等にする。
-		existing, getErr := r.queries(ctx).GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
-			WorkspaceID: wsID,
-			UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		existing, getErr := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+			WorkspaceID: workspaceID,
+			UserID:      sql.NullInt64{Int64: userID, Valid: true},
 		})
 		if getErr != nil {
-			return nil, err
+			return sqlcgen.Principal{}, err
 		}
-		p := toDomainPrincipal(existing)
-		return &p, nil
+		return existing, nil
 	}
-	p := toDomainPrincipal(created)
-	return &p, nil
+	return created, nil
 }
 
 func (r *knowledgeBasePermissionRepository) EnsureSpaceEveryonePrincipal(ctx context.Context, workspaceID, spaceID string) (*domain.Principal, error) {
@@ -517,19 +530,31 @@ func (r *knowledgeBasePermissionRepository) withLastAdminGuard(
 	mutate func(qtx *sqlcgen.Queries) error,
 ) error {
 	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
-		guard, err := qtx.LockWorkspaceAdminGrantsForRemoval(ctx, sqlcgen.LockWorkspaceAdminGrantsForRemovalParams{
-			WorkspaceID: workspaceID,
-			PrincipalID: principalID,
-		})
-		if err != nil {
-			return err
-		}
-		// 元から admin ではない相手なら、この操作で admin は 1 人も減らない。
-		if guard.TargetIsAdmin && !guard.OtherUserAdminRemains {
-			return repository.ErrLastWorkspaceAdmin
-		}
-		return mutate(qtx)
+		return lastAdminGuardedMutate(ctx, qtx, workspaceID, principalID, mutate)
 	})
+}
+
+// lastAdminGuardedMutate は withLastAdminGuard の検査本体（qtx を直接受け取り、トランザクション
+// 境界を持たない）。LeaveWorkspaceMembership のように、この検査を他の書き込みと同じ
+// トランザクションへまとめたい呼び出し元は、独自に runInTx を開いてこちらを直接呼ぶ
+// （withLastAdminGuard を呼ぶと二重に BeginTx してしまう）。
+func lastAdminGuardedMutate(
+	ctx context.Context, qtx *sqlcgen.Queries,
+	workspaceID, principalID uuid.UUID,
+	mutate func(qtx *sqlcgen.Queries) error,
+) error {
+	guard, err := qtx.LockWorkspaceAdminGrantsForRemoval(ctx, sqlcgen.LockWorkspaceAdminGrantsForRemovalParams{
+		WorkspaceID: workspaceID,
+		PrincipalID: principalID,
+	})
+	if err != nil {
+		return err
+	}
+	// 元から admin ではない相手なら、この操作で admin は 1 人も減らない。
+	if guard.TargetIsAdmin && !guard.OtherUserAdminRemains {
+		return repository.ErrLastWorkspaceAdmin
+	}
+	return mutate(qtx)
 }
 
 func (r *knowledgeBasePermissionRepository) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
@@ -1057,6 +1082,173 @@ func (r *knowledgeBasePermissionRepository) ListMemberWorkspaces(ctx context.Con
 		})
 	}
 	return out, nil
+}
+
+func (r *knowledgeBasePermissionRepository) InviteWorkspaceMember(
+	ctx context.Context, workspaceID string, userID, invitedByUserID uint64,
+) error {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return repository.ErrWorkspaceNotFound
+	}
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return repository.ErrUserNotFound
+	}
+	invitedBy, ibok := toInt64ID(invitedByUserID)
+	if !ibok {
+		return repository.ErrUserNotFound
+	}
+	_, err := r.queries(ctx).UpsertInvitedWorkspaceMember(ctx, sqlcgen.UpsertInvitedWorkspaceMemberParams{
+		WorkspaceID:     wsID,
+		UserID:          uid,
+		InvitedByUserID: sql.NullInt64{Int64: invitedBy, Valid: true},
+	})
+	if err != nil {
+		// 実在しないユーザー ID は users / workspaces への FK で落ちる（招待相手・招待した人の
+		// どちらの入力誤りかは区別できないが、呼び出し側は必ず招待した本人の ID を渡すので
+		// 通常は招待相手側の誤り）。
+		if isForeignKeyViolation(err) {
+			return repository.ErrUserNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *knowledgeBasePermissionRepository) AcceptWorkspaceInvitation(
+	ctx context.Context, workspaceID string, userID uint64,
+) (*domain.Principal, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return nil, repository.ErrWorkspaceInvitationNotFound
+	}
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return nil, repository.ErrWorkspaceInvitationNotFound
+	}
+	var principal domain.Principal
+	err := r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		n, err := qtx.ActivateWorkspaceMembership(ctx, sqlcgen.ActivateWorkspaceMembershipParams{
+			WorkspaceID: wsID,
+			UserID:      uid,
+		})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return repository.ErrWorkspaceInvitationNotFound
+		}
+		row, err := ensureUserPrincipalInTx(ctx, qtx, wsID, uid)
+		if err != nil {
+			return err
+		}
+		// 受諾した瞬間から全員が書ける（AddWorkspaceMemberUseCase が踏襲していた
+		// ユーザー決定 2026-08-28 と同じ既定）。無いときだけ与える（上書きしない）。
+		if err := qtx.InsertWorkspaceGrantIfAbsent(ctx, sqlcgen.InsertWorkspaceGrantIfAbsentParams{
+			WorkspaceID: wsID,
+			PrincipalID: row.ID,
+			Role:        string(domain.GrantRoleEditor),
+		}); err != nil {
+			return err
+		}
+		principal = toDomainPrincipal(row)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &principal, nil
+}
+
+func (r *knowledgeBasePermissionRepository) DeclineWorkspaceInvitation(ctx context.Context, workspaceID string, userID uint64) error {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return repository.ErrWorkspaceInvitationNotFound
+	}
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return repository.ErrWorkspaceInvitationNotFound
+	}
+	n, err := r.queries(ctx).DeclineWorkspaceInvitation(ctx, sqlcgen.DeclineWorkspaceInvitationParams{
+		WorkspaceID: wsID,
+		UserID:      uid,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrWorkspaceInvitationNotFound
+	}
+	return nil
+}
+
+func (r *knowledgeBasePermissionRepository) ListMyWorkspaceInvitations(ctx context.Context, userID uint64) ([]domain.WorkspaceInvitation, error) {
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return []domain.WorkspaceInvitation{}, nil
+	}
+	rows, err := r.queries(ctx).ListMyWorkspaceInvitations(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.WorkspaceInvitation, 0, len(rows))
+	for _, row := range rows {
+		inv := domain.WorkspaceInvitation{
+			WorkspaceSlug: row.WorkspaceSlug,
+			WorkspaceName: row.WorkspaceName,
+			InvitedAt:     row.InvitedAt,
+		}
+		if row.InvitedByUserID.Valid {
+			inv.InvitedByUserID = uint64(row.InvitedByUserID.Int64)
+		}
+		out = append(out, inv)
+	}
+	return out, nil
+}
+
+// LeaveWorkspaceMembership は所属を終える。principal（実メンバーとしての権限一式）が
+// あれば「最後の admin」検査を通したうえで削除し、workspace_members は消さず left にする
+// （いつ誰が居たかの記録として残す）。
+func (r *knowledgeBasePermissionRepository) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return nil // 存在し得ないワークスペース = 既に非メンバー
+	}
+	uid, uok := toInt64ID(userID)
+	if !uok {
+		return nil // 存在し得ないユーザー = 既に非メンバー
+	}
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		principal, err := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
+			WorkspaceID: wsID,
+			UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		})
+		switch {
+		case err == nil:
+			if delErr := lastAdminGuardedMutate(ctx, qtx, wsID, principal.ID, func(qtx *sqlcgen.Queries) error {
+				n, derr := qtx.DeletePrincipal(ctx, sqlcgen.DeletePrincipalParams{WorkspaceID: wsID, ID: principal.ID})
+				if derr != nil {
+					return derr
+				}
+				if n == 0 {
+					return repository.ErrPrincipalNotFound
+				}
+				return nil
+			}); delErr != nil {
+				return delErr
+			}
+		case errors.Is(err, sql.ErrNoRows):
+			// principal が無い（invited のままだった、既に非メンバー等）。所属の記録だけ更新する。
+		default:
+			return err
+		}
+		_, err = qtx.LeaveWorkspaceMembership(ctx, sqlcgen.LeaveWorkspaceMembershipParams{
+			WorkspaceID: wsID,
+			UserID:      uid,
+		})
+		return err
+	})
 }
 
 func (r *knowledgeBasePermissionRepository) SpacePermissionFactsForUser(

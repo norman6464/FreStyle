@@ -1147,7 +1147,11 @@ func TestKnowledgeBaseDeleteWorkspace_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, truncTables...)
 		ws := createWorkspace(t, sqlDB, "ws-with-members")
 		member := createUser(t, sqlDB, "member")
-		_, err := sqlDB.Exec(`UPDATE users SET workspace_id = $1 WHERE id = $2`, ws, member)
+		// 段 2: 所属の正本は workspace_members（active な行）。
+		_, err := sqlDB.Exec(
+			`INSERT INTO workspace_members (workspace_id, user_id, status, joined_at) VALUES ($1, $2, 'active', now())`,
+			ws, member,
+		)
 		require.NoError(t, err)
 
 		err = repo.DeleteWorkspace(ctx, ws)
@@ -1170,6 +1174,59 @@ func TestKnowledgeBaseDeleteWorkspace_Integration(t *testing.T) {
 		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM spaces WHERE workspace_id = $1`, ws).Scan(&spaceCount))
 		assert.Zero(t, wsCount)
 		assert.Zero(t, spaceCount, "配下は FK CASCADE で一緒に消える")
+	})
+
+	t.Run("招待中の人しかいないワークスペースは消える（まだ誰も実際には所属していない）", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, truncTables...)
+		ws := createWorkspace(t, sqlDB, "ws-invited-only")
+		invitee := createUser(t, sqlDB, "invitee")
+		_, err := sqlDB.Exec(
+			`INSERT INTO workspace_members (workspace_id, user_id, status) VALUES ($1, $2, 'invited')`,
+			ws, invitee,
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, repo.DeleteWorkspace(ctx, ws), "invited だけでは「人が居る」に数えない")
+	})
+
+	t.Run("段2移行前の姿: principalsだけの既存メンバーはbackfillしないと守られない", func(t *testing.T) {
+		// 本番は 2026-09-11 時点で principals(kind='user') が 6 件（workspace_members は
+		// まだ存在しない）。段 2 の schema-apply を先に当てて workspace_members への
+		// backfill を後回しにすると、既存メンバーがいるワークスペースでも
+		// 「人が居ない」と誤判定されて消せてしまう（安全装置の穴）。
+		// この危険性を再現したうえで、正しい backfill 手順（apply の前に実行する）が
+		// それを塞ぐことを固定する。
+		testsupport.TruncateAll(t, sqlDB, truncTables...)
+		ws := createWorkspace(t, sqlDB, "ws-migration-before")
+		member := createUser(t, sqlDB, "legacy-member")
+		_, err := sqlDB.Exec(
+			`INSERT INTO principals (id, workspace_id, kind, user_id) VALUES (gen_random_uuid(), $1, 'user', $2)`,
+			ws, member,
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, repo.DeleteWorkspace(ctx, ws),
+			"backfill 前は workspace_members が空なので誤って消せてしまう（危険性の実証）")
+
+		// 同じ状況を、backfill を先に実行してから再現する。
+		ws2 := createWorkspace(t, sqlDB, "ws-migration-after")
+		member2 := createUser(t, sqlDB, "legacy-member-2")
+		_, err = sqlDB.Exec(
+			`INSERT INTO principals (id, workspace_id, kind, user_id) VALUES (gen_random_uuid(), $1, 'user', $2)`,
+			ws2, member2,
+		)
+		require.NoError(t, err)
+		// 本番適用手順: schema-apply の前に実行する backfill（PR の説明にも記載）。
+		_, err = sqlDB.Exec(`
+			INSERT INTO workspace_members (workspace_id, user_id, status, joined_at, created_at, updated_at)
+			SELECT p.workspace_id, p.user_id, 'active', p.created_at, p.created_at, p.updated_at
+			FROM principals p
+			WHERE p.kind = 'user'
+			ON CONFLICT (workspace_id, user_id) DO NOTHING`)
+		require.NoError(t, err)
+
+		err = repo.DeleteWorkspace(ctx, ws2)
+		assert.ErrorIs(t, err, repository.ErrWorkspaceHasMembers, "backfill 後は正しく守られる")
 	})
 
 	t.Run("存在しないワークスペースはErrWorkspaceNotFound", func(t *testing.T) {

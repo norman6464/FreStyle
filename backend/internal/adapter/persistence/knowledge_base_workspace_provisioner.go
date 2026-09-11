@@ -92,6 +92,15 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 			}
 			return err
 		}
+		// 作成者を workspace_members の active な所属として記録する。自分でワークスペースを
+		// 作る経路は招待の手順を踏む理由が無いので、invited を経由せず直接 active にする
+		// （schema.hcl の table "workspace_members" コメントにある procedural invariant）。
+		if err := qtx.InsertActiveWorkspaceMember(ctx, sqlcgen.InsertActiveWorkspaceMemberParams{
+			WorkspaceID: wsID,
+			UserID:      ownerID,
+		}); err != nil {
+			return err
+		}
 		// 作成者をこのワークスペースの主体にする。principals の行があること自体が所属なので、
 		// この 1 行が入らないとワークスペースは誰も入れないまま残る（middleware が全経路で
 		// 所属を確かめ、非メンバーには 404 を返すため、作成者にも見えなくなる）。

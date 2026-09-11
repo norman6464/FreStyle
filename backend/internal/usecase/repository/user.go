@@ -20,8 +20,6 @@ type UserRepository interface {
 	// 無ければ ("", nil)。
 	OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
-	// ListByWorkspaceID はワークスペース単位のユーザー一覧を返す。
-	ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error)
 	// Create は users 行を 1 件作る。OIDC identity と不可分に作りたい場合は、
 	// 呼び出し側（usecase）が TxManager.DoInTx の中で UserOidcIdentityRepository.EnsureIdentity と
 	// 併せて呼ぶ（repository 層はまたがるテーブルのトランザクションを自前で持たない）。
@@ -38,6 +36,4 @@ type UserRepository interface {
 	// （UpsertUserFromIDTokenUseCase 参照）。既に別のアクティブユーザーに使われている
 	// 値を渡すと ErrEmailTaken を返す。
 	UpdateEmail(ctx context.Context, userID uint64, email string) error
-	// UpdateWorkspaceID は既存ユーザーが workspace に紐付くときに呼ばれる。
-	UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error
 }

@@ -19,11 +19,10 @@ const kbSlug = "acme"
 func Test_ワークスペース解決_所属していれば返る(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	perm := &mockKBPermissionRepo{}
-	users := &mockUserRepo{}
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
 	perm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(true, nil)
-	uc := kb.NewResolveWorkspaceUseCase(repo, perm, users)
+	uc := kb.NewResolveWorkspaceUseCase(repo, perm)
 
 	ws, err := uc.Execute(context.Background(), kb.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
 
@@ -34,10 +33,9 @@ func Test_ワークスペース解決_所属していれば返る(t *testing.T) 
 func Test_ワークスペース解決_停止中なら存在しないのと同じ(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	perm := &mockKBPermissionRepo{}
-	users := &mockUserRepo{}
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: false}, nil)
-	uc := kb.NewResolveWorkspaceUseCase(repo, perm, users)
+	uc := kb.NewResolveWorkspaceUseCase(repo, perm)
 
 	_, err := uc.Execute(context.Background(), kb.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
 
@@ -50,21 +48,19 @@ func Test_ワークスペース解決_停止中なら存在しないのと同じ
 func Test_ワークスペース解決_未所属は存在しないのと同じ(t *testing.T) {
 	member := &mockKnowledgeBaseRepo{}
 	memberPerm := &mockKBPermissionRepo{}
-	memberUsers := &mockUserRepo{}
 	member.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
+	// 段 2 以降、URL を知っているだけでは入れない（招待→受諾を経ていない非メンバーは
+	// 404 のまま）。
 	memberPerm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
-	// 非メンバーでも、会社のワークスペースなら自動で入る。ここでは「会社が違う」ので
-	// 入れる先が無い（ErrWorkspaceNotFound）ことを表し、404 に倒れることを確かめる。
-	memberUsers.On("FindByID", mock.Anything, uint64(1)).Return((*domain.User)(nil), nil)
 
 	unknown := &mockKnowledgeBaseRepo{}
 	unknown.On("FindWorkspaceBySlug", mock.Anything, "no-such").
 		Return(nil, repository.ErrWorkspaceNotFound)
 
-	_, foreignErr := kb.NewResolveWorkspaceUseCase(member, memberPerm, memberUsers).
+	_, foreignErr := kb.NewResolveWorkspaceUseCase(member, memberPerm).
 		Execute(context.Background(), kb.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
-	_, unknownErr := kb.NewResolveWorkspaceUseCase(unknown, &mockKBPermissionRepo{}, &mockUserRepo{}).
+	_, unknownErr := kb.NewResolveWorkspaceUseCase(unknown, &mockKBPermissionRepo{}).
 		Execute(context.Background(), kb.ResolveWorkspaceInput{Slug: "no-such", UserID: 1})
 
 	require.ErrorIs(t, foreignErr, repository.ErrWorkspaceNotFound,
@@ -72,32 +68,8 @@ func Test_ワークスペース解決_未所属は存在しないのと同じ(t 
 	require.ErrorIs(t, unknownErr, repository.ErrWorkspaceNotFound)
 }
 
-// 会社のワークスペースは、まだ principals の行が無くても開ける（その場で所属を用意する）。
-// これが無いと、会社ごとのワークスペースを作成者以外の誰も開けない。
-func Test_ワークスペース解決_会社のワークスペースなら所属を用意して通す(t *testing.T) {
-	repo := &mockKnowledgeBaseRepo{}
-	perms := &mockKBPermissionRepo{}
-	users := &mockUserRepo{}
-	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
-		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
-	perms.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, nil)
-	wsID := kbWS
-	users.On("FindByID", mock.Anything, uint64(1)).Return(&domain.User{ID: 1, WorkspaceID: &wsID}, nil)
-	perms.On("EnsureUserPrincipal", mock.Anything, kbWS, uint64(1)).
-		Return(&domain.Principal{ID: "principal-1", WorkspaceID: kbWS}, nil)
-	perms.On("GrantWorkspaceRoleIfAbsent", mock.Anything, kbWS, "principal-1", domain.GrantRoleEditor).
-		Return(nil)
-
-	ws, err := kb.NewResolveWorkspaceUseCase(repo, perms, users).
-		Execute(context.Background(), kb.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
-
-	require.NoError(t, err)
-	assert.Equal(t, kbWS, ws.ID)
-	perms.AssertExpectations(t)
-}
-
 func Test_ワークスペース解決_入力の検証(t *testing.T) {
-	uc := kb.NewResolveWorkspaceUseCase(&mockKnowledgeBaseRepo{}, &mockKBPermissionRepo{}, &mockUserRepo{})
+	uc := kb.NewResolveWorkspaceUseCase(&mockKnowledgeBaseRepo{}, &mockKBPermissionRepo{})
 	ctx := context.Background()
 
 	_, err := uc.Execute(ctx, kb.ResolveWorkspaceInput{Slug: kbSlug})
@@ -114,11 +86,86 @@ func Test_ワークスペース解決_所属判定の失敗はそのまま返す
 	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
 		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
 	perm.On("IsWorkspaceMember", mock.Anything, kbWS, uint64(1)).Return(false, boom)
-	uc := kb.NewResolveWorkspaceUseCase(repo, perm, &mockUserRepo{})
+	uc := kb.NewResolveWorkspaceUseCase(repo, perm)
 
 	_, err := uc.Execute(context.Background(), kb.ResolveWorkspaceInput{Slug: kbSlug, UserID: 1})
 
 	require.ErrorIs(t, err, boom, "DB 障害を「不在」に潰すと 500 が 404 に化ける")
+}
+
+func Test_招待受諾_principalを作り既定editorを与える(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	perm := &mockKBPermissionRepo{}
+	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
+	perm.On("AcceptWorkspaceInvitation", mock.Anything, kbWS, uint64(7)).
+		Return(&domain.Principal{ID: "principal-1", WorkspaceID: kbWS}, nil)
+	uc := kb.NewAcceptWorkspaceInvitationUseCase(repo, perm)
+
+	ws, err := uc.Execute(context.Background(), kb.AcceptWorkspaceInvitationInput{
+		WorkspaceSlug: kbSlug, UserID: 7,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, kbWS, ws.ID)
+	perm.AssertExpectations(t)
+}
+
+func Test_招待受諾_停止中のワークスペースは不在扱い(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	perm := &mockKBPermissionRepo{}
+	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: false}, nil)
+	uc := kb.NewAcceptWorkspaceInvitationUseCase(repo, perm)
+
+	_, err := uc.Execute(context.Background(), kb.AcceptWorkspaceInvitationInput{
+		WorkspaceSlug: kbSlug, UserID: 7,
+	})
+	assert.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
+	perm.AssertNotCalled(t, "AcceptWorkspaceInvitation", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func Test_招待受諾_招待が無ければそのまま伝える(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	perm := &mockKBPermissionRepo{}
+	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
+	perm.On("AcceptWorkspaceInvitation", mock.Anything, kbWS, uint64(7)).
+		Return(nil, repository.ErrWorkspaceInvitationNotFound)
+	uc := kb.NewAcceptWorkspaceInvitationUseCase(repo, perm)
+
+	_, err := uc.Execute(context.Background(), kb.AcceptWorkspaceInvitationInput{
+		WorkspaceSlug: kbSlug, UserID: 7,
+	})
+	assert.ErrorIs(t, err, repository.ErrWorkspaceInvitationNotFound)
+}
+
+func Test_招待辞退_辞退する(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	perm := &mockKBPermissionRepo{}
+	repo.On("FindWorkspaceBySlug", mock.Anything, kbSlug).
+		Return(&domain.Workspace{ID: kbWS, Slug: kbSlug, IsActive: true}, nil)
+	perm.On("DeclineWorkspaceInvitation", mock.Anything, kbWS, uint64(7)).Return(nil)
+	uc := kb.NewDeclineWorkspaceInvitationUseCase(repo, perm)
+
+	err := uc.Execute(context.Background(), kb.DeclineWorkspaceInvitationInput{
+		WorkspaceSlug: kbSlug, UserID: 7,
+	})
+	require.NoError(t, err)
+	perm.AssertExpectations(t)
+}
+
+func Test_招待一覧_自分宛のものを返す(t *testing.T) {
+	perm := &mockKBPermissionRepo{}
+	want := []domain.WorkspaceInvitation{{WorkspaceSlug: kbSlug, WorkspaceName: "Acme"}}
+	perm.On("ListMyWorkspaceInvitations", mock.Anything, uint64(7)).Return(want, nil)
+	uc := kb.NewListMyWorkspaceInvitationsUseCase(perm)
+
+	got, err := uc.Execute(context.Background(), 7)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+
+	_, err = uc.Execute(context.Background(), 0)
+	require.Error(t, err, "userID 必須")
 }
 
 // mockWorkspaceProvisioner は repository.WorkspaceProvisioner のモック。

@@ -162,7 +162,7 @@ func registerTicketRoutesWith(
 	g.GET("/kb/tickets/:ticketId", h.ResolveByID)
 
 	tkGroup := g.Group("", middleware.KnowledgeBaseWorkspace(
-		kb.NewResolveWorkspaceUseCase(pages, permissions, users),
+		kb.NewResolveWorkspaceUseCase(pages, permissions),
 	))
 
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets/enable", h.Enable)

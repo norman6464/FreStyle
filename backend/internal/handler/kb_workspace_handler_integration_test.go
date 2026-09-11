@@ -474,34 +474,23 @@ func TestKnowledgeBasePrivateSpaceAPI_Integration(t *testing.T) {
 // TestKnowledgeBaseWorkspaceMembership_Integration は「同じワークスペースに属する人は
 // チームスペースを見られる」を実 PostgreSQL で確かめる。
 //
-// 所属は users.workspace_id が表すが、ナレッジの所属（principals の行）は作成者にしか
-// 無かったため、同じワークスペースの他のメンバーには一覧にも出ず URL も 404 だった。
-// ここでその経路を固定する。
+// 所属の正本は principals（kind='user'）の行の有無（段 2 以降は workspace_members の
+// active な行と対で存在する）。作成者にしか所属が無ければ、同じワークスペースの他の
+// メンバーには一覧にも出ず URL も 404 になる。ここでその経路を固定する。
 func TestKnowledgeBaseWorkspaceMembership_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	env := newKbEnv(t, sqlDB, "acme")
 	alice := kbInsertUser(t, sqlDB, "alice") // ワークスペースを作った人
-	bob := kbInsertUser(t, sqlDB, "bob")     // 同じワークスペースの別の人（principals の行は無い）
+	bob := kbInsertUser(t, sqlDB, "bob")     // 同じワークスペースの別の人
 	carol := kbInsertUser(t, sqlDB, "carol") // 別のワークスペースの人
 	env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+	env.joinWorkspace(t, bob, domain.GrantRoleEditor)
 
-	// テナント参照は users.workspace_id ただ 1 つなので、所属は workspaces の行を用意して
-	// そこへ直接向ける（実 DB を直接書き換えるテスト下ごしらえ）。
 	rivalWorkspaceID := kbInsertWorkspace(t, sqlDB, "rival")
-	for _, c := range []struct {
-		user      uint64
-		workspace string
-	}{
-		{alice, env.workspaceID},
-		{bob, env.workspaceID},
-		{carol, rivalWorkspaceID},
-	} {
-		_, err := sqlDB.Exec(
-			`UPDATE users SET workspace_id = $1 WHERE id = $2`,
-			c.workspace, c.user,
-		)
-		require.NoError(t, err)
-	}
+	rivalPrincipal, err := env.permissions.EnsureUserPrincipal(t.Context(), rivalWorkspaceID, carol)
+	require.NoError(t, err)
+	_, err = env.permissions.UpsertWorkspaceGrant(t.Context(), rivalWorkspaceID, rivalPrincipal.ID, domain.GrantRoleEditor)
+	require.NoError(t, err)
 
 	// alice がチームスペースへページを 1 枚置く。
 	pageRes := env.as(alice).do(t, http.MethodPost, env.pagesPath(), `{"title":"全社の議事録"}`)
@@ -509,7 +498,7 @@ func TestKnowledgeBaseWorkspaceMembership_Integration(t *testing.T) {
 	var page kbPageResponse
 	require.NoError(t, json.Unmarshal(pageRes.Body.Bytes(), &page))
 
-	t.Run("同じワークスペースの人は一覧・木・本文まで届く（所属は自動で用意される）", func(t *testing.T) {
+	t.Run("同じワークスペースの人は一覧・木・本文まで届く", func(t *testing.T) {
 		e := env.as(bob)
 
 		listed := e.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")

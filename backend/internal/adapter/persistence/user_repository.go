@@ -29,14 +29,13 @@ func (r *userRepository) queries(ctx context.Context) *sqlcgen.Queries {
 	return sqlcgen.New(r.dbtx(ctx))
 }
 
-// userRow は user 系クエリが返す共通の行形（users 全列）。
-// 各クエリの生成 Row 型はフィールド構成が同一なので、この型へ変換して 1 つの詰め替えに集約する。
-type userRow = sqlcgen.GetUserByIDRow
-
-// toDomainUser は sqlc 生成モデル → domain への詰め替え。
+// toDomainUser は sqlc 生成モデル（users 全列）→ domain への詰め替え。
+// GetUserByID / GetUserByOidcSubject は返す列が users の全列と一致するため、
+// sqlc は専用の Row 型を作らずテーブルの生成モデル（sqlcgen.User）をそのまま返す。
+//
 // id 系は DB が bigint(int64) で domain が uint64。値は採番シーケンス由来で常に非負・int64 範囲内のため
 // 変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
-func toDomainUser(row userRow) *domain.User {
+func toDomainUser(row sqlcgen.User) *domain.User {
 	u := &domain.User{
 		ID:        uint64(row.ID),
 		Email:     row.Email,
@@ -44,10 +43,6 @@ func toDomainUser(row userRow) *domain.User {
 		Status:    domain.UserStatus(row.Status),
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
-	}
-	if row.WorkspaceID.Valid {
-		wid := row.WorkspaceID.UUID.String()
-		u.WorkspaceID = &wid
 	}
 	if row.DeletedAt.Valid {
 		t := row.DeletedAt.Time
@@ -65,7 +60,7 @@ func (r *userRepository) FindByOidcSubject(ctx context.Context, sub string) (*do
 	if err != nil {
 		return nil, err
 	}
-	return toDomainUser(userRow(row)), nil
+	return toDomainUser(row), nil
 }
 
 func (r *userRepository) OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
@@ -100,23 +95,6 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	return toDomainUser(row), nil
 }
 
-func (r *userRepository) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error) {
-	wid, ok := toNullUUID(workspaceID)
-	if !ok {
-		return make([]domain.User, 0), nil
-	}
-	q := r.queries(ctx)
-	rows, err := q.ListUsersByWorkspaceID(ctx, wid)
-	if err != nil {
-		return nil, err
-	}
-	users := make([]domain.User, 0, len(rows))
-	for _, row := range rows {
-		users = append(users, *toDomainUser(userRow(row)))
-	}
-	return users, nil
-}
-
 // Create は users 行を 1 件作る。OIDC identity と不可分に作りたい場合は、
 // 呼び出し側（usecase）が TxManager.DoInTx の中で UserOidcIdentityRepository.EnsureIdentity と
 // 併せて呼ぶ（このメソッド自身はトランザクションを開始しない。ctx に乗っていればそれに乗る）。
@@ -142,11 +120,6 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
-	wid, ok := nullWorkspaceID(user.WorkspaceID)
-	if !ok {
-		return fmt.Errorf("workspace_id が不正な形式です: %q", *user.WorkspaceID)
-	}
-	params.WorkspaceID = wid
 	if user.DeletedAt != nil {
 		params.DeletedAt = sql.NullTime{Time: *user.DeletedAt, Valid: true}
 	}
@@ -171,13 +144,12 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 			return fmt.Errorf("user id %d が int64 の範囲外です", user.ID)
 		}
 		row, err := q.InsertUserWithID(ctx, sqlcgen.InsertUserWithIDParams{
-			ID:          fixedID,
-			Email:       params.Email,
-			Name:        params.Name,
-			WorkspaceID: params.WorkspaceID,
-			CreatedAt:   params.CreatedAt,
-			UpdatedAt:   params.UpdatedAt,
-			DeletedAt:   params.DeletedAt,
+			ID:        fixedID,
+			Email:     params.Email,
+			Name:      params.Name,
+			CreatedAt: params.CreatedAt,
+			UpdatedAt: params.UpdatedAt,
+			DeletedAt: params.DeletedAt,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -273,31 +245,6 @@ func (r *userRepository) UpdateEmail(ctx context.Context, userID uint64, email s
 		if isUniqueViolation(err) {
 			return repository.ErrEmailTaken
 		}
-		return err
-	}
-	if affected == 0 {
-		return domain.ErrNotFound
-	}
-	return nil
-}
-
-// UpdateWorkspaceID は所属ワークスペースを付け替える。
-// workspaceID は呼び出し側が既に解決した値をそのまま渡す（サブクエリで引き直さない）。
-func (r *userRepository) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {
-	id64, ok := toInt64ID(userID)
-	if !ok {
-		return domain.ErrNotFound // 存在し得ない id = not found
-	}
-	wid, ok := nullWorkspaceID(workspaceID)
-	if !ok {
-		return fmt.Errorf("workspace_id が不正な形式です: %q", *workspaceID)
-	}
-	q := r.queries(ctx)
-	affected, err := q.UpdateUserWorkspaceID(ctx, sqlcgen.UpdateUserWorkspaceIDParams{
-		ID:          id64,
-		WorkspaceID: wid,
-	})
-	if err != nil {
 		return err
 	}
 	if affected == 0 {

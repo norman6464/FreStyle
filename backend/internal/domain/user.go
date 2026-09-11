@@ -16,12 +16,14 @@ const (
 )
 
 // User はアプリケーション利用者のドメインモデル。
+//
+// 所属ワークスペースへの参照はここには無い（段 2 で撤去済みの旧 workspace_id）。
+// 1 人が複数のワークスペースに所属できるため、所属は workspace_members が正本で持つ
+// （usecase/kb.ListMemberWorkspacesUseCase 等を参照）。
 type User struct {
 	ID    uint64 `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name"`
-	// WorkspaceID は所属ワークスペースへの参照。未所属は NULL。
-	WorkspaceID *string `json:"workspaceId,omitempty"`
 	// Status はアカウントの状態。deactivated のときだけ DeletedAt が非 nil になる
 	// （DB の ck_users_status_deleted_at が両者の整合を縛る）。
 	Status    UserStatus `json:"status"`
@@ -33,11 +35,3 @@ type User struct {
 // IsActive はアカウントが通常どおり利用できる状態かを返す。false なら
 // ログイン/利用不可になる（middleware で弾く）。
 func (u User) IsActive() bool { return u.Status == UserStatusActive }
-
-// WorkspaceRef は所属ワークスペースへの参照を返す。未所属(workspace_id = NULL)は NoWorkspace。
-func (u User) WorkspaceRef() WorkspaceRef {
-	if u.WorkspaceID == nil {
-		return NoWorkspace()
-	}
-	return WorkspaceRefOf(*u.WorkspaceID)
-}

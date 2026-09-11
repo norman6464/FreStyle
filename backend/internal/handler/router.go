@@ -66,7 +66,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 
 	authed := v2.Group("")
 	authed.Use(middleware.JWTAuth(buildJWTVerify(verifier)))
-	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewKnowledgeBaseRepository(deps.db)))
+	authed.Use(middleware.CurrentUser(deps.userRepo))
 
 	registerAuthAuthedRoutes(authed, authHandler)
 	registerProfileRoutes(authed, deps)

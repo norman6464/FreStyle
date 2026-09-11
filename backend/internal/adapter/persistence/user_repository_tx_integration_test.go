@@ -114,42 +114,6 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.NotEqual(t, before, userUpdatedAt(t, sqlDB, u.ID))
 	})
 
-	t.Run("ListByWorkspaceID はワークスペースで絞り id 昇順・論理削除を除く", func(t *testing.T) {
-		testsupport.TruncateAll(t, sqlDB, userTxTables...)
-		ws1 := createWorkspace(t, sqlDB, "list-by-workspace-a")
-		ws2 := createWorkspace(t, sqlDB, "list-by-workspace-b")
-		a := &domain.User{Email: "m1@example.com", Name: "m1", WorkspaceID: &ws1}
-		b := &domain.User{Email: "m2@example.com", Name: "m2", WorkspaceID: &ws1}
-		other := &domain.User{Email: "m3@example.com", Name: "m3", WorkspaceID: &ws2}
-		for _, u := range []*domain.User{a, b, other} {
-			require.NoError(t, repo.Create(ctx, u))
-			require.NoError(t, oidcRepo.EnsureIdentity(ctx, u.ID, domain.OidcProviderDefault, u.Name))
-		}
-
-		rows, err := repo.ListByWorkspaceID(ctx, ws1)
-		require.NoError(t, err)
-		require.Len(t, rows, 2)
-		require.Equal(t, "m1", rows[0].Name)
-		require.Equal(t, "m2", rows[1].Name)
-
-		require.NoError(t, repo.SoftDelete(ctx, b.ID))
-		rows, err = repo.ListByWorkspaceID(ctx, ws1)
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-
-		// 該当なしでも nil ではなく空スライス（JSON が null にならない）。
-		empty, err := repo.ListByWorkspaceID(ctx, "0198a000-0000-7000-8000-0000000000ff")
-		require.NoError(t, err)
-		require.NotNil(t, empty)
-		require.Empty(t, empty)
-
-		// 不正な文字列（uuid として解釈できない）も該当なしと同じ扱い。
-		invalid, err := repo.ListByWorkspaceID(ctx, "not-a-uuid")
-		require.NoError(t, err)
-		require.NotNil(t, invalid)
-		require.Empty(t, invalid)
-	})
-
 	t.Run("OidcSubjectByUserID は subject を返し、無ければ空文字", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "sub@example.com", "sub-1")

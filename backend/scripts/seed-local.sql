@@ -124,15 +124,15 @@ WHERE id IN (:'kb_workspace_id', :'kb_workspace_alpha_id', :'kb_workspace_suppor
 -- 全廃済みなので、もう company_id 経由で workspace_id を引けないし role_id 列自体も無い。
 -- アプリ全体の運営管理者という概念自体を持たない（権限は workspace/space/page 単位の
 -- grant だけで表現する。domain.GrantRole 参照）ため、ここに判定材料を持たせる必要も無い。
--- workspace_id は所属先が無いので NULL のままにする(users.workspace_id は nullable)。
 -- パスワード検証は DB 側ではなく Dex(docker/idp/config.yaml の staticPasswords)側が持つ。
 -- users.password_hash 列自体が撤去済みなので、そもそも投入するものが無い。
-INSERT INTO users (id, email, name, workspace_id, status, created_at, updated_at)
+-- 所属先は users 側にはもう無い(users.workspace_id は段 2 で撤去済み)。所属は
+-- workspace_members が正本(下のナレッジのセクションで運営管理者だけ実際に作る)。
+INSERT INTO users (id, email, name, status, created_at, updated_at)
 SELECT
   1000000 + i,
   'seed' || i || '@example.test',
   'シード利用者' || i,
-  NULL,
   'active',
   now() - (random() * 365)::int * interval '1 day',
   now()
@@ -141,9 +141,9 @@ FROM generate_series(1, :n_users) AS i;
 -- オフラインで管理画面まで触れるよう、運営管理者を 1 人入れる
 -- (admin@example.com / password。Dex 側の docker/idp/config.yaml staticPasswords で認証する)。
 -- id 1000000 は連番（1000000 + i, i >= 1）と衝突しない。
-INSERT INTO users (id, email, name, workspace_id, status, created_at, updated_at)
+INSERT INTO users (id, email, name, status, created_at, updated_at)
 VALUES (
-  1000000, 'admin@example.com', 'シード運営管理者', NULL, 'active', now(), now()
+  1000000, 'admin@example.com', 'シード運営管理者', 'active', now(), now()
 );
 
 -- OIDC identity（正規化後のログイン突き合わせの正）。
@@ -208,10 +208,14 @@ VALUES (1000000, 'シード運営管理者です。', '', '運用中', now());
 -- 単純な SELECT なので、slug やレコードの作成経路までは区別しない)。
 --
 -- 本物のワークスペース作成(ProvisionWorkspace)がやることを SQL でそのまま再現する:
---   workspaces を 1 行 → 作成者を principals(kind='user') で所属させる
---   → workspace_grants で admin を張る(所属だけでは何も見えない)。
+--   workspaces を 1 行 → 作成者を workspace_members へ active で記録する(段 2)
+--   → principals(kind='user') で所属させる → workspace_grants で admin を張る
+--   (所属だけでは何も見えない)。
 INSERT INTO workspaces (id, slug, name, personal_owner_user_id)
 VALUES (:'kb_workspace_id', 'local-dev', 'ローカル開発サンプル', 1000000);
+
+INSERT INTO workspace_members (workspace_id, user_id, status, joined_at)
+VALUES (:'kb_workspace_id', 1000000, 'active', now());
 
 INSERT INTO principals (id, workspace_id, kind, user_id)
 VALUES (:'kb_principal_admin_id', :'kb_workspace_id', 'user', 1000000);
@@ -368,6 +372,14 @@ INSERT INTO workspaces (id, slug, name, personal_owner_user_id)
 VALUES
   (:'kb_workspace_alpha_id',   'project-alpha', 'プロジェクトαチーム', NULL),
   (:'kb_workspace_support_id', 'support-team',  'サポートチーム',       NULL);
+
+INSERT INTO workspace_members (workspace_id, user_id, status, joined_at)
+VALUES
+  (:'kb_workspace_alpha_id',   1000000, 'active', now()),
+  (:'kb_workspace_alpha_id',   1000001, 'active', now()),
+  (:'kb_workspace_alpha_id',   1000002, 'active', now()),
+  (:'kb_workspace_support_id', 1000000, 'active', now()),
+  (:'kb_workspace_support_id', 1000003, 'active', now());
 
 INSERT INTO principals (id, workspace_id, kind, user_id)
 VALUES

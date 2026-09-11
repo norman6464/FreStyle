@@ -415,14 +415,13 @@ type TicketType struct {
 }
 
 type User struct {
-	ID          int64
-	Email       string
-	Name        string
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
-	WorkspaceID uuid.NullUUID
+	ID        int64
+	Email     string
+	Name      string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
 }
 
 type UserOidcIdentity struct {
@@ -450,4 +449,15 @@ type WorkspaceGrant struct {
 	Role        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type WorkspaceMember struct {
+	WorkspaceID     uuid.UUID
+	UserID          int64
+	Status          string
+	InvitedByUserID sql.NullInt64
+	JoinedAt        sql.NullTime
+	LeftAt          sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }

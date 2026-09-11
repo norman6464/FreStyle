@@ -215,7 +215,6 @@ func registerKnowledgeBaseRoutesWith(
 
 	wh := NewKnowledgeBaseWorkspaceHandler(
 		kb.NewListMemberWorkspacesUseCase(permissions),
-		kb.NewJoinCompanyWorkspaceUseCase(permissions, users),
 		kb.NewCreateWorkspaceUseCase(provisioner),
 		kb.NewDeleteWorkspaceUseCase(pages),
 		kb.NewCheckWorkspacePermissionUseCase(permissions),
@@ -252,7 +251,7 @@ func registerKnowledgeBaseRoutesWith(
 
 	mh := NewKnowledgeBaseMemberHandler(
 		gate,
-		kb.NewAddWorkspaceMemberUseCase(permissions),
+		kb.NewInviteWorkspaceMemberUseCase(permissions),
 		kb.NewRemoveWorkspaceMemberUseCase(permissions),
 		kb.NewCreatePrincipalGroupUseCase(permissions),
 		kb.NewAddGroupMemberUseCase(permissions),
@@ -288,8 +287,19 @@ func registerKnowledgeBaseRoutesWith(
 	// 鍵はユーザー単位（kbCreateWorkspacePerMinute の doc 参照）。
 	g.POST("/kb/workspaces", middleware.RateLimitPerMinutePerUser(kbCreateWorkspacePerMinute, kbCreateWorkspaceBurst), wh.Create)
 
+	// 自分宛の招待（段 2）。受諾するまで所属していないので、ここも
+	// middleware.KnowledgeBaseWorkspace を通さない（所属済みしか通さないため）。
+	ih := NewKnowledgeBaseInvitationHandler(
+		kb.NewListMyWorkspaceInvitationsUseCase(permissions),
+		kb.NewAcceptWorkspaceInvitationUseCase(pages, permissions),
+		kb.NewDeclineWorkspaceInvitationUseCase(pages, permissions),
+	)
+	g.GET("/kb/invitations", ih.List)
+	g.POST("/kb/invitations/:workspaceSlug/accept", ih.Accept)
+	g.POST("/kb/invitations/:workspaceSlug/decline", ih.Decline)
+
 	kbGroup := g.Group("", middleware.KnowledgeBaseWorkspace(
-		kb.NewResolveWorkspaceUseCase(pages, permissions, users),
+		kb.NewResolveWorkspaceUseCase(pages, permissions),
 	))
 	// スペースの一覧はワークスペースのメンバーなら誰でも叩ける（返る中身が権限で変わる）。
 	// 作成と違って admin の gate を掛けないのは、これがサイドバーの入口だから。
@@ -375,17 +385,15 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/principals", gh.ListGrantablePrincipals)
 
 	// 権限を張る相手（principals）の出し入れ。
-	// メンバー追加だけは回数に上限を置く。この口は users.id をそのまま受け取り、
-	// 成功（200）と 404 の差でユーザーの実在が分かる。ワークスペースは認証済みなら誰でも
-	// 作れて、作った本人が admin になるので、**全ログインユーザーが使える走査器**になっている。
+	// メンバー招待だけは回数に上限を置く。この口は users.id をそのまま受け取るため、
+	// 招待の成否（204 と 404 の差）でユーザーの実在は分かる（列挙そのものは完全には
+	// 塞げていない）。ただし段 2 より前と違い、招待しただけでは principal も権限も
+	// 一切発生しない（本人が /kb/invitations/:workspaceSlug/accept を呼ぶまで所属しない。
+	// FRESTYLE-486 の主眼だった「同意なく他人を追加できる」問題はこちらで塞いでいる）。
 	// 鍵はログイン中のユーザー（検証済み JWT 由来なので付け替えられない。IP は XFF で
 	// 付け替えられるため鍵に使わない）。
-	//
-	// 走査そのものを塞ぐには「誰を招けるか」を会社などで絞る必要があり、それは
-	// 権限モデルの外側の設計判断になる（同意なく他人を自分のワークスペースへ入れられる、
-	// という別の問題も同じところに根がある）。ここで掛けるのは速度の頭打ちまで。
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
-		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.AddMember)
+		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.InviteMember)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/groups", mh.CreateGroup)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/groups/:groupPrincipalId/members/:userId", mh.AddGroupMember)

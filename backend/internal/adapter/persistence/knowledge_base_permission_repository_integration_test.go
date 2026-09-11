@@ -95,11 +95,32 @@ func (f kbPermFixture) permFor(ctx context.Context, t *testing.T, pageID string,
 }
 
 // principalFor はユーザーの主体を用意して返す（ワークスペースへの所属追加も兼ねる）。
+//
+// EnsureUserPrincipal 自体は principal 行しか作らない（段 2 以降、所属の正本は
+// workspace_members に分離され、AcceptWorkspaceInvitation のような実際の受諾経路は
+// ActivateWorkspaceMembership を別途呼ぶ）。ここは「所属している体」を作るための
+// 小道具なので、principal と揃えて workspace_members も active にしておく
+// （でないと ListGrantablePrincipals / ListWorkspaceMembers の active フィルタに落ちる）。
 func (f kbPermFixture) principalFor(ctx context.Context, t *testing.T, userID uint64) *domain.Principal {
 	t.Helper()
 	p, err := f.perm.EnsureUserPrincipal(ctx, f.ws, userID)
 	require.NoError(t, err)
+	f.makeActiveMember(t, f.ws, userID)
 	return p
+}
+
+// makeActiveMember は workspace_members に active な所属行を用意する（無ければ作り、
+// あれば active に揃える）。principalFor と違ってワークスペースを明示で選べるので、
+// f.ws 以外（f.otherWS 等）の所属を作りたいテストから直接呼ぶ。
+func (f kbPermFixture) makeActiveMember(t *testing.T, workspaceID string, userID uint64) {
+	t.Helper()
+	_, err := f.db.Exec(
+		`INSERT INTO workspace_members (workspace_id, user_id, status, joined_at)
+		 VALUES ($1, $2, 'active', now())
+		 ON CONFLICT (workspace_id, user_id) DO UPDATE SET status = 'active'`,
+		workspaceID, userID,
+	)
+	require.NoError(t, err)
 }
 
 // everyoneOf はそのスペースの「全員」の主体を用意して返す。
@@ -460,6 +481,23 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		out, err = f.perm.IsWorkspaceMemberBulk(ctx, f.otherWS, []uint64{f.alice})
 		require.NoError(t, err)
 		assert.Empty(t, out, "同じユーザーでも別テナントでは非メンバー")
+	})
+
+	t.Run("退会・停止したユーザーは所属していても集合から外れる", func(t *testing.T) {
+		// メンション通知の宛先解決に使う経路（段 5）。principal 行はユーザーの退会・停止
+		// だけでは消えないため、users 側を突き合わせないと退会済み・停止中のユーザーへも
+		// 通知が飛んでしまう。
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		f.principalFor(ctx, t, f.bob)
+		_, err := f.db.Exec(`UPDATE users SET status = 'deactivated', deleted_at = now() WHERE id = $1`, f.alice)
+		require.NoError(t, err)
+		_, err = f.db.Exec(`UPDATE users SET status = 'suspended' WHERE id = $1`, f.bob)
+		require.NoError(t, err)
+
+		out, err := f.perm.IsWorkspaceMemberBulk(ctx, f.ws, []uint64{f.alice, f.bob})
+		require.NoError(t, err)
+		assert.Empty(t, out, "退会済み・停止中のどちらも通知先には含めない")
 	})
 
 	t.Run("別ワークスペースのprincipalにgrantを張れない", func(t *testing.T) {
@@ -1872,6 +1910,57 @@ func TestKnowledgeBaseListWorkspaceMembers_Integration(t *testing.T) {
 
 		require.Len(t, members, 1)
 		assert.Equal(t, f.alice, members[0].UserID, "よそのワークスペースの所属は混ざらない")
+	})
+
+	t.Run("停止中のユーザーも落とす", func(t *testing.T) {
+		// 「消えたユーザーは落とす」（退会 = deactivated）とは別の状態。旧クエリは
+		// status <> 'deactivated' しか見ておらず、停止（suspended）は漏れて残っていた
+		// （段 5 の修理対象）。
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		f.principalFor(ctx, t, f.bob)
+		_, err := f.db.Exec(`UPDATE users SET status = 'suspended' WHERE id = $1`, f.bob)
+		require.NoError(t, err)
+
+		members, err := f.perm.ListWorkspaceMembers(ctx, f.ws)
+		require.NoError(t, err)
+
+		require.Len(t, members, 1, "停止中も名指し・担当の候補から外す")
+		assert.Equal(t, f.alice, members[0].UserID)
+	})
+
+	t.Run("所属が有効でないと落とすしアイコンと状態メッセージも返る", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		_, err := f.db.Exec(
+			`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+			 VALUES ($1, '', $2, $3, now())`,
+			f.alice, "https://example.test/alice.png", "会議中",
+		)
+		require.NoError(t, err)
+
+		// principal だけを作り、workspace_members は意図的に left のまま残す
+		// （不変条件が崩れた状態を人為的に作る。page_grant_integration_test.go の
+		// TestGrantablePrincipals_所属が有効でないと共有候補から外れる_Integration と同じ趣旨）。
+		leftPrincipal, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.bob)
+		require.NoError(t, err)
+		_, err = f.db.Exec(
+			`INSERT INTO workspace_members (workspace_id, user_id, status, joined_at, left_at)
+			 VALUES ($1, $2, 'left', now(), now())`,
+			f.ws, f.bob,
+		)
+		require.NoError(t, err)
+
+		members, err := f.perm.ListWorkspaceMembers(ctx, f.ws)
+		require.NoError(t, err)
+
+		require.Len(t, members, 1)
+		assert.Equal(t, alice.ID, members[0].PrincipalID)
+		assert.Equal(t, "https://example.test/alice.png", members[0].AvatarURL)
+		assert.Equal(t, "会議中", members[0].StatusMessage)
+		for _, m := range members {
+			assert.NotEqual(t, leftPrincipal.ID, m.PrincipalID, "所属を終えた人は残らない")
+		}
 	})
 }
 

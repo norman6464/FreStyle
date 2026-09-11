@@ -639,9 +639,11 @@ func (r *knowledgeBasePermissionRepository) ListGrantablePrincipals(ctx context.
 	out := make([]domain.GrantablePrincipal, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, domain.GrantablePrincipal{
-			ID:   row.ID.String(),
-			Kind: domain.PrincipalKind(row.Kind),
-			Name: row.Name,
+			ID:            row.ID.String(),
+			Kind:          domain.PrincipalKind(row.Kind),
+			Name:          row.Name,
+			AvatarURL:     row.AvatarUrl,
+			StatusMessage: row.StatusMessage,
 		})
 	}
 	return out, nil
@@ -659,9 +661,11 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceMembers(ctx context.Con
 	out := make([]domain.WorkspaceMember, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, domain.WorkspaceMember{
-			PrincipalID: row.PrincipalID.String(),
-			UserID:      uint64(row.UserID),
-			Name:        row.Name,
+			PrincipalID:   row.PrincipalID.String(),
+			UserID:        uint64(row.UserID),
+			Name:          row.Name,
+			AvatarURL:     row.AvatarUrl,
+			StatusMessage: row.StatusMessage,
 		})
 	}
 	return out, nil

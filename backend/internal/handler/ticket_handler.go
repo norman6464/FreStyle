@@ -14,6 +14,7 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // ticketDateQueryLayout は一覧の絞り込みクエリパラメータ（dueBefore / startAfter）の形。
@@ -69,6 +70,8 @@ type TicketHandler struct {
 	// import しないが、handler 層は両方に依存してよい（routes_ticket.go の doc と同じ理由）。
 	ancestors              *ticket.ListTicketAncestorsUseCase
 	pagesReferencingTicket *kb.ListPagesReferencingTicketUseCase
+	// userDisplay は作成者（Get 系）・変更履歴の実行者（History）の表示解決に使う（段 5）。
+	userDisplay *user.LookupUserDisplayUseCase
 }
 
 func NewTicketHandler(
@@ -98,6 +101,7 @@ func NewTicketHandler(
 	labelsByIDs *ticket.ListLabelsByTicketIDsUseCase,
 	ancestors *ticket.ListTicketAncestorsUseCase,
 	pagesReferencingTicket *kb.ListPagesReferencingTicketUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 ) *TicketHandler {
 	return &TicketHandler{
 		checkSpace: checkSpace, checkTicket: checkTicket, resolveKey: resolveKey,
@@ -109,6 +113,7 @@ func NewTicketHandler(
 		changeParent: changeParent, assign: assign, unassign: unassign, history: history,
 		labels: labels, labelsByIDs: labelsByIDs,
 		ancestors: ancestors, pagesReferencingTicket: pagesReferencingTicket,
+		userDisplay: userDisplay,
 	}
 }
 
@@ -377,7 +382,7 @@ func (h *TicketHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
 		Labels: h.fetchLabels(c, scope, ticketID), Ancestors: h.fetchAncestors(c, scope, ticketID),
-		Permission: perm,
+		Permission: perm, CreatedBy: h.fetchCreatedBy(c, found.Ticket.CreatedByUserID),
 	})
 }
 
@@ -410,7 +415,7 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	c.JSON(http.StatusOK, ticketResponse{
 		Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
 		Labels: h.fetchLabels(c, scope, ticketID), Ancestors: h.fetchAncestors(c, scope, ticketID),
-		Permission: perm,
+		Permission: perm, CreatedBy: h.fetchCreatedBy(c, found.Ticket.CreatedByUserID),
 	})
 }
 
@@ -468,7 +473,7 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 			Ticket: &found.Ticket, AssigneePrincipalID: found.AssigneePrincipalID,
 			Labels:     h.fetchLabels(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
 			Ancestors:  h.fetchAncestors(c, kbRequestScope{workspaceID: loc.Workspace.ID, userID: uid}, ticketID),
-			Permission: perm,
+			Permission: perm, CreatedBy: h.fetchCreatedBy(c, found.Ticket.CreatedByUserID),
 		},
 		CanEdit: perm.CanEdit,
 	})
@@ -494,6 +499,16 @@ type ticketResponse struct {
 	// 判断できない。一覧の応答に含めないのは、実効権限がスペース単位で行ごとに
 	// 変わらないため（同じ値が全行に並ぶだけで通信が太る）。
 	Permission *domain.ScopePermission `json:"permission,omitempty"`
+	// CreatedBy は報告者の表示（段 5）。Ancestors / Permission と同じ理由で、詳細系の
+	// レスポンスでだけ埋める（一覧で毎行分の解決をすると N+1 になる）。
+	CreatedBy *userDisplayResponse `json:"createdBy,omitempty"`
+}
+
+// fetchCreatedBy はチケット 1 件の作成者表示を引く。fetchLabels / fetchAncestors と同じ理由で
+// 引けなくても応答は止めない。
+func (h *TicketHandler) fetchCreatedBy(c *gin.Context, createdByUserID uint64) *userDisplayResponse {
+	resp := resolveUserDisplay(c.Request.Context(), h.userDisplay, createdByUserID, userDisplayCache{})
+	return &resp
 }
 
 // fetchLabels はチケット 1 件のラベルを引く。引けなければ空スライスとして応答を止めない
@@ -960,9 +975,17 @@ func (h *TicketHandler) Unassign(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ticketHistoryGroupResponse は変更履歴 1 グループの返却形。domain.TicketChangeGroup を
+// そのまま埋め込み（actorUserId は平らなまま残る）、実行者の表示を Actor に足す
+// （ticketResponse が domain.Ticket に Labels 等を足すのと同じ作法）。
+type ticketHistoryGroupResponse struct {
+	domain.TicketChangeGroup
+	Actor userDisplayResponse `json:"actor"`
+}
+
 // ticketHistoryResponse は変更履歴の返却形。
 type ticketHistoryResponse struct {
-	Groups []domain.TicketChangeGroup `json:"groups"`
+	Groups []ticketHistoryGroupResponse `json:"groups"`
 }
 
 // History はチケットの変更履歴を新しい順に返す（閲覧権限が要る）。
@@ -982,10 +1005,15 @@ func (h *TicketHandler) History(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	if groups == nil {
-		groups = []domain.TicketChangeGroup{}
+	cache := userDisplayCache{}
+	out := make([]ticketHistoryGroupResponse, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, ticketHistoryGroupResponse{
+			TicketChangeGroup: g,
+			Actor:             resolveUserDisplay(c.Request.Context(), h.userDisplay, g.ActorUserID, cache),
+		})
 	}
-	c.JSON(http.StatusOK, ticketHistoryResponse{Groups: groups})
+	c.JSON(http.StatusOK, ticketHistoryResponse{Groups: out})
 }
 
 // PageBacklinks は、このチケットを本文の ticketRef で埋め込んでいるページ一覧を返す

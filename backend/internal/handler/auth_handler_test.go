@@ -43,6 +43,10 @@ func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 	return nil, nil
 }
 
+func (r *fakeUserRepo) FindDisplayByID(_ context.Context, _ uint64) (*domain.UserDisplay, error) {
+	return nil, nil
+}
+
 func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	if r.createErr != nil {
 		return r.createErr

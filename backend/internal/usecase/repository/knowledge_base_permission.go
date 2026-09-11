@@ -207,17 +207,23 @@ type KnowledgeBasePermissionRepository interface {
 	// DeletePageGrant はページでの既定の役割を剥がす（冪等）。
 	// 上位の段で得ている役割はそのまま残る（消えるのはこの段で足した分だけ）。
 	DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error
-	// ListGrantablePrincipals は権限を張れる相手を表示名つきで返す（kind → 名前 → id 順）。
+	// ListGrantablePrincipals は権限を張れる相手を表示名・アイコンつきで返す
+	// （kind → 名前 → id 順）。
 	//
 	// share_link は含まない。あれはリンクを踏んだ来訪者を表す主体で、リンクの発行時に
 	// 自動で作られる。人が選んで役割を与える相手ではない。
 	//
-	// 名前が引けなかった行も落とさず、Name を空文字にして返す。一覧から黙って消すと、
-	// その主体に張った権限が画面に出たまま選べない（取り消せない行）になる。
+	// 人（kind=user）は、アカウントが有効かつ所属も有効なものだけを返す（段 5）。
+	// 停止・退会したユーザーは、principal 行自体は残っていても共有候補には出さない
+	// （出し続けると、消せない権限が画面に残る）。group / space_all はこの絞り込みの
+	// 対象外で、名前が引けなかった行も落とさず Name を空文字にして返す（一覧から
+	// 黙って消すと、その主体に張った権限が画面に出たまま選べない = 取り消せない行になる）。
 	ListGrantablePrincipals(ctx context.Context, workspaceID string) ([]domain.GrantablePrincipal, error)
-	// ListWorkspaceMembers はワークスペースに属する人を表示名つきで返す（名前 → id 順）。
+	// ListWorkspaceMembers はワークスペースに属する人を表示名・アイコンつきで返す
+	// （名前 → id 順）。
 	//
-	// ListGrantablePrincipals と違い、人でない主体は含まず、消えたユーザーは落とす。
+	// ListGrantablePrincipals と違い、人でない主体は含まない。アカウントが有効かつ
+	// 所属も有効な人だけを返す（ListGrantablePrincipals と同じ判断基準 — 段 5）。
 	// 担当の表示名と発言での名指しに使う（どちらも権限を変えられない人にも要る）。
 	ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。

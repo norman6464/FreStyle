@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // チケットへの発言作成に掛ける上限。@mention は件数を打ち切ってあるが（comment_doc.go の
@@ -107,6 +108,7 @@ func registerTicketRoutesWith(
 		ticket.NewListLabelsByTicketIDsUseCase(labels),
 		ticket.NewListTicketAncestorsUseCase(tickets),
 		kb.NewListPagesReferencingTicketUseCase(permissions),
+		user.NewLookupUserDisplayUseCase(users),
 	)
 	sh := NewTicketStatusHandler(
 		checkSpace,
@@ -135,7 +137,7 @@ func registerTicketRoutesWith(
 		ticket.NewListTicketCommentEditsUseCase(comments),
 		ticket.NewAddTicketCommentReactionUseCase(comments),
 		ticket.NewRemoveTicketCommentReactionUseCase(comments),
-		kb.NewLookupUserNameUseCase(users),
+		user.NewLookupUserDisplayUseCase(users),
 	)
 	lh := NewTicketLabelHandler(
 		checkSpace,

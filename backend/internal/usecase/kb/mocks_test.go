@@ -31,6 +31,12 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id uint64) (*domain.User, e
 	return u, args.Error(1)
 }
 
+func (m *mockUserRepo) FindDisplayByID(ctx context.Context, id uint64) (*domain.UserDisplay, error) {
+	args := m.Called(ctx, id)
+	d, _ := args.Get(0).(*domain.UserDisplay)
+	return d, args.Error(1)
+}
+
 func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
 	return m.Called(ctx, u).Error(0)
 }

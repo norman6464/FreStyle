@@ -19,6 +19,10 @@ func (s *stubUsers) FindByOidcSubject(context.Context, string) (*domain.User, er
 
 func (s *stubUsers) FindByID(context.Context, uint64) (*domain.User, error) { return s.user, nil }
 
+func (s *stubUsers) FindDisplayByID(context.Context, uint64) (*domain.UserDisplay, error) {
+	return nil, nil
+}
+
 func (s *stubUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
 	return nil, nil
 }

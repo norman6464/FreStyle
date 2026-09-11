@@ -14,6 +14,7 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // KnowledgeBasePageHandler はナレッジのページ操作を受ける。
@@ -39,7 +40,7 @@ type KnowledgeBasePageHandler struct {
 	ancestors      *kb.ListViewableAncestorsUseCase
 	deletePage     *kb.DeletePageUseCase
 	setIcon        *kb.SetPageIconUseCase
-	userName       *kb.LookupUserNameUseCase
+	userDisplay    *user.LookupUserDisplayUseCase
 	issueImageUp   *kb.IssuePageImageUploadURLUseCase
 	issueImageDown *kb.IssuePageImageDownloadURLUseCase
 	setCover       *kb.SetPageCoverUseCase
@@ -70,7 +71,7 @@ func NewKnowledgeBasePageHandler(
 	ancestors *kb.ListViewableAncestorsUseCase,
 	deletePage *kb.DeletePageUseCase,
 	setIcon *kb.SetPageIconUseCase,
-	userName *kb.LookupUserNameUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 	issueImageUp *kb.IssuePageImageUploadURLUseCase,
 	issueImageDown *kb.IssuePageImageDownloadURLUseCase,
 	setCover *kb.SetPageCoverUseCase,
@@ -97,7 +98,7 @@ func NewKnowledgeBasePageHandler(
 		ancestors:       ancestors,
 		deletePage:      deletePage,
 		setIcon:         setIcon,
-		userName:        userName,
+		userDisplay:     userDisplay,
 		issueImageUp:    issueImageUp,
 		issueImageDown:  issueImageDown,
 		setCover:        setCover,
@@ -167,13 +168,6 @@ func toKbPageResponse(p *domain.Page) kbPageResponse {
 		resp.Icon = &kbPageIconResponse{Type: string(p.Icon.Type), Value: p.Icon.Value}
 	}
 	return resp
-}
-
-// kbEditorRefResponse は最終編集者の ID と表示名の組。
-type kbEditorRefResponse struct {
-	UserID uint64 `json:"userId" example:"42"`
-	// Name は引けなければ空文字（LookupUserNameUseCase の doc 参照）。
-	Name string `json:"name" example:"山田太郎"`
 }
 
 // kbPageTreeResponse はツリーの 1 ノード（子を再帰的に含む）。
@@ -1188,23 +1182,24 @@ func (h *KnowledgeBasePageHandler) ReplaceContent(c *gin.Context) {
 // kbLastEditedByResponse は最終編集者の応答形を組み立てる。userID が nil なら
 // まだ誰も本文を保存していない（nil を返す）。名前の解決に失敗しても応答は止めない
 // （Get / ResolveByID の resolveRefs と同じ扱い。空文字で埋めてログだけ残す）。
-func (h *KnowledgeBasePageHandler) kbLastEditedByResponse(ctx context.Context, userID *uint64) *kbEditorRefResponse {
-	return kbLastEditedByResponseWith(ctx, h.userName, userID)
+func (h *KnowledgeBasePageHandler) kbLastEditedByResponse(ctx context.Context, userID *uint64) *userDisplayResponse {
+	return kbLastEditedByResponseWith(ctx, h.userDisplay, userID)
 }
 
 // kbLastEditedByResponseWith は kbLastEditedByResponse の実体。KnowledgeBasePageHandler と
 // PageVersionHandler の両方が「本文保存直後の応答」（PUT .../content と POST .../restore）を
 // 同じ形で返すために package レベルの関数へ切り出してある
 // （requirePagePermissionWith と同じ理由 — 書き直すとどちらか片方だけ直し忘れて食い違う）。
-func kbLastEditedByResponseWith(ctx context.Context, userName *kb.LookupUserNameUseCase, userID *uint64) *kbEditorRefResponse {
+func kbLastEditedByResponseWith(ctx context.Context, userDisplay *user.LookupUserDisplayUseCase, userID *uint64) *userDisplayResponse {
 	if userID == nil {
 		return nil
 	}
-	name, err := userName.Execute(ctx, *userID)
+	d, err := userDisplay.Execute(ctx, *userID)
 	if err != nil {
-		slog.WarnContext(ctx, "kb: last edited by name resolve failed", "err", err)
+		slog.WarnContext(ctx, "kb: last edited by resolve failed", "err", err)
 	}
-	return &kbEditorRefResponse{UserID: *userID, Name: name}
+	resp := toUserDisplayResponse(*userID, d)
+	return &resp
 }
 
 // kbPageContentResponse は本文置き換えの結果（保存された正規形と、その焼き直し時刻）。
@@ -1212,7 +1207,7 @@ type kbPageContentResponse struct {
 	Doc     json.RawMessage `json:"doc"`
 	BuiltAt time.Time       `json:"builtAt"`
 	// LastEditedBy / LastEditedAt はこの保存で確定した最終編集者。
-	LastEditedBy *kbEditorRefResponse `json:"lastEditedBy,omitempty"`
+	LastEditedBy *userDisplayResponse `json:"lastEditedBy,omitempty"`
 	LastEditedAt *time.Time           `json:"lastEditedAt,omitempty"`
 }
 
@@ -1246,7 +1241,7 @@ type kbResolvedPageResponse struct {
 	CanComment bool             `json:"canComment"`
 	Ancestors  []kb.AncestorRef `json:"ancestors"`
 	// LastEditedBy はまだ誰も本文を保存していなければ null。name は引けなければ空文字。
-	LastEditedBy *kbEditorRefResponse `json:"lastEditedBy,omitempty"`
+	LastEditedBy *userDisplayResponse `json:"lastEditedBy,omitempty"`
 	// LastEditedAt は page_snapshots.built_at（本文保存と同じトランザクションの時刻）。
 	// pages.updated_at は改名・アイコン変更でも動くのでここには使わない。
 	LastEditedAt *time.Time `json:"lastEditedAt,omitempty"`

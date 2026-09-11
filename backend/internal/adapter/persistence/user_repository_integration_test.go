@@ -87,4 +87,41 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, byID)
 	})
+
+	// FindDisplayByID は段 5 の表示統合の要。FindByID と違い退会・停止でも解決できることが
+	// 本体（コメント・変更履歴の投稿者表示）を壊さない条件そのものなので、ここで固定する。
+	t.Run("FindDisplayByIDはFindByIDと違い退会・停止していても解決する", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities", "profiles")
+		u := &domain.User{Email: "gone@example.com", Name: "退会した人"}
+		require.NoError(t, repo.Create(ctx, u))
+		_, err := sqlDB.ExecContext(
+			ctx,
+			`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+			 VALUES ($1, '', $2, $3, now())`,
+			u.ID, "https://example.test/gone.png", "退会済み",
+		)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(
+			ctx,
+			`UPDATE users SET status = 'deactivated', deleted_at = now() WHERE id = $1`, u.ID,
+		)
+		require.NoError(t, err)
+
+		// FindByID（退会は除外する経路）は解決しない。
+		byID, err := repo.FindByID(ctx, u.ID)
+		require.NoError(t, err)
+		require.Nil(t, byID, "退会済みは FindByID では除外される")
+
+		// FindDisplayByID は解決する — 過去のコメント・変更履歴の投稿者表示を壊さないため。
+		display, err := repo.FindDisplayByID(ctx, u.ID)
+		require.NoError(t, err)
+		require.NotNil(t, display)
+		require.Equal(t, "退会した人", display.Name)
+		require.Equal(t, "https://example.test/gone.png", display.AvatarURL)
+		require.Equal(t, "退会済み", display.StatusMessage)
+
+		display, err = repo.FindDisplayByID(ctx, 999999)
+		require.NoError(t, err)
+		require.Nil(t, display, "実在しない id は (nil, nil)")
+	})
 }

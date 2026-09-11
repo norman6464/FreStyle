@@ -78,4 +78,8 @@ type GrantablePrincipal struct {
 	// Name は表示名。引けなかった場合は空文字（行は落とさない — 選べない相手が
 	// 一覧から黙って消えると、消せない権限が画面に残る）。
 	Name string `json:"name"`
+	// AvatarURL / StatusMessage は kind が user のときだけ埋まる（profiles 由来）。
+	// group / space_all は人でないので常に空文字。
+	AvatarURL     string `json:"avatarUrl"`
+	StatusMessage string `json:"status"`
 }

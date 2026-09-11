@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/comment"
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // CommentHandler はページ全体へのコメントと錨付きコメントを受ける。
@@ -24,7 +24,7 @@ type CommentHandler struct {
 	listThreads  *comment.ListCommentThreadsUseCase
 	resolve      *comment.ResolveCommentThreadUseCase
 	reopen       *comment.ReopenCommentThreadUseCase
-	userName     *kb.LookupUserNameUseCase
+	userDisplay  *user.LookupUserDisplayUseCase
 }
 
 // NewCommentHandler は CommentHandler を組み立てる。
@@ -35,7 +35,7 @@ func NewCommentHandler(
 	listThreads *comment.ListCommentThreadsUseCase,
 	resolve *comment.ResolveCommentThreadUseCase,
 	reopen *comment.ReopenCommentThreadUseCase,
-	userName *kb.LookupUserNameUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 ) *CommentHandler {
 	return &CommentHandler{
 		check:        check,
@@ -44,7 +44,7 @@ func NewCommentHandler(
 		listThreads:  listThreads,
 		resolve:      resolve,
 		reopen:       reopen,
-		userName:     userName,
+		userDisplay:  userDisplay,
 	}
 }
 
@@ -86,20 +86,13 @@ func requireCommentPermissionWith(c *gin.Context, check *kb.CheckPagePermissionU
 	return true
 }
 
-// commentAuthorRefResponse はユーザー ID と表示名の組（発言者・スレッド作成者・解決者で共通）。
-type commentAuthorRefResponse struct {
-	UserID uint64 `json:"userId"`
-	// Name は引けなければ空文字（kb.LookupUserNameUseCase の doc 参照）。
-	Name string `json:"name"`
-}
-
 // commentResponse は発言 1 件の返却形（最初の発言も返信も同じ形）。
 type commentResponse struct {
-	ID        string                   `json:"id"`
-	Author    commentAuthorRefResponse `json:"author"`
-	Body      json.RawMessage          `json:"body"`
-	CreatedAt time.Time                `json:"createdAt"`
-	UpdatedAt time.Time                `json:"updatedAt"`
+	ID        string              `json:"id"`
+	Author    userDisplayResponse `json:"author"`
+	Body      json.RawMessage     `json:"body"`
+	CreatedAt time.Time           `json:"createdAt"`
+	UpdatedAt time.Time           `json:"updatedAt"`
 }
 
 // commentThreadResponse はスレッド 1 件と、その発言（最初の発言 + 返信）の返却形。
@@ -107,45 +100,24 @@ type commentResponse struct {
 // BlockID/AnchorFrom/AnchorTo/Quote は錨付きスレッドだけ値を持つ。page-level の
 // スレッドでは 4 つとも省略される（omitempty）。
 type commentThreadResponse struct {
-	ID         string                    `json:"id"`
-	CreatedBy  commentAuthorRefResponse  `json:"createdBy"`
-	BlockID    *string                   `json:"blockId,omitempty"`
-	AnchorFrom *int                      `json:"anchorFrom,omitempty"`
-	AnchorTo   *int                      `json:"anchorTo,omitempty"`
-	Quote      *string                   `json:"quote,omitempty"`
-	ResolvedAt *time.Time                `json:"resolvedAt,omitempty"`
-	ResolvedBy *commentAuthorRefResponse `json:"resolvedBy,omitempty"`
-	CreatedAt  time.Time                 `json:"createdAt"`
-	UpdatedAt  time.Time                 `json:"updatedAt"`
-	Comments   []commentResponse         `json:"comments"`
-}
-
-// commentNameCache は 1 リクエストの応答を組み立てる間だけ使う、ユーザー名のその場限りの
-// キャッシュ。同じ user_id が同じ応答内に何度も出る場合（同じ人が何度も返信する等）に
-// LookupUserNameUseCase を何度も引かないためのもの。リクエストをまたいでは使わない。
-type commentNameCache map[uint64]string
-
-// resolveAuthorRef はユーザー ID を著者参照の応答形へ解決する。名前の解決に失敗しても
-// 応答は止めない（kb_page_handler.go の kbLastEditedByResponse と同じ扱い。空文字で埋めて
-// ログだけ残す）。
-func (h *CommentHandler) resolveAuthorRef(ctx context.Context, userID uint64, cache commentNameCache) commentAuthorRefResponse {
-	name, ok := cache[userID]
-	if !ok {
-		var err error
-		name, err = h.userName.Execute(ctx, userID)
-		if err != nil {
-			slog.WarnContext(ctx, "comment: author name resolve failed", "err", err)
-		}
-		cache[userID] = name
-	}
-	return commentAuthorRefResponse{UserID: userID, Name: name}
+	ID         string               `json:"id"`
+	CreatedBy  userDisplayResponse  `json:"createdBy"`
+	BlockID    *string              `json:"blockId,omitempty"`
+	AnchorFrom *int                 `json:"anchorFrom,omitempty"`
+	AnchorTo   *int                 `json:"anchorTo,omitempty"`
+	Quote      *string              `json:"quote,omitempty"`
+	ResolvedAt *time.Time           `json:"resolvedAt,omitempty"`
+	ResolvedBy *userDisplayResponse `json:"resolvedBy,omitempty"`
+	CreatedAt  time.Time            `json:"createdAt"`
+	UpdatedAt  time.Time            `json:"updatedAt"`
+	Comments   []commentResponse    `json:"comments"`
 }
 
 // toCommentResponse は domain.Comment を応答形へ変換する。
-func (h *CommentHandler) toCommentResponse(ctx context.Context, c domain.Comment, cache commentNameCache) commentResponse {
+func (h *CommentHandler) toCommentResponse(ctx context.Context, c domain.Comment, cache userDisplayCache) commentResponse {
 	return commentResponse{
 		ID:        c.ID,
-		Author:    h.resolveAuthorRef(ctx, c.AuthorUserID, cache),
+		Author:    resolveUserDisplay(ctx, h.userDisplay, c.AuthorUserID, cache),
 		Body:      json.RawMessage(c.Body),
 		CreatedAt: c.CreatedAt,
 		UpdatedAt: c.UpdatedAt,
@@ -154,11 +126,11 @@ func (h *CommentHandler) toCommentResponse(ctx context.Context, c domain.Comment
 
 // toCommentThreadResponse は domain.CommentThread とその発言一覧を応答形へ変換する。
 func (h *CommentHandler) toCommentThreadResponse(
-	ctx context.Context, t domain.CommentThread, comments []domain.Comment, cache commentNameCache,
+	ctx context.Context, t domain.CommentThread, comments []domain.Comment, cache userDisplayCache,
 ) commentThreadResponse {
 	resp := commentThreadResponse{
 		ID:         t.ID,
-		CreatedBy:  h.resolveAuthorRef(ctx, t.CreatedByUserID, cache),
+		CreatedBy:  resolveUserDisplay(ctx, h.userDisplay, t.CreatedByUserID, cache),
 		BlockID:    t.BlockID,
 		AnchorFrom: t.AnchorFrom,
 		AnchorTo:   t.AnchorTo,
@@ -169,7 +141,7 @@ func (h *CommentHandler) toCommentThreadResponse(
 		Comments:   make([]commentResponse, 0, len(comments)),
 	}
 	if t.ResolvedByUserID != nil {
-		ref := h.resolveAuthorRef(ctx, *t.ResolvedByUserID, cache)
+		ref := resolveUserDisplay(ctx, h.userDisplay, *t.ResolvedByUserID, cache)
 		resp.ResolvedBy = &ref
 	}
 	for _, c := range comments {
@@ -228,7 +200,7 @@ func (h *CommentHandler) CreateThread(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := commentNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusCreated, h.toCommentThreadResponse(c.Request.Context(), out.Thread, []domain.Comment{out.Comment}, cache))
 }
 
@@ -260,7 +232,7 @@ func (h *CommentHandler) AddComment(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := commentNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusCreated, h.toCommentResponse(c.Request.Context(), *out, cache))
 }
 
@@ -289,7 +261,7 @@ func (h *CommentHandler) ListThreads(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := commentNameCache{}
+	cache := userDisplayCache{}
 	threads := make([]commentThreadResponse, 0, len(out))
 	for _, t := range out {
 		threads = append(threads, h.toCommentThreadResponse(c.Request.Context(), t.Thread, t.Comments, cache))
@@ -318,7 +290,7 @@ func (h *CommentHandler) Resolve(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := commentNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusOK, h.toCommentThreadResponse(c.Request.Context(), *t, nil, cache))
 }
 
@@ -342,6 +314,6 @@ func (h *CommentHandler) Reopen(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	cache := commentNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusOK, h.toCommentThreadResponse(c.Request.Context(), *t, nil, cache))
 }

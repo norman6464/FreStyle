@@ -13,6 +13,7 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // 共有リンクの検証と、メンバー追加に掛ける上限の数値。
@@ -151,7 +152,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewListViewableAncestorsUseCase(pages, permissions),
 		kb.NewDeletePageUseCase(pages),
 		kb.NewSetPageIconUseCase(pages),
-		kb.NewLookupUserNameUseCase(users),
+		user.NewLookupUserDisplayUseCase(users),
 		kb.NewIssuePageImageUploadURLUseCase(pages, kbImagePresigner),
 		kb.NewIssuePageImageDownloadURLUseCase(pages, kbImagePresigner),
 		kb.NewSetPageCoverUseCase(pages),
@@ -170,7 +171,7 @@ func registerKnowledgeBaseRoutesWith(
 		comment.NewListCommentThreadsUseCase(comments),
 		comment.NewResolveCommentThreadUseCase(comments),
 		comment.NewReopenCommentThreadUseCase(comments),
-		kb.NewLookupUserNameUseCase(users),
+		user.NewLookupUserDisplayUseCase(users),
 	)
 
 	// ページ本文の版。一覧・単体取得は CapabilityView、
@@ -181,7 +182,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewListPageVersionsUseCase(versions),
 		kb.NewGetPageVersionUseCase(versions),
 		kb.NewRestorePageVersionUseCase(versions, replaceBlocks),
-		kb.NewLookupUserNameUseCase(users),
+		user.NewLookupUserDisplayUseCase(users),
 	)
 
 	// ページの雛形。作成・削除はワークスペース全体への CanEdit、
@@ -210,7 +211,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewAcceptPageSuggestionUseCase(suggestions, versions, replaceBlocks, txManager),
 		kb.NewRejectPageSuggestionUseCase(suggestions),
 		kb.NewGetPageVersionUseCase(versions),
-		kb.NewLookupUserNameUseCase(users),
+		user.NewLookupUserDisplayUseCase(users),
 	)
 
 	wh := NewKnowledgeBaseWorkspaceHandler(

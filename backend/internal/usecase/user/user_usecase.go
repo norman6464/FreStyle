@@ -23,6 +23,29 @@ func (u *GetCurrentUserUseCase) Execute(ctx context.Context, subject string) (*d
 	return u.users.FindByOidcSubject(ctx, subject)
 }
 
+// LookupUserDisplayUseCase はユーザー ID から、人を表示するのに要る最小限
+// （表示名・アイコン・状態メッセージ）を引く。
+//
+// チケットの作成者・変更履歴の実行者・発言の投稿者・ページの最終編集者、どの画面も
+// これを解決の単位にする（domain.UserDisplay の doc 参照）。kb / ticket / comment の
+// どの usecase サブパッケージからも import されない中立の置き場所として user に置く
+// （usecase サブパッケージ同士は import しない規約のため、handler 層が各パッケージの
+// usecase と並べてこれを直接保持する）。
+type LookupUserDisplayUseCase struct {
+	users repository.UserRepository
+}
+
+func NewLookupUserDisplayUseCase(users repository.UserRepository) *LookupUserDisplayUseCase {
+	return &LookupUserDisplayUseCase{users: users}
+}
+
+// Execute は表示情報を返す。見つからなければ (nil, nil)（「最終編集者」のような
+// 付随情報のために、本体の応答自体を失敗にはしない — handler の判断に委ねる）。
+// repository の失敗はそのまま伝える。
+func (u *LookupUserDisplayUseCase) Execute(ctx context.Context, userID uint64) (*domain.UserDisplay, error) {
+	return u.users.FindDisplayByID(ctx, userID)
+}
+
 // UpsertUserFromIDTokenInput はIDトークンから取得したユーザー情報を表す。
 type UpsertUserFromIDTokenInput struct {
 	Subject string

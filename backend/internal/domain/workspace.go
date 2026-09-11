@@ -45,6 +45,9 @@ type WorkspaceMember struct {
 	UserID      uint64 `json:"userId"`
 	// Name は表示名。空文字のことがある（登録時に名前を持たない発行者があるため）。
 	Name string `json:"name"`
+	// AvatarURL / StatusMessage は profiles 由来（段 5）。設定していなければ空文字。
+	AvatarURL     string `json:"avatarUrl"`
+	StatusMessage string `json:"status"`
 }
 
 // WorkspaceSlugMaxLen / WorkspaceNameMaxLen は workspaces の列幅（varchar(64) / varchar(200)）。

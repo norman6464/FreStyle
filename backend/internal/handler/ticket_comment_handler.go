@@ -2,14 +2,13 @@ package handler
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
-	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // TicketCommentHandler はチケットへの発言・編集履歴・反応を受ける（段 3）。
@@ -24,7 +23,7 @@ type TicketCommentHandler struct {
 	listEdits      *ticket.ListTicketCommentEditsUseCase
 	addReaction    *ticket.AddTicketCommentReactionUseCase
 	removeReaction *ticket.RemoveTicketCommentReactionUseCase
-	userName       *kb.LookupUserNameUseCase
+	userDisplay    *user.LookupUserDisplayUseCase
 }
 
 func NewTicketCommentHandler(
@@ -36,12 +35,12 @@ func NewTicketCommentHandler(
 	listEdits *ticket.ListTicketCommentEditsUseCase,
 	addReaction *ticket.AddTicketCommentReactionUseCase,
 	removeReaction *ticket.RemoveTicketCommentReactionUseCase,
-	userName *kb.LookupUserNameUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 ) *TicketCommentHandler {
 	return &TicketCommentHandler{
 		checkTicket: checkTicket, create: create, update: update, del: del,
 		list: list, listEdits: listEdits,
-		addReaction: addReaction, removeReaction: removeReaction, userName: userName,
+		addReaction: addReaction, removeReaction: removeReaction, userDisplay: userDisplay,
 	}
 }
 
@@ -64,11 +63,6 @@ func (h *TicketCommentHandler) requireTicketCommentScope(c *gin.Context, scope k
 	return perm, true
 }
 
-type ticketCommentAuthorResponse struct {
-	UserID uint64 `json:"userId"`
-	Name   string `json:"name"`
-}
-
 type ticketCommentReactionResponse struct {
 	UserID uint64 `json:"userId"`
 	Emoji  string `json:"emoji"`
@@ -77,7 +71,7 @@ type ticketCommentReactionResponse struct {
 type ticketCommentResponse struct {
 	ID              string                          `json:"id"`
 	ParentCommentID *string                         `json:"parentCommentId,omitempty"`
-	Author          ticketCommentAuthorResponse     `json:"author"`
+	Author          userDisplayResponse             `json:"author"`
 	Body            json.RawMessage                 `json:"body"`
 	Edited          bool                            `json:"edited"`
 	Reactions       []ticketCommentReactionResponse `json:"reactions"`
@@ -89,23 +83,8 @@ type ticketCommentListResponse struct {
 	Comments []ticketCommentResponse `json:"comments"`
 }
 
-type ticketCommentNameCache map[uint64]string
-
-func (h *TicketCommentHandler) resolveAuthor(c *gin.Context, userID uint64, cache ticketCommentNameCache) ticketCommentAuthorResponse {
-	name, ok := cache[userID]
-	if !ok {
-		var err error
-		name, err = h.userName.Execute(c.Request.Context(), userID)
-		if err != nil {
-			slog.WarnContext(c.Request.Context(), "ticket comment: author name resolve failed", "err", err)
-		}
-		cache[userID] = name
-	}
-	return ticketCommentAuthorResponse{UserID: userID, Name: name}
-}
-
 func (h *TicketCommentHandler) toResponse(
-	c *gin.Context, item ticket.TicketCommentWithReactions, cache ticketCommentNameCache,
+	c *gin.Context, item ticket.TicketCommentWithReactions, cache userDisplayCache,
 ) ticketCommentResponse {
 	reactions := make([]ticketCommentReactionResponse, 0, len(item.Reactions))
 	for _, r := range item.Reactions {
@@ -114,7 +93,7 @@ func (h *TicketCommentHandler) toResponse(
 	return ticketCommentResponse{
 		ID:              item.Comment.ID,
 		ParentCommentID: item.Comment.ParentCommentID,
-		Author:          h.resolveAuthor(c, item.Comment.AuthorUserID, cache),
+		Author:          resolveUserDisplay(c.Request.Context(), h.userDisplay, item.Comment.AuthorUserID, cache),
 		Body:            json.RawMessage(item.Comment.Body),
 		Edited:          item.Comment.EditedAt != nil,
 		Reactions:       reactions,
@@ -139,7 +118,7 @@ func (h *TicketCommentHandler) List(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	cache := ticketCommentNameCache{}
+	cache := userDisplayCache{}
 	comments := make([]ticketCommentResponse, 0, len(out))
 	for _, item := range out {
 		comments = append(comments, h.toResponse(c, item, cache))
@@ -185,7 +164,7 @@ func (h *TicketCommentHandler) Create(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	cache := ticketCommentNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusCreated, h.toResponse(c, ticket.TicketCommentWithReactions{Comment: *created}, cache))
 }
 
@@ -219,7 +198,7 @@ func (h *TicketCommentHandler) Update(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	cache := ticketCommentNameCache{}
+	cache := userDisplayCache{}
 	c.JSON(http.StatusOK, h.toResponse(c, ticket.TicketCommentWithReactions{Comment: *updated}, cache))
 }
 
@@ -246,10 +225,10 @@ func (h *TicketCommentHandler) Delete(c *gin.Context) {
 }
 
 type ticketCommentEditResponse struct {
-	ID           string                      `json:"id"`
-	Editor       ticketCommentAuthorResponse `json:"editor"`
-	PreviousBody json.RawMessage             `json:"previousBody"`
-	EditedAt     time.Time                   `json:"editedAt"`
+	ID           string              `json:"id"`
+	Editor       userDisplayResponse `json:"editor"`
+	PreviousBody json.RawMessage     `json:"previousBody"`
+	EditedAt     time.Time           `json:"editedAt"`
 }
 
 type ticketCommentEditListResponse struct {
@@ -272,11 +251,11 @@ func (h *TicketCommentHandler) ListEdits(c *gin.Context) {
 		respondTicketErr(c, err)
 		return
 	}
-	cache := ticketCommentNameCache{}
+	cache := userDisplayCache{}
 	edits := make([]ticketCommentEditResponse, 0, len(out))
 	for _, e := range out {
 		edits = append(edits, ticketCommentEditResponse{
-			ID: e.ID, Editor: h.resolveAuthor(c, e.EditorUserID, cache),
+			ID: e.ID, Editor: resolveUserDisplay(c.Request.Context(), h.userDisplay, e.EditorUserID, cache),
 			PreviousBody: json.RawMessage(e.PreviousBody), EditedAt: e.EditedAt,
 		})
 	}

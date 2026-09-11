@@ -45,6 +45,7 @@ func newTicketFixture(uid uint64, role domain.GrantRole) ticketFixture {
 
 	tickets := newTicketFakeRepo()
 	users := newKbFakeUsers()
+	users.setUserName(kbUserID, "テストユーザー")
 
 	r := gin.New()
 	g := r.Group("/api/v2")
@@ -248,9 +249,13 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	assert.EqualValues(t, 1, created.Number)
 	assert.EqualValues(t, domain.TicketPriorityDefault, created.Priority)
 
-	// 3) 取得。
+	// 3) 取得。詳細レスポンスには報告者の表示（段 5）が載る。
 	w = f.do(t, http.MethodGet, ticketAPIBase+"/tickets/"+created.ID, "")
 	require.Equal(t, http.StatusOK, w.Code)
+	withCreatedBy := decodeJSON[ticketResponse](t, w)
+	require.NotNil(t, withCreatedBy.CreatedBy)
+	assert.Equal(t, kbUserID, withCreatedBy.CreatedBy.UserID)
+	assert.Equal(t, "テストユーザー", withCreatedBy.CreatedBy.Name)
 
 	// キーからの解決（FRESTYLE-1 相当。キー自体がスペースを含むので URL にスペースを取らない。
 	// spaceKey はこの fake では spaceID と同一視する）。
@@ -277,6 +282,8 @@ func Test_チケット一式_有効化から作成取得一覧更新状態変更
 	hist := decodeJSON[ticketHistoryResponse](t, w)
 	require.Len(t, hist.Groups, 1)
 	assert.Len(t, hist.Groups[0].Items, 2)
+	assert.Equal(t, kbUserID, hist.Groups[0].Actor.UserID, "実行者の表示も段 5 の読み取り経路で解決される")
+	assert.Equal(t, "テストユーザー", hist.Groups[0].Actor.Name)
 
 	// 6) 状態変更。
 	doneStatus, err := f.tickets.FindTicketStatus(context.Background(), kbWorkspaceID, kbSpaceID, statusIDByCategory(statuses, domain.TicketStatusCategoryDone))

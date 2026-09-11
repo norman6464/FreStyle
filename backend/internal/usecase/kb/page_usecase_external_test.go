@@ -612,40 +612,6 @@ func Test_ページアイコン_不正な値は保存せず拒否(t *testing.T) 
 	repo.AssertNotCalled(t, "UpdatePageIcon", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-// Test_編集者名_見つかれば名前_無ければ空文字_失敗は伝える は
-// LookupUserNameUseCase の 3 通りの挙動をまとめて固定する。
-func Test_編集者名_見つかれば名前_無ければ空文字_失敗は伝える(t *testing.T) {
-	t.Run("見つかれば名前", func(t *testing.T) {
-		users := &mockUserRepo{}
-		users.On("FindByID", mock.Anything, kbEditorUserID).
-			Return(&domain.User{ID: kbEditorUserID, Name: "山田太郎"}, nil)
-		uc := kb.NewLookupUserNameUseCase(users)
-
-		name, err := uc.Execute(context.Background(), kbEditorUserID)
-		require.NoError(t, err)
-		assert.Equal(t, "山田太郎", name)
-	})
-
-	t.Run("無ければ空文字", func(t *testing.T) {
-		users := &mockUserRepo{}
-		users.On("FindByID", mock.Anything, kbEditorUserID).Return(nil, nil)
-		uc := kb.NewLookupUserNameUseCase(users)
-
-		name, err := uc.Execute(context.Background(), kbEditorUserID)
-		require.NoError(t, err)
-		assert.Empty(t, name)
-	})
-
-	t.Run("失敗は伝える", func(t *testing.T) {
-		users := &mockUserRepo{}
-		users.On("FindByID", mock.Anything, kbEditorUserID).Return(nil, repository.ErrPageNotFound)
-		uc := kb.NewLookupUserNameUseCase(users)
-
-		_, err := uc.Execute(context.Background(), kbEditorUserID)
-		require.ErrorIs(t, err, repository.ErrPageNotFound)
-	})
-}
-
 func Test_ページ移動_自分自身の下には移せない(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)

@@ -40,8 +40,8 @@ func createUser(t *testing.T, db *sql.DB, namePrefix string) uint64 {
 	require.NoError(t, err)
 	var id uint64
 	require.NoError(t, db.QueryRow(
-		`INSERT INTO users (email, name, is_active, created_at, updated_at)
-		 VALUES ($1, $2, true, now(), now()) RETURNING id`,
+		`INSERT INTO users (email, name, created_at, updated_at)
+		 VALUES ($1, $2, now(), now()) RETURNING id`,
 		namePrefix+"+"+newID()+"@example.test", namePrefix,
 	).Scan(&id))
 	return id
@@ -1849,7 +1849,7 @@ func TestKnowledgeBaseListWorkspaceMembers_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		f.principalFor(ctx, t, f.alice)
 		f.principalFor(ctx, t, f.bob)
-		_, err := f.db.Exec(`UPDATE users SET deleted_at = now() WHERE id = $1`, f.bob)
+		_, err := f.db.Exec(`UPDATE users SET status = 'deactivated', deleted_at = now() WHERE id = $1`, f.bob)
 		require.NoError(t, err)
 
 		members, err := f.perm.ListWorkspaceMembers(ctx, f.ws)

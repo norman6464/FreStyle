@@ -28,7 +28,8 @@ type UserRepository interface {
 	Create(ctx context.Context, user *domain.User) error
 	// UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → 利用不可）。
 	UpdateActive(ctx context.Context, userID uint64, active bool) error
-	// SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。認証時にも除外される。
+	// SoftDelete はユーザーを退会させる（status を deactivated にし、deleted_at = NOW() を
+	// 立てる）。認証時にも除外される。
 	SoftDelete(ctx context.Context, userID uint64) error
 	// UpdateName は氏名変更、および OIDC ログイン時の name 自動補正で呼ばれる。
 	UpdateName(ctx context.Context, userID uint64, name string) error

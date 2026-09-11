@@ -60,8 +60,8 @@ func setupDecoy(ctx context.Context, t *testing.T, sqlDB *sql.DB) decoyFixture {
 	f := setupKBPermission(t, sqlDB)
 
 	_, err := sqlDB.Exec(
-		`INSERT INTO users (id, email, name, is_active, created_at, updated_at)
-		 VALUES ($1, $2, 'decoy', true, now(), now())`,
+		`INSERT INTO users (id, email, name, created_at, updated_at)
+		 VALUES ($1, $2, 'decoy', now(), now())`,
 		decoyUserID, "decoy+"+newID()+"@example.test",
 	)
 	require.NoError(t, err)
@@ -320,8 +320,8 @@ func Test_範囲外のユーザーIDの通知は0件を返すこと_Integration(
 
 	testsupport.TruncateAll(t, sqlDB, "notifications", "users", "user_oidc_identities")
 	_, err := sqlDB.Exec(
-		`INSERT INTO users (id, email, name, is_active, created_at, updated_at)
-		 VALUES ($1, $2, 'decoy', true, now(), now())`,
+		`INSERT INTO users (id, email, name, created_at, updated_at)
+		 VALUES ($1, $2, 'decoy', now(), now())`,
 		decoyUserID, "decoy+"+newID()+"@example.test",
 	)
 	require.NoError(t, err)

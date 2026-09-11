@@ -59,8 +59,8 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	t.Run("DB 制約: 前後空白だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
 		_, err := sqlDB.Exec(
-			`INSERT INTO users (email, name, is_active, created_at, updated_at)
-			 VALUES ('  space@example.com  ', 'space', true, NOW(), NOW())`,
+			`INSERT INTO users (email, name, created_at, updated_at)
+			 VALUES ('  space@example.com  ', 'space', NOW(), NOW())`,
 		)
 		require.NoError(t, err)
 

@@ -1485,7 +1485,7 @@ FROM principals p
 JOIN users u ON u.id = p.user_id
 WHERE p.workspace_id = $1
   AND p.kind = 'user'
-  AND u.deleted_at IS NULL
+  AND u.status <> 'deactivated'
 ORDER BY u.name, u.id
 `
 

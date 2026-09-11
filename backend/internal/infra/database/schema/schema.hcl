@@ -52,10 +52,15 @@ table "users" {
     type    = text
     default = ""
   }
-  column "is_active" {
+  # 段 3: is_active（有効/無効の 2 値）と deleted_at（退会日時の有無）を別々の列で
+  # 持っていた。組み合わせは 4 通りできるが、意味があるのは 3 つ（有効 / 停止 / 退会）で、
+  # 「退会済みだが有効」という 4 つ目は誰も定義していなかった。状態の判定は status
+  # 1 列に一本化し、deleted_at は退会日時の記録としてだけ残す
+  # （ck_users_status_deleted_at が両者の整合を DB 側で縛る）。
+  column "status" {
     null    = false
-    type    = boolean
-    default = true
+    type    = text
+    default = "active"
   }
   column "created_at" {
     null = false
@@ -83,8 +88,20 @@ table "users" {
     on_update   = NO_ACTION
     on_delete   = NO_ACTION
   }
+  check "ck_users_status" {
+    expr = "status = ANY (ARRAY['active'::text, 'suspended'::text, 'deactivated'::text])"
+  }
+  # deleted_at は「退会した日時」の記録。status = 'deactivated' とは常に対で成り立つ
+  # （どちらかだけを更新して不整合にするコードを DB 側で弾く）。
+  check "ck_users_status_deleted_at" {
+    expr = "(status = 'deactivated'::text) = (deleted_at IS NOT NULL)"
+  }
   # アクティブ行（未論理削除）かつ正規形が非空に限った部分 UNIQUE。論理削除→同メール再招待と
   # 両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする。
+  #
+  # 述語は引き続き deleted_at IS NULL（ck_users_status_deleted_at により status <> 'deactivated'
+  # と同値）。status 側の式に変えると索引の作り直し（DROP + CREATE、CONCURRENTLY 無し）が
+  # 要るため、意味が変わらない以上ここは触らない。
   #
   # 重複データが既にある DB へこの索引を宣言的に適用すると、Atlas は作成に失敗する
   # （かつては DO ブロックで重複を検知し、警告に留めて起動は落とさない実行時分岐を持っていた。

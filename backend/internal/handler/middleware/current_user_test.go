@@ -78,7 +78,7 @@ func runCurrentUser(t *testing.T, users *stubUsers, workspaces *stubWorkspaces) 
 func strPtr(v string) *string { return &v }
 
 func Test_カレントユーザー_停止中のワークスペースを遮断(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: strPtr("ws-7")}}
+	users := &stubUsers{user: &domain.User{ID: 1, Status: domain.UserStatusActive, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: false}}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -95,7 +95,7 @@ func Test_カレントユーザー_停止中のワークスペースを遮断(t 
 }
 
 func Test_カレントユーザー_有効なワークスペースは許可(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: strPtr("ws-7")}}
+	users := &stubUsers{user: &domain.User{ID: 1, Status: domain.UserStatusActive, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: true}}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -109,7 +109,7 @@ func Test_カレントユーザー_有効なワークスペースは許可(t *te
 }
 
 func Test_カレントユーザー_未所属ユーザーはワークスペースを引かずに許可(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: nil}}
+	users := &stubUsers{user: &domain.User{ID: 1, Status: domain.UserStatusActive, WorkspaceID: nil}}
 	workspaces := &stubWorkspaces{err: repository.ErrWorkspaceNotFound}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -126,7 +126,7 @@ func Test_カレントユーザー_所属先の行が無ければ遮断(t *testi
 	// users.workspace_id には FK が張ってあるので、所属先の行は必ず存在するはず。
 	// 無いのはデータ不整合であって「停止されていない」ことの証拠ではないので、
 	// 素通りさせずに弾く（素通りにすると FK が外れた瞬間に遮断が効かなくなる）。
-	users := &stubUsers{user: &domain.User{ID: 1, IsActive: true, WorkspaceID: strPtr("ws-99")}}
+	users := &stubUsers{user: &domain.User{ID: 1, Status: domain.UserStatusActive, WorkspaceID: strPtr("ws-99")}}
 	workspaces := &stubWorkspaces{err: repository.ErrWorkspaceNotFound}
 
 	got := runCurrentUser(t, users, workspaces)
@@ -140,8 +140,8 @@ func Test_カレントユーザー_所属先の行が無ければ遮断(t *testi
 }
 
 func Test_カレントユーザー_無効なユーザーを遮断(t *testing.T) {
-	// IsActive=false のユーザーはワークスペースが有効でも弾く（即時に利用不可）。
-	users := &stubUsers{user: &domain.User{ID: 1, IsActive: false, WorkspaceID: strPtr("ws-7")}}
+	// suspended のユーザーはワークスペースが有効でも弾く（即時に利用不可）。
+	users := &stubUsers{user: &domain.User{ID: 1, Status: domain.UserStatusSuspended, WorkspaceID: strPtr("ws-7")}}
 	workspaces := &stubWorkspaces{workspace: &domain.Workspace{ID: "ws-7", IsActive: true}}
 
 	got := runCurrentUser(t, users, workspaces)

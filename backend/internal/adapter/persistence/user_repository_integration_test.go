@@ -94,13 +94,15 @@ func TestUserRepository_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities", "profiles")
 		u := &domain.User{Email: "gone@example.com", Name: "退会した人"}
 		require.NoError(t, repo.Create(ctx, u))
-		_, err := sqlDB.ExecContext(ctx,
+		_, err := sqlDB.ExecContext(
+			ctx,
 			`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
 			 VALUES ($1, '', $2, $3, now())`,
 			u.ID, "https://example.test/gone.png", "退会済み",
 		)
 		require.NoError(t, err)
-		_, err = sqlDB.ExecContext(ctx,
+		_, err = sqlDB.ExecContext(
+			ctx,
 			`UPDATE users SET status = 'deactivated', deleted_at = now() WHERE id = $1`, u.ID,
 		)
 		require.NoError(t, err)

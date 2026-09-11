@@ -121,6 +121,13 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 		}); err != nil {
 			return err
 		}
+		// 監査（段 6）。招待の手順を踏まない唯一の所属経路なので、作成者本人が actor になる。
+		adminLabel := string(domain.GrantRoleAdmin)
+		if err := recordMembershipEvent(
+			ctx, qtx, wsID, ownerID, ownerID, domain.MembershipEventMemberAdded, nil, &adminLabel,
+		); err != nil {
+			return err
+		}
 		created = toDomainWorkspace(ws)
 		return nil
 	})

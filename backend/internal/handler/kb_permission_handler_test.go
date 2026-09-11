@@ -232,7 +232,7 @@ func newKbPermFixture(t *testing.T, uid uint64, role *domain.GrantRole) kbPermFi
 	if role != nil {
 		caller, err := f.perms.EnsureUserPrincipal(ctx, kbWorkspaceID, uid)
 		require.NoError(t, err)
-		_, err = f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, caller.ID, *role)
+		_, err = f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, caller.ID, *role, uid)
 		require.NoError(t, err)
 		out.callerPrincipalID = caller.ID
 	}
@@ -309,7 +309,7 @@ func Test_ナレッジ権限API_adminだけが通る(t *testing.T) {
 				if err != nil {
 					panic(err)
 				}
-				if _, err := f.perms.UpsertWorkspaceGrant(ctx, kbOtherWorkspaceID, p.ID, domain.GrantRoleAdmin); err != nil {
+				if _, err := f.perms.UpsertWorkspaceGrant(ctx, kbOtherWorkspaceID, p.ID, domain.GrantRoleAdmin, kbRivalAdminUserID); err != nil {
 					panic(err)
 				}
 			},
@@ -504,7 +504,7 @@ func Test_ナレッジ権限API_最後のadminは外せない(t *testing.T) {
 func Test_ナレッジ権限API_admin2人目が居れば外せる(t *testing.T) {
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	ctx := context.Background()
-	_, err := f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, f.targetPrincipalID, domain.GrantRoleAdmin)
+	_, err := f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, f.targetPrincipalID, domain.GrantRoleAdmin, kbUserID)
 	require.NoError(t, err)
 
 	w := f.do(t, http.MethodDelete,
@@ -520,7 +520,7 @@ func Test_ナレッジ権限API_競合で断られた取り消しも409(t *testi
 	// （撃ち分けると、呼び出し側は競合かどうかで別の分岐を持たされる）。
 	f := newKbPermFixture(t, kbUserID, kbGrantRolePtr(domain.GrantRoleAdmin))
 	ctx := context.Background()
-	_, err := f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, f.targetPrincipalID, domain.GrantRoleAdmin)
+	_, err := f.perms.UpsertWorkspaceGrant(ctx, kbWorkspaceID, f.targetPrincipalID, domain.GrantRoleAdmin, kbUserID)
 	require.NoError(t, err) // 手前の検査は通る（admin は 2 人）
 	f.perms.revokeGrantErr = repository.ErrLastWorkspaceAdmin
 

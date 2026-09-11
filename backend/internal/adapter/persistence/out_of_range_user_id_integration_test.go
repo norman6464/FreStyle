@@ -67,9 +67,14 @@ func setupDecoy(ctx context.Context, t *testing.T, sqlDB *sql.DB) decoyFixture {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		// principals / share_links は users への FK が ON DELETE CASCADE なので
-		// この 1 行を消せば派生も消える。users は kbTables に含まれず
-		// TruncateAll では消えないため、負の id をテストの外へ残さない。
-		_, cleanupErr := sqlDB.Exec(`DELETE FROM users WHERE id = $1`, decoyUserID)
+		// この 1 行を消せば派生も消える。membership_events（段 6）は記録 FK（RESTRICT）
+		// なので、先にこのユーザーを指す行だけ消しておく必要がある。users は kbTables に
+		// 含まれず TruncateAll では消えないため、負の id をテストの外へ残さない。
+		_, cleanupErr := sqlDB.Exec(
+			`DELETE FROM membership_events WHERE target_user_id = $1 OR actor_user_id = $1`, decoyUserID,
+		)
+		require.NoError(t, cleanupErr)
+		_, cleanupErr = sqlDB.Exec(`DELETE FROM users WHERE id = $1`, decoyUserID)
 		require.NoError(t, cleanupErr)
 	})
 
@@ -80,7 +85,7 @@ func setupDecoy(ctx context.Context, t *testing.T, sqlDB *sql.DB) decoyFixture {
 		f.ws, decoyUserID,
 	).Scan(&principalID))
 
-	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, principalID, domain.GrantRoleAdmin)
+	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, principalID, domain.GrantRoleAdmin, f.alice)
 	require.NoError(t, err)
 	_, err = f.perm.UpsertSpaceGrant(ctx, f.ws, f.spaceA, principalID, domain.GrantRoleAdmin)
 	require.NoError(t, err)

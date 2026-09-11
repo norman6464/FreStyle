@@ -61,6 +61,17 @@ type Label struct {
 	UpdatedAt   time.Time
 }
 
+type MembershipEvent struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	TargetUserID int64
+	ActorUserID  int64
+	Action       string
+	OldLabel     sql.NullString
+	NewLabel     sql.NullString
+	CreatedAt    time.Time
+}
+
 type Notification struct {
 	ID        int64
 	UserID    int64

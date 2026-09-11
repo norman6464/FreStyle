@@ -489,7 +489,7 @@ func TestKnowledgeBaseWorkspaceMembership_Integration(t *testing.T) {
 	rivalWorkspaceID := kbInsertWorkspace(t, sqlDB, "rival")
 	rivalPrincipal, err := env.permissions.EnsureUserPrincipal(t.Context(), rivalWorkspaceID, carol)
 	require.NoError(t, err)
-	_, err = env.permissions.UpsertWorkspaceGrant(t.Context(), rivalWorkspaceID, rivalPrincipal.ID, domain.GrantRoleEditor)
+	_, err = env.permissions.UpsertWorkspaceGrant(t.Context(), rivalWorkspaceID, rivalPrincipal.ID, domain.GrantRoleEditor, carol)
 	require.NoError(t, err)
 
 	// alice がチームスペースへページを 1 枚置く。

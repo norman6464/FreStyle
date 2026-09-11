@@ -52,6 +52,18 @@ func TestKnowledgeBaseProvisionWorkspace_Integration(t *testing.T) {
 		other, err := f.perm.ListMemberWorkspaces(ctx, f.bob)
 		require.NoError(t, err)
 		assert.Empty(t, other)
+
+		// 段 6・監査: 招待の手順を踏まない所属追加として member_added が 1 件残り、
+		// 本人が自分自身の actor になる。
+		events, err := f.perm.ListMembershipEvents(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, events, 1)
+		assert.Equal(t, domain.MembershipEventMemberAdded, events[0].Action)
+		assert.Equal(t, f.alice, events[0].TargetUserID)
+		assert.Equal(t, f.alice, events[0].ActorUserID)
+		require.NotNil(t, events[0].NewLabel)
+		assert.Equal(t, "admin", *events[0].NewLabel)
+		assert.Nil(t, events[0].OldLabel)
 	})
 
 	t.Run("slugの重複は業務上の衝突として返す", func(t *testing.T) {

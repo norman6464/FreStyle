@@ -184,6 +184,24 @@ CREATE TABLE "public"."labels" (
 CREATE INDEX "idx_labels_workspace_space" ON "public"."labels" ("workspace_id", "space_id");
 -- Create index "uq_labels_space_name" to table: "labels"
 CREATE UNIQUE INDEX "uq_labels_space_name" ON "public"."labels" ("space_id", "name_key");
+-- Create "membership_events" table
+CREATE TABLE "public"."membership_events" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "target_user_id" bigint NOT NULL,
+  "actor_user_id" bigint NOT NULL,
+  "action" character varying(32) NOT NULL,
+  "old_label" text NULL,
+  "new_label" text NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "fk_membership_events_actor" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_membership_events_target" FOREIGN KEY ("target_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_membership_events_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_membership_events_action" CHECK ((action)::text = ANY (ARRAY[('member_added'::character varying)::text, ('invited'::character varying)::text, ('invitation_accepted'::character varying)::text, ('invitation_declined'::character varying)::text, ('role_changed'::character varying)::text, ('member_removed'::character varying)::text, ('left'::character varying)::text, ('suspended'::character varying)::text]))
+);
+-- Create index "idx_membership_events_workspace_created" to table: "membership_events"
+CREATE INDEX "idx_membership_events_workspace_created" ON "public"."membership_events" ("workspace_id", "created_at");
 -- Create "notifications" table
 CREATE TABLE "public"."notifications" (
   "id" bigserial NOT NULL,

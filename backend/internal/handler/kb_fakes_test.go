@@ -884,7 +884,8 @@ func (f *kbFakePerms) ListMyWorkspaceInvitations(_ context.Context, userID uint6
 }
 
 // LeaveWorkspaceMembership は所属を終える（principal があれば消し、invited の行も消す）。
-func (f *kbFakePerms) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error {
+// actorUserID（段 6・監査）は fake では追跡しない — 実際の記録内容の検証は結合テストが持つ。
+func (f *kbFakePerms) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, _ uint64) error {
 	delete(f.invitations, kbScopeKey{scopeID: workspaceID, userID: userID})
 	principal := f.userPrincipal(workspaceID, userID)
 	if principal == nil {
@@ -1474,7 +1475,7 @@ func (f *kbFakePerms) listGrants(scopeID string) []kbGrantKey {
 }
 
 func (f *kbFakePerms) UpsertWorkspaceGrant(
-	ctx context.Context, workspaceID, principalID string, role domain.GrantRole,
+	ctx context.Context, workspaceID, principalID string, role domain.GrantRole, _ uint64,
 ) (*domain.WorkspaceGrant, error) {
 	// 本番は複合 FK で「別ワークスペースの主体には張れない」を DB が弾く。fake も同じ形で断る。
 	if _, err := f.FindPrincipal(ctx, workspaceID, principalID); err != nil {
@@ -1486,7 +1487,8 @@ func (f *kbFakePerms) UpsertWorkspaceGrant(
 }
 
 // DeleteWorkspaceGrant は 0 行削除でも成功のまま（本番と同じく取り消しは冪等）。
-func (f *kbFakePerms) DeleteWorkspaceGrant(_ context.Context, workspaceID, principalID string) error {
+// actorUserID（段 6・監査）は fake では追跡しない。
+func (f *kbFakePerms) DeleteWorkspaceGrant(_ context.Context, workspaceID, principalID string, _ uint64) error {
 	if f.revokeGrantErr != nil {
 		return f.revokeGrantErr
 	}
@@ -1503,6 +1505,12 @@ func (f *kbFakePerms) ListWorkspaceGrants(_ context.Context, workspaceID string)
 		})
 	}
 	return out, nil
+}
+
+// ListMembershipEvents は kb 系のテストでは使われない（段 6 の usecase/handler テストは
+// 専用の fake/mock を別に持つ）。呼ばれても落ちないよう空を返すだけの最小実装。
+func (f *kbFakePerms) ListMembershipEvents(context.Context, string) ([]domain.MembershipEvent, error) {
+	return []domain.MembershipEvent{}, nil
 }
 
 func (f *kbFakePerms) UpsertSpaceGrant(

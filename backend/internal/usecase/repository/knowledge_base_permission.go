@@ -168,7 +168,11 @@ type KnowledgeBasePermissionRepository interface {
 	// LeaveWorkspaceMembership は所属を終える（status を left にし、principal があれば
 	// 削除する。削除は grant の取り消しと同じ「最後の admin」検査を同じトランザクションで通す）。
 	// 既に非メンバー（もともと居ない・既に left）なら何もしない（冪等）。
-	LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error
+	//
+	// actorUserID は誰がこの操作をしたか（段 6・監査）。userID と同じなら本人の退会
+	// （MembershipEventLeft）、違えば admin による除名（MembershipEventMemberRemoved）として
+	// 記録する。
+	LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, actorUserID uint64) error
 
 	// AddGroupMember はグループに主体を所属させる（冪等）。member 側は kind='user' でなければ
 	// DB の複合 FK が弾く（グループの入れ子を作らせない）。
@@ -179,14 +183,20 @@ type KnowledgeBasePermissionRepository interface {
 	// UpsertWorkspaceGrant はワークスペース全体での既定の役割を与える（同じ主体には 1 行だけ）。
 	// admin から他の役割へ落とす向きは「admin を外す」操作なので、それでユーザーの admin が
 	// 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない（判定は書き込みと同じトランザクション）。
-	UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error)
+	//
+	// actorUserID は誰がこの役割を与えたか（段 6・監査）。principal が人（kind=user）なら
+	// MembershipEventRoleChanged を同じトランザクションで記録する（group / space_all は
+	// 対象外 — membership_events は特定の 1 人を追う表のため）。
+	UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole, actorUserID uint64) (*domain.WorkspaceGrant, error)
 	// GrantWorkspaceRoleIfAbsent は既定の役割を**無いときだけ**与える（既存の行は触らない）。
 	// メンバー追加の既定 editor 用。上書きの Upsert を使うと、冪等な追加のやり直しで
 	// admin が editor に落ちる（最後の admin なら保護の検査に当たって追加自体が失敗する）。
 	GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error
 	// DeleteWorkspaceGrant はワークスペース全体での既定の役割を剥がす（冪等）。
 	// これでユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない。
-	DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error
+	// actorUserID は UpsertWorkspaceGrant と同じ理由（段 6・監査。剥奪も MembershipEventRoleChanged
+	// として記録し、NewLabel は nil にする）。
+	DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string, actorUserID uint64) error
 	// ListWorkspaceGrants はワークスペースの grant 一覧を返す。
 	ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error)
 
@@ -233,6 +243,9 @@ type KnowledgeBasePermissionRepository interface {
 	// grant で届いている相手も含まれない。空で返ってきても「誰も見られない」ではなく
 	// 「この段では何も足していない」の意味（ListPageRestrictions と同じ見方）。
 	ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error)
+
+	// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
+	ListMembershipEvents(ctx context.Context, workspaceID string) ([]domain.MembershipEvent, error)
 
 	// PagePermissionFactsForUser はログイン済みユーザーとして、1 ページの実効権限を決める
 	// 事実を 1 回のクエリで集める。判定は domain.ResolvePagePermission が行う。

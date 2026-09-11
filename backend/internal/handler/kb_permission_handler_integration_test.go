@@ -88,7 +88,7 @@ func newKbPermEnv(t *testing.T, sqlDB *sql.DB) *kbPermEnv {
 	rivalWS := kbInsertWorkspace(t, sqlDB, "rival")
 	rivalPrincipal, err := env.permissions.EnsureUserPrincipal(ctx, rivalWS, e.rivalAdmin)
 	require.NoError(t, err)
-	_, err = env.permissions.UpsertWorkspaceGrant(ctx, rivalWS, rivalPrincipal.ID, domain.GrantRoleAdmin)
+	_, err = env.permissions.UpsertWorkspaceGrant(ctx, rivalWS, rivalPrincipal.ID, domain.GrantRoleAdmin, e.rivalAdmin)
 	require.NoError(t, err)
 
 	group, err := env.permissions.CreateGroupPrincipal(ctx, env.workspaceID, "開発チーム")
@@ -471,7 +471,7 @@ func TestKnowledgeBasePermissionAPI_Integration(t *testing.T) {
 		env := newKbPermEnv(t, sqlDB)
 		e := env.as(env.admin)
 		_, err := env.permissions.UpsertWorkspaceGrant(
-			t.Context(), env.workspaceID, env.groupPrincipal, domain.GrantRoleAdmin,
+			t.Context(), env.workspaceID, env.groupPrincipal, domain.GrantRoleAdmin, env.admin,
 		)
 		require.NoError(t, err)
 

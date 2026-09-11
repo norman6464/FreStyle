@@ -362,7 +362,7 @@ func TestKnowledgeBasePageManageFacts_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice := f.principalFor(ctx, t, f.alice)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
 		assert.True(t, canManage(t, f, page.ID, f.alice))
@@ -406,7 +406,7 @@ func TestKnowledgeBasePageManageFacts_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		f.principalFor(ctx, t, f.alice)
 		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws,
-			f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+			f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 		other := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "他社のページ")
 
@@ -509,7 +509,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		_, err = f.perm.UpsertSpaceGrant(ctx, f.ws, f.spaceA, foreign.ID, domain.GrantRoleAdmin)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_space_grants_principal")
 
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, foreign.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, foreign.ID, domain.GrantRoleAdmin, f.alice)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_workspace_grants_principal")
 
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
@@ -662,7 +662,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
 
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 		assert.True(t, f.permFor(ctx, t, pageA.ID, f.alice).CanEdit, "スペース A に grant が無くても効く")
 		assert.True(t, f.permFor(ctx, t, pageB.ID, f.alice).CanEdit, "スペース B にも効く")
@@ -677,7 +677,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// repository が断るので、そこで落ちると本題（役割の合成規則）が確かめられない。
 		keepAdmin(ctx, t, f, f.bob)
 
-		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID))
+		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID, f.alice))
 		got := f.permFor(ctx, t, pageA.ID, f.alice)
 		assert.True(t, got.CanView, "スペースの viewer が残る")
 		assert.False(t, got.CanEdit)
@@ -829,7 +829,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 		// 退職者を外す（付与が張られていた本人）。
 		require.NoError(t, kb.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
-			kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+			kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice, ActorUserID: f.alice}))
 		// 部署の統廃合でグループを消す（付与が張られていた主体）。
 		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, group.ID))
 
@@ -872,7 +872,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.ElementsMatch(t, []string{child.ID}, f.viewablePageIDs(ctx, t, f.spaceA, f.bob))
 
 		require.NoError(t, kb.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
-			kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+			kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice, ActorUserID: f.alice}))
 
 		assert.False(t, f.permFor(ctx, t, root.ID, f.bob).CanView, "空になった段は全開にならない")
 		assert.False(t, f.permFor(ctx, t, sibling.ID, f.bob).CanView, "root 直下の別の枝も閉じたまま")
@@ -1209,9 +1209,9 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.True(t, f.permFor(ctx, t, page.ID, f.alice).CanEdit)
 
 		removeUC := kb.NewRemoveWorkspaceMemberUseCase(f.perm)
-		require.NoError(t, removeUC.Execute(ctx, kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+		require.NoError(t, removeUC.Execute(ctx, kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice, ActorUserID: f.alice}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.alice).CanView, "所属を外すと権限も消える")
-		require.NoError(t, removeUC.Execute(ctx, kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}),
+		require.NoError(t, removeUC.Execute(ctx, kb.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice, ActorUserID: f.alice}),
 			"二度目は冪等に成功する")
 
 		require.ErrorIs(t, f.perm.DeletePrincipal(ctx, f.ws, alice.ID), repository.ErrPrincipalNotFound)
@@ -1227,7 +1227,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 
 		grantWS := kb.NewGrantWorkspaceRoleUseCase(f.perm)
 		_, err = grantWS.Execute(ctx, kb.GrantWorkspaceRoleInput{
-			WorkspaceID: f.ws, PrincipalID: alice.ID, Role: domain.GrantRoleAdmin,
+			WorkspaceID: f.ws, PrincipalID: alice.ID, Role: domain.GrantRoleAdmin, ActorUserID: f.alice,
 		})
 		require.NoError(t, err)
 		wsGrants, err := f.perm.ListWorkspaceGrants(ctx, f.ws)
@@ -1256,7 +1256,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// 取り消す前に別の admin を用意する（0 人になる取り消しは repository が断る）。
 		keepAdmin(ctx, t, f, f.carol)
 		require.NoError(t, kb.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
-			kb.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: alice.ID}))
+			kb.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: alice.ID, ActorUserID: f.alice}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.alice).CanView)
 	})
 
@@ -1270,7 +1270,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// （役割なしのメンバー）から始める。
 		require.NoError(t, f.perm.GrantWorkspaceRoleIfAbsent(ctx, f.ws, bobPrincipal.ID, domain.GrantRoleEditor))
 		require.NoError(t, kb.NewRevokeWorkspaceRoleUseCase(f.perm).Execute(ctx,
-			kb.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: bobPrincipal.ID}))
+			kb.RevokeWorkspaceRoleInput{WorkspaceID: f.ws, PrincipalID: bobPrincipal.ID, ActorUserID: f.bob}))
 		assert.False(t, f.permFor(ctx, t, page.ID, f.bob).CanView, "役割を外した直後は見えない")
 		group, err := kb.NewCreatePrincipalGroupUseCase(f.perm).Execute(ctx,
 			kb.CreatePrincipalGroupInput{WorkspaceID: f.ws, Name: "開発"})
@@ -1341,7 +1341,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		assert.Empty(t, facts)
 
 		require.NoError(t, f.perm.RemoveGroupMember(ctx, bad, bad, bad))
-		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, bad, bad))
+		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, bad, bad, f.alice))
 		require.NoError(t, f.perm.DeleteSpaceGrant(ctx, bad, bad, bad))
 		require.NoError(t, f.perm.DeletePageGrant(ctx, bad, bad, bad))
 		require.ErrorIs(t, f.perm.AddGroupMember(ctx, bad, bad, bad), repository.ErrPrincipalNotFound)
@@ -1351,7 +1351,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		require.ErrorIs(t, err, repository.ErrSpaceNotFound)
 		_, err = f.perm.CreateGroupPrincipal(ctx, bad, "x")
 		require.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, bad, bad, domain.GrantRoleViewer)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, bad, bad, domain.GrantRoleViewer, f.alice)
 		require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
 		_, err = f.perm.UpsertSpaceGrant(ctx, bad, bad, bad, domain.GrantRoleViewer)
 		require.ErrorIs(t, err, repository.ErrPrincipalNotFound)
@@ -1367,7 +1367,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// alice は「別ワークスペース」だけのメンバーで、そちらでは admin。
 		foreign, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.alice)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.otherWS, foreign.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.otherWS, foreign.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 		// こちらのスペースは全員 editor。
 		everyone, err := f.perm.EnsureSpaceEveryonePrincipal(ctx, f.ws, f.spaceA)
@@ -1536,7 +1536,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		// メンバーの権限を厚くする（ワークスペース admin / スペース全員 admin /
 		// ページ admin の 3 段すべて）。来訪者はこれを 1 つも拾わない。
 		bob := f.principalFor(ctx, t, f.bob)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleAdmin, f.bob)
 		require.NoError(t, err)
 		f.grantSpace(ctx, t, f.spaceA, f.everyoneOf(ctx, t, f.spaceA).ID, domain.GrantRoleAdmin)
 		f.grantPage(ctx, t, child.ID, bob.ID, domain.GrantRoleAdmin)
@@ -1664,7 +1664,7 @@ func keepAdmin(ctx context.Context, t *testing.T, f kbPermFixture, userID uint64
 	t.Helper()
 	p, err := f.perm.EnsureUserPrincipal(ctx, f.ws, userID)
 	require.NoError(t, err)
-	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, p.ID, domain.GrantRoleAdmin)
+	_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, p.ID, domain.GrantRoleAdmin, userID)
 	require.NoError(t, err)
 }
 
@@ -1818,7 +1818,7 @@ func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
 		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, archived.ID))
 
 		alice := f.principalFor(ctx, t, f.alice)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleViewer)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleViewer, f.alice)
 		require.NoError(t, err)
 
 		rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice,
@@ -2092,7 +2092,7 @@ func TestWorkspaceMembership_Integration(t *testing.T) {
 		_, err := f.perm.AcceptWorkspaceInvitation(ctx, f.ws, f.bob)
 		require.NoError(t, err)
 
-		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob))
+		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob, f.bob))
 
 		status, ok := membershipStatus(t, f.ws, f.bob)
 		require.True(t, ok, "記録は消えない")
@@ -2105,7 +2105,7 @@ func TestWorkspaceMembership_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		require.NoError(t, f.perm.InviteWorkspaceMember(ctx, f.ws, f.bob, f.alice))
 
-		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob))
+		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob, f.alice))
 
 		status, ok := membershipStatus(t, f.ws, f.bob)
 		require.True(t, ok)
@@ -2114,7 +2114,7 @@ func TestWorkspaceMembership_Integration(t *testing.T) {
 
 	t.Run("非メンバーの退出は何もしない（冪等）", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
-		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob))
+		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob, f.alice))
 		_, ok := membershipStatus(t, f.ws, f.bob)
 		assert.False(t, ok, "行自体を作らない")
 	})

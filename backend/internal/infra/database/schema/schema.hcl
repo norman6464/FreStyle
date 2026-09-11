@@ -328,6 +328,88 @@ table "workspace_members" {
   }
 }
 
+# 所属・権限の変更履歴（段 6・監査）。「なぜこの人が admin なのか」を後から説明できるように、
+# workspace_members / workspace_grants への書き込みと同じトランザクションで 1 行ずつ足す
+# （追記のみ、UPDATE / DELETE はしない）。
+#
+# old_label / new_label は ticket_change_items と同じ設計 — 当時の表示名（役割名・状態名）の
+# 写しを持つ。値そのもの（役割・所属状態）を指す別列は持たない。役割名は viewer/editor/admin
+# の固定 3 値、所属状態も固定の小さな enum で、後から改名・アーカイブされて意味が変わる
+# 「ID が指す先」が無いため、ticket_change_items のように old_value/new_value を separate に
+# 持つ必要が無い（ラベルそのものが既に安定した値）。
+table "membership_events" {
+  schema = schema.public
+  column "id" {
+    null = false
+    type = uuid
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  # target_user_id は「誰の所属・権限が変わったか」。
+  column "target_user_id" {
+    null = false
+    type = bigint
+  }
+  # actor_user_id は「誰が変えたか」。本人による操作（受諾・辞退・退会）は target と同じ id。
+  column "actor_user_id" {
+    null = false
+    type = bigint
+  }
+  # action は起きた事実の種類。suspended は段 7 で実装する停止 API 用に先に列挙しておく
+  # （ticket_change_items.field と同じ判断 — 値を後から足すたびに CHECK を DROP + ADD
+  # し直さない）。
+  column "action" {
+    null = false
+    type = character_varying(32)
+  }
+  column "old_label" {
+    null = true
+    type = text
+  }
+  column "new_label" {
+    null = true
+    type = text
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.id]
+  }
+  # ワークスペースが消えれば履歴も一緒に消えてよい（DeleteWorkspace は所属者が居ないときだけ
+  # 通るので、この時点で意味のある履歴を残す理由が無い）。
+  foreign_key "fk_membership_events_workspace" {
+    columns     = [column.workspace_id]
+    ref_columns = [table.workspaces.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # target / actor はどちらも記録列なので RESTRICT（段 1 の方針。users は退会しても行ごと
+  # 消えない＝物理削除されないため、この RESTRICT が実際に書き込みを止める場面は無い）。
+  foreign_key "fk_membership_events_target" {
+    columns     = [column.target_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
+  foreign_key "fk_membership_events_actor" {
+    columns     = [column.actor_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
+  index "idx_membership_events_workspace_created" {
+    columns = [column.workspace_id, column.created_at]
+  }
+  check "ck_membership_events_action" {
+    expr = "(action)::text = ANY (ARRAY[('member_added'::character varying)::text, ('invited'::character varying)::text, ('invitation_accepted'::character varying)::text, ('invitation_declined'::character varying)::text, ('role_changed'::character varying)::text, ('member_removed'::character varying)::text, ('left'::character varying)::text, ('suspended'::character varying)::text])"
+  }
+}
+
 # users とは別管理のプロフィール拡張（user_id が PK）。
 table "profiles" {
   schema = schema.public

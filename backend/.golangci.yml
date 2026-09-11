@@ -78,6 +78,17 @@ linters:
         linters:
           - gosec
         text: 'G101'
+      # testsupport.TruncateAll は t *testing.T を受け取るテストヘルパーで、内部で
+      # t.Context() から取った context を使って（段 1 の FK 導入に伴う）ベースライン
+      # ユーザーの復元を行う。呼び出し元のテストが別途 context.Background() 等を
+      # 持っていても、TRUNCATE 直後の後始末はテストのライフサイクル内で完結し
+      # キャンセル伝播が絡まないため、ctx を呼び出し元から引き回す実益がない
+      # （引き回すと全呼び出し箇所の書き換えが要る）。呼び出し側の結合テストファイル
+      # だけに出るため path を _test.go に絞る。
+      - path: _test\.go
+        linters:
+          - contextcheck
+        text: 'TruncateAll'
       # defer Close() / os.Remove() / CLI の fmt.Fprint は慣例的に戻り値を無視する。
       - linters:
           - errcheck

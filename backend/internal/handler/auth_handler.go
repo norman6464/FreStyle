@@ -21,6 +21,7 @@ type AuthHandler struct {
 	getCurrentUser          *user.GetCurrentUserUseCase
 	upsertUser              *user.UpsertUserFromIDTokenUseCase
 	ensurePersonalWorkspace *kb.EnsurePersonalWorkspaceUseCase
+	retireSelf              *user.RetireSelfUseCase
 	verifier                *oidc.Verifier
 }
 
@@ -29,12 +30,14 @@ func NewAuthHandler(
 	getCurrentUser *user.GetCurrentUserUseCase,
 	upsertUser *user.UpsertUserFromIDTokenUseCase,
 	ensurePersonalWorkspace *kb.EnsurePersonalWorkspaceUseCase,
+	retireSelf *user.RetireSelfUseCase,
 	verifier *oidc.Verifier,
 ) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser:          getCurrentUser,
 		upsertUser:              upsertUser,
 		ensurePersonalWorkspace: ensurePersonalWorkspace,
+		retireSelf:              retireSelf,
 		verifier:                verifier,
 	}
 }
@@ -65,6 +68,28 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"updatedAt": user.UpdatedAt,
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// DeleteMe は自分自身のアカウントを退会させる（段 7）。本人にしか呼べない
+// （middleware.CurrentUser が解決した userID をそのまま使い、他人の ID を受け取らない —
+// user.RetireSelfUseCase の doc 参照）。所属している全ワークスペースを退出したうえで
+// アカウントを匿名化する。いずれかのワークスペースで最後の admin なら 409 を返す。
+func (h *AuthHandler) DeleteMe(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if err := h.retireSelf.Execute(c.Request.Context(), uid); err != nil {
+		if errors.Is(err, repository.ErrLastWorkspaceAdmin) {
+			c.JSON(http.StatusConflict, gin.H{"error": "last_workspace_admin"})
+			return
+		}
+		log.Printf("retire self failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // Login は Authorization: Bearer で渡された ID トークンを検証し、

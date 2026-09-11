@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // ── ナレッジの「権限そのものを変える」API に共通する認可 ──
@@ -205,6 +206,14 @@ func respondKbPermissionOperationErr(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, repository.ErrPrincipalGroupNameTaken):
 		c.JSON(http.StatusConflict, errorResponse{Error: "group_name_taken"})
+	case errors.Is(err, user.ErrCannotSuspendSelf):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "cannot_suspend_self"})
+	case errors.Is(err, user.ErrTargetNotWorkspaceMember):
+		// 対象の実在は既に確認済み（kbUserIDParam の後）だが、このワークスペースの
+		// メンバーではない相手には respondKbPermissionDenied と同じ 404 で揃える
+		// （「共有ワークスペースの admin だけが実行できる」という権限境界を、
+		// 対象の実在有無で撃ち分けない）。
+		respondKbPermissionDenied(c)
 	case errors.Is(err, repository.ErrLastWorkspaceAdmin):
 		// 手前の検査（requireNotLastWorkspaceAdmin）と同じ 409 に落とす。
 		// そちらを通り抜けた競合を repository が最後に断ったときだけここへ来るので、

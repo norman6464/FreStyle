@@ -1578,6 +1578,73 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID uuid.UUI
 	return items, nil
 }
 
+const listWorkspaceMembersForAdmin = `-- name: ListWorkspaceMembersForAdmin :many
+SELECT p.id AS principal_id, u.id AS user_id, u.name, u.status AS account_status,
+       COALESCE(pr.avatar_url, '') AS avatar_url,
+       COALESCE(pr.status_message, '') AS status_message,
+       wg.role AS role
+FROM principals p
+JOIN users u ON u.id = p.user_id
+JOIN workspace_members wm ON wm.workspace_id = p.workspace_id AND wm.user_id = p.user_id
+LEFT JOIN profiles pr ON pr.user_id = u.id
+LEFT JOIN workspace_grants wg ON wg.workspace_id = p.workspace_id AND wg.principal_id = p.id
+WHERE p.workspace_id = $1
+  AND p.kind = 'user'
+  AND wm.status = 'active'
+ORDER BY u.name, u.id
+`
+
+type ListWorkspaceMembersForAdminRow struct {
+	PrincipalID   uuid.UUID
+	UserID        int64
+	Name          string
+	AccountStatus string
+	AvatarUrl     string
+	StatusMessage string
+	Role          sql.NullString
+}
+
+// メンバー管理画面（段 7）向け。ListWorkspaceMembers と違い、停止中のアカウント
+// （users.status = 'suspended'）も落とさない — 管理画面の目的そのものが「停止した相手を
+// 見つけて復帰させる」ことなので、ここで落とすと復帰の手段が無くなる。退会
+// （users.status = 'deactivated'）は RetireSelfUseCase が全ワークスペースを退出させてから
+// 匿名化するため、通常は wm.status = 'active' の時点で自然と対象外になる
+// （残っていても事故ではないので、ここでは重ねて弾かない）。
+//
+// ワークスペース全体の既定役割（workspace_grants）を LEFT JOIN で合わせて返す。
+// NULL は「ワークスペース全体には役割を持たない（スペース/ページ単位の grant だけで
+// 見えている）」ことを表す — 実在しうる状態なので、あえて内部結合にしない。
+func (q *Queries) ListWorkspaceMembersForAdmin(ctx context.Context, workspaceID uuid.UUID) ([]ListWorkspaceMembersForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceMembersForAdmin, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceMembersForAdminRow{}
+	for rows.Next() {
+		var i ListWorkspaceMembersForAdminRow
+		if err := rows.Scan(
+			&i.PrincipalID,
+			&i.UserID,
+			&i.Name,
+			&i.AccountStatus,
+			&i.AvatarUrl,
+			&i.StatusMessage,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspacePageViewFactsByIDs = `-- name: ListWorkspacePageViewFactsByIDs :many
 WITH me AS (
     SELECT pr.id

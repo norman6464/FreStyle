@@ -194,3 +194,147 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 
 	return user, nil
 }
+
+// membershipRepository は repository.KnowledgeBasePermissionRepository のうち、この
+// ファイルの usecase（SetUserActiveUseCase / RetireSelfUseCase）が実際に使うメソッドだけを
+// 切り出したもの。呼び出し側（routes_*.go）は repository.KnowledgeBasePermissionRepository を
+// そのまま渡せる（Go の構造的部分型付けにより、上位互換のフル実装がこの小さい interface も
+// 自動的に満たす）。狙いはテスト容易性 — フル interface（50 以上のメソッド）を丸ごと
+// mock するのではなく、ここで使う 4 つだけを mock すればよくなる。
+type membershipRepository interface {
+	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
+	ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error)
+	LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, actorUserID uint64) error
+	RecordMembershipEvent(
+		ctx context.Context, workspaceID string, targetUserID, actorUserID uint64,
+		action domain.MembershipEventAction, oldLabel, newLabel *string,
+	) error
+}
+
+// ErrCannotSuspendSelf は自分自身を停止しようとしたときに返す。停止した瞬間に
+// middleware.CurrentUser が本人の以後のリクエストを弾く（IsActive）ため、自分で
+// 自分を復帰させる手段が無くなる（他に admin が居ない限り誰も戻せない）。
+var ErrCannotSuspendSelf = errors.New("cannot suspend yourself")
+
+// ErrTargetNotWorkspaceMember は対象がそのワークスペースのメンバーでないときに返す。
+//
+// SetUserActiveUseCase の権限境界そのもの。users.status はワークスペースをまたぐ
+// グローバルな値だが、実行できるのは「対象が現に所属しているワークスペースの admin」
+// だけに絞る。ここを緩めて任意のユーザー ID を受け付けると、誰でも自分のワークスペースを
+// 作って admin になるだけで、無関係な他人のアカウントを停止できてしまう
+// （FRESTYLE-486 と同種の、対象の実在確認だけで境界を跨げる穴）。
+var ErrTargetNotWorkspaceMember = errors.New("target user is not a member of this workspace")
+
+// SetUserActiveUseCase はユーザーアカウントを停止・復帰する（段 7）。
+//
+// users.status はワークスペースをまたぐグローバルな値なので、効果は対象の
+// 全ワークスペースでのログイン不可に及ぶ（middleware.CurrentUser の IsActive 判定）。
+// それでも実行を「対象が現に所属するワークスペースの admin」に限るのは、
+// ErrTargetNotWorkspaceMember の doc に書いた権限昇格を防ぐため — 呼び出し元
+// （handler）は WorkspaceID の admin であることを確認したうえでこれを呼ぶこと。
+//
+// kb / ticket / comment のどの usecase サブパッケージからも import されない中立の
+// 置き場所として user に置く（LookupUserDisplayUseCase と同じ理由）。
+type SetUserActiveUseCase struct {
+	users     repository.UserRepository
+	perm      membershipRepository
+	txManager repository.TxManager
+}
+
+func NewSetUserActiveUseCase(
+	users repository.UserRepository,
+	perm membershipRepository,
+	txManager repository.TxManager,
+) *SetUserActiveUseCase {
+	return &SetUserActiveUseCase{users: users, perm: perm, txManager: txManager}
+}
+
+// SetUserActiveInput の WorkspaceID は、実行の起点になったワークスペース。
+// 「対象がそのワークスペースのメンバーか」の判定対象であり、監査記録（段 6）の
+// workspace_id にもなる。
+type SetUserActiveInput struct {
+	WorkspaceID  string
+	TargetUserID uint64
+	ActorUserID  uint64
+	// Active を false にすると停止、true にすると復帰。
+	Active bool
+}
+
+func (u *SetUserActiveUseCase) Execute(ctx context.Context, in SetUserActiveInput) error {
+	if in.TargetUserID == in.ActorUserID {
+		return ErrCannotSuspendSelf
+	}
+	member, err := u.perm.IsWorkspaceMember(ctx, in.WorkspaceID, in.TargetUserID)
+	if err != nil {
+		return err
+	}
+	if !member {
+		return ErrTargetNotWorkspaceMember
+	}
+	target, err := u.users.FindByID(ctx, in.TargetUserID)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		return domain.ErrNotFound
+	}
+	oldLabel := string(target.Status)
+	newStatus := domain.UserStatusSuspended
+	if in.Active {
+		newStatus = domain.UserStatusActive
+	}
+	newLabel := string(newStatus)
+	return u.txManager.DoInTx(ctx, func(ctx context.Context) error {
+		if err := u.users.UpdateActive(ctx, in.TargetUserID, in.Active); err != nil {
+			return err
+		}
+		// action は停止・復帰のどちらも MembershipEventSuspended を使う
+		// （domain.MembershipEventSuspended の doc 参照。role_changed が付与・剥奪の
+		// 両方を 1 つの action で表すのと同じ考え方 — old/new label が向きを表す）。
+		return u.perm.RecordMembershipEvent(
+			ctx, in.WorkspaceID, in.TargetUserID, in.ActorUserID,
+			domain.MembershipEventSuspended, &oldLabel, &newLabel,
+		)
+	})
+}
+
+// RetireSelfUseCase は自分自身のアカウントを退会させる（段 7）。呼び出し元（handler）が
+// 「本人からの要求であること」を確認したうえで呼ぶ前提で、他人を退会させる口は無い。
+//
+// 所属している全ワークスペースを退出（principal を消し、workspace_members を left に
+// し、それぞれ監査へ記録 — repository.LeaveWorkspaceMembership が行う）してから、
+// users.status を deactivated にする。1 つのトランザクションにまとめるのは、
+// 一部のワークスペースだけ退出して残りが宙に浮いた状態を作らないため。
+//
+// いずれかのワークスペースで最後の admin なら、そのワークスペースだけ残して
+// 続けることはせず、退会そのものを repository.ErrLastWorkspaceAdmin で断る
+// （誰も権限を変えられないワークスペースを残さないため。先に admin を誰かへ渡してから
+// もう一度退会すればよい）。
+type RetireSelfUseCase struct {
+	users     repository.UserRepository
+	perm      membershipRepository
+	txManager repository.TxManager
+}
+
+func NewRetireSelfUseCase(
+	users repository.UserRepository,
+	perm membershipRepository,
+	txManager repository.TxManager,
+) *RetireSelfUseCase {
+	return &RetireSelfUseCase{users: users, perm: perm, txManager: txManager}
+}
+
+func (u *RetireSelfUseCase) Execute(ctx context.Context, userID uint64) error {
+	return u.txManager.DoInTx(ctx, func(ctx context.Context) error {
+		workspaces, err := u.perm.ListMemberWorkspaces(ctx, userID)
+		if err != nil {
+			return err
+		}
+		for _, ws := range workspaces {
+			if err := u.perm.LeaveWorkspaceMembership(ctx, ws.ID, userID, userID); err != nil {
+				return err
+			}
+		}
+		return u.users.SoftDelete(ctx, userID)
+	})
+}

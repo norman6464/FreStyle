@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import KbInlineRename from './KbInlineRename';
 
 /**
@@ -57,6 +57,28 @@ export const 打ち替えて確定: Story = {
     await userEvent.clear(input);
     await userEvent.type(input, '  設計メモ（改訂）  {Enter}');
     await expect(args.onCommit).toHaveBeenCalledWith('設計メモ（改訂）');
+  },
+};
+
+/**
+ * 日本語入力の変換確定 Enter では確定しない。変換のたびに打ちかけの題名でリネームが
+ * 飛んでいた不具合（isComposing / keyCode 229 を見ていなかった）の回帰確認。
+ */
+export const 変換中のEnterでは確定しない: Story = {
+  args: {},
+  play: async ({ args, canvasElement }) => {
+    const input = within(canvasElement).getByRole('textbox', { name: 'ページの題名' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'あいう');
+    // 変換確定の Enter（isComposing=true）。userEvent.type の {Enter} は素の Enter しか
+    // 送れないため、IME 変換中の値は fireEvent で直接組み立てる。
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    await expect(args.onCommit).not.toHaveBeenCalled();
+    await expect(input).toHaveValue('あいう');
+
+    // 変換が終わったあとの本当の Enter では確定する。
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await expect(args.onCommit).toHaveBeenCalledWith('あいう');
   },
 };
 

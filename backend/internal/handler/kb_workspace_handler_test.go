@@ -689,3 +689,73 @@ func Test_ナレッジAPI_変更履歴は未認証なら401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+// kbAdminMembersPath はメンバー管理画面（段 7）向けの一覧。admin だけが読める。
+const kbAdminMembersPath = "/api/v2/kb/workspaces/{slug}/admin/members"
+
+func Test_ナレッジAPI_管理者向け一覧はadmin以外には403(t *testing.T) {
+	// ListMembers（誰でも読める）と違い、こちらは役割変更・停止・削除の対象を選ぶ
+	// 画面そのものなので admin 限定。変更履歴と同じ CanManage の判定（存在は既に
+	// 確定しているので 404 ではなく 403）。
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w := f.do(t, http.MethodGet, kbFill(kbAdminMembersPath, kbWorkspaceSlug, ""), "")
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func Test_ナレッジAPI_管理者向け一覧はadminなら役割つきで読める(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.userNames[kbUserID] = "田中 太郎"
+	caller, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
+	require.NoError(t, err)
+	_, err = f.perms.UpsertWorkspaceGrant(context.Background(), kbWorkspaceID, caller.ID, domain.GrantRoleAdmin, kbUserID)
+	require.NoError(t, err)
+
+	w := f.do(t, http.MethodGet, kbFill(kbAdminMembersPath, kbWorkspaceSlug, ""), "")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var got []kbAdminWorkspaceMemberResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got, 1)
+	assert.Equal(t, kbUserID, got[0].UserID)
+	assert.Equal(t, "田中 太郎", got[0].Name)
+	require.NotNil(t, got[0].Role, "ワークスペース全体の役割を持つ相手には role が付く")
+	assert.Equal(t, "admin", *got[0].Role)
+	assert.Equal(t, "active", got[0].AccountStatus)
+}
+
+func Test_ナレッジAPI_管理者向け一覧は役割の無いメンバーもroleなしで返す(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.userNames[kbUserID] = "admin本人"
+	caller, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
+	require.NoError(t, err)
+	_, err = f.perms.UpsertWorkspaceGrant(context.Background(), kbWorkspaceID, caller.ID, domain.GrantRoleAdmin, kbUserID)
+	require.NoError(t, err)
+
+	// ワークスペース全体の grant を持たないメンバー（スペース/ページ単位の grant だけで
+	// 見えている想定）。
+	f.perms.userNames[kbSecondUserID] = "役割なしメンバー"
+	_, err = f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbSecondUserID)
+	require.NoError(t, err)
+
+	w := f.do(t, http.MethodGet, kbFill(kbAdminMembersPath, kbWorkspaceSlug, ""), "")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var got []kbAdminWorkspaceMemberResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got, 2)
+	byUserID := map[uint64]kbAdminWorkspaceMemberResponse{}
+	for _, m := range got {
+		byUserID[m.UserID] = m
+	}
+	require.Nil(t, byUserID[kbSecondUserID].Role, "role を持たない相手は role フィールドごと省く")
+}
+
+func Test_ナレッジAPI_管理者向け一覧は未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+
+	w := f.do(t, http.MethodGet, kbFill(kbAdminMembersPath, kbWorkspaceSlug, ""), "")
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}

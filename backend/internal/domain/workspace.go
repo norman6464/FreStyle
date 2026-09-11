@@ -50,6 +50,24 @@ type WorkspaceMember struct {
 	StatusMessage string `json:"status"`
 }
 
+// AdminWorkspaceMember はメンバー管理画面（段 7）向けの 1 人。WorkspaceMember と違い、
+// 停止中のアカウントも含み（復帰させる操作の対象になるため）、現在のワークスペース全体の
+// 役割も一緒に返す。
+type AdminWorkspaceMember struct {
+	PrincipalID string `json:"principalId"`
+	UserID      uint64 `json:"userId"`
+	Name        string `json:"name"`
+	// AccountStatus はアカウント全体の状態（active / suspended）。ここに deactivated は
+	// 現れない — 退会は全ワークスペースを退出してから起きるため、この一覧に載る時点で
+	// 対象外になっている。
+	AccountStatus UserStatus `json:"accountStatus"`
+	AvatarURL     string     `json:"avatarUrl"`
+	StatusMessage string     `json:"statusMessage"`
+	// Role はワークスペース全体の既定役割。nil は「ワークスペース全体には役割を持たない
+	// （スペース/ページ単位の grant だけで見えている）」ことを表す。
+	Role *GrantRole `json:"role,omitempty"`
+}
+
 // WorkspaceSlugMaxLen / WorkspaceNameMaxLen は workspaces の列幅（varchar(64) / varchar(200)）。
 // DB の CHECK / 列幅と同じ値を入口でも見て、桁あふれを 500 ではなく 400 で返せるようにする。
 const (

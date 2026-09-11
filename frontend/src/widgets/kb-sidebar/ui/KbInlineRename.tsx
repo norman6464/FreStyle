@@ -65,6 +65,9 @@ export default function KbInlineRename({
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => void commit()}
       onKeyDown={(event) => {
+        // 日本語入力の変換確定 Enter は入力欄の確定ではない。isComposing を見ないと、
+        // 変換のたびに打ちかけの題名でリネームが飛ぶ（keyCode 229 は Safari の変換中の値）。
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         if (event.key === 'Enter') {
           event.preventDefault();
           void commit();

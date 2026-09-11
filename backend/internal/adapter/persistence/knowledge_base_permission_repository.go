@@ -776,6 +776,36 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceMembers(ctx context.Con
 	return out, nil
 }
 
+func (r *knowledgeBasePermissionRepository) ListWorkspaceMembersForAdmin(
+	ctx context.Context, workspaceID string,
+) ([]domain.AdminWorkspaceMember, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []domain.AdminWorkspaceMember{}, nil
+	}
+	rows, err := r.queries(ctx).ListWorkspaceMembersForAdmin(ctx, wsID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.AdminWorkspaceMember, 0, len(rows))
+	for _, row := range rows {
+		m := domain.AdminWorkspaceMember{
+			PrincipalID:   row.PrincipalID.String(),
+			UserID:        uint64(row.UserID),
+			Name:          row.Name,
+			AccountStatus: domain.UserStatus(row.AccountStatus),
+			AvatarURL:     row.AvatarUrl,
+			StatusMessage: row.StatusMessage,
+		}
+		if row.Role.Valid {
+			role := domain.GrantRole(row.Role.String)
+			m.Role = &role
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
 func (r *knowledgeBasePermissionRepository) UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
@@ -1341,6 +1371,25 @@ func (r *knowledgeBasePermissionRepository) ListMembershipEvents(ctx context.Con
 		out = append(out, toDomainMembershipEvent(row))
 	}
 	return out, nil
+}
+
+// RecordMembershipEvent は KnowledgeBasePermissionRepository の外で起きた変更
+// （users.status 等）を監査履歴へ追記する汎用の口。呼び出し側が TxManager.DoInTx で
+// 対象の書き込みと同じトランザクションにまとめること。
+func (r *knowledgeBasePermissionRepository) RecordMembershipEvent(
+	ctx context.Context, workspaceID string, targetUserID, actorUserID uint64,
+	action domain.MembershipEventAction, oldLabel, newLabel *string,
+) error {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return repository.ErrWorkspaceNotFound
+	}
+	tid, tok := toInt64ID(targetUserID)
+	aid, aok := toInt64ID(actorUserID)
+	if !tok || !aok {
+		return repository.ErrUserNotFound
+	}
+	return recordMembershipEvent(ctx, r.queries(ctx), wsID, tid, aid, action, oldLabel, newLabel)
 }
 
 // LeaveWorkspaceMembership は所属を終える。principal（実メンバーとしての権限一式）が

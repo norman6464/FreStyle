@@ -2149,3 +2149,64 @@ func TestWorkspaceMembership_Integration(t *testing.T) {
 		assert.Equal(t, "active", status, "招待の手順を踏まず直接 active")
 	})
 }
+
+// TestListWorkspaceMembersForAdmin_Integration はメンバー管理画面（段 7）向けの一覧を
+// 実 PostgreSQL で検証する。ListWorkspaceMembers（名指し用）と違い、停止中のアカウントを
+// 落とさないこと・ワークスペース全体の役割を一緒に返すことがこの一覧の存在理由なので、
+// そこだけを見る（合成・実効権限の規則そのものは TestKnowledgeBasePermission_Integration が持つ）。
+func TestListWorkspaceMembersForAdmin_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	users := persistence.NewUserRepository(sqlDB)
+
+	t.Run("停止中でも一覧から落ちない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		f.principalFor(ctx, t, f.bob)
+		require.NoError(t, users.UpdateActive(ctx, f.bob, false))
+
+		got, err := f.perm.ListWorkspaceMembersForAdmin(ctx, f.ws)
+		require.NoError(t, err)
+
+		byUserID := map[uint64]domain.AdminWorkspaceMember{}
+		for _, m := range got {
+			byUserID[m.UserID] = m
+		}
+		require.Contains(t, byUserID, f.bob, "ListWorkspaceMembers と違い、停止中でも消えない")
+		assert.Equal(t, domain.UserStatusSuspended, byUserID[f.bob].AccountStatus)
+		assert.Equal(t, domain.UserStatusActive, byUserID[f.alice].AccountStatus)
+	})
+
+	t.Run("ワークスペース全体の役割を一緒に返す。持たない相手はnil", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alicePrincipal := f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alicePrincipal.ID, domain.GrantRoleAdmin, f.alice)
+		require.NoError(t, err)
+		f.principalFor(ctx, t, f.bob) // 役割は張らない
+
+		got, err := f.perm.ListWorkspaceMembersForAdmin(ctx, f.ws)
+		require.NoError(t, err)
+
+		byUserID := map[uint64]domain.AdminWorkspaceMember{}
+		for _, m := range got {
+			byUserID[m.UserID] = m
+		}
+		require.NotNil(t, byUserID[f.alice].Role)
+		assert.Equal(t, domain.GrantRoleAdmin, *byUserID[f.alice].Role)
+		assert.Nil(t, byUserID[f.bob].Role, "役割を持たない相手は nil のまま")
+	})
+
+	t.Run("退出済みは落ちる", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+		f.principalFor(ctx, t, f.bob)
+		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.bob, f.bob))
+
+		got, err := f.perm.ListWorkspaceMembersForAdmin(ctx, f.ws)
+		require.NoError(t, err)
+
+		for _, m := range got {
+			assert.NotEqual(t, f.bob, m.UserID, "退出済みは一覧に残らない")
+		}
+	})
+}

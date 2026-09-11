@@ -31,9 +31,14 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 		persistence.NewKnowledgeBaseRepository(deps.db),
 		persistence.NewWorkspaceProvisioner(deps.db),
 	)
+	retireSelf := user.NewRetireSelfUseCase(
+		deps.userRepo,
+		persistence.NewKnowledgeBasePermissionRepository(deps.db),
+		persistence.NewTxManager(deps.db),
+	)
 
 	authHandler := NewAuthHandler(
-		getCurrentUser, upsertUser, ensurePersonalWorkspace, deps.verifier,
+		getCurrentUser, upsertUser, ensurePersonalWorkspace, retireSelf, deps.verifier,
 	)
 
 	// login（ID トークンの検証+upsert）は認証不要のため、総当たり緩和に per-IP 制限を掛ける。
@@ -45,4 +50,6 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 // registerAuthAuthedRoutes は認証必須の自己情報取得 (/auth/me) を登録する。
 func registerAuthAuthedRoutes(g *gin.RouterGroup, authHandler *AuthHandler) {
 	g.GET("/auth/me", authHandler.Me)
+	// 自分自身の退会（段 7）。他人を退会させる口は無い（handler が currentUserID をそのまま使う）。
+	g.DELETE("/auth/me", authHandler.DeleteMe)
 }

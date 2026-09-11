@@ -254,6 +254,26 @@ export interface KbWorkspaceMember {
 }
 
 /**
+ * メンバー管理画面（段 7）向けの 1 件。KbWorkspaceMember と違い admin だけが読める口から来る。
+ *
+ * `KbWorkspaceMember` を単純に拡張しない — あちらは「停止中は含まない」契約の一覧で、
+ * こちらは逆に停止中こそ復帰させる対象として出す必要があるため、由来の異なる別の型として持つ。
+ */
+export interface KbAdminWorkspaceMember {
+  principalId: string;
+  userId: number;
+  name: string;
+  accountStatus: 'active' | 'suspended';
+  avatarUrl: string;
+  statusMessage: string;
+  /**
+   * ワークスペース全体の既定役割。backend は role を持たない相手ではキー自体を返さない
+   * （omitempty）ので、無い = undefined として扱う（null ではない）。
+   */
+  role?: KbGrantRole;
+}
+
+/**
  * コメントの投稿者・解決者などの参照 1 件。
  *
  * name は表示名で、**引けなければ空文字**（KbEditorRef / KbGrantablePrincipal と同じ約束）。

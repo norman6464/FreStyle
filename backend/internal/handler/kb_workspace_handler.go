@@ -30,6 +30,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	renameSpace          *kb.RenameSpaceUseCase
 	searchPages          *kb.SearchViewablePagesUseCase
 	listMembers          *kb.ListWorkspaceMembersUseCase
+	listMembersForAdmin  *kb.ListWorkspaceMembersForAdminUseCase
 	listMembershipEvents *kb.ListMembershipEventsUseCase
 	userDisplay          *user.LookupUserDisplayUseCase
 }
@@ -46,6 +47,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 	renameSpace *kb.RenameSpaceUseCase,
 	searchPages *kb.SearchViewablePagesUseCase,
 	listMembers *kb.ListWorkspaceMembersUseCase,
+	listMembersForAdmin *kb.ListWorkspaceMembersForAdminUseCase,
 	listMembershipEvents *kb.ListMembershipEventsUseCase,
 	userDisplay *user.LookupUserDisplayUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
@@ -60,6 +62,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 		renameSpace:          renameSpace,
 		searchPages:          searchPages,
 		listMembers:          listMembers,
+		listMembersForAdmin:  listMembersForAdmin,
 		listMembershipEvents: listMembershipEvents,
 		userDisplay:          userDisplay,
 	}
@@ -227,6 +230,69 @@ func (h *KnowledgeBaseWorkspaceHandler) ListMembers(c *gin.Context) {
 	out := make([]kbWorkspaceMemberResponse, 0, len(members))
 	for _, m := range members {
 		out = append(out, kbWorkspaceMemberResponse{PrincipalID: m.PrincipalID, UserID: m.UserID, Name: m.Name})
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// kbAdminWorkspaceMemberResponse はメンバー管理画面（段 7）向けの 1 件の返却形。
+// kbWorkspaceMemberResponse と違い、停止中のアカウントも含み、現在のワークスペース全体の
+// 役割も一緒に返す。
+type kbAdminWorkspaceMemberResponse struct {
+	PrincipalID string `json:"principalId" example:"0198a000-0000-7000-8000-00000000000a"`
+	UserID      uint64 `json:"userId"      example:"42"`
+	Name        string `json:"name"        example:"田中 太郎"`
+	// AccountStatus は "active" | "suspended"。
+	AccountStatus string `json:"accountStatus" example:"active"`
+	AvatarURL     string `json:"avatarUrl"`
+	StatusMessage string `json:"statusMessage"`
+	// Role は nil の場合フィールド自体を省く（ワークスペース全体には役割を持たない）。
+	Role *string `json:"role,omitempty" example:"editor"`
+}
+
+func toKbAdminWorkspaceMemberResponse(m domain.AdminWorkspaceMember) kbAdminWorkspaceMemberResponse {
+	out := kbAdminWorkspaceMemberResponse{
+		PrincipalID:   m.PrincipalID,
+		UserID:        m.UserID,
+		Name:          m.Name,
+		AccountStatus: string(m.AccountStatus),
+		AvatarURL:     m.AvatarURL,
+		StatusMessage: m.StatusMessage,
+	}
+	if m.Role != nil {
+		role := string(*m.Role)
+		out.Role = &role
+	}
+	return out
+}
+
+// ListMembersForAdmin はメンバー管理画面（段 7）向けの一覧を返す。ListMembers と違い、
+// 呼べるのは admin だけ（停止・役割変更・削除の対象を選ぶ画面そのものが管理操作のため。
+// ListMembershipEvents と同じ CanManage の判定）。
+func (h *KnowledgeBaseWorkspaceHandler) ListMembersForAdmin(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	perm, err := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if !perm.CanManage {
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
+	members, err := h.listMembersForAdmin.Execute(c.Request.Context(), scope.workspaceID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	out := make([]kbAdminWorkspaceMemberResponse, 0, len(members))
+	for _, m := range members {
+		out = append(out, toKbAdminWorkspaceMemberResponse(m))
 	}
 	c.JSON(http.StatusOK, out)
 }

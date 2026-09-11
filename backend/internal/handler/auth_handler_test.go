@@ -3,11 +3,15 @@ package handler
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
@@ -104,6 +108,16 @@ func newTestAuthHandler(
 		upsertUser: user.NewUpsertUserFromIDTokenUseCase(
 			users, fakeOidcIdentityRepo{}, fakeTxManager{},
 		),
+	}
+}
+
+// newTestAuthHandlerWithRetire は DeleteMe（段 7・自分の退会）だけを試すための最小構成。
+// perms は所属している全ワークスペースの退出に使う（kbFakePerms が
+// membershipRepository の narrow interface も満たす — usecase/user.membershipRepository
+// の doc 参照）。
+func newTestAuthHandlerWithRetire(users *fakeUserRepo, perms *kbFakePerms) *AuthHandler {
+	return &AuthHandler{
+		retireSelf: user.NewRetireSelfUseCase(users, perms, fakeTxManager{}),
 	}
 }
 
@@ -286,5 +300,69 @@ func Test_IDトークンからユーザー登録_宛先違いを弾く(t *testin
 	}
 	if !errors.Is(err, errIDTokenRejected) {
 		t.Fatalf("id_token の拒否として返っていない: %v", err)
+	}
+}
+
+// doDeleteMe は DeleteMe を本物の gin ルーターへ登録して叩く。
+//
+// c.Status だけを呼ぶ応答（204 No Content）は gin の遅延書き込み
+// （c.Writer.WriteHeaderNow）が Write を伴わないと確定しない。ServeHTTP を通した
+// 完全なリクエストサイクルでないと httptest.ResponseRecorder.Code に反映されないため、
+// handler を直接呼ぶ newGinCtx 方式ではなく、ここだけ本物のルーターを組み立てる。
+func doDeleteMe(t *testing.T, h *AuthHandler, uid uint64) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	if uid != 0 {
+		r.Use(func(c *gin.Context) {
+			c.Set(middleware.ContextKeyCurrentUserID, uid)
+			c.Next()
+		})
+	}
+	r.DELETE("/auth/me", h.DeleteMe)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/auth/me", nil))
+	return w
+}
+
+func Test_退会_未認証は401(t *testing.T) {
+	h := newTestAuthHandlerWithRetire(&fakeUserRepo{}, newKbFakePerms(newKbFakePages(), domain.PagePermission{}))
+
+	w := doDeleteMe(t, h, 0)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("未認証は 401 のはず: got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func Test_退会_所属が無ければそのまま退会できる(t *testing.T) {
+	users := &fakeUserRepo{}
+	h := newTestAuthHandlerWithRetire(users, newKbFakePerms(newKbFakePages(), domain.PagePermission{}))
+
+	w := doDeleteMe(t, h, 9)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("成功は 204 のはず: got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func Test_退会_最後のadminのワークスペースがあれば409(t *testing.T) {
+	pages := newKbFakePages()
+	pages.addWorkspace(kbWorkspaceID, kbWorkspaceSlug)
+	perms := newKbFakePerms(pages, domain.PagePermission{})
+	// ListMemberWorkspaces がこのワークスペースを返すよう所属だけ作る。
+	perms.addMember(kbWorkspaceID, kbUserID)
+	// 本物の repository は「最後の admin の退会」を書き込みと同じトランザクションで断る
+	// （LeaveWorkspaceMembership 内で admin 人数を数える）。fake にその計数ロジックを
+	// 持たせず、revokeGrantErr と同じ方針で戻り値を直接差し替えて経路だけ再現する。
+	perms.leaveWorkspaceErr = repository.ErrLastWorkspaceAdmin
+
+	h := newTestAuthHandlerWithRetire(&fakeUserRepo{}, perms)
+
+	w := doDeleteMe(t, h, kbUserID)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("最後の admin なら 409 のはず: got %d body=%s", w.Code, w.Body.String())
 	}
 }

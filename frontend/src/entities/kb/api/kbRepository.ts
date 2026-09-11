@@ -4,6 +4,7 @@ import { toArray } from '@/shared/lib/toArray';
 import { KB_API } from '@/shared/config/apiRoutes';
 import type { CommentAnchor } from '@/shared/ui/RichTextEditor';
 import type {
+  KbAdminWorkspaceMember,
   KbComment,
   KbCommentThread,
   KbGrantablePrincipal,
@@ -335,6 +336,47 @@ const KbRepository = {
   async fetchMembers(workspaceSlug: string): Promise<KbWorkspaceMember[]> {
     const res = await apiClient.get<KbWorkspaceMember[]>(KB_API.members(workspaceSlug));
     return toArray<KbWorkspaceMember>(res.data);
+  },
+
+  /**
+   * メンバー管理画面（段 7）向けの一覧。fetchMembers と違い admin だけが叩ける。
+   * 停止中のアカウントも含み、ワークスペース全体の役割も一緒に返す。
+   */
+  async fetchAdminMembers(workspaceSlug: string): Promise<KbAdminWorkspaceMember[]> {
+    const res = await apiClient.get<KbAdminWorkspaceMember[]>(KB_API.adminMembers(workspaceSlug));
+    return toArray<KbAdminWorkspaceMember>(res.data);
+  },
+
+  /** ワークスペース全体の既定の役割を主体に与える（上書き）。admin だけが叩ける。 */
+  async grantWorkspaceRole(
+    workspaceSlug: string,
+    principalId: string,
+    role: KbGrantRole,
+  ): Promise<void> {
+    await apiClient.put(KB_API.workspaceGrant(workspaceSlug, principalId), { role });
+  },
+
+  /** ワークスペース全体の既定の役割を剥がす。最後の admin は断られる（409）。 */
+  async revokeWorkspaceRole(workspaceSlug: string, principalId: string): Promise<void> {
+    await apiClient.delete(KB_API.workspaceGrant(workspaceSlug, principalId));
+  },
+
+  /** メンバーをワークスペースから外す（冪等）。最後の admin は断られる（409）。 */
+  async removeMember(workspaceSlug: string, userId: number): Promise<void> {
+    await apiClient.delete(KB_API.member(workspaceSlug, userId));
+  },
+
+  /**
+   * アカウントを停止する（段 7）。効果は全ワークスペースに及ぶ。自分自身は指定できない
+   * （400）。対象がこのワークスペースの現在のメンバーでなければ断られる（404）。
+   */
+  async suspendMember(workspaceSlug: string, userId: number): Promise<void> {
+    await apiClient.put(KB_API.memberSuspend(workspaceSlug, userId));
+  },
+
+  /** 停止したアカウントを復帰する（段 7）。権限境界は suspendMember と同じ。 */
+  async restoreMember(workspaceSlug: string, userId: number): Promise<void> {
+    await apiClient.put(KB_API.memberRestore(workspaceSlug, userId));
   },
 
   /**

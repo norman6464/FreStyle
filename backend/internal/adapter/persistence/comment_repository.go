@@ -120,11 +120,16 @@ func (r *commentRepository) CreateCommentThread(
 		CreatedByUserID: createdBy,
 	})
 	if err != nil {
-		// usecase 側の BlockExistsInPage チェックと、この INSERT の間にブロックが削除される
-		// レースが理論上ありうる（TOCTOU・CodeRabbit 指摘）。block_id は blocks.id への
-		// 単独 FK なので、そのときはここで外部キー違反になる。生の DB エラーを 500 として
-		// 漏らさず、他の錨不正と同じ 400 invalid_comment_anchor へ翻訳する。
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// created_by_user_id への FK（段 1）は「作成者が居ない」であって錨の不正では
+			// ないので、他の FK とは分けて返す。
+			if constraint == "fk_comment_threads_created_by" {
+				return nil, repository.ErrUserNotFound
+			}
+			// usecase 側の BlockExistsInPage チェックと、この INSERT の間にブロックが削除される
+			// レースが理論上ありうる（TOCTOU・CodeRabbit 指摘）。block_id は blocks.id への
+			// 単独 FK なので、そのときはここで外部キー違反になる。生の DB エラーを 500 として
+			// 漏らさず、他の錨不正と同じ 400 invalid_comment_anchor へ翻訳する。
 			return nil, domain.ErrInvalidCommentAnchor
 		}
 		return nil, err

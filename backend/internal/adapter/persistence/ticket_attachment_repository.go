@@ -57,7 +57,12 @@ func (r *ticketAttachmentRepository) CreateTicketAttachment(ctx context.Context,
 		ContentType: a.ContentType, SizeBytes: a.SizeBytes, UploadedByUserID: uploaderID,
 	})
 	if err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// uploaded_by_user_id への FK（段 1）は「アップロード者が居ない」であって
+			// 「チケットが無い」ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_attachments_uploaded_by" {
+				return repository.ErrUserNotFound
+			}
 			return repository.ErrTicketNotFound
 		}
 		return err

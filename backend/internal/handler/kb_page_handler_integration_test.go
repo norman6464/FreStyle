@@ -167,7 +167,10 @@ func kbInsertPrivateSpace(t *testing.T, db *sql.DB, workspaceID, key string) str
 // MAX(id)+1 が競合することはない。
 //
 // 逆に、明示採番した行を残すと今度は他のテストの nextval とぶつかるので、
-// テスト終了時に必ず消す（users は共有テーブルなので TRUNCATE しない）。
+// テスト終了時に必ず消す（users は共有テーブルなので TRUNCATE しない）。段 1 で users.id への
+// 記録用 FK（RESTRICT）が増えたため、削除前にこのユーザーを参照する行だけを個別に消す
+// （kbIntegrationTables を丸ごと TRUNCATE すると、1 サブテストが複数ユーザーを作るたびに
+// 重複実行されてテスト全体が極端に遅くなる。実測で 10 分のタイムアウトに達した）。
 func kbInsertUser(t *testing.T, db *sql.DB, name string) uint64 {
 	t.Helper()
 	var id uint64
@@ -178,11 +181,33 @@ func kbInsertUser(t *testing.T, db *sql.DB, name string) uint64 {
 		name+"+"+kbNewUUID()+"@example.test", name,
 	).Scan(&id))
 	t.Cleanup(func() {
+		kbDeleteUserReferences(t, db, id)
 		if _, err := db.Exec(`DELETE FROM users WHERE id = $1`, id); err != nil {
 			t.Errorf("テストユーザーの後始末に失敗: %v", err)
 		}
 	})
 	return id
+}
+
+// kbDeleteUserReferences は、このパッケージの結合テストが触りうる範囲で users.id への
+// 記録 FK（RESTRICT。段 1）を持つ列から、指定ユーザーを参照する行だけを消す。
+// pages を消せば CASCADE で page_paths/page_versions/page_snapshots/blocks/… も
+// 一緒に片付くが、pages を経由しない参照（別ページの page_versions.author_user_id 等）は
+// 個別に消す必要があるので、表ごとに明示する。
+func kbDeleteUserReferences(t *testing.T, db *sql.DB, userID uint64) {
+	t.Helper()
+	for _, stmt := range []string{
+		`DELETE FROM pages WHERE created_by_user_id = $1 OR last_edited_by_user_id = $1`,
+		`DELETE FROM page_versions WHERE author_user_id = $1`,
+		`DELETE FROM page_templates WHERE created_by_user_id = $1`,
+		`DELETE FROM page_suggestions WHERE author_user_id = $1 OR resolved_by_user_id = $1`,
+		`DELETE FROM comment_threads WHERE created_by_user_id = $1 OR resolved_by_user_id = $1`,
+		`DELETE FROM comments WHERE author_user_id = $1`,
+	} {
+		if _, err := db.Exec(stmt, userID); err != nil {
+			t.Errorf("テストユーザーの参照行の後始末に失敗（%s）: %v", stmt, err)
+		}
+	}
 }
 
 // kbInsertRootPage はスペース直下のページを直接入れる（HTTP からは親付きしか作れないため）。

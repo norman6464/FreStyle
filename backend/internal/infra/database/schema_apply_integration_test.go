@@ -85,6 +85,26 @@ func TestApplySchema_Integration(t *testing.T) {
 		require.True(t, constraintExists(t, db, "user_oidc_identities", "ck_user_oidc_identities_not_empty"))
 		require.True(t, indexExists(t, db, "uq_users_email_active"))
 	})
+
+	t.Run("users.id への外部キーが表全体に張られている", func(t *testing.T) {
+		// 段 1: 持ち物（CASCADE）3 列・記録（RESTRICT）16 列。削除時の実際の挙動は
+		// users_foreign_key_integration_test.go の TestUsersForeignKey_Integration で確かめる。
+		// ここでは代表列だけ存在を確認する（全 19 列を並べても on_delete の向きまでは見えないため）。
+		require.True(t, constraintExists(t, db, "profiles", "fk_profiles_user"))
+		require.True(t, constraintExists(t, db, "pages", "fk_pages_created_by"))
+		require.True(t, constraintExists(t, db, "tickets", "fk_tickets_created_by"))
+		require.True(t, constraintExists(t, db, "ticket_comment_reactions", "fk_ticket_comment_reactions_user"))
+
+		// profiles.user_id は bigserial（独自シーケンス付き）から素の bigint に直した
+		// （段 1）。default が残っていない ＝ 独自のシーケンスをもう持たないことを確認する。
+		var hasDefault bool
+		require.NoError(t, db.QueryRowContext(
+			t.Context(),
+			`SELECT column_default IS NOT NULL FROM information_schema.columns
+			  WHERE table_schema = current_schema() AND table_name = 'profiles' AND column_name = 'user_id'`,
+		).Scan(&hasDefault))
+		require.False(t, hasDefault, "profiles.user_id が bigserial の default を残している")
+	})
 }
 
 // TestApplySchema_二重呼び出しは何もしない_Integration は、同じ PostgreSQL を複数のテスト

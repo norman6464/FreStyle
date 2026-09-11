@@ -276,8 +276,8 @@ func Test_範囲外のユーザーIDが巻き戻って別人の権限になら�
 			Title: "巻き戻った作成者", CreatedByUserID: wrappedUserID(),
 		})
 
-		// pages.created_by_user_id は users への FK を持たない。巻き戻った値でも
-		// INSERT が通ってしまい、作成者が別人（存在しない負の id）のページが残る。
+		// int64 の範囲に収まらない値は toInt64ID がアプリ側で弾く（段 1 で追加した
+		// pages.created_by_user_id への FK に頼らず、そもそも DB まで届かない）。
 		require.Error(t, err)
 		assert.Equal(t, before, countPages(t, sqlDB, f.ws), "1 行も書かれていないこと")
 	})
@@ -312,14 +312,20 @@ func countPages(t *testing.T, db *sql.DB, workspaceID string) int {
 // Test_範囲外のユーザーIDの通知は0件を返すこと_Integration は、通知の一覧が
 // 巻き戻った user_id で別ユーザー宛の通知を返さないことを固定する。
 //
-// notifications.user_id には FK が無いので、巻き戻った負の値を持つ行を作れてしまう。
-// ここでもおとりの行を置いて、拾わないことを確かめる。
+// notifications.user_id は段 1 で users への FK（fk_notifications_user、持ち物・CASCADE）を
+// 持つため、setupDecoy と同じくおとりの users 行を先に置いてから通知を作る。
 func Test_範囲外のユーザーIDの通知は0件を返すこと_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, sqlDB, "notifications")
+	testsupport.TruncateAll(t, sqlDB, "notifications", "users", "user_oidc_identities")
 	_, err := sqlDB.Exec(
+		`INSERT INTO users (id, email, name, is_active, created_at, updated_at)
+		 VALUES ($1, $2, 'decoy', true, now(), now())`,
+		decoyUserID, "decoy+"+newID()+"@example.test",
+	)
+	require.NoError(t, err)
+	_, err = sqlDB.Exec(
 		`INSERT INTO notifications (user_id, type, title, body, is_read, created_at)
 		 VALUES ($1, 'info', 't', 'b', false, now())`, decoyUserID,
 	)

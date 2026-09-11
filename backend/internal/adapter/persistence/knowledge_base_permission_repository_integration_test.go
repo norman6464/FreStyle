@@ -19,8 +19,9 @@ import (
 )
 
 // createUser は users に 1 行入れて id を返す。principals / share_links は users へ FK を持つため、
-// 権限の結合テストは実在するユーザーを前提にする（骨格側のテストが created_by_user_id に
-// 固定値を使えるのは、pages が users へ FK を持たないから）。
+// 権限の結合テストは実在するユーザーを前提にする。骨格側のテストが created_by_user_id に
+// 固定値（1 等）を使えるのは、testsupport.OpenTestDB が段 1 で用意する小さい連番の
+// ベースラインユーザー（ensureBaselineTestUsers）が実在するため。
 //
 // users は kbTables に含めない（ほかの結合テストと共有するため消さない）。代わりに毎回
 // 一意なアドレスで作る。users には有効なユーザーのメールを一意にする部分索引があり、

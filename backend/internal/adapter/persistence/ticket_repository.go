@@ -717,7 +717,14 @@ func (r *ticketRepository) CreateTicket(ctx context.Context, in repository.Ticke
 		CreatedByUserID: createdBy,
 	})
 	if err != nil {
-		if isForeignKeyViolation(err) {
+		// created_by_user_id への FK（段 1）は space/type/status/parent への FK とは意味が違う
+		// （入力の user が居ない、であって「スペースが無い」ではない）。名前を見ずに全部
+		// ErrSpaceNotFound へ丸めると、実在しないユーザー ID を渡された呼び出し元が
+		// スペースの問題だと誤解する。
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			if constraint == "fk_tickets_created_by" {
+				return nil, repository.ErrUserNotFound
+			}
 			return nil, repository.ErrSpaceNotFound
 		}
 		return nil, err
@@ -1269,7 +1276,12 @@ func (r *ticketRepository) UpsertTicketAssignment(ctx context.Context, a *domain
 		return repository.ErrTicketNotFound
 	}
 	if err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// assigned_by_user_id への FK（段 1）は「実行者が居ない」であって
+			// 「担当者が居ない」ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_assignments_assigned_by" {
+				return repository.ErrUserNotFound
+			}
 			// fk_ticket_assignments_principal（別ワークスペース・非 user 主体）と
 			// fk_ticket_assignments_ticket の両方をここに畳む。呼び出し側（usecase）は
 			// チケットの実在を先に確かめてから呼ぶため、実務上ここに来るのは
@@ -1357,7 +1369,12 @@ func (r *ticketRepository) InsertTicketStatusTransition(
 		ID: id, WorkspaceID: wsID, SpaceID: spID, TicketID: tID,
 		FromStatusID: fromID, ToStatusID: toID, ChangedByUserID: changedBy,
 	}); err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// changed_by_user_id への FK（段 1）は「実行者が居ない」であって
+			// 「チケットが無い」ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_status_transitions_changed_by" {
+				return repository.ErrUserNotFound
+			}
 			return repository.ErrTicketNotFound
 		}
 		return err
@@ -1383,7 +1400,12 @@ func (r *ticketRepository) InsertTicketChangeGroup(ctx context.Context, g *domai
 		ID: id, WorkspaceID: wsID, TicketID: tID, ActorUserID: actorID,
 	})
 	if err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// actor_user_id への FK（段 1）は「実行者が居ない」であって「チケットが無い」
+			// ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_change_groups_actor" {
+				return repository.ErrUserNotFound
+			}
 			return repository.ErrTicketNotFound
 		}
 		return err

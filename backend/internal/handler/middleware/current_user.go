@@ -40,7 +40,7 @@ func CurrentUser(users repository.UserRepository, workspaces repository.Workspac
 		}
 
 		// ユーザーアカウントが無効化されていれば利用不可（有効な JWT でも即時に弾く）。
-		if !user.IsActive {
+		if !user.IsActive() {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "user_disabled"})
 			return
 		}

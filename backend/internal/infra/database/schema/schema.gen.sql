@@ -683,12 +683,14 @@ CREATE TABLE "public"."users" (
   "id" bigserial NOT NULL,
   "email" text NOT NULL DEFAULT '',
   "name" text NOT NULL DEFAULT '',
-  "is_active" boolean NOT NULL DEFAULT true,
+  "status" text NOT NULL DEFAULT 'active',
   "created_at" timestamptz NOT NULL,
   "updated_at" timestamptz NOT NULL,
   "deleted_at" timestamptz NULL,
   "workspace_id" uuid NULL,
-  PRIMARY KEY ("id")
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_users_status" CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text, 'deactivated'::text])),
+  CONSTRAINT "ck_users_status_deleted_at" CHECK ((status = 'deactivated'::text) = (deleted_at IS NOT NULL))
 );
 -- Create index "uq_users_email_active" to table: "users"
 CREATE UNIQUE INDEX "uq_users_email_active" ON "public"."users" ((lower(btrim(email, '	

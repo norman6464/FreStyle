@@ -127,13 +127,13 @@ WHERE id IN (:'kb_workspace_id', :'kb_workspace_alpha_id', :'kb_workspace_suppor
 -- workspace_id は所属先が無いので NULL のままにする(users.workspace_id は nullable)。
 -- パスワード検証は DB 側ではなく Dex(docker/idp/config.yaml の staticPasswords)側が持つ。
 -- users.password_hash 列自体が撤去済みなので、そもそも投入するものが無い。
-INSERT INTO users (id, email, name, workspace_id, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, workspace_id, status, created_at, updated_at)
 SELECT
   1000000 + i,
   'seed' || i || '@example.test',
   'シード利用者' || i,
   NULL,
-  true,
+  'active',
   now() - (random() * 365)::int * interval '1 day',
   now()
 FROM generate_series(1, :n_users) AS i;
@@ -141,9 +141,9 @@ FROM generate_series(1, :n_users) AS i;
 -- オフラインで管理画面まで触れるよう、運営管理者を 1 人入れる
 -- (admin@example.com / password。Dex 側の docker/idp/config.yaml staticPasswords で認証する)。
 -- id 1000000 は連番（1000000 + i, i >= 1）と衝突しない。
-INSERT INTO users (id, email, name, workspace_id, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, workspace_id, status, created_at, updated_at)
 VALUES (
-  1000000, 'admin@example.com', 'シード運営管理者', NULL, true, now(), now()
+  1000000, 'admin@example.com', 'シード運営管理者', NULL, 'active', now(), now()
 );
 
 -- OIDC identity（正規化後のログイン突き合わせの正）。

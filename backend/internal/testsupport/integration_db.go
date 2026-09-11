@@ -111,8 +111,8 @@ const baselineTestUserCount = 100
 // UserRepository.Create の通常経路）が id=1 から採番し直そうとして衝突する。
 func ensureBaselineTestUsers(ctx context.Context, db *sql.DB) error {
 	if _, err := db.ExecContext(ctx, `
-		INSERT INTO users (id, email, name, is_active, created_at, updated_at)
-		SELECT gs, 'fk-baseline-' || gs || '@example.test', 'fk-baseline-' || gs, true, now(), now()
+		INSERT INTO users (id, email, name, created_at, updated_at)
+		SELECT gs, 'fk-baseline-' || gs || '@example.test', 'fk-baseline-' || gs, now(), now()
 		FROM generate_series(1, $1) AS gs
 		ON CONFLICT (id) DO NOTHING`, baselineTestUserCount); err != nil {
 		return err

@@ -1,23 +1,23 @@
 -- name: GetUserByOidcSubject :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-WHERE u.deleted_at IS NULL
+WHERE u.status <> 'deactivated'
   AND u.id IN (
     SELECT oi.user_id FROM user_oidc_identities oi
     WHERE oi.provider = 'oidc' AND oi.subject = $1
   );
 
 -- name: GetUserByID :one
--- 内部 ID で 1 ユーザーを引く（論理削除は除外）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
+-- 内部 ID で 1 ユーザーを引く（退会済みは除外）。
+SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-WHERE u.id = $1 AND u.deleted_at IS NULL;
+WHERE u.id = $1 AND u.status <> 'deactivated';
 
 -- name: ListUsersByWorkspaceID :many
--- ワークスペース単位のユーザー一覧（論理削除は除外）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.is_active, u.created_at, u.updated_at, u.deleted_at
+-- ワークスペース単位のユーザー一覧（退会済みは除外）。
+SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
-WHERE u.workspace_id = $1 AND u.deleted_at IS NULL
+WHERE u.workspace_id = $1 AND u.status <> 'deactivated'
 ORDER BY u.id ASC;
 
 -- name: GetOidcSubjectByUserID :one
@@ -28,16 +28,16 @@ WHERE user_id = $1 AND provider = 'oidc';
 
 -- name: InsertUser :one
 -- ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
--- 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
--- UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
+-- 無いため呼び出し側が値を渡す。status は常に active（作成直後のアカウントは有効。無効化は
+-- UpdateUserStatus の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
 --
 -- workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 INSERT INTO users (
   email, name, workspace_id,
-  is_active, created_at, updated_at, deleted_at
+  status, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, true, $4, $5, $6
+  $1, $2, $3, 'active', $4, $5, $6
 )
 RETURNING id, created_at, updated_at;
 
@@ -46,10 +46,10 @@ RETURNING id, created_at, updated_at;
 -- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 INSERT INTO users (
   id, email, name, workspace_id,
-  is_active, created_at, updated_at, deleted_at
+  status, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, true, $5, $6, $7
+  $1, $2, $3, $4, 'active', $5, $6, $7
 )
 RETURNING id, created_at, updated_at;
 
@@ -69,9 +69,11 @@ WHERE provider = $1 AND subject = $2;
 -- ユーザーの OIDC identity をすべて消し、subject の占有を解く（同じアカウントの再招待を可能にする）。
 DELETE FROM user_oidc_identities WHERE user_id = $1;
 
--- name: UpdateUserActive :execrows
--- アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。
-UPDATE users SET is_active = $2, updated_at = now() WHERE id = $1;
+-- name: UpdateUserStatus :execrows
+-- アカウントの状態を更新する（active / suspended への切り替え専用。deactivated への遷移は
+-- deleted_at も同時に立てる必要があるため SoftDeleteUser が担う。ck_users_status_deleted_at
+-- が deactivated を渡すこと自体を拒む）。0 件なら対象が存在しない（呼び出し側が not-found にする）。
+UPDATE users SET status = $2, updated_at = now() WHERE id = $1;
 
 -- name: UpdateUserName :execrows
 -- 氏名だけを更新する。0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
@@ -92,6 +94,8 @@ UPDATE users SET
 WHERE id = sqlc.arg(id);
 
 -- name: SoftDeleteUser :execrows
--- ユーザーを論理削除する。既に削除済み / 存在しない場合は 0 件（呼び出し側が not-found にする）。
-UPDATE users SET deleted_at = now(), updated_at = now()
-WHERE id = $1 AND deleted_at IS NULL;
+-- ユーザーを退会させる（status を deactivated にし、deleted_at を立てる。両方を同時に
+-- 更新するのは ck_users_status_deleted_at が要求する整合のため）。既に退会済み / 存在しない
+-- 場合は 0 件（呼び出し側が not-found にする）。
+UPDATE users SET status = 'deactivated', deleted_at = now(), updated_at = now()
+WHERE id = $1 AND status <> 'deactivated';

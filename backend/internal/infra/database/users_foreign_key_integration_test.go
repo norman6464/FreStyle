@@ -22,8 +22,8 @@ func TestUsersForeignKey_Integration(t *testing.T) {
 		t.Helper()
 		var id int64
 		require.NoError(t, db.QueryRowContext(ctx,
-			`INSERT INTO users (id, email, name, is_active, created_at, updated_at)
-			 VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM users), $1, 'fk-test', true, now(), now())
+			`INSERT INTO users (id, email, name, created_at, updated_at)
+			 VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM users), $1, 'fk-test', now(), now())
 			 RETURNING id`,
 			"fk-test+"+t.Name()+"@example.test").Scan(&id))
 		return id

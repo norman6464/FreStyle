@@ -41,7 +41,7 @@ func toDomainUser(row userRow) *domain.User {
 		ID:        uint64(row.ID),
 		Email:     row.Email,
 		Name:      row.Name,
-		IsActive:  row.IsActive,
+		Status:    domain.UserStatus(row.Status),
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
@@ -190,20 +190,27 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	user.ID = uint64(newID)
 	user.CreatedAt = newCreatedAt
 	user.UpdatedAt = newUpdatedAt
-	// is_active は常に true で作る（作成直後のアカウントは有効。停止は UpdateActive の仕事）。
-	user.IsActive = true
+	// status は常に active で作る（作成直後のアカウントは有効。停止は UpdateActive の仕事）。
+	user.Status = domain.UserStatusActive
 	return nil
 }
 
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
+// 内部では domain.UserStatus の active/suspended を切り替える（deactivated への遷移は
+// SoftDelete が担う。deleted_at と同時に立てる必要があり、ck_users_status_deleted_at が
+// このメソッド経由の deactivated 指定そのものを許さない）。
 // 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。
 func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active bool) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
+	status := domain.UserStatusSuspended
+	if active {
+		status = domain.UserStatusActive
+	}
 	q := r.queries(ctx)
-	affected, err := q.UpdateUserActive(ctx, sqlcgen.UpdateUserActiveParams{ID: id64, IsActive: active})
+	affected, err := q.UpdateUserStatus(ctx, sqlcgen.UpdateUserStatusParams{ID: id64, Status: string(status)})
 	if err != nil {
 		return err
 	}
@@ -213,10 +220,10 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 	return nil
 }
 
-// SoftDelete はユーザーを論理削除する（deleted_at = now()）。以後 FindByOidcSubject 等で除外され、
-// 認証時にも弾かれる。既に削除済み / 存在しない場合は domain.ErrNotFound を返す。
-// OIDC identity も削除して subject の占有を解く（同じ OIDC アカウントの再招待を可能にする。
-// ここで消し損ねても起動時バックフィルの掃除が自己修復する）。
+// SoftDelete はユーザーを退会させる（status を deactivated にし、deleted_at = now() を立てる）。
+// 以後 FindByOidcSubject 等で除外され、認証時にも弾かれる。既に退会済み / 存在しない場合は
+// domain.ErrNotFound を返す。OIDC identity も削除して subject の占有を解く（同じ OIDC
+// アカウントの再招待を可能にする。ここで消し損ねても起動時バックフィルの掃除が自己修復する）。
 //
 // 2 文を 1 トランザクションにまとめないのは、無効化を必ず残すため。identity の掃除が失敗した
 // ときに巻き戻すと、消したはずの利用者が有効なまま戻ってしまう（掃除漏れはバックフィルが直す）。

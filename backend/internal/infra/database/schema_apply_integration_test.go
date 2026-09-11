@@ -113,6 +113,16 @@ func TestApplySchema_Integration(t *testing.T) {
 		require.False(t, columnExists(t, db, "users", "password_hash"))
 		require.True(t, columnExists(t, db, "share_links", "password_hash"))
 	})
+
+	t.Run("is_active は status に統合されている（段 3）", func(t *testing.T) {
+		require.False(t, columnExists(t, db, "users", "is_active"))
+		require.True(t, columnExists(t, db, "users", "status"))
+		require.True(t, constraintExists(t, db, "users", "ck_users_status"))
+		require.True(t, constraintExists(t, db, "users", "ck_users_status_deleted_at"))
+
+		// workspaces.is_active は別物（テナントの有効/無効）で対象外。
+		require.True(t, columnExists(t, db, "workspaces", "is_active"))
+	})
 }
 
 // TestApplySchema_二重呼び出しは何もしない_Integration は、同じ PostgreSQL を複数のテスト

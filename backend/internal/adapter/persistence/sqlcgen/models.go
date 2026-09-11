@@ -418,7 +418,7 @@ type User struct {
 	ID          int64
 	Email       string
 	Name        string
-	IsActive    bool
+	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime

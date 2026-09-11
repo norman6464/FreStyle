@@ -45,12 +45,13 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		return u
 	}
 
-	t.Run("作成直後は有効（is_active=true）", func(t *testing.T) {
+	t.Run("作成直後は有効（status=active）", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "active@example.com", "active-1")
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
-		require.True(t, got.IsActive)
+		require.Equal(t, domain.UserStatusActive, got.Status)
+		require.True(t, got.IsActive())
 	})
 
 	t.Run("UpdateActive(false) は即時に効く", func(t *testing.T) {
@@ -62,14 +63,16 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
-		require.False(t, got.IsActive)
+		require.Equal(t, domain.UserStatusSuspended, got.Status)
+		require.False(t, got.IsActive())
 		require.NotEqual(t, before, userUpdatedAt(t, sqlDB, u.ID), "updated_at が進む")
 
 		// 戻せる。
 		require.NoError(t, repo.UpdateActive(ctx, u.ID, true))
 		got, err = repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
-		require.True(t, got.IsActive)
+		require.Equal(t, domain.UserStatusActive, got.Status)
+		require.True(t, got.IsActive())
 	})
 
 	t.Run("UpdateActive は存在しないユーザーで domain.ErrNotFound", func(t *testing.T) {
@@ -107,7 +110,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "新しい名前", got.Name)
 		require.Equal(t, "rename@example.com", got.Email, "email は触らない")
-		require.True(t, got.IsActive, "is_active は触らない")
+		require.Equal(t, domain.UserStatusActive, got.Status, "status は触らない")
 		require.NotEqual(t, before, userUpdatedAt(t, sqlDB, u.ID))
 	})
 

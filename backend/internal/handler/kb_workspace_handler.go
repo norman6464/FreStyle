@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/domain"
 	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
 	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
 // KnowledgeBaseWorkspaceHandler はナレッジのワークスペース / スペースの操作を受ける。
@@ -19,16 +20,18 @@ import (
 // 一覧と作成は URL に slug を持たず middleware.KnowledgeBaseWorkspace を通れない
 // （通したら「まだ所属していない・まだ存在しない」ワークスペースを扱えない）。
 type KnowledgeBaseWorkspaceHandler struct {
-	listWorkspaces  *kb.ListMemberWorkspacesUseCase
-	createWorkspace *kb.CreateWorkspaceUseCase
-	deleteWorkspace *kb.DeleteWorkspaceUseCase
-	checkWorkspace  *kb.CheckWorkspacePermissionUseCase
-	createSpace     *kb.CreateSpaceUseCase
-	listSpaces      *kb.ListViewableSpacesUseCase
-	checkSpace      *kb.CheckSpacePermissionUseCase
-	renameSpace     *kb.RenameSpaceUseCase
-	searchPages     *kb.SearchViewablePagesUseCase
-	listMembers     *kb.ListWorkspaceMembersUseCase
+	listWorkspaces       *kb.ListMemberWorkspacesUseCase
+	createWorkspace      *kb.CreateWorkspaceUseCase
+	deleteWorkspace      *kb.DeleteWorkspaceUseCase
+	checkWorkspace       *kb.CheckWorkspacePermissionUseCase
+	createSpace          *kb.CreateSpaceUseCase
+	listSpaces           *kb.ListViewableSpacesUseCase
+	checkSpace           *kb.CheckSpacePermissionUseCase
+	renameSpace          *kb.RenameSpaceUseCase
+	searchPages          *kb.SearchViewablePagesUseCase
+	listMembers          *kb.ListWorkspaceMembersUseCase
+	listMembershipEvents *kb.ListMembershipEventsUseCase
+	userDisplay          *user.LookupUserDisplayUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -43,18 +46,22 @@ func NewKnowledgeBaseWorkspaceHandler(
 	renameSpace *kb.RenameSpaceUseCase,
 	searchPages *kb.SearchViewablePagesUseCase,
 	listMembers *kb.ListWorkspaceMembersUseCase,
+	listMembershipEvents *kb.ListMembershipEventsUseCase,
+	userDisplay *user.LookupUserDisplayUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
-		listWorkspaces:  listWorkspaces,
-		createWorkspace: createWorkspace,
-		deleteWorkspace: deleteWorkspace,
-		checkWorkspace:  checkWorkspace,
-		createSpace:     createSpace,
-		listSpaces:      listSpaces,
-		checkSpace:      checkSpace,
-		renameSpace:     renameSpace,
-		searchPages:     searchPages,
-		listMembers:     listMembers,
+		listWorkspaces:       listWorkspaces,
+		createWorkspace:      createWorkspace,
+		deleteWorkspace:      deleteWorkspace,
+		checkWorkspace:       checkWorkspace,
+		createSpace:          createSpace,
+		listSpaces:           listSpaces,
+		checkSpace:           checkSpace,
+		renameSpace:          renameSpace,
+		searchPages:          searchPages,
+		listMembers:          listMembers,
+		listMembershipEvents: listMembershipEvents,
+		userDisplay:          userDisplay,
 	}
 }
 
@@ -220,6 +227,61 @@ func (h *KnowledgeBaseWorkspaceHandler) ListMembers(c *gin.Context) {
 	out := make([]kbWorkspaceMemberResponse, 0, len(members))
 	for _, m := range members {
 		out = append(out, kbWorkspaceMemberResponse{PrincipalID: m.PrincipalID, UserID: m.UserID, Name: m.Name})
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// kbMembershipEventResponse は所属・権限の変更履歴 1 件の返却形（段 6・監査）。
+// Target / Actor は段 5 で統一した人の表示（id・表示名・アイコン・状態メッセージ）で返す —
+// 履歴は退会・停止した後の人も指すので、現在のアカウント状態で絞り込まない
+// LookupUserDisplayUseCase を使う（domain.UserDisplay の doc 参照）。
+type kbMembershipEventResponse struct {
+	ID        string              `json:"id"`
+	Target    userDisplayResponse `json:"target"`
+	Actor     userDisplayResponse `json:"actor"`
+	Action    string              `json:"action" example:"role_changed"`
+	OldLabel  *string             `json:"oldLabel,omitempty" example:"viewer"`
+	NewLabel  *string             `json:"newLabel,omitempty" example:"editor"`
+	CreatedAt time.Time           `json:"createdAt"`
+}
+
+// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
+// admin だけが見られる — 「なぜこの人が admin なのか」を確かめる操作自体が管理操作のため
+// （Delete と同じ CanManage の判定）。
+func (h *KnowledgeBaseWorkspaceHandler) ListMembershipEvents(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	perm, err := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
+		WorkspaceID: scope.workspaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if !perm.CanManage {
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
+	events, err := h.listMembershipEvents.Execute(c.Request.Context(), scope.workspaceID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	cache := userDisplayCache{}
+	out := make([]kbMembershipEventResponse, 0, len(events))
+	for _, e := range events {
+		out = append(out, kbMembershipEventResponse{
+			ID:        e.ID,
+			Target:    resolveUserDisplay(c.Request.Context(), h.userDisplay, e.TargetUserID, cache),
+			Actor:     resolveUserDisplay(c.Request.Context(), h.userDisplay, e.ActorUserID, cache),
+			Action:    string(e.Action),
+			OldLabel:  e.OldLabel,
+			NewLabel:  e.NewLabel,
+			CreatedAt: e.CreatedAt,
+		})
 	}
 	c.JSON(http.StatusOK, out)
 }

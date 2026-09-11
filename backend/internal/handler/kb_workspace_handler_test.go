@@ -652,3 +652,40 @@ func Test_ナレッジAPI_人の一覧は未認証なら401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+// kbMembershipEventsPath は所属・権限の変更履歴（段 6・監査）。admin だけが読める。
+const kbMembershipEventsPath = "/api/v2/kb/workspaces/{slug}/membership-events"
+
+func Test_ナレッジAPI_変更履歴はadmin以外には403(t *testing.T) {
+	// CanManage を持たない役割（editor）では読めない。存在の有無で応答を変えない
+	// ほかの権限操作 API とは違い、ここは所属していることは既に確定している
+	// （middleware.KnowledgeBaseWorkspace を通っている）ので 403 でよい。
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w := f.do(t, http.MethodGet, kbFill(kbMembershipEventsPath, kbWorkspaceSlug, ""), "")
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func Test_ナレッジAPI_変更履歴はadminなら読める(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	caller, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
+	require.NoError(t, err)
+	_, err = f.perms.UpsertWorkspaceGrant(context.Background(), kbWorkspaceID, caller.ID, domain.GrantRoleAdmin, kbUserID)
+	require.NoError(t, err)
+
+	w := f.do(t, http.MethodGet, kbFill(kbMembershipEventsPath, kbWorkspaceSlug, ""), "")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var got []kbMembershipEventResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.NotNil(t, got, "0 件でも null ではなく [] を返す")
+}
+
+func Test_ナレッジAPI_変更履歴は未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+
+	w := f.do(t, http.MethodGet, kbFill(kbMembershipEventsPath, kbWorkspaceSlug, ""), "")
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}

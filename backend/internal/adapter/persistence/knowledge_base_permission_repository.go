@@ -125,6 +125,47 @@ func toDomainPageGrant(row sqlcgen.PageGrant) domain.PageGrant {
 	}
 }
 
+func toDomainMembershipEvent(row sqlcgen.MembershipEvent) domain.MembershipEvent {
+	e := domain.MembershipEvent{
+		ID:           row.ID.String(),
+		TargetUserID: uint64(row.TargetUserID),
+		ActorUserID:  uint64(row.ActorUserID),
+		Action:       domain.MembershipEventAction(row.Action),
+		CreatedAt:    row.CreatedAt,
+	}
+	if row.OldLabel.Valid {
+		e.OldLabel = &row.OldLabel.String
+	}
+	if row.NewLabel.Valid {
+		e.NewLabel = &row.NewLabel.String
+	}
+	return e
+}
+
+// recordMembershipEvent は所属・権限の変更 1 件を membership_events へ追記する
+// （段 6・監査）。呼び出し側が開いたトランザクションの qtx をそのまま使うこと —
+// 対象の書き込み（workspace_members / workspace_grants / principals）と同じ
+// トランザクションで呼ばないと、履歴と実際の状態がずれる。
+func recordMembershipEvent(
+	ctx context.Context, qtx *sqlcgen.Queries,
+	workspaceID uuid.UUID, targetUserID, actorUserID int64,
+	action domain.MembershipEventAction, oldLabel, newLabel *string,
+) error {
+	id, err := kbNewID()
+	if err != nil {
+		return err
+	}
+	return qtx.InsertMembershipEvent(ctx, sqlcgen.InsertMembershipEventParams{
+		ID:           id,
+		WorkspaceID:  workspaceID,
+		TargetUserID: targetUserID,
+		ActorUserID:  actorUserID,
+		Action:       string(action),
+		OldLabel:     nullString(oldLabel),
+		NewLabel:     nullString(newLabel),
+	})
+}
+
 func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
 	wsID, ok := kbParseID(workspaceID)
 	if !ok {
@@ -445,33 +486,91 @@ func (r *knowledgeBasePermissionRepository) GrantWorkspaceRoleIfAbsent(ctx conte
 	})
 }
 
-func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
+// recordWorkspaceRoleChange は、qtx の指す時点での役割を old として読んでから mutate を実行し、
+// principal が人（kind=user）なら membership_events へ 1 件記録する（段 6・監査。group /
+// space_all は特定の 1 人を追う membership_events の対象外）。old と new が同じ（実質変化なし）
+// なら何も記録しない。
+func recordWorkspaceRoleChange(
+	ctx context.Context, qtx *sqlcgen.Queries, workspaceID, principalID uuid.UUID, actorUserID int64,
+	newLabel *string, mutate func(qtx *sqlcgen.Queries) error,
+) error {
+	// 変更前の役割を先に読む（mutate が上書き・削除する前でないと読めない）。この読み取り自体は
+	// 別テナントの principal ID を渡されても 0 行に落ちるだけで、新しい失敗モードを持ち込まない。
+	var oldLabel *string
+	prevRole, err := qtx.GetWorkspaceGrant(ctx, sqlcgen.GetWorkspaceGrantParams{WorkspaceID: workspaceID, PrincipalID: principalID})
+	switch {
+	case err == nil:
+		l := prevRole
+		oldLabel = &l
+	case errors.Is(err, sql.ErrNoRows):
+		// 元から役割が無い。oldLabel は nil のまま。
+	default:
+		return err
+	}
+	// mutate を先に実行し、そのエラー（別テナントの principal への FK 違反等）をそのまま伝える。
+	// ここより後ろで principal を読み直すのは、書き込みが実際に成功した後だけにする —
+	// 監査の付随処理が本来のエラーの種類（FK 違反 → not found 等）を書き換えてはいけない。
+	if err := mutate(qtx); err != nil {
+		return err
+	}
+	principal, err := qtx.GetPrincipal(ctx, sqlcgen.GetPrincipalParams{WorkspaceID: workspaceID, ID: principalID})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// mutate 自体は成功している（例: 対象が無い削除は 0 行のまま成功）。
+			// 記録すべき対象が無いだけなので、ここは黙って抜ける。
+			return nil
+		}
+		return err
+	}
+	if principal.Kind != string(domain.PrincipalKindUser) || !principal.UserID.Valid {
+		return nil
+	}
+	if (oldLabel == nil && newLabel == nil) || (oldLabel != nil && newLabel != nil && *oldLabel == *newLabel) {
+		return nil
+	}
+	return recordMembershipEvent(
+		ctx, qtx, workspaceID, principal.UserID.Int64, actorUserID,
+		domain.MembershipEventRoleChanged, oldLabel, newLabel,
+	)
+}
+
+func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(
+	ctx context.Context, workspaceID, principalID string, role domain.GrantRole, actorUserID uint64,
+) (*domain.WorkspaceGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return nil, repository.ErrPrincipalNotFound
+	}
+	actorID, aok := toInt64ID(actorUserID)
+	if !aok {
+		return nil, repository.ErrUserNotFound
 	}
 	params := sqlcgen.UpsertWorkspaceGrantParams{
 		WorkspaceID: wsID,
 		PrincipalID: prID,
 		Role:        string(role),
 	}
-	if role == domain.GrantRoleAdmin {
-		row, err := r.queries(ctx).UpsertWorkspaceGrant(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		g := toDomainWorkspaceGrant(row)
-		return &g, nil
-	}
+	newLabel := string(role)
 	var g domain.WorkspaceGrant
-	if err := r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+	doUpsert := func(qtx *sqlcgen.Queries) error {
 		row, err := qtx.UpsertWorkspaceGrant(ctx, params)
 		if err != nil {
 			return err
 		}
 		g = toDomainWorkspaceGrant(row)
 		return nil
+	}
+	if role == domain.GrantRoleAdmin {
+		if err := r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+			return recordWorkspaceRoleChange(ctx, qtx, wsID, prID, actorID, &newLabel, doUpsert)
+		}); err != nil {
+			return nil, err
+		}
+		return &g, nil
+	}
+	if err := r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
+		return recordWorkspaceRoleChange(ctx, qtx, wsID, prID, actorID, &newLabel, doUpsert)
 	}); err != nil {
 		return nil, err
 	}
@@ -484,18 +583,24 @@ func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Con
 //
 // ただし「ユーザーの admin が 0 人になる取り消し」だけは冪等では済まないので、
 // withLastAdminGuard を通して同じトランザクションの中で断る。
-func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
+func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string, actorUserID uint64) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
 	if !ok || !ok2 {
 		return nil
 	}
+	actorID, aok := toInt64ID(actorUserID)
+	if !aok {
+		return repository.ErrUserNotFound
+	}
 	return r.withLastAdminGuard(ctx, wsID, prID, func(qtx *sqlcgen.Queries) error {
-		_, err := qtx.DeleteWorkspaceGrant(ctx, sqlcgen.DeleteWorkspaceGrantParams{
-			WorkspaceID: wsID,
-			PrincipalID: prID,
+		return recordWorkspaceRoleChange(ctx, qtx, wsID, prID, actorID, nil, func(qtx *sqlcgen.Queries) error {
+			_, err := qtx.DeleteWorkspaceGrant(ctx, sqlcgen.DeleteWorkspaceGrantParams{
+				WorkspaceID: wsID,
+				PrincipalID: prID,
+			})
+			return err
 		})
-		return err
 	})
 }
 
@@ -1103,21 +1208,28 @@ func (r *knowledgeBasePermissionRepository) InviteWorkspaceMember(
 	if !ibok {
 		return repository.ErrUserNotFound
 	}
-	_, err := r.queries(ctx).UpsertInvitedWorkspaceMember(ctx, sqlcgen.UpsertInvitedWorkspaceMemberParams{
-		WorkspaceID:     wsID,
-		UserID:          uid,
-		InvitedByUserID: sql.NullInt64{Int64: invitedBy, Valid: true},
-	})
-	if err != nil {
-		// 実在しないユーザー ID は users / workspaces への FK で落ちる（招待相手・招待した人の
-		// どちらの入力誤りかは区別できないが、呼び出し側は必ず招待した本人の ID を渡すので
-		// 通常は招待相手側の誤り）。
-		if isForeignKeyViolation(err) {
-			return repository.ErrUserNotFound
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		n, err := qtx.UpsertInvitedWorkspaceMember(ctx, sqlcgen.UpsertInvitedWorkspaceMemberParams{
+			WorkspaceID:     wsID,
+			UserID:          uid,
+			InvitedByUserID: sql.NullInt64{Int64: invitedBy, Valid: true},
+		})
+		if err != nil {
+			// 実在しないユーザー ID は users / workspaces への FK で落ちる（招待相手・招待した人の
+			// どちらの入力誤りかは区別できないが、呼び出し側は必ず招待した本人の ID を渡すので
+			// 通常は招待相手側の誤り）。
+			if isForeignKeyViolation(err) {
+				return repository.ErrUserNotFound
+			}
+			return err
 		}
-		return err
-	}
-	return nil
+		if n == 0 {
+			// 既に active/invited だった（UpsertInvitedWorkspaceMember の WHERE 句参照）。
+			// 実際には何も変わっていないので記録しない。
+			return nil
+		}
+		return recordMembershipEvent(ctx, qtx, wsID, uid, invitedBy, domain.MembershipEventInvited, nil, nil)
+	})
 }
 
 func (r *knowledgeBasePermissionRepository) AcceptWorkspaceInvitation(
@@ -1157,7 +1269,8 @@ func (r *knowledgeBasePermissionRepository) AcceptWorkspaceInvitation(
 			return err
 		}
 		principal = toDomainPrincipal(row)
-		return nil
+		editor := string(domain.GrantRoleEditor)
+		return recordMembershipEvent(ctx, qtx, wsID, uid, uid, domain.MembershipEventInvitationAccepted, nil, &editor)
 	})
 	if err != nil {
 		return nil, err
@@ -1174,17 +1287,19 @@ func (r *knowledgeBasePermissionRepository) DeclineWorkspaceInvitation(ctx conte
 	if !uok {
 		return repository.ErrWorkspaceInvitationNotFound
 	}
-	n, err := r.queries(ctx).DeclineWorkspaceInvitation(ctx, sqlcgen.DeclineWorkspaceInvitationParams{
-		WorkspaceID: wsID,
-		UserID:      uid,
+	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
+		n, err := qtx.DeclineWorkspaceInvitation(ctx, sqlcgen.DeclineWorkspaceInvitationParams{
+			WorkspaceID: wsID,
+			UserID:      uid,
+		})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return repository.ErrWorkspaceInvitationNotFound
+		}
+		return recordMembershipEvent(ctx, qtx, wsID, uid, uid, domain.MembershipEventInvitationDeclined, nil, nil)
 	})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return repository.ErrWorkspaceInvitationNotFound
-	}
-	return nil
 }
 
 func (r *knowledgeBasePermissionRepository) ListMyWorkspaceInvitations(ctx context.Context, userID uint64) ([]domain.WorkspaceInvitation, error) {
@@ -1211,10 +1326,32 @@ func (r *knowledgeBasePermissionRepository) ListMyWorkspaceInvitations(ctx conte
 	return out, nil
 }
 
+// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
+func (r *knowledgeBasePermissionRepository) ListMembershipEvents(ctx context.Context, workspaceID string) ([]domain.MembershipEvent, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return []domain.MembershipEvent{}, nil
+	}
+	rows, err := r.queries(ctx).ListMembershipEvents(ctx, wsID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.MembershipEvent, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainMembershipEvent(row))
+	}
+	return out, nil
+}
+
 // LeaveWorkspaceMembership は所属を終える。principal（実メンバーとしての権限一式）が
 // あれば「最後の admin」検査を通したうえで削除し、workspace_members は消さず left にする
 // （いつ誰が居たかの記録として残す）。
-func (r *knowledgeBasePermissionRepository) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error {
+//
+// actorUserID は誰がこの操作をしたか（段 6・監査）。userID と同じなら本人の退会
+// （MembershipEventLeft）、違えば admin による除名（MembershipEventMemberRemoved）として
+// membership_events へ 1 件記録する。実際には所属が終わっていない（0 行更新 = 既に非メンバー）
+// なら何も記録しない。
+func (r *knowledgeBasePermissionRepository) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, actorUserID uint64) error {
 	wsID, ok := kbParseID(workspaceID)
 	if !ok {
 		return nil // 存在し得ないワークスペース = 既に非メンバー
@@ -1223,13 +1360,30 @@ func (r *knowledgeBasePermissionRepository) LeaveWorkspaceMembership(ctx context
 	if !uok {
 		return nil // 存在し得ないユーザー = 既に非メンバー
 	}
+	actorID, aok := toInt64ID(actorUserID)
+	if !aok {
+		return repository.ErrUserNotFound
+	}
+	action := domain.MembershipEventMemberRemoved
+	if actorID == uid {
+		action = domain.MembershipEventLeft
+	}
 	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
 		principal, err := qtx.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 			WorkspaceID: wsID,
 			UserID:      sql.NullInt64{Int64: uid, Valid: true},
 		})
+		var oldLabel *string
 		switch {
 		case err == nil:
+			// 消す前に、消える役割を履歴用に読んでおく（無ければ役割 0 個のまま所属していた）。
+			if role, rerr := qtx.GetWorkspaceGrant(ctx, sqlcgen.GetWorkspaceGrantParams{
+				WorkspaceID: wsID, PrincipalID: principal.ID,
+			}); rerr == nil {
+				oldLabel = &role
+			} else if !errors.Is(rerr, sql.ErrNoRows) {
+				return rerr
+			}
 			if delErr := lastAdminGuardedMutate(ctx, qtx, wsID, principal.ID, func(qtx *sqlcgen.Queries) error {
 				n, derr := qtx.DeletePrincipal(ctx, sqlcgen.DeletePrincipalParams{WorkspaceID: wsID, ID: principal.ID})
 				if derr != nil {
@@ -1247,11 +1401,17 @@ func (r *knowledgeBasePermissionRepository) LeaveWorkspaceMembership(ctx context
 		default:
 			return err
 		}
-		_, err = qtx.LeaveWorkspaceMembership(ctx, sqlcgen.LeaveWorkspaceMembershipParams{
+		n, err := qtx.LeaveWorkspaceMembership(ctx, sqlcgen.LeaveWorkspaceMembershipParams{
 			WorkspaceID: wsID,
 			UserID:      uid,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return nil // 実際には何も変わっていない（既に left/suspended か、そもそも非メンバー）。
+		}
+		return recordMembershipEvent(ctx, qtx, wsID, uid, actorID, action, oldLabel, nil)
 	})
 }
 

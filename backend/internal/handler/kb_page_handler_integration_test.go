@@ -203,6 +203,8 @@ func kbDeleteUserReferences(t *testing.T, db *sql.DB, userID uint64) {
 		`DELETE FROM page_suggestions WHERE author_user_id = $1 OR resolved_by_user_id = $1`,
 		`DELETE FROM comment_threads WHERE created_by_user_id = $1 OR resolved_by_user_id = $1`,
 		`DELETE FROM comments WHERE author_user_id = $1`,
+		// 段 6: 所属・権限の変更履歴。target / actor どちらの記録 FK も RESTRICT。
+		`DELETE FROM membership_events WHERE target_user_id = $1 OR actor_user_id = $1`,
 	} {
 		if _, err := db.Exec(stmt, userID); err != nil {
 			t.Errorf("テストユーザーの参照行の後始末に失敗（%s）: %v", stmt, err)
@@ -233,7 +235,7 @@ func (e *kbEnv) joinWorkspace(t *testing.T, userID uint64, role domain.GrantRole
 	t.Helper()
 	principal, err := e.permissions.EnsureUserPrincipal(t.Context(), e.workspaceID, userID)
 	require.NoError(t, err)
-	_, err = e.permissions.UpsertWorkspaceGrant(t.Context(), e.workspaceID, principal.ID, role)
+	_, err = e.permissions.UpsertWorkspaceGrant(t.Context(), e.workspaceID, principal.ID, role, userID)
 	require.NoError(t, err)
 	return principal
 }

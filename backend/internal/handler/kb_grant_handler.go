@@ -186,6 +186,7 @@ func (h *KnowledgeBaseGrantHandler) GrantWorkspaceRole(c *gin.Context) {
 		WorkspaceID: scope.workspaceID,
 		PrincipalID: principalID,
 		Role:        domain.GrantRole(req.Role),
+		ActorUserID: scope.userID,
 	})
 	if err != nil {
 		respondKbPermissionOperationErr(c, err)
@@ -213,6 +214,7 @@ func (h *KnowledgeBaseGrantHandler) RevokeWorkspaceRole(c *gin.Context) {
 	if err := h.revokeWorkspaceRole.Execute(c.Request.Context(), kb.RevokeWorkspaceRoleInput{
 		WorkspaceID: scope.workspaceID,
 		PrincipalID: principalID,
+		ActorUserID: scope.userID,
 	}); err != nil {
 		respondKbPermissionOperationErr(c, err)
 		return

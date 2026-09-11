@@ -317,8 +317,8 @@ func (m *mockKBPermissionRepo) ListMyWorkspaceInvitations(ctx context.Context, u
 	return rows, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error {
-	return m.Called(ctx, workspaceID, userID).Error(0)
+func (m *mockKBPermissionRepo) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, actorUserID uint64) error {
+	return m.Called(ctx, workspaceID, userID, actorUserID).Error(0)
 }
 
 func (m *mockKBPermissionRepo) AddGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
@@ -329,14 +329,22 @@ func (m *mockKBPermissionRepo) RemoveGroupMember(ctx context.Context, workspaceI
 	return m.Called(ctx, workspaceID, groupPrincipalID, memberPrincipalID).Error(0)
 }
 
-func (m *mockKBPermissionRepo) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
-	args := m.Called(ctx, workspaceID, principalID, role)
+func (m *mockKBPermissionRepo) UpsertWorkspaceGrant(
+	ctx context.Context, workspaceID, principalID string, role domain.GrantRole, actorUserID uint64,
+) (*domain.WorkspaceGrant, error) {
+	args := m.Called(ctx, workspaceID, principalID, role, actorUserID)
 	g, _ := args.Get(0).(*domain.WorkspaceGrant)
 	return g, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
-	return m.Called(ctx, workspaceID, principalID).Error(0)
+func (m *mockKBPermissionRepo) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string, actorUserID uint64) error {
+	return m.Called(ctx, workspaceID, principalID, actorUserID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListMembershipEvents(ctx context.Context, workspaceID string) ([]domain.MembershipEvent, error) {
+	args := m.Called(ctx, workspaceID)
+	rows, _ := args.Get(0).([]domain.MembershipEvent)
+	return rows, args.Error(1)
 }
 
 func (m *mockKBPermissionRepo) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {

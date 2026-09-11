@@ -402,7 +402,7 @@ func TestPageGrant_付与が無ければ入口の答えはスペース経由と�
 			name:       "ワークスペースに admin",
 			wantManage: true,
 			setup: func(t *testing.T, f kbPermFixture, _ string) {
-				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin, f.alice)
 				require.NoError(t, err)
 			},
 		},
@@ -444,7 +444,7 @@ func TestPageGrant_付与が無ければ入口の答えはスペース経由と�
 			wantManage: false,
 			private:    true,
 			setup: func(t *testing.T, f kbPermFixture, _ string) {
-				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin)
+				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleAdmin, f.alice)
 				require.NoError(t, err)
 			},
 		},

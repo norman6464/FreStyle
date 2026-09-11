@@ -60,7 +60,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	t.Run("ワークスペースのgrantは配下の全スペースに届く", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleEditor)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleEditor, f.alice)
 		require.NoError(t, err)
 
 		for _, space := range []string{f.spaceA, f.spaceB} {
@@ -86,7 +86,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				f := setupKBPermission(t, sqlDB)
 				alice := f.principalFor(ctx, t, f.alice)
-				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, tc.workspace)
+				_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, tc.workspace, f.alice)
 				require.NoError(t, err)
 				f.grantSpace(ctx, t, f.spaceA, alice.ID, tc.space)
 
@@ -123,7 +123,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "管理チーム")
 		require.NoError(t, err)
 		require.NoError(t, f.perm.AddGroupMember(ctx, f.ws, group.ID, alice.ID))
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, group.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, group.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
 		assert.True(t, workspaceScopeOf(ctx, t, f, f.alice).CanManage)
@@ -148,7 +148,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		f.principalFor(ctx, t, f.alice)
 		everyone := f.everyoneOf(ctx, t, f.spaceA)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, everyone.ID, domain.GrantRoleAdmin)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, everyone.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
 		assert.False(t, workspaceScopeOf(ctx, t, f, f.alice).CanManage,
@@ -160,7 +160,7 @@ func TestKnowledgeBaseScopePermission_Integration(t *testing.T) {
 	t.Run("別テナントのスペースIDでは役割を返さない", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
 		// f.otherSpc は別ワークスペースのスペース。実在は確かめるが、このテナントのものではない。
@@ -300,10 +300,10 @@ func TestKnowledgeBaseMemberWorkspaces_Integration(t *testing.T) {
 	t.Run("CanManageはadmin grantを持つ人だけtrue", func(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
-		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 		bob := f.principalFor(ctx, t, f.bob)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleEditor)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleEditor, f.bob)
 		require.NoError(t, err)
 		// carol は所属だけで grant が無い（LEFT JOIN が noなmatch になる側）。
 		// sqlc が (wg.role = 'admin') を非 null の bool と推論しているので、

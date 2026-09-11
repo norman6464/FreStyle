@@ -322,6 +322,9 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		// ワークスペースの人の一覧。判定は所属のみ（役割を見ない）ので表にせず、
 		// Test_ナレッジAPI_人の一覧は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembersPath): true,
+		// 所属・権限の変更履歴（段 6・監査）。判定が admin（CanManage）で他の GET と軸が違うので
+		// 表にせず、Test_ナレッジAPI_変更履歴は* が直接叩く。
+		http.MethodGet + " " + kbRoutePattern(kbMembershipEventsPath): true,
 		// 自分宛の招待（段 2）。認証だけで所属は問わない特殊な経路（受諾するまで
 		// 非メンバーが叩く）ので表にせず、kb_invitation_handler_test.go の
 		// Test_招待API_* が直接叩く。

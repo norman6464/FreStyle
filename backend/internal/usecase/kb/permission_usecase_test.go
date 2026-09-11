@@ -343,10 +343,12 @@ func Test_メンバー招待_invited行を作るだけで権限は発生しな�
 
 func Test_メンバー削除_所属を終える(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
-	repo.On("LeaveWorkspaceMembership", mock.Anything, kbWS, uint64(7)).Return(nil)
+	repo.On("LeaveWorkspaceMembership", mock.Anything, kbWS, uint64(7), uint64(1)).Return(nil)
 	uc := kb.NewRemoveWorkspaceMemberUseCase(repo)
 
-	require.NoError(t, uc.Execute(context.Background(), kb.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
+	require.NoError(t, uc.Execute(context.Background(), kb.RemoveWorkspaceMemberInput{
+		WorkspaceID: kbWS, UserID: 7, ActorUserID: 1,
+	}))
 	repo.AssertExpectations(t)
 }
 
@@ -441,13 +443,13 @@ func Test_権限付与_ワークスペースとスペースの両方に張れる
 	repo := &mockKBPermissionRepo{}
 	repo.On("FindPrincipal", mock.Anything, kbWS, kbPrincipal).
 		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
-	repo.On("UpsertWorkspaceGrant", mock.Anything, kbWS, kbPrincipal, domain.GrantRoleAdmin).
+	repo.On("UpsertWorkspaceGrant", mock.Anything, kbWS, kbPrincipal, domain.GrantRoleAdmin, uint64(1)).
 		Return(&domain.WorkspaceGrant{WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin}, nil)
 	repo.On("UpsertSpaceGrant", mock.Anything, kbWS, kbSpace, kbPrincipal, domain.GrantRoleViewer).
 		Return(&domain.SpaceGrant{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal, Role: domain.GrantRoleViewer}, nil)
 
 	wsGrant, err := kb.NewGrantWorkspaceRoleUseCase(repo).Execute(context.Background(),
-		kb.GrantWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin})
+		kb.GrantWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal, Role: domain.GrantRoleAdmin, ActorUserID: 1})
 	require.NoError(t, err)
 	assert.Equal(t, domain.GrantRoleAdmin, wsGrant.Role)
 
@@ -473,12 +475,12 @@ func Test_権限剥奪_必須項目の検証(t *testing.T) {
 
 func Test_権限剥奪_repository_へ委譲する(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
-	repo.On("DeleteWorkspaceGrant", mock.Anything, kbWS, kbPrincipal).Return(nil)
+	repo.On("DeleteWorkspaceGrant", mock.Anything, kbWS, kbPrincipal, uint64(1)).Return(nil)
 	repo.On("DeleteSpaceGrant", mock.Anything, kbWS, kbSpace, kbPrincipal).Return(nil)
 	ctx := context.Background()
 
 	require.NoError(t, kb.NewRevokeWorkspaceRoleUseCase(repo).Execute(ctx,
-		kb.RevokeWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal}))
+		kb.RevokeWorkspaceRoleInput{WorkspaceID: kbWS, PrincipalID: kbPrincipal, ActorUserID: 1}))
 	require.NoError(t, kb.NewRevokeSpaceRoleUseCase(repo).Execute(ctx,
 		kb.RevokeSpaceRoleInput{WorkspaceID: kbWS, SpaceID: kbSpace, PrincipalID: kbPrincipal}))
 }

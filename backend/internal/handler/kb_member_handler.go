@@ -148,6 +148,7 @@ func (h *KnowledgeBaseMemberHandler) RemoveMember(c *gin.Context) {
 	if err := h.removeMember.Execute(c.Request.Context(), kb.RemoveWorkspaceMemberInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      userID,
+		ActorUserID: scope.userID,
 	}); err != nil {
 		respondKbPermissionOperationErr(c, err)
 		return

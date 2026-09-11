@@ -570,6 +570,8 @@ type GrantWorkspaceRoleInput struct {
 	WorkspaceID string
 	PrincipalID string
 	Role        domain.GrantRole
+	// ActorUserID は誰がこの役割を与えたか（段 6・監査）。
+	ActorUserID uint64
 }
 
 func (u *GrantWorkspaceRoleUseCase) Execute(ctx context.Context, in GrantWorkspaceRoleInput) (*domain.WorkspaceGrant, error) {
@@ -587,7 +589,7 @@ func (u *GrantWorkspaceRoleUseCase) Execute(ctx context.Context, in GrantWorkspa
 	if _, err := u.repo.FindPrincipal(ctx, in.WorkspaceID, in.PrincipalID); err != nil {
 		return nil, err
 	}
-	return u.repo.UpsertWorkspaceGrant(ctx, in.WorkspaceID, in.PrincipalID, in.Role)
+	return u.repo.UpsertWorkspaceGrant(ctx, in.WorkspaceID, in.PrincipalID, in.Role, in.ActorUserID)
 }
 
 // RevokeWorkspaceRoleUseCase はワークスペース全体での既定の役割を剥がす（冪等）。
@@ -602,6 +604,8 @@ func NewRevokeWorkspaceRoleUseCase(r repository.KnowledgeBasePermissionRepositor
 type RevokeWorkspaceRoleInput struct {
 	WorkspaceID string
 	PrincipalID string
+	// ActorUserID は誰がこの役割を剥がしたか（段 6・監査）。
+	ActorUserID uint64
 }
 
 func (u *RevokeWorkspaceRoleUseCase) Execute(ctx context.Context, in RevokeWorkspaceRoleInput) error {
@@ -611,7 +615,7 @@ func (u *RevokeWorkspaceRoleUseCase) Execute(ctx context.Context, in RevokeWorks
 	if in.PrincipalID == "" {
 		return errors.New("principalID is required")
 	}
-	return u.repo.DeleteWorkspaceGrant(ctx, in.WorkspaceID, in.PrincipalID)
+	return u.repo.DeleteWorkspaceGrant(ctx, in.WorkspaceID, in.PrincipalID, in.ActorUserID)
 }
 
 // GrantSpaceRoleUseCase はスペースでの既定の役割を主体に与える。
@@ -856,6 +860,9 @@ func NewRemoveWorkspaceMemberUseCase(r repository.KnowledgeBasePermissionReposit
 type RemoveWorkspaceMemberInput struct {
 	WorkspaceID string
 	UserID      uint64
+	// ActorUserID は誰がこの操作をしたか（段 6・監査）。UserID と同じなら本人の退会、
+	// 違えば admin による除名として記録される（repository.LeaveWorkspaceMembership 参照）。
+	ActorUserID uint64
 }
 
 func (u *RemoveWorkspaceMemberUseCase) Execute(ctx context.Context, in RemoveWorkspaceMemberInput) error {
@@ -865,7 +872,24 @@ func (u *RemoveWorkspaceMemberUseCase) Execute(ctx context.Context, in RemoveWor
 	if in.UserID == 0 {
 		return errors.New("userID is required")
 	}
-	return u.repo.LeaveWorkspaceMembership(ctx, in.WorkspaceID, in.UserID)
+	return u.repo.LeaveWorkspaceMembership(ctx, in.WorkspaceID, in.UserID, in.ActorUserID)
+}
+
+// ListMembershipEventsUseCase は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
+// 「なぜこの人が admin なのか」を後から説明できるようにするための読み取り専用の口。
+type ListMembershipEventsUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListMembershipEventsUseCase(r repository.KnowledgeBasePermissionRepository) *ListMembershipEventsUseCase {
+	return &ListMembershipEventsUseCase{repo: r}
+}
+
+func (u *ListMembershipEventsUseCase) Execute(ctx context.Context, workspaceID string) ([]domain.MembershipEvent, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	return u.repo.ListMembershipEvents(ctx, workspaceID)
 }
 
 // CreatePrincipalGroupUseCase は権限をまとめて張るためのグループを作る。

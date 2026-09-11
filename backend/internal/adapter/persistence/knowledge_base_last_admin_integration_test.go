@@ -60,10 +60,10 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 	}
 	removals := []removeAdmin{
 		{"grant取り消し", func(f kbPermFixture, principalID string) error {
-			return f.perm.DeleteWorkspaceGrant(ctx, f.ws, principalID)
+			return f.perm.DeleteWorkspaceGrant(ctx, f.ws, principalID, f.alice)
 		}},
 		{"降格", func(f kbPermFixture, principalID string) error {
-			_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, principalID, domain.GrantRoleEditor)
+			_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, principalID, domain.GrantRoleEditor, f.alice)
 			return err
 		}},
 		{"メンバー削除", func(f kbPermFixture, principalID string) error {
@@ -79,7 +79,7 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 		for _, uid := range []uint64{f.alice, f.bob} {
 			p, err := f.perm.EnsureUserPrincipal(ctx, f.ws, uid)
 			require.NoError(t, err)
-			_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, p.ID, domain.GrantRoleAdmin)
+			_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, p.ID, domain.GrantRoleAdmin, uid)
 			require.NoError(t, err)
 			ids = append(ids, p.ID)
 		}
@@ -152,7 +152,7 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 
 		// その裏で bob の admin を外そうとする。alice の行のロック待ちで止まるはず。
 		done := make(chan error, 1)
-		go func() { done <- f.perm.DeleteWorkspaceGrant(ctx, f.ws, bobP) }()
+		go func() { done <- f.perm.DeleteWorkspaceGrant(ctx, f.ws, bobP, f.alice) }()
 		select {
 		case err := <-done:
 			t.Fatalf("admin 行がロックされている間に取り消しが通ってしまった: %v", err)
@@ -179,15 +179,15 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
 		bob, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.bob)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleAdmin, f.bob)
 		require.NoError(t, err, "2 人目の admin は最後の admin が居ても張れる")
 
-		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID), "渡したあとは自分を外せる")
+		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID, f.alice), "渡したあとは自分を外せる")
 		assert.Equal(t, 1, countWorkspaceUserAdmins(t, sqlDB, f.ws))
 	})
 
@@ -197,14 +197,14 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "管理チーム")
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, group.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, group.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
-		require.ErrorIs(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID),
+		require.ErrorIs(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, alice.ID, f.alice),
 			repository.ErrLastWorkspaceAdmin, "グループの admin では代わりにならない")
 	})
 
@@ -213,15 +213,15 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 		bob, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.bob)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleViewer)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, bob.ID, domain.GrantRoleViewer, f.alice)
 		require.NoError(t, err)
 
-		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, bob.ID))
-		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, bob.ID), "2 回目も成功（冪等）")
+		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, bob.ID, f.alice))
+		require.NoError(t, f.perm.DeleteWorkspaceGrant(ctx, f.ws, bob.ID, f.alice), "2 回目も成功（冪等）")
 		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, bob.ID))
 		assert.Equal(t, 1, countWorkspaceUserAdmins(t, sqlDB, f.ws))
 	})
@@ -230,10 +230,10 @@ func TestKnowledgeBaseLastWorkspaceAdmin_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleAdmin, f.alice)
 		require.NoError(t, err)
 
-		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleEditor)
+		_, err = f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleEditor, f.alice)
 		require.ErrorIs(t, err, repository.ErrLastWorkspaceAdmin)
 		require.ErrorIs(t, f.perm.DeletePrincipal(ctx, f.ws, alice.ID), repository.ErrLastWorkspaceAdmin)
 

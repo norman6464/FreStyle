@@ -23,7 +23,7 @@ vi.mock('@/entities/notification/api/notificationRepository', () => ({
   },
 }));
 
-function renderHeader() {
+function renderHeader(onOpenSearch = vi.fn()) {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: { auth: { isAuthenticated: true, loading: false } },
@@ -32,7 +32,7 @@ function renderHeader() {
     <Provider store={store}>
       <ToastProvider>
         <MemoryRouter initialEntries={['/']}>
-          <Header />
+          <Header onOpenSearch={onOpenSearch} />
         </MemoryRouter>
       </ToastProvider>
     </Provider>,
@@ -41,6 +41,14 @@ function renderHeader() {
 
 describe('Header', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('検索ボタンを押すと onOpenSearch を呼ぶ', () => {
+    const onOpenSearch = vi.fn();
+    renderHeader(onOpenSearch);
+    const [searchButton] = screen.getAllByRole('button', { name: '検索' });
+    fireEvent.click(searchButton);
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
 
   it('テキストのナビ項目を表示する', () => {
     renderHeader();

@@ -1,23 +1,27 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { fn } from 'storybook/test';
 import { expect, userEvent, within } from 'storybook/test';
 import { withApi, withRouter, withStore, withToast } from '../../../../.storybook/decorators';
 import Header from './Header';
 
 /**
- * 画面のいちばん上に固定される帯。左に印、中央に行き先、右に知らせと自分のメニュー。
+ * 画面のいちばん上に固定される帯。左に印、中央に行き先と検索、右に知らせと自分のメニュー。
+ * 常時表示（本文の上には重ねない・自動的には隠れない）で、地は不透明。
  *
- * 下の境目は線ではなく**ぼかし**にしてある。線だと区切りが強すぎて、本文が続いていく画面で
- * 視線がそこで止まる。半透明の地色越しに下が透けることで、境目だけが分かる。
- *
- * 狭い画面ではナビが畳まれ、三本線のボタンから縦に開く。
+ * 狭い画面ではナビが畳まれ、三本線のボタンから縦に開く。検索は虫眼鏡アイコンに畳む。
  *
  * 行き先の一覧は 1 か所（`model/navigation.ts`）だけが持っていて、この帯・畳んだメニュー・
  * サイドバーが同じものを読む。増やすときも 1 行足せば全部に出る。
+ *
+ * ワークスペース切替はここには無い（`KbSidebar` 先頭にある）。
  */
 const meta = {
   title: 'widgets/app-shell/Header',
   component: Header,
   parameters: { layout: 'fullscreen' },
+  args: {
+    onOpenSearch: fn(),
+  },
   decorators: [
     withRouter,
     withStore(),
@@ -48,6 +52,15 @@ export const 既定: Story = {
     await expect(canvas.getByRole('navigation', { name: 'メインナビゲーション' })).toBeVisible();
     await expect(canvas.getByRole('link', { name: 'ナレッジ' })).toBeVisible();
     await expect(await canvas.findByText('川野 拓馬')).toBeVisible();
+  },
+};
+
+/** 中央の検索ボタンを押すと onOpenSearch が呼ばれる。 */
+export const 検索ボタンを押す: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: '検索' }));
+    await expect(args.onOpenSearch).toHaveBeenCalledTimes(1);
   },
 };
 

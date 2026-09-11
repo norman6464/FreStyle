@@ -60,4 +60,14 @@ describe('AppShell', () => {
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
     expect(screen.getByPlaceholderText('コマンドを検索...')).toBeInTheDocument();
   });
+
+  it('ヘッダーの検索ボタンを押してもコマンドパレットが開く', () => {
+    renderAppShell();
+    expect(screen.queryByPlaceholderText('コマンドを検索...')).not.toBeInTheDocument();
+    // デスクトップ用・モバイル用の 2 つが DOM 上にある（CSS の hidden で出し分けるため、
+    // CSS を適用しない単体テストではどちらも「見える」扱いになる）。どちらを押しても開く。
+    const [searchButton] = screen.getAllByRole('button', { name: '検索' });
+    fireEvent.click(searchButton);
+    expect(screen.getByPlaceholderText('コマンドを検索...')).toBeInTheDocument();
+  });
 });

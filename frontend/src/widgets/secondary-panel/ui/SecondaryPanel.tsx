@@ -129,10 +129,11 @@ function PeekablePanel({
   // 一時表示モード: レイアウト上は何も占有しない。左端ホバーゾーン＋☰＋オーバーレイを出す。
   return (
     <>
-      {/* 左端のホバー検知ゾーン。 */}
+      {/* 左端のホバー検知ゾーン。ヘッダー直下から下まで。 */}
       <div
         aria-hidden="true"
-        className="hidden md:block fixed left-0 top-16 bottom-0 z-30 w-2"
+        className="hidden md:block fixed left-0 bottom-0 z-30 w-2"
+        style={{ top: 'var(--app-header-h)' }}
         onMouseEnter={panel.openPeek}
         onMouseLeave={panel.closePeek}
       />
@@ -160,7 +161,8 @@ function PeekablePanel({
       <div
         onMouseEnter={panel.openPeek}
         onMouseLeave={panel.closePeek}
-        className={`hidden md:flex fixed left-0 top-[72px] bottom-2 z-40 w-72 flex-col overflow-hidden rounded-r-xl border border-surface-3 bg-[var(--color-nav)] shadow-xl transition-all duration-200 ease-out ${
+        style={{ top: 'calc(var(--app-header-h) + 8px)' }}
+        className={`hidden md:flex fixed left-0 bottom-2 z-40 w-72 flex-col overflow-hidden rounded-r-xl border border-surface-3 bg-[var(--color-nav)] shadow-xl transition-all duration-200 ease-out ${
           panel.isPeeking ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'
         }`}
       >

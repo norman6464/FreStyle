@@ -16,11 +16,8 @@ var ErrEmailTaken = errors.New("email is already used by another active user")
 // UserRepository は users テーブルへのアクセスを提供する。
 type UserRepository interface {
 	FindByOidcSubject(ctx context.Context, sub string) (*domain.User, error)
-	// FindActiveByEmail は email で有効ユーザー（未削除・is_active）を引く。
-	// ローカルのパスワードログインが使う。見つからなければ (nil, nil)。
-	FindActiveByEmail(ctx context.Context, email string) (*domain.User, error)
 	// OidcSubjectByUserID はユーザーの既定 provider（domain.OidcProviderDefault）の OIDC subject を返す。
-	// 無ければ ("", nil)。ローカルのパスワードログインのトークン発行に使う。
+	// 無ければ ("", nil)。
 	OidcSubjectByUserID(ctx context.Context, userID uint64) (string, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	// ListByWorkspaceID はワークスペース単位のユーザー一覧を返す。

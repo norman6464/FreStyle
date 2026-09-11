@@ -1202,10 +1202,6 @@ func (f *kbFakeUsers) FindByOidcSubject(context.Context, string) (*domain.User, 
 	return nil, nil
 }
 
-func (f *kbFakeUsers) FindActiveByEmail(context.Context, string) (*domain.User, error) {
-	return nil, nil
-}
-
 func (f *kbFakeUsers) OidcSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
 
 func (f *kbFakeUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {

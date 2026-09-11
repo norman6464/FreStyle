@@ -53,7 +53,7 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.True(t, got.IsActive)
 	})
 
-	t.Run("UpdateActive(false) は即時に効き FindActiveByEmail から消える", func(t *testing.T) {
+	t.Run("UpdateActive(false) は即時に効く", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, userTxTables...)
 		u := newTrainee(t, "off@example.com", "off-1")
 		before := userUpdatedAt(t, sqlDB, u.ID)
@@ -63,16 +63,13 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
 		require.False(t, got.IsActive)
-		byEmail, err := repo.FindActiveByEmail(ctx, "off@example.com")
-		require.NoError(t, err)
-		require.Nil(t, byEmail, "無効化されたユーザーはログイン経路から引けない")
 		require.NotEqual(t, before, userUpdatedAt(t, sqlDB, u.ID), "updated_at が進む")
 
 		// 戻せる。
 		require.NoError(t, repo.UpdateActive(ctx, u.ID, true))
-		byEmail, err = repo.FindActiveByEmail(ctx, "off@example.com")
+		got, err = repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
-		require.NotNil(t, byEmail)
+		require.True(t, got.IsActive)
 	})
 
 	t.Run("UpdateActive は存在しないユーザーで domain.ErrNotFound", func(t *testing.T) {

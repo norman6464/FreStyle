@@ -6,11 +6,7 @@ import "time"
 type User struct {
 	ID    uint64 `json:"id"`
 	Email string `json:"email"`
-	// PasswordHash はパスワードログイン用の bcrypt ハッシュ。NULL = パスワードログイン不可
-	// （OIDC のみ）。API へは絶対に出さない。検証はローカル専用 authenticator（infra/localauth）
-	// が行い、本番のログイン経路（OIDC 認証）はこの列を参照しない。
-	PasswordHash *string `json:"-"`
-	Name         string  `json:"name"`
+	Name  string `json:"name"`
 	// WorkspaceID は所属ワークスペースへの参照。未所属は NULL。
 	WorkspaceID *string `json:"workspaceId,omitempty"`
 	// IsActive はユーザーアカウントの有効/無効。false（無効）にすると、このユーザーは

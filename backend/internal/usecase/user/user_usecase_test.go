@@ -46,10 +46,6 @@ func (s *stubUserRepo) UpdateWorkspaceID(_ context.Context, _ uint64, _ *string)
 func (s *stubUserRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
 func (s *stubUserRepo) SoftDelete(context.Context, uint64) error         { return nil }
 
-func (s *stubUserRepo) FindActiveByEmail(context.Context, string) (*domain.User, error) {
-	return nil, nil
-}
-
 func (s *stubUserRepo) OidcSubjectByUserID(context.Context, uint64) (string, error) {
 	return "", nil
 }

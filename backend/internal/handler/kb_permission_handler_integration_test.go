@@ -225,10 +225,12 @@ var kbPermCases = []kbPermCase{
 		okStatus: http.StatusOK,
 	},
 	{
-		name: "メンバー追加", method: http.MethodPut,
+		// 段 2: 招待だけで principal・権限は発生しない（本人が受諾するまで）ため、
+		// 返す主体が無くなり 204 に変わった（それまでは 200 + 主体の JSON）。
+		name: "メンバー招待", method: http.MethodPut,
 		path:     "/api/v2/kb/workspaces/{slug}/members/{user}",
 		missing:  []string{"/api/v2/kb/workspaces/{slug}/members/" + kbMissingIntegrationUserID},
-		okStatus: http.StatusOK,
+		okStatus: http.StatusNoContent,
 	},
 	{
 		name: "メンバー削除", method: http.MethodDelete,
@@ -478,9 +480,9 @@ func TestKnowledgeBasePermissionAPI_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, w.Code, "グループの admin では代わりにならない")
 	})
 
-	t.Run("存在しないユーザーのメンバー追加は500ではなく404", func(t *testing.T) {
-		// principals.user_id は users への FK。実在しない ID を渡すと制約違反になるが、
-		// それは入力の誤りであってサーバの故障ではない。
+	t.Run("存在しないユーザーのメンバー招待は500ではなく404", func(t *testing.T) {
+		// workspace_members.user_id は users への FK。実在しない ID を渡すと制約違反に
+		// なるが、それは入力の誤りであってサーバの故障ではない。
 		env := newKbPermEnv(t, sqlDB)
 		w := env.as(env.admin).do(t, http.MethodPut,
 			"/api/v2/kb/workspaces/"+env.slug+"/members/"+kbMissingIntegrationUserID, "")

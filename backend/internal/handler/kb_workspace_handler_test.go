@@ -462,107 +462,20 @@ func Test_ナレッジAPI_プライベートスペースはメンバーなら作
 	})
 }
 
-// ワークスペースには、そこに所属している人が自動で入る。
+// どのワークスペースにも所属しないユーザーの一覧は空で、失敗にしない。
 //
-// 所属は users.workspace_id が表すが、ナレッジの所属（principals の行）は作成者にしか
-// 無かった。そのため同じワークスペースの他のメンバーは一覧にも出ず、URL を叩いても
-// 404 になっていた（実際に踏んだ形の回帰）。
-func Test_ナレッジAPI_ワークスペースには所属している人が自動で入る(t *testing.T) {
-	t.Run("一覧を開くと所属が用意され、そのワークスペースが出る", func(t *testing.T) {
-		const newcomer = uint64(777)
-		f := newKbFixture(kbCanEdit, newcomer)
-		// この人はまだ principals の行を持たない（＝ 非メンバー）が、所属先は同じ。
-		require.Nil(t, f.perms.userPrincipal(kbWorkspaceID, newcomer), "前提: まだ非メンバー")
-		f.users.setUserWorkspace(newcomer, kbWorkspaceID)
+// 段 2 より前は「会社のワークスペースへ自動で入る」導線がここにあったが、同意なく
+// 他人をワークスペースへ入れられる穴と同根だったため撤去した（招待→受諾フローに一本化。
+// kb_invitation_handler_test.go 参照）。
+func Test_ナレッジAPI_所属先が無いユーザーの一覧は空(t *testing.T) {
+	const staff = uint64(780)
+	f := newKbFixture(kbCanEdit, staff)
+	// 所属を設定しない（運営管理者のようにワークスペースを持たない人）。
 
-		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
+	w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
 
-		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-		var got []kbWorkspaceResponse
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
-		require.Len(t, got, 1)
-		assert.Equal(t, kbWorkspaceSlug, got[0].Slug)
-		assert.NotNil(t, f.perms.userPrincipal(kbWorkspaceID, newcomer), "所属が用意される")
-	})
-
-	t.Run("URL を直に開いても入れる（一覧を経由しない経路）", func(t *testing.T) {
-		const newcomer = uint64(778)
-		f := newKbFixture(kbCanEdit, newcomer)
-		f.users.setUserWorkspace(newcomer, kbWorkspaceID)
-
-		w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, kbWorkspaceSlug, ""), "")
-
-		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
-		assert.NotNil(t, f.perms.userPrincipal(kbWorkspaceID, newcomer))
-	})
-
-	t.Run("別のワークスペースに所属している人は入らない", func(t *testing.T) {
-		const outsider = uint64(779)
-		f := newKbFixture(kbCanEdit, outsider)
-		// 所属先は別のワークスペース。URL を知っていても入れない。
-		f.users.setUserWorkspace(outsider, kbOtherWorkspaceID)
-
-		w := f.do(t, http.MethodGet, kbFill(kbSpacesPath, kbWorkspaceSlug, ""), "")
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Nil(t, f.perms.userPrincipal(kbWorkspaceID, outsider), "所属は作られない")
-	})
-
-	t.Run("どのワークスペースにも属さないユーザーの一覧は空で、失敗にしない", func(t *testing.T) {
-		const staff = uint64(780)
-		f := newKbFixture(kbCanEdit, staff)
-		// 所属を設定しない（運営管理者のようにワークスペースを持たない人）。
-
-		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
-
-		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-		assert.JSONEq(t, `[]`, w.Body.String())
-	})
-
-	t.Run("取り消した役割は一覧を開いても戻らない", func(t *testing.T) {
-		// 役割の取り消しは grant の行を消すだけで、主体の行は残る。自動所属が
-		// 「主体があっても役割を足す」作りだと、admin が取り消した権限が
-		// その人の次の読み取りで戻ってしまい、権限管理が効かなくなる。
-		f := newKbFixture(kbCanEdit, kbUserID)
-		principal, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
-		require.NoError(t, err)
-		require.NoError(t, f.perms.GrantWorkspaceRoleIfAbsent(
-			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleEditor,
-		))
-		// admin が役割を取り消す（主体は残る）。
-		require.NoError(t, f.perms.DeleteWorkspaceGrant(
-			context.Background(), kbWorkspaceID, principal.ID,
-		))
-		f.users.setUserWorkspace(kbUserID, kbWorkspaceID)
-
-		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
-
-		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-		facts, err := f.perms.WorkspacePermissionFactsForUser(
-			context.Background(), kbWorkspaceID, kbUserID,
-		)
-		require.NoError(t, err)
-		assert.Empty(t, facts.Roles, "取り消した役割が読み取りで戻ってはいけない")
-	})
-
-	t.Run("既にある役割は踏み潰さない（admin を editor へ落とさない）", func(t *testing.T) {
-		f := newKbFixture(kbCanEdit, kbUserID)
-		// 本番と同じ形で admin の grant 行を張る（実効権限の写しではなく行を作る）。
-		principal, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, kbUserID)
-		require.NoError(t, err)
-		require.NoError(t, f.perms.GrantWorkspaceRoleIfAbsent(
-			context.Background(), kbWorkspaceID, principal.ID, domain.GrantRoleAdmin,
-		))
-		f.users.setUserWorkspace(kbUserID, kbWorkspaceID)
-
-		w := f.do(t, http.MethodGet, "/api/v2/kb/workspaces", "")
-		require.Equal(t, http.StatusOK, w.Code)
-
-		// admin のままなのでチームスペースを作れる。
-		created := f.do(t, http.MethodPost, kbFill(kbSpacesPath, kbWorkspaceSlug, ""),
-			`{"name":"開発部"}`)
-		assert.Equal(t, http.StatusCreated, created.Code, created.Body.String())
-	})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `[]`, w.Body.String())
 }
 
 // kbListSpaces はスペース一覧を叩いて応答をデコードする。

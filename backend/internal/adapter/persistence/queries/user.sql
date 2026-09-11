@@ -1,5 +1,5 @@
 -- name: GetUserByOidcSubject :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.status <> 'deactivated'
   AND u.id IN (
@@ -9,16 +9,9 @@ WHERE u.status <> 'deactivated'
 
 -- name: GetUserByID :one
 -- 内部 ID で 1 ユーザーを引く（退会済みは除外）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.id = $1 AND u.status <> 'deactivated';
-
--- name: ListUsersByWorkspaceID :many
--- ワークスペース単位のユーザー一覧（退会済みは除外）。
-SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
-FROM users u
-WHERE u.workspace_id = $1 AND u.status <> 'deactivated'
-ORDER BY u.id ASC;
 
 -- name: GetOidcSubjectByUserID :one
 -- ユーザーの OIDC subject を引く。
@@ -30,14 +23,12 @@ WHERE user_id = $1 AND provider = 'oidc';
 -- ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
 -- 無いため呼び出し側が値を渡す。status は常に active（作成直後のアカウントは有効。無効化は
 -- UpdateUserStatus の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
---
--- workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 INSERT INTO users (
-  email, name, workspace_id,
+  email, name,
   status, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, 'active', $4, $5, $6
+  $1, $2, 'active', $3, $4, $5
 )
 RETURNING id, created_at, updated_at;
 
@@ -45,11 +36,11 @@ RETURNING id, created_at, updated_at;
 -- id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
 -- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
 INSERT INTO users (
-  id, email, name, workspace_id,
+  id, email, name,
   status, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, 'active', $5, $6, $7
+  $1, $2, $3, 'active', $4, $5, $6
 )
 RETURNING id, created_at, updated_at;
 
@@ -84,14 +75,6 @@ UPDATE users SET name = $2, updated_at = now() WHERE id = $1;
 -- uq_users_email_active に既に使われている値を渡すと一意制約違反になる
 -- （呼び出し側 repository が isUniqueViolation で ErrEmailTaken に変換する）。
 UPDATE users SET email = $2, updated_at = now() WHERE id = $1;
-
--- name: UpdateUserWorkspaceID :execrows
--- 所属ワークスペースを付け替える。呼び出し側が既に解決した workspace_id をそのまま書く。
--- ワークスペースが無いユーザーもあり得るため nullable。
--- 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
-UPDATE users SET
-  workspace_id = sqlc.narg(workspace_id)
-WHERE id = sqlc.arg(id);
 
 -- name: SoftDeleteUser :execrows
 -- ユーザーを退会させる（status を deactivated にし、deleted_at を立てる。両方を同時に

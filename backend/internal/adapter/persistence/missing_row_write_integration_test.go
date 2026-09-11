@@ -58,12 +58,6 @@ func missingRowWriteCases() []missingRowCase {
 			},
 		},
 		{
-			name: "user の所属ワークスペース付け替え",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewUserRepository(db).UpdateWorkspaceID(ctx, missingID, nil)
-			},
-		},
-		{
 			name: "user の有効/無効更新",
 			call: func(ctx context.Context, db *sql.DB) error {
 				return persistence.NewUserRepository(db).UpdateActive(ctx, missingID, false)

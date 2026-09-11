@@ -319,45 +319,35 @@ func Test_サブツリー編集可否_事実の収集が失敗したら伝える
 	assert.False(t, got, "確認できないなら許可に倒さない")
 }
 
-func Test_メンバー追加_主体を作る(t *testing.T) {
+func Test_メンバー招待_invited行を作るだけで権限は発生しない(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
-	repo.On("EnsureUserPrincipal", mock.Anything, kbWS, uint64(7)).
-		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
-	// 追加した瞬間から全員が書ける（既定 editor）。**無いときだけ**入れる口が呼ばれること
-	// （上書きの Upsert だと、追加のやり直しで admin が editor に落ちる）。
-	repo.On("GrantWorkspaceRoleIfAbsent", mock.Anything, kbWS, kbPrincipal, domain.GrantRoleEditor).
-		Return(nil)
-	uc := kb.NewAddWorkspaceMemberUseCase(repo)
+	repo.On("InviteWorkspaceMember", mock.Anything, kbWS, uint64(7), uint64(1)).Return(nil)
+	uc := kb.NewInviteWorkspaceMemberUseCase(repo)
 
-	got, err := uc.Execute(context.Background(), kb.AddWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7})
+	err := uc.Execute(context.Background(), kb.InviteWorkspaceMemberInput{
+		WorkspaceID: kbWS, UserID: 7, InvitedByUserID: 1,
+	})
 	require.NoError(t, err)
-	assert.Equal(t, domain.PrincipalKindUser, got.Kind)
 	repo.AssertExpectations(t)
+	// 招待だけでは principal も権限も一切作らない（EnsureUserPrincipal / GrantWorkspaceRoleIfAbsent
+	// を呼んでいないことを、mock に登録していないことで確認する — 呼ばれれば mock.Mock が
+	// 未登録呼び出しとして panic する）。
 
-	_, err = uc.Execute(context.Background(), kb.AddWorkspaceMemberInput{UserID: 7})
+	err = uc.Execute(context.Background(), kb.InviteWorkspaceMemberInput{UserID: 7, InvitedByUserID: 1})
 	require.Error(t, err, "workspaceID 必須")
-	_, err = uc.Execute(context.Background(), kb.AddWorkspaceMemberInput{WorkspaceID: kbWS})
+	err = uc.Execute(context.Background(), kb.InviteWorkspaceMemberInput{WorkspaceID: kbWS, InvitedByUserID: 1})
 	require.Error(t, err, "userID 必須")
+	err = uc.Execute(context.Background(), kb.InviteWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7})
+	require.Error(t, err, "invitedByUserID 必須")
 }
 
-func Test_メンバー削除_非メンバーなら何もしない(t *testing.T) {
+func Test_メンバー削除_所属を終える(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
-	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(7)).Return(nil, repository.ErrPrincipalNotFound)
+	repo.On("LeaveWorkspaceMembership", mock.Anything, kbWS, uint64(7)).Return(nil)
 	uc := kb.NewRemoveWorkspaceMemberUseCase(repo)
 
 	require.NoError(t, uc.Execute(context.Background(), kb.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
-	repo.AssertNotCalled(t, "DeletePrincipal", mock.Anything, mock.Anything, mock.Anything)
-}
-
-func Test_メンバー削除_主体を消す(t *testing.T) {
-	repo := &mockKBPermissionRepo{}
-	repo.On("FindUserPrincipal", mock.Anything, kbWS, uint64(7)).
-		Return(&domain.Principal{ID: kbPrincipal, WorkspaceID: kbWS, Kind: domain.PrincipalKindUser}, nil)
-	repo.On("DeletePrincipal", mock.Anything, kbWS, kbPrincipal).Return(nil)
-	uc := kb.NewRemoveWorkspaceMemberUseCase(repo)
-
-	require.NoError(t, uc.Execute(context.Background(), kb.RemoveWorkspaceMemberInput{WorkspaceID: kbWS, UserID: 7}))
-	repo.AssertCalled(t, "DeletePrincipal", mock.Anything, kbWS, kbPrincipal)
+	repo.AssertExpectations(t)
 }
 
 func Test_グループ作成_名前の検証(t *testing.T) {

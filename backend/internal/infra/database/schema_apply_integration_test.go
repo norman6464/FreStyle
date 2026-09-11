@@ -73,11 +73,16 @@ func TestApplySchema_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("循環参照の FK が張られている", func(t *testing.T) {
-		// users ⇄ workspaces の循環依存（旧 DO ブロック）。Atlas は FK をまとめて末尾の
-		// ALTER で張るため、宣言側は普通の foreign_key ブロックのままで済む。
-		require.True(t, columnExists(t, db, "users", "workspace_id"))
-		require.True(t, constraintExists(t, db, "users", "fk_users_workspace"))
+	t.Run("workspace_membersが所属の正本になっている（段2）", func(t *testing.T) {
+		// users.workspace_id（1 人 1 ワークスペースの単一列）は撤去済み。
+		// 所属は workspace_members（複数所属を許す）が正本。
+		require.False(t, columnExists(t, db, "users", "workspace_id"))
+		require.False(t, constraintExists(t, db, "users", "fk_users_workspace"))
+		require.True(t, tableExists(t, db, "workspace_members"))
+		require.True(t, constraintExists(t, db, "workspace_members", "fk_workspace_members_workspace"))
+		require.True(t, constraintExists(t, db, "workspace_members", "fk_workspace_members_user"))
+		require.True(t, constraintExists(t, db, "workspace_members", "fk_workspace_members_invited_by"))
+		require.True(t, constraintExists(t, db, "workspace_members", "ck_workspace_members_status"))
 	})
 
 	t.Run("役割・識別子まわりの制約が張られている", func(t *testing.T) {

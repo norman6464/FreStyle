@@ -9,8 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const deleteOidcIdentitiesByUserID = `-- name: DeleteOidcIdentitiesByUserID :exec
@@ -56,31 +54,19 @@ func (q *Queries) GetOidcSubjectByUserID(ctx context.Context, userID int64) (str
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.id = $1 AND u.status <> 'deactivated'
 `
 
-type GetUserByIDRow struct {
-	ID          int64
-	Email       string
-	Name        string
-	WorkspaceID uuid.NullUUID
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
-}
-
 // 内部 ID で 1 ユーザーを引く（退会済みは除外）。
-func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
-	var i GetUserByIDRow
+	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.WorkspaceID,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -90,7 +76,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 }
 
 const getUserByOidcSubject = `-- name: GetUserByOidcSubject :one
-SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.email, u.name, u.status, u.created_at, u.updated_at, u.deleted_at
 FROM users u
 WHERE u.status <> 'deactivated'
   AND u.id IN (
@@ -99,25 +85,13 @@ WHERE u.status <> 'deactivated'
   )
 `
 
-type GetUserByOidcSubjectRow struct {
-	ID          int64
-	Email       string
-	Name        string
-	WorkspaceID uuid.NullUUID
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
-}
-
-func (q *Queries) GetUserByOidcSubject(ctx context.Context, subject string) (GetUserByOidcSubjectRow, error) {
+func (q *Queries) GetUserByOidcSubject(ctx context.Context, subject string) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByOidcSubject, subject)
-	var i GetUserByOidcSubjectRow
+	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.WorkspaceID,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -150,22 +124,21 @@ func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidc
 
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (
-  email, name, workspace_id,
+  email, name,
   status, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, 'active', $4, $5, $6
+  $1, $2, 'active', $3, $4, $5
 )
 RETURNING id, created_at, updated_at
 `
 
 type InsertUserParams struct {
-	Email       string
-	Name        string
-	WorkspaceID uuid.NullUUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
+	Email     string
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
 }
 
 type InsertUserRow struct {
@@ -177,13 +150,10 @@ type InsertUserRow struct {
 // ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
 // 無いため呼び出し側が値を渡す。status は常に active（作成直後のアカウントは有効。無効化は
 // UpdateUserStatus の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
-//
-// workspace_id は呼び出し側が解決した値をそのまま書く（companies へのサブクエリ参照はしない）。
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.Email,
 		arg.Name,
-		arg.WorkspaceID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.DeletedAt,
@@ -195,23 +165,22 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 
 const insertUserWithID = `-- name: InsertUserWithID :one
 INSERT INTO users (
-  id, email, name, workspace_id,
+  id, email, name,
   status, created_at, updated_at, deleted_at
 )
 VALUES (
-  $1, $2, $3, $4, 'active', $5, $6, $7
+  $1, $2, $3, 'active', $4, $5, $6
 )
 RETURNING id, created_at, updated_at
 `
 
 type InsertUserWithIDParams struct {
-	ID          int64
-	Email       string
-	Name        string
-	WorkspaceID uuid.NullUUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
+	ID        int64
+	Email     string
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt sql.NullTime
 }
 
 type InsertUserWithIDRow struct {
@@ -227,7 +196,6 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 		arg.ID,
 		arg.Email,
 		arg.Name,
-		arg.WorkspaceID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.DeletedAt,
@@ -235,57 +203,6 @@ func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDPara
 	var i InsertUserWithIDRow
 	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 	return i, err
-}
-
-const listUsersByWorkspaceID = `-- name: ListUsersByWorkspaceID :many
-SELECT u.id, u.email, u.name, u.workspace_id, u.status, u.created_at, u.updated_at, u.deleted_at
-FROM users u
-WHERE u.workspace_id = $1 AND u.status <> 'deactivated'
-ORDER BY u.id ASC
-`
-
-type ListUsersByWorkspaceIDRow struct {
-	ID          int64
-	Email       string
-	Name        string
-	WorkspaceID uuid.NullUUID
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime
-}
-
-// ワークスペース単位のユーザー一覧（退会済みは除外）。
-func (q *Queries) ListUsersByWorkspaceID(ctx context.Context, workspaceID uuid.NullUUID) ([]ListUsersByWorkspaceIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersByWorkspaceID, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListUsersByWorkspaceIDRow{}
-	for rows.Next() {
-		var i ListUsersByWorkspaceIDRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.WorkspaceID,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const softDeleteUser = `-- name: SoftDeleteUser :execrows
@@ -356,28 +273,6 @@ type UpdateUserStatusParams struct {
 // が deactivated を渡すこと自体を拒む）。0 件なら対象が存在しない（呼び出し側が not-found にする）。
 func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateUserStatus, arg.ID, arg.Status)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const updateUserWorkspaceID = `-- name: UpdateUserWorkspaceID :execrows
-UPDATE users SET
-  workspace_id = $1
-WHERE id = $2
-`
-
-type UpdateUserWorkspaceIDParams struct {
-	WorkspaceID uuid.NullUUID
-	ID          int64
-}
-
-// 所属ワークスペースを付け替える。呼び出し側が既に解決した workspace_id をそのまま書く。
-// ワークスペースが無いユーザーもあり得るため nullable。
-// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
-func (q *Queries) UpdateUserWorkspaceID(ctx context.Context, arg UpdateUserWorkspaceIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserWorkspaceID, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

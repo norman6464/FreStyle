@@ -31,12 +31,6 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id uint64) (*domain.User, e
 	return u, args.Error(1)
 }
 
-func (m *mockUserRepo) ListByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.User, error) {
-	args := m.Called(ctx, workspaceID)
-	rows, _ := args.Get(0).([]domain.User)
-	return rows, args.Error(1)
-}
-
 func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
 	return m.Called(ctx, u).Error(0)
 }
@@ -60,10 +54,6 @@ func (m *mockUserRepo) UpdateName(ctx context.Context, userID uint64, name strin
 
 func (m *mockUserRepo) UpdateEmail(ctx context.Context, userID uint64, email string) error {
 	return m.Called(ctx, userID, email).Error(0)
-}
-
-func (m *mockUserRepo) UpdateWorkspaceID(ctx context.Context, userID uint64, workspaceID *string) error {
-	return m.Called(ctx, userID, workspaceID).Error(0)
 }
 
 // --- mock: KnowledgeBaseRepository ---
@@ -299,6 +289,30 @@ func (m *mockKBPermissionRepo) IsWorkspaceMemberBulk(ctx context.Context, worksp
 	args := m.Called(ctx, workspaceID, userIDs)
 	out, _ := args.Get(0).(map[uint64]bool)
 	return out, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) InviteWorkspaceMember(ctx context.Context, workspaceID string, userID, invitedByUserID uint64) error {
+	return m.Called(ctx, workspaceID, userID, invitedByUserID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) AcceptWorkspaceInvitation(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeclineWorkspaceInvitation(ctx context.Context, workspaceID string, userID uint64) error {
+	return m.Called(ctx, workspaceID, userID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListMyWorkspaceInvitations(ctx context.Context, userID uint64) ([]domain.WorkspaceInvitation, error) {
+	args := m.Called(ctx, userID)
+	rows, _ := args.Get(0).([]domain.WorkspaceInvitation)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error {
+	return m.Called(ctx, workspaceID, userID).Error(0)
 }
 
 func (m *mockKBPermissionRepo) AddGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {

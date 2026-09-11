@@ -3,12 +3,9 @@ package handler
 import (
 	"net/http/httptest"
 	"strings"
-	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/frestyle/backend/internal/domain"
 	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
-	"github.com/stretchr/testify/assert"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
@@ -28,10 +25,4 @@ func testCtx(method, body string, uid uint64, idVal string) (*httptest.ResponseR
 		c.Params = gin.Params{{Key: "id", Value: idVal}}
 	}
 	return w, c
-}
-
-func TestUserWorkspaceRef(t *testing.T) {
-	wid := "ws-9"
-	assert.Equal(t, domain.WorkspaceRefOf("ws-9"), domain.User{WorkspaceID: &wid}.WorkspaceRef())
-	assert.Equal(t, domain.NoWorkspace(), domain.User{WorkspaceID: nil}.WorkspaceRef())
 }

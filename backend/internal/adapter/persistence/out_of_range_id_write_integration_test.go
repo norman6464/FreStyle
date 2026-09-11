@@ -112,38 +112,3 @@ func TestPersistence_書き込みは範囲外idを成功として返さないこ
 		})
 	}
 }
-
-// malformedWorkspaceID は UUID として解釈できない workspace_id。所属参照は bigint から
-// uuid へ移ったため「範囲外の id」は存在しないが、値が壊れていて 1 行も書けない状況は残る。
-const malformedWorkspaceID = "not-a-uuid"
-
-// malformedWorkspaceWriteCases は所属参照（workspace_id）が壊れた値で渡される書き込み。
-func malformedWorkspaceWriteCases() []writeCase {
-	bad := malformedWorkspaceID
-	return []writeCase{
-		{
-			name: "ユーザーの所属付け替え（workspace_id）",
-			call: func(ctx context.Context, db *sql.DB) error {
-				return persistence.NewUserRepository(db).UpdateWorkspaceID(ctx, 1, &bad)
-			},
-		},
-	}
-}
-
-// TestPersistence_書き込みは不正な形式のworkspace_idを成功として返さないこと_Integration は、
-// UUID として読めない workspace_id を渡された書き込み系が nil（成功）を返さないことを固定する。
-//
-// ここを黙って NULL 扱いにすると、所属の付いていない行（誰からも見えない、あるいは
-// 誰からも見える行）が「作成できた」という応答とともに残る。
-func TestPersistence_書き込みは不正な形式のworkspace_idを成功として返さないこと_Integration(t *testing.T) {
-	sqlDB := testsupport.OpenTestDB(t)
-	ctx := context.Background()
-
-	for _, tc := range malformedWorkspaceWriteCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.call(ctx, sqlDB)
-
-			assert.Error(t, err, "書き込めていないのに成功を返さないこと")
-		})
-	}
-}

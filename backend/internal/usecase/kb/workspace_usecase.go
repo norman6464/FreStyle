@@ -19,18 +19,20 @@ import (
 // 所属していない slug も存在しない slug も、どちらも repository.ErrWorkspaceNotFound を返す。
 // 呼び出し側で 403 と 404 を撃ち分けられるようにすると、slug（短く推測しやすい文字列）を
 // 総当たりするだけでテナントの実在が分かってしまうため、区別自体をここで潰しておく。
+//
+// ワークスペースの停止判定はここに閉じている（段 2。旧 middleware.CurrentUser の
+// users.workspace_id ベースの判定は撤去済み）。1 人が複数のワークスペースに所属できる以上、
+// 「どのワークスペースの操作か」が定まるのはここが最初で、判定もここでしかできない。
 type ResolveWorkspaceUseCase struct {
 	workspaces  repository.KnowledgeBaseRepository
 	permissions repository.KnowledgeBasePermissionRepository
-	users       repository.UserRepository
 }
 
 func NewResolveWorkspaceUseCase(
 	w repository.KnowledgeBaseRepository,
 	p repository.KnowledgeBasePermissionRepository,
-	u repository.UserRepository,
 ) *ResolveWorkspaceUseCase {
-	return &ResolveWorkspaceUseCase{workspaces: w, permissions: p, users: u}
+	return &ResolveWorkspaceUseCase{workspaces: w, permissions: p}
 }
 
 type ResolveWorkspaceInput struct {
@@ -51,61 +53,24 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 	if err != nil {
 		return nil, err
 	}
-	// 停止中のワークスペースは無いものとして扱う。middleware は「叩いた人の所属」しか
-	// 見ないので、そこを通り抜けた別のワークスペース（個人用や、principal として参加して
-	// いる先）が停止されていても届いてしまう。ナレッジの全 HTTP 経路がこの解決を通るため、
-	// ここで塞ぐ。存在を漏らさないよう、権限が無いときと同じ「見つからない」に畳む。
+	// 停止中のワークスペースは無いものとして扱う。ナレッジの全 HTTP 経路がこの解決を
+	// 通るため、ここで塞ぐ。存在を漏らさないよう、権限が無いときと同じ「見つからない」に畳む。
 	if !ws.IsActive {
 		return nil, repository.ErrWorkspaceNotFound
 	}
-	// 所属の正本は principals（kind='user'）の行の有無。専用のメンバーシップ表は持たない。
+	// 所属の正本は principals（kind='user'）の行の有無。段 2 以降、この行は
+	// workspace_members が status='active' になった時点でしか作られない
+	// （招待→受諾のトランザクション、または自分でワークスペースを作った直後）。
+	// ここでは新たに所属を作らない — 「URL を知っているだけで入れる」自動参加は、
+	// 同意なく他人をワークスペースへ入れられる穴と同根なので廃止した。
 	member, err := u.permissions.IsWorkspaceMember(ctx, ws.ID, in.UserID)
 	if err != nil {
 		return nil, err
 	}
 	if !member {
-		// 会社のワークスペースなら、まだ principals の行が無いだけなので入れる。
-		// URL を直に開いた人も一覧を経ずにここへ来るため、判定の直前で用意する
-		// （用意した事実は principals に書くので、所属の表現は 1 つのまま）。
-		joined, jerr := u.joinCompany(ctx, ws.ID, in.UserID)
-		if jerr != nil {
-			return nil, jerr
-		}
-		if !joined {
-			return nil, repository.ErrWorkspaceNotFound
-		}
+		return nil, repository.ErrWorkspaceNotFound
 	}
 	return ws, nil
-}
-
-// joinCompany は「そのワークスペースがこの人の会社のものなら」所属を用意する。
-// 会社が違う・会社に属していないなら false（呼び出し側は 404 に倒す）。
-func (u *ResolveWorkspaceUseCase) joinCompany(
-	ctx context.Context, workspaceID string, userID uint64,
-) (bool, error) {
-	companyWorkspaceID, err := userWorkspaceID(ctx, u.users, userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrWorkspaceNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-	if companyWorkspaceID != workspaceID {
-		return false, nil
-	}
-	// ここに来るのは IsWorkspaceMember が false のときだけなので、主体はまだ無い。
-	// 主体を作り、最初の役割を与える。**既にある人には触らない**という規則は
-	// JoinCompanyWorkspaceUseCase と同じ（取り消した権限を読み取りで戻さない）。
-	principal, err := u.permissions.EnsureUserPrincipal(ctx, workspaceID, userID)
-	if err != nil {
-		return false, err
-	}
-	if err := u.permissions.GrantWorkspaceRoleIfAbsent(
-		ctx, workspaceID, principal.ID, domain.GrantRoleEditor,
-	); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 // DeleteWorkspaceUseCase はワークスペースを配下ごと消す。
@@ -412,61 +377,120 @@ func (u *EnsurePersonalWorkspaceUseCase) Execute(
 	}
 }
 
-// JoinCompanyWorkspaceUseCase は「その人の会社のワークスペース」へ自動で入れる。
-
-type JoinCompanyWorkspaceUseCase struct {
-	permissions repository.KnowledgeBasePermissionRepository
-	users       repository.UserRepository
+// InviteWorkspaceMemberUseCase はユーザーをワークスペースへ招待する。
+// 実際の所属（principal・権限）は招待された本人が受諾するまで発生しない
+// （AcceptWorkspaceInvitationUseCase 参照。段 2 — 同意なく他人を追加できる穴の修正）。
+type InviteWorkspaceMemberUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
 }
 
-func NewJoinCompanyWorkspaceUseCase(p repository.KnowledgeBasePermissionRepository, u repository.UserRepository) *JoinCompanyWorkspaceUseCase {
-	return &JoinCompanyWorkspaceUseCase{permissions: p, users: u}
+func NewInviteWorkspaceMemberUseCase(r repository.KnowledgeBasePermissionRepository) *InviteWorkspaceMemberUseCase {
+	return &InviteWorkspaceMemberUseCase{repo: r}
 }
 
-type JoinCompanyWorkspaceInput struct {
-	UserID uint64
+type InviteWorkspaceMemberInput struct {
+	WorkspaceID     string
+	UserID          uint64
+	InvitedByUserID uint64
 }
 
-// userWorkspaceID はユーザーの所属ワークスペース ID を返す（users.workspace_id の直読み）。
-func userWorkspaceID(ctx context.Context, users repository.UserRepository, userID uint64) (string, error) {
-	u, err := users.FindByID(ctx, userID)
-	if err != nil {
-		return "", err
+func (u *InviteWorkspaceMemberUseCase) Execute(ctx context.Context, in InviteWorkspaceMemberInput) error {
+	if in.WorkspaceID == "" {
+		return errors.New("workspaceID is required")
 	}
-	if u == nil || u.WorkspaceID == nil {
-		return "", repository.ErrWorkspaceNotFound
-	}
-	return *u.WorkspaceID, nil
-}
-
-// Execute は会社のワークスペースへの所属を用意し、そのワークスペース ID を返す。
-func (u *JoinCompanyWorkspaceUseCase) Execute(
-	ctx context.Context, in JoinCompanyWorkspaceInput,
-) (string, error) {
 	if in.UserID == 0 {
-		return "", errors.New("userID is required")
+		return errors.New("userID is required")
 	}
-	workspaceID, err := userWorkspaceID(ctx, u.users, in.UserID)
-	if err != nil {
-		return "", err
+	if in.InvitedByUserID == 0 {
+		return errors.New("invitedByUserID is required")
 	}
-	// 既に主体があるなら、この人の所属も役割も既に決まっている。何もしない。
-	// ここで役割を足すと、取り消したはずの権限が次の読み取りで戻る。
-	if _, err := u.permissions.FindUserPrincipal(ctx, workspaceID, in.UserID); err == nil {
-		return workspaceID, nil
-	} else if !errors.Is(err, repository.ErrPrincipalNotFound) {
-		return "", err
-	}
+	return u.repo.InviteWorkspaceMember(ctx, in.WorkspaceID, in.UserID, in.InvitedByUserID)
+}
 
-	principal, err := u.permissions.EnsureUserPrincipal(ctx, workspaceID, in.UserID)
+// AcceptWorkspaceInvitationUseCase は自分宛の招待を受諾する。
+// invited → active に進め、principal（kind='user'）を作って既定の editor を与える。
+type AcceptWorkspaceInvitationUseCase struct {
+	workspaces repository.KnowledgeBaseRepository
+	repo       repository.KnowledgeBasePermissionRepository
+}
+
+func NewAcceptWorkspaceInvitationUseCase(
+	w repository.KnowledgeBaseRepository, r repository.KnowledgeBasePermissionRepository,
+) *AcceptWorkspaceInvitationUseCase {
+	return &AcceptWorkspaceInvitationUseCase{workspaces: w, repo: r}
+}
+
+type AcceptWorkspaceInvitationInput struct {
+	// WorkspaceSlug は招待一覧（ListMyWorkspaceInvitationsUseCase）が返す slug。
+	WorkspaceSlug string
+	UserID        uint64
+}
+
+func (u *AcceptWorkspaceInvitationUseCase) Execute(ctx context.Context, in AcceptWorkspaceInvitationInput) (*domain.Workspace, error) {
+	if in.WorkspaceSlug == "" {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	if in.UserID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	// 招待の受諾はまだ非メンバーの本人が呼ぶので、middleware.KnowledgeBaseWorkspace
+	// （所属済みしか通さない）は使えない。slug の解決はここで直接行う。
+	ws, err := u.workspaces.FindWorkspaceBySlug(ctx, in.WorkspaceSlug)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	// ここへ来るのは主体を新しく作ったときだけ。最初の役割を与える。
-	if err := u.permissions.GrantWorkspaceRoleIfAbsent(
-		ctx, workspaceID, principal.ID, domain.GrantRoleEditor,
-	); err != nil {
-		return "", err
+	if !ws.IsActive {
+		return nil, repository.ErrWorkspaceNotFound
 	}
-	return workspaceID, nil
+	if _, err := u.repo.AcceptWorkspaceInvitation(ctx, ws.ID, in.UserID); err != nil {
+		return nil, err
+	}
+	return ws, nil
+}
+
+// DeclineWorkspaceInvitationUseCase は自分宛の招待を辞退する（invited → left）。
+type DeclineWorkspaceInvitationUseCase struct {
+	workspaces repository.KnowledgeBaseRepository
+	repo       repository.KnowledgeBasePermissionRepository
+}
+
+func NewDeclineWorkspaceInvitationUseCase(
+	w repository.KnowledgeBaseRepository, r repository.KnowledgeBasePermissionRepository,
+) *DeclineWorkspaceInvitationUseCase {
+	return &DeclineWorkspaceInvitationUseCase{workspaces: w, repo: r}
+}
+
+type DeclineWorkspaceInvitationInput struct {
+	WorkspaceSlug string
+	UserID        uint64
+}
+
+func (u *DeclineWorkspaceInvitationUseCase) Execute(ctx context.Context, in DeclineWorkspaceInvitationInput) error {
+	if in.WorkspaceSlug == "" {
+		return repository.ErrWorkspaceNotFound
+	}
+	if in.UserID == 0 {
+		return errors.New("userID is required")
+	}
+	ws, err := u.workspaces.FindWorkspaceBySlug(ctx, in.WorkspaceSlug)
+	if err != nil {
+		return err
+	}
+	return u.repo.DeclineWorkspaceInvitation(ctx, ws.ID, in.UserID)
+}
+
+// ListMyWorkspaceInvitationsUseCase は自分宛の未受諾の招待を返す。
+type ListMyWorkspaceInvitationsUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListMyWorkspaceInvitationsUseCase(r repository.KnowledgeBasePermissionRepository) *ListMyWorkspaceInvitationsUseCase {
+	return &ListMyWorkspaceInvitationsUseCase{repo: r}
+}
+
+func (u *ListMyWorkspaceInvitationsUseCase) Execute(ctx context.Context, userID uint64) ([]domain.WorkspaceInvitation, error) {
+	if userID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	return u.repo.ListMyWorkspaceInvitations(ctx, userID)
 }

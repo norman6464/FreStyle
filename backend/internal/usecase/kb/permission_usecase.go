@@ -841,47 +841,10 @@ var ErrPrincipalKindMismatch = errors.New("principal kind does not match the ope
 // kbGroupNameMaxLen は principals.name (varchar(200)) の上限。DB エラーの前に入口で弾く。
 const kbGroupNameMaxLen = 200
 
-// AddWorkspaceMemberUseCase はユーザーをワークスペースのメンバーにする。
-// 所属は principals（kind='user'）の 1 行で表すので、この usecase はその行を作る（冪等）。
-type AddWorkspaceMemberUseCase struct {
-	repo repository.KnowledgeBasePermissionRepository
-}
-
-func NewAddWorkspaceMemberUseCase(r repository.KnowledgeBasePermissionRepository) *AddWorkspaceMemberUseCase {
-	return &AddWorkspaceMemberUseCase{repo: r}
-}
-
-type AddWorkspaceMemberInput struct {
-	WorkspaceID string
-	UserID      uint64
-}
-
-func (u *AddWorkspaceMemberUseCase) Execute(ctx context.Context, in AddWorkspaceMemberInput) (*domain.Principal, error) {
-	if in.WorkspaceID == "" {
-		return nil, errors.New("workspaceID is required")
-	}
-	if in.UserID == 0 {
-		return nil, errors.New("userID is required")
-	}
-	principal, err := u.repo.EnsureUserPrincipal(ctx, in.WorkspaceID, in.UserID)
-	if err != nil {
-		return nil, err
-	}
-	// 追加した瞬間から**全員が書ける**（ユーザー決定 2026-08-28）。
-	// 既定を viewer にすると「入れたのに書けない」問い合わせが管理者に集まり、
-	// 結局全員に editor を配って回ることになる。狭めたい内容は private のスペースへ置く
-	// （付与は足し算だけで、打ち消す層は持たない）。
-	// **無いときだけ**与える（上書きしない）。追加は冪等で、既に admin の人へ
-	// もう一度実行され得るため、上書きだと admin が editor に落ちる。
-	if gerr := u.repo.GrantWorkspaceRoleIfAbsent(ctx, in.WorkspaceID, principal.ID, domain.GrantRoleEditor); gerr != nil {
-		return nil, gerr
-	}
-	return principal, nil
-}
-
-// RemoveWorkspaceMemberUseCase はユーザーをワークスペースから外す。
-// principal を消すと、その人に張られていた grant / グループ所属も
-// FK の CASCADE で消える（権限だけが残らない）。
+// RemoveWorkspaceMemberUseCase はユーザーをワークスペースから外す（招待中なら取り消す）。
+// principal があれば消え、その人に張られていた grant / グループ所属も FK の CASCADE で
+// 消える（権限だけが残らない）。workspace_members は消さず left として記録に残す
+// （repository.LeaveWorkspaceMembership 参照）。
 type RemoveWorkspaceMemberUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -902,14 +865,7 @@ func (u *RemoveWorkspaceMemberUseCase) Execute(ctx context.Context, in RemoveWor
 	if in.UserID == 0 {
 		return errors.New("userID is required")
 	}
-	principal, err := u.repo.FindUserPrincipal(ctx, in.WorkspaceID, in.UserID)
-	if err != nil {
-		if errors.Is(err, repository.ErrPrincipalNotFound) {
-			return nil // 既に非メンバー（冪等）
-		}
-		return err
-	}
-	return u.repo.DeletePrincipal(ctx, in.WorkspaceID, principal.ID)
+	return u.repo.LeaveWorkspaceMembership(ctx, in.WorkspaceID, in.UserID)
 }
 
 // CreatePrincipalGroupUseCase は権限をまとめて張るためのグループを作る。

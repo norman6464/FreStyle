@@ -175,7 +175,8 @@ func newUpsertUserUseCase(users *upsertUserRepoSpy) (*UpsertUserFromIDTokenUseCa
 	return NewUpsertUserFromIDTokenUseCase(users, oidc, fakeTxManager{}), oidc
 }
 
-// 招待ゲートは撤去済み（個人サインアップ）。新規ユーザーは所属ワークスペース無しで作られる。
+// 招待ゲートは撤去済み（個人サインアップ）。ワークスペース所属は段 2 以降
+// workspace_members が正本で、ここでは作らない（EnsurePersonalWorkspaceUseCase が別途担う）。
 func Test_UpsertUserFromIDToken_新規ユーザーは自己サインアップできる(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	uc, _ := newUpsertUserUseCase(users)
@@ -196,9 +197,6 @@ func Test_UpsertUserFromIDToken_新規ユーザーは自己サインアップで
 	}
 	if users.created == nil {
 		t.Fatal("ユーザーが作成されていない")
-	}
-	if users.created.WorkspaceID != nil {
-		t.Fatalf("workspaceID = %v, want nil", users.created.WorkspaceID)
 	}
 }
 

@@ -55,16 +55,14 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 		return
 	}
+	// workspaceId は段 2 で撤去（1 人が複数のワークスペースに所属できるため、単一の
+	// 所属先という概念が無い。所属一覧は GET /kb/workspaces が返す）。
 	resp := gin.H{
 		"id":        user.ID,
 		"email":     user.Email,
 		"name":      user.Name,
 		"createdAt": user.CreatedAt,
 		"updatedAt": user.UpdatedAt,
-	}
-	// workspaceId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
-	if user.WorkspaceID != nil {
-		resp["workspaceId"] = user.WorkspaceID
 	}
 	c.JSON(http.StatusOK, resp)
 }

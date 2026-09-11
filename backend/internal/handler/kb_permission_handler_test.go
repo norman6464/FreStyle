@@ -134,11 +134,13 @@ var kbPermissionEndpoints = []kbPermissionEndpoint{
 		okStatus: http.StatusOK,
 	},
 	{
-		name: "メンバー追加", method: http.MethodPut,
+		// 段 2: 招待だけで principal・権限は発生しない（本人が受諾するまで）ため、
+		// 返す主体が無くなり 204 に変わった（それまでは 200 + 主体の JSON）。
+		name: "メンバー招待", method: http.MethodPut,
 		pattern:  "/api/v2/kb/workspaces/:workspaceSlug/members/:userId",
 		path:     "/api/v2/kb/workspaces/{slug}/members/" + strconv.FormatUint(kbSecondUserID, 10),
 		missing:  []string{"/api/v2/kb/workspaces/{slug}/members/" + kbMissingUserID},
-		okStatus: http.StatusOK,
+		okStatus: http.StatusNoContent,
 	},
 	{
 		name: "メンバー削除", method: http.MethodDelete,
@@ -659,8 +661,9 @@ func Test_ナレッジ権限API_同じ存在しないトークンでも上限の
 	}
 }
 
-func Test_ナレッジ権限API_メンバー追加はユーザー単位で頭打ちになる(t *testing.T) {
-	// この口は users.id をそのまま受け取り、200 と 404 の差で実在が分かる。
+func Test_ナレッジ権限API_メンバー招待はユーザー単位で頭打ちになる(t *testing.T) {
+	// この口は users.id をそのまま受け取り、204 と 404 の差で実在が分かる
+	// （招待だけでは principal・権限は発生しない。段 2）。
 	// ワークスペースは誰でも作れて作った本人が admin になるので、放っておくと
 	// 全ログインユーザーが使えるユーザー ID の走査器になる。
 	// 鍵は検証済み JWT 由来のユーザー ID なので、XFF を変えても抜けられない。

@@ -2,6 +2,96 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 -- Set comment to schema: "public"
 COMMENT ON SCHEMA "public" IS 'standard public schema';
+-- Create "users" table
+CREATE TABLE "public"."users" (
+  "id" bigserial NOT NULL,
+  "email" text NOT NULL DEFAULT '',
+  "name" text NOT NULL DEFAULT '',
+  "status" text NOT NULL DEFAULT 'active',
+  "created_at" timestamptz NOT NULL,
+  "updated_at" timestamptz NOT NULL,
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("id"),
+  CONSTRAINT "ck_users_status" CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text, 'deactivated'::text])),
+  CONSTRAINT "ck_users_status_deleted_at" CHECK ((status = 'deactivated'::text) = (deleted_at IS NOT NULL))
+);
+-- Create index "uq_users_email_active" to table: "users"
+CREATE UNIQUE INDEX "uq_users_email_active" ON "public"."users" ((lower(btrim(email, '	
+ '::text)))) WHERE ((deleted_at IS NULL) AND (btrim(email, '	
+ '::text) <> ''::text));
+-- Create "workspaces" table
+CREATE TABLE "public"."workspaces" (
+  "id" uuid NOT NULL,
+  "slug" character varying(64) NOT NULL,
+  "name" character varying(200) NOT NULL,
+  "is_active" boolean NOT NULL DEFAULT true,
+  "personal_owner_user_id" bigint NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_workspaces_slug" UNIQUE ("slug"),
+  CONSTRAINT "fk_workspaces_personal_owner" FOREIGN KEY ("personal_owner_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE SET NULL,
+  CONSTRAINT "ck_workspaces_slug_len" CHECK ((char_length((slug)::text) >= 1) AND (char_length((slug)::text) <= 64))
+);
+-- Create index "uq_workspaces_personal_owner" to table: "workspaces"
+CREATE UNIQUE INDEX "uq_workspaces_personal_owner" ON "public"."workspaces" ("personal_owner_user_id") WHERE (personal_owner_user_id IS NOT NULL);
+-- Create "spaces" table
+CREATE TABLE "public"."spaces" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "key" character varying(64) NOT NULL,
+  "name" character varying(200) NOT NULL,
+  "visibility" character varying(16) NOT NULL DEFAULT 'workspace',
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_spaces_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "uq_spaces_workspace_key" UNIQUE ("workspace_id", "key"),
+  CONSTRAINT "fk_spaces_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_spaces_key_len" CHECK ((char_length((key)::text) >= 1) AND (char_length((key)::text) <= 64)),
+  CONSTRAINT "ck_spaces_visibility" CHECK ((visibility)::text = ANY (ARRAY[('workspace'::character varying)::text, ('private'::character varying)::text]))
+);
+-- Create index "idx_spaces_workspace_id" to table: "spaces"
+CREATE INDEX "idx_spaces_workspace_id" ON "public"."spaces" ("workspace_id");
+-- Create "pages" table
+CREATE TABLE "public"."pages" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
+  "parent_id" uuid NULL,
+  "position" text NOT NULL COLLATE "C",
+  "title" character varying(200) NOT NULL DEFAULT '',
+  "created_by_user_id" bigint NOT NULL,
+  "archived_at" timestamptz NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  "icon" jsonb NULL,
+  "cover" jsonb NULL,
+  "last_edited_by_user_id" bigint NULL,
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_pages_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "uq_pages_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
+  CONSTRAINT "fk_pages_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_pages_last_edited_by" FOREIGN KEY ("last_edited_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_pages_parent" FOREIGN KEY ("workspace_id", "space_id", "parent_id") REFERENCES "public"."pages" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_pages_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_pages_cover_object" CHECK ((cover IS NULL) OR ((jsonb_typeof(cover) = 'object'::text) AND (cover <> '{}'::jsonb))),
+  CONSTRAINT "ck_pages_icon_object" CHECK ((icon IS NULL) OR ((jsonb_typeof(icon) = 'object'::text) AND (icon <> '{}'::jsonb))),
+  CONSTRAINT "ck_pages_parent_not_self" CHECK ((parent_id IS NULL) OR (parent_id <> id)),
+  CONSTRAINT "ck_pages_position_not_empty" CHECK ("position" <> ''::text)
+);
+-- Create index "idx_pages_archived_at" to table: "pages"
+CREATE INDEX "idx_pages_archived_at" ON "public"."pages" ("archived_at");
+-- Create index "idx_pages_parent_id" to table: "pages"
+CREATE INDEX "idx_pages_parent_id" ON "public"."pages" ("parent_id");
+-- Create index "idx_pages_space_id" to table: "pages"
+CREATE INDEX "idx_pages_space_id" ON "public"."pages" ("space_id");
+-- Create index "idx_pages_workspace_id" to table: "pages"
+CREATE INDEX "idx_pages_workspace_id" ON "public"."pages" ("workspace_id");
+-- Create index "uq_pages_parent_position" to table: "pages"
+CREATE UNIQUE INDEX "uq_pages_parent_position" ON "public"."pages" ("parent_id", "position") WHERE (archived_at IS NULL);
+-- Create index "uq_pages_space_position" to table: "pages"
+CREATE UNIQUE INDEX "uq_pages_space_position" ON "public"."pages" ("space_id", "position") WHERE ((parent_id IS NULL) AND (archived_at IS NULL));
 -- Create "blocks" table
 CREATE TABLE "public"."blocks" (
   "id" uuid NOT NULL,
@@ -16,6 +106,7 @@ CREATE TABLE "public"."blocks" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_blocks_workspace_page_id" UNIQUE ("workspace_id", "page_id", "id"),
+  CONSTRAINT "fk_blocks_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "fk_blocks_parent" FOREIGN KEY ("workspace_id", "page_id", "parent_id") REFERENCES "public"."blocks" ("workspace_id", "page_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_blocks_attrs_object" CHECK (jsonb_typeof(attrs) = 'object'::text),
   CONSTRAINT "ck_blocks_inline_array" CHECK ((inline IS NULL) OR (jsonb_typeof(inline) = 'array'::text)),
@@ -47,6 +138,10 @@ CREATE TABLE "public"."comment_threads" (
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
+  CONSTRAINT "fk_comment_threads_block" FOREIGN KEY ("block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE SET NULL,
+  CONSTRAINT "fk_comment_threads_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_comment_threads_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_comment_threads_resolved_by" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
   CONSTRAINT "ck_comment_threads_anchor_pair" CHECK ((anchor_from IS NULL) = (anchor_to IS NULL)),
   CONSTRAINT "ck_comment_threads_resolved_pair" CHECK ((resolved_at IS NULL) = (resolved_by_user_id IS NULL))
 );
@@ -63,6 +158,8 @@ CREATE TABLE "public"."comments" (
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
+  CONSTRAINT "fk_comments_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_comments_body_array" CHECK (jsonb_typeof(body) = 'array'::text)
 );
 -- Create index "idx_comments_thread" to table: "comments"
@@ -79,6 +176,7 @@ CREATE TABLE "public"."labels" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_labels_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "fk_labels_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_labels_color_hex" CHECK ((color)::text ~ '^#[0-9a-f]{6}$'::text),
   CONSTRAINT "ck_labels_name_trimmed" CHECK (((name)::text = btrim((name)::text)) AND ((name)::text <> ''::text))
 );
@@ -95,10 +193,50 @@ CREATE TABLE "public"."notifications" (
   "body" text NOT NULL DEFAULT '',
   "is_read" boolean NOT NULL DEFAULT false,
   "created_at" timestamptz NOT NULL,
-  PRIMARY KEY ("id")
+  PRIMARY KEY ("id"),
+  CONSTRAINT "fk_notifications_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
 );
 -- Create index "idx_notifications_user_id" to table: "notifications"
 CREATE INDEX "idx_notifications_user_id" ON "public"."notifications" ("user_id");
+-- Create "principals" table
+CREATE TABLE "public"."principals" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "kind" character varying(16) NOT NULL,
+  "user_id" bigint NULL,
+  "space_id" uuid NULL,
+  "page_id" uuid NULL,
+  "name" character varying(200) NOT NULL DEFAULT '',
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_principals_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "uq_principals_workspace_kind_id" UNIQUE ("workspace_id", "kind", "id"),
+  CONSTRAINT "uq_principals_workspace_kind_page_id" UNIQUE ("workspace_id", "kind", "page_id", "id"),
+  CONSTRAINT "fk_principals_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_principals_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_principals_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_principals_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_principals_kind" CHECK ((kind)::text = ANY (ARRAY[('user'::character varying)::text, ('group'::character varying)::text, ('space_all'::character varying)::text, ('share_link'::character varying)::text])),
+  CONSTRAINT "ck_principals_name" CHECK (((kind)::text = 'group'::text) = ((name)::text <> (''::character varying)::text)),
+  CONSTRAINT "ck_principals_page_id" CHECK (((kind)::text = 'share_link'::text) = (page_id IS NOT NULL)),
+  CONSTRAINT "ck_principals_space_id" CHECK (((kind)::text = 'space_all'::text) = (space_id IS NOT NULL)),
+  CONSTRAINT "ck_principals_user_id" CHECK (((kind)::text = 'user'::text) = (user_id IS NOT NULL))
+);
+-- Create index "idx_principals_page_id" to table: "principals"
+CREATE INDEX "idx_principals_page_id" ON "public"."principals" ("page_id");
+-- Create index "idx_principals_space_id" to table: "principals"
+CREATE INDEX "idx_principals_space_id" ON "public"."principals" ("space_id");
+-- Create index "idx_principals_user_id" to table: "principals"
+CREATE INDEX "idx_principals_user_id" ON "public"."principals" ("user_id");
+-- Create index "idx_principals_workspace_id" to table: "principals"
+CREATE INDEX "idx_principals_workspace_id" ON "public"."principals" ("workspace_id");
+-- Create index "uq_principals_group_name" to table: "principals"
+CREATE UNIQUE INDEX "uq_principals_group_name" ON "public"."principals" ("workspace_id", "name") WHERE ((kind)::text = 'group'::text);
+-- Create index "uq_principals_space_all" to table: "principals"
+CREATE UNIQUE INDEX "uq_principals_space_all" ON "public"."principals" ("workspace_id", "space_id") WHERE ((kind)::text = 'space_all'::text);
+-- Create index "uq_principals_workspace_user" to table: "principals"
+CREATE UNIQUE INDEX "uq_principals_workspace_user" ON "public"."principals" ("workspace_id", "user_id") WHERE ((kind)::text = 'user'::text);
 -- Create "page_grants" table
 CREATE TABLE "public"."page_grants" (
   "workspace_id" uuid NOT NULL,
@@ -108,6 +246,8 @@ CREATE TABLE "public"."page_grants" (
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("workspace_id", "page_id", "principal_id"),
+  CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_page_grants_role" CHECK ((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('commenter'::character varying)::text, ('viewer'::character varying)::text]))
 );
 -- Create index "idx_page_grants_principal" to table: "page_grants"
@@ -116,7 +256,9 @@ CREATE INDEX "idx_page_grants_principal" ON "public"."page_grants" ("workspace_i
 CREATE TABLE "public"."page_links" (
   "source_block_id" uuid NOT NULL,
   "target_page_id" uuid NOT NULL,
-  PRIMARY KEY ("source_block_id", "target_page_id")
+  PRIMARY KEY ("source_block_id", "target_page_id"),
+  CONSTRAINT "fk_page_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_links_target_page" FOREIGN KEY ("target_page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
 );
 -- Create index "idx_page_links_target_page_id" to table: "page_links"
 CREATE INDEX "idx_page_links_target_page_id" ON "public"."page_links" ("target_page_id");
@@ -127,6 +269,8 @@ CREATE TABLE "public"."page_paths" (
   "ancestor_id" uuid NOT NULL,
   "depth" integer NOT NULL,
   PRIMARY KEY ("page_id", "ancestor_id"),
+  CONSTRAINT "fk_page_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_paths_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_page_paths_depth" CHECK ((depth >= 0) AND ((depth = 0) = (page_id = ancestor_id)))
 );
 -- Create index "idx_page_paths_ancestor_id" to table: "page_paths"
@@ -140,7 +284,8 @@ CREATE TABLE "public"."page_search" (
   "title" text NOT NULL,
   "body" text NOT NULL,
   "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("page_id")
+  PRIMARY KEY ("page_id"),
+  CONSTRAINT "fk_page_search_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE
 );
 -- Create "page_snapshots" table
 CREATE TABLE "public"."page_snapshots" (
@@ -148,7 +293,22 @@ CREATE TABLE "public"."page_snapshots" (
   "doc" jsonb NOT NULL,
   "built_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("page_id"),
+  CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_page_snapshots_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
+);
+-- Create "page_versions" table
+CREATE TABLE "public"."page_versions" (
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "seq" bigint NOT NULL,
+  "doc" jsonb NOT NULL,
+  "author_user_id" bigint NOT NULL,
+  "note" text NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("page_id", "seq"),
+  CONSTRAINT "fk_page_versions_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_page_versions_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
 );
 -- Create "page_suggestions" table
 CREATE TABLE "public"."page_suggestions" (
@@ -163,6 +323,10 @@ CREATE TABLE "public"."page_suggestions" (
   "resolved_at" timestamptz NULL,
   "resolved_by_user_id" bigint NULL,
   PRIMARY KEY ("id"),
+  CONSTRAINT "fk_page_suggestions_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_page_suggestions_base_version" FOREIGN KEY ("page_id", "base_seq") REFERENCES "public"."page_versions" ("page_id", "seq") ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT "fk_page_suggestions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_suggestions_resolved_by" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
   CONSTRAINT "ck_page_suggestions_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
   CONSTRAINT "ck_page_suggestions_resolution_consistency" CHECK (((status = 'open'::text) AND (resolved_at IS NULL) AND (resolved_by_user_id IS NULL)) OR ((status <> 'open'::text) AND (resolved_at IS NOT NULL) AND (resolved_by_user_id IS NOT NULL))),
   CONSTRAINT "ck_page_suggestions_status" CHECK (status = ANY (ARRAY['open'::text, 'accepted'::text, 'rejected'::text]))
@@ -184,358 +348,14 @@ CREATE TABLE "public"."page_templates" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_page_templates_workspace_name" UNIQUE ("workspace_id", "name"),
+  CONSTRAINT "fk_page_templates_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_page_templates_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
   CONSTRAINT "ck_page_templates_icon" CHECK ((icon IS NULL) OR (jsonb_typeof(icon) = 'object'::text))
 );
 -- Create index "idx_page_templates_workspace_id" to table: "page_templates"
 CREATE INDEX "idx_page_templates_workspace_id" ON "public"."page_templates" ("workspace_id");
--- Create "page_ticket_links" table
-CREATE TABLE "public"."page_ticket_links" (
-  "source_block_id" uuid NOT NULL,
-  "target_ticket_id" uuid NOT NULL,
-  PRIMARY KEY ("source_block_id", "target_ticket_id")
-);
--- Create index "idx_page_ticket_links_target_ticket_id" to table: "page_ticket_links"
-CREATE INDEX "idx_page_ticket_links_target_ticket_id" ON "public"."page_ticket_links" ("target_ticket_id");
--- Create "page_versions" table
-CREATE TABLE "public"."page_versions" (
-  "workspace_id" uuid NOT NULL,
-  "page_id" uuid NOT NULL,
-  "seq" bigint NOT NULL,
-  "doc" jsonb NOT NULL,
-  "author_user_id" bigint NOT NULL,
-  "note" text NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("page_id", "seq"),
-  CONSTRAINT "ck_page_versions_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text))
-);
--- Create "pages" table
-CREATE TABLE "public"."pages" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "space_id" uuid NOT NULL,
-  "parent_id" uuid NULL,
-  "position" text NOT NULL COLLATE "C",
-  "title" character varying(200) NOT NULL DEFAULT '',
-  "created_by_user_id" bigint NOT NULL,
-  "archived_at" timestamptz NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  "icon" jsonb NULL,
-  "cover" jsonb NULL,
-  "last_edited_by_user_id" bigint NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_pages_workspace_id" UNIQUE ("workspace_id", "id"),
-  CONSTRAINT "uq_pages_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
-  CONSTRAINT "fk_pages_parent" FOREIGN KEY ("workspace_id", "space_id", "parent_id") REFERENCES "public"."pages" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
-  CONSTRAINT "ck_pages_cover_object" CHECK ((cover IS NULL) OR ((jsonb_typeof(cover) = 'object'::text) AND (cover <> '{}'::jsonb))),
-  CONSTRAINT "ck_pages_icon_object" CHECK ((icon IS NULL) OR ((jsonb_typeof(icon) = 'object'::text) AND (icon <> '{}'::jsonb))),
-  CONSTRAINT "ck_pages_parent_not_self" CHECK ((parent_id IS NULL) OR (parent_id <> id)),
-  CONSTRAINT "ck_pages_position_not_empty" CHECK ("position" <> ''::text)
-);
--- Create index "idx_pages_archived_at" to table: "pages"
-CREATE INDEX "idx_pages_archived_at" ON "public"."pages" ("archived_at");
--- Create index "idx_pages_parent_id" to table: "pages"
-CREATE INDEX "idx_pages_parent_id" ON "public"."pages" ("parent_id");
--- Create index "idx_pages_space_id" to table: "pages"
-CREATE INDEX "idx_pages_space_id" ON "public"."pages" ("space_id");
--- Create index "idx_pages_workspace_id" to table: "pages"
-CREATE INDEX "idx_pages_workspace_id" ON "public"."pages" ("workspace_id");
--- Create index "uq_pages_parent_position" to table: "pages"
-CREATE UNIQUE INDEX "uq_pages_parent_position" ON "public"."pages" ("parent_id", "position") WHERE (archived_at IS NULL);
--- Create index "uq_pages_space_position" to table: "pages"
-CREATE UNIQUE INDEX "uq_pages_space_position" ON "public"."pages" ("space_id", "position") WHERE ((parent_id IS NULL) AND (archived_at IS NULL));
--- Create "principal_members" table
-CREATE TABLE "public"."principal_members" (
-  "workspace_id" uuid NOT NULL,
-  "group_principal_id" uuid NOT NULL,
-  "member_principal_id" uuid NOT NULL,
-  "group_kind" character varying(16) NULL GENERATED ALWAYS AS ('group'::character varying) STORED,
-  "member_kind" character varying(16) NULL GENERATED ALWAYS AS ('user'::character varying) STORED,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("group_principal_id", "member_principal_id")
-);
--- Create index "idx_principal_members_member" to table: "principal_members"
-CREATE INDEX "idx_principal_members_member" ON "public"."principal_members" ("workspace_id", "member_principal_id");
--- Create "principals" table
-CREATE TABLE "public"."principals" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "kind" character varying(16) NOT NULL,
-  "user_id" bigint NULL,
-  "space_id" uuid NULL,
-  "page_id" uuid NULL,
-  "name" character varying(200) NOT NULL DEFAULT '',
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_principals_workspace_id" UNIQUE ("workspace_id", "id"),
-  CONSTRAINT "uq_principals_workspace_kind_id" UNIQUE ("workspace_id", "kind", "id"),
-  CONSTRAINT "uq_principals_workspace_kind_page_id" UNIQUE ("workspace_id", "kind", "page_id", "id"),
-  CONSTRAINT "ck_principals_kind" CHECK ((kind)::text = ANY (ARRAY[('user'::character varying)::text, ('group'::character varying)::text, ('space_all'::character varying)::text, ('share_link'::character varying)::text])),
-  CONSTRAINT "ck_principals_name" CHECK (((kind)::text = 'group'::text) = ((name)::text <> (''::character varying)::text)),
-  CONSTRAINT "ck_principals_page_id" CHECK (((kind)::text = 'share_link'::text) = (page_id IS NOT NULL)),
-  CONSTRAINT "ck_principals_space_id" CHECK (((kind)::text = 'space_all'::text) = (space_id IS NOT NULL)),
-  CONSTRAINT "ck_principals_user_id" CHECK (((kind)::text = 'user'::text) = (user_id IS NOT NULL))
-);
--- Create index "idx_principals_page_id" to table: "principals"
-CREATE INDEX "idx_principals_page_id" ON "public"."principals" ("page_id");
--- Create index "idx_principals_space_id" to table: "principals"
-CREATE INDEX "idx_principals_space_id" ON "public"."principals" ("space_id");
--- Create index "idx_principals_user_id" to table: "principals"
-CREATE INDEX "idx_principals_user_id" ON "public"."principals" ("user_id");
--- Create index "idx_principals_workspace_id" to table: "principals"
-CREATE INDEX "idx_principals_workspace_id" ON "public"."principals" ("workspace_id");
--- Create index "uq_principals_group_name" to table: "principals"
-CREATE UNIQUE INDEX "uq_principals_group_name" ON "public"."principals" ("workspace_id", "name") WHERE ((kind)::text = 'group'::text);
--- Create index "uq_principals_space_all" to table: "principals"
-CREATE UNIQUE INDEX "uq_principals_space_all" ON "public"."principals" ("workspace_id", "space_id") WHERE ((kind)::text = 'space_all'::text);
--- Create index "uq_principals_workspace_user" to table: "principals"
-CREATE UNIQUE INDEX "uq_principals_workspace_user" ON "public"."principals" ("workspace_id", "user_id") WHERE ((kind)::text = 'user'::text);
--- Create "profiles" table
-CREATE TABLE "public"."profiles" (
-  "user_id" bigint NOT NULL,
-  "bio" text NOT NULL DEFAULT '',
-  "avatar_url" text NOT NULL DEFAULT '',
-  "status_message" text NOT NULL DEFAULT '',
-  "updated_at" timestamptz NOT NULL,
-  PRIMARY KEY ("user_id")
-);
--- Create "share_links" table
-CREATE TABLE "public"."share_links" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "page_id" uuid NOT NULL,
-  "principal_id" uuid NOT NULL,
-  "principal_kind" character varying(16) NULL GENERATED ALWAYS AS ('share_link'::character varying) STORED,
-  "capability" character varying(8) NOT NULL,
-  "token_hash" bytea NOT NULL,
-  "password_hash" text NULL,
-  "expires_at" timestamptz NULL,
-  "revoked_at" timestamptz NULL,
-  "created_by_user_id" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_share_links_principal" UNIQUE ("principal_id"),
-  CONSTRAINT "uq_share_links_token_hash" UNIQUE ("token_hash"),
-  CONSTRAINT "ck_share_links_capability" CHECK ((capability)::text = ANY (ARRAY[('view'::character varying)::text, ('edit'::character varying)::text])),
-  CONSTRAINT "ck_share_links_password_hash" CHECK ((password_hash IS NULL) OR (password_hash <> ''::text)),
-  CONSTRAINT "ck_share_links_token_hash_len" CHECK (octet_length(token_hash) = 32)
-);
--- Create index "idx_share_links_created_by" to table: "share_links"
-CREATE INDEX "idx_share_links_created_by" ON "public"."share_links" ("created_by_user_id");
--- Create index "idx_share_links_page" to table: "share_links"
-CREATE INDEX "idx_share_links_page" ON "public"."share_links" ("workspace_id", "page_id");
--- Create "space_grants" table
-CREATE TABLE "public"."space_grants" (
-  "workspace_id" uuid NOT NULL,
-  "space_id" uuid NOT NULL,
-  "principal_id" uuid NOT NULL,
-  "role" character varying(16) NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("workspace_id", "space_id", "principal_id"),
-  CONSTRAINT "ck_space_grants_role" CHECK ((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('commenter'::character varying)::text, ('viewer'::character varying)::text]))
-);
--- Create index "idx_space_grants_principal" to table: "space_grants"
-CREATE INDEX "idx_space_grants_principal" ON "public"."space_grants" ("workspace_id", "principal_id");
--- Create "spaces" table
-CREATE TABLE "public"."spaces" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "key" character varying(64) NOT NULL,
-  "name" character varying(200) NOT NULL,
-  "visibility" character varying(16) NOT NULL DEFAULT 'workspace',
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_spaces_workspace_id" UNIQUE ("workspace_id", "id"),
-  CONSTRAINT "uq_spaces_workspace_key" UNIQUE ("workspace_id", "key"),
-  CONSTRAINT "ck_spaces_key_len" CHECK ((char_length((key)::text) >= 1) AND (char_length((key)::text) <= 64)),
-  CONSTRAINT "ck_spaces_visibility" CHECK ((visibility)::text = ANY (ARRAY[('workspace'::character varying)::text, ('private'::character varying)::text]))
-);
--- Create index "idx_spaces_workspace_id" to table: "spaces"
-CREATE INDEX "idx_spaces_workspace_id" ON "public"."spaces" ("workspace_id");
--- Create "ticket_assignments" table
-CREATE TABLE "public"."ticket_assignments" (
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "assignee_principal_id" uuid NOT NULL,
-  "assignee_kind" character varying(16) NULL GENERATED ALWAYS AS ('user'::character varying) STORED,
-  "assigned_by_user_id" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "deleted_at" timestamptz NULL,
-  PRIMARY KEY ("ticket_id")
-);
--- Create index "idx_ticket_assignments_principal" to table: "ticket_assignments"
-CREATE INDEX "idx_ticket_assignments_principal" ON "public"."ticket_assignments" ("workspace_id", "assignee_principal_id");
--- Create "ticket_attachments" table
-CREATE TABLE "public"."ticket_attachments" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "key" text NOT NULL,
-  "filename" character varying(255) NOT NULL,
-  "content_type" text NOT NULL,
-  "size_bytes" bigint NOT NULL,
-  "uploaded_by_user_id" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_ticket_attachments_content_type_not_empty" CHECK (content_type <> ''::text),
-  CONSTRAINT "ck_ticket_attachments_filename_not_empty" CHECK (btrim((filename)::text) <> ''::text),
-  CONSTRAINT "ck_ticket_attachments_size_positive" CHECK (size_bytes > 0)
-);
--- Create index "idx_ticket_attachments_ticket_created" to table: "ticket_attachments"
-CREATE INDEX "idx_ticket_attachments_ticket_created" ON "public"."ticket_attachments" ("ticket_id", "created_at");
--- Create "ticket_change_groups" table
-CREATE TABLE "public"."ticket_change_groups" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "actor_user_id" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "deleted_at" timestamptz NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_ticket_change_groups_workspace_id" UNIQUE ("workspace_id", "id")
-);
--- Create index "idx_ticket_change_groups_ticket_created" to table: "ticket_change_groups"
-CREATE INDEX "idx_ticket_change_groups_ticket_created" ON "public"."ticket_change_groups" ("ticket_id", "created_at");
--- Create "ticket_change_items" table
-CREATE TABLE "public"."ticket_change_items" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "group_id" uuid NOT NULL,
-  "field" character varying(32) NOT NULL,
-  "old_value" text NULL,
-  "new_value" text NULL,
-  "old_label" text NULL,
-  "new_label" text NULL,
-  "deleted_at" timestamptz NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_ticket_change_items_changed" CHECK ((old_value IS DISTINCT FROM new_value) OR (old_label IS DISTINCT FROM new_label) OR ((field)::text = 'doc'::text)),
-  CONSTRAINT "ck_ticket_change_items_field" CHECK ((field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text, ('deleted'::character varying)::text]))
-);
--- Create index "idx_ticket_change_items_group_id" to table: "ticket_change_items"
-CREATE INDEX "idx_ticket_change_items_group_id" ON "public"."ticket_change_items" ("group_id");
--- Create "ticket_comment_edits" table
-CREATE TABLE "public"."ticket_comment_edits" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "comment_id" uuid NOT NULL,
-  "editor_user_id" bigint NOT NULL,
-  "previous_body" jsonb NOT NULL,
-  "edited_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_ticket_comment_edits_previous_body_array" CHECK (jsonb_typeof(previous_body) = 'array'::text)
-);
--- Create index "idx_ticket_comment_edits_comment" to table: "ticket_comment_edits"
-CREATE INDEX "idx_ticket_comment_edits_comment" ON "public"."ticket_comment_edits" ("comment_id", "edited_at");
--- Create "ticket_comment_reactions" table
-CREATE TABLE "public"."ticket_comment_reactions" (
-  "workspace_id" uuid NOT NULL,
-  "comment_id" uuid NOT NULL,
-  "user_id" bigint NOT NULL,
-  "emoji" text NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("comment_id", "user_id", "emoji"),
-  CONSTRAINT "ck_ticket_comment_reactions_emoji_not_empty" CHECK ((emoji <> ''::text) AND (octet_length(emoji) <= 32))
-);
--- Create "ticket_comments" table
-CREATE TABLE "public"."ticket_comments" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "parent_comment_id" uuid NULL,
-  "author_user_id" bigint NOT NULL,
-  "body" jsonb NOT NULL,
-  "edited_at" timestamptz NULL,
-  "deleted_at" timestamptz NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_ticket_comments_workspace_id" UNIQUE ("workspace_id", "id"),
-  CONSTRAINT "fk_ticket_comments_parent" FOREIGN KEY ("workspace_id", "parent_comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
-  CONSTRAINT "ck_ticket_comments_body_array" CHECK (jsonb_typeof(body) = 'array'::text)
-);
--- Create index "idx_ticket_comments_parent" to table: "ticket_comments"
-CREATE INDEX "idx_ticket_comments_parent" ON "public"."ticket_comments" ("parent_comment_id");
--- Create index "idx_ticket_comments_ticket_created" to table: "ticket_comments"
-CREATE INDEX "idx_ticket_comments_ticket_created" ON "public"."ticket_comments" ("ticket_id", "created_at");
--- Create "ticket_counters" table
-CREATE TABLE "public"."ticket_counters" (
-  "workspace_id" uuid NOT NULL,
-  "space_id" uuid NOT NULL,
-  "last_number" bigint NOT NULL,
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  "deleted_at" timestamptz NULL,
-  PRIMARY KEY ("workspace_id", "space_id"),
-  CONSTRAINT "ck_ticket_counters_last_number_positive" CHECK (last_number > 0)
-);
--- Create "ticket_labels" table
-CREATE TABLE "public"."ticket_labels" (
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "label_id" uuid NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("ticket_id", "label_id")
-);
--- Create index "idx_ticket_labels_label" to table: "ticket_labels"
-CREATE INDEX "idx_ticket_labels_label" ON "public"."ticket_labels" ("label_id");
--- Create "ticket_page_links" table
-CREATE TABLE "public"."ticket_page_links" (
-  "workspace_id" uuid NOT NULL,
-  "source_ticket_id" uuid NOT NULL,
-  "target_page_id" uuid NOT NULL,
-  "deleted_at" timestamptz NULL,
-  PRIMARY KEY ("source_ticket_id", "target_page_id")
-);
--- Create index "idx_ticket_page_links_target" to table: "ticket_page_links"
-CREATE INDEX "idx_ticket_page_links_target" ON "public"."ticket_page_links" ("target_page_id");
--- Create "ticket_paths" table
-CREATE TABLE "public"."ticket_paths" (
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "ancestor_id" uuid NOT NULL,
-  "depth" integer NOT NULL,
-  PRIMARY KEY ("ticket_id", "ancestor_id"),
-  CONSTRAINT "ck_ticket_paths_depth" CHECK ((depth >= 0) AND ((depth = 0) = (ticket_id = ancestor_id)))
-);
--- Create index "idx_ticket_paths_ancestor_id" to table: "ticket_paths"
-CREATE INDEX "idx_ticket_paths_ancestor_id" ON "public"."ticket_paths" ("ancestor_id");
--- Create index "idx_ticket_paths_workspace_id" to table: "ticket_paths"
-CREATE INDEX "idx_ticket_paths_workspace_id" ON "public"."ticket_paths" ("workspace_id");
--- Create "ticket_ranks" table
-CREATE TABLE "public"."ticket_ranks" (
-  "workspace_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "context_kind" character varying(32) NOT NULL,
-  "context_id" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
-  "position" text NOT NULL COLLATE "C",
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("ticket_id", "context_kind", "context_id"),
-  CONSTRAINT "uq_ticket_ranks_context_position" UNIQUE ("context_kind", "context_id", "position"),
-  CONSTRAINT "ck_ticket_ranks_context_kind" CHECK ((context_kind)::text = ANY (ARRAY[('backlog'::character varying)::text])),
-  CONSTRAINT "ck_ticket_ranks_position_not_empty" CHECK ("position" <> ''::text)
-);
--- Create index "idx_ticket_ranks_workspace_ticket" to table: "ticket_ranks"
-CREATE INDEX "idx_ticket_ranks_workspace_ticket" ON "public"."ticket_ranks" ("workspace_id", "ticket_id");
--- Create "ticket_status_transitions" table
-CREATE TABLE "public"."ticket_status_transitions" (
-  "id" uuid NOT NULL,
-  "workspace_id" uuid NOT NULL,
-  "space_id" uuid NOT NULL,
-  "ticket_id" uuid NOT NULL,
-  "from_status_id" uuid NOT NULL,
-  "to_status_id" uuid NOT NULL,
-  "changed_by_user_id" bigint NOT NULL,
-  "changed_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_ticket_status_transitions_distinct" CHECK (from_status_id <> to_status_id)
-);
--- Create index "idx_ticket_status_transitions_ticket_changed" to table: "ticket_status_transitions"
-CREATE INDEX "idx_ticket_status_transitions_ticket_changed" ON "public"."ticket_status_transitions" ("ticket_id", "changed_at");
 -- Create "ticket_statuses" table
 CREATE TABLE "public"."ticket_statuses" (
   "id" uuid NOT NULL,
@@ -553,6 +373,7 @@ CREATE TABLE "public"."ticket_statuses" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_ticket_statuses_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
+  CONSTRAINT "fk_ticket_statuses_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_ticket_statuses_category" CHECK ((category)::text = ANY (ARRAY[('todo'::character varying)::text, ('in_progress'::character varying)::text, ('done'::character varying)::text])),
   CONSTRAINT "ck_ticket_statuses_color_hex" CHECK ((color)::text ~ '^#[0-9a-f]{6}$'::text),
   CONSTRAINT "ck_ticket_statuses_initial_active" CHECK (NOT (is_initial AND (archived_at IS NOT NULL))),
@@ -567,17 +388,6 @@ CREATE UNIQUE INDEX "uq_ticket_statuses_space_initial" ON "public"."ticket_statu
 CREATE UNIQUE INDEX "uq_ticket_statuses_space_name" ON "public"."ticket_statuses" ("space_id", "name_lower") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
 -- Create index "uq_ticket_statuses_space_position" to table: "ticket_statuses"
 CREATE UNIQUE INDEX "uq_ticket_statuses_space_position" ON "public"."ticket_statuses" ("space_id", "position") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
--- Create "ticket_ticket_links" table
-CREATE TABLE "public"."ticket_ticket_links" (
-  "workspace_id" uuid NOT NULL,
-  "source_ticket_id" uuid NOT NULL,
-  "target_ticket_id" uuid NOT NULL,
-  "deleted_at" timestamptz NULL,
-  PRIMARY KEY ("source_ticket_id", "target_ticket_id"),
-  CONSTRAINT "ck_ticket_ticket_links_not_self" CHECK (source_ticket_id <> target_ticket_id)
-);
--- Create index "idx_ticket_ticket_links_target" to table: "ticket_ticket_links"
-CREATE INDEX "idx_ticket_ticket_links_target" ON "public"."ticket_ticket_links" ("target_ticket_id");
 -- Create "ticket_types" table
 CREATE TABLE "public"."ticket_types" (
   "id" uuid NOT NULL,
@@ -597,6 +407,7 @@ CREATE TABLE "public"."ticket_types" (
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_ticket_types_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
+  CONSTRAINT "fk_ticket_types_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_ticket_types_color_hex" CHECK ((color)::text ~ '^#[0-9a-f]{6}$'::text),
   CONSTRAINT "ck_ticket_types_default_active" CHECK (NOT (is_default AND (archived_at IS NOT NULL))),
   CONSTRAINT "ck_ticket_types_hierarchy_level" CHECK ((hierarchy_level >= '-1'::integer) AND (hierarchy_level <= 1)),
@@ -640,7 +451,11 @@ CREATE TABLE "public"."tickets" (
   CONSTRAINT "uq_tickets_space_number" UNIQUE ("workspace_id", "space_id", "number"),
   CONSTRAINT "uq_tickets_workspace_id" UNIQUE ("workspace_id", "id"),
   CONSTRAINT "uq_tickets_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
+  CONSTRAINT "fk_tickets_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
   CONSTRAINT "fk_tickets_parent" FOREIGN KEY ("workspace_id", "space_id", "parent_id") REFERENCES "public"."tickets" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_tickets_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_tickets_status" FOREIGN KEY ("workspace_id", "space_id", "status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT "fk_tickets_type" FOREIGN KEY ("workspace_id", "space_id", "type_id") REFERENCES "public"."ticket_types" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT "ck_tickets_closed_pair" CHECK ((closed_at IS NULL) = (resolution IS NULL)),
   CONSTRAINT "ck_tickets_dates_ordered" CHECK ((start_date IS NULL) OR (due_date IS NULL) OR (start_date <= due_date)),
   CONSTRAINT "ck_tickets_doc" CHECK ((jsonb_typeof(doc) = 'object'::text) AND ((doc ->> 'type'::text) = 'doc'::text)),
@@ -663,6 +478,302 @@ CREATE INDEX "idx_tickets_space_status" ON "public"."tickets" ("workspace_id", "
 CREATE INDEX "idx_tickets_space_type" ON "public"."tickets" ("workspace_id", "space_id", "type_id");
 -- Create index "uq_tickets_space_position" to table: "tickets"
 CREATE UNIQUE INDEX "uq_tickets_space_position" ON "public"."tickets" ("space_id", "position") WHERE ((archived_at IS NULL) AND (deleted_at IS NULL));
+-- Create "page_ticket_links" table
+CREATE TABLE "public"."page_ticket_links" (
+  "source_block_id" uuid NOT NULL,
+  "target_ticket_id" uuid NOT NULL,
+  PRIMARY KEY ("source_block_id", "target_ticket_id"),
+  CONSTRAINT "fk_page_ticket_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_ticket_links_target_ticket" FOREIGN KEY ("target_ticket_id") REFERENCES "public"."tickets" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_page_ticket_links_target_ticket_id" to table: "page_ticket_links"
+CREATE INDEX "idx_page_ticket_links_target_ticket_id" ON "public"."page_ticket_links" ("target_ticket_id");
+-- Create "principal_members" table
+CREATE TABLE "public"."principal_members" (
+  "workspace_id" uuid NOT NULL,
+  "group_principal_id" uuid NOT NULL,
+  "member_principal_id" uuid NOT NULL,
+  "group_kind" character varying(16) NULL GENERATED ALWAYS AS ('group'::character varying) STORED,
+  "member_kind" character varying(16) NULL GENERATED ALWAYS AS ('user'::character varying) STORED,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("group_principal_id", "member_principal_id"),
+  CONSTRAINT "fk_principal_members_group" FOREIGN KEY ("workspace_id", "group_kind", "group_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_principal_members_member" FOREIGN KEY ("workspace_id", "member_kind", "member_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_principal_members_member" to table: "principal_members"
+CREATE INDEX "idx_principal_members_member" ON "public"."principal_members" ("workspace_id", "member_principal_id");
+-- Create "profiles" table
+CREATE TABLE "public"."profiles" (
+  "user_id" bigint NOT NULL,
+  "bio" text NOT NULL DEFAULT '',
+  "avatar_url" text NOT NULL DEFAULT '',
+  "status_message" text NOT NULL DEFAULT '',
+  "updated_at" timestamptz NOT NULL,
+  PRIMARY KEY ("user_id"),
+  CONSTRAINT "fk_profiles_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create "share_links" table
+CREATE TABLE "public"."share_links" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "principal_id" uuid NOT NULL,
+  "principal_kind" character varying(16) NULL GENERATED ALWAYS AS ('share_link'::character varying) STORED,
+  "capability" character varying(8) NOT NULL,
+  "token_hash" bytea NOT NULL,
+  "password_hash" text NULL,
+  "expires_at" timestamptz NULL,
+  "revoked_at" timestamptz NULL,
+  "created_by_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_share_links_principal" UNIQUE ("principal_id"),
+  CONSTRAINT "uq_share_links_token_hash" UNIQUE ("token_hash"),
+  CONSTRAINT "fk_share_links_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_share_links_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_share_links_principal" FOREIGN KEY ("workspace_id", "principal_kind", "page_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "page_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_share_links_capability" CHECK ((capability)::text = ANY (ARRAY[('view'::character varying)::text, ('edit'::character varying)::text])),
+  CONSTRAINT "ck_share_links_password_hash" CHECK ((password_hash IS NULL) OR (password_hash <> ''::text)),
+  CONSTRAINT "ck_share_links_token_hash_len" CHECK (octet_length(token_hash) = 32)
+);
+-- Create index "idx_share_links_created_by" to table: "share_links"
+CREATE INDEX "idx_share_links_created_by" ON "public"."share_links" ("created_by_user_id");
+-- Create index "idx_share_links_page" to table: "share_links"
+CREATE INDEX "idx_share_links_page" ON "public"."share_links" ("workspace_id", "page_id");
+-- Create "space_grants" table
+CREATE TABLE "public"."space_grants" (
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
+  "principal_id" uuid NOT NULL,
+  "role" character varying(16) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("workspace_id", "space_id", "principal_id"),
+  CONSTRAINT "fk_space_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_space_grants_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_space_grants_role" CHECK ((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('commenter'::character varying)::text, ('viewer'::character varying)::text]))
+);
+-- Create index "idx_space_grants_principal" to table: "space_grants"
+CREATE INDEX "idx_space_grants_principal" ON "public"."space_grants" ("workspace_id", "principal_id");
+-- Create "ticket_assignments" table
+CREATE TABLE "public"."ticket_assignments" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "assignee_principal_id" uuid NOT NULL,
+  "assignee_kind" character varying(16) NULL GENERATED ALWAYS AS ('user'::character varying) STORED,
+  "assigned_by_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("ticket_id"),
+  CONSTRAINT "fk_ticket_assignments_assigned_by" FOREIGN KEY ("assigned_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_ticket_assignments_principal" FOREIGN KEY ("workspace_id", "assignee_kind", "assignee_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_assignments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_ticket_assignments_principal" to table: "ticket_assignments"
+CREATE INDEX "idx_ticket_assignments_principal" ON "public"."ticket_assignments" ("workspace_id", "assignee_principal_id");
+-- Create "ticket_attachments" table
+CREATE TABLE "public"."ticket_attachments" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "key" text NOT NULL,
+  "filename" character varying(255) NOT NULL,
+  "content_type" text NOT NULL,
+  "size_bytes" bigint NOT NULL,
+  "uploaded_by_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "fk_ticket_attachments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_attachments_uploaded_by" FOREIGN KEY ("uploaded_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "ck_ticket_attachments_content_type_not_empty" CHECK (content_type <> ''::text),
+  CONSTRAINT "ck_ticket_attachments_filename_not_empty" CHECK (btrim((filename)::text) <> ''::text),
+  CONSTRAINT "ck_ticket_attachments_size_positive" CHECK (size_bytes > 0)
+);
+-- Create index "idx_ticket_attachments_ticket_created" to table: "ticket_attachments"
+CREATE INDEX "idx_ticket_attachments_ticket_created" ON "public"."ticket_attachments" ("ticket_id", "created_at");
+-- Create "ticket_change_groups" table
+CREATE TABLE "public"."ticket_change_groups" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "actor_user_id" bigint NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_ticket_change_groups_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "fk_ticket_change_groups_actor" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_ticket_change_groups_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_ticket_change_groups_ticket_created" to table: "ticket_change_groups"
+CREATE INDEX "idx_ticket_change_groups_ticket_created" ON "public"."ticket_change_groups" ("ticket_id", "created_at");
+-- Create "ticket_change_items" table
+CREATE TABLE "public"."ticket_change_items" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "group_id" uuid NOT NULL,
+  "field" character varying(32) NOT NULL,
+  "old_value" text NULL,
+  "new_value" text NULL,
+  "old_label" text NULL,
+  "new_label" text NULL,
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("id"),
+  CONSTRAINT "fk_ticket_change_items_group" FOREIGN KEY ("workspace_id", "group_id") REFERENCES "public"."ticket_change_groups" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_change_items_changed" CHECK ((old_value IS DISTINCT FROM new_value) OR (old_label IS DISTINCT FROM new_label) OR ((field)::text = 'doc'::text)),
+  CONSTRAINT "ck_ticket_change_items_field" CHECK ((field)::text = ANY (ARRAY[('title'::character varying)::text, ('doc'::character varying)::text, ('status'::character varying)::text, ('type'::character varying)::text, ('priority'::character varying)::text, ('assignee'::character varying)::text, ('parent'::character varying)::text, ('start_date'::character varying)::text, ('due_date'::character varying)::text, ('resolution'::character varying)::text, ('position'::character varying)::text, ('archived'::character varying)::text, ('category'::character varying)::text, ('milestone'::character varying)::text, ('link'::character varying)::text, ('deleted'::character varying)::text]))
+);
+-- Create index "idx_ticket_change_items_group_id" to table: "ticket_change_items"
+CREATE INDEX "idx_ticket_change_items_group_id" ON "public"."ticket_change_items" ("group_id");
+-- Create "ticket_comments" table
+CREATE TABLE "public"."ticket_comments" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "parent_comment_id" uuid NULL,
+  "author_user_id" bigint NOT NULL,
+  "body" jsonb NOT NULL,
+  "edited_at" timestamptz NULL,
+  "deleted_at" timestamptz NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "uq_ticket_comments_workspace_id" UNIQUE ("workspace_id", "id"),
+  CONSTRAINT "fk_ticket_comments_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_ticket_comments_parent" FOREIGN KEY ("workspace_id", "parent_comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_comments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_comments_body_array" CHECK (jsonb_typeof(body) = 'array'::text)
+);
+-- Create index "idx_ticket_comments_parent" to table: "ticket_comments"
+CREATE INDEX "idx_ticket_comments_parent" ON "public"."ticket_comments" ("parent_comment_id");
+-- Create index "idx_ticket_comments_ticket_created" to table: "ticket_comments"
+CREATE INDEX "idx_ticket_comments_ticket_created" ON "public"."ticket_comments" ("ticket_id", "created_at");
+-- Create "ticket_comment_edits" table
+CREATE TABLE "public"."ticket_comment_edits" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "comment_id" uuid NOT NULL,
+  "editor_user_id" bigint NOT NULL,
+  "previous_body" jsonb NOT NULL,
+  "edited_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "fk_ticket_comment_edits_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_comment_edits_editor" FOREIGN KEY ("editor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "ck_ticket_comment_edits_previous_body_array" CHECK (jsonb_typeof(previous_body) = 'array'::text)
+);
+-- Create index "idx_ticket_comment_edits_comment" to table: "ticket_comment_edits"
+CREATE INDEX "idx_ticket_comment_edits_comment" ON "public"."ticket_comment_edits" ("comment_id", "edited_at");
+-- Create "ticket_comment_reactions" table
+CREATE TABLE "public"."ticket_comment_reactions" (
+  "workspace_id" uuid NOT NULL,
+  "comment_id" uuid NOT NULL,
+  "user_id" bigint NOT NULL,
+  "emoji" text NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("comment_id", "user_id", "emoji"),
+  CONSTRAINT "fk_ticket_comment_reactions_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_comment_reactions_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_comment_reactions_emoji_not_empty" CHECK ((emoji <> ''::text) AND (octet_length(emoji) <= 32))
+);
+-- Create "ticket_counters" table
+CREATE TABLE "public"."ticket_counters" (
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
+  "last_number" bigint NOT NULL,
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("workspace_id", "space_id"),
+  CONSTRAINT "fk_ticket_counters_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_counters_last_number_positive" CHECK (last_number > 0)
+);
+-- Create "ticket_labels" table
+CREATE TABLE "public"."ticket_labels" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "label_id" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("ticket_id", "label_id"),
+  CONSTRAINT "fk_ticket_labels_label" FOREIGN KEY ("workspace_id", "label_id") REFERENCES "public"."labels" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_labels_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_ticket_labels_label" to table: "ticket_labels"
+CREATE INDEX "idx_ticket_labels_label" ON "public"."ticket_labels" ("label_id");
+-- Create "ticket_page_links" table
+CREATE TABLE "public"."ticket_page_links" (
+  "workspace_id" uuid NOT NULL,
+  "source_ticket_id" uuid NOT NULL,
+  "target_page_id" uuid NOT NULL,
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("source_ticket_id", "target_page_id"),
+  CONSTRAINT "fk_ticket_page_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_page_links_target" FOREIGN KEY ("workspace_id", "target_page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_ticket_page_links_target" to table: "ticket_page_links"
+CREATE INDEX "idx_ticket_page_links_target" ON "public"."ticket_page_links" ("target_page_id");
+-- Create "ticket_paths" table
+CREATE TABLE "public"."ticket_paths" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "ancestor_id" uuid NOT NULL,
+  "depth" integer NOT NULL,
+  PRIMARY KEY ("ticket_id", "ancestor_id"),
+  CONSTRAINT "fk_ticket_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_paths_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_paths_depth" CHECK ((depth >= 0) AND ((depth = 0) = (ticket_id = ancestor_id)))
+);
+-- Create index "idx_ticket_paths_ancestor_id" to table: "ticket_paths"
+CREATE INDEX "idx_ticket_paths_ancestor_id" ON "public"."ticket_paths" ("ancestor_id");
+-- Create index "idx_ticket_paths_workspace_id" to table: "ticket_paths"
+CREATE INDEX "idx_ticket_paths_workspace_id" ON "public"."ticket_paths" ("workspace_id");
+-- Create "ticket_ranks" table
+CREATE TABLE "public"."ticket_ranks" (
+  "workspace_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "context_kind" character varying(32) NOT NULL,
+  "context_id" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+  "position" text NOT NULL COLLATE "C",
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("ticket_id", "context_kind", "context_id"),
+  CONSTRAINT "uq_ticket_ranks_context_position" UNIQUE ("context_kind", "context_id", "position"),
+  CONSTRAINT "fk_ticket_ranks_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_ranks_context_kind" CHECK ((context_kind)::text = ANY (ARRAY[('backlog'::character varying)::text])),
+  CONSTRAINT "ck_ticket_ranks_position_not_empty" CHECK ("position" <> ''::text)
+);
+-- Create index "idx_ticket_ranks_workspace_ticket" to table: "ticket_ranks"
+CREATE INDEX "idx_ticket_ranks_workspace_ticket" ON "public"."ticket_ranks" ("workspace_id", "ticket_id");
+-- Create "ticket_status_transitions" table
+CREATE TABLE "public"."ticket_status_transitions" (
+  "id" uuid NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
+  "ticket_id" uuid NOT NULL,
+  "from_status_id" uuid NOT NULL,
+  "to_status_id" uuid NOT NULL,
+  "changed_by_user_id" bigint NOT NULL,
+  "changed_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("id"),
+  CONSTRAINT "fk_ticket_status_transitions_changed_by" FOREIGN KEY ("changed_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_ticket_status_transitions_from" FOREIGN KEY ("workspace_id", "space_id", "from_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT "fk_ticket_status_transitions_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_status_transitions_to" FOREIGN KEY ("workspace_id", "space_id", "to_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION,
+  CONSTRAINT "ck_ticket_status_transitions_distinct" CHECK (from_status_id <> to_status_id)
+);
+-- Create index "idx_ticket_status_transitions_ticket_changed" to table: "ticket_status_transitions"
+CREATE INDEX "idx_ticket_status_transitions_ticket_changed" ON "public"."ticket_status_transitions" ("ticket_id", "changed_at");
+-- Create "ticket_ticket_links" table
+CREATE TABLE "public"."ticket_ticket_links" (
+  "workspace_id" uuid NOT NULL,
+  "source_ticket_id" uuid NOT NULL,
+  "target_ticket_id" uuid NOT NULL,
+  "deleted_at" timestamptz NULL,
+  PRIMARY KEY ("source_ticket_id", "target_ticket_id"),
+  CONSTRAINT "fk_ticket_ticket_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_ticket_ticket_links_target" FOREIGN KEY ("workspace_id", "target_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_ticket_ticket_links_not_self" CHECK (source_ticket_id <> target_ticket_id)
+);
+-- Create index "idx_ticket_ticket_links_target" to table: "ticket_ticket_links"
+CREATE INDEX "idx_ticket_ticket_links_target" ON "public"."ticket_ticket_links" ("target_ticket_id");
 -- Create "user_oidc_identities" table
 CREATE TABLE "public"."user_oidc_identities" (
   "id" bigserial NOT NULL,
@@ -672,30 +783,13 @@ CREATE TABLE "public"."user_oidc_identities" (
   "created_at" timestamptz NOT NULL,
   "updated_at" timestamptz NOT NULL,
   PRIMARY KEY ("id"),
+  CONSTRAINT "fk_user_oidc_identities_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_user_oidc_identities_not_empty" CHECK ((provider <> ''::text) AND (subject <> ''::text))
 );
 -- Create index "uq_user_oidc_provider_subject" to table: "user_oidc_identities"
 CREATE UNIQUE INDEX "uq_user_oidc_provider_subject" ON "public"."user_oidc_identities" ("provider", "subject");
 -- Create index "uq_user_oidc_user_provider" to table: "user_oidc_identities"
 CREATE UNIQUE INDEX "uq_user_oidc_user_provider" ON "public"."user_oidc_identities" ("user_id", "provider");
--- Create "users" table
-CREATE TABLE "public"."users" (
-  "id" bigserial NOT NULL,
-  "email" text NOT NULL DEFAULT '',
-  "name" text NOT NULL DEFAULT '',
-  "status" text NOT NULL DEFAULT 'active',
-  "created_at" timestamptz NOT NULL,
-  "updated_at" timestamptz NOT NULL,
-  "deleted_at" timestamptz NULL,
-  "workspace_id" uuid NULL,
-  PRIMARY KEY ("id"),
-  CONSTRAINT "ck_users_status" CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text, 'deactivated'::text])),
-  CONSTRAINT "ck_users_status_deleted_at" CHECK ((status = 'deactivated'::text) = (deleted_at IS NOT NULL))
-);
--- Create index "uq_users_email_active" to table: "users"
-CREATE UNIQUE INDEX "uq_users_email_active" ON "public"."users" ((lower(btrim(email, '	
- '::text)))) WHERE ((deleted_at IS NULL) AND (btrim(email, '	
- '::text) <> ''::text));
 -- Create "workspace_grants" table
 CREATE TABLE "public"."workspace_grants" (
   "workspace_id" uuid NOT NULL,
@@ -704,104 +798,22 @@ CREATE TABLE "public"."workspace_grants" (
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY ("workspace_id", "principal_id"),
+  CONSTRAINT "fk_workspace_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
   CONSTRAINT "ck_workspace_grants_role" CHECK ((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('editor'::character varying)::text, ('commenter'::character varying)::text, ('viewer'::character varying)::text]))
 );
--- Create "workspaces" table
-CREATE TABLE "public"."workspaces" (
-  "id" uuid NOT NULL,
-  "slug" character varying(64) NOT NULL,
-  "name" character varying(200) NOT NULL,
-  "is_active" boolean NOT NULL DEFAULT true,
-  "personal_owner_user_id" bigint NULL,
+-- Create "workspace_members" table
+CREATE TABLE "public"."workspace_members" (
+  "workspace_id" uuid NOT NULL,
+  "user_id" bigint NOT NULL,
+  "status" text NOT NULL,
+  "invited_by_user_id" bigint NULL,
+  "joined_at" timestamptz NULL,
+  "left_at" timestamptz NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY ("id"),
-  CONSTRAINT "uq_workspaces_slug" UNIQUE ("slug"),
-  CONSTRAINT "ck_workspaces_slug_len" CHECK ((char_length((slug)::text) >= 1) AND (char_length((slug)::text) <= 64))
+  PRIMARY KEY ("workspace_id", "user_id"),
+  CONSTRAINT "fk_workspace_members_invited_by" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT,
+  CONSTRAINT "fk_workspace_members_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_workspace_members_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "ck_workspace_members_status" CHECK (status = ANY (ARRAY['invited'::text, 'active'::text, 'suspended'::text, 'left'::text]))
 );
--- Create index "uq_workspaces_personal_owner" to table: "workspaces"
-CREATE UNIQUE INDEX "uq_workspaces_personal_owner" ON "public"."workspaces" ("personal_owner_user_id") WHERE (personal_owner_user_id IS NOT NULL);
--- Modify "blocks" table
-ALTER TABLE "public"."blocks" ADD CONSTRAINT "fk_blocks_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "comment_threads" table
-ALTER TABLE "public"."comment_threads" ADD CONSTRAINT "fk_comment_threads_block" FOREIGN KEY ("block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE SET NULL, ADD CONSTRAINT "fk_comment_threads_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_comment_threads_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_comment_threads_resolved_by" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
--- Modify "comments" table
-ALTER TABLE "public"."comments" ADD CONSTRAINT "fk_comments_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "labels" table
-ALTER TABLE "public"."labels" ADD CONSTRAINT "fk_labels_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "notifications" table
-ALTER TABLE "public"."notifications" ADD CONSTRAINT "fk_notifications_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_grants" table
-ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_links" table
-ALTER TABLE "public"."page_links" ADD CONSTRAINT "fk_page_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_links_target_page" FOREIGN KEY ("target_page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_paths" table
-ALTER TABLE "public"."page_paths" ADD CONSTRAINT "fk_page_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_paths_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_search" table
-ALTER TABLE "public"."page_search" ADD CONSTRAINT "fk_page_search_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_snapshots" table
-ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_suggestions" table
-ALTER TABLE "public"."page_suggestions" ADD CONSTRAINT "fk_page_suggestions_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_page_suggestions_base_version" FOREIGN KEY ("page_id", "base_seq") REFERENCES "public"."page_versions" ("page_id", "seq") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_page_suggestions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_suggestions_resolved_by" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
--- Modify "page_templates" table
-ALTER TABLE "public"."page_templates" ADD CONSTRAINT "fk_page_templates_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_ticket_links" table
-ALTER TABLE "public"."page_ticket_links" ADD CONSTRAINT "fk_page_ticket_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_ticket_links_target_ticket" FOREIGN KEY ("target_ticket_id") REFERENCES "public"."tickets" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "page_versions" table
-ALTER TABLE "public"."page_versions" ADD CONSTRAINT "fk_page_versions_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "pages" table
-ALTER TABLE "public"."pages" ADD CONSTRAINT "fk_pages_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_pages_last_edited_by" FOREIGN KEY ("last_edited_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_pages_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "principal_members" table
-ALTER TABLE "public"."principal_members" ADD CONSTRAINT "fk_principal_members_group" FOREIGN KEY ("workspace_id", "group_kind", "group_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principal_members_member" FOREIGN KEY ("workspace_id", "member_kind", "member_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "principals" table
-ALTER TABLE "public"."principals" ADD CONSTRAINT "fk_principals_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "profiles" table
-ALTER TABLE "public"."profiles" ADD CONSTRAINT "fk_profiles_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "share_links" table
-ALTER TABLE "public"."share_links" ADD CONSTRAINT "fk_share_links_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_share_links_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_share_links_principal" FOREIGN KEY ("workspace_id", "principal_kind", "page_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "page_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "space_grants" table
-ALTER TABLE "public"."space_grants" ADD CONSTRAINT "fk_space_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_space_grants_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "spaces" table
-ALTER TABLE "public"."spaces" ADD CONSTRAINT "fk_spaces_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_assignments" table
-ALTER TABLE "public"."ticket_assignments" ADD CONSTRAINT "fk_ticket_assignments_assigned_by" FOREIGN KEY ("assigned_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_assignments_principal" FOREIGN KEY ("workspace_id", "assignee_kind", "assignee_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_assignments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_attachments" table
-ALTER TABLE "public"."ticket_attachments" ADD CONSTRAINT "fk_ticket_attachments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_attachments_uploaded_by" FOREIGN KEY ("uploaded_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
--- Modify "ticket_change_groups" table
-ALTER TABLE "public"."ticket_change_groups" ADD CONSTRAINT "fk_ticket_change_groups_actor" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_change_groups_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_change_items" table
-ALTER TABLE "public"."ticket_change_items" ADD CONSTRAINT "fk_ticket_change_items_group" FOREIGN KEY ("workspace_id", "group_id") REFERENCES "public"."ticket_change_groups" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_comment_edits" table
-ALTER TABLE "public"."ticket_comment_edits" ADD CONSTRAINT "fk_ticket_comment_edits_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_comment_edits_editor" FOREIGN KEY ("editor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
--- Modify "ticket_comment_reactions" table
-ALTER TABLE "public"."ticket_comment_reactions" ADD CONSTRAINT "fk_ticket_comment_reactions_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_comment_reactions_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_comments" table
-ALTER TABLE "public"."ticket_comments" ADD CONSTRAINT "fk_ticket_comments_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_comments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_counters" table
-ALTER TABLE "public"."ticket_counters" ADD CONSTRAINT "fk_ticket_counters_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_labels" table
-ALTER TABLE "public"."ticket_labels" ADD CONSTRAINT "fk_ticket_labels_label" FOREIGN KEY ("workspace_id", "label_id") REFERENCES "public"."labels" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_labels_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_page_links" table
-ALTER TABLE "public"."ticket_page_links" ADD CONSTRAINT "fk_ticket_page_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_page_links_target" FOREIGN KEY ("workspace_id", "target_page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_paths" table
-ALTER TABLE "public"."ticket_paths" ADD CONSTRAINT "fk_ticket_paths_ancestor" FOREIGN KEY ("workspace_id", "ancestor_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_paths_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_ranks" table
-ALTER TABLE "public"."ticket_ranks" ADD CONSTRAINT "fk_ticket_ranks_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_status_transitions" table
-ALTER TABLE "public"."ticket_status_transitions" ADD CONSTRAINT "fk_ticket_status_transitions_changed_by" FOREIGN KEY ("changed_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_status_transitions_from" FOREIGN KEY ("workspace_id", "space_id", "from_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_ticket_status_transitions_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_status_transitions_to" FOREIGN KEY ("workspace_id", "space_id", "to_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Modify "ticket_statuses" table
-ALTER TABLE "public"."ticket_statuses" ADD CONSTRAINT "fk_ticket_statuses_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_ticket_links" table
-ALTER TABLE "public"."ticket_ticket_links" ADD CONSTRAINT "fk_ticket_ticket_links_source" FOREIGN KEY ("workspace_id", "source_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_ticket_links_target" FOREIGN KEY ("workspace_id", "target_ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "ticket_types" table
-ALTER TABLE "public"."ticket_types" ADD CONSTRAINT "fk_ticket_types_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "tickets" table
-ALTER TABLE "public"."tickets" ADD CONSTRAINT "fk_tickets_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_tickets_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_tickets_status" FOREIGN KEY ("workspace_id", "space_id", "status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_tickets_type" FOREIGN KEY ("workspace_id", "space_id", "type_id") REFERENCES "public"."ticket_types" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Modify "user_oidc_identities" table
-ALTER TABLE "public"."user_oidc_identities" ADD CONSTRAINT "fk_user_oidc_identities_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "users" table
-ALTER TABLE "public"."users" ADD CONSTRAINT "fk_users_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE NO ACTION;
--- Modify "workspace_grants" table
-ALTER TABLE "public"."workspace_grants" ADD CONSTRAINT "fk_workspace_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
--- Modify "workspaces" table
-ALTER TABLE "public"."workspaces" ADD CONSTRAINT "fk_workspaces_personal_owner" FOREIGN KEY ("personal_owner_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE SET NULL;

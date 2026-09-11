@@ -10,13 +10,17 @@ import (
 
 const (
 	ContextKeyCurrentUserID = "currentUserID"
-	// ContextKeyCurrentUser は handler が role / workspace_id を見るための *domain.User。
+	// ContextKeyCurrentUser は handler が role を見るための *domain.User。
 	ContextKeyCurrentUser = "currentUser"
 )
 
 // CurrentUser は OIDC の subject から users 行を引いて currentUserID / currentUser を context にセットする。
-// 併せて、所属ワークスペースが停止されている場合はその全員を弾く（即時に利用不可）。
-func CurrentUser(users repository.UserRepository, workspaces repository.WorkspaceActivationReader) gin.HandlerFunc {
+//
+// ワークスペースの停止判定はここでは行わない（段 2）。1 人が複数のワークスペースに
+// 所属できるため、「今どのワークスペースの操作か」が定まらないとここでは判定できない。
+// 実際の判定は URL の slug からワークスペースを確定させる経路
+// （usecase/kb.ResolveWorkspaceUseCase）が、その 1 つのワークスペースに対して行う。
+func CurrentUser(users repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, ok := c.Get(ContextKeySubject)
 		if !ok {
@@ -43,25 +47,6 @@ func CurrentUser(users repository.UserRepository, workspaces repository.Workspac
 		if !user.IsActive() {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "user_disabled"})
 			return
-		}
-
-		// 所属ワークスペースが停止されていれば、そこに属する全員が利用不可。
-		// 未所属のユーザーは検査対象が無いので素通りする。
-		//
-		// 行が見つからない場合は素通りさせない。users.workspace_id には FK
-		// （fk_users_workspace）が張ってあるので、所属先の行は必ず存在するはず。
-		// 無いのはデータ不整合であって「停止されていない」ことの証拠ではないため、
-		// 弾く側に倒す（素通りにすると、FK が外れた瞬間に遮断が黙って効かなくなる）。
-		if workspaceID, affiliated := user.WorkspaceRef().WorkspaceID(); affiliated {
-			workspace, err := workspaces.FindWorkspaceByID(c.Request.Context(), workspaceID)
-			switch {
-			case err != nil:
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "workspace_lookup_failed"})
-				return
-			case workspace == nil || !workspace.IsActive:
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "workspace_disabled"})
-				return
-			}
 		}
 
 		c.Set(ContextKeyCurrentUserID, user.ID)

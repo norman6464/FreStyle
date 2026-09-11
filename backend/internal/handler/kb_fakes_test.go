@@ -593,9 +593,12 @@ var errKbFakeNotModeled = errors.New("kb fake: この口は再現していない
 // 本番には無い挙動になり、その穴を踏むテストが緑のまま通ってしまう。
 type kbFakePerms struct {
 	pages *kbFakePages
-	// principals は principalID -> 主体。ワークスペース所属は kind='user' の行の有無で表す
-	// （本番と同じく、メンバーシップ専用の表は持たない）。
+	// principals は principalID -> 主体。実メンバー（招待を受諾済み）は kind='user' の
+	// 行の有無で表す（本番と同じ。invitations は招待中の人だけを別に持つ）。
 	principals map[string]*domain.Principal
+	// invitations は招待中（invited）の所属。{workspaceID, userID} -> invitedByUserID。
+	// 受諾（AcceptWorkspaceInvitation）で principals へ移り、ここからは消える。
+	invitations map[kbScopeKey]uint64
 	// groupMembers は groupPrincipalID -> memberPrincipalID の集合。
 	groupMembers map[string]map[string]bool
 	nextID       int
@@ -665,6 +668,7 @@ func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakeP
 	return &kbFakePerms{
 		pages:        pages,
 		principals:   map[string]*domain.Principal{},
+		invitations:  map[kbScopeKey]uint64{},
 		groupMembers: map[string]map[string]bool{},
 		perPage:      map[kbPermKey]domain.PagePermission{},
 		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
@@ -815,6 +819,78 @@ func (f *kbFakePerms) IsWorkspaceMemberBulk(_ context.Context, workspaceID strin
 		}
 	}
 	return out, nil
+}
+
+// InviteWorkspaceMember は招待中の行を作る（冪等。既に active/invited なら何もしない）。
+// principal はまだ作らない（本番と同じ — 受諾するまで権限は届かない）。
+func (f *kbFakePerms) InviteWorkspaceMember(_ context.Context, workspaceID string, userID, invitedByUserID uint64) error {
+	if f.userPrincipal(workspaceID, userID) != nil {
+		return nil // 既に active
+	}
+	key := kbScopeKey{scopeID: workspaceID, userID: userID}
+	if _, invited := f.invitations[key]; invited {
+		return nil // 既に invited
+	}
+	f.invitations[key] = invitedByUserID
+	return nil
+}
+
+// AcceptWorkspaceInvitation は invited → active。principal を作り既定の editor を与える
+// （本番の EnsureUserPrincipal + GrantWorkspaceRoleIfAbsent と同じ手順）。
+func (f *kbFakePerms) AcceptWorkspaceInvitation(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
+	key := kbScopeKey{scopeID: workspaceID, userID: userID}
+	if _, invited := f.invitations[key]; !invited {
+		return nil, repository.ErrWorkspaceInvitationNotFound
+	}
+	delete(f.invitations, key)
+	principal, err := f.EnsureUserPrincipal(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := f.GrantWorkspaceRoleIfAbsent(ctx, workspaceID, principal.ID, domain.GrantRoleEditor); err != nil {
+		return nil, err
+	}
+	return principal, nil
+}
+
+// DeclineWorkspaceInvitation は invited → left（辞退。fake は行を消すだけ）。
+func (f *kbFakePerms) DeclineWorkspaceInvitation(_ context.Context, workspaceID string, userID uint64) error {
+	key := kbScopeKey{scopeID: workspaceID, userID: userID}
+	if _, invited := f.invitations[key]; !invited {
+		return repository.ErrWorkspaceInvitationNotFound
+	}
+	delete(f.invitations, key)
+	return nil
+}
+
+// ListMyWorkspaceInvitations はそのユーザー宛の招待を、招待先の slug / name を添えて返す。
+func (f *kbFakePerms) ListMyWorkspaceInvitations(_ context.Context, userID uint64) ([]domain.WorkspaceInvitation, error) {
+	out := make([]domain.WorkspaceInvitation, 0)
+	for key, invitedBy := range f.invitations {
+		if key.userID != userID {
+			continue
+		}
+		inv := domain.WorkspaceInvitation{InvitedByUserID: invitedBy}
+		for _, ws := range f.pages.workspaces {
+			if ws.ID == key.scopeID {
+				inv.WorkspaceSlug = ws.Slug
+				inv.WorkspaceName = ws.Name
+				break
+			}
+		}
+		out = append(out, inv)
+	}
+	return out, nil
+}
+
+// LeaveWorkspaceMembership は所属を終える（principal があれば消し、invited の行も消す）。
+func (f *kbFakePerms) LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID uint64) error {
+	delete(f.invitations, kbScopeKey{scopeID: workspaceID, userID: userID})
+	principal := f.userPrincipal(workspaceID, userID)
+	if principal == nil {
+		return nil // 既に非メンバー
+	}
+	return f.DeletePrincipal(ctx, workspaceID, principal.ID)
 }
 
 // PagePermissionFactsForUser はそのページに届いている既定の役割と、経路上の例外を返す。
@@ -1151,15 +1227,10 @@ func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]
 }
 
 // kbFakeUsers は [repository.UserRepository] の最小 fake。
-// JoinCompanyWorkspaceUseCase / ResolveWorkspaceUseCase.joinCompany が読む
-// FindByID の WorkspaceID だけをテストが制御できればよく、それ以外のメソッドは
-// kb 系のテストでは呼ばれないため未実装のスタブでよい。
+// LookupUserNameUseCase が読む FindByID の Name だけをテストが制御できればよく、
+// それ以外のメソッドは kb 系のテストでは呼ばれないため未実装のスタブでよい。
 type kbFakeUsers struct {
-	// userWorkspaces は users.workspace_id の写し（その人の所属ワークスペース）。
-	userWorkspaces map[uint64]string
 	// names は users.name の写し（LookupUserNameUseCase のテスト用の設定口）。
-	// userWorkspaces と別の map にしてあるのは、名前だけ・所属だけを別々に設定できるようにするため
-	// （最終編集者の名前解決テストは所属を要らない）。
 	names map[uint64]string
 	// failWith は次の FindByID 呼び出しを失敗させる（LookupUserNameUseCase の
 	// 「失敗は伝える」を確かめるため）。
@@ -1169,12 +1240,7 @@ type kbFakeUsers struct {
 var _ repository.UserRepository = (*kbFakeUsers)(nil)
 
 func newKbFakeUsers() *kbFakeUsers {
-	return &kbFakeUsers{userWorkspaces: map[uint64]string{}, names: map[uint64]string{}}
-}
-
-// setUserWorkspace はそのユーザーの所属ワークスペースを決める（本番の users.workspace_id）。
-func (f *kbFakeUsers) setUserWorkspace(userID uint64, workspaceID string) {
-	f.userWorkspaces[userID] = workspaceID
+	return &kbFakeUsers{names: map[uint64]string{}}
 }
 
 // setUserName はそのユーザーの表示名を決める（本番の users.name）。
@@ -1186,16 +1252,11 @@ func (f *kbFakeUsers) FindByID(_ context.Context, userID uint64) (*domain.User, 
 	if f.failWith != nil {
 		return nil, f.failWith
 	}
-	ws, hasWS := f.userWorkspaces[userID]
 	name, hasName := f.names[userID]
-	if !hasWS && !hasName {
+	if !hasName {
 		return nil, nil
 	}
-	u := &domain.User{ID: userID, Name: name}
-	if hasWS {
-		u.WorkspaceID = &ws
-	}
-	return u, nil
+	return &domain.User{ID: userID, Name: name}, nil
 }
 
 func (f *kbFakeUsers) FindByOidcSubject(context.Context, string) (*domain.User, error) {
@@ -1203,10 +1264,6 @@ func (f *kbFakeUsers) FindByOidcSubject(context.Context, string) (*domain.User, 
 }
 
 func (f *kbFakeUsers) OidcSubjectByUserID(context.Context, uint64) (string, error) { return "", nil }
-
-func (f *kbFakeUsers) ListByWorkspaceID(context.Context, string) ([]domain.User, error) {
-	return nil, nil
-}
 
 func (f *kbFakeUsers) Create(context.Context, *domain.User) error { return nil }
 
@@ -1217,8 +1274,6 @@ func (f *kbFakeUsers) SoftDelete(context.Context, uint64) error { return nil }
 func (f *kbFakeUsers) UpdateName(context.Context, uint64, string) error { return nil }
 
 func (f *kbFakeUsers) UpdateEmail(context.Context, uint64, string) error { return nil }
-
-func (f *kbFakeUsers) UpdateWorkspaceID(context.Context, uint64, *string) error { return nil }
 
 // fakeTxManager は repository.TxManager のテスト用 no-op 実装。
 // fn(ctx) をそのまま呼ぶだけで、実 DB もトランザクションも介さない。

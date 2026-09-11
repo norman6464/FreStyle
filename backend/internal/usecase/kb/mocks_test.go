@@ -594,10 +594,22 @@ func (m *mockPageSuggestionRepo) Create(ctx context.Context, s *domain.PageSugge
 	return m.Called(ctx, s).Error(0)
 }
 
-func (m *mockPageSuggestionRepo) ListOpen(ctx context.Context, workspaceID, pageID string) ([]domain.PageSuggestion, error) {
-	args := m.Called(ctx, workspaceID, pageID)
+func (m *mockPageSuggestionRepo) ListOpen(ctx context.Context, workspaceID, pageID string, limit int) ([]domain.PageSuggestion, error) {
+	args := m.Called(ctx, workspaceID, pageID, limit)
 	rows, _ := args.Get(0).([]domain.PageSuggestion)
 	return rows, args.Error(1)
+}
+
+func (m *mockPageSuggestionRepo) CountOpen(ctx context.Context, workspaceID, pageID string) (int, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	count, _ := args.Get(0).(int)
+	return count, args.Error(1)
+}
+
+func (m *mockPageSuggestionRepo) CountOpenByAuthor(ctx context.Context, workspaceID, pageID string, authorUserID uint64) (int, error) {
+	args := m.Called(ctx, workspaceID, pageID, authorUserID)
+	count, _ := args.Get(0).(int)
+	return count, args.Error(1)
 }
 
 func (m *mockPageSuggestionRepo) Get(ctx context.Context, workspaceID, pageID, suggestionID string) (*domain.PageSuggestion, error) {

@@ -97,6 +97,41 @@ export const 一覧と差分: Story = {
   },
 };
 
+/**
+ * 差分の行数（KbSuggestionDiffView の描画上限）が大きすぎるときは、行を間引いて一部だけ
+ * 見せるのではなく、丸ごと「表示できません」に切り替える。一部だけ見せると、間引かれた
+ * 側に紛れ込んだ変更（リンクの差し替え等）が採用者から見えなくなるため。
+ */
+export const 差分行数が多すぎると代替表示になる: Story = {
+  args: {
+    suggestions: [
+      suggestion('s-1', {
+        baseDoc: {
+          type: 'doc',
+          content: Array.from({ length: 5 }, (_, i) => ({
+            type: 'paragraph',
+            content: [{ type: 'text', text: `元の行${i}` }],
+          })),
+        },
+        doc: {
+          type: 'doc',
+          content: Array.from({ length: 600 }, (_, i) => ({
+            type: 'paragraph',
+            content: [{ type: 'text', text: `新しい行${i}` }],
+          })),
+        },
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText('差分が大きすぎるため表示できません。採用する前に本文を直接確認してください。'),
+    ).toBeVisible();
+    await expect(canvas.queryByText('元の行0')).not.toBeInTheDocument();
+  },
+};
+
 /** baseSeq が無い（まだ版が1つも無いページへの提案）は追加行だけの差分になる。 */
 export const 版がまだ無いページへの提案: Story = {
   args: {

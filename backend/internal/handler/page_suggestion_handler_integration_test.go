@@ -3,10 +3,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/assert"
@@ -117,6 +119,65 @@ func TestPageSuggestionAPI_Integration(t *testing.T) {
 		after := asAdmin.do(t, http.MethodGet, env.pagePath(rootPage), "")
 		require.Equal(t, http.StatusOK, after.Code)
 		assert.Equal(t, before.Body.String(), after.Body.String(), "却下は本文を一切変えない")
+	})
+
+	t.Run("提案作成後にページが編集されると採用は409", func(t *testing.T) {
+		// rootPage 共有の open 一覧を汚さないよう、専用のページを別途用意する
+		// （この提案は409で拒否され続けて open のまま残るため）。
+		stalePage := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, admin, "a2", "stale")
+		stalePath := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + stalePage + "/suggestions"
+		staleContentPath := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + stalePage + "/content"
+
+		const staleDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"版がずれる提案"}]}]}`
+		created := asCommenter.do(t, http.MethodPost, stalePath, `{"doc":`+staleDoc+`}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var createdSugg kbPageSuggestionResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &createdSugg))
+
+		// 提案作成後、採用より前に本文が直接書き換えられる（版が1つ進む）。
+		const editedDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"横から入った編集"}]}]}`
+		edit := asAdmin.do(t, http.MethodPut, staleContentPath, `{"doc":`+editedDoc+`}`)
+		require.Equal(t, http.StatusOK, edit.Code, edit.Body.String())
+
+		w := asAdmin.do(t, http.MethodPost, stalePath+"/"+createdSugg.ID+"/accept", "")
+		assert.Equal(t, http.StatusConflict, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"suggestion_stale"}`, w.Body.String())
+
+		page := asAdmin.do(t, http.MethodGet, env.pagePath(stalePage), "")
+		require.Equal(t, http.StatusOK, page.Code)
+		assert.Contains(t, page.Body.String(), "横から入った編集", "拒否されたので横から入った編集のまま")
+		assert.NotContains(t, page.Body.String(), "版がずれる提案", "採用が巻き戻されていない")
+	})
+
+	t.Run("投稿者あたりの上限に達すると429", func(t *testing.T) {
+		// rootPage 共有の open 一覧を汚さないよう、専用のページを別途用意する。
+		//
+		// maxOpenSuggestionsPerAuthorPerPage(=20) 件まで実際に POST で積もうとすると、
+		// 同じ経路に既に掛けてある per-user レート制限（1分30回・バーストは10回）に
+		// 先に引っかかってしまい、上限チェックそのものを試せない。ここは「real Postgres に
+		// 対して CountOpenByAuthor が正しく数える」ことを確かめたいので、19件は
+		// persistence 層で直接作って前提を揃え、実際に HTTP 越しで送るのは上限に当たる
+		// 最後の1件だけにする。
+		floodPage := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, admin, "a1", "flood")
+		floodPath := "/api/v2/kb/workspaces/" + env.slug + "/pages/" + floodPage + "/suggestions"
+		flooder := kbInsertUser(t, sqlDB, "flooder")
+		env.joinWorkspace(t, flooder, domain.GrantRoleCommenter)
+		asFlooder := env.as(flooder)
+		const floodDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"連投"}]}]}`
+
+		suggestionRepo := persistence.NewPageSuggestionRepository(sqlDB)
+		for i := 0; i < 19; i++ {
+			s := &domain.PageSuggestion{WorkspaceID: env.workspaceID, PageID: floodPage, Doc: floodDoc, AuthorUserID: flooder}
+			require.NoError(t, suggestionRepo.Create(context.Background(), s))
+		}
+		// 20件目は実際にHTTP経由で作り、ここまでは通ることを確かめる。
+		w := asFlooder.do(t, http.MethodPost, floodPath, `{"doc":`+floodDoc+`}`)
+		require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+
+		// 21件目で上限に当たる。
+		w = asFlooder.do(t, http.MethodPost, floodPath, `{"doc":`+floodDoc+`}`)
+		assert.Equal(t, http.StatusTooManyRequests, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"too_many_open_suggestions"}`, w.Body.String())
 	})
 
 	t.Run("一覧は open な提案だけをcreated_at昇順で返す", func(t *testing.T) {

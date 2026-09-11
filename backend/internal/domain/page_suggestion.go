@@ -25,6 +25,12 @@ var ErrPageSuggestionNotFound = errors.New("page suggestion not found")
 // （2 人が同時に採用・却下を叩いても片方しか成功しない、の判定結果）。
 var ErrPageSuggestionAlreadyResolved = errors.New("page suggestion already resolved")
 
+// ErrPageSuggestionStale は提案の採用時に返す — 提案した時点（BaseSeq）より後に、
+// 別の編集でそのページの版が進んでいる状態。差分は BaseSeq の内容を基準に計算されているため、
+// そのまま採用すると提案作成後の編集を黙って巻き戻してしまう。採用者は最新の本文を見直してから
+// 却下するか、提案自体を作り直してもらう必要がある。
+var ErrPageSuggestionStale = errors.New("page suggestion is stale: the page changed after the suggestion was created")
+
 // PageSuggestion は commenter（閲覧+コメントはできるが編集はできない役割）が本文を書き換えた
 // ときに、blocks を直接更新する代わりに積む 1 件。editor 以上が採用すれば通常の保存経路
 // （ReplacePageBlocksUseCase）へ渡り本文へ反映される。差分の表示は BaseSeq が指す

@@ -13,6 +13,44 @@ import (
 	"github.com/google/uuid"
 )
 
+const countOpenPageSuggestions = `-- name: CountOpenPageSuggestions :one
+SELECT count(*) FROM page_suggestions
+WHERE workspace_id = $1 AND page_id = $2 AND status = 'open'
+`
+
+type CountOpenPageSuggestionsParams struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+}
+
+// そのページの open な提案の総数（doc 抜きで数えるだけなので軽い）。
+func (q *Queries) CountOpenPageSuggestions(ctx context.Context, arg CountOpenPageSuggestionsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOpenPageSuggestions, arg.WorkspaceID, arg.PageID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countOpenPageSuggestionsByAuthor = `-- name: CountOpenPageSuggestionsByAuthor :one
+SELECT count(*) FROM page_suggestions
+WHERE workspace_id = $1 AND page_id = $2 AND status = 'open'
+  AND author_user_id = $3
+`
+
+type CountOpenPageSuggestionsByAuthorParams struct {
+	WorkspaceID  uuid.UUID
+	PageID       uuid.UUID
+	AuthorUserID int64
+}
+
+// そのページ・その投稿者本人の open な提案数。投稿者 1 人があたりの上限を判定するための数。
+func (q *Queries) CountOpenPageSuggestionsByAuthor(ctx context.Context, arg CountOpenPageSuggestionsByAuthorParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOpenPageSuggestionsByAuthor, arg.WorkspaceID, arg.PageID, arg.AuthorUserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getPageSuggestion = `-- name: GetPageSuggestion :one
 SELECT id, workspace_id, page_id, base_seq, doc, status, author_user_id, created_at, resolved_at, resolved_by_user_id FROM page_suggestions
 WHERE workspace_id = $1 AND page_id = $2 AND id = $3
@@ -96,16 +134,20 @@ const listOpenPageSuggestions = `-- name: ListOpenPageSuggestions :many
 SELECT id, workspace_id, page_id, base_seq, doc, status, author_user_id, created_at, resolved_at, resolved_by_user_id FROM page_suggestions
 WHERE workspace_id = $1 AND page_id = $2 AND status = 'open'
 ORDER BY created_at
+LIMIT $3
 `
 
 type ListOpenPageSuggestionsParams struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID
+	RowLimit    int32
 }
 
-// そのページの open な提案一覧を created_at 昇順で返す（先に出した提案から見えるように）。
+// そのページの open な提案一覧を created_at 昇順で最大 limit 件返す（先に出した提案から
+// 見えるように）。limit は呼び出し元（usecase）が上限を挟んだ値を渡す — ここで LIMIT を
+// 掛けること自体が目的で、doc を含む全行を一度に読み出させない。
 func (q *Queries) ListOpenPageSuggestions(ctx context.Context, arg ListOpenPageSuggestionsParams) ([]PageSuggestion, error) {
-	rows, err := q.db.QueryContext(ctx, listOpenPageSuggestions, arg.WorkspaceID, arg.PageID)
+	rows, err := q.db.QueryContext(ctx, listOpenPageSuggestions, arg.WorkspaceID, arg.PageID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}

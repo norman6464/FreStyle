@@ -299,6 +299,13 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 	case errors.Is(err, domain.ErrPageSuggestionAlreadyResolved):
 		c.JSON(http.StatusConflict, errorResponse{Error: "suggestion_already_resolved"})
+	case errors.Is(err, domain.ErrPageSuggestionStale):
+		// ページが提案作成後に編集されている。採用すると後の編集を黙って巻き戻すことに
+		// なるため拒否する。409 にする理由は ErrPageMoveVoidsSpaceGrant と同じ
+		// （要求自体は正しいが、対象の現在の状態と両立しない。再試行しても直らない）。
+		c.JSON(http.StatusConflict, errorResponse{Error: "suggestion_stale"})
+	case errors.Is(err, kb.ErrTooManyOpenSuggestions):
+		c.JSON(http.StatusTooManyRequests, errorResponse{Error: "too_many_open_suggestions"})
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}

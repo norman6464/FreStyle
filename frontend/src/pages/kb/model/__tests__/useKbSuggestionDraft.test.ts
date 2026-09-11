@@ -1,6 +1,17 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { useKbSuggestionDraft } from '../useKbSuggestionDraft';
+
+function tooManyOpenSuggestionsError(): AxiosError {
+  return new AxiosError('Too Many Requests', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status: 429,
+    statusText: 'Too Many Requests',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data: { error: 'too_many_open_suggestions' },
+  });
+}
 
 const hoisted = vi.hoisted(() => ({ createSuggestion: vi.fn() }));
 
@@ -77,6 +88,18 @@ describe('useKbSuggestionDraft', () => {
     expect(result.current.open).toBe(true);
     expect(result.current.draft).toEqual(doc);
     expect(result.current.error).toBe('提案を送信できませんでした。');
+  });
+
+  it('未解決の提案数の上限（429）は専用のメッセージを出す', async () => {
+    hoisted.createSuggestion.mockRejectedValue(tooManyOpenSuggestionsError());
+    const { result } = renderHook(() => useKbSuggestionDraft('w-1', 'p-1'));
+    act(() => result.current.start(doc));
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(result.current.error).toBe('未解決の提案が多すぎます。既存の提案が解決されるのを待ってから送信してください。');
   });
 
   it('送信中にページを移ったら、後から届く失敗が移った先の下書きstateを汚さない', async () => {

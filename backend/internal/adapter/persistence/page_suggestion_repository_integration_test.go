@@ -54,11 +54,67 @@ func TestPageSuggestionRepository_ListOpen_Integration(t *testing.T) {
 	_, err := sqlDB.Exec(`UPDATE page_suggestions SET created_at = $1 WHERE id = $2`, time.Now().Add(-1*time.Minute), first.ID)
 	require.NoError(t, err)
 
-	got, err := repo.ListOpen(ctx, ws, page)
+	got, err := repo.ListOpen(ctx, ws, page, 10)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	assert.Equal(t, first.ID, got[0].ID, "先に作った提案が先頭に来る（created_at昇順）")
 	assert.Equal(t, second.ID, got[1].ID)
+}
+
+// TestPageSuggestionRepository_ListOpen_Limit_Integration は limit が SQL の LIMIT として
+// そのまま効くことを固定する（大量に open 提案が積まれても、呼び出し元が渡した件数までしか
+// 読み出さない）。
+func TestPageSuggestionRepository_ListOpen_Limit_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	ws, page := setupPageSuggestionFixture(t, sqlDB, "ws-sugg-list-limit")
+	repo := persistence.NewPageSuggestionRepository(sqlDB)
+
+	for i := 0; i < 3; i++ {
+		s := &domain.PageSuggestion{WorkspaceID: ws, PageID: page, Doc: pageSuggestionTestDoc, AuthorUserID: 1}
+		require.NoError(t, repo.Create(ctx, s))
+	}
+
+	got, err := repo.ListOpen(ctx, ws, page, 2)
+	require.NoError(t, err)
+	assert.Len(t, got, 2, "3件あってもlimitの2件までしか返らない")
+}
+
+// TestPageSuggestionRepository_CountOpen_Integration は CountOpen が open な提案だけを数え、
+// 解決済みは数えないことを固定する。
+func TestPageSuggestionRepository_CountOpen_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	ws, page := setupPageSuggestionFixture(t, sqlDB, "ws-sugg-count-open")
+	repo := persistence.NewPageSuggestionRepository(sqlDB)
+
+	first := &domain.PageSuggestion{WorkspaceID: ws, PageID: page, Doc: pageSuggestionTestDoc, AuthorUserID: 1}
+	require.NoError(t, repo.Create(ctx, first))
+	second := &domain.PageSuggestion{WorkspaceID: ws, PageID: page, Doc: pageSuggestionTestDoc, AuthorUserID: 2}
+	require.NoError(t, repo.Create(ctx, second))
+	_, err := repo.Resolve(ctx, ws, page, second.ID, domain.PageSuggestionStatusRejected, 1, time.Now())
+	require.NoError(t, err)
+
+	count, err := repo.CountOpen(ctx, ws, page)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "解決済みの2件目は数えない")
+}
+
+// TestPageSuggestionRepository_CountOpenByAuthor_Integration は CountOpenByAuthor が
+// 投稿者本人の open な提案だけを数えることを固定する（他の投稿者の分を数えに含めない）。
+func TestPageSuggestionRepository_CountOpenByAuthor_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	ws, page := setupPageSuggestionFixture(t, sqlDB, "ws-sugg-count-author")
+	repo := persistence.NewPageSuggestionRepository(sqlDB)
+
+	require.NoError(t, repo.Create(ctx, &domain.PageSuggestion{WorkspaceID: ws, PageID: page, Doc: pageSuggestionTestDoc, AuthorUserID: 1}))
+	require.NoError(t, repo.Create(ctx, &domain.PageSuggestion{WorkspaceID: ws, PageID: page, Doc: pageSuggestionTestDoc, AuthorUserID: 1}))
+	require.NoError(t, repo.Create(ctx, &domain.PageSuggestion{WorkspaceID: ws, PageID: page, Doc: pageSuggestionTestDoc, AuthorUserID: 2}))
+
+	count, err := repo.CountOpenByAuthor(ctx, ws, page, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count, "投稿者2の1件は含めない")
 }
 
 // TestPageSuggestionRepository_BaseSeqNil_Integration は「まだ版が 1 つも無いページへの提案」
@@ -188,7 +244,7 @@ func TestPageSuggestionRepository_TenantIsolation_Integration(t *testing.T) {
 	})
 
 	t.Run("別テナントの一覧には出ない", func(t *testing.T) {
-		got, err := repo.ListOpen(ctx, wsB, pageA)
+		got, err := repo.ListOpen(ctx, wsB, pageA, 10)
 		require.NoError(t, err)
 		assert.Empty(t, got)
 	})

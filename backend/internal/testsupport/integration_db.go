@@ -89,7 +89,37 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	if err := database.ApplySchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplySchema 失敗: %v", err)
 	}
+	if err := ensureBaselineTestUsers(t.Context(), sqlDB); err != nil {
+		t.Fatalf("ensureBaselineTestUsers 失敗: %v", err)
+	}
 	return sqlDB
+}
+
+// baselineTestUserCount は ensureBaselineTestUsers が用意する users.id の範囲（1..N）。
+// users.id への記録・持ち物 FK（RESTRICT/CASCADE。段 1）を足す前は、結合テストの多くが
+// 「1」「2」のような固定値をそのまま users.id として使っていた（FK が無かったので実在確認
+// されなかった）。1 件ずつ実ユーザー作成に書き直す代わりに、その固定値が実在の行になるよう
+// 小さい連番のユーザーをあらかじめ用意しておく。
+const baselineTestUserCount = 100
+
+// ensureBaselineTestUsers は users.id 1..baselineTestUserCount を実在の行にする（冪等）。
+// users は結合テスト間で共有し TRUNCATE しない表なので、最初の 1 回だけ実際に INSERT され、
+// 以降の呼び出しは ON CONFLICT DO NOTHING で何もしない。
+//
+// bigserial の採番シーケンスを進めないまま id を明示指定するため、直後に setval で
+// 現在の MAX(id) へ合わせ直す。合わせないと、id を指定しない素の INSERT（例:
+// UserRepository.Create の通常経路）が id=1 から採番し直そうとして衝突する。
+func ensureBaselineTestUsers(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO users (id, email, name, is_active, created_at, updated_at)
+		SELECT gs, 'fk-baseline-' || gs || '@example.test', 'fk-baseline-' || gs, true, now(), now()
+		FROM generate_series(1, $1) AS gs
+		ON CONFLICT (id) DO NOTHING`, baselineTestUserCount); err != nil {
+		return err
+	}
+	_, err := db.ExecContext(ctx,
+		`SELECT setval('users_id_seq', COALESCE((SELECT max(id) FROM users), 0), true)`)
+	return err
 }
 
 // serializeIntegration は結合テストをテスト関数の単位で直列化する。
@@ -154,11 +184,22 @@ func looksLikeSupabase(dsn string) bool {
 
 // TruncateAll はテーブルを TRUNCATE して連番をリセットする。テスト間の独立性確保用。
 // 列挙したテーブルは結合テストが触る範囲に限定する（必要に応じて足す）。
+//
+// TRUNCATE の直後に必ず ensureBaselineTestUsers で小さい連番のベースラインユーザーを
+// 作り直す。tables に "users" を直接挙げていなくても、"workspaces" のような users が
+// FK（fk_users_workspace）で参照する表を CASCADE で TRUNCATE すると users も道連れに
+// 空になる。他の結合テストが users.id への FK（段 1）の相手として固定値（1 等）を
+// そのまま使っているため、経路によらずここで復元しないと以後のテストが軒並み
+// "user not found" で落ちる。ベースラインの ID 自体はどのテストも検証しないので安全
+// （FindByID 等はすべて直前に作った行の ID をそのまま使い、固定値を仮定しない）。
 func TruncateAll(t *testing.T, db *sql.DB, tables ...string) {
 	t.Helper()
 	for _, table := range tables {
 		if _, err := db.Exec("TRUNCATE TABLE " + table + " RESTART IDENTITY CASCADE"); err != nil {
 			t.Fatalf("TRUNCATE %s 失敗: %v", table, err)
 		}
+	}
+	if err := ensureBaselineTestUsers(t.Context(), db); err != nil {
+		t.Fatalf("ensureBaselineTestUsers 失敗: %v", err)
 	}
 }

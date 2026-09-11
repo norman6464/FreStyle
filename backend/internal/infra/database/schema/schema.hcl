@@ -104,6 +104,19 @@ table "users" {
   }
 }
 
+# users.id を指す列の外部キー方針（段 1）。以前は「骨格側の表は既存テーブルだから」
+# 「ナレッジの骨格に閉じるため」という理由で FK を張らずに来たが、これだと任意の
+# users.id を受け付けてしまい、存在しないユーザーを指す行が実際に作れてしまう
+# （メンバー追加が任意の users.id を受け付ける穴と同根）。今は全列に張る前提とし、
+# 削除時の挙動を 2 通りに分ける:
+#   - 持ち物（CASCADE）: ユーザー本人の所有物で、他の誰の記録にもならない列
+#     （profiles.user_id / notifications.user_id / ticket_comment_reactions.user_id）。
+#     本人の行が消えれば一緒に消えてよい。
+#   - 記録（RESTRICT）: 「誰が作った/変更した/担当した」という記録を持つ列。
+#     本人の物理削除でページやチケット側が道連れになってはいけないので、
+#     記録が 1 件でも残っている users 行の物理削除は DB が拒む
+#     （実際の退会は物理削除ではなく匿名化で扱う）。
+
 # OIDC プロバイダ由来のユーザー識別子（発行者の sub を users から分離）。
 table "user_oidc_identities" {
   schema = schema.public
@@ -221,9 +234,11 @@ table "workspaces" {
 # users とは別管理のプロフィール拡張（user_id が PK）。
 table "profiles" {
   schema = schema.public
+  # 独自の連番は不要（PK は users.id の写し）。bigserial のままだと使われない専用の
+  # シーケンスを持ち続けるので、素の bigint に直す（段 1）。
   column "user_id" {
     null = false
-    type = bigserial
+    type = bigint
   }
   column "bio" {
     null    = false
@@ -246,6 +261,13 @@ table "profiles" {
   }
   primary_key {
     columns = [column.user_id]
+  }
+  # 持ち物: 本人の行が消えれば一緒に消える。
+  foreign_key "fk_profiles_user" {
+    columns     = [column.user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
   }
 }
 
@@ -286,6 +308,13 @@ table "notifications" {
   }
   primary_key {
     columns = [column.id]
+  }
+  # 持ち物: 本人の行が消えれば一緒に消える。
+  foreign_key "fk_notifications_user" {
+    columns     = [column.user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
   }
   index "idx_notifications_user_id" {
     columns = [column.user_id]
@@ -411,7 +440,7 @@ table "pages" {
     type    = character_varying(200)
     default = ""
   }
-  # 作成者（users.id）。users への FK は張らない（ナレッジの骨格に閉じるため）。
+  # 作成者（users.id）。記録: FK は RESTRICT（下の fk_pages_created_by。段 1）。
   column "created_by_user_id" {
     null = false
     type = bigint
@@ -443,7 +472,7 @@ table "pages" {
     null = true
     type = jsonb
   }
-  # 最終編集者。created_by_user_id と同じく users への FK は張らない（ナレッジの骨格に閉じるため）。
+  # 最終編集者。created_by_user_id と同じく記録（下の fk_pages_last_edited_by）。
   # NULL は「作成後まだ誰も本文を保存していない」。本文の保存経路が書く。
   column "last_edited_by_user_id" {
     null = true
@@ -451,6 +480,18 @@ table "pages" {
   }
   primary_key {
     columns = [column.id]
+  }
+  foreign_key "fk_pages_created_by" {
+    columns     = [column.created_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
+  foreign_key "fk_pages_last_edited_by" {
+    columns     = [column.last_edited_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   # ページは「同じワークスペースの space」にしか属せない。
   foreign_key "fk_pages_space" {
@@ -803,8 +844,7 @@ table "comment_threads" {
     null = true
     type = bigint
   }
-  # pages.created_by_user_id と同じ理由で users への FK は張らない（users への FK 有無は
-  # このリポジトリで表ごとに割れており、pages 側の慣習に合わせる）。
+  # pages.created_by_user_id と同じく記録。
   column "created_by_user_id" {
     null = false
     type = bigint
@@ -833,6 +873,18 @@ table "comment_threads" {
     ref_columns = [table.blocks.column.id]
     on_update   = NO_ACTION
     on_delete   = SET_NULL
+  }
+  foreign_key "fk_comment_threads_created_by" {
+    columns     = [column.created_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
+  foreign_key "fk_comment_threads_resolved_by" {
+    columns     = [column.resolved_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_comment_threads_page" {
     columns = [column.workspace_id, column.page_id]
@@ -884,6 +936,7 @@ table "page_versions" {
     null = false
     type = jsonb
   }
+  # 記録: FK は RESTRICT（下の fk_page_versions_author。段 1）。
   column "author_user_id" {
     null = false
     type = bigint
@@ -909,6 +962,12 @@ table "page_versions" {
     ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
+  }
+  foreign_key "fk_page_versions_author" {
+    columns     = [column.author_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   # page_snapshots.ck_page_snapshots_doc と同じ式（tiptap の doc 形式であることを入口で保証する）。
   check "ck_page_versions_doc" {
@@ -1061,6 +1120,7 @@ table "page_templates" {
     null = false
     type = jsonb
   }
+  # 記録: FK は RESTRICT（下の fk_page_templates_created_by。段 1）。
   column "created_by_user_id" {
     null = false
     type = bigint
@@ -1091,6 +1151,12 @@ table "page_templates" {
     ref_columns = [table.spaces.column.workspace_id, table.spaces.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
+  }
+  foreign_key "fk_page_templates_created_by" {
+    columns     = [column.created_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_page_templates_workspace_id" {
     columns = [column.workspace_id]
@@ -1154,6 +1220,7 @@ table "page_suggestions" {
     type    = text
     default = "open"
   }
+  # 記録: FK は RESTRICT（下の fk_page_suggestions_author。段 1）。
   column "author_user_id" {
     null = false
     type = bigint
@@ -1170,6 +1237,7 @@ table "page_suggestions" {
     null = true
     type = timestamptz
   }
+  # 記録: FK は RESTRICT（下の fk_page_suggestions_resolved_by。段 1）。
   column "resolved_by_user_id" {
     null = true
     type = bigint
@@ -1193,6 +1261,18 @@ table "page_suggestions" {
     ref_columns = [table.page_versions.column.page_id, table.page_versions.column.seq]
     on_update   = NO_ACTION
     on_delete   = NO_ACTION
+  }
+  foreign_key "fk_page_suggestions_author" {
+    columns     = [column.author_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
+  foreign_key "fk_page_suggestions_resolved_by" {
+    columns     = [column.resolved_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_page_suggestions_page" {
     columns = [column.workspace_id, column.page_id]
@@ -1230,6 +1310,7 @@ table "comments" {
     null = false
     type = uuid
   }
+  # 記録: FK は RESTRICT（下の fk_comments_author。段 1）。
   column "author_user_id" {
     null = false
     type = bigint
@@ -1259,6 +1340,12 @@ table "comments" {
     ref_columns = [table.comment_threads.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
+  }
+  foreign_key "fk_comments_author" {
+    columns     = [column.author_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_comments_thread" {
     columns = [column.thread_id]
@@ -1362,10 +1449,9 @@ table "principals" {
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
-  # users への FK は張る。principals はナレッジとアプリのユーザーを結ぶ唯一の接点で、
+  # users への FK は張る（持ち物。principals はナレッジとアプリのユーザーを結ぶ唯一の接点で、
   # ここが緩いと「消えたユーザーの principal に権限が残る」＝ 別人が同じ id を再取得したときに
-  # 権限を引き継いでしまう。骨格側の pages.created_by_user_id が FK を持たないのは、
-  # あちらが既存テーブルだからで、新しく作るこの表には最初から張れる。
+  # 権限を引き継いでしまう）。
   foreign_key "fk_principals_user" {
     columns     = [column.user_id]
     ref_columns = [table.users.column.id]
@@ -1841,15 +1927,16 @@ table "share_links" {
 # ticket_assignments / ticket_change_groups / ticket_change_items /
 # ticket_page_links / ticket_ticket_links。
 #
-# 設計: 「PostgreSQL チケット・バックログ設計」（2026-09-08、チケット番号 FRESTYLE-455 配下）。
+# 設計: 「PostgreSQL チケット・バックログ設計」（2026-09-08）。
 #
 # 共通の作法（既存表と同じ）:
 #   - 全表が workspace_id を持ち、親への FK は (workspace_id, …, id) の複合 FK。
 #   - 同一スペース内でしか参照できない列（種別 / 状態 / 親）は (workspace_id, space_id, id) の
 #     複合 FK にする。
-#   - 「人」を指す列は 2 種類。本人の行為の記録（created_by / actor / assigned_by）は
-#     users.id を bigint で持ち FK は張らない（pages と同じ）。他人を指名する列（担当者）は
-#     principals（ワークスペース所属の正本）への複合 FK にする。
+#   - 「人」を指す列は 2 種類。本人の行為の記録（created_by / actor / assigned_by / editor）は
+#     users.id を bigint で持ち記録として FK を張る（RESTRICT。冒頭の users テーブル直後の
+#     FK 方針コメント参照。反応だけは本人の持ち物として CASCADE）。他人を指名する列
+#     （担当者）は principals（ワークスペース所属の正本）への複合 FK にする。
 #   - 列挙値は varchar + CHECK。値の正本は internal/domain/ticket.go の定数。
 #   - 現役の名前（状態・種別）は大文字小文字を区別せず一意にしたいが、このファイルには
 #     複数列にまたがる関数索引の実例が無いため、生成列 name_lower（lower(name) を STORED）を
@@ -2229,7 +2316,7 @@ table "tickets" {
     null = true
     type = character_varying(20)
   }
-  # 報告者（users.id）。FK は張らない（pages.created_by_user_id と同じ扱い）。
+  # 報告者（users.id）。記録: FK は RESTRICT（下の fk_tickets_created_by。段 1）。
   column "created_by_user_id" {
     null = false
     type = bigint
@@ -2293,6 +2380,12 @@ table "tickets" {
     ref_columns = [table.tickets.column.workspace_id, table.tickets.column.space_id, table.tickets.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
+  }
+  foreign_key "fk_tickets_created_by" {
+    columns     = [column.created_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   # 現役のチケットで順位が重複しない。
   index "uq_tickets_space_position" {
@@ -2369,6 +2462,7 @@ table "ticket_assignments" {
       type = STORED
     }
   }
+  # 記録: FK は RESTRICT（下の fk_ticket_assignments_assigned_by。段 1）。
   column "assigned_by_user_id" {
     null = false
     type = bigint
@@ -2399,6 +2493,12 @@ table "ticket_assignments" {
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
+  foreign_key "fk_ticket_assignments_assigned_by" {
+    columns     = [column.assigned_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
   index "idx_ticket_assignments_principal" {
     columns = [column.workspace_id, column.assignee_principal_id]
   }
@@ -2420,6 +2520,7 @@ table "ticket_change_groups" {
     null = false
     type = uuid
   }
+  # 記録: FK は RESTRICT（下の fk_ticket_change_groups_actor。段 1）。
   column "actor_user_id" {
     null = false
     type = bigint
@@ -2445,6 +2546,12 @@ table "ticket_change_groups" {
     ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_change_groups_actor" {
+    columns     = [column.actor_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_ticket_change_groups_ticket_created" {
     columns = [column.ticket_id, column.created_at]
@@ -2696,6 +2803,7 @@ table "ticket_status_transitions" {
     null = false
     type = uuid
   }
+  # 記録: FK は RESTRICT（下の fk_ticket_status_transitions_changed_by。段 1）。
   column "changed_by_user_id" {
     null = false
     type = bigint
@@ -2725,6 +2833,12 @@ table "ticket_status_transitions" {
     ref_columns = [table.ticket_statuses.column.workspace_id, table.ticket_statuses.column.space_id, table.ticket_statuses.column.id]
     on_update   = NO_ACTION
     on_delete   = NO_ACTION
+  }
+  foreign_key "fk_ticket_status_transitions_changed_by" {
+    columns     = [column.changed_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_ticket_status_transitions_ticket_changed" {
     columns = [column.ticket_id, column.changed_at]
@@ -2758,6 +2872,7 @@ table "ticket_comments" {
     null = true
     type = uuid
   }
+  # 記録: FK は RESTRICT（下の fk_ticket_comments_author。段 1）。
   column "author_user_id" {
     null = false
     type = bigint
@@ -2808,6 +2923,12 @@ table "ticket_comments" {
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
+  foreign_key "fk_ticket_comments_author" {
+    columns     = [column.author_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
   index "idx_ticket_comments_ticket_created" {
     columns = [column.ticket_id, column.created_at]
   }
@@ -2836,6 +2957,7 @@ table "ticket_comment_edits" {
     null = false
     type = uuid
   }
+  # 記録: FK は RESTRICT（下の fk_ticket_comment_edits_editor。段 1）。
   column "editor_user_id" {
     null = false
     type = bigint
@@ -2858,6 +2980,12 @@ table "ticket_comment_edits" {
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
+  foreign_key "fk_ticket_comment_edits_editor" {
+    columns     = [column.editor_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
+  }
   index "idx_ticket_comment_edits_comment" {
     columns = [column.comment_id, column.edited_at]
   }
@@ -2879,6 +3007,7 @@ table "ticket_comment_reactions" {
     null = false
     type = uuid
   }
+  # 持ち物: 本人の反応なので、本人の行が消えれば一緒に消える（下の fk_ticket_comment_reactions_user。段 1）。
   column "user_id" {
     null = false
     type = bigint
@@ -2900,6 +3029,12 @@ table "ticket_comment_reactions" {
   foreign_key "fk_ticket_comment_reactions_comment" {
     columns     = [column.workspace_id, column.comment_id]
     ref_columns = [table.ticket_comments.column.workspace_id, table.ticket_comments.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_comment_reactions_user" {
+    columns     = [column.user_id]
+    ref_columns = [table.users.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
@@ -3057,7 +3192,7 @@ table "ticket_attachments" {
     null = false
     type = bigint
   }
-  # アップロード者（users.id）。FK は張らない（tickets.created_by_user_id と同じ扱い）。
+  # アップロード者（users.id）。記録: FK は RESTRICT（下の fk_ticket_attachments_uploaded_by。段 1）。
   column "uploaded_by_user_id" {
     null = false
     type = bigint
@@ -3075,6 +3210,12 @@ table "ticket_attachments" {
     ref_columns = [table.tickets.column.workspace_id, table.tickets.column.id]
     on_update   = NO_ACTION
     on_delete   = CASCADE
+  }
+  foreign_key "fk_ticket_attachments_uploaded_by" {
+    columns     = [column.uploaded_by_user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = RESTRICT
   }
   index "idx_ticket_attachments_ticket_created" {
     columns = [column.ticket_id, column.created_at]

@@ -106,6 +106,17 @@ func isForeignKeyViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == sqlStateForeignKeyViolation
 }
 
+// foreignKeyViolationConstraint は外部キー違反のとき、違反した制約名を返す。
+// 1 つの INSERT が複数の外部キーを持ちうる場合、名前を見ないとどの参照が無いのか
+// 区別できない（uniqueViolationConstraint と同じ理由）。
+func foreignKeyViolationConstraint(err error) (string, bool) {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != sqlStateForeignKeyViolation {
+		return "", false
+	}
+	return pgErr.ConstraintName, true
+}
+
 // kbNewID は UUIDv7 を採番する。時系列で単調に増える（インデックス局所性が良い）うえ、
 // ランダム部により URL は推測困難のまま。失敗は乱数源の故障なのでエラーで返す。
 func kbNewID() (uuid.UUID, error) {

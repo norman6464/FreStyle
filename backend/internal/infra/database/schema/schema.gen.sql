@@ -294,7 +294,7 @@ CREATE UNIQUE INDEX "uq_principals_space_all" ON "public"."principals" ("workspa
 CREATE UNIQUE INDEX "uq_principals_workspace_user" ON "public"."principals" ("workspace_id", "user_id") WHERE ((kind)::text = 'user'::text);
 -- Create "profiles" table
 CREATE TABLE "public"."profiles" (
-  "user_id" bigserial NOT NULL,
+  "user_id" bigint NOT NULL,
   "bio" text NOT NULL DEFAULT '',
   "avatar_url" text NOT NULL DEFAULT '',
   "status_message" text NOT NULL DEFAULT '',
@@ -723,11 +723,13 @@ CREATE UNIQUE INDEX "uq_workspaces_personal_owner" ON "public"."workspaces" ("pe
 -- Modify "blocks" table
 ALTER TABLE "public"."blocks" ADD CONSTRAINT "fk_blocks_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "comment_threads" table
-ALTER TABLE "public"."comment_threads" ADD CONSTRAINT "fk_comment_threads_block" FOREIGN KEY ("block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE SET NULL, ADD CONSTRAINT "fk_comment_threads_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."comment_threads" ADD CONSTRAINT "fk_comment_threads_block" FOREIGN KEY ("block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE SET NULL, ADD CONSTRAINT "fk_comment_threads_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_comment_threads_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_comment_threads_resolved_by" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
 -- Modify "comments" table
-ALTER TABLE "public"."comments" ADD CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."comments" ADD CONSTRAINT "fk_comments_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_comments_thread" FOREIGN KEY ("thread_id") REFERENCES "public"."comment_threads" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "labels" table
 ALTER TABLE "public"."labels" ADD CONSTRAINT "fk_labels_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "notifications" table
+ALTER TABLE "public"."notifications" ADD CONSTRAINT "fk_notifications_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_grants" table
 ALTER TABLE "public"."page_grants" ADD CONSTRAINT "fk_page_grants_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_grants_principal" FOREIGN KEY ("workspace_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_links" table
@@ -739,19 +741,21 @@ ALTER TABLE "public"."page_search" ADD CONSTRAINT "fk_page_search_page" FOREIGN 
 -- Modify "page_snapshots" table
 ALTER TABLE "public"."page_snapshots" ADD CONSTRAINT "fk_page_snapshots_page" FOREIGN KEY ("page_id") REFERENCES "public"."pages" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_suggestions" table
-ALTER TABLE "public"."page_suggestions" ADD CONSTRAINT "fk_page_suggestions_base_version" FOREIGN KEY ("page_id", "base_seq") REFERENCES "public"."page_versions" ("page_id", "seq") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_page_suggestions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."page_suggestions" ADD CONSTRAINT "fk_page_suggestions_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_page_suggestions_base_version" FOREIGN KEY ("page_id", "base_seq") REFERENCES "public"."page_versions" ("page_id", "seq") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_page_suggestions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_suggestions_resolved_by" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
 -- Modify "page_templates" table
-ALTER TABLE "public"."page_templates" ADD CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."page_templates" ADD CONSTRAINT "fk_page_templates_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_page_templates_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_templates_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_ticket_links" table
 ALTER TABLE "public"."page_ticket_links" ADD CONSTRAINT "fk_page_ticket_links_source_block" FOREIGN KEY ("source_block_id") REFERENCES "public"."blocks" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_page_ticket_links_target_ticket" FOREIGN KEY ("target_ticket_id") REFERENCES "public"."tickets" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "page_versions" table
-ALTER TABLE "public"."page_versions" ADD CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."page_versions" ADD CONSTRAINT "fk_page_versions_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_page_versions_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "pages" table
-ALTER TABLE "public"."pages" ADD CONSTRAINT "fk_pages_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."pages" ADD CONSTRAINT "fk_pages_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_pages_last_edited_by" FOREIGN KEY ("last_edited_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_pages_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "principal_members" table
 ALTER TABLE "public"."principal_members" ADD CONSTRAINT "fk_principal_members_group" FOREIGN KEY ("workspace_id", "group_kind", "group_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principal_members_member" FOREIGN KEY ("workspace_id", "member_kind", "member_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "principals" table
 ALTER TABLE "public"."principals" ADD CONSTRAINT "fk_principals_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_principals_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
+-- Modify "profiles" table
+ALTER TABLE "public"."profiles" ADD CONSTRAINT "fk_profiles_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "share_links" table
 ALTER TABLE "public"."share_links" ADD CONSTRAINT "fk_share_links_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_share_links_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_share_links_principal" FOREIGN KEY ("workspace_id", "principal_kind", "page_id", "principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "page_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "space_grants" table
@@ -759,19 +763,19 @@ ALTER TABLE "public"."space_grants" ADD CONSTRAINT "fk_space_grants_principal" F
 -- Modify "spaces" table
 ALTER TABLE "public"."spaces" ADD CONSTRAINT "fk_spaces_workspace" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_assignments" table
-ALTER TABLE "public"."ticket_assignments" ADD CONSTRAINT "fk_ticket_assignments_principal" FOREIGN KEY ("workspace_id", "assignee_kind", "assignee_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_assignments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."ticket_assignments" ADD CONSTRAINT "fk_ticket_assignments_assigned_by" FOREIGN KEY ("assigned_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_assignments_principal" FOREIGN KEY ("workspace_id", "assignee_kind", "assignee_principal_id") REFERENCES "public"."principals" ("workspace_id", "kind", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_assignments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_attachments" table
-ALTER TABLE "public"."ticket_attachments" ADD CONSTRAINT "fk_ticket_attachments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."ticket_attachments" ADD CONSTRAINT "fk_ticket_attachments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_attachments_uploaded_by" FOREIGN KEY ("uploaded_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
 -- Modify "ticket_change_groups" table
-ALTER TABLE "public"."ticket_change_groups" ADD CONSTRAINT "fk_ticket_change_groups_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."ticket_change_groups" ADD CONSTRAINT "fk_ticket_change_groups_actor" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_change_groups_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_change_items" table
 ALTER TABLE "public"."ticket_change_items" ADD CONSTRAINT "fk_ticket_change_items_group" FOREIGN KEY ("workspace_id", "group_id") REFERENCES "public"."ticket_change_groups" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_comment_edits" table
-ALTER TABLE "public"."ticket_comment_edits" ADD CONSTRAINT "fk_ticket_comment_edits_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."ticket_comment_edits" ADD CONSTRAINT "fk_ticket_comment_edits_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_comment_edits_editor" FOREIGN KEY ("editor_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
 -- Modify "ticket_comment_reactions" table
-ALTER TABLE "public"."ticket_comment_reactions" ADD CONSTRAINT "fk_ticket_comment_reactions_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."ticket_comment_reactions" ADD CONSTRAINT "fk_ticket_comment_reactions_comment" FOREIGN KEY ("workspace_id", "comment_id") REFERENCES "public"."ticket_comments" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_comment_reactions_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_comments" table
-ALTER TABLE "public"."ticket_comments" ADD CONSTRAINT "fk_ticket_comments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE "public"."ticket_comments" ADD CONSTRAINT "fk_ticket_comments_author" FOREIGN KEY ("author_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_comments_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_counters" table
 ALTER TABLE "public"."ticket_counters" ADD CONSTRAINT "fk_ticket_counters_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_labels" table
@@ -783,7 +787,7 @@ ALTER TABLE "public"."ticket_paths" ADD CONSTRAINT "fk_ticket_paths_ancestor" FO
 -- Modify "ticket_ranks" table
 ALTER TABLE "public"."ticket_ranks" ADD CONSTRAINT "fk_ticket_ranks_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_status_transitions" table
-ALTER TABLE "public"."ticket_status_transitions" ADD CONSTRAINT "fk_ticket_status_transitions_from" FOREIGN KEY ("workspace_id", "space_id", "from_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_ticket_status_transitions_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_status_transitions_to" FOREIGN KEY ("workspace_id", "space_id", "to_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE "public"."ticket_status_transitions" ADD CONSTRAINT "fk_ticket_status_transitions_changed_by" FOREIGN KEY ("changed_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_ticket_status_transitions_from" FOREIGN KEY ("workspace_id", "space_id", "from_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_ticket_status_transitions_ticket" FOREIGN KEY ("workspace_id", "ticket_id") REFERENCES "public"."tickets" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_ticket_status_transitions_to" FOREIGN KEY ("workspace_id", "space_id", "to_status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "ticket_statuses" table
 ALTER TABLE "public"."ticket_statuses" ADD CONSTRAINT "fk_ticket_statuses_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "ticket_ticket_links" table
@@ -791,7 +795,7 @@ ALTER TABLE "public"."ticket_ticket_links" ADD CONSTRAINT "fk_ticket_ticket_link
 -- Modify "ticket_types" table
 ALTER TABLE "public"."ticket_types" ADD CONSTRAINT "fk_ticket_types_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "tickets" table
-ALTER TABLE "public"."tickets" ADD CONSTRAINT "fk_tickets_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_tickets_status" FOREIGN KEY ("workspace_id", "space_id", "status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_tickets_type" FOREIGN KEY ("workspace_id", "space_id", "type_id") REFERENCES "public"."ticket_types" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE "public"."tickets" ADD CONSTRAINT "fk_tickets_created_by" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, ADD CONSTRAINT "fk_tickets_space" FOREIGN KEY ("workspace_id", "space_id") REFERENCES "public"."spaces" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE, ADD CONSTRAINT "fk_tickets_status" FOREIGN KEY ("workspace_id", "space_id", "status_id") REFERENCES "public"."ticket_statuses" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION, ADD CONSTRAINT "fk_tickets_type" FOREIGN KEY ("workspace_id", "space_id", "type_id") REFERENCES "public"."ticket_types" ("workspace_id", "space_id", "id") ON UPDATE NO ACTION ON DELETE NO ACTION;
 -- Modify "user_oidc_identities" table
 ALTER TABLE "public"."user_oidc_identities" ADD CONSTRAINT "fk_user_oidc_identities_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE;
 -- Modify "users" table

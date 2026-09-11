@@ -94,7 +94,12 @@ func (r *ticketCommentRepository) CreateTicketComment(ctx context.Context, c *do
 		AuthorUserID: authorID, Body: json.RawMessage(c.Body),
 	})
 	if err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// author_user_id への FK（段 1）は「発言者が居ない」であって「チケットが無い」
+			// ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_comments_author" {
+				return repository.ErrUserNotFound
+			}
 			return repository.ErrTicketNotFound
 		}
 		return err
@@ -196,7 +201,12 @@ func (r *ticketCommentRepository) InsertTicketCommentEdit(ctx context.Context, e
 	if err := r.queries(ctx).InsertTicketCommentEdit(ctx, sqlcgen.InsertTicketCommentEditParams{
 		ID: id, WorkspaceID: wsID, CommentID: cID, EditorUserID: editorID, PreviousBody: json.RawMessage(e.PreviousBody),
 	}); err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// editor_user_id への FK（段 1）は「編集者が居ない」であって「発言が無い」
+			// ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_comment_edits_editor" {
+				return repository.ErrUserNotFound
+			}
 			return repository.ErrTicketCommentNotFound
 		}
 		return err
@@ -235,7 +245,12 @@ func (r *ticketCommentRepository) AddTicketCommentReaction(ctx context.Context, 
 		WorkspaceID: wsID, CommentID: cID, UserID: uID, Emoji: emoji,
 	})
 	if err != nil {
-		if isForeignKeyViolation(err) {
+		if constraint, ok := foreignKeyViolationConstraint(err); ok {
+			// user_id への FK（段 1）は「反応した本人が居ない」であって「発言が無い」
+			// ではないので、他の FK とは分けて返す。
+			if constraint == "fk_ticket_comment_reactions_user" {
+				return repository.ErrUserNotFound
+			}
 			return repository.ErrTicketCommentNotFound
 		}
 		return err

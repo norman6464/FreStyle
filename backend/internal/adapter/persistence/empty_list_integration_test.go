@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

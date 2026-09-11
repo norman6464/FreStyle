@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // UpdateTicketUseCase はチケットの title / doc / type / priority / 日付を書き換える。

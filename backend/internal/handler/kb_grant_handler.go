@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
 )
 
 // KnowledgeBaseGrantHandler はナレッジの「既定の権限（grant）」の読み書きを受ける。

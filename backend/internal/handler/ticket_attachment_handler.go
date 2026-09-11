@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/ticket"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/ticket"
 )
 
 // TicketAttachmentHandler はチケットへのファイル添付を受ける（段 4）。

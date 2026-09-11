@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/norman6464/FreStyle/backend/internal/infra/config"
+	"github.com/norman6464/frestyle/backend/internal/infra/config"
 )
 
 // NewPostgres は PostgreSQL に接続し、アプリ全体で共有する接続プール（*sql.DB）を返す。

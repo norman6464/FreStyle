@@ -146,7 +146,7 @@ lefthook install                 # リポジトリごとに 1 回
 # backend: パイプライン起動 → green を test listener で検証 → CodeDeploy でトラフィック移行を承認
 aws codepipeline start-pipeline-execution --name frestyle-prod-pipeline
 # frontend: 起動 → GitHub Actions 画面で承認すると反映される
-gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy
+gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/frestyle -f confirm=deploy
 ```
 
 > backend の Blue/Green デプロイ手順の詳細（test 検証・トラフィック移行・ロールバック）は IaC リポの `docs/30` を参照。

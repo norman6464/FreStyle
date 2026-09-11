@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ErrWorkspaceNotFound は対象ワークスペースが存在しないときに返す。

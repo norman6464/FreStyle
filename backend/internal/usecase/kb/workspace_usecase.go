@@ -8,8 +8,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ResolveWorkspaceUseCase は URL の slug と現在のユーザーから、操作対象のワークスペースを決める。

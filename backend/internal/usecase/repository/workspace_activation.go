@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // WorkspaceActivationReader は所属ワークスペースが停止されていないかを見るための最小の読み取り口。

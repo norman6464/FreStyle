@@ -198,7 +198,7 @@ sql:
           - db_type: "date"
             nullable: true
             go_type:
-              import: "github.com/norman6464/FreStyle/backend/internal/adapter/persistence/pgtext"
+              import: "github.com/norman6464/frestyle/backend/internal/adapter/persistence/pgtext"
               type: "NullDate"
 
 # ---------------------------------------------------------------------------

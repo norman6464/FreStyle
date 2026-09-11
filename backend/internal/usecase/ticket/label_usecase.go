@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // validateLabel は名前・色の形を確かめ、正規化した値を返す（CreateLabelUseCase /

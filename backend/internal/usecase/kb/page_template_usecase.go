@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ページの雛形（page_templates）は kb パッケージ直下に置く。comment のような独立パッケージには

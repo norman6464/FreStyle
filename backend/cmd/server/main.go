@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/handler"
-	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
-	"github.com/norman6464/FreStyle/backend/internal/infra/logging"
-	"github.com/norman6464/FreStyle/backend/internal/infra/oidc"
+	"github.com/norman6464/frestyle/backend/internal/handler"
+	"github.com/norman6464/frestyle/backend/internal/infra/config"
+	"github.com/norman6464/frestyle/backend/internal/infra/database"
+	"github.com/norman6464/frestyle/backend/internal/infra/logging"
+	"github.com/norman6464/frestyle/backend/internal/infra/oidc"
 )
 
 // readHeaderTimeout / readTimeout は net/http の既定（無制限）を明示的に上書きする。

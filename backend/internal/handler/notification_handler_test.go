@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/notification"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	"github.com/norman6464/frestyle/backend/internal/usecase/notification"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // fakeNotifRepo は repository.NotificationRepository の最小 fake。

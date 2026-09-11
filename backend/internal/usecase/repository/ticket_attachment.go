@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ErrTicketAttachmentNotFound は対象の添付が存在しない（または別チケット / 別ワークスペースの

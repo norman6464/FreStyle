@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // TicketStatusWithUsage は状態 1 件と、その状態を使っている現役チケットの件数。

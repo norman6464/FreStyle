@@ -2,8 +2,8 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/notification"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/frestyle/backend/internal/usecase/notification"
 )
 
 // registerSocialRoutes は通知の REST エンドポイントを登録する。

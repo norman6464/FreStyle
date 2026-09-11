@@ -3,8 +3,8 @@ package health
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // CheckHealthUseCase は DB 到達性を確認し UP/DOWN を返す。

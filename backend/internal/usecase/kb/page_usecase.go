@@ -11,9 +11,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/pkg/fracindex"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ナレッジのページ操作で共通のビジネスルール違反。

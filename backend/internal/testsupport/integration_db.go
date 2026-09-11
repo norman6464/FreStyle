@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/norman6464/FreStyle/backend/internal/infra/database"
+	"github.com/norman6464/frestyle/backend/internal/infra/database"
 )
 
 // defaultTestDSN は TEST_DATABASE_URL 未設定時の既定接続先（docker-compose.integration.yml と一致）。

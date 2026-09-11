@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ChangeTicketStatusUseCase はチケットの状態を変える。

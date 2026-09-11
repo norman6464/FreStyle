@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ErrLabelNotFound は対象ラベルが存在しない（または別ワークスペース / 別スペースのもの）

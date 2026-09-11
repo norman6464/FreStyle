@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/profile"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	"github.com/norman6464/frestyle/backend/internal/usecase/profile"
 )
 
 // ProfileImageHandler は profile アイコン用 PUT 署名付き URL を発行する。

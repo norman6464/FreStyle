@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // healthRepository は [repository.HealthRepository] の実装。

@@ -9,10 +9,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/handler/middleware"
+	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // KnowledgeBaseWorkspaceHandler はナレッジのワークスペース / スペースの操作を受ける。

@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // PageVersionRepository は page_versions テーブルへのアクセスを提供する。

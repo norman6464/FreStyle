@@ -5,7 +5,7 @@ name: CD - Backend Deploy to Cloud Run
 #   - workflow_dispatch（手動） : 唯一の起動経路
 #
 # release/v* タグ push は持たない。本番デプロイ用の WIF binding（インフラ側 Terraform）は
-# `norman6464/FreStyle` の refs/heads/main 上の実行（push / workflow_dispatch /
+# `norman6464/frestyle` の refs/heads/main 上の実行（push / workflow_dispatch /
 # environment: production の job）にだけ許可されており、タグからの実行は含まれない。
 # タグ経路を復活させたい場合は、インフラ側で binding を先に追加すること
 # （本ワークフロー側の変更だけでは通らない）。

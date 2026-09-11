@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
 // ProfileImagePresigner は profile アイコン用 PUT 署名付き URL を発行する。

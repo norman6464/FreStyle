@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/mock"
 )
 

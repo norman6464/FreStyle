@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // profileRepository は [repository.ProfileRepository] の実装。

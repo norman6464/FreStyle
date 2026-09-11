@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/pkg/fracindex"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // TicketMaxDepth はチケットの親子関係の最大の深さ（設計 Ⅳ-D）。ルート自身が 1。

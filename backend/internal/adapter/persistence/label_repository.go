@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // labelRepository は [repository.LabelRepository] の実装（段 4）。ticketRepository とは

@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // pageSearchTextNodeType / pageSearchPageRefNodeType は inline JSON の中で拾うノードの

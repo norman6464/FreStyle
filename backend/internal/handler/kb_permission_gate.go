@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/kb"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/usecase/kb"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // ── ナレッジの「権限そのものを変える」API に共通する認可 ──

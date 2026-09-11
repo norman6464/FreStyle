@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // IssueRichTextImageUploadURLUseCase はリッチテキスト画像用 PUT 署名付き URL を発行する。

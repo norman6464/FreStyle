@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/infra/ratelimit"
+	"github.com/norman6464/frestyle/backend/internal/infra/ratelimit"
 )
 
 // RespondRateLimited は上限超過の応答を書いて処理を止める。

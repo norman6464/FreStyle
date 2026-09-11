@@ -7,9 +7,9 @@ import (
 	"errors"
 	"math"
 
-	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
+	"github.com/norman6464/frestyle/backend/internal/domain"
+	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
 // commentRepository は [repository.CommentRepository] の実装。comment_threads / comments は

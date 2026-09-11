@@ -62,7 +62,7 @@ infra リポの Terraform が管理する。
 ### Secrets 一覧確認
 
 ```bash
-gh secret list -R norman6464/FreStyle
+gh secret list -R norman6464/frestyle
 ```
 
 ## 設計方針

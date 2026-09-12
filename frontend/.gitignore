@@ -31,6 +31,9 @@ dist-ssr
 *.sln
 *.sw?
 coverage
+# Vitest の shard 実行が --reporter=blob で書き出す生レポート(CI が shard 間で
+# artifact としてやり取りする一時ファイル。ローカルで --shard を試すと生成される)。
+.vitest-reports
 
 # TypeScript のインクリメンタルビルド成果物（生成物なので管理しない）
 *.tsbuildinfo

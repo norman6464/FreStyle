@@ -7,9 +7,11 @@ import type {
   KbAdminWorkspaceMember,
   KbComment,
   KbCommentThread,
+  KbFavoritePage,
   KbGrantablePrincipal,
   KbGrantRole,
   KbIcon,
+  KbMySpace,
   KbPage,
   KbPageContentSaveResult,
   KbPageDoc,
@@ -23,6 +25,7 @@ import type {
   KbResolvedPage,
   KbSearchResult,
   KbSpace,
+  KbSpaceMember,
   KbWorkspace,
   KbWorkspaceMember,
 } from '../model/types';
@@ -109,6 +112,15 @@ const KbRepository = {
   async fetchSpaces(workspaceSlug: string): Promise<KbSpace[]> {
     const res = await apiClient.get<KbSpace[]>(KB_API.spaces(workspaceSlug));
     return toArray<KbSpace>(res.data);
+  },
+
+  /**
+   * 自分がアクセスできるスペースの一覧（段 14。id・name・role）。fetchSpaces と可視集合は
+   * ほぼ同じだが、こちらは自分の役割も返す。サイドバーのスペース切替・入口解決に使う。
+   */
+  async fetchMySpaces(workspaceSlug: string): Promise<KbMySpace[]> {
+    const res = await apiClient.get<KbMySpace[]>(KB_API.mySpaces(workspaceSlug));
+    return toArray<KbMySpace>(res.data);
   },
 
   /**
@@ -345,6 +357,31 @@ const KbRepository = {
   async fetchAdminMembers(workspaceSlug: string): Promise<KbAdminWorkspaceMember[]> {
     const res = await apiClient.get<KbAdminWorkspaceMember[]>(KB_API.adminMembers(workspaceSlug));
     return toArray<KbAdminWorkspaceMember>(res.data);
+  },
+
+  /**
+   * スペースに届いている権限を人に解決した一覧（段 9。読み取り専用）。
+   * 判定はスペース単位の CanView（fetchMembers/fetchAdminMembers とは軸が違う）。
+   */
+  async fetchSpaceMembers(workspaceSlug: string, spaceId: string): Promise<KbSpaceMember[]> {
+    const res = await apiClient.get<KbSpaceMember[]>(KB_API.spaceMembers(workspaceSlug, spaceId));
+    return toArray<KbSpaceMember>(res.data);
+  },
+
+  /** 自分のお気に入りページの一覧（段 7）。ワークスペースに所属していれば誰でも叩ける。 */
+  async fetchFavorites(workspaceSlug: string): Promise<KbFavoritePage[]> {
+    const res = await apiClient.get<KbFavoritePage[]>(KB_API.favorites(workspaceSlug));
+    return toArray<KbFavoritePage>(res.data);
+  },
+
+  /** ページをお気に入りに入れる（冪等）。 */
+  async addFavorite(workspaceSlug: string, pageId: string): Promise<void> {
+    await apiClient.put(KB_API.favorite(workspaceSlug, pageId));
+  },
+
+  /** お気に入りから外す（冪等）。 */
+  async removeFavorite(workspaceSlug: string, pageId: string): Promise<void> {
+    await apiClient.delete(KB_API.favorite(workspaceSlug, pageId));
   },
 
   /** ワークスペース全体の既定の役割を主体に与える（上書き）。admin だけが叩ける。 */

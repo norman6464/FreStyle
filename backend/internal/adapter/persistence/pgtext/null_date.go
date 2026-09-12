@@ -10,21 +10,17 @@ import (
 
 // NullDate は PostgreSQL の date 列（NULL 可）を 'YYYY-MM-DD' の文字列として運ぶ。
 //
-// pgx の stdlib（database/sql）互換層は date 型（OID 1082）を、宛先の Go 型に関わらず
-// 内部で pgtype.Date → time.Time にデコードしてから driver.Value として渡す
-// （stdlib/sql.go の Rows.Next が date OID をハードコードで pgtype.Date に読み、
-// .Value() で time.Time に変換する。TypeMap.RegisterType でこの OID の Codec を
-// 差し替えても、この switch 文自体が変数の型を pgtype.Date に固定しているので効かない —
-// pgx v5.9.2 で実機確認済み）。simple / extended のどちらの query protocol でも同じ。
+// pgx の stdlib 互換層は date 型（OID 1082）を、宛先の Go 型に関わらず内部で
+// pgtype.Date → time.Time にデコードしてから driver.Value として渡す（Rows.Next が OID を
+// ハードコードで pgtype.Date に読むため、TypeMap.RegisterType で Codec を差し替えても効かない —
+// pgx v5.9.2 で実機確認済み。simple / extended どちらの protocol でも同じ）。
 //
-// 宛先を sql.NullString にしても、その Scan は database/sql の convertAssign を経由し、
-// time.Time → *string の変換に time.RFC3339Nano を使うため
-// （"2026-09-01" ではなく "2026-09-01T00:00:00Z" になる）、sqlc.yaml の
-// date → sql.NullString override だけでは直らない。この型を宛先にすることで、
-// time.Time で来ても string で来ても 'YYYY-MM-DD' に揃える。
+// 宛先を sql.NullString にしても、その Scan は convertAssign 経由で time.Time → *string に
+// time.RFC3339Nano を使うため（"2026-09-01" ではなく "2026-09-01T00:00:00Z" になる）直らない。
+// この型を宛先にすることで、time.Time で来ても string で来ても 'YYYY-MM-DD' に揃える。
 //
-// tickets.start_date / due_date の 2 列専用（設計 Ⅳ-K: date は本番の simple protocol で
-// time.Time として運ぶと 1 日ずれるため、そもそも文字列で扱う方針）。
+// tickets.start_date / due_date の 2 列専用（date を time.Time で運ぶと本番の simple protocol
+// で 1 日ずれるため、そもそも文字列で扱う方針）。
 type NullDate struct {
 	String string
 	Valid  bool

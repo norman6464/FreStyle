@@ -9,9 +9,8 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// バージョン（page_versions）は kb パッケージ直下に置く。comment のような独立パッケージには
-// しない — 版はページ本文そのものの一部の履歴であり、comment のような新しい権限軸（CanComment）
-// を持たないため（handler の認可も CapabilityView / CapabilityEdit だけで足りる）。
+// バージョン（page_versions）は kb パッケージ直下に置く。版はページ本文の履歴であり
+// comment のような新しい権限軸を持たず、認可も CapabilityView / CapabilityEdit だけで足りる。
 
 // currentPageDoc はページの「今の」本文（ProseMirror doc）を返す。GetPageUseCase.Execute と
 // 全く同じフォールバック手順（snapshot 優先 → 無ければ blocks から組み立て）を踏む。
@@ -63,9 +62,9 @@ func (u *CreateExplicitPageVersionUseCase) Execute(ctx context.Context, in Creat
 		return nil, err
 	}
 	var version *domain.PageVersion
-	// pages 行のロック → 今の内容を読む → 版を挿入、をこの順で 1 つのトランザクションに
-	// 入れる。ロックより先に読むと、読み取りと（CreateVersionIfDue 内部の）ロック取得の間に
-	// 本物の編集が割り込み、古い内容のまま版を切ってしまう競合があった（CodeRabbit 指摘・実バグ）。
+	// pages 行のロック → 今の内容を読む → 版を挿入、をこの順で 1 トランザクションに入れる。
+	// ロックより先に読むと、読み取りとロック取得の間に本物の編集が割り込み、古い内容のまま
+	// 版を切ってしまう競合が実際に起きたことがある。
 	err = u.txManager.DoInTx(ctx, func(ctx context.Context) error {
 		if err := u.versionRepo.LockPage(ctx, in.WorkspaceID, in.PageID); err != nil {
 			return err
@@ -75,8 +74,8 @@ func (u *CreateExplicitPageVersionUseCase) Execute(ctx context.Context, in Creat
 			return err
 		}
 		// force=true — 10 分規則を無視して必ず切る（「版を残す」の定義そのもの）。
-		// CreateVersionIfDue は自身でも同じ行を再ロックするが、同一トランザクション内の
-		// FOR UPDATE は再入可能なので待ちにはならない（page_version_repository.go 参照）。
+		// CreateVersionIfDue も同じ行を再ロックするが、同一トランザクション内の FOR UPDATE は
+		// 再入可能なので待ちにはならない。
 		_, v, err := u.versionRepo.CreateVersionIfDue(ctx, in.WorkspaceID, in.PageID, doc, in.AuthorUserID, note, true)
 		if err != nil {
 			return err
@@ -128,8 +127,8 @@ func (u *GetPageVersionUseCase) Execute(ctx context.Context, in GetPageVersionIn
 }
 
 // RestorePageVersionUseCase は過去の版の doc を今の本文として書き戻す。
-// ReplacePageBlocksUseCase をそのまま呼ぶ（本文保存と同じ検証・snapshot 焼き直し・
-// 最終編集者の記録を経由する）。「復元自体も版になる」という要件のため ForceVersion は必ず true。
+// ReplacePageBlocksUseCase をそのまま呼ぶ（本文保存と同じ検証・snapshot 焼き直し・最終編集者の
+// 記録を経由する）。「復元自体も版になる」ため ForceVersion は必ず true。
 type RestorePageVersionUseCase struct {
 	versionRepo repository.PageVersionRepository
 	replace     *ReplacePageBlocksUseCase

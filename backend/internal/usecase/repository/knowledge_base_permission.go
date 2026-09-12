@@ -10,26 +10,15 @@ import (
 // ErrPrincipalNotFound は対象の主体が存在しない（または別ワークスペースのもの）ときに返す。
 var ErrPrincipalNotFound = errors.New("principal not found")
 
-// ErrUserNotFound は主体を作ろうとしたユーザーが users に存在しないときに返す。
-//
-// principals.user_id は users への FK なので、実在しないユーザー ID で
-// EnsureUserPrincipal を呼ぶと制約違反になる。それをそのまま上へ流すと
-// 「ユーザー ID を間違えた」という入力の誤りが 500 になり、呼び出し側は
-// DB 障害と区別できない（再試行すべきだと誤解する）。
+// ErrUserNotFound は主体を作ろうとしたユーザーが users に存在しないときに返す
+// （principals.user_id の FK 違反をそのまま流すと入力の誤りが 500 になり、DB 障害と
+// 区別できず再試行すべきと誤解される）。
 var ErrUserNotFound = errors.New("user not found")
 
-// ErrLastWorkspaceAdmin は「ユーザーの admin が 1 人も残らなくなる操作」を断ったときに返す。
-//
-// ナレッジの権限は principals / grants だけで閉じており、
-// 「アプリの super_admin なら通る」という抜け道を意図的に持たない（domain/grant.go）。
-// その裏返しとして、ワークスペースの admin が 0 人になった瞬間、そのワークスペースの
-// 権限を変えられる人は API のどこにも居なくなる。**元 admin を含めて誰も復旧できず、
-// DB を直接触るしか手が無い。** 逆に「最後の 1 人は自分を外せない」で詰まる場面は、
-// 先に別の誰かへ admin を渡せば必ず解ける。取り返しがつかない側を禁じる。
-//
-// このセンチネルは repository（＝ 実際に行を書き換える層）が返す。手前の usecase
-// （CanRemoveWorkspaceAdminUseCase）も同じ判定を持つが、あちらは操作の前に読むだけなので
-// 競合を防げない。最後の砦は書き込みと同じトランザクションで判定するこちら側にある。
+// ErrLastWorkspaceAdmin は「ユーザーの admin が 1 人も残らなくなる操作」を断ったときに返す
+// （0 人になると誰も権限を復旧できずDBを直接触るしかなくなる）。このセンチネルは
+// repository が返す — 手前の usecase（CanRemoveWorkspaceAdminUseCase）は操作前に読むだけで
+// 競合を防げないため、最後の砦は書き込みと同じトランザクションで判定するこちら側にある。
 var ErrLastWorkspaceAdmin = errors.New("last workspace admin cannot be removed")
 
 // ErrPrincipalGroupNameTaken はグループ名が同じワークスペースで使用済みのときに返す。
@@ -44,27 +33,18 @@ var ErrWorkspaceInvitationNotFound = errors.New("workspace invitation not found"
 
 // PageWithViewFacts は 1 ページと、そのページを閲覧できるかを決める事実の組。
 // ListSpacePageViewFacts が返す（ふるい落としは domain.ResolvePageView が行う）。
-//
-// 事実が役割 1 つなのは、権限が打ち消しを持たないため。届いた中で最も強い役割だけで
-// 閲覧可否が決まり、経路のどこで得たかは結果に影響しない。
 type PageWithViewFacts struct {
 	Page domain.Page
 	// Role は届いた中で最も強い役割。grant が 1 つも無ければ nil。
 	Role *domain.GrantRole
-	// ParentArchived は親がアーカイブ済みか（親を持たない行は false）。
-	//
-	// これは**事実**で、判断ではない。「復帰できるか」の規則は UnarchivePageUseCase が
-	// 持っている（親がアーカイブ中なら断る）。ここで canRestore のような名前にすると、
-	// 同じ規則が 2 箇所に置かれて必ずずれる。
+	// ParentArchived は親がアーカイブ済みかという**事実**（判断ではない）。
+	// 「復帰できるか」の規則は UnarchivePageUseCase が持つ。
 	ParentArchived bool
 }
 
 // PageWithPermissionFacts は 1 ページの ID と、その実効権限を決める事実の組。
 // ListSubtreePagePermissionFacts が返す（判定は domain.ResolvePagePermission が行う）。
-//
 // 閲覧専用の PageWithViewFacts と分かれているのは、こちらが所属（Member）も集めるため。
-// ページ本体を持たないのは、この型を使う経路（サブツリー一括操作の入口検査）が
-// 可否だけを必要とし、見えないページの中身を呼び出し側へ渡す必要が無いため。
 type PageWithPermissionFacts struct {
 	PageID string
 	Facts  domain.PagePermissionFacts
@@ -72,33 +52,18 @@ type PageWithPermissionFacts struct {
 
 // PageSearchViewFact は検索結果 1 件（PageWithViewFacts）と、その本文一致の材料の組。
 // SearchWorkspacePageViewFacts が返す（本文検索と逆リンク）。
-//
-// Body を PageWithViewFacts に足さず別の型にしているのは、ListSpacePageViewFacts /
-// ListWorkspacePageViewFactsByIDs のような他の呼び口には本文一致の抜粋を計算する材料が
-// 要らないため（それらの型に無関係なフィールドを持たせない）。
 type PageSearchViewFact struct {
 	PageWithViewFacts
-	// Body はそのページの page_search.body（本文の素テキスト）。まだ page_search が
-	// 同期されていないページ（新規作成直後・再構築前）では空文字（NULL ではない —
-	// LEFT JOIN + COALESCE で SQL 側が空文字に倒す）。
-	//
-	// 抜粋（excerpt）の計算は usecase 側（SearchViewablePagesUseCase）が行う —
-	// 「titleが一致していればmatchField=title」「titleが一致せずbodyが一致していれば
-	// matchField=body」の判定に Query の値が要り、repository はそれを知らないため。
+	// Body はそのページの page_search.body。まだ同期されていないページでは空文字
+	// （NULL ではない。LEFT JOIN + COALESCE で SQL 側が空文字に倒す）。抜粋の計算は
+	// usecase 側（SearchViewablePagesUseCase）が Query と突き合わせて行う。
 	Body string
 }
 
 // SpaceWithScopeFacts は 1 スペースと、その入れ物に対する実効権限を決める事実の組。
 // ListWorkspaceSpaceScopeFacts が返す（判定は domain.ResolveScopePermission が行う）。
-//
-// ページの事実（PageWithViewFacts / PageWithPermissionFacts）と型を分けているのは、
-// 集めた事実が違うため。ここにあるのはワークスペース / スペースの grants で届いた
-// 役割だけで、ページ付与（page_grants）は含まない。同じ型に載せると
-// 「ページ付与を見ていない」ことが「ページ付与が無い」に化ける。
-//
-// スペース本体を持つのは、これが一覧の材料そのものだから（呼び出し側は key / name を返す）。
-// 事実の側で見えないスペースをふるい落とすのは呼び出し側の責務で、
-// この型が返ってきた時点ではまだ「見せてよいスペース」に絞られていない。
+// ここにあるのはワークスペース / スペースの grants で届いた役割だけで、ページ付与
+// （page_grants）は含まない。
 type SpaceWithScopeFacts struct {
 	Space domain.Space
 	Facts domain.ScopeFacts
@@ -107,16 +72,8 @@ type SpaceWithScopeFacts struct {
 // KnowledgeBasePermissionRepository はナレッジの権限モデル（principals /
 // principal_members / workspace_grants / space_grants / page_grants）への
 // アクセスを提供する（share_links は [ShareLinkRepository] が持つ）。
-//
-// KnowledgeBaseRepository（ページとブロック）と分けているのは、境界が違うため。
-// あちらをひとつの fat interface にまとめている理由は「ページ作成 = pages + page_paths」
-// のように複数テーブルを 1 トランザクションで書く操作が中心だからで、権限の書き込みは
-// それらと同じトランザクションに入らない（権限を張る操作とページを書く操作は別の要求）。
-// 同じ interface に足すと、ページだけを扱う実装や fake が権限のメソッドまで
-// 実装しなければならなくなり、境界の意味も薄れる。
-//
-// 読み取りは pages / page_paths をまたぐ（実効権限の解決に closure が要る）が、
-// 境界を決めるのは書き込みのトランザクション単位なので問題にしない。
+// KnowledgeBaseRepository（ページとブロック）と分けているのは、権限を張る操作とページを
+// 書く操作が同じトランザクションに入らないため（境界を書き込み単位で決めている）。
 type KnowledgeBasePermissionRepository interface {
 	// EnsureUserPrincipal はユーザーの主体を作る（既にあればそれを返す）。
 	// この行があること自体がワークスペース所属を意味する。
@@ -129,12 +86,9 @@ type KnowledgeBasePermissionRepository interface {
 	FindPrincipal(ctx context.Context, workspaceID, principalID string) (*domain.Principal, error)
 	// FindUserPrincipal はユーザーの主体を引く。無ければ ErrPrincipalNotFound（= 非メンバー）。
 	FindUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error)
-	// DeletePrincipal は主体を消す。紐づく grant / グループ所属も
-	// FK の CASCADE で消える。対象が無ければ ErrPrincipalNotFound。
-	//
-	// grant も CASCADE で消えるので、これはワークスペースの admin を減らし得る操作でもある。
-	// ユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も消さない
-	// （判定・ロック・削除はすべて同じトランザクション）。
+	// DeletePrincipal は主体を消す。紐づく grant / グループ所属も FK の CASCADE で消える
+	// （対象が無ければ ErrPrincipalNotFound）。ユーザーの admin が 0 人になるなら
+	// ErrLastWorkspaceAdmin を返して何も消さない（判定・ロック・削除は同じトランザクション）。
 	DeletePrincipal(ctx context.Context, workspaceID, principalID string) error
 	// IsWorkspaceMember はユーザーがワークスペースのメンバーかを返す。
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
@@ -143,17 +97,14 @@ type KnowledgeBasePermissionRepository interface {
 	// 逐次 SELECT を発行しない。@メンション通知の宛先解決が本来の用途）。
 	// userIDs が空なら問い合わせずに空集合を返す。
 	IsWorkspaceMemberBulk(ctx context.Context, workspaceID string, userIDs []uint64) (map[uint64]bool, error)
-	// ListMemberWorkspaces はそのユーザーが所属するワークスペースと、そこでの CanManage
-	// （DeleteWorkspace が要求する admin 権限と同じ）を返す（slug 順）。
-	// 所属は principals（kind='user'）の行が唯一の表現なので、その JOIN がそのまま答えになる。
-	// ナレッジで唯一テナントを跨いで読むメソッド（どのテナントに入れるかを答える口）で、
-	// 絞り込みは user_id だけが行う。
+	// ListMemberWorkspaces はそのユーザーが所属するワークスペースと、そこでの CanManage を
+	// 返す（slug 順）。ナレッジで唯一テナントを跨いで読むメソッド（どのテナントに入れるかを
+	// 答える口）で、絞り込みは user_id だけが行う。
 	ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error)
 
 	// InviteWorkspaceMember は招待中の所属を作る（冪等。既に active/invited なら何もしない。
-	// left/suspended だった相手は invited へ戻し、招いた人を invitedByUserID で更新する）。
-	// principal はまだ作らない — 招待の間は権限が一切届かない
-	// （workspace_members のコメントにある procedural invariant）。
+	// left/suspended だった相手は invited へ戻す）。principal はまだ作らない —
+	// 招待の間は権限が一切届かない。
 	InviteWorkspaceMember(ctx context.Context, workspaceID string, userID, invitedByUserID uint64) error
 	// AcceptWorkspaceInvitation は自分宛の招待を受諾する。invited → active に進め、
 	// 同じトランザクションで principal（kind='user'）を作り、既定の editor を与える。
@@ -166,12 +117,9 @@ type KnowledgeBasePermissionRepository interface {
 	// ListMyWorkspaceInvitations はそのユーザー宛の未受諾の招待を新しい順で返す。
 	ListMyWorkspaceInvitations(ctx context.Context, userID uint64) ([]domain.WorkspaceInvitation, error)
 	// LeaveWorkspaceMembership は所属を終える（status を left にし、principal があれば
-	// 削除する。削除は grant の取り消しと同じ「最後の admin」検査を同じトランザクションで通す）。
-	// 既に非メンバー（もともと居ない・既に left）なら何もしない（冪等）。
-	//
-	// actorUserID は誰がこの操作をしたか（段 6・監査）。userID と同じなら本人の退会
-	// （MembershipEventLeft）、違えば admin による除名（MembershipEventMemberRemoved）として
-	// 記録する。
+	// 削除する。削除は「最後の admin」検査を同じトランザクションで通す）。既に非メンバーなら
+	// 何もしない（冪等）。actorUserID は userID と同じなら本人の退会、違えば admin による
+	// 除名として記録する。
 	LeaveWorkspaceMembership(ctx context.Context, workspaceID string, userID, actorUserID uint64) error
 
 	// AddGroupMember はグループに主体を所属させる（冪等）。member 側は kind='user' でなければ
@@ -181,21 +129,17 @@ type KnowledgeBasePermissionRepository interface {
 	RemoveGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error
 
 	// UpsertWorkspaceGrant はワークスペース全体での既定の役割を与える（同じ主体には 1 行だけ）。
-	// admin から他の役割へ落とす向きは「admin を外す」操作なので、それでユーザーの admin が
-	// 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない（判定は書き込みと同じトランザクション）。
-	//
-	// actorUserID は誰がこの役割を与えたか（段 6・監査）。principal が人（kind=user）なら
-	// MembershipEventRoleChanged を同じトランザクションで記録する（group / space_all は
-	// 対象外 — membership_events は特定の 1 人を追う表のため）。
+	// admin から他の役割へ落とすことでユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin
+	// を返して何も書かない。actorUserID は監査用（principal が人なら
+	// MembershipEventRoleChanged を同じトランザクションで記録する）。
 	UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole, actorUserID uint64) (*domain.WorkspaceGrant, error)
 	// GrantWorkspaceRoleIfAbsent は既定の役割を**無いときだけ**与える（既存の行は触らない）。
-	// メンバー追加の既定 editor 用。上書きの Upsert を使うと、冪等な追加のやり直しで
-	// admin が editor に落ちる（最後の admin なら保護の検査に当たって追加自体が失敗する）。
+	// メンバー追加の既定 editor 用。上書きの Upsert だと、冪等な追加のやり直しで
+	// admin が editor に落ちてしまう。
 	GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error
 	// DeleteWorkspaceGrant はワークスペース全体での既定の役割を剥がす（冪等）。
 	// これでユーザーの admin が 0 人になるなら ErrLastWorkspaceAdmin を返して何も書かない。
-	// actorUserID は UpsertWorkspaceGrant と同じ理由（段 6・監査。剥奪も MembershipEventRoleChanged
-	// として記録し、NewLabel は nil にする）。
+	// actorUserID は UpsertWorkspaceGrant と同じ理由（監査用）。
 	DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string, actorUserID uint64) error
 	// ListWorkspaceGrants はワークスペースの grant 一覧を返す。
 	ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error)
@@ -207,64 +151,41 @@ type KnowledgeBasePermissionRepository interface {
 	// ListSpaceGrants はスペースの grant 一覧を返す。
 	ListSpaceGrants(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceGrant, error)
 
-	// UpsertPageGrant はページでの既定の役割を与える（同じ主体には 1 行だけ）。
-	//
-	// workspace / space に続く 3 段目で、このページとその子孫に効く。合成は他の 2 段と
-	// 同じ「最も強いものを採る」なので、**これで誰かを弱めることはできない**
-	// （上位で editor を得ている相手にここで viewer を張っても editor のまま）。
-	// **弱める手段はどの層にも無い。** 狭めたい内容は private のスペースへ置く。
+	// UpsertPageGrant はページでの既定の役割を与える（同じ主体には 1 行だけ。workspace / space
+	// に続く 3 段目で、このページとその子孫に効く）。**これで誰かを弱めることはできない**
+	// （最も強い役割が実効になる。狭めたい内容は private のスペースへ置く）。
 	UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error)
 	// DeletePageGrant はページでの既定の役割を剥がす（冪等）。
 	// 上位の段で得ている役割はそのまま残る（消えるのはこの段で足した分だけ）。
 	DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error
 	// ListGrantablePrincipals は権限を張れる相手を表示名・アイコンつきで返す
-	// （kind → 名前 → id 順）。
-	//
-	// share_link は含まない。あれはリンクを踏んだ来訪者を表す主体で、リンクの発行時に
-	// 自動で作られる。人が選んで役割を与える相手ではない。
-	//
-	// 人（kind=user）は、アカウントが有効かつ所属も有効なものだけを返す（段 5）。
-	// 停止・退会したユーザーは、principal 行自体は残っていても共有候補には出さない
-	// （出し続けると、消せない権限が画面に残る）。group / space_all はこの絞り込みの
-	// 対象外で、名前が引けなかった行も落とさず Name を空文字にして返す（一覧から
-	// 黙って消すと、その主体に張った権限が画面に出たまま選べない = 取り消せない行になる）。
+	// （kind → 名前 → id 順）。share_link は含まない（人が選んで役割を与える相手ではない）。
+	// 人（kind=user）はアカウント・所属がどちらも有効なものだけを返す（停止・退会した
+	// ユーザーは共有候補に出さない）。group / space_all はこの絞り込みの対象外。
 	ListGrantablePrincipals(ctx context.Context, workspaceID string) ([]domain.GrantablePrincipal, error)
 	// ListWorkspaceMembers はワークスペースに属する人を表示名・アイコンつきで返す
-	// （名前 → id 順）。
-	//
-	// ListGrantablePrincipals と違い、人でない主体は含まない。アカウントが有効かつ
-	// 所属も有効な人だけを返す（ListGrantablePrincipals と同じ判断基準 — 段 5）。
-	// 担当の表示名と発言での名指しに使う（どちらも権限を変えられない人にも要る）。
+	// （名前 → id 順）。ListGrantablePrincipals と違い人でない主体は含まない。
+	// 担当の表示名と発言での名指しに使う。
 	ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMember, error)
-	// ListWorkspaceMembersForAdmin はメンバー管理画面（段 7）向け。ListWorkspaceMembers と
-	// 違い、停止中のアカウントも含み（復帰の入口になるため）、現在のワークスペース全体の
-	// 役割も一緒に返す。
+	// ListWorkspaceMembersForAdmin はメンバー管理画面向け。ListWorkspaceMembers と違い、
+	// 停止中のアカウントも含み、現在のワークスペース全体の役割も一緒に返す。
 	ListWorkspaceMembersForAdmin(ctx context.Context, workspaceID string) ([]domain.AdminWorkspaceMember, error)
-	// ListSpaceMembers はそのスペースに届いている権限（ワークスペース全体の grant・スペースの
-	// grant・所属グループ・スペース全員）を人に解決して返す（段 9）。同じ人に複数の経路が
-	// あれば最も強い役割で 1 行にまとめる（domain.SpaceMember.Via 参照）。
+	// ListSpaceMembers はそのスペースに届いている権限を人に解決して返す。同じ人に複数の
+	// 経路があれば最も強い役割で 1 行にまとめる（domain.SpaceMember.Via 参照）。
 	ListSpaceMembers(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error)
-	// ListMySpaces は ListSpaceMembers の向きを逆にしたもの（段 14。GET /me/spaces 用）:
-	// 「1 スペース→全員」ではなく「1 人→全スペース」。今のワークスペース内で自分が
-	// アクセスできるスペースを、最も強い役割で 1 行にまとめて返す。
+	// ListMySpaces は ListSpaceMembers の向きを逆にしたもの（GET /me/spaces 用）:
+	// 「1 スペース→全員」ではなく「1 人→全スペース」を、最も強い役割で 1 行にまとめて返す。
 	ListMySpaces(ctx context.Context, workspaceID string, userID uint64) ([]domain.MySpace, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
-	//
-	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、
-	// ワークスペース / スペースの grant で届いている相手も、祖先のページに張られた
-	// grant で届いている相手も含まれない。空で返ってきても「誰も見られない」ではなく
-	// 「この段では何も足していない」の意味（ListPageRestrictions と同じ見方）。
+	// **これは「このページを見られる人の一覧」ではない。** 空で返っても
+	// 「この段では何も足していない」の意味。
 	ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error)
 
-	// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
+	// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（監査用）。
 	ListMembershipEvents(ctx context.Context, workspaceID string) ([]domain.MembershipEvent, error)
-	// RecordMembershipEvent は所属・権限の変更 1 件を追記する（段 6・監査）。
-	//
-	// InviteWorkspaceMember 等の専用メソッドが対象の書き込みと同じトランザクションで
-	// 自動的に記録するのに対し、こちらは対象の書き込みがこの repository の外
-	// （usecase/user.SetUserActiveUseCase の users.status 変更等）にある場合向けの、
-	// 汎用の書き込み口。呼び出し側が repository.TxManager.DoInTx で対象の書き込みと
-	// 同じトランザクションにまとめること（片方だけ書けると履歴が実際の状態とずれる）。
+	// RecordMembershipEvent は所属・権限の変更 1 件を追記する。専用メソッドが対象の書き込みと
+	// 同じトランザクションで自動的に記録するのに対し、こちらは対象の書き込みがこの
+	// repository の外にある場合向けの汎用口。呼び出し側が同じトランザクションにまとめること。
 	RecordMembershipEvent(
 		ctx context.Context, workspaceID string, targetUserID, actorUserID uint64,
 		action domain.MembershipEventAction, oldLabel, newLabel *string,
@@ -284,74 +205,41 @@ type KnowledgeBasePermissionRepository interface {
 	// 1 回のクエリで返す（ページごとに問い合わせない）。編集の事実は集めないので、
 	// 編集可否をここから出さないこと（返す型がそれを表している）。
 	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64, archived bool) ([]PageWithViewFacts, error)
-	// SearchWorkspacePageViewFacts はワークスペース全体から題名 **または本文** が部分一致する
-	// 現役ページを候補にし、その閲覧の事実を返す（サイドバーの検索用。
-	// 本文検索に対応）。判定は呼び出し側が domain.ResolvePageView で行う。query は
-	// エスケープ前の生の文字列を渡す（% _ \ のエスケープは実装が行う — 呼び出し側に
-	// SQL の都合を漏らさない）。ParentArchived は常に false（検索は現役だけを対象にするため
-	// 集めない）。
+	// SearchWorkspacePageViewFacts はワークスペース全体から題名または本文が部分一致する
+	// 現役ページを候補にし、その閲覧の事実を返す（本文検索対応。判定は呼び出し側が
+	// domain.ResolvePageView で行う）。query はエスケープ前の生の文字列を渡す
+	// （% _ \ のエスケープは実装側が行う）。ParentArchived は常に false。
 	SearchWorkspacePageViewFacts(ctx context.Context, workspaceID string, userID uint64, query string) ([]PageSearchViewFact, error)
 	// ListPageLinkSourcePageViewFacts は targetPageID を参照している「参照元ページ」全件と、
-	// その閲覧の事実を返す（逆リンク用）。事実の組み立ては
-	// SearchWorkspacePageViewFacts と同じ見方で、判定は呼び出し側が domain.ResolvePageView
-	// で行う。アーカイブ済みの参照元も候補から外さない（ListWorkspacePageViewFactsByIDs と
-	// 同じ考え方 — パンくずと同じく、参照元が現役かどうかでふるい落とす理由が無い）。
+	// その閲覧の事実を返す（逆リンク用）。アーカイブ済みの参照元も候補から外さない。
 	ListPageLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetPageID string) ([]PageWithViewFacts, error)
-	// ListPageTicketLinkSourcePageViewFacts は ListPageLinkSourcePageViewFacts のチケット版
-	// （段 5）。targetTicketID を埋め込んでいる「参照元ページ」全件と、その
-	// 閲覧の事実を返す（ページへのチケット埋め込みの逆参照用）。事実の組み立て・判定の
-	// 責務分担は ListPageLinkSourcePageViewFacts と同一。
+	// ListPageTicketLinkSourcePageViewFacts は ListPageLinkSourcePageViewFacts のチケット版。
+	// targetTicketID を埋め込んでいる「参照元ページ」全件と、その閲覧の事実を返す。
 	ListPageTicketLinkSourcePageViewFacts(ctx context.Context, workspaceID string, viewerUserID uint64, targetTicketID string) ([]PageWithViewFacts, error)
-	// ListWorkspacePageViewFactsByIDs は指定 ID 群のページの閲覧の事実を返す
-	// （ページ参照の題名解決とパンくずが使う）。事実の見方は検索と同一で、判定は
-	// 呼び出し側が domain.ResolvePageView で行う。UUID として読めない ID・
-	// 他ワークスペースの ID は行にならない（エラーにしない — 壊れた参照で
-	// ページ全体の読み出しを落とさない）。**アーカイブ済みも行として返す**
-	// （Page.ArchivedAt に載る）。除外するかは用途で違うため呼び出し側が決める —
-	// 題名解決は除外し、パンくずは含める（経路から抜くと場所を偽る）。
-	// ParentArchived は集めない（この口の用途では使わない）。常に false。
+	// ListWorkspacePageViewFactsByIDs は指定 ID 群のページの閲覧の事実を返す（ページ参照の
+	// 題名解決とパンくずが使う）。UUID として読めない ID・他ワークスペースの ID は行に
+	// ならない（エラーにしない）。**アーカイブ済みも行として返す** — 除外するかは用途で違う
+	// ため呼び出し側が決める（題名解決は除外、パンくずは含める）。ParentArchived は常に false。
 	ListWorkspacePageViewFactsByIDs(ctx context.Context, workspaceID string, userID uint64, pageIDs []string) ([]PageWithViewFacts, error)
-	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める。
-	// 判定は domain.ResolveScopePermission が行う。スペースが無い・別ワークスペースなら
-	// ErrSpaceNotFound。
-	//
-	// 返すのは「その入れ物に届いている役割の集合」だけで、どれを採るかの規則は持たない。
-	// ページ付与（page_grants）も見ない。したがってこの口の答えを
-	// 「そのスペースのあるページを編集してよいか」に使ってはいけない
-	// （祖先のページに張られた付与を取りこぼし、必ず狭い側へ倒れる）。使ってよいのは
-	// 対象がまだ存在しない操作（スペース直下へのページ作成）だけ。
-	//
-	// スペースの実在をここで確かめるのは、確かめないと fail-open になるため。
-	// workspace_grants は配下の全スペースに届くので、別ワークスペースのスペース ID を
-	// 渡されても「自分のワークスペースでの役割」がそのまま返り、他テナントのスペースに対して
-	// editor と答えてしまう。
+	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める
+	// （スペースが無い・別ワークスペースなら ErrSpaceNotFound）。ページ付与（page_grants）は
+	// 見ない。したがって**この口の答えをページの編集可否に使ってはいけない**
+	// （祖先のページに張られた付与を取りこぼし、必ず狭い側へ倒れる）。
+	// スペースの実在を確かめるのは、確かめないと workspace_grants 経由で他テナントの
+	// スペースに対しても役割を返してしまう（fail-open になる）ため。
 	SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error)
 
-	// WorkspacePermissionFactsForUser はワークスペースそのものに対する実効権限を決める事実を集める。
-	// スペースを作る操作のように、どのスペースにも属さない判定に使う。
-	//
-	// 実在を確かめないのは、ワークスペースが無ければ grant も 1 行も無く、
-	// 役割 0 個 ＝ 何もできない（fail-closed）に自然と倒れるため。
-	// 呼び出し側は middleware が slug から解決したワークスペースを渡す。
+	// WorkspacePermissionFactsForUser はワークスペースそのものに対する実効権限を決める事実を
+	// 集める（どのスペースにも属さない判定に使う）。実在を確かめないのは、無ければ grant も
+	// 0 行で「何もできない」に自然と倒れる（fail-closed）ため。
 	WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error)
 	// ListWorkspaceSpaceScopeFacts はワークスペース配下のスペース全件と、それぞれで
-	// 呼び出し元に届いている役割（事実）を 1 回のクエリで返す。判定は
-	// domain.ResolveScopePermission が行う。
-	//
-	// **返り値はまだ「見せてよいスペース」ではない。** 役割が 1 つも届いていないスペースも
-	// Roles が空のまま含まれる。ふるい落とすのは呼び出し側（ListViewableSpacesUseCase）で、
-	// ここで絞らないのは判定規則を domain の 1 箇所に閉じるため。
-	//
-	// スペースごとに SpacePermissionFactsForUser を呼ぶ（N+1）ことはしない。
-	// サイドバーはワークスペースを開くたびにこの一覧を引くので、スペース数だけ往復すると
-	// そのまま画面の待ち時間になる。
-	//
-	// ワークスペースの実在は確かめない。無ければスペースが 1 件も無く、空スライスに倒れる
-	// （WorkspacePermissionFactsForUser が実在を確かめないのと同じ理由）。
+	// 呼び出し元に届いている役割を 1 回のクエリで返す。**返り値はまだ「見せてよいスペース」
+	// ではない**（役割が 0 のスペースも含む。ふるい落としは呼び出し側が行う）。スペースごとに
+	// SpacePermissionFactsForUser を呼ぶ N+1 は避ける。ワークスペースの実在は確かめない。
 	ListWorkspaceSpaceScopeFacts(ctx context.Context, workspaceID string, userID uint64) ([]SpaceWithScopeFacts, error)
 	// ListSubtreePagePermissionFacts はサブツリー（対象ページ自身 + 全子孫）の各ページと、
-	// その実効権限を決める事実を 1 回のクエリで返す。アーカイブ済みのページも含む。
-	// ページとその子孫をまとめて書き換える操作が、根 1 枚の権限だけで通らないようにするための口。
-	// ページが無い・別ワークスペースなら空スライス（呼び出し側が先に根の権限を確かめている）。
+	// その実効権限を決める事実を 1 回のクエリで返す（アーカイブ済みも含む）。ページとその
+	// 子孫をまとめて書き換える操作が根 1 枚の権限だけで通らないようにするための口。
 	ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]PageWithPermissionFacts, error)
 }

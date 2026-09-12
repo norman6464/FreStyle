@@ -210,6 +210,39 @@ export interface KbResolvedCover {
 export type KbGrantRole = 'admin' | 'editor' | 'commenter' | 'viewer';
 
 /**
+ * 自分がアクセスできるスペース 1 件（段 14。GET /me/spaces）。
+ * KbSpace と違い visibility を持たず、代わりに自分の役割を持つ。
+ */
+export interface KbMySpace {
+  id: string;
+  name: string;
+  role: KbGrantRole;
+}
+
+/**
+ * スペースに届いている権限を人に解決した 1 件（段 9。読み取り専用）。
+ * via はその役割がどの経路で届いたか（direct=本人への直接付与・group=所属グループ/
+ * スペース全員経由・workspace=ワークスペース全体からの継承）。
+ */
+export interface KbSpaceMember {
+  userId: number;
+  name: string;
+  avatarUrl: string;
+  role: KbGrantRole;
+  via: 'direct' | 'group' | 'workspace';
+}
+
+/** お気に入りに入れたページ 1 件（段 7）。 */
+export interface KbFavoritePage {
+  pageId: string;
+  title: string;
+  icon?: KbIcon | null;
+  spaceId: string;
+  spaceName: string;
+  createdAt: string;
+}
+
+/**
  * ページ自身に張られた既定の役割 1 件。
  *
  * **「このページを見られる人」ではない。** 返るのはこの段で足した行だけで、

@@ -9,16 +9,13 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// ErrNotCommentAuthor は投稿者本人でも CanManage でもない相手が、発言の編集・削除を
-// 試みたときに返す（handler が 403 にマップする）。
+// ErrNotCommentAuthor は投稿者本人でも CanManage でもない相手が編集・削除を試みたときに返す
+// （handler が 403 にマップする）。
 var ErrNotCommentAuthor = errors.New("actor is not the comment author")
 
 // CreateTicketCommentUseCase はチケットへ発言（返信を含む）を 1 件作る。
-//
-// 本文から @mention（ExtractTicketCommentMentions）を拾い、このワークスペースの一員に
-// 解決できた相手だけへ ticket_mentioned 通知を送る。加えて、担当が付いていて発言者本人
-// でなければ ticket_commented 通知も送る（「ウォッチ中の相手へ」が段の設計だが、
-// ウォッチャーの仕組み自体がまだ無いので、当面は担当をその代わりとして扱う）。
+// @mention を拾いワークスペース一員だけへ ticket_mentioned 通知を送り、担当者本人以外なら
+// ticket_commented も送る（ウォッチャー機構が無いので当面は担当で代用）。
 type CreateTicketCommentUseCase struct {
 	comments repository.TicketCommentRepository
 	tickets  repository.TicketRepository
@@ -58,9 +55,7 @@ func (u *CreateTicketCommentUseCase) Execute(ctx context.Context, in CreateTicke
 		return nil, err
 	}
 	if in.ParentCommentID != nil {
-		// 親発言は同じチケットに属し、削除済みでないことを確認する（別チケット・
-		// 削除済みへの返信を生やせてしまう穴を塞ぐ。AddCommentUseCase の
-		// GetCommentThread と同じ役割）。
+		// 親発言が同じチケットに属し削除済みでないか確認する（別チケット・削除済みへの返信を防ぐ）。
 		if _, err := u.comments.FindTicketComment(ctx, in.WorkspaceID, in.TicketID, *in.ParentCommentID); err != nil {
 			return nil, err
 		}
@@ -76,16 +71,14 @@ func (u *CreateTicketCommentUseCase) Execute(ctx context.Context, in CreateTicke
 	return c, nil
 }
 
-// notify は通知の作成に失敗しても発言の作成自体は失敗させない（本体の保存は既に成功して
-// いるため。kb の最終編集者名の解決と同じ「失敗しても応答は止めない」扱い）。
+// notify は通知作成に失敗しても発言の作成自体は失敗させない（保存は既に成功しているため）。
 func (u *CreateTicketCommentUseCase) notify(ctx context.Context, in CreateTicketCommentInput, t *domain.Ticket) {
 	var notifs []domain.Notification
 
 	mentioned := ExtractTicketCommentMentions([]byte(in.Body))
 	seen := map[uint64]struct{}{in.AuthorUserID: {}} // 自分への通知は作らない
-	// 所属確認は 1 件ずつではなく、名指しされた全員をまとめて 1 回の問い合わせで解決する
-	// （メンション数だけ逐次 SELECT が飛ぶと、接続プールを 1 要求が占有し続けてしまう）。
-	// メンションが無い発言のほうが多いので、その場合は問い合わせ自体を出さない。
+	// 所属確認は名指しされた全員をまとめて 1 回で解決する（逐次 SELECT は接続プールを圧迫する）。
+	// メンションが無ければ問い合わせ自体を出さない。
 	var members map[uint64]bool
 	if len(mentioned) > 0 {
 		var err error
@@ -110,9 +103,8 @@ func (u *CreateTicketCommentUseCase) notify(ctx context.Context, in CreateTicket
 	}
 
 	if assignment, err := u.tickets.FindTicketAssignment(ctx, in.WorkspaceID, in.TicketID); err == nil && assignment != nil {
-		// assignee_principal_id は principals.id（担当は principals への複合 FK。設計 Ⅳ-G）。
-		// 通知は users.id 宛にしか送れないので、kind='user' の principal だけ解決する
-		// （group / space_all 等の代理担当は、通知の宛先解決自体が段 3 の対象外）。
+		// assignee_principal_id は principals への複合 FK。通知は users.id 宛にしか送れないため
+		// kind='user' の principal だけ解決する（group 等の代理担当は対象外）。
 		if principal, err := u.perms.FindPrincipal(ctx, in.WorkspaceID, assignment.AssigneePrincipalID); err == nil &&
 			principal != nil && principal.UserID != nil {
 			assigneeUserID := *principal.UserID
@@ -133,9 +125,8 @@ func (u *CreateTicketCommentUseCase) notify(ctx context.Context, in CreateTicket
 	}
 }
 
-// UpdateTicketCommentUseCase は発言の本文を書き換える。投稿者本人か、スペースの CanManage を
-// 持つ相手だけができる（ActorCanManage は handler が権限判定の結果を渡す — usecase 自体は
-// 権限リポジトリを持たない設計に揃える）。
+// UpdateTicketCommentUseCase は発言の本文を書き換える。投稿者本人かスペースの CanManage
+// を持つ相手だけ可能（ActorCanManage は handler が権限判定済みの結果を渡す）。
 type UpdateTicketCommentUseCase struct {
 	repo      repository.TicketCommentRepository
 	txManager repository.TxManager
@@ -166,9 +157,8 @@ func (u *UpdateTicketCommentUseCase) Execute(ctx context.Context, in UpdateTicke
 		return nil, ErrNotCommentAuthor
 	}
 	var updated *domain.TicketComment
-	// 編集前の本文の退避 → 本文の書き換えは 1 つのトランザクションに入れる。片方だけ
-	// 成功すると「退避されていない編集」または「編集前が残ったまま本文が古い」という
-	// 中間状態が残るため（CreateCommentThreadUseCase と同じ理由）。
+	// 退避 → 書き換えを 1 トランザクションに入れる。片方だけ成功すると中間状態が残るため
+	// （CreateCommentThreadUseCase と同じ理由）。
 	err = u.txManager.DoInTx(ctx, func(ctx context.Context) error {
 		if err := u.repo.InsertTicketCommentEdit(ctx, &domain.TicketCommentEdit{
 			WorkspaceID: in.WorkspaceID, CommentID: in.CommentID,
@@ -185,8 +175,8 @@ func (u *UpdateTicketCommentUseCase) Execute(ctx context.Context, in UpdateTicke
 	return updated, nil
 }
 
-// DeleteTicketCommentUseCase は発言を「消えたことにする」（deleted_at。物理削除しない —
-// 返信がぶら下がっている場合に親を残す必要があるため）。
+// DeleteTicketCommentUseCase は発言を deleted_at で論理削除する（返信がぶら下がる場合に
+// 親を残す必要があるため、物理削除はしない）。
 type DeleteTicketCommentUseCase struct {
 	repo repository.TicketCommentRepository
 }
@@ -214,15 +204,13 @@ func (u *DeleteTicketCommentUseCase) Execute(ctx context.Context, in DeleteTicke
 	return u.repo.DeleteTicketComment(ctx, in.WorkspaceID, in.TicketID, in.CommentID)
 }
 
-// TicketCommentWithReactions は発言 1 件と、その反応の組。
 type TicketCommentWithReactions struct {
 	Comment   domain.TicketComment
 	Reactions []domain.TicketCommentReaction
 }
 
-// ListTicketCommentsUseCase はチケットの発言一覧を、それぞれの反応付きで返す。
-// 返信は ParentCommentID を見て呼び出し側（handler / 画面）がツリーへ組み立てる想定
-// （フラットな時系列のまま返す。並び替えの都合上ここでは木を組まない）。
+// ListTicketCommentsUseCase はチケットの発言一覧を反応付きで返す。ツリー組み立ては
+// 呼び出し側に任せ、ここではフラットな時系列のまま返す。
 type ListTicketCommentsUseCase struct {
 	repo repository.TicketCommentRepository
 }
@@ -258,8 +246,8 @@ func (u *ListTicketCommentsUseCase) Execute(ctx context.Context, workspaceID, ti
 	return out, nil
 }
 
-// ListTicketCommentEditsUseCase は発言 1 件の編集履歴を返す（オンデマンド。一覧応答には
-// 含めない — 編集していない発言が大半なので、常に添えると無駄な行き来が増える）。
+// ListTicketCommentEditsUseCase は発言 1 件の編集履歴をオンデマンドで返す（一覧応答には
+// 含めない。大半の発言は編集されないため）。
 type ListTicketCommentEditsUseCase struct {
 	comments repository.TicketCommentRepository
 }

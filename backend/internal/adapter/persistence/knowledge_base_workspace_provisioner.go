@@ -16,7 +16,6 @@ type workspaceProvisioner struct {
 	baseRepository
 }
 
-// NewWorkspaceProvisioner はワークスペース作成の port を組み立てる。
 func NewWorkspaceProvisioner(db *sql.DB) repository.WorkspaceProvisioner {
 	return &workspaceProvisioner{baseRepository{db: db}}
 }
@@ -42,11 +41,9 @@ func (p *workspaceProvisioner) runInTx(ctx context.Context, fn func(qtx *sqlcgen
 func (p *workspaceProvisioner) ProvisionWorkspace(
 	ctx context.Context, in repository.WorkspaceProvisionInput,
 ) (*domain.Workspace, error) {
-	// principals.user_id は bigint（int64）で、domain のユーザー ID は uint64。
-	// int64(in.OwnerUserID) と素で書くと math.MaxInt64 を超える値が負数へ巻き戻り、
-	// 作成者とは無関係な user_id で主体を作ってしまう。範囲外の id を持つユーザーは
-	// users に存在し得ず、users への FK でどのみち 1 行も書けないので、
-	// トランザクションに入る前にエラーで止める（nil を返すと作成できたと誤認される）。
+	// principals.user_id は bigint。素の int64(in.OwnerUserID) は math.MaxInt64 超で負数へ
+	// 巻き戻り、無関係な user_id で主体を作り得るため、範囲外なら（users にも存在し得ない）
+	// トランザクション前にエラーで止める（nil を返すと作成できたと誤認される）。
 	ownerID, ok := toInt64ID(in.OwnerUserID)
 	if !ok {
 		return nil, outOfRangeIDError("user_id", in.OwnerUserID)
@@ -77,11 +74,10 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 			PersonalOwnerUserID: personalOwnerID,
 		})
 		if err != nil {
-			// slug はグローバルに一意（uq_workspaces_slug）。検査してから INSERT するまでの間に
-			// 別の要求が同じ slug を取り得るので、一意制約を唯一の判定にする。
-			// personal_owner_user_id も同じ理由で 1 人 1 つ（uq_workspaces_personal_owner）。
-			// どちらの制約が競合したかで意味が違うため、制約名を見て振り分ける
-			// （slug は本当に使用済み、personal_owner は「もう作られていた」で失敗ではない）。
+			// slug（uq_workspaces_slug）と personal_owner_user_id（uq_workspaces_personal_owner）
+			// は共に TOCTOU で競合し得るので一意制約を唯一の判定にする。どちらが競合したかで
+			// 意味が違う（slug は使用済み、personal_owner は「もう作られていた」で失敗ではない）
+			// ため制約名で振り分ける。
 			if name, ok := uniqueViolationConstraint(err); ok {
 				switch name {
 				case "uq_workspaces_personal_owner":
@@ -92,9 +88,8 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 			}
 			return err
 		}
-		// 作成者を workspace_members の active な所属として記録する。自分でワークスペースを
-		// 作る経路は招待の手順を踏む理由が無いので、invited を経由せず直接 active にする
-		// （schema.hcl の table "workspace_members" コメントにある procedural invariant）。
+		// 作成者を workspace_members の active な所属として記録する。自作ワークスペースは
+		// 招待の手順を踏む理由が無いので invited を経由せず直接 active にする。
 		if err := qtx.InsertActiveWorkspaceMember(ctx, sqlcgen.InsertActiveWorkspaceMemberParams{
 			WorkspaceID: wsID,
 			UserID:      ownerID,
@@ -102,8 +97,8 @@ func (p *workspaceProvisioner) ProvisionWorkspace(
 			return err
 		}
 		// 作成者をこのワークスペースの主体にする。principals の行があること自体が所属なので、
-		// この 1 行が入らないとワークスペースは誰も入れないまま残る（middleware が全経路で
-		// 所属を確かめ、非メンバーには 404 を返すため、作成者にも見えなくなる）。
+		// この 1 行が無いと非メンバー扱いになり（middleware が全経路で所属を確認する）、
+		// 作成者自身がワークスペースに入れなくなる。
 		if _, err := qtx.InsertPrincipal(ctx, sqlcgen.InsertPrincipalParams{
 			ID:          principalID,
 			WorkspaceID: wsID,

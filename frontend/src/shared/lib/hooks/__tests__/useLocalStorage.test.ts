@@ -133,4 +133,23 @@ describe('useLocalStorage', () => {
     const { result } = renderHook(() => useLocalStorage('test-empty', 'fallback'));
     expect(result.current[0]).toBe('');
   });
+
+  it('同じ key を使う別インスタンスにも即座に反映される（同一タブ内での同期）', () => {
+    const a = renderHook(() => useLocalStorage('shared-key', 'default'));
+    const b = renderHook(() => useLocalStorage('shared-key', 'default'));
+    act(() => {
+      a.result.current[1]('updated-by-a');
+    });
+    expect(a.result.current[0]).toBe('updated-by-a');
+    expect(b.result.current[0]).toBe('updated-by-a');
+  });
+
+  it('別の key を使うインスタンスには影響しない', () => {
+    const a = renderHook(() => useLocalStorage('key-a', 'default'));
+    const b = renderHook(() => useLocalStorage('key-b', 'default'));
+    act(() => {
+      a.result.current[1]('changed');
+    });
+    expect(b.result.current[0]).toBe('default');
+  });
 });

@@ -1,23 +1,13 @@
-// rebuildsearchindex は既存の全ページについて page_search / page_links を作り直す、
-// 一回限りの再構築コマンド（本文検索と逆リンク）。
+// rebuildsearchindex は既存の全ページの page_search / page_links（本文検索・逆リンク）を
+// 作り直す一回限りの再構築コマンド。全ワークスペースの全アーカイブ済みでないページについて
+// knowledgeBaseRepository.RebuildPageSearchAndLinks を呼び、その時点の blocks から DELETE +
+// UPSERT で書き直す（冪等——何度実行しても結果は同じ）。
 //
-// 対象は「全ワークスペースの全アーカイブ済みでないページ」。ページ 1 件ごとに
-// knowledgeBaseRepository.RebuildPageSearchAndLinks を呼び、その時点の blocks から
-// page_search（本文の派生キャッシュ）と page_links（ページ内リンクの派生キャッシュ）を
-// DELETE + UPSERT で書き直す。DELETE + UPSERT 方式のため、同じページに何度実行しても
-// 結果は同じ（冪等）。
-//
-// 通常の保存経路（ReplacePageBlocksUseCase 経由の本文保存）は保存のたびに自動で
-// page_search / page_links を同期するので、このコマンドが要るのは
-// 「この機能が入る前から存在していたページ」を一度だけ追いつかせるため。
-// このコマンドを流し忘れても本文保存やページ表示自体は壊れない
-// （page_search / page_links は失っても blocks から再生成できる派生データ ——
-// schema.hcl の page_search / page_links コメント参照）。検索や逆リンクに
-// 一時的に出てこないだけで済む。
-//
-// 本 PR ではこのコマンドを実行しない（本番実行は別途・スコープ外）。
-// ビルドが通ることと、結合テストで単体の動作（RebuildPageSearchAndLinks 経由）を
-// 確認できていることが本 PR のゴール。
+// 通常の保存経路（ReplacePageBlocksUseCase）は保存のたびに自動で page_search / page_links を
+// 同期するので、このコマンドが要るのは「この機能が入る前から存在していたページ」を一度だけ
+// 追いつかせるためだけ。流し忘れても本文保存やページ表示自体は壊れない（page_search /
+// page_links は blocks から再生成できる派生データなので、検索や逆リンクに一時的に
+// 出てこないだけで済む）。
 package main
 
 import (
@@ -45,8 +35,8 @@ func main() {
 	}
 	logging.Setup(cfg.AppEnv)
 
-	// cmd/server/main.go と同じ接続の作り方（pgbouncer 経由なら simple query protocol を
-	// 強制する分岐も含めて NewPostgres 内で共通化されている）。
+	// cmd/server/main.go と同じ接続の作り方（simple query protocol の強制分岐も含め
+	// NewPostgres 内で共通化されている）。
 	sqlDB, err := database.NewPostgres(cfg)
 	if err != nil {
 		fatal("database connect failed", err)

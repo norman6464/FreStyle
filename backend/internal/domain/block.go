@@ -9,11 +9,10 @@ import "time"
 // （スキーマにないノード名を保存すると、読み出したドキュメントがエディタで開けなくなる）。
 type BlockType string
 
-// ブロック行として保存するノード名の一覧。
-//
-// doc は「ページそのもの」なのでブロック行にはしない。text / hardBreak などのインラインノードは
-// 行にせず、親ブロックの inline（jsonb）に ProseMirror の content 配列として持たせる
-// （文字単位で行を作ると 1 段落の編集が大量の行更新になるため、行の粒度はブロックで止める）。
+// ブロック行として保存するノード名の一覧。doc は「ページそのもの」なのでブロック行にはしない。
+// text / hardBreak などのインラインノードは行にせず、親ブロックの inline（jsonb）に ProseMirror
+// の content 配列として持たせる（文字単位で行を作ると 1 段落の編集が大量の行更新になるため、
+// 行の粒度はブロックで止める）。
 const (
 	BlockTypeParagraph      BlockType = "paragraph"
 	BlockTypeHeading        BlockType = "heading"
@@ -73,17 +72,15 @@ type Block struct {
 	// PageID は所属ページ。(workspace_id, page_id) の複合 FK で pages を参照する。
 	PageID string `json:"pageId"`
 	// ParentID は親ブロック。NULL はページ直下（トップレベル）を意味する。
-	ParentID *string `json:"parentId,omitempty"`
-	// Position は兄弟内の並び順を表す分数インデックス（fracindex.Between で採番する）。
-	Position string `json:"position"`
-	// Type は ProseMirror のノード名。
-	Type BlockType `json:"type"`
-	// Attrs は ProseMirror の attrs（見出しの level、コードブロックの language など）を jsonb で持つ。
-	// 属性が無いノードでも空オブジェクト {} を入れる（NULL と {} の二通りを作らない）。
+	ParentID *string   `json:"parentId,omitempty"`
+	Position string    `json:"position"`
+	Type     BlockType `json:"type"`
+	// Attrs は ProseMirror の attrs（見出しの level、コードブロックの language など）を jsonb で
+	// 持つ。属性が無いノードでも空オブジェクト {} を入れる（NULL と {} の二通りを作らない）。
 	// API へは handler の response 型で json.RawMessage に変換して出す。
 	Attrs string `json:"-"`
-	// Inline は葉ノードのインライン内容（text ノードとマークの配列）。
-	// リストや表のような容器ノードは子をブロック行として持つため NULL にする。
+	// Inline は葉ノードのインライン内容（text ノードとマークの配列）。リストや表のような容器
+	// ノードは子をブロック行として持つため NULL にする。
 	Inline    *string   `json:"-"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`

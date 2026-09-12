@@ -60,20 +60,20 @@ describe('useCommandPalette', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('practice');
+      result.current.setQuery('knowledge');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('練習モード');
+    expect(labels).toContain('ナレッジ');
   });
 
   it('descriptionでもフィルタリングできる', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('スコア履歴に移動');
+      result.current.setQuery('バックログに移動');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('スコア履歴');
+    expect(labels).toContain('バックログ');
   });
 
   it('フィルタリングは大文字小文字を区別しない', () => {

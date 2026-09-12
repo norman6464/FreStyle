@@ -1,12 +1,4 @@
-import {
-  HomeIcon,
-  SparklesIcon,
-  AcademicCapIcon,
-  ChartBarIcon,
-  StarIcon,
-  DocumentTextIcon,
-  UserCircleIcon,
-} from '@heroicons/react/24/outline';
+import { HomeIcon, ChartBarIcon, DocumentTextIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import type { ComponentType, SVGProps } from 'react';
 
 export type CommandAction = { type: 'navigate'; path: string };
@@ -31,33 +23,6 @@ export const COMMAND_ITEMS: CommandItem[] = [
     category: 'ページ移動',
     action: { type: 'navigate', path: '/' },
     keywords: ['home', 'メニュー', 'トップ'],
-  },
-  {
-    id: 'nav-practice',
-    label: '練習モード',
-    description: '練習モードに移動',
-    icon: AcademicCapIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/practice' },
-    keywords: ['practice', '練習', 'トレーニング'],
-  },
-  {
-    id: 'nav-scores',
-    label: 'スコア履歴',
-    description: 'スコア履歴に移動',
-    icon: ChartBarIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/scores' },
-    keywords: ['score', 'history', '履歴', '成績'],
-  },
-  {
-    id: 'nav-favorites',
-    label: 'お気に入り',
-    description: 'お気に入りフレーズに移動',
-    icon: StarIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/favorites' },
-    keywords: ['favorite', 'star', 'お気に入り', 'フレーズ'],
   },
   {
     id: 'nav-kb',

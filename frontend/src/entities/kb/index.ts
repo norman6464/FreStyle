@@ -1,7 +1,11 @@
 export { default as KbRepository } from './api/kbRepository';
 export { default as KbWorkspaceSwitcher } from './ui/KbWorkspaceSwitcher';
 export type { KbWorkspaceSwitcherProps } from './ui/KbWorkspaceSwitcher';
+export { default as KbSpaceTabs } from './ui/KbSpaceTabs';
+export type { KbSpaceTabsProps, KbSpaceTab } from './ui/KbSpaceTabs';
 export { useWorkspaceList } from './model/useWorkspaceList';
+export { useKbSpaceEntry } from './model/useKbSpaceEntry';
+export type { KbSpaceEntryState } from './model/useKbSpaceEntry';
 export { NOTE_NEW_PAGE_TITLE } from './config/constants';
 export { subscribeKbTreeEvents, emitKbTreeEvent } from './model/kbTreeEvents';
 export type { KbTreeEvent } from './model/kbTreeEvents';
@@ -27,6 +31,9 @@ export type {
   KbResolvedCover,
   KbAncestorRef,
   KbGrantRole,
+  KbMySpace,
+  KbSpaceMember,
+  KbFavoritePage,
   KbPageGrant,
   KbGrantablePrincipal,
   KbWorkspaceMember,

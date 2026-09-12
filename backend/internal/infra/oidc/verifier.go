@@ -1,10 +1,7 @@
-// Package oidc は OpenID Connect の発行者と話す部分を閉じ込める。
-// handler 層はこのパッケージだけに依存し、JWKS の取得や JWT の分解といった
-// 低レベルな詳細を知らない。
-//
-// 特定の発行者の名前はここに現れない。設定で渡された
-// issuer と JWKS の URL だけを見る。発行者ごとの癖を推測で埋めると、
-// 発行者を替えたときに黙って壊れる。
+// Package oidc は OpenID Connect の発行者と話す部分を閉じ込める。handler 層はこのパッケージ
+// だけに依存し、JWKS の取得や JWT の分解を知らない。特定の発行者の名前はここに現れず、
+// 設定で渡された issuer と JWKS の URL だけを見る（発行者ごとの癖を推測で埋めると、
+// 発行者を替えたときに黙って壊れる）。
 package oidc
 
 import (
@@ -27,10 +24,8 @@ import (
 	"time"
 )
 
-// Verifier は発行者が署名した JWT を検証する。
-//
-// 署名を確かめずに payload を読むと sub でも役割でも好きに名乗れてしまうので、
-// 保護されたルートの認可より前に必ずここを通す。
+// Verifier は発行者が署名した JWT を検証する。署名を確かめずに payload を読むと sub でも
+// 役割でも好きに名乗れてしまうので、保護されたルートの認可より前に必ずここを通す。
 type Verifier struct {
 	issuer     string
 	jwksURI    string
@@ -41,8 +36,8 @@ type Verifier struct {
 	mu        sync.RWMutex
 	keys      map[string]*rsa.PublicKey
 	fetchedAt time.Time
-	// triedAt は取得を「試みた」時刻。成功だけを記録すると、発行者に届かない間は
-	// 常に stale と判定され、待ち時間の長い取得が全リクエストで直列に並ぶ。
+	// triedAt は取得を試みた時刻。成功だけ記録すると発行者に届かない間ずっと stale 扱いになり、
+	// 待ち時間の長い取得が全リクエストで直列に並んでしまう。
 	triedAt time.Time
 	// refreshMu は JWKS 再取得を 1 本に直列化し、未知 kid 同時多発時のスパイクを防ぐ。
 	refreshMu sync.Mutex
@@ -68,30 +63,24 @@ var (
 
 // Config は Verifier に必要な設定。**どれも空にできない。**
 //
-// 以前は issuer を JWKS の URL から文字列で削って作っていた。ある発行者の
-// `<issuer>/.well-known/jwks.json` という形に依存した推測で、鍵の置き場所が
-// 別の形の発行者（例えば `<issuer>/oauth/v2/keys`）に向けると、削るものが無いので
-// issuer が JWKS の URL のままになり、iss の照合が必ず外れる。
-// 症状は「全ユーザーが 401」で、原因は設定にも見えないところにあった。
+// 以前は issuer を JWKS の URL から文字列で削って作っていた。
+// `<issuer>/.well-known/jwks.json` 形式への推測依存で、別形式（例: `<issuer>/oauth/v2/keys`）の
+// 発行者だと issuer が JWKS URL のまま残り iss 照合が必ず外れる —— 症状は「全ユーザー 401」、
+// 原因は設定にも見えない、という壊れ方をした。
 type Config struct {
 	// Issuer は iss クレームと完全一致していなければならない値。
 	Issuer string
 	// JWKSURI は署名鍵の取得先。
 	JWKSURI string
 	// ClientID はこのアプリの client_id。azp（認可された相手）の照合に使う。
-	//
-	// 発行者によっては client_id という概念自体を持たない（例: GCIP は
-	// プロジェクトIDが aud そのものになり、azp クレームも出さない）。
-	// その場合は空のままでよい —— azp の照合は ClientID が設定されているときだけ行う。
+	// client_id という概念を持たない発行者（GCIP はプロジェクト ID が aud になり azp も出さない）
+	// では空のままでよい —— azp の照合は ClientID が設定されているときだけ行う。
 	ClientID string
-	// Audiences は ClientID に **足して** 受け入れる aud の値。
+	// Audiences は ClientID に **足して** 受け入れる aud の値（発行者によっては access_token の
+	// aud に client_id でなくプロジェクト識別子を入れるため）。
 	//
-	// 発行者によっては access_token の aud に client_id ではなくプロジェクトの
-	// 識別子を入れる。その差を推測ではなく設定で吸収するための項目。
-	//
-	// **ClientID は常に受け入れる**（ここを「置き換え」にしてはいけない）。
-	// id_token の aud は client_id なので、置き換えにすると
-	// 「プロジェクト識別子を設定したらログインが全員落ちる」ことになる。
+	// **ClientID は常に受け入れる**（置き換えにしない）。id_token の aud は client_id なので、
+	// 置き換えにすると「プロジェクト識別子を設定したらログインが全員落ちる」ことになる。
 	Audiences []string
 }
 
@@ -100,9 +89,9 @@ type Config struct {
 // **黙って検証を弱めない。** 設定が足りないときに「検証しない Verifier」を返すと、
 // 設定を書き忘れた環境が、認証が効いているように見えたまま素通しで動く。
 //
-// ClientID と Audiences は少なくとも一方が要る（aud を 1 つも受け入れないと
-// どんなトークンも必ず弾かれる、検証済みかどうか以前の設定ミスになる）。
-// ClientID を持たない発行者（GCIP 等）は Audiences だけで組み立てる。
+// ClientID と Audiences は少なくとも一方が要る（aud を 1 つも受け入れないとどんなトークンも
+// 必ず弾かれ、検証以前の設定ミスになる）。ClientID を持たない発行者（GCIP 等）は
+// Audiences だけで組み立てる。
 func NewVerifier(cfg Config) (*Verifier, error) {
 	if cfg.Issuer == "" {
 		return nil, errors.New("oidc: issuer is required")
@@ -157,10 +146,9 @@ func (v *Verifier) Verify(ctx context.Context, token string) (map[string]any, er
 
 // VerifyIDToken は id_token を検証する。標準クレームに加えて nonce を照合する。
 //
-// nonce は「この応答が、自分が始めた認可の応答か」を確かめるためのもの。
-// 認可を始めた側（ブラウザ）が値を作って手元に置き、戻ってきた id_token の中身と
-// 突き合わせる。攻撃者が自分の認可コードを他人のブラウザに握らせても、
-// その id_token の nonce は被害者が作った値と合わないので弾ける。
+// nonce は「この応答が自分が始めた認可の応答か」を確かめるもの。認可を始めた側が値を作って
+// 手元に置き、戻った id_token と突き合わせる —— 攻撃者が自分の認可コードを他人のブラウザに
+// 握らせても、id_token の nonce は被害者が作った値と合わないので弾ける。
 //
 // expectedNonce が空なら nonce の照合は行わない（nonce を送らない経路のため）。
 func (v *Verifier) VerifyIDToken(ctx context.Context, token, expectedNonce string) (map[string]any, error) {
@@ -241,24 +229,22 @@ func (v *Verifier) verifyStandardClaims(claims map[string]any) error {
 		}
 	}
 
-	// iss は必ず照合する。**空なら飛ばす、という分岐を置かない。**
-	// 置くと、設定を書き忘れた環境が「どの発行者のトークンでも通る」状態になる。
+	// iss は必ず照合する。**空なら飛ばす、という分岐を置かない**（置くと設定を書き忘れた環境が
+	// どの発行者のトークンでも通る状態になる）。
 	if iss, _ := claims["iss"].(string); iss != v.issuer {
 		return ErrJWTBadIssuer
 	}
 
-	// aud は必ず照合する。1 つの発行者が複数のアプリにトークンを出すとき、
-	// iss と署名だけでは「どのアプリ宛か」が区別できない。照合しないと、
-	// 同じ発行者にぶら下がる別のアプリ（管理コンソールを含む）で受け取った
-	// トークンを、そのままこのアプリの Cookie に入れて使えてしまう。
+	// aud は必ず照合する。1 つの発行者が複数アプリにトークンを出すとき iss と署名だけでは
+	// 宛先アプリを区別できず、照合しないと同じ発行者にぶら下がる別アプリ（管理コンソール含む）
+	// 宛のトークンをこのアプリの Cookie に流用されてしまう。
 	if !v.audienceMatches(claims["aud"]) {
 		return ErrJWTBadAudience
 	}
-	// azp があるなら「認可された相手」がこのアプリであることも要求する。
-	// aud に複数入る発行者では、巻き添えで並んでいるだけの aud を弾けない。
-	//
-	// ClientID を持たない発行者（GCIP 等）は比較のしようがないので、この検査自体を行わない
-	// （aud の照合だけで済ませる。GCIP の ID トークンは azp クレームを出さない）。
+	// azp があれば「認可された相手」がこのアプリであることも要求する（aud に複数入る発行者では
+	// 巻き添えで並んでいるだけの aud を aud 照合だけでは弾けないため）。
+	// ClientID を持たない発行者（GCIP 等。ID トークンに azp を出さない）は比較しようがないので
+	// この検査自体を行わず aud の照合だけで済ませる。
 	if v.clientID != "" {
 		if azp, ok := claims["azp"].(string); ok && azp != "" && azp != v.clientID {
 			return ErrJWTBadAudience

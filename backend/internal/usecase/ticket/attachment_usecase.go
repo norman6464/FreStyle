@@ -11,27 +11,21 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// ErrInvalidAttachmentKey は CreateTicketAttachmentUseCase に、そのチケット由来ではない
-// key（tickets/<workspaceId>/<ticketId>/ 接頭辞を持たない）が渡されたときに返す。
-//
-// key はアップロード URL 発行時にサーバーが採番する（IssueTicketAttachmentUploadURLUseCase）。
-// この検査が無いと、別テナントの実在する key を知っている（または推測できた）第三者が、
-// 自分の閲覧できるチケットの添付として登録し、その後ダウンロード URL 発行 経由で他テナントの
-// ファイルを読み出せてしまう — kb ページ画像のダウンロード URL 発行が「別テナントの key は
-// DB 問い合わせより前に弾く」のと同じ防御をここでも要る（あちらは JSON 本文の参照を検査する
-// 前に弾くが、こちらは添付表への INSERT を許す前に弾く）。
+// ErrInvalidAttachmentKey は、そのチケット由来ではない key（tickets/<workspaceId>/<ticketId>/
+// 接頭辞を持たない）が渡されたときに返す。key はアップロード URL 発行時にサーバーが採番する。
+// この検査が無いと、他テナントの実在する key を知る第三者が自分の閲覧できるチケットの添付
+// として登録し、ダウンロード URL 発行経由でそのファイルを読み出せてしまう。
 var ErrInvalidAttachmentKey = errors.New("domain: invalid attachment key")
 
-// ticketAttachmentKeyPrefix はチケット 1 件に閉じた添付 key の接頭辞
-// （"tickets/<workspaceId>/<ticketId>/"）を返す（kbImageKeyPrefix と同じ発想）。
+// ticketAttachmentKeyPrefix は "tickets/<workspaceId>/<ticketId>/" 形式の添付 key 接頭辞を返す
+// （kbImageKeyPrefix と同じ発想）。
 func ticketAttachmentKeyPrefix(workspaceID, ticketID string) string {
 	return "tickets/" + workspaceID + "/" + ticketID + "/"
 }
 
 // IssueTicketAttachmentUploadURLUseCase はチケットに閉じた添付ファイルの PUT presigned URL を
-// 発行する。key は "tickets/<workspaceId>/<ticketId>/<epochNs>.bin" の形で採番する
-// （kb ページ画像と同じ発想 — チケットを名指しする経路なので、後から「どのチケット由来か」が
-// key 自体から分かる形にしてある）。
+// 発行する。key は "tickets/<workspaceId>/<ticketId>/<epochNs>.bin" の形で採番し、key 自体から
+// どのチケット由来か分かるようにする。
 type IssueTicketAttachmentUploadURLUseCase struct {
 	tickets   repository.TicketRepository
 	presigner repository.TicketAttachmentPresigner
@@ -76,9 +70,9 @@ func (u *IssueTicketAttachmentUploadURLUseCase) Execute(
 	return &IssueTicketAttachmentUploadURLOutput{URL: url, Key: key, ExpiresIn: expiresIn}, nil
 }
 
-// CreateTicketAttachmentUseCase はクライアントが presigned URL への PUT を終えたあとに、
-// 添付のメタデータを記録する（アップロード本体を見ないので、Content-Type / サイズは
-// 自己申告を再検証するだけ — 実データの整合は GCS の署名検証が PUT の時点で担う）。
+// CreateTicketAttachmentUseCase は presigned URL への PUT 完了後に添付のメタデータを記録する。
+// アップロード本体は見ないので Content-Type / サイズは自己申告の再検証にとどまる
+// （実データの整合は GCS の署名検証が PUT 時点で担う）。
 type CreateTicketAttachmentUseCase struct {
 	tickets     repository.TicketRepository
 	attachments repository.TicketAttachmentRepository
@@ -142,12 +136,10 @@ func (u *ListTicketAttachmentsUseCase) Execute(ctx context.Context, workspaceID,
 	return u.repo.ListTicketAttachments(ctx, workspaceID, ticketID)
 }
 
-// IssueTicketAttachmentDownloadURLUseCase は添付の GET（ダウンロード）presigned URL を発行する。
-//
-// 添付は ticket_attachments という専用表を持つので、kb ページ画像のような「key の接頭辞で
-// テナント境界を振り分けてから本文を検査する」二段構えは要らない — FindTicketAttachment が
-// (workspace_id, ticket_id, id) で絞るので、見つかった時点でこのチケットの添付だと
-// 確定している（表が無かった kb 側は JSON 本文の中を探すしかなかった）。
+// IssueTicketAttachmentDownloadURLUseCase は添付の GET presigned URL を発行する。専用表
+// ticket_attachments を持つため、kb ページ画像のような「key 接頭辞でテナント境界を振り分けて
+// から検査する」二段構えは不要 — FindTicketAttachment が (workspace_id, ticket_id, id) で絞る
+// ので、見つかった時点でこのチケットの添付だと確定する。
 type IssueTicketAttachmentDownloadURLUseCase struct {
 	repo      repository.TicketAttachmentRepository
 	presigner repository.TicketAttachmentPresigner
@@ -187,9 +179,8 @@ func (u *IssueTicketAttachmentDownloadURLUseCase) Execute(
 	return &IssueTicketAttachmentDownloadURLOutput{URL: url, ExpiresIn: expiresIn}, nil
 }
 
-// DeleteTicketAttachmentUseCase は添付を削除する（本体の Cloud Storage オブジェクトは
-// 消さない — 既存の rich-text / kb 画像アップロードにも削除経路が無く、この段の射程外。
-// 孤児化した GCS オブジェクトはどちらも同じ扱いのまま）。
+// DeleteTicketAttachmentUseCase は添付を削除する。本体の Cloud Storage オブジェクトは消さない
+// （kb 画像アップロードと同じく削除経路が無く、孤児化した GCS オブジェクトは同じ扱いのまま）。
 type DeleteTicketAttachmentUseCase struct {
 	repo repository.TicketAttachmentRepository
 }

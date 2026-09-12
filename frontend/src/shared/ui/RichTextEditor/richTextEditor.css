@@ -24,6 +24,37 @@
   outline: none;
 }
 
+/*
+ * rte-compact: 表示幅が狭い文脈（バックログのチケット本文。サイドパネル・詳細パネルの中で、
+ * ナレッジ本文の 900px 相当より明らかに狭い）向けの一回り小さい見出し・本文サイズ。
+ * Typography（.prose）の既定サイズのままだと、この幅では見出しが大きすぎて折り返しだらけになる。
+ * 見出しの margin は Typography 側が em 指定なので、font-size を縮めるだけで比例して縮む
+ * （:where() で specificity 0 のため、素の要素セレクタで打ち消せる — !important 不要）。
+ */
+.rte-compact .rte-content .ProseMirror h1 {
+  font-size: 24px;
+}
+
+.rte-compact .rte-content .ProseMirror h2 {
+  font-size: 20px;
+}
+
+.rte-compact .rte-content .ProseMirror h3 {
+  font-size: 16px;
+}
+
+.rte-compact .rte-content .ProseMirror h4,
+.rte-compact .rte-content .ProseMirror h5,
+.rte-compact .rte-content .ProseMirror h6 {
+  font-size: 14px;
+}
+
+.rte-compact .rte-content .ProseMirror p,
+.rte-compact .rte-content .ProseMirror li,
+.rte-compact .rte-content .ProseMirror blockquote {
+  font-size: 14px;
+}
+
 /* Placeholder（@tiptap/extensions の Placeholder が空段落へ data-placeholder を付与する）。 */
 .rte-content .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

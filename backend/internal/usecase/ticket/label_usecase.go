@@ -65,8 +65,8 @@ func NewUpdateLabelUseCase(r repository.LabelRepository) *UpdateLabelUseCase {
 
 type UpdateLabelInput struct {
 	WorkspaceID string
-	// SpaceID は呼び出し側が権限を確かめた相手（URL のスペース）。ラベルの所属と
-	// 食い違えば ErrLabelNotFound として拒む（AddTicketLabelUseCase と同じ形）。
+	// SpaceID は呼び出し側が権限を確かめた URL のスペース。ラベルの所属と食い違えば
+	// ErrLabelNotFound として拒む（AddTicketLabelUseCase と同じ形）。
 	SpaceID string
 	LabelID string
 	Name    string
@@ -107,8 +107,7 @@ func NewDeleteLabelUseCase(r repository.LabelRepository) *DeleteLabelUseCase {
 	return &DeleteLabelUseCase{repo: r}
 }
 
-// Execute の spaceID は呼び出し側が権限を確かめた相手（URL のスペース）。
-// ラベルの所属と食い違えば ErrLabelNotFound として拒む。
+// spaceID は呼び出し側が権限を確かめた URL のスペース。食い違えば ErrLabelNotFound で拒む。
 func (u *DeleteLabelUseCase) Execute(ctx context.Context, workspaceID, spaceID, labelID string) error {
 	if workspaceID == "" || spaceID == "" || labelID == "" {
 		return errors.New("workspaceID, spaceID and labelID are required")
@@ -139,11 +138,9 @@ func (u *ListLabelsUseCase) Execute(ctx context.Context, workspaceID, spaceID st
 	return u.repo.ListLabels(ctx, workspaceID, spaceID)
 }
 
-// AddTicketLabelUseCase はチケットにラベルを付ける（付け外しは冪等）。
-//
-// ラベルはスペースごとなので、チケットと違うスペースのラベルを付けようとした場合は
-// repository.ErrLabelNotFound として拒む（「見えない」と「存在しない」を同じ扱いにする
-// 既存の方針 — 他スペースのラベル ID が実在するかどうかをここで漏らさない）。
+// AddTicketLabelUseCase はチケットにラベルを付ける（付け外しは冪等）。ラベルはスペースごとで、
+// チケットと違うスペースのラベルなら repository.ErrLabelNotFound として拒む（他スペースの
+// ラベル ID が実在するかをここで漏らさない、既存の「見えない=存在しない」方針）。
 type AddTicketLabelUseCase struct {
 	labels  repository.LabelRepository
 	tickets repository.TicketRepository
@@ -177,9 +174,9 @@ func (u *AddTicketLabelUseCase) Execute(ctx context.Context, in AddTicketLabelIn
 	return u.labels.AddTicketLabel(ctx, in.WorkspaceID, in.TicketID, in.LabelID)
 }
 
-// RemoveTicketLabelUseCase はチケットからラベルを外す（付いていなくても冪等に成功する。
-// DELETE 自体が workspace_id/ticket_id/label_id で絞るので、他スペースのラベル ID を渡しても
-// 単に 0 行で終わる — Add と違い空間の一致を別途確かめる必要が無い）。
+// RemoveTicketLabelUseCase はチケットからラベルを外す（付いていなくても冪等）。DELETE 自体が
+// workspace_id/ticket_id/label_id で絞るため、他スペースのラベル ID でも単に 0 行で終わり、
+// Add と違いスペースの一致確認は不要。
 type RemoveTicketLabelUseCase struct {
 	repo repository.LabelRepository
 }
@@ -202,8 +199,7 @@ func (u *RemoveTicketLabelUseCase) Execute(ctx context.Context, in RemoveTicketL
 }
 
 // ListLabelsForTicketUseCase はチケット 1 件のラベル一覧を返す（詳細画面向け。一覧画面は
-// handler 側で ListLabelsByTicketIDs をバッチで呼ぶ — GetTicketAssignmentUseCase と
-// respondTicket の関係と同じ分担）。
+// handler が ListLabelsByTicketIDs をバッチで呼ぶ）。
 type ListLabelsForTicketUseCase struct {
 	repo repository.LabelRepository
 }
@@ -220,8 +216,7 @@ func (u *ListLabelsForTicketUseCase) Execute(ctx context.Context, workspaceID, t
 }
 
 // ListLabelsByTicketIDsUseCase は一覧画面向けにチケット ID 群のラベルをまとめて引く
-// （GetTicketAssignmentUseCase 1 件版に対する List の分担と同じ — TicketHandler.List が
-// h.list.Execute の直後に 1 回だけ呼ぶ）。
+// （TicketHandler.List が h.list.Execute の直後に 1 回だけ呼ぶ）。
 type ListLabelsByTicketIDsUseCase struct {
 	repo repository.LabelRepository
 }

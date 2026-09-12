@@ -63,7 +63,7 @@ type CreateCommentThreadParams struct {
 	CreatedByUserID int64
 }
 
-// ページ全体へのコメント（comment_threads / comments）のクエリ。FRESTYLE-432 段 2・段 3。
+// ページ全体へのコメント（comment_threads / comments）のクエリ。
 //
 // 段 3 で block_id / anchor_from / anchor_to / quote への書き込みが加わった。4 つとも
 // NULL（page-level）か、4 つとも値ありのどちらか — その組み合わせの検証は

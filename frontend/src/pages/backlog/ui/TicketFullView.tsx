@@ -206,6 +206,7 @@ export default function TicketFullView({
                   onChange={editor.changeDoc}
                   ariaLabel="チケットの本文"
                   placeholder="本文を書く"
+                  className="rte-compact"
                 />
               </Suspense>
             </TicketSection>

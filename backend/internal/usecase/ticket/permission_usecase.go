@@ -11,14 +11,10 @@ import (
 )
 
 // CheckTicketPermissionUseCase は「このユーザーはこのチケットで何ができるか」に答える。
-//
-// チケットの実効権限はページを介さない「スペース単位」の判定（設計 Ⅳ-H）で、チケット固有の
-// 権限テーブルは持たない。既存の KnowledgeBasePermissionRepository.SpacePermissionFactsForUser
-// をそのまま使い、grant-role の解決 SQL を二重化しない。ここが担うのは
-// 「チケット→そのチケットが属するスペース」の解決（TicketRepository.FindTicket）だけ。
-//
-// チケットが実在しない・別ワークスペースのものは repository.ErrTicketNotFound をそのまま
-// 伝える（handler が 404 にマップする）。権限が無いことと存在しないことを区別しない。
+// チケットの実効権限はスペース単位の判定（設計 Ⅳ-H）で、チケット固有の権限表は持たない —
+// 既存の SpacePermissionFactsForUser をそのまま使い、ここは「チケット→スペース」の解決
+// （FindTicket）だけを担う。チケットが実在しない・別ワークスペースなら
+// repository.ErrTicketNotFound をそのまま伝え、権限が無いことと存在しないことを区別しない。
 type CheckTicketPermissionUseCase struct {
 	tickets repository.TicketRepository
 	perms   repository.KnowledgeBasePermissionRepository
@@ -60,9 +56,8 @@ func (u *CheckTicketPermissionUseCase) Execute(
 	return &perm, nil
 }
 
-// ResolveTicketKeyUseCase は表示キー（例 FRESTYLE-12）から ticket_id を解決する。
-// 分解できない・非実在はどちらも repository.ErrTicketNotFound に畳む
-// （フォーマット違反かどうかで存在の有無が漏れないようにする）。
+// ResolveTicketKeyUseCase は表示キー（例 FRESTYLE-12）から ticket_id を解決する。分解できない・
+// 非実在はどちらも repository.ErrTicketNotFound に畳み、フォーマット違反で存在の有無を漏らさない。
 type ResolveTicketKeyUseCase struct {
 	tickets repository.TicketRepository
 }
@@ -87,12 +82,10 @@ func (u *ResolveTicketKeyUseCase) Execute(ctx context.Context, in ResolveTicketK
 	return u.tickets.ResolveTicketIDByKey(ctx, in.WorkspaceID, spaceKey, number)
 }
 
-// ResolveTicketLocationUseCase は URL の /kb/tickets/{ticketId} から、そのチケットが
-// どのワークスペースに属するかを決める。
-//
-// テナントを確定する前の読み取りなので、**呼び出し側は返ったワークスペースで必ず
-// 権限判定を通してから応答に使うこと**（kb の ResolvePageLocationUseCase と同じ約束）。
-// チケットの ID は全テナントで一意な uuid なので、引くこと自体は越境にならない。
+// ResolveTicketLocationUseCase は URL の /kb/tickets/{ticketId} からチケットの属する
+// ワークスペースを決める。テナント確定前の読み取りなので、呼び出し側は返ったワークスペースで
+// 必ず権限判定を通してから使うこと（kb の ResolvePageLocationUseCase と同じ約束）。ticket_id は
+// 全テナントで一意な uuid なので、引くこと自体は越境にならない。
 type ResolveTicketLocationUseCase struct {
 	tickets    repository.TicketRepository
 	workspaces repository.KnowledgeBaseRepository
@@ -122,9 +115,8 @@ func (u *ResolveTicketLocationUseCase) Execute(ctx context.Context, ticketID str
 	if err != nil {
 		return nil, err
 	}
-	// 停止中のワークスペースは無いものとして扱う。slug の経路は解決の入口
-	// （ResolveWorkspaceUseCase）が同じ判定をしているが、この id の経路はそこを通らない。
-	// ここで見ないと、停止しても id さえ控えていれば読み続けられる。
+	// 停止中のワークスペースは無いものとして扱う。slug 経路（ResolveWorkspaceUseCase）と同じ判定だが
+	// この id 経路はそこを通らないため、ここで見ないと停止後も id 経由で読み続けられてしまう。
 	if !ws.IsActive {
 		return nil, repository.ErrTicketNotFound
 	}

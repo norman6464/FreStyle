@@ -69,9 +69,8 @@ func (u *CreateTicketUseCase) Execute(ctx context.Context, in CreateTicketInput)
 		return nil, err
 	}
 
-	// tickets.position（NOT NULL 制約を満たすためだけの列。段 2 以降は読み手が居ない）と
-	// ticket_ranks.position（並び順の正本）は、移行時点の値こそ揃うが、以後の Move は
-	// ticket_ranks だけを更新するので独立した 2 つの列として計算する（設計 Ⅳ-F）。
+	// tickets.position（NOT NULL を満たすためだけの列。以後読み手が居ない）と ticket_ranks.position
+	// （並び順の正本）は独立に計算する — 以後の Move は ticket_ranks だけを更新するため（設計 Ⅳ-F）。
 	last, err := u.repo.LastActiveTicketPosition(ctx, in.WorkspaceID, in.SpaceID)
 	if err != nil {
 		return nil, err
@@ -123,16 +122,15 @@ func (u *CreateTicketUseCase) Execute(ctx context.Context, in CreateTicketInput)
 		return nil, err
 	}
 
-	// ticket_ranks へ並び順の正本を作る（設計 Ⅳ-F）。created.Position を rankPos で
-	// 上書きするのは、以後の GetTicket が返す position（ticket_ranks 由来）と作成直後の
-	// 応答を一致させるため。
+	// ticket_ranks へ並び順の正本を作る（設計 Ⅳ-F）。created.Position を rankPos で上書きするのは
+	// GetTicket が返す position（ticket_ranks 由来）と作成直後の応答を一致させるため。
 	if err := u.repo.InsertTicketRank(ctx, in.WorkspaceID, created.ID, rankPos); err != nil {
 		return nil, err
 	}
 	created.Position = rankPos
 
-	// ticket_paths（閉包表。段 5）: 自己参照行（depth=0）は常に張る。親があれば
-	// 親の祖先集合を +1 して引き継ぐ（page_paths の CreatePage と同じ順序・同じ考え方）。
+	// ticket_paths（閉包表・段 5）: 自己参照行（depth=0）は常に張り、親があれば祖先集合を +1 して
+	// 引き継ぐ（page_paths の CreatePage と同じ考え方）。
 	if err := u.repo.InsertTicketPathSelf(ctx, in.WorkspaceID, created.ID); err != nil {
 		return nil, err
 	}
@@ -142,8 +140,8 @@ func (u *CreateTicketUseCase) Execute(ctx context.Context, in CreateTicketInput)
 		}
 	}
 
-	// 派生表（本文からの参照）は作成直後に張る。空スライスでも Replace を呼ぶことで
-	// 「参照 0 件」を明示し、後続の UpdateTicket と同じ経路に揃える。
+	// 派生表（本文からの参照）は作成直後に張る。空スライスでも Replace を呼び「参照 0 件」を明示し、
+	// UpdateTicket と同じ経路に揃える。
 	if err := u.repo.ReplaceTicketPageLinks(ctx, in.WorkspaceID, created.ID, pageIDs); err != nil {
 		return nil, err
 	}
@@ -182,8 +180,8 @@ func (u *CreateTicketUseCase) validateParent(
 		return err
 	}
 	if parent.SpaceID != spaceID {
-		// スペースをまたぐ親子は作れない（ページの木と同じ方針）。存在しない ID と
-		// 同じ応答に畳み、どちらだったかを漏らさない。
+		// スペースをまたぐ親子は作れない。存在しない ID と同じ応答に畳み、どちらだったかを
+		// 漏らさない（ページの木と同じ方針）。
 		return repository.ErrTicketNotFound
 	}
 	parentType, err := u.repo.FindTicketType(ctx, workspaceID, spaceID, parent.TypeID)

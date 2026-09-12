@@ -11,18 +11,15 @@ import (
 
 // PageTemplateHandler はページの雛形（page_templates）操作を受ける。
 //
-// 認可の方針: 雛形はワークスペース全体で共有される資産なので、作成・削除は
-// ワークスペースレベルの CanEdit（CheckWorkspacePermissionUseCase 経由）で判定する
-// （CreateSpace の CanManage 判定と同じパターンで、揃える段だけ CanEdit にする）。
-// 一覧はワークスペース所属者なら誰でも読める（IsWorkspaceMemberUseCase）。
-// 「雛形から作る」（実際にページを作る操作）は既存のページ作成（KnowledgeBasePageHandler.Create）
-// と全く同じ認可分岐——親の有無で requireSpacePermission / requirePagePermission を切り替える。
+// 認可: 雛形はワークスペース全体で共有される資産なので、作成・削除はワークスペースレベルの
+// CanEdit で判定する（CreateSpace の CanManage 判定と同じパターン）。一覧は所属者なら誰でも
+// 読める。「雛形から作る」は既存のページ作成と同じ分岐——親の有無で requireSpacePermission /
+// requirePagePermission を切り替える。
 //
-// ここまでは handler の役割。**特定のスペースに限定した雛形**（PageTemplate.SpaceID != nil）
-// については、この handler の判定だけでは足りない — ワークスペース全体への CanEdit や
-// 作成先の場所への権限は、雛形自身がひも付く非公開スペースを見てよいかとは別物のため、
-// 一覧の spaceId 絞り込み・作成・削除・使用のそれぞれで usecase 側が対象スペースへの
-// CanView を追加で確かめる（kb.ListPageTemplatesUseCase 等の doc コメント参照）。
+// 特定スペースに限定した雛形（PageTemplate.SpaceID != nil）は、この handler の判定だけでは
+// 足りない。ワークスペース全体への CanEdit は雛形自身がひも付く非公開スペースを見てよいかとは
+// 別物なので、一覧の絞り込み・作成・削除・使用それぞれで usecase 側が対象スペースへの CanView
+// を追加で確かめる（kb.ListPageTemplatesUseCase 等の doc 参照）。
 type PageTemplateHandler struct {
 	isMember       *kb.IsWorkspaceMemberUseCase
 	checkWorkspace *kb.CheckWorkspacePermissionUseCase
@@ -34,7 +31,6 @@ type PageTemplateHandler struct {
 	createPage     *kb.CreatePageFromTemplateUseCase
 }
 
-// NewPageTemplateHandler は PageTemplateHandler を組み立てる。
 func NewPageTemplateHandler(
 	isMember *kb.IsWorkspaceMemberUseCase,
 	checkWorkspace *kb.CheckWorkspacePermissionUseCase,
@@ -57,9 +53,7 @@ func NewPageTemplateHandler(
 	}
 }
 
-// kbPageTemplateResponse は雛形 1 件の返却形。doc は含まない（一覧・作成の応答を軽量に保つ。
-// 使うときは CreatePage の応答が既存の kbPageResponse と同じ形で返るので、フロントは
-// 別途 GET で本文を取りに行く前提——KnowledgeBasePageHandler.Create と同じ応答契約）。
+// kbPageTemplateResponse は雛形 1 件の返却形。doc は含まない（一覧・作成の応答を軽量に保つ）。
 type kbPageTemplateResponse struct {
 	ID        string              `json:"id"                example:"0198a000-0000-7000-8000-000000000010"`
 	Name      string              `json:"name"               example:"議事録"`
@@ -87,8 +81,8 @@ func (h *PageTemplateHandler) requireWorkspaceMember(c *gin.Context, scope kbReq
 		return false
 	}
 	if !ok {
-		// ここに来る相手は middleware.KnowledgeBaseWorkspace を通過済み（= 所属者）が
-		// 前提のため、通常は起こらない。フェイルクローズ側に倒す。
+		// 通常は起こらない（middleware.KnowledgeBaseWorkspace 通過済み = 所属者が前提）が、
+		// フェイルクローズ側に倒す。
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return false
 	}
@@ -150,9 +144,8 @@ type kbCreateTemplateRequest struct {
 	SpaceID *string `json:"spaceId,omitempty" example:"0198a000-0000-7000-8000-000000000002"`
 }
 
-// CreateFromPage はページの今の本文を雛形として保存する。
-// そのページ自体を編集できること（requirePagePermission）と、ワークスペース全体への
-// 書き込み資格（CanEdit）の両方を満たさないと 403 になる。
+// CreateFromPage はページの今の本文を雛形として保存する。ページ自体を編集できることと、
+// ワークスペース全体への CanEdit の両方を満たさないと 403 になる。
 func (h *PageTemplateHandler) CreateFromPage(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -214,9 +207,8 @@ type kbCreatePageFromTemplateRequest struct {
 	Title    string `json:"title"    binding:"required,max=200" example:"設計メモ"`
 }
 
-// CreatePage は雛形から新しいページを作る。認可分岐は既存の Create（kb_page_handler.go）と
-// 全く同じ——parentId が空ならそのスペースの編集権限、あればその親ページの編集権限を見る
-// （雛形そのものへの権限は問わない。テンプレート一覧を読めた時点でどの雛形かは分かっている）。
+// CreatePage は雛形から新しいページを作る。認可分岐は既存の Create と同じ——parentId が
+// 空ならそのスペースの編集権限、あればその親ページの編集権限を見る（雛形自体への権限は問わない）。
 func (h *PageTemplateHandler) CreatePage(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

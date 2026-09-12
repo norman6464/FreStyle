@@ -151,10 +151,10 @@ export default function KbPageRow({
         event.preventDefault();
         setContextOpenSignal((prev) => prev + 1);
       }}
-      className={`group flex items-center gap-1 rounded-md pr-1 transition-colors ${
-        // いま開いている行は**背景と字の太さ**で示す。文字色まで変えると、行の中の
+      className={`group flex items-center gap-1 rounded-md border-l-2 pr-1 transition-colors ${
+        // いま開いている行は**背景と字の太さ・左罫**で示す。文字色まで変えると、行の中の
         // 操作メニューまで色を継ぎ、木全体が青く見える（文字は黒で揃える）。
-        active ? 'bg-brand-500/10' : 'hover:bg-surface-2'
+        active ? 'border-brand-400 bg-brand-500/10' : 'border-transparent hover:bg-surface-2'
       } ${dragging ? 'opacity-60' : ''} ${dropClass}`}
       style={{ paddingLeft: depth * KB_INDENT_PX }}
     >

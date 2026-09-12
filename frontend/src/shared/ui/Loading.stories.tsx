@@ -38,7 +38,7 @@ export const 大きさ: Story = {
 
 /** 待たせる理由を添える。長く待たせるときほど効く。 */
 export const 文言つき: Story = {
-  args: { size: 'large', message: '演習を読み込んでいます…' },
+  args: { size: 'large', message: 'ページを読み込んでいます…' },
 };
 
 /**

@@ -1,11 +1,27 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '@/entities/user/model/authSlice';
 import { ToastProvider } from '@/app/providers/ToastProvider';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
 import Header from '../ui/Header';
+
+// この環境の jsdom は localStorage を提供しないため、既存テストと同じ流儀でスタブする
+// （usePanelMode.test.ts 等と同様）。Header は notePanel（frestyle.panel.note）を
+// 内部で読むため、これが無いと参照時に例外になる。
+function createMockStorage(): Storage {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+    removeItem: vi.fn((key: string) => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
+    get length() { return Object.keys(store).length; },
+    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
+  };
+}
 
 vi.mock('@/entities/user/api/profileRepository', () => ({
   default: {
@@ -23,7 +39,7 @@ vi.mock('@/entities/notification/api/notificationRepository', () => ({
   },
 }));
 
-function renderHeader(onOpenSearch = vi.fn()) {
+function renderHeader(onOpenSearch = vi.fn(), initialPath = '/') {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: { auth: { isAuthenticated: true, loading: false } },
@@ -31,7 +47,7 @@ function renderHeader(onOpenSearch = vi.fn()) {
   return render(
     <Provider store={store}>
       <ToastProvider>
-        <MemoryRouter initialEntries={['/']}>
+        <MemoryRouter initialEntries={[initialPath]}>
           <Header onOpenSearch={onOpenSearch} />
         </MemoryRouter>
       </ToastProvider>
@@ -40,7 +56,14 @@ function renderHeader(onOpenSearch = vi.fn()) {
 }
 
 describe('Header', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('localStorage', createMockStorage());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('検索ボタンを押すと onOpenSearch を呼ぶ', () => {
     const onOpenSearch = vi.fn();
@@ -89,5 +112,70 @@ describe('Header', () => {
     fireEvent.click(userButton);
     expect(screen.getByRole('button', { name: '設定' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument();
+  });
+
+  describe('サイドバーの固定表示 / 一時表示を切り替えるボタン', () => {
+    it('一時表示のときは☰（サイドバーを固定表示する）を出す', () => {
+      localStorage.setItem('frestyle.panel.note', JSON.stringify('collapsed'));
+      renderHeader(vi.fn(), '/kb');
+      expect(screen.getByRole('button', { name: 'サイドバーを固定表示する' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'サイドバーを閉じる' })).not.toBeInTheDocument();
+    });
+
+    it('固定表示のときも消えず、✕（サイドバーを閉じる）に変わる', () => {
+      localStorage.setItem('frestyle.panel.note', JSON.stringify('pinned'));
+      renderHeader(vi.fn(), '/kb');
+      expect(screen.getByRole('button', { name: 'サイドバーを閉じる' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'サイドバーを固定表示する' })).not.toBeInTheDocument();
+    });
+
+    it('サイドバーの無いページ（チケット詳細等）では出さない', () => {
+      localStorage.setItem('frestyle.panel.note', JSON.stringify('collapsed'));
+      renderHeader(vi.fn(), '/kb/tickets/t-1');
+      expect(screen.queryByRole('button', { name: 'サイドバーを固定表示する' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'サイドバーを閉じる' })).not.toBeInTheDocument();
+    });
+
+    it('一時表示中にクリックすると固定表示に切り替わり、アイコン（ラベル）が✕に変わる', () => {
+      localStorage.setItem('frestyle.panel.note', JSON.stringify('collapsed'));
+      renderHeader(vi.fn(), '/kb');
+      fireEvent.click(screen.getByRole('button', { name: 'サイドバーを固定表示する' }));
+      expect(screen.getByRole('button', { name: 'サイドバーを閉じる' })).toBeInTheDocument();
+      expect(JSON.parse(localStorage.getItem('frestyle.panel.note')!)).toBe('pinned');
+    });
+
+    it('固定表示中にクリックすると一時表示に切り替わり、アイコン（ラベル）が☰に変わる', () => {
+      localStorage.setItem('frestyle.panel.note', JSON.stringify('pinned'));
+      renderHeader(vi.fn(), '/kb');
+      fireEvent.click(screen.getByRole('button', { name: 'サイドバーを閉じる' }));
+      expect(screen.getByRole('button', { name: 'サイドバーを固定表示する' })).toBeInTheDocument();
+      expect(JSON.parse(localStorage.getItem('frestyle.panel.note')!)).toBe('collapsed');
+    });
+
+    it('ボタンにポインタが乗ると、同じ storageKey のサイドバー本体側オーバーレイも即座に浮く', () => {
+      localStorage.setItem('frestyle.panel.note', JSON.stringify('collapsed'));
+      const store = configureStore({
+        reducer: { auth: authReducer },
+        preloadedState: { auth: { isAuthenticated: true, loading: false } },
+      });
+      const { container } = render(
+        <Provider store={store}>
+          <ToastProvider>
+            <MemoryRouter initialEntries={['/kb']}>
+              <Header onOpenSearch={vi.fn()} />
+              <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note">
+                <p>一覧の中身</p>
+              </SecondaryPanel>
+            </MemoryRouter>
+          </ToastProvider>
+        </Provider>,
+      );
+      // 同じラベルのボタンがヘッダー（先頭）と本体オーバーレイ内部の両方にある。
+      const headerTrigger = screen.getAllByRole('button', { name: 'サイドバーを固定表示する' })[0];
+      fireEvent.mouseEnter(headerTrigger);
+      const overlay = container.querySelector('.rounded-r-xl');
+      expect(overlay?.className).toContain('translate-x-0');
+      expect(overlay?.className).not.toContain('pointer-events-none');
+    });
   });
 });

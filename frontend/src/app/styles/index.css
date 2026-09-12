@@ -356,6 +356,34 @@
   }
 }
 
+/*
+ * サイドバー（SecondaryPanel）を一時表示 → 固定表示へ切り替えたときの入場アニメーション。
+ * 固定表示は通常の flex 子として幅を占有するため、幅や position を動かすと本文の再
+ * レイアウトも同時に動いてジャンプして見える。opacity + transform(translateX) だけを
+ * 動かせばレイアウトを乱さずに「滑り込んで馴染む」見え方になる。一時表示のオーバーレイ
+ * 自体の出現（SecondaryPanel.tsx の transition-all duration-200 ease-out）と歩調を揃える。
+ */
+@keyframes panel-pin-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-panel-pin {
+  animation: panel-pin-in 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-panel-pin {
+    animation-duration: 0.01ms;
+  }
+}
+
 @layer base {
   /*
    * 外側スクロールバー (Chrome ブラウザ標準) と内側スクロールバー (AppShell の <main>)

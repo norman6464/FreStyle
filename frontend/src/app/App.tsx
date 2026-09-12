@@ -35,8 +35,23 @@ const KbMembersPage = lazyWithReload(
   () => import('@/pages/kb-members').then((m) => ({ default: m.KbMembersPage })),
   'KbMembersPage',
 );
+const KbSpaceOverviewPage = lazyWithReload(
+  () => import('@/pages/kb-space-overview').then((m) => ({ default: m.KbSpaceOverviewPage })),
+  'KbSpaceOverviewPage',
+);
+const KbSpaceAllPagesPage = lazyWithReload(
+  () => import('@/pages/kb-space-pages').then((m) => ({ default: m.KbSpaceAllPagesPage })),
+  'KbSpaceAllPagesPage',
+);
+const KbSpaceFavoritesPage = lazyWithReload(
+  () => import('@/pages/kb-space-favorites').then((m) => ({ default: m.KbSpaceFavoritesPage })),
+  'KbSpaceFavoritesPage',
+);
+const KbSpaceMembersPage = lazyWithReload(
+  () => import('@/pages/kb-space-members').then((m) => ({ default: m.KbSpaceMembersPage })),
+  'KbSpaceMembersPage',
+);
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
-const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
 const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
@@ -119,8 +134,17 @@ export default function App() {
         {/* メンバー管理（段 7）。role 変更・停止 / 復帰・削除。ワークスペース自体の設定なので
             /kb/{pageId} と違い workspaceSlug を URL に出す（backlog の :spaceId と同じ判断）。 */}
         <Route path="/kb/:workspaceSlug/members" element={<KbMembersPage />} />
+        {/*
+          スペース単位の 4 画面（段14）。/kb/backlog と同じ「workspaceSlug を URL に持たず
+          spaceId だけで解決する」流儀。/kb/spaces はスペース未選択の入口（自分がアクセス
+          できる最初のスペースへ移す）を兼ねる。
+        */}
+        <Route path="/kb/spaces" element={<KbSpaceOverviewPage />} />
+        <Route path="/kb/spaces/:spaceId" element={<KbSpaceOverviewPage />} />
+        <Route path="/kb/spaces/:spaceId/pages" element={<KbSpaceAllPagesPage />} />
+        <Route path="/kb/spaces/:spaceId/favorites" element={<KbSpaceFavoritesPage />} />
+        <Route path="/kb/spaces/:spaceId/members" element={<KbSpaceMembersPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
-        <Route path="/help" element={<HelpPage />} />
       </Route>
 
       {/* どのルートにも一致しない URL の受け皿。

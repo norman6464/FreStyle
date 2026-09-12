@@ -16,12 +16,9 @@ import (
 )
 
 // KnowledgeBaseShareLinkHandler はページの公開 URL（共有リンク）の発行・一覧・失効と、
-// 受け取った側の検証を受ける。
-//
-// 発行・一覧・失効は認証必須でページの属するスペースの admin だけが通る。
-// 検証（Verify）だけは未認証で通す — リンクを受け取った人はログインしていない。
-// 認可の形が 1 つだけ違うので、ルート登録も認証済み group の外に置く
-// （routes_knowledge_base.go の registerKnowledgeBasePublicRoutes）。
+// 受け取った側の検証を受ける。発行・一覧・失効は認証必須でページの属するスペースの admin
+// だけが通る。検証（Verify）だけは未認証で通す — リンクを受け取った人はログインしていない
+// ため、ルート登録も認証済み group の外に置く（routes_knowledge_base.go）。
 type KnowledgeBaseShareLinkHandler struct {
 	*kbPermissionGate
 	issue  *kb.IssueShareLinkUseCase
@@ -32,8 +29,6 @@ type KnowledgeBaseShareLinkHandler struct {
 	verifyAttempts *ratelimit.Limiter
 }
 
-// NewKnowledgeBaseShareLinkHandler は KnowledgeBaseShareLinkHandler を組み立てる。
-// verifyAttempts はリンク 1 本あたりの検証試行を絞る limiter（VerifyShareLink だけが使う）。
 func NewKnowledgeBaseShareLinkHandler(
 	gate *kbPermissionGate,
 	issue *kb.IssueShareLinkUseCase,
@@ -54,40 +49,26 @@ func NewKnowledgeBaseShareLinkHandler(
 
 // kbShareLinkAttemptKey は共有リンクの検証回数を数えるときの鍵を作る。
 //
-// # なぜ IP ではなくトークンを鍵にするのか
+// 鍵は IP ではなくトークンにする。パスワードは人が選ぶ短い値で総当たりに弱く、鍵に IP を
+// 選ぶと家庭・オフィスの NAT の裏にいる無関係な複数人が同じ鍵を共有してしまう（RealClientIP
+// で詐称は防いでいても、IP が「1 人」を表すとは限らない）。守りたいのは「このリンクの
+// パスワードを当てられないこと」なので、鍵は守る対象そのもの＝リンクに取る。IP 単位の
+// 上限はルート側に別で残すが、あれは素直な大量アクセスを薄める層でしかなく秘密を守る
+// 根拠にはしない。
 //
-// パスワード付きリンクのパスワードは人が選ぶ短い値で、総当たりに弱い。それを抑える上限の
-// 鍵に IP を選ぶと、家庭・オフィスの NAT の裏にいる無関係な複数人が同じ鍵を共有してしまう
-// （RealClientIP（middleware/client_ip.go）で詐称そのものは防いでいるが、IP が「1 人」を
-// 表すとは限らない値であること自体は変わらない）。
-//
-// 守りたいのは「このリンクのパスワードを当てられないこと」なので、鍵は**守る対象そのもの**、
-// すなわちリンクに取る。こうすると同じ IP の裏に何人いても、リンク 1 本あたりの試行回数は
-// 必ず頭打ちになる。IP 単位の上限はルート側に残してあるが、あれは素直な大量アクセスを
-// 薄める層でしかなく、秘密を守る根拠にはしない。
-//
-// # なぜトークンそのものではなくハッシュを鍵にするのか
-//
-// 鍵は limiter の map にしばらく残る。平文トークンを置くと、その map を読めた相手が
-// そのままリンクを開ける。ハッシュなら鍵からリンクは開けない。
-//
-// # なぜ保存されているハッシュ（SHA-256 そのもの）と別の値にするのか
-//
-// 前置きの文字列を混ぜて、share_links.token_hash と一致しない値にしてある。
-// 一致させると、メモリ上の鍵がそのまま DB を引ける値になる（鍵は照合に使うだけで、
-// DB と同じである必要はない）。用途が違う値は別の値にしておく。
+// トークンそのものではなくハッシュを鍵にするのは、limiter の map に平文トークンを残すと
+// それを読めた相手がそのままリンクを開けてしまうため。さらに保存済みハッシュ（token_hash）
+// とも違う値にするため前置き文字列を混ぜている — 一致させるとメモリ上の鍵がそのまま DB を
+// 引ける値になる。
 func kbShareLinkAttemptKey(token string) string {
 	sum := sha256.Sum256([]byte("kb-share-link-verify\x00" + token))
 	return hex.EncodeToString(sum[:])
 }
 
-// kbShareLinkResponse は共有リンク 1 件の返却形。
-//
-// トークンは載せない。domain.ShareLink が持つのは SHA-256（TokenHash）だけで、
-// それ自体 json:"-" で隠してあるが、この応答型を別に定義することで
-// 「domain の構造体をそのまま返したらいつの間にか秘密が増えていた」という事故を防ぐ。
-// principalId も載せない（リンクの来訪者を表す内部の主体で、クライアントは使わない）。
-// パスワードは有無だけを載せる（入力欄を出すかの判断に要るが、値は出さない）。
+// kbShareLinkResponse は共有リンク 1 件の返却形。トークンは載せない — domain.ShareLink が
+// 持つ SHA-256（TokenHash）は json:"-" 済みだが、応答型を別に定義することで「domain をそのまま
+// 返したら秘密が増えていた」という事故を防ぐ。principalId も載せない（クライアントは使わない
+// 内部主体）。パスワードは有無だけ載せ、値は出さない。
 type kbShareLinkResponse struct {
 	ID     string `json:"id"     example:"0198a000-0000-7000-8000-00000000000c"`
 	PageID string `json:"pageId" example:"0198a000-0000-7000-8000-000000000003"`
@@ -114,11 +95,8 @@ func toKbShareLinkResponse(l *domain.ShareLink) kbShareLinkResponse {
 	}
 }
 
-// kbIssuedShareLinkResponse は発行直後だけ返る形。
-//
-// token は平文で、返るのはこの 1 回だけ（DB には SHA-256 しか残らない）。
-// 失うと同じリンクは二度と取り出せず再発行になる。一覧（kbShareLinkResponse）には
-// 出ないので、発行時の応答をそのまま保存する運用にしないこと。
+// kbIssuedShareLinkResponse は発行直後だけ返る形。token は平文で返るのはこの 1 回だけ
+// （DB には SHA-256 しか残らない）。失うと同じリンクは二度と取り出せず再発行になる。
 type kbIssuedShareLinkResponse struct {
 	Link kbShareLinkResponse `json:"link"`
 	// Token は共有 URL に載せる平文トークン。
@@ -143,12 +121,8 @@ type kbIssueShareLinkRequest struct {
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 }
 
-// kbVerifyShareLinkRequest は共有リンク検証の入力。
-//
-// トークンをクエリや path ではなくボディで受けるのは、URL に載せると
-// アクセスログ・プロキシのログ・ブラウザの履歴・Referer に平文で残るため。
-// このリポジトリのアクセスログは c.FullPath()（ルートのパターン）しか出さないので、
-// ボディで受ける限りトークンはどこにも記録されない。
+// kbVerifyShareLinkRequest は共有リンク検証の入力。トークンをクエリや path ではなくボディで
+// 受けるのは、URL に載せるとアクセスログ・プロキシのログ・履歴・Referer に平文で残るため。
 type kbVerifyShareLinkRequest struct {
 	Token string `json:"token" binding:"required"`
 	// Password はパスワード付きリンクのときに要る。
@@ -225,10 +199,10 @@ func (h *KnowledgeBaseShareLinkHandler) RevokeShareLink(c *gin.Context) {
 		return
 	}
 	shareLinkID := c.Param("shareLinkId")
-	// 認可はページ（が属するスペース）で判断しているので、リンクが本当にそのページの
-	// ものかをここで必ず確かめる。確かめないと、自分が admin のスペースのページ ID と
-	// 他スペースのリンク ID を組み合わせるだけで、他スペースの共有リンクを止められる
-	// （RevokeShareLinkUseCase はワークスペースとリンク ID しか見ない）。
+	// 認可はページ単位で判断しているので、リンクが本当にそのページのものかを必ず確かめる。
+	// 確かめないと、自分が admin のスペースのページ ID と他スペースのリンク ID を
+	// 組み合わせるだけで、他スペースの共有リンクを止められる（RevokeShareLinkUseCase は
+	// ワークスペースとリンク ID しか見ない）。
 	links, err := h.list.Execute(c.Request.Context(), kb.ListPageShareLinksInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
@@ -267,9 +241,8 @@ func (h *KnowledgeBaseShareLinkHandler) VerifyShareLink(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// リンク 1 本あたりの試行回数を、判定より**前に** 1 つ消費する。あとから数えると、
-	// bcrypt の照合を待つあいだに並んだ要求が全部素通りしてしまう（並列化されると
-	// 上限が意味を失う）。鍵の作り方と「なぜ IP ではないのか」は kbShareLinkAttemptKey を参照。
+	// 試行回数は判定より前に消費する。あとから数えると bcrypt の照合待ちの間に並んだ要求が
+	// 全部素通りしてしまう（鍵の作り方は kbShareLinkAttemptKey を参照）。
 	attemptKey := kbShareLinkAttemptKey(req.Token)
 	if !h.verifyAttempts.Allow(attemptKey) {
 		middleware.RespondRateLimited(c)
@@ -281,11 +254,9 @@ func (h *KnowledgeBaseShareLinkHandler) VerifyShareLink(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrShareLinkNotFound) {
-			// そのトークンのリンクは無かった。守る対象が無いので鍵ごと捨てる。
-			// 残すと、でたらめなトークンを投げ続けるだけで limiter の中身を攻撃者に
-			// 好きなだけ太らせられる（トークンは要求ごとに変えられる）。
-			// パスワードの総当たりには実在するトークンが要る（256 bit の乱数は当てられない）ので、
-			// ここを数えないことで守りが緩むことはない。
+			// 守る対象が無いので鍵ごと捨てる。残すと、でたらめなトークンを投げ続けるだけで
+			// limiter の中身を太らせられる。パスワードの総当たりには実在するトークン（256 bit
+			// の乱数、当てられない）が要るので、ここを数えないことで守りが緩むことはない。
 			h.verifyAttempts.Forget(attemptKey)
 		}
 		respondKbShareLinkVerifyErr(c, err)
@@ -310,20 +281,14 @@ func respondKbShareLinkIssueErr(c *gin.Context, err error) {
 
 // respondKbShareLinkVerifyErr は検証時のエラーを応答へ落とす。
 //
-// ここだけは理由ごとに撃ち分ける。ほかの権限操作 API が 404 に揃えるのは
-// 「ID を総当たりして対象の実在を数え上げられる」ことを防ぐためだが、共有リンクの
-// トークンは 256 bit の乱数（推測は現実的でない）で、それを提示できている相手は
-// そのリンクを渡された本人。「期限が切れているので再発行を頼む」「パスワードが違う」を
-// 区別できないと、受け取った側が次に何をすればよいか分からない。
+// ここだけは理由ごとに撃ち分ける。他の権限操作 API が 404 に揃えるのは ID の総当たりで
+// 実在を数え上げられるのを防ぐためだが、共有リンクのトークンは 256 bit の乱数で、
+// それを提示できる相手はリンクを渡された本人。「期限切れなので再発行」「パスワードが違う」を
+// 区別できないと次に何をすべきか分からない。
 //
-// パスワードは人が選ぶ短い値で総当たりに弱いので、撃ち分けを許すぶんの担保として
-// **リンク 1 本あたりの試行回数**に上限をかけている（VerifyShareLink 本体と
-// kbShareLinkAttemptKey を参照）。鍵はリンクなので、要求元の IP をいくら変えても
-// 同じリンクへの試行は必ず頭打ちになる。
-//
-// ルート登録側にも IP 単位の上限があるが、あちらは素直な大量アクセスを薄める層でしかない
-// （XFF を詐称すれば鍵が変わる）。**撃ち分けを許してよい根拠はこちらの上限**であって、
-// あちらではない。対策がこの関数の外にあることに注意。
+// 撃ち分けを許してよい根拠は、リンク 1 本あたりの試行回数の上限（VerifyShareLink /
+// kbShareLinkAttemptKey）であって、ルート登録側の IP 単位の上限（XFF 詐称で鍵が変わる、
+// 素直な大量アクセスを薄める層でしかない）ではない。
 func respondKbShareLinkVerifyErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, repository.ErrShareLinkNotFound):

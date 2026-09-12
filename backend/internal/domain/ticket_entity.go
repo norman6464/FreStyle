@@ -8,33 +8,32 @@ import (
 // Ticket はチケット（仕事 1 件を追いかける記録）本体。
 //
 // 表示キー（例 FRESTYLE-12）は保存しない派生値（FormatTicketKey が SpaceKey と Number から
-// 組み立てる）。SpaceKey はこの構造体には無く、呼び出し側（usecase/handler）が
-// spaces.key と組み合わせて表示キーへ変換する（Page が SpaceID しか持たず Space 情報を
-// 別に引くのと同じ分担）。
+// 組み立てる）。SpaceKey はこの構造体には無く、呼び出し側が spaces.key と組み合わせて
+// 表示キーへ変換する（Page が SpaceID しか持たず Space 情報を別に引くのと同じ分担）。
 //
-// 本文（Doc）は ProseMirror の doc をそのまま jsonb で持つ（blocks には分解しない。
-// 設計 Ⅳ-E）。PlainText は pageRef / ticketRef の属性を含まない検索用の写しで、
-// 本文保存のたびに usecase が作り直す派生値。
+// 本文（Doc）は ProseMirror の doc をそのまま jsonb で持つ（blocks には分解しない。設計 Ⅳ-E）。
+// PlainText は pageRef / ticketRef の属性を含まない検索用の写しで、本文保存のたびに usecase が
+// 作り直す派生値。
 type Ticket struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspaceId"`
 	SpaceID     string `json:"spaceId"`
-	// Number はスペース内で一意な連番。表示キーの一部（FormatTicketKey で組み立てる）。
-	// 直接 INSERT せず、必ず採番 CTE（CreateTicket クエリ）を経由する。
+	// Number はスペース内で一意な連番。表示キーの一部。直接 INSERT せず、必ず採番 CTE
+	// （CreateTicket クエリ）を経由する。
 	Number   int64  `json:"number"`
 	TypeID   string `json:"typeId"`
 	StatusID string `json:"statusId"`
-	// ParentID は親チケット。NULL はトップレベル。同じスペースのチケットに限る
-	// （DB の複合 FK）。階層規則（設計 Ⅳ-D）は ValidateTicketParentChild が持つ。
+	// ParentID は親チケット。NULL はトップレベル。同じスペースのチケットに限る（DB の複合 FK）。
+	// 階層規則（設計 Ⅳ-D）は ValidateTicketParentChild が持つ。
 	ParentID *string         `json:"parentId,omitempty"`
 	Title    string          `json:"title"`
 	Doc      json.RawMessage `json:"doc"`
-	// PlainText は一覧・検索の派生値。API では返さない想定（handler の response で除外する）。
+	// PlainText は一覧・検索の派生値。API では返さない（handler の response で除外する）。
 	PlainText string `json:"-"`
 	// Priority は 1=高 / 2=中 / 3=低。既定は TicketPriorityDefault。
 	Priority TicketPriority `json:"priority"`
-	// StartDate / DueDate は 'YYYY-MM-DD' の文字列（Ⅳ-K: time.Time で運ぶと本番の
-	// simple protocol で 1 日ずれるため）。
+	// StartDate / DueDate は 'YYYY-MM-DD' の文字列（Ⅳ-K: time.Time だと本番の simple protocol
+	// で 1 日ずれるため）。
 	StartDate *string `json:"startDate,omitempty"`
 	DueDate   *string `json:"dueDate,omitempty"`
 	// Position は同一スペース内・現役チケットの並び順（fracindex）。
@@ -47,8 +46,7 @@ type Ticket struct {
 	CreatedByUserID uint64     `json:"createdByUserId"`
 	ArchivedAt      *time.Time `json:"archivedAt,omitempty"`
 	// DeletedAt は「消えたことにする」（設計 Ⅳ-J）。ArchivedAt とは別概念で、戻す口は
-	// RestoreDeletedTicketUseCase だけ。現役取得系（FindTicket 系）はこれが立っている行を
-	// 返さないので、API 応答では基本 nil のまま出ない（削除済み専用の取得経路でのみ埋まる）。
+	// RestoreDeletedTicketUseCase だけ。現役取得系（FindTicket 系）はこれが立っている行を返さない。
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
@@ -88,9 +86,9 @@ type TicketType struct {
 	UpdatedAt     time.Time       `json:"updatedAt"`
 }
 
-// TicketAssignment はチケットの担当者（1 人）。principals（ワークスペース所属の正本）への
-// 参照で持つ。users.id を直接持たないのは、別ワークスペースの人を担当にできてしまう穴
-// （設計 Ⅳ-G で実測して塞いだ）を DB 側の複合 FK で防ぐため。
+// TicketAssignment はチケットの担当者（1 人）。principals（ワークスペース所属の正本）への参照で
+// 持つ。users.id を直接持たないのは、別ワークスペースの人を担当にできてしまう穴を DB 側の
+// 複合 FK で防ぐため（設計 Ⅳ-G）。
 type TicketAssignment struct {
 	WorkspaceID         string    `json:"workspaceId"`
 	TicketID            string    `json:"ticketId"`
@@ -100,8 +98,8 @@ type TicketAssignment struct {
 }
 
 // TicketChangeGroup は 1 回の保存でまとめて変わった項目の束（誰が・いつ）。
-// Items は呼び出し側（usecase / handler）が別クエリの結果を詰めて組み立てる
-// （DB 上は別表 ticket_change_items で、1 グループ N 項目）。
+// Items は呼び出し側が別クエリの結果を詰めて組み立てる（DB 上は別表 ticket_change_items で、
+// 1 グループ N 項目）。
 type TicketChangeGroup struct {
 	ID          string             `json:"id"`
 	WorkspaceID string             `json:"workspaceId"`
@@ -112,8 +110,8 @@ type TicketChangeGroup struct {
 }
 
 // TicketChangeItem は変更履歴の 1 項目（何を・前後の値・当時の表示名）。
-// OldLabel / NewLabel は状態名・種別名などの表示用の写し。値そのもの（OldValue /
-// NewValue、多くは ID）が指す先が後で改名・アーカイブされても、履歴はこの写しで読める。
+// OldLabel / NewLabel は状態名・種別名などの表示用の写し。値そのもの（多くは ID）が指す先が
+// 後で改名・アーカイブされても、履歴はこの写しで読める。
 type TicketChangeItem struct {
 	ID       string            `json:"id"`
 	GroupID  string            `json:"groupId"`
@@ -124,17 +122,17 @@ type TicketChangeItem struct {
 	NewLabel *string           `json:"newLabel,omitempty"`
 }
 
-// TicketPageLink はチケット本文からページへの参照（派生表）。正本は Ticket.Doc の
-// pageRef ノードで、この表は本文保存のたびに usecase が作り直す索引。壊れても
-// 本文から再生成できる（設計 Ⅳ-I）。
+// TicketPageLink はチケット本文からページへの参照（派生表）。正本は Ticket.Doc の pageRef
+// ノードで、この表は本文保存のたびに usecase が作り直す索引。壊れても本文から再生成できる
+// （設計 Ⅳ-I）。
 type TicketPageLink struct {
 	WorkspaceID    string `json:"workspaceId"`
 	SourceTicketID string `json:"sourceTicketId"`
 	TargetPageID   string `json:"targetPageId"`
 }
 
-// TicketTicketLink はチケット本文から別チケットへの参照（派生表）。同上、
-// 正本は Ticket.Doc の ticketRef ノード。
+// TicketTicketLink はチケット本文から別チケットへの参照（派生表）。同上、正本は Ticket.Doc の
+// ticketRef ノード。
 type TicketTicketLink struct {
 	WorkspaceID    string `json:"workspaceId"`
 	SourceTicketID string `json:"sourceTicketId"`

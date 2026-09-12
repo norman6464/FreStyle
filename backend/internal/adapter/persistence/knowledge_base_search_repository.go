@@ -12,10 +12,9 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// pageSearchTextNodeType / pageSearchPageRefNodeType は inline JSON の中で拾うノードの
-// type 名。usecase/kb の kbInlineTextNodeType / kbPageRefNodeType と同じ値だが、
-// このパッケージからは import できない定数として独立して持つ
-// （extractPageSearchFromBlocks の doc 参照 — 依存の向きの理由）。
+// pageSearchTextNodeType / pageSearchPageRefNodeType は inline JSON 内のノード type 名。
+// usecase/kb の kbInlineTextNodeType / kbPageRefNodeType と同じ値だが、このパッケージからは
+// import できない（依存方向の制約）ため独立して持つ。
 const (
 	pageSearchTextNodeType      = "text"
 	pageSearchPageRefNodeType   = "pageRef"
@@ -34,16 +33,12 @@ type pageSearchInlineNode struct {
 }
 
 // writePageSearchAndLinks は page_search の UPSERT と page_links の張り替えを行う。
-// ReplacePageBlocks（本文保存の最終ステップ）と RebuildPageSearchAndLinks（一回限りの
-// 再構築）の両方から呼ぶ、書き込みの中核ロジック（コードの重複を避けるための共有関数）。
-// 呼び出し元は同じトランザクションの qtx を渡すこと。
+// ReplacePageBlocks（本文保存）と RebuildPageSearchAndLinks（再構築）の両方が呼ぶ共有の
+// 書き込みロジック。呼び出し元は同じトランザクションの qtx を渡すこと。
 //
 // 抽出（doc / blocks から body・pageLinks を作る部分）はここでは行わない。呼び出し元が
-// 用意した値をそのまま書き込むだけ — 抽出ロジックの置き場所が呼び出し元によって違うため:
-//   - ReplacePageBlocks は usecase/kb.ReplacePageBlocksUseCase.Execute が ProseMirror の
-//     doc（保存直前の正規化済みの木）から抽出したものを渡す。
-//   - RebuildPageSearchAndLinks はこのファイル内の extractPageSearchFromBlocks が、
-//     既に保存済みの blocks 行から抽出したものを渡す。
+// 用意した値をそのまま書き込むだけ — ReplacePageBlocks は保存直前の ProseMirror doc から、
+// RebuildPageSearchAndLinks は extractPageSearchFromBlocks が既存の blocks 行から抽出する。
 func writePageSearchAndLinks(
 	ctx context.Context, qtx *sqlcgen.Queries, wsID, pgID uuid.UUID, title, body string,
 	pageLinks []repository.PageLinkWrite, pageTicketLinks []repository.PageTicketLinkWrite,
@@ -79,10 +74,10 @@ func writePageSearchAndLinks(
 	return writePageTicketLinks(ctx, qtx, pageTicketLinks)
 }
 
-// writePageLinks は page_links の張り替え（後半）— 参照先が実在するものだけに絞って
-// INSERT する（リンク切れは黙って除外する — PageLinkWrite の doc 参照。target_page_id は
-// pages への FK なので、存在しない ID のまま INSERT すると外部キー違反で保存全体が
-// 落ちてしまう）。呼び出し元が前半（DeletePageLinksBySourceBlockIDsInPage）を先に済ませること。
+// writePageLinks は page_links の張り替え（後半）— 参照先が実在するものだけに絞って INSERT
+// する（target_page_id は pages への FK なので、存在しない ID のまま INSERT すると外部キー
+// 違反で保存全体が落ちる。リンク切れは黙って除外する）。呼び出し元が前半
+// （DeletePageLinksBySourceBlockIDsInPage）を先に済ませること。
 func writePageLinks(ctx context.Context, qtx *sqlcgen.Queries, pageLinks []repository.PageLinkWrite) error {
 	if len(pageLinks) == 0 {
 		return nil
@@ -143,9 +138,7 @@ func writePageLinks(ctx context.Context, qtx *sqlcgen.Queries, pageLinks []repos
 }
 
 // writePageTicketLinks は page_ticket_links の張り替え（後半）。writePageLinks のチケット版
-// （段 5）— ListExistingTicketIDsAmong / InsertPageTicketLink を使うだけで
-// 判断の筋は同一。呼び出し元が前半（DeletePageTicketLinksBySourceBlockIDsInPage）を
-// 先に済ませること。
+// （段 5）。呼び出し元が前半（DeletePageTicketLinksBySourceBlockIDsInPage）を先に済ませること。
 func writePageTicketLinks(ctx context.Context, qtx *sqlcgen.Queries, pageTicketLinks []repository.PageTicketLinkWrite) error {
 	if len(pageTicketLinks) == 0 {
 		return nil
@@ -238,17 +231,13 @@ type orderedBlockNode struct {
 }
 
 // buildOrderedBlockForest は blocks 行を parent_id / position から木へ組み直す
-// （usecase/kb.treeFromBlocks と同じ考え方の独立した再実装）。
-//
-// なぜ treeFromBlocks を呼ばずに書き直すのか: このリポジトリのクリーンアーキテクチャは
-// handler → usecase → repository/infra → domain の一方通行で、repository の実装である
-// このパッケージ（persistence）は usecase/kb を import できない。呼べてしまうと
-// 依存が逆流する。抽出ロジックが 2 箇所に分かれるのは望ましくないが、層の境界を守る方を
-// 優先する（本チケットの指示 — 抽出は usecase/kb に置く — とも一致する）。
+// （usecase/kb.treeFromBlocks と同じ考え方の独立した再実装）。repository（このパッケージ）は
+// クリーンアーキテクチャの依存方向（handler → usecase → repository/infra → domain）上
+// usecase/kb を import できないため、抽出ロジックが 2 箇所に分かれるのを承知で書き直す。
 //
 // 壊れた親参照（存在しない parent_id）は無視する。treeFromBlocks（表示経路）は同じ状況を
 // エラーにするが、こちらは検索キャッシュの再構築という補助的な経路なので、壊れた行が
-// あってもそこだけ本文から漏れるだけに留め、再構築全体を失敗させない。
+// あってもそこだけ本文から漏れるに留め、再構築全体は失敗させない。
 func buildOrderedBlockForest(blocks []domain.Block) []*orderedBlockNode {
 	nodes := make(map[string]*orderedBlockNode, len(blocks))
 	order := make(map[string]string, len(blocks))
@@ -289,18 +278,12 @@ func buildOrderedBlockForest(blocks []domain.Block) []*orderedBlockNode {
 
 // extractPageSearchFromBlocks は保存済みの blocks 行から body（本文プレーンテキスト）と
 // pageLinks（page_links の材料）・pageTicketLinks（page_ticket_links の材料）を組み立てる。
-// RebuildPageSearchAndLinks が使う。
-//
-// usecase/kb.extractPageBodyText / extractPageLinks / extractPageTicketLinks と同じ考え方
-// （"text" 型インラインノードの .text を連結する・pageRef / ticketRef ノードの
-// attrs.pageId / attrs.ticketId を集める）を、buildOrderedBlockForest の doc に書いた理由で
-// このパッケージに閉じて独立に実装している。
+// RebuildPageSearchAndLinks が使う。usecase/kb.extractPageBodyText 等と同じ考え方を、
+// buildOrderedBlockForest の doc に書いた依存方向の理由でこのパッケージに閉じて実装している。
 //
 // pageSearchMaxDistinctTargets は参照先の種類数の天井（pageRef / ticketRef 別々に数える）。
-// usecase/kb.kbPageRefMaxResolve と同じ値（100）——このパッケージからは import できないため
-// 値として独立して持つが、通常の保存経路（ReplacePageBlocks）と一回限りの再構築
-// （RebuildPageSearchAndLinks）で同じページに対し異なる page_links / page_ticket_links が
-// 生成される食い違いを避けるため、揃えておく。
+// usecase/kb.kbPageRefMaxResolve と同じ値（100）を、import できないため独立して持つ —
+// 保存経路と再構築経路で同じページの page_links / page_ticket_links が食い違わないよう揃える。
 const pageSearchMaxDistinctTargets = 100
 
 func extractPageSearchFromBlocks(

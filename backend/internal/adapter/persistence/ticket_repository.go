@@ -16,9 +16,8 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// nullDate は *string（'YYYY-MM-DD'、Ⅳ-K）を pgtext.NullDate へ変換する
-// （tickets.start_date / due_date の書き込み専用。読み取り側は sqlc が生成した
-// pgtext.NullDate をそのまま Scan する — pgtext.NullDate.go の doc に理由がある）。
+// nullDate は *string（'YYYY-MM-DD'）を pgtext.NullDate へ変換する（tickets.start_date /
+// due_date の書き込み専用。読み取り側は pgtext.NullDate を直接 Scan する）。
 func nullDate(s *string) pgtext.NullDate {
 	if s == nil {
 		return pgtext.NullDate{}
@@ -26,14 +25,13 @@ func nullDate(s *string) pgtext.NullDate {
 	return pgtext.NullDate{String: *s, Valid: true}
 }
 
-// ticketRepository は [repository.TicketRepository] の実装。knowledgeBaseRepository と
-// 同じ作法（sqlc 生成コード + 素の *sql.DB、複数書き込みは呼び出し側の TxManager.DoInTx に
-// 相乗りする baseRepository.dbtx 経由）。
+// ticketRepository は [repository.TicketRepository] の実装。knowledgeBaseRepository と同じ作法
+// （sqlc 生成コード + 素の *sql.DB、複数書き込みは baseRepository.dbtx 経由で TxManager.DoInTx に
+// 相乗りする）。
 type ticketRepository struct {
 	baseRepository
 }
 
-// NewTicketRepository はチケットの repository を組み立てる。
 func NewTicketRepository(db *sql.DB) repository.TicketRepository {
 	return &ticketRepository{baseRepository{db: db}}
 }
@@ -50,13 +48,10 @@ func ticketNewID() (uuid.UUID, error) {
 // errOutOfRangeInt32 は domain 側の int を DB の integer（int32）へ渡す直前の範囲外検出。
 var errOutOfRangeInt32 = errors.New("value out of int32 range")
 
-// toInt32 は int を int32 へ範囲チェック付きで変換する（comment_repository.go の
-// nullInt32 と同じ理由。Go の int は 64bit 環境が前提）。
-//
-// HierarchyLevel・Priority は domain 側で値の集合（-1..1 / 1..3）が決まっているため
-// 実際にはここで落ちることは無いが、narrowing-cast-on-param（sqlc.yaml）と同じ考え方で
-// 「あり得ないから確認しない」を採らない。範囲外を静かに折り返すと DB には
-// 別の値が入り、原因が追えなくなる。
+// toInt32 は int を int32 へ範囲チェック付きで変換する（comment_repository.go の nullInt32 と
+// 同じ理由。Go の int は 64bit 前提）。HierarchyLevel・Priority は domain 側の値集合的に実際は
+// 落ちないが、「あり得ないから確認しない」は採らない — 静かに折り返すと別の値が DB に入り、
+// 原因が追えなくなる。
 func toInt32(n int) (int32, bool) {
 	if n < math.MinInt32 || n > math.MaxInt32 {
 		return 0, false
@@ -717,10 +712,8 @@ func (r *ticketRepository) CreateTicket(ctx context.Context, in repository.Ticke
 		CreatedByUserID: createdBy,
 	})
 	if err != nil {
-		// created_by_user_id への FK（段 1）は space/type/status/parent への FK とは意味が違う
-		// （入力の user が居ない、であって「スペースが無い」ではない）。名前を見ずに全部
-		// ErrSpaceNotFound へ丸めると、実在しないユーザー ID を渡された呼び出し元が
-		// スペースの問題だと誤解する。
+		// created_by_user_id への FK は space/type/status/parent への FK とは意味が違う（入力の
+		// user が居ない、であって「スペースが無い」ではない）ため、名前を見て振り分ける。
 		if constraint, ok := foreignKeyViolationConstraint(err); ok {
 			if constraint == "fk_tickets_created_by" {
 				return nil, repository.ErrUserNotFound
@@ -733,15 +726,13 @@ func (r *ticketRepository) CreateTicket(ctx context.Context, in repository.Ticke
 	return &t, nil
 }
 
-// GetTicket / ListTickets / ListTicketChildren は担当（ticket_assignments）や並び順
-// （ticket_ranks）を JOIN で足したので、sqlc が tickets の行型ではなく専用の行型を生成する。
-// tickets 由来の列だけを取り出して既存の toDomainTicket に渡すための小さな写し取り
-// （変換規則そのものは 1 箇所に保つ）。
+// GetTicket / ListTickets / ListTicketChildren は担当・並び順を JOIN で足すため、sqlc は
+// tickets の行型ではなく専用の行型を生成する。tickets 由来の列だけを取り出して既存の
+// toDomainTicket に渡すための写し取り（変換規則は 1 箇所に保つ）。
 //
-// Position は row.Position（tickets.position。段 2 で並び順の正本ではなくなった古い列）ではなく
-// row.RankPosition（ticket_ranks.position。段 2 からの正本）を積む。API 応答の position は
-// これまでどおり「現在の並び順」を意味し続けるが、中身の出どころが変わっただけ
-// （設計 Ⅳ-F・フロントは無改修の想定）。
+// Position には row.Position（tickets.position、段 2 で正本ではなくなった古い列）ではなく
+// row.RankPosition（ticket_ranks.position、段 2 からの正本）を積む。API 応答の position の
+// 意味は変わらず、中身の出どころが変わっただけ。
 func ticketOfGetRow(row sqlcgen.GetTicketRow) sqlcgen.Ticket {
 	return sqlcgen.Ticket{
 		ID: row.ID, WorkspaceID: row.WorkspaceID, SpaceID: row.SpaceID, Number: row.Number,
@@ -815,13 +806,12 @@ func (r *ticketRepository) FindTicketWithAssignee(ctx context.Context, workspace
 	}, nil
 }
 
-// GetTicketForUpdate（sqlc 生成、SELECT … FOR UPDATE）は段 1 のどの usecase からも
-// まだ呼んでいない。ChangeTicketStatus / ChangeTicketParent 等の「読んでから書く」操作は
-// 現状ロックなしで、真に同時に来た更新どうしの間で最終状態は Postgres の行更新自体は
-// 壊れないが（最後の書き込みが勝つ）、履歴の old→new の並びが実際の順序とずれ得る
-// （親変更の周期検出は複数チケットにまたがるため、対象の 1 行をロックするだけでは
-// 防げない — スペース単位のアドバイザリロック等、単一行ロックより大きい仕組みが要る）。
-// クエリ自体は残し、後続で実際に配線する（段 1 の既知のギャップとして明記する）。
+// GetTicketForUpdate（sqlc 生成、SELECT … FOR UPDATE）はまだどの usecase からも呼んでいない。
+// ChangeTicketStatus / ChangeTicketParent 等の「読んでから書く」操作は現状ロックなしで、真に
+// 同時に来た更新どうしの間で行自体は壊れないが（最後の書き込みが勝つ）、履歴の old→new の
+// 並びが実際の順序とずれ得る（親変更の周期検出は複数チケットにまたがるため単一行ロックでは
+// 防げず、スペース単位のアドバイザリロック等より大きい仕組みが要る）。クエリは残し、既知の
+// ギャップとして後続で配線する。
 
 // FindTicketWorkspaceID はチケットを ID だけで引く（詳細は port のコメント）。
 func (r *ticketRepository) FindTicketWorkspaceID(ctx context.Context, ticketID string) (string, error) {
@@ -1269,23 +1259,19 @@ func (r *ticketRepository) UpsertTicketAssignment(ctx context.Context, a *domain
 		AssignedByUserID: assignedBy,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// クエリの WHERE ticket_assignments.workspace_id = EXCLUDED.workspace_id が
-		// 一致しなかった（＝呼び出し側が ticket_id とその実際の workspace_id を
-		// 取り違えた）。ticket_id はどのワークスペースでも一意な UUID なので、
-		// 通常の呼び出しでは起きない。テナント越え書き込みの歯止めが働いたことを表す。
+		// WHERE ticket_assignments.workspace_id = EXCLUDED.workspace_id が不一致（ticket_id と
+		// その実際の workspace_id の取り違え）。テナント越え書き込みの歯止めが働いた状態。
 		return repository.ErrTicketNotFound
 	}
 	if err != nil {
 		if constraint, ok := foreignKeyViolationConstraint(err); ok {
-			// assigned_by_user_id への FK（段 1）は「実行者が居ない」であって
-			// 「担当者が居ない」ではないので、他の FK とは分けて返す。
+			// assigned_by_user_id への FK は「実行者が居ない」であって「担当者が居ない」
+			// ではないので、他の FK とは分けて返す。
 			if constraint == "fk_ticket_assignments_assigned_by" {
 				return repository.ErrUserNotFound
 			}
-			// fk_ticket_assignments_principal（別ワークスペース・非 user 主体）と
-			// fk_ticket_assignments_ticket の両方をここに畳む。呼び出し側（usecase）は
-			// チケットの実在を先に確かめてから呼ぶため、実務上ここに来るのは
-			// ほぼ担当者側の違反になる。
+			// principal/ticket への FK 違反はここに畳む。呼び出し側は事前にチケットの実在を
+			// 確かめるため、実務上ここに来るのはほぼ担当者側の違反になる。
 			return repository.ErrTicketAssigneeNotFound
 		}
 		return err
@@ -1370,8 +1356,7 @@ func (r *ticketRepository) InsertTicketStatusTransition(
 		FromStatusID: fromID, ToStatusID: toID, ChangedByUserID: changedBy,
 	}); err != nil {
 		if constraint, ok := foreignKeyViolationConstraint(err); ok {
-			// changed_by_user_id への FK（段 1）は「実行者が居ない」であって
-			// 「チケットが無い」ではないので、他の FK とは分けて返す。
+			// changed_by_user_id への FK は「実行者が居ない」であって「チケットが無い」ではない。
 			if constraint == "fk_ticket_status_transitions_changed_by" {
 				return repository.ErrUserNotFound
 			}
@@ -1401,8 +1386,7 @@ func (r *ticketRepository) InsertTicketChangeGroup(ctx context.Context, g *domai
 	})
 	if err != nil {
 		if constraint, ok := foreignKeyViolationConstraint(err); ok {
-			// actor_user_id への FK（段 1）は「実行者が居ない」であって「チケットが無い」
-			// ではないので、他の FK とは分けて返す。
+			// actor_user_id への FK は「実行者が居ない」であって「チケットが無い」ではない。
 			if constraint == "fk_ticket_change_groups_actor" {
 				return repository.ErrUserNotFound
 			}
@@ -1410,10 +1394,9 @@ func (r *ticketRepository) InsertTicketChangeGroup(ctx context.Context, g *domai
 		}
 		return err
 	}
-	// toDomainTicketChangeGroup は INSERT した行から group 自体の列（id / created_at 等）
-	// だけを組み立て、Items は持たない。呼び出し側が事前に詰めた Items を代入前に
-	// 退避しておかないと、この上書きで消えて insertTicketChangeItems が何も書かなくなる
-	// （実測: 結合テストで ListTicketChangeGroups が items 0 件を返して発覚した）。
+	// toDomainTicketChangeGroup は group 自体の列だけを組み立て Items は持たないため、
+	// 代入前に呼び出し側の Items を退避しておかないと上書きで消えてしまう
+	// （結合テストで ListTicketChangeGroups が items 0 件を返して発覚）。
 	items := g.Items
 	*g = toDomainTicketChangeGroup(row)
 	g.Items = items
@@ -1595,11 +1578,9 @@ func (r *ticketRepository) ListTicketPageLinks(ctx context.Context, workspaceID,
 	return out, nil
 }
 
-// ListTicketsReferencingPage はページ詳細の逆参照一覧が使う（そのページを参照している
-// チケット一覧。）。以前は ListTicketPageLinksBySource（source_ticket_id 絞り = 逆方向）
-// を誤って呼ぶ実装ミスがあり、この口は常に「そのチケット自身が参照しているページ」を
-// 返していた（結合テストで発覚。呼び出し元が無かったため実害は無し）。
-// sqlcgen.ListTicketsReferencingPage（target_page_id 絞り）へ差し替えて修正している。
+// ListTicketsReferencingPage はそのページを参照しているチケット一覧を返す（ページ詳細の
+// 逆参照用）。target_page_id で絞る — source_ticket_id 絞り（自分が参照しているページ）とは
+// 向きが逆なので混同しないこと。
 func (r *ticketRepository) ListTicketsReferencingPage(ctx context.Context, workspaceID, pageID string) ([]domain.Ticket, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pID, ok2 := kbParseID(pageID)

@@ -15,8 +15,8 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
-// AuthHandler は認証エンドポイントを提供する。
-// 発行者との通信は infra/oidc に切り出し、ここは HTTP の境界とユーザーの upsert だけを持つ。
+// AuthHandler は認証エンドポイントを提供する。発行者との通信は infra/oidc に切り出し、
+// ここは HTTP の境界とユーザーの upsert だけを持つ。
 type AuthHandler struct {
 	getCurrentUser          *user.GetCurrentUserUseCase
 	upsertUser              *user.UpsertUserFromIDTokenUseCase
@@ -25,7 +25,6 @@ type AuthHandler struct {
 	verifier                *oidc.Verifier
 }
 
-// NewAuthHandler は AuthHandler を組み立てる。
 func NewAuthHandler(
 	getCurrentUser *user.GetCurrentUserUseCase,
 	upsertUser *user.UpsertUserFromIDTokenUseCase,
@@ -58,8 +57,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 		return
 	}
-	// workspaceId は段 2 で撤去（1 人が複数のワークスペースに所属できるため、単一の
-	// 所属先という概念が無い。所属一覧は GET /kb/workspaces が返す）。
+	// workspaceId は返さない（1 人が複数のワークスペースに所属でき、単一の所属先という概念が
+	// 無い。所属一覧は GET /kb/workspaces が返す）。
 	resp := gin.H{
 		"id":        user.ID,
 		"email":     user.Email,
@@ -71,9 +70,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 }
 
 // DeleteMe は自分自身のアカウントを退会させる（段 7）。本人にしか呼べない
-// （middleware.CurrentUser が解決した userID をそのまま使い、他人の ID を受け取らない —
-// user.RetireSelfUseCase の doc 参照）。所属している全ワークスペースを退出したうえで
-// アカウントを匿名化する。いずれかのワークスペースで最後の admin なら 409 を返す。
+// （middleware.CurrentUser が解決した userID をそのまま使い、他人の ID は受け取らない）。
+// 所属する全ワークスペースを退出しアカウントを匿名化する。最後の admin なら 409 を返す。
 func (h *AuthHandler) DeleteMe(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -92,13 +90,12 @@ func (h *AuthHandler) DeleteMe(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Login は Authorization: Bearer で渡された ID トークンを検証し、
-// 初回サインインなら users 行と個人ワークスペースを作る（自己サインアップ）。
-//
-// verifier は発行者非依存（本番は GCIP、ローカルは Dex）。どちらもクライアント側で
-// 直接発行者とやり取りして ID トークンを得る設計で、backend が仲介する認可コード交換は
-// 存在しない。以降の API 呼び出しは同じ ID トークンをそのまま Bearer で送るだけでよく、
-// backend 側で発行する Cookie は無い（JWTAuth がリクエストのたびに同じトークンを検証する）。
+// Login は Authorization: Bearer で渡された ID トークンを検証し、初回サインインなら
+// users 行と個人ワークスペースを作る（自己サインアップ）。verifier は発行者非依存
+// （本番は GCIP、ローカルは Dex）。どちらもクライアント側で直接発行者とやり取りして
+// ID トークンを得る設計で、backend が仲介する認可コード交換は無い。以降の API 呼び出しは
+// 同じ ID トークンを Bearer で送るだけでよく、backend が発行する Cookie は無い
+// （JWTAuth がリクエストのたびに同じトークンを検証する）。
 func (h *AuthHandler) Login(c *gin.Context) {
 	idToken, ok := middleware.BearerToken(c.GetHeader("Authorization"))
 	if !ok {
@@ -139,13 +136,12 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (u *
 		return nil, errors.New("upsert user usecase not configured")
 	}
 
-	// **署名とクレームを検証してから読む。**
-	// ここで作られるのはユーザーそのもの（sub / email）で、検証せずに読むと
-	// 「好きな sub と email を名乗って新しいユーザーを作る」ことができてしまう。
+	// 署名とクレームを検証してから読む。ここで作られるのはユーザーそのもの（sub/email）で、
+	// 検証せずに読むと好きな sub と email を名乗って新しいユーザーを作れてしまう。
 	//
-	// nonce は空文字（照合しない）。nonce は「認可を始めたブラウザ本人か」を確かめる
-	// もので、リダイレクトを介した認可要求に対応する。GCIP はクライアント SDK が直接
-	// 発行者とやり取りするため、対応する認可要求そのものが存在しない。
+	// nonce は空文字（照合しない）。nonce は「認可を始めたブラウザ本人か」を確かめるもので
+	// リダイレクトを介した認可要求に対応するが、GCIP はクライアント SDK が直接発行者と
+	// やり取りするため対応する認可要求そのものが存在しない。
 	claims, verifyErr := h.verifier.VerifyIDToken(c.Request.Context(), idToken, "")
 	if verifyErr != nil {
 		return nil, errors.Join(errIDTokenRejected, verifyErr)
@@ -154,8 +150,8 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (u *
 	sub, _ := claims["sub"].(string)
 	email, _ := claims["email"].(string)
 	name, _ := claims["name"].(string)
-	// email_verified が無いクレームは「未検証」に倒す（ゼロ値 false）。この型アサーションは
-	// クレームが欠けている・bool でない場合に false, false を返すため、それで正しい。
+	// email_verified が無いクレームは「未検証」に倒す（型アサーションはクレームが欠けている・
+	// bool でない場合に false を返すため、それで正しい）。
 	emailVerified, _ := claims["email_verified"].(bool)
 
 	u, err = h.upsertUser.Execute(
@@ -171,7 +167,7 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (u *
 		return nil, err
 	}
 
-	// 失敗してもログインは失敗させない（次回ログイン時に自己修復する）。
+	// 失敗してもログインは失敗させない（次回ログインで自己修復する）。
 	if h.ensurePersonalWorkspace != nil {
 		if _, wsErr := h.ensurePersonalWorkspace.Execute(
 			c.Request.Context(),

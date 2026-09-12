@@ -6,10 +6,9 @@ import (
 	"net"
 )
 
-// resolverFunc は「ホスト名 → IP 群」を引く関数の形。本番は defaultResolve
-// （実 DNS）を使うが、DNS リバインディングの検証はテストから偽の解決結果を
-// 注入できるよう関数として切り出してある（本物の DNS に依存すると、外部の
-// ドメインを乗っ取らない限り「解決結果が変わる」状況をテストで再現できない）。
+// resolverFunc は「ホスト名 → IP 群」を引く関数の形。本番は defaultResolve（実 DNS）を使うが、
+// DNS リバインディングの検証でテストから偽の解決結果を注入できるよう関数として切り出してある
+// （本物の DNS 依存だと、外部ドメインを乗っ取らない限り「解決結果が変わる」状況を再現できない）。
 type resolverFunc func(ctx context.Context, host string) ([]net.IP, error)
 
 // defaultResolve は本番で使う実 DNS 解決。
@@ -25,10 +24,10 @@ func defaultResolve(ctx context.Context, host string) ([]net.IP, error) {
 	return ips, nil
 }
 
-// isSafeIP は SSRF 対策として「サーバから見て外部のホストに向いた IP」かを判定する。
-// ホスト名の文字列照合（localhost・metadata.google.internal 等のハードコード）ではなく
-// 解決後の IP そのものを見るので、任意のドメインを private / link-local / metadata の
-// アドレスへ向けた変種（DNS リバインディングを含む）も同じ 1 か所で弾ける。
+// isSafeIP は SSRF 対策として「サーバから見て外部のホストに向いた IP」かを判定する。ホスト名の
+// 文字列照合（localhost・metadata.google.internal 等のハードコード）ではなく解決後の IP
+// そのものを見るので、任意のドメインを private / link-local / metadata のアドレスへ向けた
+// 変種（DNS リバインディング含む）も同じ 1 か所で弾ける。
 func isSafeIP(ip net.IP) bool {
 	if ip == nil {
 		return false
@@ -38,9 +37,8 @@ func isSafeIP(ip net.IP) bool {
 		ip.IsUnspecified() || ip.IsMulticast() {
 		return false
 	}
-	// CGNAT（100.64.0.0/10）。IsPrivate は RFC1918 (10/8, 172.16/12, 192.168/16) しか
-	// 見ないので、キャリア級 NAT のレンジは別に見る必要がある。
-	// ip.To4() は IPv4 射影 IPv6（::ffff:a.b.c.d）も展開して返すため、その変種も拾う。
+	// CGNAT（100.64.0.0/10）。IsPrivate は RFC1918 (10/8, 172.16/12, 192.168/16) しか見ないため
+	// 別途判定が必要。ip.To4() は IPv4 射影 IPv6（::ffff:a.b.c.d）も展開するのでその変種も拾う。
 	if ip4 := ip.To4(); ip4 != nil {
 		if ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
 			return false
@@ -69,17 +67,15 @@ type dialContextFunc func(ctx context.Context, network, addr string) (net.Conn, 
 
 // safeDialContext は http.Transport.DialContext に差し込む関数を組み立てる。
 //
-// http.Transport は新しい接続を張るたびに（最初の要求はもちろん、リダイレクトで
-// ホストが変わった場合の各ホップでも）DialContext を呼ぶ。ここで resolve → isSafeIP →
-// その IP へ直接 dial、という順に固定することで:
+// http.Transport は新しい接続を張るたびに（最初の要求はもちろん、リダイレクトでホストが
+// 変わった各ホップでも）DialContext を呼ぶ。resolve → isSafeIP → その IP へ直接 dial、の順に
+// 固定することで次の 2 つを同時に満たす:
 //
-//   - リダイレクト先の再検証: ホップごとに新しい接続が要るため、ここが自動的に
-//     ホップごとの検査になる（CheckRedirect 側で改めて IP を検査する必要が無い）
-//   - 検査と接続の TOCTOU（DNS リバインディング）の防止: 検査に使った IP を
-//     そのまま dial する（addr の文字列を渡し直して dialer 自身に再解決させない）。
-//     再解決を挟むと、検査に使った瞬間と接続する瞬間で異なる IP が返る攻撃
-//     （最初は無害な IP を返し、検査が通った直後に社内アドレスへ TTL を切り替える）が
-//     成立してしまう
+//   - リダイレクト先の再検証: ホップごとに新しい接続が要るため、これ自体がホップごとの検査
+//     になる（CheckRedirect 側で IP を検査し直す必要が無い）
+//   - 検査と接続の TOCTOU（DNS リバインディング）防止: 検査に使った IP をそのまま dial し、
+//     addr を渡し直して dialer に再解決させない。再解決を挟むと、検査時と接続時で異なる IP が
+//     返る攻撃（最初は無害な IP を返し、検査通過直後に社内アドレスへ TTL を切り替える）が成立する
 func safeDialContext(resolve resolverFunc, dial dialContextFunc) dialContextFunc {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(addr)

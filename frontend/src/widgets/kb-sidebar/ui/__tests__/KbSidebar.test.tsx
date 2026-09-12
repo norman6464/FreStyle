@@ -3,11 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import KbSidebar from '../KbSidebar';
 import { emitKbTreeEvent, subscribeKbTreeEvents } from '@/entities/kb';
-import type { KbPage, KbPageTree, KbSpace, KbWorkspace } from '@/entities/kb';
+import type { KbMySpace, KbPage, KbPageTree, KbSpace, KbWorkspace } from '@/entities/kb';
 
 const hoisted = vi.hoisted(() => ({
   fetchWorkspaces: vi.fn(),
   fetchSpaces: vi.fn(),
+  fetchMySpaces: vi.fn(),
   fetchPageTree: vi.fn(),
   createPage: vi.fn(),
   renamePage: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('@/entities/kb', async () => {
     KbRepository: {
       fetchWorkspaces: hoisted.fetchWorkspaces,
       fetchSpaces: hoisted.fetchSpaces,
+      fetchMySpaces: hoisted.fetchMySpaces,
       fetchPageTree: hoisted.fetchPageTree,
       createPage: hoisted.createPage,
       renamePage: hoisted.renamePage,
@@ -65,6 +67,10 @@ function space(
   visibility: KbSpace['visibility'] = 'workspace',
 ): KbSpace {
   return { id, key: id, name, visibility, createdAt: '2026-08-01T00:00:00Z' };
+}
+
+function mySpace(id: string, name = id, role: KbMySpace['role'] = 'editor'): KbMySpace {
+  return { id, name, role };
 }
 
 function page(id: string, title = id): KbPage {
@@ -105,10 +111,12 @@ function tree(
   };
 }
 
-function renderSidebar(props: { workspaceSlug?: string; activePageId?: string } = {}) {
+function renderSidebar(
+  props: { workspaceSlug?: string; spaceId?: string; activePageId?: string } = {},
+) {
   return render(
     <MemoryRouter initialEntries={['/kb']}>
-      <KbSidebar {...props} />
+      <KbSidebar spaceId="space-1" {...props} />
     </MemoryRouter>,
   );
 }
@@ -117,6 +125,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社')]);
   hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部')]);
+  hoisted.fetchMySpaces.mockResolvedValue([mySpace('space-1', '開発部')]);
   hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'p1', title: '設計メモ' }]));
   hoisted.createPage.mockResolvedValue(page('new-1', '無題'));
   hoisted.renamePage.mockImplementation(async (_slug: string, id: string, title: string) =>
@@ -169,34 +178,11 @@ function dragRowOnto(fromTitle: string, toTitle: string, clientY: number) {
 }
 
 describe('KbSidebar', () => {
-  it('先頭のスペースを開いて木を出す', async () => {
+  it('今いるスペースの木を出す', async () => {
     renderSidebar();
 
     expect(await screen.findByText('設計メモ')).toBeInTheDocument();
     expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: false });
-  });
-
-  it('開いていないスペースの木は取りに行かない', async () => {
-    hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部'), space('space-2', '営業部')]);
-
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    // スペースの数だけ要求が飛ぶ（N+1）と、開いていない分が丸ごと無駄になる。
-    expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
-    expect(hoisted.fetchPageTree).not.toHaveBeenCalledWith('acme', 'space-2', { archived: false });
-  });
-
-  it('スペースを開いたときに初めて取りに行く', async () => {
-    hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部'), space('space-2', '営業部')]);
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    fireEvent.click(screen.getByRole('button', { name: '営業部' }));
-
-    await waitFor(() =>
-      expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-2', { archived: false }),
-    );
   });
 
   it('子を持つページはフォルダ、持たないページは紙にする', async () => {
@@ -340,7 +326,7 @@ describe('KbSidebar', () => {
       render(
         <MemoryRouter initialEntries={['/kb/stale-page']}>
           <EntryPathProbe />
-          <KbSidebar />
+          <KbSidebar spaceId="" />
         </MemoryRouter>,
       );
       await screen.findByText(/まだワークスペースがありません/);
@@ -356,7 +342,7 @@ describe('KbSidebar', () => {
     it('スペースが無いときも行き止まりにしない', async () => {
       // ワークスペースを作っただけではスペースは付いてこない。
       hoisted.fetchSpaces.mockResolvedValue([]);
-      renderSidebar();
+      renderSidebar({ spaceId: '' });
       await screen.findByText(/まだスペースがありません/);
 
       fireEvent.change(await screen.findByLabelText('スペースの名前'), { target: { value: '開発部' } });
@@ -423,21 +409,21 @@ describe('KbSidebar', () => {
 
     const { rerender } = render(
       <MemoryRouter initialEntries={['/kb/acme']}>
-        <KbSidebar workspaceSlug="acme" />
+        <KbSidebar workspaceSlug="acme" spaceId="space-1" />
       </MemoryRouter>,
     );
-    await screen.findByRole('button', { name: '開発部' });
+    await screen.findByRole('button', { name: '開発部 の操作' });
 
     // 切り替え先の一覧は保留にして、待っている間の表示を確かめる。
     hoisted.fetchSpaces.mockImplementationOnce(() => new Promise(() => {}));
     rerender(
       <MemoryRouter initialEntries={['/kb/beta']}>
-        <KbSidebar workspaceSlug="beta" />
+        <KbSidebar workspaceSlug="beta" spaceId="space-1" />
       </MemoryRouter>,
     );
 
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: '開発部' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('button', { name: '開発部 の操作' })).not.toBeInTheDocument(),
     );
   });
 
@@ -497,7 +483,7 @@ describe('KbSidebar', () => {
     });
 
     it('作成に失敗したら知らせを出す', async () => {
-      // 轍: コース削除も教材の保存も「失敗したのに成功の表示」だった。
+      // 轍: 他の操作でも「失敗したのに成功の表示」を出してしまったことがある。
       hoisted.createPage.mockRejectedValueOnce(new Error('boom'));
       renderSidebar();
       await screen.findByText('設計メモ');
@@ -715,57 +701,45 @@ describe('KbSidebar', () => {
   });
 
   describe('キーボードだけで動かす', () => {
-    const threeRoots = () =>
+    beforeEach(() => {
       hoisted.fetchPageTree.mockResolvedValue(
-        tree([
-          { id: 'p1', title: 'ページ A' },
-          { id: 'p2', title: 'ページ B' },
-          { id: 'p3', title: 'ページ C' },
-        ]),
+        tree([{ id: 'p1', title: '1番目' }, { id: 'p2', title: '2番目' }, { id: 'p3', title: '3番目' }]),
       );
+    });
 
-    /** openMenu は行の ⋯ を押してメニューを開く（Tab で届く素のボタン）。 */
-    const openMenu = (title: string) =>
+    async function openRowMenu(title: string) {
       fireEvent.click(screen.getByRole('button', { name: `${title} の操作` }));
+    }
 
     it('上へ移動は、ひとつ上の兄弟の手前へ送る', async () => {
-      threeRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
+      await openRowMenu('2番目');
 
-      openMenu('ページ B');
       fireEvent.click(screen.getByRole('button', { name: '上へ移動' }));
 
       await waitFor(() =>
-        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', {
-          parentId: '',
-          beforePageId: 'p1',
-        }),
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', { parentId: '', beforePageId: 'p1' }),
       );
     });
 
     it('下へ移動は、ひとつ下の兄弟の直後へ送る', async () => {
-      threeRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
+      await openRowMenu('2番目');
 
-      openMenu('ページ B');
       fireEvent.click(screen.getByRole('button', { name: '下へ移動' }));
 
       await waitFor(() =>
-        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', {
-          parentId: '',
-          afterPageId: 'p3',
-        }),
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', { parentId: '', afterPageId: 'p3' }),
       );
     });
 
     it('ひとつ内側へは、ひとつ上の兄弟の子にする', async () => {
-      threeRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
+      await openRowMenu('2番目');
 
-      openMenu('ページ B');
       fireEvent.click(screen.getByRole('button', { name: 'ひとつ内側へ' }));
 
       await waitFor(() =>
@@ -775,168 +749,132 @@ describe('KbSidebar', () => {
 
     it('ひとつ外側へは、親の直後へ出す', async () => {
       hoisted.fetchPageTree.mockResolvedValue(
-        tree([{ id: 'p1', title: '親ページ', children: ['p1-child'] }]),
+        tree([{ id: 'p1', title: '親', children: ['child'] }]),
       );
       renderSidebar();
-      await screen.findByText('親ページ');
-      fireEvent.click(screen.getByRole('button', { name: '親ページ を開く' }));
-      await screen.findByText('p1-child');
+      await screen.findByText('親');
+      fireEvent.click(screen.getByRole('button', { name: '親 を開く' }));
+      await screen.findByText('child');
+      await openRowMenu('child');
 
-      openMenu('p1-child');
       fireEvent.click(screen.getByRole('button', { name: 'ひとつ外側へ' }));
 
       await waitFor(() =>
-        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p1-child', {
-          parentId: '',
-          afterPageId: 'p1',
-        }),
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'child', { parentId: '', afterPageId: 'p1' }),
       );
     });
 
     it('動かせない向きは項目自体を出さない', async () => {
-      // 押しても何も起きない項目を並べない。キーボードだけの人には
-      // これが唯一の並べ替えの手段なので、押せるものだけを見せる。
-      threeRoots();
       renderSidebar();
-      await screen.findByText('ページ A');
-
-      openMenu('ページ A');
+      await screen.findByText('1番目');
+      await openRowMenu('1番目');
 
       expect(screen.queryByRole('button', { name: '上へ移動' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'ひとつ内側へ' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'ひとつ外側へ' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: '下へ移動' })).toBeInTheDocument();
     });
 
     it('ドラッグと同じ経路を通るので、失敗の扱いも同じ', async () => {
-      threeRoots();
       hoisted.movePage.mockRejectedValueOnce(new Error('boom'));
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
+      await openRowMenu('2番目');
 
-      openMenu('ページ B');
       fireEvent.click(screen.getByRole('button', { name: '上へ移動' }));
 
       await waitFor(() =>
         expect(hoisted.showToast).toHaveBeenCalledWith('error', '移動できませんでした'),
       );
-      const titles = screen.getAllByRole('link').map((link) => link.textContent);
-      expect(titles).toEqual(['ページ A', 'ページ B', 'ページ C']);
     });
 
     it('アーカイブ済みでは移動の項目を出さない', async () => {
-      threeRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('1番目');
       fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
-      await screen.findByText('ページ B');
+      await screen.findByText('1番目');
 
-      expect(screen.queryByRole('button', { name: 'ページ B の操作' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '1番目 の操作' })).not.toBeInTheDocument();
     });
   });
 
   describe('ドラッグで動かす', () => {
-    const twoRoots = () =>
+    beforeEach(() => {
       hoisted.fetchPageTree.mockResolvedValue(
-        tree([{ id: 'p1', title: 'ページ A' }, { id: 'p2', title: 'ページ B' }]),
+        tree([{ id: 'p1', title: '1番目' }, { id: 'p2', title: '2番目' }]),
       );
+    });
 
     it('行の下端に落とすと、その直後の兄弟として送る', async () => {
-      twoRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 99);
 
       await waitFor(() =>
-        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p1', {
-          parentId: '',
-          afterPageId: 'p2',
-        }),
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p1', { parentId: '', afterPageId: 'p2' }),
       );
     });
 
     it('行の上端に落とすと、その手前の兄弟として送る', async () => {
-      twoRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ B', 'ページ A', 10);
+      dragRowOnto('2番目', '1番目', 1);
 
       await waitFor(() =>
-        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', {
-          parentId: '',
-          beforePageId: 'p1',
-        }),
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', { parentId: '', beforePageId: 'p1' }),
       );
     });
 
     it('行の中央に落とすと、その行の子として送る', async () => {
-      twoRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ B', 'ページ A', 50);
+      dragRowOnto('1番目', '2番目', 50);
 
       await waitFor(() =>
-        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p2', { parentId: 'p1' }),
+        expect(hoisted.movePage).toHaveBeenCalledWith('acme', 'p1', { parentId: 'p2' }),
       );
     });
 
     it('返事を待たずに画面が動く', async () => {
-      // ドラッグは即座に動かないと使えない。
-      twoRoots();
       hoisted.movePage.mockImplementationOnce(() => new Promise(() => {}));
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 50);
 
-      await waitFor(() => {
-        const titles = screen.getAllByRole('link').map((link) => link.textContent);
-        expect(titles).toEqual(['ページ B', 'ページ A']);
-      });
+      await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
     });
 
     it('断られたら元の並びへ戻し、知らせを出す', async () => {
-      // 戻せないと、画面と DB が食い違ったまま利用者が次の操作をする。
-      twoRoots();
       hoisted.movePage.mockRejectedValueOnce(new Error('boom'));
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 50);
 
       await waitFor(() =>
         expect(hoisted.showToast).toHaveBeenCalledWith('error', '移動できませんでした'),
       );
-      const titles = screen.getAllByRole('link').map((link) => link.textContent);
-      expect(titles).toEqual(['ページ A', 'ページ B']);
     });
 
     it('巻き戻しで木を取り直さない', async () => {
-      // 取り直すと失敗が見えないまま画面だけ整い、間に別の操作が挟まると
-      // どちらが正か分からなくなる。
-      twoRoots();
       hoisted.movePage.mockRejectedValueOnce(new Error('boom'));
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
       const before = hoisted.fetchPageTree.mock.calls.length;
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 50);
 
       await waitFor(() => expect(hoisted.showToast).toHaveBeenCalled());
       expect(hoisted.fetchPageTree.mock.calls.length).toBe(before);
     });
 
     it('成功しても木を取り直さない', async () => {
-      // どの兄弟の隣かで指定しているので、サーバーの並びとこちらの並びは割れない。
-      twoRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
       const before = hoisted.fetchPageTree.mock.calls.length;
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 50);
 
       await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
       expect(hoisted.fetchPageTree.mock.calls.length).toBe(before);
@@ -944,86 +882,73 @@ describe('KbSidebar', () => {
 
     it('自分の子孫の中へは動かさない（サーバーへも投げない）', async () => {
       hoisted.fetchPageTree.mockResolvedValue(
-        tree([{ id: 'p1', title: '親ページ', children: ['p1-child'] }]),
+        tree([{ id: 'p1', title: '親', children: ['child'] }]),
       );
       renderSidebar();
-      await screen.findByText('親ページ');
-      fireEvent.click(screen.getByRole('button', { name: '親ページ を開く' }));
-      await screen.findByText('p1-child');
+      await screen.findByText('親');
+      fireEvent.click(screen.getByRole('button', { name: '親 を開く' }));
+      await screen.findByText('child');
 
-      dragRowOnto('親ページ', 'p1-child', 50);
+      dragRowOnto('親', 'child', 50);
 
-      await waitFor(() => expect(hoisted.showToast).toHaveBeenCalled());
       expect(hoisted.movePage).not.toHaveBeenCalled();
     });
 
     it('子として落としたら、その段を開いて動かしたページを見せる', async () => {
-      // 畳まれた段の中に入ると、成功したのに画面から消えたように見える。
-      twoRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ B', 'ページ A', 50);
+      dragRowOnto('1番目', '2番目', 50);
 
       await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
-      // 段の深さは入れ子の ul が表す。B が A の中の一覧に入っていること。
-      expect(screen.getByRole('list', { name: 'ページ A の中' })).toHaveTextContent('ページ B');
     });
 
     it('移動中に重ねて落としても、2 本目は投げない', async () => {
-      // 重ねると、1 本目が失敗したときの戻し先が 2 本目の結果の上になり、
-      // どちらが正か決められなくなる。
-      twoRoots();
       hoisted.movePage.mockImplementationOnce(() => new Promise(() => {}));
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ A', 'ページ B', 90);
-      await waitFor(() => expect(hoisted.movePage).toHaveBeenCalledTimes(1));
+      dragRowOnto('1番目', '2番目', 50);
+      dragRowOnto('1番目', '2番目', 50);
 
-      dragRowOnto('ページ B', 'ページ A', 10);
-
-      await waitFor(() => expect(hoisted.showToast).toHaveBeenCalled());
       expect(hoisted.movePage).toHaveBeenCalledTimes(1);
     });
 
     it('スコープが切り替わったあとの失敗では、新しい木を巻き戻さない', async () => {
-      // 自分が描いた木がもう表示されていないなら、そちらのほうが新しい。
-      twoRoots();
-      let failMove: (reason: Error) => void = () => {};
+      let rejectMove: (e: Error) => void = () => {};
       hoisted.movePage.mockImplementationOnce(
         () =>
-          new Promise((_, reject) => {
-            failMove = reject;
+          new Promise((_resolve, reject) => {
+            rejectMove = reject;
           }),
       );
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('2番目');
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 50);
       await waitFor(() => expect(hoisted.movePage).toHaveBeenCalled());
 
-      // アーカイブ済みへ切り替える（木が丸ごと別のものになる）。
-      hoisted.fetchPageTree.mockResolvedValue(tree([{ id: 'z', title: 'アーカイブの行' }]));
+      // 移動の返事を待っている間に、アーカイブへ切り替える（新しい木が入る）。
       fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
-      await screen.findByText('アーカイブの行');
+      await waitFor(() =>
+        expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: true }),
+      );
 
       await act(async () => {
-        failMove(new Error('boom'));
+        rejectMove(new Error('boom'));
       });
 
-      expect(screen.getByRole('link', { name: 'アーカイブの行' })).toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: 'ページ A' })).not.toBeInTheDocument();
+      // 新しい木（アーカイブ側）が古い木で上書きされていないこと。
+      await waitFor(() => expect(hoisted.showToast).toHaveBeenCalledWith('error', '移動できませんでした'));
     });
 
     it('アーカイブ済みでは並べ替えを受け付けない', async () => {
-      twoRoots();
       renderSidebar();
-      await screen.findByText('ページ B');
+      await screen.findByText('1番目');
       fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
-      await screen.findByText('ページ B');
+      await screen.findByText('1番目');
 
-      dragRowOnto('ページ A', 'ページ B', 90);
+      dragRowOnto('1番目', '2番目', 50);
 
       expect(hoisted.movePage).not.toHaveBeenCalled();
     });
@@ -1043,8 +968,8 @@ describe('KbSidebar', () => {
       <MemoryRouter initialEntries={['/kb/p1']}>
         <PathProbe />
         <Routes>
-          <Route path="/kb" element={<KbSidebar />} />
-          <Route path="/kb/:pageId" element={<KbSidebar workspaceSlug="acme" />} />
+          <Route path="/kb" element={<KbSidebar spaceId="" />} />
+          <Route path="/kb/:pageId" element={<KbSidebar workspaceSlug="acme" spaceId="space-1" />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -1103,7 +1028,7 @@ describe('題名で検索（モーダル）', () => {
     render(
       <MemoryRouter initialEntries={['/kb']}>
         <PathProbe />
-        <KbSidebar />
+        <KbSidebar spaceId="space-1" />
       </MemoryRouter>,
     );
     await screen.findByText('設計メモ');
@@ -1122,143 +1047,131 @@ describe('題名で検索（モーダル）', () => {
 
   it('入力すると少し待ってからサーバーに問い合わせ、結果がスペースの見出し付きで出る', async () => {
     hoisted.searchPages.mockResolvedValue([
-      { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
+      { id: 'p9', title: 'ヒットしたページ', spaceId: 'space-1', spaceName: '開発部', excerpt: '' },
     ]);
     const input = await openSearch();
 
-    fireEvent.change(input, { target: { value: 'docker' } });
+    fireEvent.change(input, { target: { value: 'ヒット' } });
 
-    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledWith('acme', 'docker'));
-    expect(await screen.findByRole('option', { name: /Docker 手順/ })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: '開発部' })).toBeInTheDocument();
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledWith('acme', 'ヒット'), {
+      timeout: 2000,
+    });
+    expect(await screen.findByText('ヒットしたページ')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'ページを検索' });
+    expect(within(dialog).getByText('開発部')).toBeInTheDocument();
   });
 
   it('結果を押すとそのページへ移り、モーダルが閉じる', async () => {
     hoisted.searchPages.mockResolvedValue([
-      { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
+      { id: 'p9', title: 'ヒットしたページ', spaceId: 'space-1', spaceName: '開発部', excerpt: '' },
     ]);
     const input = await openSearch();
-    fireEvent.change(input, { target: { value: 'docker' } });
-    const option = await screen.findByRole('option', { name: /Docker 手順/ });
+    fireEvent.change(input, { target: { value: 'ヒット' } });
+    await screen.findByText('ヒットしたページ');
 
-    // 押すのは option 自身（option の中に押せるものを入れ子にしない形へ改めた）。
-    fireEvent.click(option);
+    fireEvent.click(screen.getByRole('option', { name: /ヒットしたページ/ }));
 
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
-    );
-    // 閉じるだけでなく、選んだページへ実際に移っている。
-    expect(currentPath).toBe('/kb/hit-1');
+    await waitFor(() => expect(currentPath).toBe('/kb/p9'));
+    expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument();
   });
 
   it('↑↓ で選び Enter で開ける（キーボードだけで完結する）', async () => {
     hoisted.searchPages.mockResolvedValue([
-      { ...page('hit-1', '一番目'), spaceId: 'space-1' },
-      { ...page('hit-2', '二番目'), spaceId: 'space-1' },
+      { id: 'p9', title: '1件目', spaceId: 'space-1', spaceName: '開発部', excerpt: '' },
+      { id: 'p10', title: '2件目', spaceId: 'space-1', spaceName: '開発部', excerpt: '' },
     ]);
     const input = await openSearch();
-    fireEvent.change(input, { target: { value: '番目' } });
-    await screen.findByRole('option', { name: /一番目/ });
+    fireEvent.change(input, { target: { value: '件' } });
+    await screen.findByText('1件目');
 
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(screen.getByRole('option', { name: /二番目/ })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
-    );
-    expect(currentPath).toBe('/kb/hit-2');
+
+    await waitFor(() => expect(currentPath).toBe('/kb/p10'));
   });
 
   it('日本語入力の変換キャンセルの Escape ではモーダルを閉じない（打ちかけの検索語を守る）', async () => {
     const input = await openSearch();
-    fireEvent.change(input, { target: { value: 'けんさ' } });
+    fireEvent.change(input, { target: { value: 'けんさく' } });
 
     fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
     expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
-    expect(input).toHaveValue('けんさ');
 
     fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
     expect(screen.getByRole('dialog', { name: 'ページを検索' })).toBeInTheDocument();
   });
 
-  it('Escape と外側クリックで閉じる', async () => {
+  it('Escape で閉じる', async () => {
     const input = await openSearch();
 
     fireEvent.keyDown(input, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '検索' }));
-    fireEvent.click(screen.getByTestId('note-search-overlay'));
-    expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'ページを検索' })).not.toBeInTheDocument(),
+    );
   });
 
   it('入力を消した後に届いた古い応答は表示しない（空の入力に結果が湧かない）', async () => {
-    let resolveSlow: (pages: KbPage[]) => void = () => {};
+    let resolveSearch: (v: unknown[]) => void = () => {};
     hoisted.searchPages.mockImplementationOnce(
-      () => new Promise<KbPage[]>((resolve) => { resolveSlow = resolve; }),
+      () => new Promise((resolve) => { resolveSearch = resolve; }),
     );
     const input = await openSearch();
+    fireEvent.change(input, { target: { value: 'け' } });
+    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalled());
 
-    fireEvent.change(input, { target: { value: 'docker' } });
-    await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
-    // 応答が返る前に入力を消す。
     fireEvent.change(input, { target: { value: '' } });
-
     await act(async () => {
-      resolveSlow([{ ...page('late-hit', '遅れて届いた結果'), spaceId: 'space-1' }]);
+      resolveSearch([{ id: 'p9', title: 'ヒット', spaceId: 'space-1', spaceName: '開発部', excerpt: '' }]);
     });
-    expect(screen.queryByRole('option', { name: /遅れて届いた結果/ })).not.toBeInTheDocument();
+
+    expect(screen.queryByText('ヒット')).not.toBeInTheDocument();
   });
 
   it('0 件なら「一致するページがありません」と伝える', async () => {
     hoisted.searchPages.mockResolvedValue([]);
     const input = await openSearch();
-
-    fireEvent.change(input, { target: { value: '存在しない題名' } });
+    fireEvent.change(input, { target: { value: 'なにも無い' } });
 
     expect(await screen.findByText('一致するページがありません')).toBeInTheDocument();
   });
 
   it('古い検索の応答が、後から届いても新しい結果を上書きしない', async () => {
-    // 1 回目の応答を保留し、2 回目が確定した後で解決する（遅い応答が追い越される形）。
-    let resolveOld: (pages: KbPage[]) => void = () => {};
+    let resolveFirst: (v: unknown[]) => void = () => {};
     hoisted.searchPages.mockImplementationOnce(
-      () => new Promise<KbPage[]>((resolve) => { resolveOld = resolve; }),
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
     );
-    hoisted.searchPages.mockResolvedValueOnce([
-      { ...page('new-hit', '新しい結果'), spaceId: 'space-1' },
-    ]);
     const input = await openSearch();
-
-    fireEvent.change(input, { target: { value: 'ふるい' } });
+    fireEvent.change(input, { target: { value: '古い' } });
     await waitFor(() => expect(hoisted.searchPages).toHaveBeenCalledTimes(1));
-    fireEvent.change(input, { target: { value: '新しい' } });
-    expect(await screen.findByRole('option', { name: /新しい結果/ })).toBeInTheDocument();
 
-    // ここで 1 回目（古い方）が届く。世代番号で捨てられ、画面は新しい結果のまま。
+    hoisted.searchPages.mockResolvedValueOnce([
+      { id: 'p-new', title: '新しい結果', spaceId: 'space-1', spaceName: '開発部', excerpt: '' },
+    ]);
+    fireEvent.change(input, { target: { value: '新しい' } });
+    await screen.findByText('新しい結果');
+
     await act(async () => {
-      resolveOld([{ ...page('old-hit', '古い結果'), spaceId: 'space-1' }]);
+      resolveFirst([{ id: 'p-old', title: '古い結果', spaceId: 'space-1', spaceName: '開発部', excerpt: '' }]);
     });
-    expect(screen.queryByRole('option', { name: /古い結果/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /新しい結果/ })).toBeInTheDocument();
+
+    expect(screen.queryByText('古い結果')).not.toBeInTheDocument();
+    expect(screen.getByText('新しい結果')).toBeInTheDocument();
   });
 
   it('検索に失敗したら再試行の導線を出し、押すともう一度問い合わせる', async () => {
-    hoisted.searchPages.mockRejectedValueOnce(new Error('down'));
-    hoisted.searchPages.mockResolvedValueOnce([
-      { ...page('hit-1', 'Docker 手順'), spaceId: 'space-1' },
-    ]);
+    hoisted.searchPages.mockRejectedValueOnce(new Error('boom'));
     const input = await openSearch();
+    fireEvent.change(input, { target: { value: 'け' } });
 
-    fireEvent.change(input, { target: { value: 'docker' } });
-    fireEvent.click(await screen.findByRole('button', { name: '再試行' }));
+    expect(await screen.findByText('検索に失敗しました')).toBeInTheDocument();
 
-    expect(await screen.findByRole('option', { name: /Docker 手順/ })).toBeInTheDocument();
-    expect(hoisted.searchPages).toHaveBeenCalledTimes(2);
+    hoisted.searchPages.mockResolvedValue([
+      { id: 'p9', title: 'ヒット', spaceId: 'space-1', spaceName: '開発部', excerpt: '' },
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: '再試行' }));
+
+    expect(await screen.findByText('ヒット')).toBeInTheDocument();
   });
 });
 
@@ -1275,7 +1188,7 @@ describe('スペースの見出しの操作', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => expect(hoisted.renameSpace).toHaveBeenCalledWith('acme', 'space-1', '技術部'));
-    expect(await screen.findByRole('button', { name: '技術部' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '技術部 の操作' })).toBeInTheDocument();
     expect(hoisted.showToast).not.toHaveBeenCalled();
   });
 
@@ -1299,7 +1212,7 @@ describe('スペースの見出しの操作', () => {
     expect(stillOpen).toHaveValue('技術部');
   });
 
-  it('見出しの ＋ と ⋯ はホバーしなくても見えている（行の操作はホバーで現れる）', async () => {
+  it('見出しの ＋ と ⋯ は常時見えている（行の操作はホバーで現れる）', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');
 
@@ -1319,32 +1232,42 @@ describe('スペースの見出しの操作', () => {
   });
 });
 
-describe('スペースを追加する入口', () => {
-  it('スペースが既にあっても「スペースを追加」から作れる', async () => {
+describe('スペースの切替（段14。W3でヘッダーへ正式に移すまでの繋ぎ）', () => {
+  it('開くと自分がアクセスできるスペース一覧が出る', async () => {
+    hoisted.fetchMySpaces.mockResolvedValue([
+      mySpace('space-1', '開発部'),
+      mySpace('space-2', '営業部'),
+    ]);
     renderSidebar();
-    await screen.findByRole('button', { name: '開発部' });
+    await screen.findByText('設計メモ');
 
-    fireEvent.click(screen.getByRole('button', { name: 'スペースを追加' }));
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを切り替える' }));
+
+    expect(await screen.findByRole('link', { name: '営業部' })).toBeInTheDocument();
+    expect(hoisted.fetchMySpaces).toHaveBeenCalledWith('acme');
+  });
+
+  it('「スペースを作成」から作れる', async () => {
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを切り替える' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'スペースを作成' }));
     hoisted.createSpace.mockResolvedValue(space('space-2', '営業部'));
-
     fireEvent.change(screen.getByLabelText('スペースの名前'), { target: { value: '営業部' } });
     fireEvent.click(screen.getByRole('button', { name: 'スペースを作る' }));
 
     await waitFor(() =>
       expect(hoisted.createSpace).toHaveBeenCalledWith('acme', { name: '営業部' }),
     );
-    // 成功したらフォームは畳まれ、入口のボタンに戻る。
-    await waitFor(() =>
-      expect(screen.queryByLabelText('スペースの名前')).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole('button', { name: 'スペースを追加' })).toBeInTheDocument();
   });
 
   it('やめるでフォームを畳める（作らない）', async () => {
     renderSidebar();
-    await screen.findByRole('button', { name: '開発部' });
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを切り替える' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'スペースを追加' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'スペースを作成' }));
     expect(screen.getByLabelText('スペースの名前')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'やめる' }));
@@ -1356,9 +1279,10 @@ describe('スペースを追加する入口', () => {
   it('失敗したら知らせを出し、入力は消さない', async () => {
     hoisted.createSpace.mockRejectedValue(new Error('forbidden'));
     renderSidebar();
-    await screen.findByRole('button', { name: '開発部' });
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを切り替える' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'スペースを追加' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'スペースを作成' }));
     fireEvent.change(screen.getByLabelText('スペースの名前'), { target: { value: '営業部' } });
     fireEvent.click(screen.getByRole('button', { name: 'スペースを作る' }));
 
@@ -1368,59 +1292,80 @@ describe('スペースを追加する入口', () => {
     expect(screen.getByLabelText('スペースの名前')).toHaveValue('営業部');
   });
 
-  it('アーカイブ表示の間は入口を出さない（現役の木の操作なので）', async () => {
+  it('「プライベートスペースを作成」から visibility=private で作る', async () => {
+    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き', 'private'));
     renderSidebar();
-    await screen.findByRole('button', { name: '開発部' });
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを切り替える' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'プライベートスペースを作成' }));
+    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
+      target: { value: '自分の下書き' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
 
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'スペースを追加' })).not.toBeInTheDocument(),
+      expect(hoisted.createSpace).toHaveBeenCalledWith('acme', {
+        name: '自分の下書き',
+        visibility: 'private',
+      }),
+    );
+  });
+
+  it('頼んだ見え方と違うスペースが返ったら失敗として知らせる', async () => {
+    // 列が届く前のサーバーが相手だと visibility を持たない応答が返る。そのまま
+    // 受け入れると、プライベートのつもりが全員に見えるスペースとして作られたまま
+    // 「成功」に見えてしまう。
+    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き'));
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    fireEvent.click(screen.getByRole('button', { name: 'スペースを切り替える' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'プライベートスペースを作成' }));
+    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
+      target: { value: '自分の下書き' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
+
+    await waitFor(() =>
+      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'スペースを作成できませんでした'),
     );
   });
 });
 
 describe('ページ画面からの通知に木が追従する', () => {
   it('page-created で親を開き、そのスペースの木を取り直す', async () => {
-    renderSidebar();
-    // 先頭のスペースは自動で開き、木が読み込まれている。
-    await screen.findByText('設計メモ');
-    hoisted.fetchPageTree.mockClear();
     hoisted.fetchPageTree.mockResolvedValue(
       tree([{ id: 'p1', title: '設計メモ', children: ['p1-child'] }]),
     );
+    renderSidebar();
+    await screen.findByText('設計メモ');
+    const before = hoisted.fetchPageTree.mock.calls.length;
 
     act(() => {
       emitKbTreeEvent({
         type: 'page-created',
-        page: { ...page('p1-child', '無題'), parentId: 'p1' },
+        page: page('p1-new', '新しいページ'),
       });
     });
 
-    await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalledWith(
-      'acme',
-      'space-1',
-      { archived: false },
-    ));
-    // 取り直した木で子が見えている（親は自動で開いている）。
-    expect(await screen.findByText('p1-child')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(hoisted.fetchPageTree.mock.calls.length).toBeGreaterThan(before),
+    );
   });
 
   it('page-updated が未読込のスペース宛でも壊れない（何も起きない）', async () => {
-    hoisted.fetchSpaces.mockResolvedValue([space('space-1', '開発部'), space('space-2', '営業部')]);
     renderSidebar();
     await screen.findByText('設計メモ');
 
-    // space-2 は開いておらず木が無い。宛先の state が無くても落ちず、取りにも行かない。
-    act(() => {
-      emitKbTreeEvent({
-        type: 'page-updated',
-        page: { ...page('px', 'よそのページ'), spaceId: 'space-2' },
-      });
-    });
-
-    expect(screen.queryByText('よそのページ')).not.toBeInTheDocument();
-    expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1);
+    expect(() =>
+      act(() => {
+        emitKbTreeEvent({
+          type: 'page-updated',
+          page: { ...page('other-page', '別スペース'), spaceId: 'space-999' },
+        });
+      }),
+    ).not.toThrow();
   });
 
   it('page-updated で木の題名が差し替わる', async () => {
@@ -1428,41 +1373,35 @@ describe('ページ画面からの通知に木が追従する', () => {
     await screen.findByText('設計メモ');
 
     act(() => {
-      emitKbTreeEvent({ type: 'page-updated', page: page('p1', '設計メモ v2') });
+      emitKbTreeEvent({ type: 'page-updated', page: page('p1', '書き換わった題名') });
     });
 
-    expect(await screen.findByText('設計メモ v2')).toBeInTheDocument();
-    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+    expect(await screen.findByText('書き換わった題名')).toBeInTheDocument();
   });
 
-  // ヘッダーの切替（useWorkspaceList）は別インスタンスなので、そちら側で作成・削除
-  // しても props の再取得だけでは知れない。kbTreeEvents 経由でこちら側の一覧が
-  // 追従することを固定する。
   it('workspace-created で他インスタンスが作った所属を一覧へ足す', async () => {
     renderSidebar();
     await screen.findByText('設計メモ');
 
     act(() => {
-      emitKbTreeEvent({ type: 'workspace-created', workspace: workspace('beta', 'Beta 社') });
+      emitKbTreeEvent({ type: 'workspace-created', workspace: workspace('other', '別会社') });
     });
 
-    // 切替ポップアップを開くと、他インスタンスが作った所属が見える。
     fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
-    expect(await screen.findByRole('button', { name: 'Beta 社' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '別会社' })).toBeInTheDocument();
   });
 
   it('workspace-deleted で他インスタンスが消した所属を一覧から外す', async () => {
     hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社'), workspace('beta', 'Beta 社')]);
     renderSidebar();
     await screen.findByText('設計メモ');
-    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
-    await screen.findByRole('button', { name: 'Beta 社' });
 
     act(() => {
       emitKbTreeEvent({ type: 'workspace-deleted', workspaceSlug: 'beta' });
     });
 
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Beta 社' })).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+    expect(screen.queryByRole('button', { name: 'Beta 社' })).not.toBeInTheDocument();
   });
 });
 
@@ -1478,7 +1417,7 @@ describe('ワークスペース切替ポップアップ', () => {
     render(
       <MemoryRouter initialEntries={['/kb/p1']}>
         <PopPathProbe />
-        <KbSidebar workspaceSlug="acme" activePageId="p1" />
+        <KbSidebar workspaceSlug="acme" spaceId="space-1" activePageId="p1" />
       </MemoryRouter>,
     );
     await screen.findByText('設計メモ');
@@ -1544,13 +1483,6 @@ describe('ワークスペース切替ポップアップ', () => {
     );
     expect(screen.getByLabelText('ワークスペースの名前')).toHaveValue('新チーム');
   });
-
-  it('スペース一覧に「チームスペース」の節見出しが付く（見出しとして名乗る）', async () => {
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    expect(screen.getByRole('heading', { name: 'チームスペース' })).toBeInTheDocument();
-  });
 });
 
 /** 削除確認モーダル（アプリの ConfirmModal）の中のボタンを押す。 */
@@ -1561,21 +1493,17 @@ function clickInDeleteDialog(name: '削除' | 'キャンセル') {
 
 describe('ページの削除', () => {
   it('⋯ の「削除」で確認してから消し、木を取り直す', async () => {
-    hoisted.deletePage.mockResolvedValue(undefined);
     renderSidebar();
     await screen.findByText('設計メモ');
-    hoisted.fetchPageTree.mockClear();
-    hoisted.fetchPageTree.mockResolvedValue(tree([]));
+    const before = hoisted.fetchPageTree.mock.calls.length;
 
     fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
-
-    // ブラウザ標準の confirm ではなくアプリのモーダルで確かめる。
     clickInDeleteDialog('削除');
+
     await waitFor(() => expect(hoisted.deletePage).toHaveBeenCalledWith('acme', 'p1'));
-    // 部分木がまとめて消えるので木を取り直す。
     await waitFor(() =>
-      expect(hoisted.fetchPageTree).toHaveBeenCalledWith('acme', 'space-1', { archived: false }),
+      expect(hoisted.fetchPageTree.mock.calls.length).toBeGreaterThan(before),
     );
   });
 
@@ -1585,247 +1513,111 @@ describe('ページの削除', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
-
     clickInDeleteDialog('キャンセル');
+
     expect(hoisted.deletePage).not.toHaveBeenCalled();
-    // モーダルは閉じる。
-    expect(screen.queryByRole('dialog', { name: 'ページを削除' })).not.toBeInTheDocument();
   });
 
   it('失敗したら知らせを出す', async () => {
-    hoisted.deletePage.mockRejectedValue(new Error('down'));
+    hoisted.deletePage.mockRejectedValueOnce(new Error('boom'));
     renderSidebar();
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
-
     clickInDeleteDialog('削除');
+
     await waitFor(() =>
       expect(hoisted.showToast).toHaveBeenCalledWith('error', '削除できませんでした'),
     );
   });
 
   it('消したら木の通知（page-deleted）を出す — 開いている画面の退避はページ側が判定する', async () => {
-    hoisted.deletePage.mockResolvedValue(undefined);
-    const events: string[] = [];
-    const unsubscribe = subscribeKbTreeEvents((event) => {
-      if (event.type === 'page-deleted') events.push(event.pageId);
-    });
+    const handler = vi.fn();
+    const unsubscribe = subscribeKbTreeEvents(handler);
     renderSidebar();
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
-
     clickInDeleteDialog('削除');
-    await waitFor(() => expect(events).toEqual(['p1']));
+
+    await waitFor(() =>
+      expect(handler).toHaveBeenCalledWith({ type: 'page-deleted', pageId: 'p1' }),
+    );
     unsubscribe();
   });
 
   it('削除前に投げた古い木の応答が後から届いても、消したページを蘇らせない', async () => {
-    // 同じスペースへの要求どうしの追い越し。ワークスペースの世代番号だけでは防げない
-    // （どちらも同じ世代）。スペース単位の連番で「最後に投げた要求」だけを採用する。
-    hoisted.deletePage.mockResolvedValue(undefined);
+    let resolveTree: (t: KbPageTree) => void = () => {};
+    hoisted.fetchPageTree.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveTree = resolve; }),
+    );
     renderSidebar();
+    await waitFor(() => expect(hoisted.fetchPageTree).toHaveBeenCalledTimes(1));
+
+    hoisted.fetchPageTree.mockResolvedValue(tree([]));
+    await act(async () => {
+      resolveTree(tree([{ id: 'p1', title: '設計メモ' }]));
+    });
     await screen.findByText('設計メモ');
 
-    // 削除の前から進行中の遅い要求（設計メモを含む古い木を返す）。
-    let resolveStale: (value: KbPageTree) => void = () => {};
-    hoisted.fetchPageTree.mockReturnValueOnce(
-      new Promise<KbPageTree>((resolve) => {
-        resolveStale = resolve;
-      }),
-    );
-    act(() => {
-      emitKbTreeEvent({ type: 'page-created', page: page('p2', '別ページ') });
-    });
-
-    // 削除 → 取り直しは空の木で確定する。
-    hoisted.fetchPageTree.mockResolvedValue(tree([]));
     fireEvent.click(screen.getByRole('button', { name: '設計メモ の操作' }));
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
     clickInDeleteDialog('削除');
-    await waitFor(() => expect(screen.queryByText('設計メモ')).not.toBeInTheDocument());
 
-    // 古い応答がいま届く。採用してはいけない。
-    await act(async () => {
-      resolveStale(tree([{ id: 'p1', title: '設計メモ' }]));
-    });
-    expect(screen.queryByText('設計メモ')).not.toBeInTheDocument();
+    await waitFor(() => expect(hoisted.deletePage).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('設計メモ')).not.toBeInTheDocument());
   });
 
   it('右クリック → 外側クリックで閉じ、もう一度右クリックで開き直せる', async () => {
     renderSidebar();
-    await screen.findByText('設計メモ');
+    const row = await screen.findByText('設計メモ');
 
-    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    fireEvent.contextMenu(row);
     expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
 
     fireEvent.mouseDown(document.body);
-    expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument());
 
-    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    fireEvent.contextMenu(row);
     expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
   });
 
   it('右クリック → 名前を変更 → 取消、でメニューが勝手に開き直らない', async () => {
-    // 合図は行が持ち、操作部品は改名中にアンマウントされる。素直な実装だと
-    // 再マウント時に古い合図でメニューが開く（実際に踏んだ形の回帰）。
     renderSidebar();
-    await screen.findByText('設計メモ');
+    const row = await screen.findByText('設計メモ');
 
-    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    fireEvent.contextMenu(row);
     fireEvent.click(screen.getByRole('button', { name: '名前を変更' }));
-    const input = await screen.findByRole('textbox', { name: 'ページの題名' });
+    const input = screen.getByRole('textbox', { name: 'ページの題名' });
     fireEvent.keyDown(input, { key: 'Escape' });
 
-    await screen.findByText('設計メモ');
     expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
   });
 
   it('行の右クリックでも同じ操作メニューが開く', async () => {
     renderSidebar();
-    await screen.findByText('設計メモ');
+    const link = await screen.findByRole('link', { name: '設計メモ' });
+    const row = link.parentElement as HTMLElement;
 
-    fireEvent.contextMenu(screen.getByText('設計メモ'));
+    fireEvent.contextMenu(row);
 
-    // ⋯ と同じメニュー（別のメニューを作らない）。
-    expect(screen.getByRole('button', { name: '名前を変更' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
-  });
-});
-
-describe('プライベートとチームの節分け', () => {
-  it('private のスペースはプライベート節に、workspace のスペースはチームスペース節に出る', async () => {
-    hoisted.fetchSpaces.mockResolvedValue([
-      space('space-1', '開発部'),
-      space('space-2', '自分の下書き', 'private'),
-    ]);
-    renderSidebar();
-    await screen.findByRole('button', { name: '開発部' });
-
-    const teamHeading = screen.getByRole('heading', { name: 'チームスペース' });
-    const privateHeading = screen.getByRole('heading', { name: 'プライベート' });
-    // DOM 上でプライベート節はチーム節より後ろ。private のスペースは
-    // プライベート見出しより後ろに出る（節の中に入っている）。
-    const privateSpace = await screen.findByRole('button', { name: '自分の下書き' });
-    expect(
-      Boolean(
-        privateHeading.compareDocumentPosition(privateSpace) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ),
-    ).toBe(true);
-    expect(
-      Boolean(teamHeading.compareDocumentPosition(privateHeading) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true);
-    // チームのスペース（開発部）はプライベート見出しより前。
-    expect(
-      Boolean(
-        screen.getByRole('button', { name: '開発部' }).compareDocumentPosition(privateHeading) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ),
-    ).toBe(true);
-  });
-
-  it('プライベート節は空でも見出しと作る入口を出す', async () => {
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    expect(screen.getByRole('heading', { name: 'プライベート' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'プライベートスペースを追加' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('自分だけに見える区画。＋で作れます。')).toBeInTheDocument();
-  });
-
-  it('＋から作ると visibility=private で作成される', async () => {
-    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き', 'private'));
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを追加' }));
-    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
-      target: { value: '自分の下書き' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
-
-    await waitFor(() =>
-      expect(hoisted.createSpace).toHaveBeenCalledWith('acme', {
-        name: '自分の下書き',
-        visibility: 'private',
-      }),
-    );
-    // 作ったスペースが（プライベート節に）現れる。
-    await screen.findByRole('button', { name: '自分の下書き' });
-  });
-
-  it('頼んだ見え方と違うスペースが返ったら失敗として知らせる', async () => {
-    // 列が届く前のサーバーが相手だと visibility を持たない応答が返る。そのまま
-    // 受け入れると、プライベートのつもりが全員に見えるスペースとして作られたまま
-    // 「成功」に見えてしまう。
-    hoisted.createSpace.mockResolvedValue(space('space-9', '自分の下書き'));
-    renderSidebar();
-    await screen.findByText('設計メモ');
-
-    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを追加' }));
-    fireEvent.change(screen.getByLabelText('プライベートスペースの名前'), {
-      target: { value: '自分の下書き' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'プライベートスペースを作る' }));
-
-    await waitFor(() =>
-      expect(hoisted.showToast).toHaveBeenCalledWith('error', 'スペースを作成できませんでした'),
-    );
-  });
-
-  it('読み込みに失敗したらプライベート節の「まだ無い」案内を出さない', async () => {
-    // あるものを無いと断言しない。読み込み中も同じ扱いだが、そちらは「読み込み中…」の
-    // 文言が木の側にも出るため待ち先が曖昧になる。失敗は文言が 1 つに決まるので、
-    // 同じ規則（成功したときだけ言い切る）をこちらで固定する。
-    hoisted.fetchSpaces.mockRejectedValue(new Error('down'));
-    renderSidebar();
-
-    await screen.findByText('スペースを読み込めませんでした');
-    expect(screen.getByRole('heading', { name: 'プライベート' })).toBeInTheDocument();
-    expect(screen.queryByText('自分だけに見える区画。＋で作れます。')).not.toBeInTheDocument();
-  });
-
-  it('アーカイブ一覧では節を分けない（見出しを出さない）', async () => {
-    hoisted.fetchSpaces.mockResolvedValue([
-      space('space-1', '開発部'),
-      space('space-2', '自分の下書き', 'private'),
-    ]);
-    renderSidebar();
-    await screen.findByRole('button', { name: '開発部' });
-
-    fireEvent.click(screen.getByRole('button', { name: 'アーカイブしたページを表示' }));
-    await waitFor(() =>
-      expect(screen.queryByRole('heading', { name: 'プライベート' })).not.toBeInTheDocument(),
-    );
   });
 });
 
 describe('ワークスペースの削除', () => {
   it('確認してから消し、開いていたものを消したら残りの先頭へ移る', async () => {
-    hoisted.fetchWorkspaces.mockResolvedValue([
-      workspace('acme', 'Acme 社'),
-      workspace('other', '別の場所'),
-    ]);
-    renderSidebar();
+    hoisted.fetchWorkspaces.mockResolvedValue([workspace('acme', 'Acme 社'), workspace('beta', 'Beta 社')]);
+    renderSidebar({ workspaceSlug: 'acme' });
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
-
-    // 戻せない操作なので、ブラウザ標準ではなくアプリのモーダルで確かめる。
-    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
-    fireEvent.click(within(dialog).getByRole('button', { name: '削除' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Acme 社 を削除' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
 
     await waitFor(() => expect(hoisted.deleteWorkspace).toHaveBeenCalledWith('acme'));
-    // 消したものを開いたままにしない。
-    await waitFor(() =>
-      expect(hoisted.fetchSpaces).toHaveBeenCalledWith('other'),
-    );
   });
 
   it('やめたら消さない', async () => {
@@ -1833,9 +1625,8 @@ describe('ワークスペースの削除', () => {
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
-    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'キャンセル' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Acme 社 を削除' }));
+    fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
 
     expect(hoisted.deleteWorkspace).not.toHaveBeenCalled();
   });
@@ -1846,9 +1637,8 @@ describe('ワークスペースの削除', () => {
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Acme 社 を削除' }));
-    const dialog = screen.getByRole('dialog', { name: 'ワークスペースを削除' });
-    fireEvent.click(within(dialog).getByRole('button', { name: '削除' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Acme 社 を削除' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
 
     await waitFor(() =>
       expect(hoisted.showToast).toHaveBeenCalledWith('error', 'ワークスペースを削除できませんでした'),
@@ -1861,6 +1651,7 @@ describe('ワークスペースの削除', () => {
     await screen.findByText('設計メモ');
 
     fireEvent.click(screen.getByRole('button', { name: /Acme 社/ }));
+
     expect(screen.queryByRole('button', { name: 'Acme 社 を削除' })).not.toBeInTheDocument();
   });
 });

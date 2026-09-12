@@ -17,10 +17,8 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
-// ticketDateQueryLayout は一覧の絞り込みクエリパラメータ（dueBefore / startAfter）の形。
-// JSON ボディの binding:"datetime=2006-01-02" と同じ形を、クエリパラメータでも手で確かめる
-// （c.Query は gin の binding タグを通らないため）。壊れた値をそのまま usecase へ渡すと
-// DB の ::date キャストで 500 になってしまう。
+// ticketDateQueryLayout は一覧の絞り込みクエリ（dueBefore / startAfter）の形。c.Query は
+// binding タグを通らないため手で検証する — 怠ると壊れた値が DB の ::date キャストで 500 になる。
 const ticketDateQueryLayout = "2006-01-02"
 
 func validTicketDateQuery(v string) bool {
@@ -29,15 +27,13 @@ func validTicketDateQuery(v string) bool {
 }
 
 // TicketHandler はチケット本体の操作を受ける（有効化・作成・取得・一覧・更新・並び替え・
-// アーカイブ・状態変更・親変更・担当・履歴）。状態/種別マスタの管理は TicketStatusHandler /
-// TicketTypeHandler が別に持つ（設計の表が違う。1 handler 1 概念）。
+// アーカイブ・状態変更・親変更・担当・履歴）。状態/種別マスタは TicketStatusHandler /
+// TicketTypeHandler が別に持つ（1 handler 1 概念）。
 //
-// チケットの実効権限はページを介さない「スペース単位」の判定（設計 Ⅳ-H）。対象がまだ
-// 存在しない操作（一覧・作成・有効化）は checkSpace（kb パッケージの
-// CheckSpacePermissionUseCase をそのまま流用。ページを一切見ないので usecase/ticket から
-// usecase/kb を import しなくても handler 層でなら両方使える）、チケットを名指しする操作は
-// checkTicket（ticket.CheckTicketPermissionUseCase。内部で FindTicket → スペース解決する）
-// で判定する。
+// 実効権限はページを介さない「スペース単位」判定。対象がまだ存在しない操作（一覧・作成・
+// 有効化）は checkSpace（kb.CheckSpacePermissionUseCase をそのまま流用 — usecase/ticket は
+// usecase/kb を import しないが handler 層は両方使ってよい）、チケットを名指しする操作は
+// checkTicket（内部で FindTicket → スペース解決）で判定する。
 type TicketHandler struct {
 	checkSpace    *kb.CheckSpacePermissionUseCase
 	checkTicket   *ticket.CheckTicketPermissionUseCase
@@ -61,17 +57,12 @@ type TicketHandler struct {
 	assign        *ticket.AssignTicketUseCase
 	unassign      *ticket.UnassignTicketUseCase
 	history       *ticket.ListTicketHistoryUseCase
-	// labels / labelsByIDs は段 4。担当（getAssignment）と同じ分担 — 変更系 usecase は
-	// ラベルを触らないので、応答を組み立てる直前に handler が補う。
-	labels      *ticket.ListLabelsForTicketUseCase
-	labelsByIDs *ticket.ListLabelsByTicketIDsUseCase
-	// ancestors / pagesReferencingTicket は段 5（階層の完成とノート連携の厚み）。
-	// pagesReferencingTicket は usecase/kb 側の usecase — usecase/ticket は usecase/kb を
-	// import しないが、handler 層は両方に依存してよい（routes_ticket.go の doc と同じ理由）。
+	// labels / labelsByIDs: 変更系 usecase はラベルを触らないので、応答組み立て直前に補う。
+	labels                 *ticket.ListLabelsForTicketUseCase
+	labelsByIDs            *ticket.ListLabelsByTicketIDsUseCase
 	ancestors              *ticket.ListTicketAncestorsUseCase
 	pagesReferencingTicket *kb.ListPagesReferencingTicketUseCase
-	// userDisplay は作成者（Get 系）・変更履歴の実行者（History）の表示解決に使う（段 5）。
-	userDisplay *user.LookupUserDisplayUseCase
+	userDisplay            *user.LookupUserDisplayUseCase
 }
 
 func NewTicketHandler(
@@ -117,8 +108,7 @@ func NewTicketHandler(
 	}
 }
 
-// maxTicketBodyBytes はチケット API のボディ上限。本文は ProseMirror の JSON なので
-// ナレッジページ本文 API（maxKnowledgeBaseBodyBytes）と同じ桁で足りる。
+// maxTicketBodyBytes: 本文は ProseMirror JSON なので kb ページ本文 API と同じ桁で足りる。
 const maxTicketBodyBytes = maxKnowledgeBaseBodyBytes
 
 // ticketEmptyDoc は本文省略時の既定値（空の ProseMirror doc）。
@@ -129,9 +119,8 @@ func limitTicketBody(c *gin.Context) {
 }
 
 // respondTicketErr は usecase / repository / domain のセンチネルを HTTP ステータスへ対応づける。
-// 「存在しない」と「見る権限が無い」を同じ 404 に揃える方針は kb と同じ（respondKnowledgeBaseErr
-// 参照）。チケットの実効権限はスペース単位で、ページのような個票の grant を持たないので、
-// 撃ち分けの検討事項自体が kb より少ない。
+// 「存在しない」と「見る権限が無い」を同じ 404 に揃える方針は kb と同じ（respondKnowledgeBaseErr）。
+// チケットはページのような個票 grant を持たずスペース単位の判定なので、撃ち分けの余地自体が少ない。
 func respondTicketErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, repository.ErrTicketNotFound),
@@ -165,10 +154,8 @@ func respondTicketErr(c *gin.Context, err error) {
 	case errors.Is(err, ticket.ErrTicketTypeInUse):
 		c.JSON(http.StatusConflict, errorResponse{Error: "type_in_use"})
 	case errors.Is(err, repository.ErrTicketAssigneeNotFound):
-		// 担当に指定した principal がこのワークスペースに実在しない（別ワークスペース /
-		// kind != user を含む）。リクエスト本文の値が悪いので、URL の対象を隠す 404 群とは
-		// 分け、400 として返す（担当候補の実在は ListGrantablePrincipals で既に見えており、
-		// 隠す意味が無い）。
+		// 担当 principal がこのワークスペースに実在しない。リクエスト本文の誤りなので
+		// URL 対象を隠す 404 群とは分けて 400（候補は ListGrantablePrincipals で既に見えている）。
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_assignee"})
 	case errors.Is(err, domain.ErrTicketHierarchyRejected):
 		c.JSON(http.StatusConflict, errorResponse{Error: "ticket_hierarchy_rejected"})
@@ -191,8 +178,7 @@ func respondTicketErr(c *gin.Context, err error) {
 	}
 }
 
-// requireTicketSpacePermission はスペース単位の実効権限を確かめる（対象がまだ存在しない
-// 操作専用。requireTicketPermission と同じ 404/403 の撃ち分けをする）。
+// requireTicketSpacePermission はスペース単位の実効権限を確かめる（対象がまだ存在しない操作専用）。
 func (h *TicketHandler) requireTicketSpacePermission(
 	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
@@ -200,9 +186,8 @@ func (h *TicketHandler) requireTicketSpacePermission(
 }
 
 // requireTicketSpacePermissionWith は requireTicketSpacePermission の実体。TicketHandler /
-// TicketStatusHandler / TicketTypeHandler の 3 つが同じ判定（スペース単位・対象がまだ
-// 存在しない操作の入口）を使うために package レベルの関数へ切り出してある
-// （kb の requirePagePermissionWith と同じ理由 — 書き直すとどれか 1 つだけ直し忘れて食い違う）。
+// TicketStatusHandler / TicketTypeHandler の 3 つが同じ判定を共有するための package 関数
+// （kb の requirePagePermissionWith と同じ理由 — 個別に書くと 1 つだけ直し忘れて食い違う）。
 func requireTicketSpacePermissionWith(
 	c *gin.Context, checkSpace *kb.CheckSpacePermissionUseCase,
 	scope kbRequestScope, spaceID string, capability domain.Capability,
@@ -217,8 +202,8 @@ func requireTicketSpacePermissionWith(
 	return requireScopeCapability(c, perm, capability)
 }
 
-// requireTicketPermission はチケット 1 件の実効権限を確かめる（スペース単位の判定を
-// CheckTicketPermissionUseCase 経由で行う。ページ付与のような個票の例外は無い）。
+// requireTicketPermission はチケット 1 件の実効権限を確かめる（CheckTicketPermissionUseCase
+// 経由のスペース単位判定。ページ付与のような個票の例外は無い）。
 func (h *TicketHandler) requireTicketPermission(
 	c *gin.Context, scope kbRequestScope, ticketID string, capability domain.Capability,
 ) bool {
@@ -226,9 +211,8 @@ func (h *TicketHandler) requireTicketPermission(
 	return ok
 }
 
-// ticketPermission は requireTicketPermission と同じ判定をして、使った実効権限をそのまま返す。
-// 応答に権限を載せる詳細系の口だけがこちらを使う（載せるためにもう一度引くと、同じ判定を
-// 1 リクエストで 2 回問い合わせることになる）。
+// ticketPermission は requireTicketPermission と同じ判定をして実効権限を返す。応答に権限を
+// 載せる詳細系の口だけが使う（載せるためにもう一度引くと同じ判定を 2 回問い合わせることになる）。
 func (h *TicketHandler) ticketPermission(
 	c *gin.Context, scope kbRequestScope, ticketID string, capability domain.Capability,
 ) (*domain.ScopePermission, bool) {
@@ -246,8 +230,6 @@ func (h *TicketHandler) ticketPermission(
 }
 
 // requireScopeCapability は ScopePermission から 404/403 を書き分ける共通の末尾処理。
-// TicketHandler の 2 つの入口（スペース単位・チケット単位）が同じ規則を使うために
-// package レベルではなく型に閉じたヘルパーへ切り出してある。
 func requireScopeCapability(c *gin.Context, perm *domain.ScopePermission, capability domain.Capability) bool {
 	if !perm.CanView {
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
@@ -276,9 +258,8 @@ func (h *TicketHandler) Enable(c *gin.Context) {
 	if !h.requireTicketSpacePermission(c, scope, spaceID, domain.CapabilityEdit) {
 		return
 	}
-	// ボディは省略できる（既定の雛形で有効化する経路）。ShouldBindJSON は空ボディを
-	// io.EOF にするので、それだけは無視して既定値（SourceSpaceID なし）のまま進む。
-	// 壊れた JSON（EOF ではない）はふつうに 400 で断る。
+	// ボディは省略可（既定の雛形で有効化）。ShouldBindJSON は空ボディを io.EOF にするので
+	// それだけ無視し、壊れた JSON は通常どおり 400 にする。
 	var req ticketEnableRequest
 	if c.Request.ContentLength != 0 {
 		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
@@ -288,8 +269,7 @@ func (h *TicketHandler) Enable(c *gin.Context) {
 	}
 	var sourceSpaceID *string
 	if req.SourceSpaceID != "" {
-		// 複製元スペースは自分が閲覧できるものに限る（他社テナントのスペース構成を
-		// 覗き見る経路にしない）。
+		// 複製元は自分が閲覧できるスペースに限る（他テナントの構成を覗き見る経路にしない）。
 		if !h.requireTicketSpacePermission(c, scope, req.SourceSpaceID, domain.CapabilityView) {
 			return
 		}
@@ -318,9 +298,8 @@ type ticketCreateRequest struct {
 	DueDate   *string         `json:"dueDate,omitempty" binding:"omitempty,datetime=2006-01-02"`
 }
 
-// Create はスペース直下（または親チケットの下）に新しいチケットを作る（スペースの
-// 編集権限が要る。親を名指しした場合でも、チケットはページのような個票の権限を
-// 持たないので判定はスペース単位のまま — 親の実在・同一スペースは usecase 側で検証する）。
+// Create はスペース直下（または親チケットの下）に新しいチケットを作る（スペースの編集権限が
+// 要る。親を指定してもチケットは個票権限を持たないので判定はスペース単位のまま）。
 func (h *TicketHandler) Create(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -387,8 +366,8 @@ func (h *TicketHandler) Get(c *gin.Context) {
 }
 
 // ResolveByKey は表示キー（例 FRESTYLE-12）からチケット 1 件を返す（閲覧権限が要る）。
-// キーの分解に失敗した場合も実在しない場合と同じ 404 にする
-// （ResolveTicketKeyUseCase が両方を repository.ErrTicketNotFound へ畳んでいる）。
+// キー分解の失敗も実在しない場合と同じ 404 になる（ResolveTicketKeyUseCase が両方を
+// ErrTicketNotFound へ畳む）。
 func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -419,9 +398,8 @@ func (h *TicketHandler) ResolveByKey(c *gin.Context) {
 	})
 }
 
-// ticketResolvedResponse は slug 無しの解決の返却形。画面はこの workspaceSlug を
-// 受け取って以降の API 呼び出しに使う（URL にワークスペースを出さない既存の規則。
-// kb の kbResolvedPageResponse と同じ役割）。
+// ticketResolvedResponse は slug 無しの解決の返却形。画面はこの workspaceSlug を以降の API
+// 呼び出しに使う（kb の kbResolvedPageResponse と同じ役割）。
 type ticketResolvedResponse struct {
 	WorkspaceSlug string         `json:"workspaceSlug"`
 	WorkspaceName string         `json:"workspaceName"`
@@ -429,11 +407,9 @@ type ticketResolvedResponse struct {
 	CanEdit       bool           `json:"canEdit"`
 }
 
-// ResolveByID はワークスペースの slug を URL に持たずにチケット 1 件を返す。
-//
-// 通知の導線・本文中の ticketRef の href・ブックマークからの再訪はワークスペースを
-// 知らないまま来るので、ID だけで開ける口がいる（kb の /kb/pages/:pageId と同じ）。
-// テナント確定前の読みなので、解決した workspace で**必ず**権限判定を通してから返す。
+// ResolveByID はワークスペースの slug を URL に持たずにチケット 1 件を返す。通知・本文中の
+// ticketRef・ブックマークはワークスペースを知らずに来るため（kb の /kb/pages/:pageId と同じ）。
+// テナント確定前の読みなので、解決した workspace で必ず権限判定を通してから返す。
 func (h *TicketHandler) ResolveByID(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -443,7 +419,7 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 	ticketID := c.Param("ticketId")
 	loc, err := h.resolveLoc.Execute(c.Request.Context(), ticketID)
 	if err != nil {
-		// 実在しない ID も、この後の権限で伏せられる ID も、同じ経路の 404 に落ちる。
+		// 実在しない ID も権限で伏せられる ID も同じ 404 に落ちる。
 		respondTicketErr(c, err)
 		return
 	}
@@ -479,41 +455,28 @@ func (h *TicketHandler) ResolveByID(c *gin.Context) {
 	})
 }
 
-// ticketResponse はチケット 1 件の返却形。
-//
-// domain.Ticket をそのまま埋め込み（JSON は平らに出る）、別表にある担当だけを足す。
-// 一覧・詳細・変更系のすべてがこの 1 つの形で返るので、画面は応答の出どころで
-// 型を出し分けなくてよい（担当が居なければ assigneePrincipalId は出ない）。
+// ticketResponse はチケット 1 件の返却形。domain.Ticket を埋め込み、別表の担当だけを足す。
+// 一覧・詳細・変更系すべてがこの 1 形で返るので、画面は出どころで型を出し分けなくてよい。
 type ticketResponse struct {
 	*domain.Ticket
 	AssigneePrincipalID *string        `json:"assigneePrincipalId,omitempty"`
 	Labels              []domain.Label `json:"labels"`
-	// Ancestors は根から順の祖先列（パンくず用。段 5）。詳細系のレスポンス（Get /
-	// ResolveByKey / ResolveByID）でだけ埋める。一覧・作成・更新の応答には含めない
-	// （list.go の N+1 を避けるため — ラベルと違い ticketIDs のバッチ引きが自然に作れない）。
+	// Ancestors / Permission / CreatedBy は詳細系（Get / ResolveByKey / ResolveByID）でだけ
+	// 埋める。一覧に含めないのは行ごとの N+1 解決を避けるため（Permission はスペース単位で
+	// 全行同じ値になり通信が太るだけ、という理由も重なる）。
 	Ancestors []domain.Ticket `json:"ancestors,omitempty"`
-	// Permission はこのチケットに対する実効権限。詳細系のレスポンスでだけ埋める。
-	//
-	// 画面が操作を出し分けるのに要る。発言できるか（CanComment）と、他人の発言を
-	// 消せるか（CanManage）は編集権限（CanEdit）とは別の段なので、CanEdit だけでは
-	// 判断できない。一覧の応答に含めないのは、実効権限がスペース単位で行ごとに
-	// 変わらないため（同じ値が全行に並ぶだけで通信が太る）。
+	// Permission: CanComment / CanManage は CanEdit と別軸なので、画面の出し分けに要る。
 	Permission *domain.ScopePermission `json:"permission,omitempty"`
-	// CreatedBy は報告者の表示（段 5）。Ancestors / Permission と同じ理由で、詳細系の
-	// レスポンスでだけ埋める（一覧で毎行分の解決をすると N+1 になる）。
-	CreatedBy *userDisplayResponse `json:"createdBy,omitempty"`
+	CreatedBy  *userDisplayResponse    `json:"createdBy,omitempty"`
 }
 
-// fetchCreatedBy はチケット 1 件の作成者表示を引く。fetchLabels / fetchAncestors と同じ理由で
-// 引けなくても応答は止めない。
+// fetchCreatedBy / fetchLabels / fetchAncestors はチケット応答の付随情報を引く。いずれも
+// 引けなくても応答は止めない（warn ログに残すだけ） — 変更そのものは既に成功しているため。
 func (h *TicketHandler) fetchCreatedBy(c *gin.Context, createdByUserID uint64) *userDisplayResponse {
 	resp := resolveUserDisplay(c.Request.Context(), h.userDisplay, createdByUserID, userDisplayCache{})
 	return &resp
 }
 
-// fetchLabels はチケット 1 件のラベルを引く。引けなければ空スライスとして応答を止めない
-// （respondTicket が担当の引き失敗を warn ログに落として続けるのと同じ扱い — 変更そのものは
-// 既に成功しているため）。
 func (h *TicketHandler) fetchLabels(c *gin.Context, scope kbRequestScope, ticketID string) []domain.Label {
 	labels, err := h.labels.Execute(c.Request.Context(), scope.workspaceID, ticketID)
 	if err != nil {
@@ -526,8 +489,6 @@ func (h *TicketHandler) fetchLabels(c *gin.Context, scope kbRequestScope, ticket
 	return labels
 }
 
-// fetchAncestors はチケット 1 件の祖先列（根から順）を引く。fetchLabels と同じ理由で
-// 引けなくても応答は止めない。
 func (h *TicketHandler) fetchAncestors(c *gin.Context, scope kbRequestScope, ticketID string) []domain.Ticket {
 	ancestors, err := h.ancestors.Execute(c.Request.Context(), scope.workspaceID, ticketID)
 	if err != nil {
@@ -545,9 +506,8 @@ type ticketListResponse struct {
 	Tickets []ticketResponse `json:"tickets"`
 }
 
-// respondTicket は変更系の応答を組み立てて返す。担当は usecase が触らないので、
-// ここで 1 回だけ引いて詰める（引けなければ担当なしとして返し、応答自体は止めない —
-// 変更そのものは既に成功しているため。kb が最終編集者の名前で採るのと同じ扱い）。
+// respondTicket は変更系の応答を組み立てて返す。担当は usecase が触らないのでここで引いて
+// 詰める（引けなくても応答は止めない — fetchLabels 等と同じ fail-open）。
 func (h *TicketHandler) respondTicket(c *gin.Context, scope kbRequestScope, t *domain.Ticket, status int) {
 	res := ticketResponse{Ticket: t, Labels: h.fetchLabels(c, scope, t.ID)}
 	a, err := h.getAssignment.Execute(c.Request.Context(), scope.workspaceID, t.ID)
@@ -631,9 +591,8 @@ func (h *TicketHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, ticketListResponse{Tickets: out})
 }
 
-// ListChildren は 1 件の直下の子を並び順で返す（孫は含まない・閲覧権限が要る）。
-// ラベルは付ける（子の行も一覧の行と同じ見た目にするため）。担当は付けない（段 6 で
-// 要ると分かったら ListTicketsUseCase と同じ形へ寄せる）。
+// ListChildren は 1 件の直下の子を並び順で返す（孫は含まない・閲覧権限が要る）。ラベルは
+// 付ける（一覧と同じ見た目にするため）。担当は付けない（要るなら List と同じ形へ寄せる）。
 func (h *TicketHandler) ListChildren(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -734,8 +693,7 @@ func (h *TicketHandler) Move(c *gin.Context) {
 	}
 	var anchor *string
 	if req.AnchorTicketID != "" {
-		// 隣に指定したチケットは閲覧できなければならない（kb の Move と同じ理由 —
-		// 編集できれば誰でも叩ける口で、実在を無条件に言い当てさせない）。
+		// 隣に指定したチケットは閲覧できなければならない（実在を無条件に言い当てさせない）。
 		if !h.requireTicketPermission(c, scope, req.AnchorTicketID, domain.CapabilityView) {
 			return
 		}
@@ -791,10 +749,8 @@ func (h *TicketHandler) Restore(c *gin.Context) {
 	h.respondTicket(c, scope, t, http.StatusOK)
 }
 
-// Delete はチケットを「消えたことにする」（編集権限が要る。archived_at と違い一覧・
-// URL 直打ちのどこからも見えなくなる。設計 Ⅳ-J）。対象は現役チケットに限る
-// （requireTicketPermission が内部で FindTicket を通すので、既に削除済みなら
-// ここで 404 になる — 冪等な失敗として扱う）。
+// Delete はチケットを「消えたことにする」（編集権限が要る。archived_at と違い一覧・URL 直打ち
+// のどこからも見えなくなる）。対象は現役チケットに限る（FindTicket 経由なので削除済みは 404）。
 func (h *TicketHandler) Delete(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -813,12 +769,9 @@ func (h *TicketHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// RestoreDeleted は削除済みチケットを現役へ戻す（編集権限が要る）。
-//
-// 対象は削除済みなので、通常の requireTicketPermission（FindTicket 経由）は使えない
-// （FindTicket は deleted_at IS NULL のチケットしか見つけない）。Create/Enable と同じ
-// 「対象がまだ見えない操作」の形で、まず削除済みチケットからスペース ID だけを解決し、
-// スペース単位の権限判定に落とす。
+// RestoreDeleted は削除済みチケットを現役へ戻す（編集権限が要る）。対象は削除済みなので
+// 通常の requireTicketPermission（FindTicket 経由、deleted_at IS NULL 限定）は使えない。
+// Create/Enable と同じ「対象がまだ見えない操作」として、スペース ID だけ解決してから判定する。
 func (h *TicketHandler) RestoreDeleted(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -907,8 +860,7 @@ func (h *TicketHandler) ChangeParent(c *gin.Context) {
 	}
 	var newParentID *string
 	if req.ParentID != "" {
-		// 新しい親は編集できなければならない（kb の Move と同じ理由。書けないサブツリーへ
-		// 差し込めてしまうのを防ぐ）。
+		// 新しい親は編集できなければならない（書けないサブツリーへ差し込めてしまうのを防ぐ）。
 		if !h.requireTicketPermission(c, scope, req.ParentID, domain.CapabilityEdit) {
 			return
 		}
@@ -976,8 +928,7 @@ func (h *TicketHandler) Unassign(c *gin.Context) {
 }
 
 // ticketHistoryGroupResponse は変更履歴 1 グループの返却形。domain.TicketChangeGroup を
-// そのまま埋め込み（actorUserId は平らなまま残る）、実行者の表示を Actor に足す
-// （ticketResponse が domain.Ticket に Labels 等を足すのと同じ作法）。
+// 埋め込み、実行者の表示を Actor に足す。
 type ticketHistoryGroupResponse struct {
 	domain.TicketChangeGroup
 	Actor userDisplayResponse `json:"actor"`
@@ -1017,8 +968,7 @@ func (h *TicketHandler) History(c *gin.Context) {
 }
 
 // PageBacklinks は、このチケットを本文の ticketRef で埋め込んでいるページ一覧を返す
-// （段 5・page_ticket_links の逆参照。閲覧できるページだけを返す — kb.ListPagesReferencingTicketUseCase
-// の doc 参照）。
+// （閲覧できるページだけ返す — kb.ListPagesReferencingTicketUseCase の doc 参照）。
 func (h *TicketHandler) PageBacklinks(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

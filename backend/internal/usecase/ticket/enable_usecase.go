@@ -9,10 +9,8 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// 既定の雛形（sourceSpaceId 未指定のとき）の色。画面の見本と同じ配色を使う
-// （状態の枠＝category の色分けと視覚的に対応させる）。
-//
-// 進行中が 3 つあるので、進むほど濃くなる並びにして一覧で見分けが付くようにする。
+// 既定の雛形（sourceSpaceId 未指定時）の色。画面の見本と同じ配色を使い、進行中の 3 状態は
+// 進むほど濃くして一覧で見分けが付くようにする。
 const (
 	seedColorTodo     = "#5b6b7a"
 	seedColorDev      = "#a0661a"
@@ -25,18 +23,12 @@ const (
 	seedColorBugType    = "#9a3b2e"
 )
 
-// EnableTicketsForSpaceUseCase はスペースにチケット機能を有効化する。
-//
-// 「有効化済み」の正本は「初期状態を持つ現役の状態が 1 つある」（HasActiveInitialTicketStatus）。
-// 二重の有効化は repository.ErrTicketsAlreadyEnabled を返す。
-//
-// SourceSpaceID を指定すると、そのスペースの現役の状態・種別をそのまま複製する
-// （設計 Ⅵ。同じ構成を別スペースに揃える手段）。指定が無ければ既定の雛形
-// （seedStatuses / seedTypes）を作る。どちらも有効化後は管理画面でいつでも
-// 編集できる前提なので、ここでの選択は初期値でしかない。
-//
-// 複製元スペースへの参照権限の確認はこの usecase の責務ではない（handler / 呼び出し側が
-// 別途 CheckSpacePermissionUseCase 等で確かめる）。
+// EnableTicketsForSpaceUseCase はスペースにチケット機能を有効化する。「有効化済み」の正本は
+// 初期状態を持つ現役の状態が 1 つあること（HasActiveInitialTicketStatus）で、二重有効化は
+// repository.ErrTicketsAlreadyEnabled を返す。SourceSpaceID を指定すると既存スペースの現役の
+// 状態・種別を複製し、無指定なら既定の雛形（seedStatuses / seedTypes）を作る — どちらも
+// 有効化後は管理画面で編集できるので初期値でしかない。複製元への参照権限の確認は
+// 呼び出し側の責務。
 type EnableTicketsForSpaceUseCase struct {
 	repo      repository.TicketRepository
 	txManager repository.TxManager
@@ -55,12 +47,8 @@ type EnableTicketsForSpaceInput struct {
 	SourceSpaceID *string
 }
 
-// EnableTicketsForSpaceOutput はどれだけ作ったかの要約（画面が「N 個の状態・M 個の
-// 種別を作成しました」のように出せるように）。
-//
-// json タグを明示するのは、この型が handler からそのまま JSON で返るため。
-// タグが無いと Go の既定でフィールド名がそのまま（大文字始まり）出てしまい、
-// ほかの API（domain の構造体は全部 camelCase のタグ付き）と綴りが食い違う。
+// EnableTicketsForSpaceOutput はどれだけ作ったかの要約。json タグを明示するのは、タグが無いと
+// フィールド名がそのまま出て、ほかの camelCase API と綴りが食い違うため。
 type EnableTicketsForSpaceOutput struct {
 	StatusCount int `json:"statusCount"`
 	TypeCount   int `json:"typeCount"`
@@ -111,9 +99,8 @@ func (u *EnableTicketsForSpaceUseCase) Execute(
 	return &EnableTicketsForSpaceOutput{StatusCount: len(statuses), TypeCount: len(types)}, nil
 }
 
-// buildSeed は作る状態・種別の集合を組み立てる（DB へはまだ書かない）。
-// 複製元指定があれば ListTicketStatuses/ListTicketTypes（現役のみ）を読み、
-// 無ければ既定の雛形を fracindex で採番する。
+// buildSeed は作る状態・種別の集合を組み立てる（DB へはまだ書かない）。複製元指定があれば
+// 現役の ListTicketStatuses/ListTicketTypes を読み、無ければ既定の雛形を fracindex で採番する。
 func (u *EnableTicketsForSpaceUseCase) buildSeed(
 	ctx context.Context, in EnableTicketsForSpaceInput,
 ) ([]domain.TicketStatus, []domain.TicketType, error) {
@@ -126,8 +113,7 @@ func (u *EnableTicketsForSpaceUseCase) buildSeed(
 		if err != nil {
 			return nil, nil, err
 		}
-		// SpaceID は複製先へ書き換える（呼び出し元の Execute で行う）。ここでは
-		// 複製元から読んだ値をそのまま返す。
+		// SpaceID の複製先への書き換えは呼び出し元の Execute で行う。ここでは読んだ値をそのまま返す。
 		return statuses, types, nil
 	}
 
@@ -153,10 +139,8 @@ func (u *EnableTicketsForSpaceUseCase) buildSeed(
 	return statuses, types, nil
 }
 
-// seedStatuses / seedTypes は有効化の既定の雛形（画面の見本と同じ並び）。
-//
-// Position はここでは決めない（buildSeed が fracindex で採番して埋める）。
-// 有効化のあとは管理画面でいつでも足せる・変えられるので、ここでの選択は初期値でしかない。
+// seedStatuses / seedTypes は有効化の既定の雛形（画面の見本と同じ並び）。Position はここでは
+// 決めず buildSeed が fracindex で採番する。有効化後は管理画面で変更できるので初期値でしかない。
 var seedStatuses = []domain.TicketStatus{
 	{Name: "To Do", Category: domain.TicketStatusCategoryTodo, Color: seedColorTodo, IsInitial: true},
 	{Name: "開発", Category: domain.TicketStatusCategoryInProgress, Color: seedColorDev},

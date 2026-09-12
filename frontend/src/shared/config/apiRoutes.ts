@@ -48,31 +48,6 @@ export const IMAGES = {
   uploadUrl: `${API_V2}/rich-text/images/upload-url`,
 } as const;
 
-export const RANKING = `${API_V2}/ranking` as const;
-
-/** 練習モード（シナリオ / セッション / ブックマーク / 共有セッション） */
-export const PRACTICE = {
-  scenarios: `${API_V2}/practice/scenarios`,
-  scenario: (scenarioId: number | string) => `${API_V2}/practice/scenarios/${encodeURIComponent(scenarioId)}`,
-  sessions: `${API_V2}/practice/sessions`,
-} as const;
-
-export const SHARED_SESSIONS = {
-  list: `${API_V2}/shared-sessions`,
-  byId: (sessionId: number | string) => `${API_V2}/shared-sessions/${encodeURIComponent(sessionId)}`,
-} as const;
-
-/** 会話テンプレート / お気に入りフレーズ */
-export const TEMPLATES = {
-  list: `${API_V2}/templates`,
-  byId: (id: number | string) => `${API_V2}/templates/${encodeURIComponent(id)}`,
-} as const;
-
-export const FAVORITE_PHRASES = {
-  list: `${API_V2}/favorite-phrases`,
-  byId: (id: number | string) => `${API_V2}/favorite-phrases/${encodeURIComponent(id)}`,
-} as const;
-
 /** 通知 */
 export const NOTIFICATIONS = {
   list: `${API_V2}/notifications`,
@@ -82,15 +57,7 @@ export const NOTIFICATIONS = {
   readAll: `${API_V2}/notifications/read-all`,
 } as const;
 
-/** 設定（リマインダー・週次チャレンジ） */
-export const REMINDER = `${API_V2}/reminder` as const;
-
-export const WEEKLY_CHALLENGE = {
-  current: `${API_V2}/weekly-challenge`,
-  progress: `${API_V2}/weekly-challenge/progress`,
-} as const;
-
-/** 管理者ダッシュボード（会社 / 招待 / シナリオ） */
+/** 管理者ダッシュボード（会社 / 招待） */
 export const ADMIN = {
   members: `${API_V2}/admin/members`,
   /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
@@ -99,8 +66,6 @@ export const ADMIN = {
   member: (userId: number | string) => `${API_V2}/admin/members/${encodeURIComponent(userId)}`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${encodeURIComponent(id)}`,
-  scenarios: `${API_V2}/admin/scenarios`,
-  scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${encodeURIComponent(id)}`,
 } as const;
 
 /** 招待マジックリンク受諾フロー（認証不要） */
@@ -201,6 +166,26 @@ export const KB_API = {
   /** PATCH(表示名の変更) — /api/v2/kb/workspaces/:slug/spaces/:spaceId。key は変えられない */
   space: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/me/spaces（段 14）
+   *
+   * 自分がアクセスできるスペースの一覧（id・name・role）。spaces と違い役割も返す。
+   * サイドバーのスペース切替・入口解決に使う。
+   */
+  mySpaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/me/spaces`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/spaces/:spaceId/members（段 9）
+   *
+   * そのスペースに届いている権限を人に解決して返す（読み取り専用。停止・招待などの
+   * admin 操作は無い — ワークスペース単位の members/adminMembers とは別物）。
+   */
+  spaceMembers: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/members`,
+  /** GET(一覧) — /api/v2/kb/workspaces/:slug/favorites（段 7。自分のお気に入りページ） */
+  favorites: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/favorites`,
+  /** PUT(追加) / DELETE(解除) — /api/v2/kb/workspaces/:slug/pages/:pageId/favorite */
+  favorite: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/favorite`,
   /**
    * GET — /api/v2/kb/workspaces/:slug/search?q=
    *

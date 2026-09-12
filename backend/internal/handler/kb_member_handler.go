@@ -12,13 +12,10 @@ import (
 )
 
 // KnowledgeBaseMemberHandler はナレッジの主体（principals）の出し入れを受ける。
-//
-// ワークスペース所属・グループ・スペースの「全員」は、どれも principals の 1 行で表す
-// （専用のメンバーシップ表は持たない）。したがってこの handler が扱うのは
-// 「権限を張る相手を用意する / 片づける」ことで、役割そのものは
-// KnowledgeBaseGrantHandler が扱う。
-//
-// 認可はすべて kbPermissionGate が持つ。判断の根拠は kb_permission_gate.go の冒頭を参照。
+// ワークスペース所属・グループ・スペースの「全員」はどれも principals の 1 行で表す
+// （専用のメンバーシップ表は持たない）ので、この handler が扱うのは「権限を張る相手を
+// 用意する / 片づける」こと。役割そのものは KnowledgeBaseGrantHandler が扱う。
+// 認可はすべて kbPermissionGate が持つ（判断の根拠は kb_permission_gate.go の冒頭を参照）。
 type KnowledgeBaseMemberHandler struct {
 	*kbPermissionGate
 	inviteMember      *kb.InviteWorkspaceMemberUseCase
@@ -31,7 +28,6 @@ type KnowledgeBaseMemberHandler struct {
 	setActive         *user.SetUserActiveUseCase
 }
 
-// NewKnowledgeBaseMemberHandler は KnowledgeBaseMemberHandler を組み立てる。
 func NewKnowledgeBaseMemberHandler(
 	gate *kbPermissionGate,
 	inviteMember *kb.InviteWorkspaceMemberUseCase,
@@ -89,9 +85,8 @@ type kbCreateGroupRequest struct {
 }
 
 // kbUserIDParam は URL の userId を読む。読めなければ応答を書いて ok=false を返す。
-//
-// **必ず認可を通したあとで呼ぶこと。** 形式不正（400）と存在しない（404）を撃ち分けるので、
-// 認可より先に呼ぶと、権限の無い相手にも「この値は形式としては正しい」が漏れる。
+// 必ず認可を通したあとで呼ぶこと — 形式不正（400）と存在しない（404）を撃ち分けるので、
+// 認可より先に呼ぶと権限の無い相手にも「この値は形式としては正しい」が漏れる。
 func kbUserIDParam(c *gin.Context) (uint64, bool) {
 	id, err := strconv.ParseUint(c.Param("userId"), 10, 64)
 	if err != nil || id == 0 {
@@ -101,13 +96,10 @@ func kbUserIDParam(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
-// InviteMember はユーザーをワークスペースへ招待する（冪等）。
-//
-// 段 2 より前は users.id を受け取ってその場で principal と editor 権限を作っていたため、
-// 相手の同意なくワークスペースへ追加でき、かつ成功（200）と 404 の差でユーザーの実在が
-// 分かった（FRESTYLE-486）。今は workspace_members に invited の行を作るだけで、
-// principal・権限は本人が招待を受諾する（AcceptInvitation。/kb/invitations 配下、
-// kb_invitation_handler.go）まで一切発生しない。
+// InviteMember はユーザーをワークスペースへ招待する（冪等）。以前は users.id を受け取り
+// その場で principal と editor 権限を作っていたため、相手の同意なく追加でき、かつ成功/404
+// の差でユーザーの実在が分かった。今は workspace_members に invited の行を作るだけで、
+// principal・権限は本人が招待を受諾する（AcceptInvitation、kb_invitation_handler.go）まで発生しない。
 func (h *KnowledgeBaseMemberHandler) InviteMember(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -144,8 +136,8 @@ func (h *KnowledgeBaseMemberHandler) RemoveMember(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// メンバーを外すと principal ごと消え、その主体の grant も CASCADE で消える。
-	// つまり grant の取り消しと同じく「最後の admin」を消し得るので、同じ検査を通す。
+	// メンバーを外すと principal ごと消え grant も CASCADE で消えるため、grant の取り消しと
+	// 同じく「最後の admin」を消し得る。同じ検査を通す。
 	if !h.requireNotLastWorkspaceAdminByUser(c, scope, userID) {
 		return
 	}
@@ -160,9 +152,9 @@ func (h *KnowledgeBaseMemberHandler) RemoveMember(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Suspend はユーザーアカウントを停止する（段 7）。効果は users.status を通じて
-// 全ワークスペースに及ぶが、実行できるのは対象が現に所属するこのワークスペースの
-// admin だけ（user.ErrTargetNotWorkspaceMember の doc 参照 — 権限昇格を防ぐ境界）。
+// Suspend はユーザーアカウントを停止する（段 7）。効果は users.status を通じて全ワークスペース
+// に及ぶが、実行できるのは対象が現に所属するこのワークスペースの admin だけ
+// （user.ErrTargetNotWorkspaceMember の doc 参照 — 権限昇格を防ぐ境界）。
 func (h *KnowledgeBaseMemberHandler) Suspend(c *gin.Context) {
 	h.setActiveHandler(c, false)
 }

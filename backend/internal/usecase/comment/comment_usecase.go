@@ -1,10 +1,7 @@
-// Package comment はページ全体へのコメント（FRESTYLE-432 段 2）と、
-// 錨付きコメント（同段 3・ブロック内の特定文字範囲へのコメント）の usecase を持つ。
-//
-// 認可（CanComment / CanView）はここでは判定しない — handler が
-// kb.CheckPagePermissionUseCase を先に通す（FreStyle のクリーンアーキテクチャ規約:
-// usecase は handler を知らない。comment パッケージは他の usecase サブパッケージ
-// （kb 等）を import しない）。
+// Package comment はページ全体へのコメントと、錨付きコメント（ブロック内の特定文字範囲への
+// コメント）の usecase を持つ。認可（CanComment / CanView）はここでは判定せず、handler が
+// kb.CheckPagePermissionUseCase を先に通す（comment パッケージは他の usecase サブパッケージを
+// import しない）。
 package comment
 
 import (
@@ -43,8 +40,8 @@ type CreateCommentThreadOutput struct {
 }
 
 func (u *CreateCommentThreadUseCase) Execute(ctx context.Context, in CreateCommentThreadInput) (*CreateCommentThreadOutput, error) {
-	// Body の検証は先に行う。不正な本文のためだけにトランザクションを開いて
-	// スレッドだけ作ってしまう（＝発言の無いスレッドが残る）事態を避ける。
+	// Body の検証は先に行う。不正な本文のためだけにトランザクションを開いてスレッドだけ
+	// 作ってしまう（＝発言の無いスレッドが残る）事態を避ける。
 	if err := domain.ValidateCommentBody(in.Body); err != nil {
 		return nil, err
 	}
@@ -52,9 +49,8 @@ func (u *CreateCommentThreadUseCase) Execute(ctx context.Context, in CreateComme
 	if err := domain.ValidateCommentAnchor(in.Anchor.BlockID, in.Anchor.AnchorFrom, in.Anchor.AnchorTo, in.Anchor.Quote); err != nil {
 		return nil, err
 	}
-	// block_id が実在し、かつ本当にこのページに属するかは DB を引かないと分からない
-	// （block_id は blocks.id への単独 FK で page_id を含まない — PR1 の ErrBlockIDConflict と
-	// 同じ懸念）。これもトランザクションを開く前に確認する。無駄な開閉を避けるため。
+	// block_id が実在し本当にこのページに属するかは DB を引かないと分からない（block_id は
+	// blocks.id への単独 FK で page_id を含まない）。これもトランザクションを開く前に確認する。
 	if in.Anchor.BlockID != nil {
 		exists, err := u.repo.BlockExistsInPage(ctx, in.WorkspaceID, in.PageID, *in.Anchor.BlockID)
 		if err != nil {
@@ -65,9 +61,8 @@ func (u *CreateCommentThreadUseCase) Execute(ctx context.Context, in CreateComme
 		}
 	}
 	var out CreateCommentThreadOutput
-	// スレッド作成 → 最初の発言作成は 1 つのトランザクションに入れる。
-	// 片方だけ成功すると「発言の無いスレッド」または「存在しないスレッドを指す発言」という
-	// 中間状態が残ってしまうため。
+	// スレッド作成 → 最初の発言作成は 1 トランザクションに入れる。片方だけ成功すると
+	// 「発言の無いスレッド」または「存在しないスレッドを指す発言」が残ってしまうため。
 	err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
 		thread, err := u.repo.CreateCommentThread(ctx, in.WorkspaceID, in.PageID, in.AuthorUserID, in.Anchor)
 		if err != nil {
@@ -107,9 +102,9 @@ func (u *AddCommentUseCase) Execute(ctx context.Context, in AddCommentInput) (*d
 	if err := domain.ValidateCommentBody(in.Body); err != nil {
 		return nil, err
 	}
-	// スレッドの実在確認は workspace_id / page_id まで絞って行う。他ページ・他テナントの
-	// thread_id を渡された場合、GetCommentThread が repository.ErrCommentThreadNotFound を
-	// 返すのでそのまま伝播させる（別ページの thread_id へ返信を生やせてしまう穴を塞ぐ）。
+	// スレッドの実在確認は workspace_id / page_id まで絞る。他ページ・他テナントの thread_id を
+	// 渡されたら GetCommentThread の ErrCommentThreadNotFound をそのまま伝播させ、
+	// 別ページの thread_id へ返信を生やせてしまう穴を塞ぐ。
 	if _, err := u.repo.GetCommentThread(ctx, in.WorkspaceID, in.PageID, in.ThreadID); err != nil {
 		return nil, err
 	}

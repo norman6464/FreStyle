@@ -1,7 +1,6 @@
 import type { ComponentType, SVGProps } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
-import LanguageIcon from '@/shared/ui/LanguageIcon';
 
 type CardColor = 'brand' | 'emerald' | 'taupe' | 'blue';
 
@@ -12,9 +11,6 @@ interface FeatureCardProps {
   description: string;
   color: CardColor;
   badge?: string;
-  /** 学べる技術のロゴ（Devicon）。指定時に説明の下へミニロゴ列を出す。
-      vendoring 済みの key（public/lang/*.svg）だけ渡すこと（未 vendoring は汎用アイコンにフォールバックし列が不揃いになる）。 */
-  techLogos?: string[];
 }
 
 const iconBg: Record<CardColor, string> = {
@@ -24,8 +20,8 @@ const iconBg: Record<CardColor, string> = {
   blue:    'bg-blue-100 text-blue-600',
 };
 
-/** ホームの機能カード 1 枚（コース / 演習 / AI チャット等へのリンク）。 */
-export default function FeatureCard({ to, icon: Icon, title, description, color, badge, techLogos }: FeatureCardProps) {
+/** ホームの機能カード 1 枚。 */
+export default function FeatureCard({ to, icon: Icon, title, description, color, badge }: FeatureCardProps) {
   return (
     <Link
       to={to}
@@ -49,14 +45,6 @@ export default function FeatureCard({ to, icon: Icon, title, description, color,
       <p className="mt-3 text-xs text-[var(--color-text-muted)] leading-relaxed">
         {description}
       </p>
-      {/* 学べる技術のロゴ列（Devicon）。コース/演習カードにだけ付き、技術感を出す。 */}
-      {techLogos && techLogos.length > 0 && (
-        <div className="mt-3 flex items-center gap-2" aria-hidden="true">
-          {techLogos.map((tech) => (
-            <LanguageIcon key={tech} language={tech} className="w-5 h-5" />
-          ))}
-        </div>
-      )}
       <div className="mt-4 flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-brand-700 transition-colors">
         <span>開く</span>
         <ArrowRightIcon className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

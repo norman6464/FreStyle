@@ -111,14 +111,22 @@ export default function KbBacklogPage() {
   }
 
   return (
-    <div className="flex h-full">
-      <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
-        <KbSidebar workspaceSlug={workspaceSlug ?? undefined} />
+    <div className="flex h-full overflow-hidden">
+      <SecondaryPanel
+        title="バックログ"
+        peekable
+        storageKey="frestyle.panel.note"
+        resizable
+        resizeStorageKey="frestyle.panel.note.width"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={closeMobilePanel}
+      >
+        <KbSidebar workspaceSlug={workspaceSlug ?? undefined} spaceId={space?.id ?? ''} />
       </SecondaryPanel>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex items-center border-b border-surface-3 bg-surface-1 px-4 py-2 md:hidden">
-          <button type="button" onClick={openMobilePanel} aria-label="ナレッジを開く" className="p-1">
+          <button type="button" onClick={openMobilePanel} aria-label="バックログを開く" className="p-1">
             <Bars3Icon className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
@@ -278,6 +286,9 @@ export default function KbBacklogPage() {
         <SecondaryPanel
           title="詳細"
           side="right"
+          resizable
+          resizeStorageKey="frestyle.panel.ticket-detail.width"
+          defaultWidth={420}
           mobileOpen={detailMobileOpen}
           onMobileClose={() => setDetailMobileOpen(false)}
           headerContent={

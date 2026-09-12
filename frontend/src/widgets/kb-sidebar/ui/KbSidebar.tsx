@@ -1,18 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArchiveBoxIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { NameCreateForm } from '@/shared/ui';
-import KbSectionHeading from './KbSectionHeading';
+import { emitKbTreeEvent, type KbDropTarget, KbWorkspaceSwitcher } from '@/entities/kb';
 import { useKbTree } from '../model/useKbTree';
-import KbSpaceSection from './KbSpaceSection';
+import { toDropTarget, type KbDropZone } from '../model/dropZone';
+import KbSpaceFace from './KbSpaceFace';
+import KbTreeList from './KbTreeList';
 import KbSearchDialog from './KbSearchDialog';
 import KbBacklogSection from './KbBacklogSection';
-import { KbRepository, KbWorkspaceSwitcher, type KbPage } from '@/entities/kb';
 
 export interface KbSidebarProps {
   /** URL が指しているワークスペース。未指定なら所属の先頭を開く。 */
   workspaceSlug?: string;
+  /**
+   * 今いるスペース（段14）。呼び出し側が確定してから渡す
+   * （KbPage は開いているページの spaceId、KbBacklogPage は自分が解決したスペースの id）。
+   */
+  spaceId: string;
   /** URL が指しているページ。現在位置の強調と、祖先の自動展開に使う。 */
   activePageId?: string;
 }
@@ -20,13 +26,12 @@ export interface KbSidebarProps {
 /**
  * KbSidebar はナレッジの「場所を示す面」。
  *
- * 上から ワークスペースの切替 → スペースの見出し → ページの木。
- * いまは読むだけで、作る・動かす・印は次の段で足す。
- *
- * ここに置かないもの: 更新日時・作成者。サイドバーは場所を示す面であって、
- * 属性を並べる面ではない。行に情報を足すほど、木の形そのものが読みにくくなる。
+ * 上から ワークスペースの切替 → 今いるスペースの顔（KbSpaceFace） → ページの木 →
+ * バックログへの導線。段14でスペース単位（1 つの spaceId だけ）に組み替えた
+ * — 以前は所属ワークスペースの全スペースを並べていたが、他のスペースへの移動は
+ * KbSpaceFace 内の一時的な切替（W3 でヘッダーへ正式に移すまでの繋ぎ）が担う。
  */
-export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProps) {
+export default function KbSidebar({ workspaceSlug, spaceId, activePageId }: KbSidebarProps) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const {
@@ -38,10 +43,7 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     spaces,
     spacesLoading,
     spacesError,
-    retrySpaces,
-    spaceStates,
-    toggleSpace,
-    retrySpace,
+    spaceState,
     expandedPageIds,
     togglePage,
     createWorkspace,
@@ -57,20 +59,20 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
     movePage,
     archivedMode,
     setArchivedMode,
-  } = useKbTree({ workspaceSlug, activePageId });
+    retrySpace,
+  } = useKbTree({ workspaceSlug, spaceId, activePageId });
 
   // 題名の検索。実体はサーバー（ツリーと同じ規則で、閲覧できるページだけが返る）。
-  // 検索モーダルの開閉。検索そのもの（デバウンス・世代番号・再試行）はモーダルが持つ。
-  // サイドバー本体は場所（木）を示すことに徹する — 常設の入力欄が場所の面を圧迫し、
-  // 木と結果が同じ狭い面で入れ替わる形は見本合わせでやめた（設計 artifact 参照）。
   const [searchOpen, setSearchOpen] = useState(false);
-  // スペース追加フォームの開閉。既にスペースがあるときの追加入口（0 件のときは常設フォーム）。
-  const [addingSpace, setAddingSpace] = useState(false);
-  const [addingPrivateSpace, setAddingPrivateSpace] = useState(false);
 
-  // 「雛形から作る」ピッカーの削除ボタンの表示可否に使う代理指標。
-  // KbSpaceSection の workspaceCanManage の JSDoc 参照（仕様上は「編集者以上」だが、
-  // フロントに届く権限フラグは admin=canManage しか無いため）。
+  // 作った直後のページは、そのまま題名を書き換えられる状態で出す
+  // （「無題」のまま置き去りにされるのを減らす）。KbSpaceSection から引き上げた状態
+  // （段14。単一スペース表示になり、木の操作はここで完結する）。
+  const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
+  const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ pageId: string; zone: KbDropZone } | null>(null);
+
+  const space = spaces.find((s) => s.id === spaceId);
   const workspaceCanManage = workspaces.find((w) => w.slug === activeSlug)?.canManage ?? false;
 
   // ワークスペース作成は入口が 2 つ（切替ポップアップ / 所属 0 件の常設フォーム）ある。
@@ -83,20 +85,89 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
       showToast('error', 'ワークスペースを作成できませんでした');
       throw new Error('create workspace failed');
     }
-    // 切替（onSelect）と同じ理由で一覧へ戻す。戻さないと、開いていた旧ワーク
-    // スペースのページと、新ワークスペースを指すサイドバーが食い違ったまま残る。
-    // state で作った先を渡すのは、resolveEntryPageId が「切り替えた本人には
-    // 直近の閲覧履歴より新しい方を優先する」ための入力（pages/kb/model/resolveEntryPage.ts）。
     navigate('/kb', { state: { workspaceSlug: workspace.slug } });
   };
 
+  const createRootPage = async () => {
+    try {
+      const page = await createPage();
+      setRenamingPageId(page.id);
+      navigate(`/kb/${page.id}`);
+    } catch {
+      showToast('error', 'ページを作成できませんでした');
+    }
+  };
+
+  const createChildPage = async (parentId: string) => {
+    try {
+      const page = await createPage(parentId);
+      setRenamingPageId(page.id);
+    } catch {
+      showToast('error', 'ページを作成できませんでした');
+    }
+  };
+
+  const commitRename = async (pageId: string, title: string) => {
+    try {
+      await renamePage(pageId, title);
+      setRenamingPageId(null);
+    } catch {
+      showToast('error', '名前を変更できませんでした');
+      // 入力欄は開いたままにする（投げると KbInlineRename がフォーカスを戻す）。
+      throw new Error('rename failed');
+    }
+  };
+
+  const doArchivePage = async (pageId: string) => {
+    try {
+      await archivePage(pageId);
+    } catch {
+      showToast('error', 'アーカイブできませんでした');
+    }
+  };
+
+  const doDeletePage = async (pageId: string) => {
+    try {
+      await deletePage(pageId);
+    } catch {
+      showToast('error', '削除できませんでした');
+    }
+  };
+
+  const doUnarchivePage = async (pageId: string) => {
+    try {
+      await unarchivePage(pageId);
+    } catch {
+      showToast('error', '復帰できませんでした');
+    }
+  };
+
+  const endDrag = () => {
+    setDraggingPageId(null);
+    setDropAt(null);
+  };
+
+  const doMovePage = async (pageId: string, target: KbDropTarget) => {
+    try {
+      await movePage(pageId, target);
+    } catch {
+      // 並びは model 側で動かす前へ戻っている。ここは知らせるだけ。
+      showToast('error', '移動できませんでした');
+    }
+  };
+
+  const dropOnRow = async (pageId: string, zone: KbDropZone) => {
+    const moving = draggingPageId;
+    endDrag();
+    if (!moving || moving === pageId) return;
+    await doMovePage(moving, toDropTarget(zone, pageId));
+  };
+
   return (
-    <nav aria-label="ナレッジ" className="flex h-full flex-col overflow-y-auto p-2">
+    <nav aria-label="ナレッジ" className="flex h-full flex-col overflow-y-auto overscroll-contain p-2">
       <KbWorkspaceSwitcher
         workspaces={workspaces}
         activeSlug={activeSlug}
-        // URL はワークスペースを持たない（/kb/{pageId} だけ）。切り替えは画面の状態で、
-        // ページを開けば URL から場所が確定する。
         onSelect={(slug) => {
           selectWorkspace(slug);
           navigate('/kb', { state: { workspaceSlug: slug } });
@@ -126,7 +197,6 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
 
       {!workspacesLoading && !workspacesError && workspaces.length === 0 && (
         // 所属が無いと API は全部 404 になる。「壊れている」ではなく「ここから始める」と伝える。
-        //
         // **入口をここに置くのが要点。** 作る手段が無いと、ワークスペースを作る API が
         // あってもサイドバーには永久にたどり着けない（実際そうなっていた）。
         <div>
@@ -137,204 +207,124 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
         </div>
       )}
 
-      {/* スペースが 0 件でも出す。スペースは 1 つも見えないが、個別に許可された
-          ページだけ持つ人がいる — その人にとって検索が唯一の入口になる。 */}
-      {activeSlug && !archivedMode && (
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          className="mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-surface-2"
-        >
-          <MagnifyingGlassIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>検索</span>
-        </button>
+      {activeSlug && !space && spacesLoading && (
+        <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
+      )}
+      {activeSlug && !space && spacesError && (
+        <div className="px-2 py-1 text-xs text-red-600">
+          <p>{spacesError}</p>
+        </div>
+      )}
+      {/* ワークスペースを作っただけではスペースは付いてこない。ここで入口を出さないと
+          「見られるスペースがありません」で行き止まりになる（KbSpaceFace 内のスペース
+          切替は space が確定していないと出せないため、こちらは別に持つ必要がある）。 */}
+      {activeSlug && !space && !spacesLoading && !spacesError && spaces.length === 0 && (
+        <div>
+          <p className="px-2 pt-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
+            まだスペースがありません。部署や個人ごとの区画を作ります。
+          </p>
+          <NameCreateForm
+            what="スペース"
+            onCreate={async (input) => {
+              try {
+                const created = await createSpace(input);
+                navigate(`/kb/spaces/${created.id}`);
+              } catch {
+                showToast('error', 'スペースを作成できませんでした');
+                throw new Error('create space failed');
+              }
+            }}
+          />
+        </div>
       )}
 
-      <div className="mt-2 min-h-0 flex-1">
-        {/* 節の見出し（見本合わせ）。visibility で 2 節に分ける —
-            チームスペース（workspace = 全員に届く）と、プライベート（付与された人だけ）。
-            アーカイブ一覧では節を分けない（対象の絞り込みが主で、場所の区分は騒がしい）。 */}
-        {activeSlug && !archivedMode && spaces.length > 0 && (
-          // 作る入口は節の見出しに置く（一覧の下だと、増えるほど遠くなる）。
-          // 作成可否の判定はサーバーが持つ。
-          <KbSectionHeading
-            label="チームスペース"
-            onAdd={() => setAddingSpace((prev) => !prev)}
-            addLabel="スペースを追加"
-            menuItems={[
-              { label: 'スペースを作成', onSelect: () => setAddingSpace(true) },
-              {
-                label: archivedMode ? '現役のページに戻る' : 'アーカイブしたページ',
-                onSelect: () => setArchivedMode(!archivedMode),
-              },
-            ]}
+      {activeSlug && space && (
+        <>
+          <KbSpaceFace
+            space={space}
+            workspaceSlug={activeSlug}
+            workspaceCanManage={workspaceCanManage}
+            archivedMode={archivedMode}
+            onCreatePage={() => void createRootPage()}
+            onCreatedFromTemplate={(page) => {
+              emitKbTreeEvent({ type: 'page-created', page });
+              navigate(`/kb/${page.id}`);
+            }}
+            onRenameSpace={(name) => renameSpace(space.id, name)}
+            onCreateSpace={createSpace}
           />
-        )}
-        {activeSlug && !archivedMode && spaces.length > 0 && addingSpace && (
-          <div className="mb-1 rounded-md border border-surface-3">
-            <NameCreateForm
-              what="スペース"
-              onCreate={async (input) => {
-                try {
-                  await createSpace(input);
-                } catch {
-                  showToast('error', 'スペースを作成できませんでした');
-                  throw new Error('create space failed');
-                }
-                setAddingSpace(false);
-              }}
-            />
+
+          {!archivedMode && (
             <button
               type="button"
-              onClick={() => setAddingSpace(false)}
-              className="w-full px-2 pb-2 text-left text-xs text-[var(--color-text-muted)] hover:underline"
+              onClick={() => setSearchOpen(true)}
+              className="mb-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-surface-2"
             >
-              やめる
+              <MagnifyingGlassIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>検索</span>
             </button>
-          </div>
-        )}
-        {spacesLoading && (
-          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
-        )}
-        {spacesError && (
-          <div className="px-2 py-1 text-xs text-red-600">
-            <p>{spacesError}</p>
-            <button type="button" onClick={retrySpaces} className="mt-0.5 underline hover:no-underline">
-              再試行
-            </button>
-          </div>
-        )}
+          )}
 
-        {!spacesLoading && !spacesError && activeSlug && spaces.length === 0 && (
-          // ワークスペースを作っただけではスペースは付いてこない。ここでも入口を出す
-          // （出さないと「見られるスペースがありません」で行き止まりになる）。
-          <div>
-            <p className="px-2 pt-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
-              まだスペースがありません。部署や個人ごとの区画を作ります。
-            </p>
-            <NameCreateForm
-              what="スペース"
-              onCreate={async (input) => {
-                try {
-                  await createSpace(input);
-                } catch {
-                  showToast('error', 'スペースを作成できませんでした');
-                  throw new Error('create space failed');
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {activeSlug &&
-          (archivedMode ? spaces : spaces.filter((s) => s.visibility !== 'private')).map((space) => (
-            <KbSpaceSection
-              key={space.id}
-              space={space}
-              state={spaceStates[space.id]}
-              workspaceSlug={activeSlug}
-              workspaceCanManage={workspaceCanManage}
-              activePageId={activePageId}
-              expandedPageIds={expandedPageIds}
-              onToggleSpace={toggleSpace}
-              onTogglePage={togglePage}
-              onRetry={retrySpace}
-              onCreatePage={createPage}
-              onRenamePage={renamePage}
-              onArchivePage={archivePage}
-              onDeletePage={deletePage}
-              onUnarchivePage={unarchivePage}
-              archivedMode={archivedMode}
-              onRenameSpace={renameSpace}
-              onMovePage={movePage}
-            />
-          ))}
-
-        {/* プライベート節。空でも見出しと＋を出す — 作る入口が無いと、この区分が
-            あること自体に気づけない。作成はメンバーなら誰でもできる（サーバーが判定）。 */}
-        {activeSlug && !archivedMode && (
-          <>
-            {/* チームの木のあとに線で区切って置く（どこからが自分だけの区画かを線で示す）。 */}
-            <KbSectionHeading
-              label="プライベート"
-              divider
-              onAdd={() => setAddingPrivateSpace((prev) => !prev)}
-              addLabel="プライベートスペースを追加"
-              menuItems={[
-                {
-                  label: 'プライベートスペースを作成',
-                  onSelect: () => setAddingPrivateSpace(true),
-                },
-              ]}
-            />
-            {addingPrivateSpace && (
-              <div className="mb-1 rounded-md border border-surface-3">
-                <NameCreateForm
-                  what="プライベートスペース"
-                  onCreate={async (input) => {
-                    try {
-                      await createSpace({ ...input, visibility: 'private' });
-                    } catch {
-                      showToast('error', 'スペースを作成できませんでした');
-                      throw new Error('create private space failed');
-                    }
-                    setAddingPrivateSpace(false);
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setAddingPrivateSpace(false)}
-                  className="w-full px-2 pb-2 text-left text-xs text-[var(--color-text-muted)] hover:underline"
-                >
-                  やめる
+          <div className="min-h-0 flex-1">
+            {spaceState.loading && (
+              <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">読み込み中…</p>
+            )}
+            {spaceState.error && (
+              <div className="px-2 py-1 text-xs text-red-600">
+                <p>{spaceState.error}</p>
+                <button type="button" onClick={retrySpace} className="mt-0.5 underline hover:no-underline">
+                  再試行
                 </button>
               </div>
             )}
-            {/* 「まだ無い」と言い切るのは、読み込みが終わって成功したときだけ。
-                読み込み中や失敗のときに出すと、あるものを無いと断言することになる。 */}
-            {!addingPrivateSpace &&
-              !spacesLoading &&
-              !spacesError &&
-              spaces.every((s) => s.visibility !== 'private') && (
-                <p className="px-2 pb-1 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                  自分だけに見える区画。＋で作れます。
+            {!spaceState.loading &&
+              !spaceState.error &&
+              !spaceState.tree?.pages.length &&
+              !spaceState.tree?.hasHiddenChildren && (
+                <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
+                  {archivedMode ? 'アーカイブしたページはありません' : 'ページがありません'}
                 </p>
               )}
-            {spaces
-              .filter((s) => s.visibility === 'private')
-              .map((space) => (
-                <KbSpaceSection
-                  key={space.id}
-                  space={space}
-                  state={spaceStates[space.id]}
-                  workspaceSlug={activeSlug}
-                  workspaceCanManage={workspaceCanManage}
-                  activePageId={activePageId}
-                  expandedPageIds={expandedPageIds}
-                  onToggleSpace={toggleSpace}
-                  onTogglePage={togglePage}
-                  onRetry={retrySpace}
-                  onCreatePage={createPage}
-                  onRenamePage={renamePage}
-                  onArchivePage={archivePage}
-                  onDeletePage={deletePage}
-                  onUnarchivePage={unarchivePage}
-                  archivedMode={archivedMode}
-                  onRenameSpace={renameSpace}
-                  onMovePage={movePage}
-                />
-              ))}
-          </>
-        )}
+            {spaceState.tree && spaceState.tree.pages.length > 0 && (
+              <KbTreeList
+                nodes={spaceState.tree.pages}
+                depth={0}
+                parentId={null}
+                hasHiddenChildren={spaceState.tree.hasHiddenChildren}
+                expandedPageIds={expandedPageIds}
+                activePageId={activePageId}
+                workspaceSlug={activeSlug}
+                renamingPageId={renamingPageId}
+                draggingPageId={draggingPageId}
+                dropAt={dropAt}
+                archivedMode={archivedMode}
+                label={`${space.name} のページ`}
+                onToggle={togglePage}
+                onStartRename={setRenamingPageId}
+                onCancelRename={() => setRenamingPageId(null)}
+                onCommitRename={commitRename}
+                onCreateChild={(parentId) => void createChildPage(parentId)}
+                onArchive={(pageId) => void doArchivePage(pageId)}
+                onDelete={(pageId) => void doDeletePage(pageId)}
+                onUnarchive={(pageId) => void doUnarchivePage(pageId)}
+                onMove={(pageId, target) => void doMovePage(pageId, target)}
+                onDragStart={setDraggingPageId}
+                onDragEnd={endDrag}
+                onDragOverRow={(pageId, zone) => setDropAt({ pageId, zone })}
+                onDropOnRow={(pageId, zone) => void dropOnRow(pageId, zone)}
+              />
+            )}
+            {!spaceState.tree?.pages.length && spaceState.tree?.hasHiddenChildren && (
+              <p className="px-2 py-0.5 text-xs text-[var(--color-text-muted)]">
+                表示できないページがあります
+              </p>
+            )}
+          </div>
 
-        {activeSlug && !archivedMode && <KbBacklogSection workspaceSlug={activeSlug} spaces={spaces} />}
-      </div>
+          {!archivedMode && <KbBacklogSection workspaceSlug={activeSlug} spaces={spaces} />}
+        </>
+      )}
 
-      {/*
-        アーカイブは下段の入口に畳む。普段は視界に入らず、押したときだけ木を置き換える。
-        切り替えはワークスペース全体で 1 つ — スペースごとに持たせると
-        「いまどちらを見ているのか」が場所によって変わる。
-      */}
       {searchOpen && activeSlug && (
         <KbSearchDialog
           workspaceSlug={activeSlug}
@@ -343,13 +333,11 @@ export default function KbSidebar({ workspaceSlug, activePageId }: KbSidebarProp
         />
       )}
 
-      {activeSlug && (
+      {activeSlug && space && (
         <button
           type="button"
           onClick={() => setArchivedMode(!archivedMode)}
           aria-pressed={archivedMode}
-          // 見た目は「アーカイブ」の一語だが、読み上げ名は押すと何が起きるかにする。
-          // 行のメニューにも「アーカイブ」があるので、名前が同じだとどちらか分からない。
           aria-label={archivedMode ? '現役のページに戻る' : 'アーカイブしたページを表示'}
           className={`mt-2 flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors ${
             archivedMode

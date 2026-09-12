@@ -22,29 +22,9 @@ export { default as FormMessage } from './FormMessage';
 export type { FormMessage as FormMessageData } from './FormMessage';
 
 // --- 画面の枠・状態表示 ---
-export { default as ActionCard } from './ActionCard';
 export { default as ConfirmModal } from './ConfirmModal';
 export { default as EmptyState } from './EmptyState';
-export { default as PageIntro } from './PageIntro';
-export { default as StepIndicator } from './StepIndicator';
 export { default as Toast } from './Toast';
-
-// --- 初心者向けの補助 UI ---
-export { default as FilterChip } from './FilterChip';
-export type { FilterChipProps } from './FilterChip';
-export { default as FirstTimeWelcome } from './FirstTimeWelcome';
-export { default as GlossaryTerm } from './GlossaryTerm';
-export { default as GuidedHint } from './GuidedHint';
-export { default as HelpTooltip } from './HelpTooltip';
-
-/*
- * 言語バッジ / アイコンは entity ではなく shared に置く。
- * ホームの FeatureCard が技術ロゴ表示に使う。特定の entity に置くと同一レイヤーの
- * Slice 間 import になり FSD 違反になる。中身も devicon スラッグと Tailwind クラスの
- * 対応表で、FreStyle 固有のルールではない。
- */
-export { default as LanguageBadge } from './LanguageBadge';
-export { default as LanguageIcon } from './LanguageIcon';
 
 /*
  * RichTextEditor は **意図的にこの barrel から出さない**。

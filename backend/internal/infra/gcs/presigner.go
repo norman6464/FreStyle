@@ -1,10 +1,9 @@
 // Package gcs は Cloud Storage への PUT presigned URL 発行と GET presigned URL による
 // ダウンロードを担う Infra 層。
 //
-// 署名は秘密鍵ファイルを使わない。IAM Credentials API の signBlob RPC で行う
-// （Cloud Run のランタイムサービスアカウントに roles/iam.serviceAccountTokenCreator を
-// 自分自身に対して付与し、roles/storage.objectAdmin を対象バケットに付与しておくことが
-// 前提。インフラ側で適用済み）。V4 署名の期限は 10 分。
+// 署名は秘密鍵ファイルを使わず、IAM Credentials API の signBlob RPC で行う（Cloud Run の
+// ランタイムサービスアカウントに roles/iam.serviceAccountTokenCreator を自分自身へ、
+// roles/storage.objectAdmin を対象バケットへ付与しておくことが前提）。V4 署名の期限は 10 分。
 package gcs
 
 import (
@@ -44,7 +43,7 @@ func NewPresigner(ctx context.Context, bucketName string) (*Presigner, error) {
 	}
 
 	// ランタイムサービスアカウントのメールアドレスをメタデータサーバーから取得する
-	// （ハードコードしない。signBlob の呼び出し先「自分自身」を特定するために要る）。
+	// （signBlob の呼び出し先「自分自身」を特定するために要る。ハードコードしない）。
 	saEmail, err := metadata.EmailWithContext(ctx, "default")
 	if err != nil {
 		return nil, fmt.Errorf("gcs: get service account email from metadata: %w", err)
@@ -91,7 +90,6 @@ func NewPresigner(ctx context.Context, bucketName string) (*Presigner, error) {
 }
 
 // Close は IamCredentialsClient / storage.Client が保持する gRPC コネクションを解放する。
-// AWS SDK v2 ベースだった旧 infra/s3.Presigner と異なり、こちらは明示的な Close が要る。
 func (p *Presigner) Close() error {
 	if p.closeFn == nil {
 		return nil
@@ -99,18 +97,15 @@ func (p *Presigner) Close() error {
 	return p.closeFn()
 }
 
-// PresignPut は指定 key への PUT アップロード用 V4 signed URL を返す。
-// contentType は署名に焼き込まれるため PUT 時のヘッダと完全一致が必要
-// （不一致だと GCS 側で署名不一致エラーになる。旧 S3 実装と同じ制約）。
+// PresignPut は指定 key への PUT アップロード用 V4 signed URL を返す。contentType は
+// 署名に焼き込まれるため PUT 時のヘッダと完全一致が必要（不一致だと GCS 側で署名不一致エラー）。
 //
 // contentLength は 0 より大きいときだけ Content-Length を署名対象ヘッダとして焼き込む。
-// **GCS の V4 signed URL には S3 の content-length-range のような「範囲」制約を表す
-// 仕組みが無い**（x-goog-content-length-range は POST Policy V4 専用の条件で、
-// signed URL には適用されない）。ここでは Content-Length ヘッダそのものを署名対象に
-// 含めることで「その値と完全一致しない PUT は拒否される」という厳密一致の制約をかけている
-// （範囲ではなく一致）。旧 S3 実装（ContentLength を signed request に含める）と
-// 意味的に同じで、呼び出し側は事前に検証済みの実サイズをそのまま渡す前提。
-// 0 は「サイズを制約しない」呼び出し側（profile 画像等）をそのまま動かすための値。
+// **GCS の V4 signed URL には S3 の content-length-range のような範囲制約の仕組みが無い**
+// （x-goog-content-length-range は POST Policy V4 専用で signed URL には効かない）ため、
+// 代わりに Content-Length ヘッダ自体を署名対象に含め「その値と完全一致しない PUT は拒否される」
+// という厳密一致で制約する。呼び出し側は事前に検証済みの実サイズを渡す前提。0 は
+// 「サイズを制約しない」呼び出し（profile 画像等）をそのまま動かすための値。
 func (p *Presigner) PresignPut(ctx context.Context, key, contentType string, contentLength int64) (string, time.Duration, error) {
 	if key == "" {
 		return "", 0, fmt.Errorf("gcs: key is required")

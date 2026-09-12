@@ -1,11 +1,16 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   XMarkIcon,
-  Bars3Icon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
 import { usePanelMode } from '@/shared/lib/hooks/usePanelMode';
+import { useResizablePanel } from '@/shared/lib/hooks/useResizablePanel';
+
+// リサイズの既定幅・下限・上限（画面幅に対する割合）。固定表示・通常表示どちらでも共通。
+const RESIZE_DEFAULT_WIDTH = 288; // w-72 相当
+const RESIZE_MIN_WIDTH = 288;
+const RESIZE_MAX_WIDTH_RATIO = 0.5;
 
 interface SecondaryPanelProps {
   title: string;
@@ -37,6 +42,15 @@ interface SecondaryPanelProps {
    * つかず両方「左からスライドイン」してしまう問題への対処。
    */
   side?: 'left' | 'right';
+  /**
+   * 本文と接する側の縁をドラッグして横幅を変えられるようにする（固定表示・通常表示のみ。
+   * 一時表示のオーバーレイ・折りたたみ中の細い帯・モバイルは対象外）。上限は画面幅の半分。
+   */
+  resizable?: boolean;
+  /** resizable の横幅を覚える localStorage キー。省略時は保存されず、再訪では defaultWidth に戻る。 */
+  resizeStorageKey?: string;
+  /** resizable の既定幅（px）。省略時 288（w-72 相当）。 */
+  defaultWidth?: number;
 }
 
 /** PanelTooltip は «/»/☰ に付けるホバー説明（ラベル＋ショートカット）。 */
@@ -79,6 +93,48 @@ function PanelHeader({
   );
 }
 
+/** ResizeHandle は本文と接する側の縁に置く、ドラッグ／矢印キーで幅を変えるハンドル。 */
+function ResizeHandle({
+  position,
+  width,
+  minWidth,
+  maxWidth,
+  isResizing,
+  onMouseDown,
+  onKeyDown,
+}: {
+  position: 'left' | 'right';
+  width: number;
+  minWidth: number;
+  maxWidth: number;
+  isResizing: boolean;
+  onMouseDown: (event: React.MouseEvent) => void;
+  onKeyDown: (event: React.KeyboardEvent) => void;
+}) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="サイドバーの幅を変更する"
+      aria-valuenow={Math.round(width)}
+      aria-valuemin={minWidth}
+      aria-valuemax={Math.round(maxWidth)}
+      tabIndex={0}
+      onMouseDown={onMouseDown}
+      onKeyDown={onKeyDown}
+      className={`absolute inset-y-0 ${position === 'right' ? '-right-1' : '-left-1'} w-2 cursor-col-resize outline-none group/resize`}
+    >
+      <div
+        className={`mx-auto h-full w-0.5 transition-colors ${
+          isResizing
+            ? 'bg-brand-400'
+            : 'bg-transparent group-hover/resize:bg-brand-300 group-focus-visible/resize:bg-brand-400'
+        }`}
+      />
+    </div>
+  );
+}
+
 /**
  * PeekablePanel は「一時表示 / 固定表示」を切り替えられるデスクトップパネル。
  *
@@ -92,18 +148,49 @@ function PeekablePanel({
   headerContent,
   children,
   storageKey,
+  resizable = false,
+  resizeStorageKey,
+  defaultWidth = RESIZE_DEFAULT_WIDTH,
 }: {
   title: string;
   badge?: string;
   headerContent?: ReactNode;
   children: ReactNode;
   storageKey: string;
+  resizable?: boolean;
+  resizeStorageKey?: string;
+  defaultWidth?: number;
 }) {
   const panel = usePanelMode(storageKey);
+  const resize = useResizablePanel({
+    side: 'left',
+    storageKey: resizeStorageKey,
+    defaultWidth,
+    minWidth: RESIZE_MIN_WIDTH,
+    maxWidthRatio: RESIZE_MAX_WIDTH_RATIO,
+  });
+
+  // 一時表示 → 固定表示への切り替え「だけ」を検知する。保存済みの初期状態が最初から
+  // pinned のとき（通常の再訪・再読み込み）はここを通らないので、毎回の表示では
+  // アニメーションしない — 切り替えた瞬間だけ滑り込ませたい。
+  const prevModeRef = useRef(panel.mode);
+  const [justPinned, setJustPinned] = useState(false);
+  useEffect(() => {
+    if (prevModeRef.current !== 'pinned' && panel.mode === 'pinned') {
+      setJustPinned(true);
+      const timer = setTimeout(() => setJustPinned(false), 250);
+      prevModeRef.current = panel.mode;
+      return () => clearTimeout(timer);
+    }
+    prevModeRef.current = panel.mode;
+  }, [panel.mode]);
 
   if (panel.mode === 'pinned') {
     return (
-      <div className="hidden md:flex w-72 bg-[var(--color-nav)] flex-col h-full flex-shrink-0">
+      <div
+        className={`hidden md:flex ${resizable ? '' : 'w-72'} relative border-r border-surface-3 bg-[var(--color-nav)] flex-col flex-shrink-0 self-stretch ${justPinned ? 'animate-panel-pin' : ''}`}
+        style={resizable ? { width: resize.width } : undefined}
+      >
         <PanelHeader
           title={title}
           badge={badge}
@@ -121,12 +208,24 @@ function PeekablePanel({
             </span>
           }
         />
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        {resizable && (
+          <ResizeHandle
+            position="right"
+            width={resize.width}
+            minWidth={RESIZE_MIN_WIDTH}
+            maxWidth={window.innerWidth * RESIZE_MAX_WIDTH_RATIO}
+            isResizing={resize.isResizing}
+            onMouseDown={resize.onHandleMouseDown}
+            onKeyDown={resize.onHandleKeyDown}
+          />
+        )}
       </div>
     );
   }
 
-  // 一時表示モード: レイアウト上は何も占有しない。左端ホバーゾーン＋☰＋オーバーレイを出す。
+  // 一時表示モード: レイアウト上は何も占有しない。左端ホバーゾーン＋オーバーレイを出す。
+  // 固定表示に戻すボタンはヘッダー左端（FreStyle ロゴの左）に出す（widgets/app-shell/ui/Header.tsx）。
   return (
     <>
       {/* 左端のホバー検知ゾーン。ヘッダー直下から下まで。 */}
@@ -137,25 +236,6 @@ function PeekablePanel({
         onMouseEnter={panel.openPeek}
         onMouseLeave={panel.closePeek}
       />
-
-      {/* ☰ は幅 40px の透明ガター（背景・枠なし）に置き、本文をその分だけ右に寄せる。
-          浮かせる（fixed）とページ側の見出しやボタンに重なるため、レイアウトで場所を確保する。 */}
-      <div
-        onMouseEnter={panel.openPeek}
-        onMouseLeave={panel.closePeek}
-        className="hidden md:flex w-10 flex-shrink-0 flex-col items-center pt-3 h-full"
-      >
-        <span className={`relative group/ptip inline-flex transition-opacity ${panel.isPeeking ? 'opacity-0' : 'opacity-100'}`}>
-          <button
-            onClick={panel.pin}
-            aria-label="サイドバーを固定表示する"
-            className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            <Bars3Icon className="w-5 h-5" />
-          </button>
-          <PanelTooltip label="サイドバーを固定表示する" />
-        </span>
-      </div>
 
       {/* 一時表示のオーバーレイパネル（本文は動かさない）。 */}
       <div
@@ -183,7 +263,7 @@ function PeekablePanel({
             </span>
           }
         />
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </>
   );
@@ -202,6 +282,9 @@ export default function SecondaryPanel({
   peekable = false,
   storageKey,
   side = 'left',
+  resizable = false,
+  resizeStorageKey,
+  defaultWidth = RESIZE_DEFAULT_WIDTH,
 }: SecondaryPanelProps) {
   // モバイル固定パネルの位置・境界線・開閉時のスライド方向。左は既定（従来どおり）、
   // 右は開いた面（コメント等）が右から出てくるようにする。
@@ -209,6 +292,16 @@ export default function SecondaryPanel({
     side === 'right'
       ? { edge: 'right-0', border: 'border-l', closed: 'translate-x-full' }
       : { edge: 'left-0', border: 'border-r', closed: '-translate-x-full' };
+
+  // 通常表示（peekable・collapsible 無し）のリサイズ。フックは常に呼ぶ（React のルール）が、
+  // 実際に使う（style を当てる・ハンドルを出す）のは resizable のときだけ。
+  const resize = useResizablePanel({
+    side,
+    storageKey: resizeStorageKey,
+    defaultWidth,
+    minWidth: RESIZE_MIN_WIDTH,
+    maxWidthRatio: RESIZE_MAX_WIDTH_RATIO,
+  });
 
   return (
     <>
@@ -240,17 +333,25 @@ export default function SecondaryPanel({
           </button>
         </div>
         {headerContent && <div className="px-4 py-2 border-b border-surface-3">{headerContent}</div>}
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
 
       {/* デスクトップ: peekable（一時表示/固定）を優先し、従来の collapsible とは独立に扱う。 */}
       {peekable && storageKey ? (
-        <PeekablePanel title={title} badge={badge} headerContent={headerContent} storageKey={storageKey}>
+        <PeekablePanel
+          title={title}
+          badge={badge}
+          headerContent={headerContent}
+          storageKey={storageKey}
+          resizable={resizable}
+          resizeStorageKey={resizeStorageKey}
+          defaultWidth={defaultWidth}
+        >
           {children}
         </PeekablePanel>
       ) : collapsible && collapsed ? (
         // 折りたたみ中: 細い帯に「開く」ボタンだけ出す。本文が全幅に広がる。
-        <div className="hidden md:flex w-10 bg-[var(--color-nav)] flex-col items-center pt-3 h-full flex-shrink-0">
+        <div className="hidden md:flex w-10 border-x border-surface-3 bg-[var(--color-nav)] flex-col items-center pt-3 flex-shrink-0 self-stretch">
           <button
             onClick={onToggleCollapsed}
             title="パネルを開く"
@@ -261,7 +362,10 @@ export default function SecondaryPanel({
           </button>
         </div>
       ) : (
-        <div className="hidden md:flex w-72 bg-[var(--color-nav)] flex-col h-full flex-shrink-0">
+        <div
+          className={`hidden md:flex ${resizable ? '' : 'w-72'} relative border-x border-surface-3 bg-[var(--color-nav)] flex-col flex-shrink-0 self-stretch`}
+          style={resizable ? { width: resize.width } : undefined}
+        >
           <PanelHeader
             title={title}
             badge={badge}
@@ -279,7 +383,18 @@ export default function SecondaryPanel({
               ) : undefined
             }
           />
-          <div className="flex-1 overflow-y-auto">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+          {resizable && (
+            <ResizeHandle
+              position={side === 'right' ? 'left' : 'right'}
+              width={resize.width}
+              minWidth={RESIZE_MIN_WIDTH}
+              maxWidth={window.innerWidth * RESIZE_MAX_WIDTH_RATIO}
+              isResizing={resize.isResizing}
+              onMouseDown={resize.onHandleMouseDown}
+              onKeyDown={resize.onHandleKeyDown}
+            />
+          )}
         </div>
       )}
     </>

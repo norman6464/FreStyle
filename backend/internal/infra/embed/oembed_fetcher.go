@@ -18,7 +18,7 @@ import (
 
 const (
 	defaultHTTPTimeout = 6 * time.Second
-	maxBodyBytes       = 512 * 1024 // OGP 抽出に必要なのは <head> の一部のみ
+	maxBodyBytes       = 512 * 1024 // OGP 抽出に要るのは <head> の一部のみ
 	cacheTTL           = 30 * time.Minute
 	cacheMaxEntries    = 256
 	userAgent          = "FreStyle/1.0 (+https://frestyle.dev)"
@@ -42,16 +42,14 @@ type Fetcher struct {
 	cache  *cache
 }
 
-// maxRedirects は追うリダイレクトの最大ホップ数。CheckRedirect を独自に設定すると
-// net/http の既定（10 ホップ）が効かなくなるため、同じ値をここで明示する。
+// maxRedirects は追うリダイレクトの最大ホップ数。CheckRedirect を独自設定すると net/http の
+// 既定（10 ホップ）が効かなくなるため、同じ値をここで明示する。
 const maxRedirects = 10
 
-// NewFetcher は本番デフォルト設定で Fetcher を返す。
-//
-// Transport.DialContext を safeDialContext に差し替えることで、最初の接続だけでなく
-// リダイレクトで新しく張る接続も含め、すべての接続が「解決した IP が外部向けか」の
-// 検査を通る（safeDialContext の doc 参照）。CheckRedirect は IP の再検査までは
-// 担わず、スキームの検査（https のみ）だけをホップごとにやり直す。
+// NewFetcher は本番デフォルト設定で Fetcher を返す。Transport.DialContext を safeDialContext
+// に差し替えることで、最初の接続だけでなくリダイレクトで新しく張る接続も含め、すべての接続が
+// 「解決した IP が外部向けか」の検査を通る（safeDialContext の doc 参照）。CheckRedirect は
+// IP の再検査までは担わず、スキーム検査（https のみ）だけをホップごとにやり直す。
 func NewFetcher() *Fetcher {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	dialer := &net.Dialer{Timeout: defaultHTTPTimeout}
@@ -65,9 +63,9 @@ func NewFetcher() *Fetcher {
 	return f
 }
 
-// NewFetcherWithClient はテスト用。http.Client を丸ごと差し替える
-// （safeDialContext / checkRedirect は適用されない。テストは httptest サーバの
-// Transport をそのまま使うため、これらの本番専用の防御には元々乗らない経路）。
+// NewFetcherWithClient はテスト用。http.Client を丸ごと差し替える（safeDialContext /
+// checkRedirect は適用されない——httptest サーバの Transport を使うため、これらの
+// 本番専用の防御には元々乗らない経路）。
 func NewFetcherWithClient(c *http.Client) *Fetcher {
 	if c == nil {
 		c = &http.Client{Timeout: defaultHTTPTimeout}
@@ -75,9 +73,8 @@ func NewFetcherWithClient(c *http.Client) *Fetcher {
 	return &Fetcher{client: c, cache: newCache(cacheMaxEntries)}
 }
 
-// checkRedirect はリダイレクト追跡のホップごとに呼ばれる。IP の安全性そのものは
-// safeDialContext がホップごとの新規接続で必ず検査するので、ここでは
-// スキーム（https のみ）とホップ数だけを見る。
+// checkRedirect はリダイレクト追跡のホップごとに呼ばれる。IP の安全性は safeDialContext が
+// ホップごとの新規接続で必ず検査するので、ここではスキーム（https のみ）とホップ数だけを見る。
 func (f *Fetcher) checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= maxRedirects {
 		return fmt.Errorf("%w: stopped after %d redirects", ErrUnreachable, maxRedirects)
@@ -112,12 +109,12 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (*Card, error) {
 	return card, nil
 }
 
-// validateURL は URL をパースし、scheme=https / host 非空 を検証する。
+// validateURL は URL をパースし、scheme=https / host 非空を検証する。
 //
-// 「private / local なホストでないか」はここでは見ない。文字列の照合（旧実装）は
-// ホスト名にしか効かず、公開ドメインを private / metadata の IP へ向ける変種
-// （DNS リバインディングを含む）を素通りさせてしまう。その検査は実際に接続する
-// 瞬間の IP に対して行うべきなので、safeDialContext（ssrf_guard.go）へ寄せてある。
+// 「private / local なホストでないか」はここでは見ない。文字列照合（旧実装）はホスト名にしか
+// 効かず、公開ドメインを private / metadata の IP へ向ける変種（DNS リバインディング含む）を
+// 素通りさせてしまう。その検査は実際に接続する瞬間の IP に対して行うべきなので、
+// safeDialContext（ssrf_guard.go）へ寄せてある。
 func (f *Fetcher) validateURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
@@ -152,12 +149,10 @@ func (f *Fetcher) resolveOGP(ctx context.Context, u *url.URL) (*Card, error) {
 
 	resp, err := f.client.Do(req)
 	if err != nil {
-		// err はここでさらに ErrUnreachable として包むが、safeDialContext /
-		// checkRedirect が返した ErrUnsupportedHost・ErrInvalidURL は err の中に
-		// （net/http が挟む *url.Error / *net.OpError 越しでも）残ったままなので、
-		// errors.Is で拾える（embed_handler.go の switch は ErrUnsupportedHost /
-		// ErrInvalidURL を ErrUnreachable より先に判定している。両方に一致する
-		// エラーでも、より具体的な方の分岐が先に選ばれる）。
+		// ここでさらに ErrUnreachable として包むが、safeDialContext / checkRedirect が返した
+		// ErrUnsupportedHost・ErrInvalidURL は（net/http の *url.Error / *net.OpError 越しでも）
+		// err の中に残るため errors.Is で拾える（embed_handler.go の switch はそちらを
+		// ErrUnreachable より先に判定するので、より具体的な分岐が優先される）。
 		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	defer resp.Body.Close()

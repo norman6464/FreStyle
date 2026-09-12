@@ -10,10 +10,7 @@ import (
 )
 
 // KnowledgeBaseGrantHandler はナレッジの「既定の権限（grant）」の読み書きを受ける。
-//
-// 認可はすべて kbPermissionGate が持つ（このファイルには判定規則を書かない）。
-// なぜ handler 側で判定するのか / なぜ super_admin を特別扱いしないのか /
-// なぜ拒否を 404 で揃えるのかは kb_permission_gate.go の冒頭を参照。
+// 認可はすべて kbPermissionGate が持つ（判定規則は kb_permission_gate.go の冒頭を参照）。
 type KnowledgeBaseGrantHandler struct {
 	*kbPermissionGate
 	grantWorkspaceRole  *kb.GrantWorkspaceRoleUseCase
@@ -27,7 +24,6 @@ type KnowledgeBaseGrantHandler struct {
 	canRemoveAdmin      *kb.CanRemoveWorkspaceAdminUseCase
 }
 
-// NewKnowledgeBaseGrantHandler は KnowledgeBaseGrantHandler を組み立てる。
 func NewKnowledgeBaseGrantHandler(
 	gate *kbPermissionGate,
 	grantWorkspaceRole *kb.GrantWorkspaceRoleUseCase,
@@ -116,31 +112,20 @@ type kbGrantRoleRequest struct {
 	Role string `json:"role" binding:"required" example:"editor"`
 }
 
-// requireNotLastWorkspaceAdmin は「最後の admin を剥がす操作」を断る。
-// 断るときは応答を書いて false を返す。
+// requireNotLastWorkspaceAdmin は「最後の admin を剥がす操作」を断る（断るときは応答を書いて
+// false）。ナレッジの権限は principals/grants だけで閉じ、super_admin による救済経路を
+// 意図的に持たない。ワークスペースの admin が 0 人になると、権限を張り直す手段が API に
+// 存在せず DB を直接触る以外に復旧できない。反対に「最後の 1 人は自分を外せない」で困る
+// 場面は先に別の誰かへ admin を渡せば必ず解けるので、取り返しがつかない側だけを禁じる。
+// 判定そのもの（何を admin として数えるか）は CanRemoveWorkspaceAdminUseCase の doc を参照。
 //
-// # なぜ剥がせなくしたか
-//
-// ナレッジの権限は principals / grants だけで閉じていて、
-// アプリの super_admin による救済経路を意図的に持たない。ワークスペースの admin が
-// 0 人になると、そこから先は権限を張り直す手段が API に存在せず、
-// DB を直接触る以外に復旧できない。
-//
-// 反対に「最後の 1 人は自分を外せない」で困る場面は、先に別の誰かへ admin を渡せば
-// 必ず解ける。取り返しがつかない側を禁じ、手数が 1 つ増えるだけの側を許す。
-//
-// 判定そのもの（何を admin として数えるか）は CanRemoveWorkspaceAdminUseCase の doc にある。
-//
-// **この検査は書き込みより手前の読み取りなので、これ単体では競合を防げない。**
-// 同時に 2 人の admin を外す要求は両方ともここを通り抜け得る。実際に 0 人を止めているのは
-// repository 側（判定と書き換えを同じトランザクションに入れ、admin の行を FOR UPDATE で
-// ロックしてから決める）で、そこで断られた場合も respondKbPermissionOperationErr が
-// 同じ 409 に落とす。ここは「日常の誤操作を、書き換えを試みる前に断る」ための層。
-//
-// 応答は 409（既にアーカイブ済み・循環と同じ「要求は正しいが対象の現在の状態と
-// 両立しない」）。ここへ来る相手は admin なので、理由を返してよい
-// （拒否を 404 に揃える規則は「権限が無い相手に対象を明かさない」ためのもので、
-// admin 自身への説明までは縛らない）。
+// この検査は書き込みより手前の読み取りなので単体では競合を防げない（同時に 2 人の admin を
+// 外す要求は両方とも通り抜け得る）。実際に 0 人を止めているのは repository 側（判定と
+// 書き換えを同じトランザクションに入れ admin の行を FOR UPDATE でロック）で、断られた場合も
+// respondKbPermissionOperationErr が同じ 409 に落とす。ここは日常の誤操作を書き換え前に
+// 断るための層。応答が 409 で理由を返してよいのは、来る相手が既に admin だから
+// （拒否を 404 に揃える規則は無権限の相手に対象を明かさないためのもので、admin 自身への
+// 説明までは縛らない）。
 func (h *KnowledgeBaseGrantHandler) requireNotLastWorkspaceAdmin(
 	c *gin.Context, in kb.CanRemoveWorkspaceAdminInput,
 ) bool {
@@ -162,7 +147,6 @@ func (h *KnowledgeBaseGrantHandler) GrantWorkspaceRole(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// 認可が先。落ちた要求は principalId にもボディにも触れない（対象の実在が漏れない）。
 	if !h.requireWorkspaceAdmin(c, scope) {
 		return
 	}
@@ -238,9 +222,8 @@ func (h *KnowledgeBaseGrantHandler) GrantSpaceRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// 「最後の admin」の検査はここでは行わない。守っているのはワークスペースの admin が
-	// 0 人になることで、スペースの admin を外してもワークスペースの admin は残る
-	// （スペースの grant を全部消しても、ワークスペースの admin は配下の全スペースに届く）。
+	// 「最後の admin」の検査はここでは行わない。ワークスペースの admin は配下の全スペースに
+	// 届くので、スペースの grant をどう変えてもワークスペース admin は残る。
 	grant, err := h.grantSpaceRole.Execute(c.Request.Context(), kb.GrantSpaceRoleInput{
 		WorkspaceID: scope.workspaceID,
 		SpaceID:     spaceID,
@@ -291,9 +274,8 @@ func (h *KnowledgeBaseGrantHandler) GrantPageRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// 「最後の admin」の検査はここでも行わない。守っているのはワークスペースの admin が
-	// 0 人になることで、ページの grant をどう変えてもワークスペースの admin は
-	// 配下の全ページに届き続ける（RevokeSpaceRole と同じ理由）。
+	// 「最後の admin」の検査はここでも行わない（RevokeSpaceRole と同じ理由 — ワークスペース
+	// admin は配下の全ページに届き続ける）。
 	grant, err := h.grantPageRole.Execute(c.Request.Context(), kb.GrantPageRoleInput{
 		WorkspaceID: scope.workspaceID,
 		PageID:      pageID,
@@ -367,9 +349,8 @@ func (h *KnowledgeBaseGrantHandler) ListGrantablePrincipals(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// 認可をページ単位で掛けるのは、この一覧を使うのが「そのページの権限を変えられる人」
-	// だから。ワークスペースの admin に絞ると、ページに admin を張られた人が
-	// 相手を選べなくなる（権限はあるのに画面が使えない）。
+	// 認可をページ単位で掛けるのは、ワークスペース admin に絞るとページに admin を
+	// 張られた人が相手を選べなくなる（権限はあるのに画面が使えない）ため。
 	if !h.requirePageAdmin(c, scope, c.Param("pageId")) {
 		return
 	}

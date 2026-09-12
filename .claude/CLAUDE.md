@@ -22,19 +22,8 @@ handler → usecase → repository / infra → domain
 - usecase は handler を知らない（`*gin.Context` 等を引数で受けない）
 - repository / infra は usecase を知らない。domain は他のどの層にも依存しない（標準ライブラリのみ）
 
-### 2.2 各層の責務
 
-| 層 | パッケージ | 責務 |
-|---|---|---|
-| handler | `backend/internal/handler` | HTTP 受付、middleware から認証情報取得、usecase 呼び出し、JSON 返却。ビジネスロジック禁止 |
-| middleware | `backend/internal/handler/middleware` | JWT 認証、CORS、current user 注入、CSRF 等の横断的処理 |
-| usecase | `backend/internal/usecase/<domain>` | ドメイン単位のサブパッケージ（`kb` / `comment` / `user` / `profile` / `notification` / `richtextimage` / `health`）。1 ユースケース = 1 構造体（単一責任）。repository / infra をオーケストレーション。HTTP 層の型への依存禁止 |
-| repository (port) | `backend/internal/usecase/repository` | usecase が依存する repository interface の定義 |
-| persistence (adapter) | `backend/internal/adapter/persistence` | sqlc 生成コード / Cloud Storage 等の repository 実装 |
-| infra | `backend/internal/infra/{oidc,gcs,database,config,ratelimit,embed,logging}` | 外部サービス連携（GCP クライアントラッパ。AWS SDK は撤去済み）、DB 接続、設定読み込み |
-| domain | `backend/internal/domain` | エンティティ + ビジネス定数。JSON tag のみ直書き（永続化の都合は持ち込まない）。他層を import しない |
-
-### 2.3 1 構造体 1 責務（usecase）
+### 2.2 構造体 1 責務（usecase）
 
 - usecase 1 つにビジネスルール 1 つ。複数操作をまとめない
 - usecase は **struct + `NewXxxUseCase` コンストラクタ + `Execute(ctx, in) (out, error)`** で書く
@@ -90,8 +79,3 @@ app > pages > widgets > features > entities > shared
 - 新しい画面は **`src/shared/ui/` の再利用コンポーネント**を最大限活用
 - `main` へ直接コミット・push しない
 - `xxxRequest` / `xxxResponse` は handler のファイル内で local 定義。機密フィールドは domain 側の `json:"-"` で隠す
-- **チケット・docs には実在確認した事実のみを書く**（ファイルの存在・コードの挙動・PR のマージ状態を検証してから書く。検証できないことは書かない）
-- **コード（コメント含む）にチケット番号を書かない**（`FRESTYLE-NNN` 等）。書いてよいのは PR タイトル・本文・commit メッセージだけ。段階を示したいときは「段 N」のような日本語の言い回しに留め、由来タグとしてチケット番号や CodeRabbit 指摘・撤去済みといった注記もコードには書かない（コメントは本来そもそも書きすぎない）
-- **他社の製品名・サービス名・会社名を書かない**（コード / コードコメント / PR タイトル・本文 / commit メッセージ / チケット / docs のすべてが対象）。「〜風」「〜ライク」「〜のように」といった設計比較の言い回しも同様に避け、機能そのものの言葉で説明する。業務分析・市場調査が目的で比較そのものが本旨の docs（例: 競合調査資料）は対象外。OSS ライブラリ名・実際に使っている外部サービス名（インフラ・SaaS 依存として明記する場合。例: 「AWS から GCP へ移行」「Firebase Authentication を使う」）は対象外— 禁止しているのは**競合製品の設計・体験を引き合いに出す比較**であって、実在の技術的依存関係を隠すことではない
-  - 2026-09-09、この規約が抜けていた期間に蓄積した Jira / Nulab Backlog / Notion / Confluence / paiza / Zenn / Gemini / ChatGPT / Wandbox 等への言及を、コード・PR タイトル / 本文から一括で洗い出し是正した（過去 commit メッセージそのものは git 履歴の性質上書き換えていない。リポジトリは private 化済み）
-

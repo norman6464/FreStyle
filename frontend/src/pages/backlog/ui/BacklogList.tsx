@@ -109,7 +109,7 @@ export default function BacklogList({
         <span className="text-right">状態</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {tickets.map((ticket) => (
           <BacklogRow
             key={ticket.id}

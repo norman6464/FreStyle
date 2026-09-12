@@ -33,6 +33,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	listMembersForAdmin  *kb.ListWorkspaceMembersForAdminUseCase
 	listMembershipEvents *kb.ListMembershipEventsUseCase
 	userDisplay          *user.LookupUserDisplayUseCase
+	listFavorites        *kb.ListPageFavoritesUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -50,6 +51,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 	listMembersForAdmin *kb.ListWorkspaceMembersForAdminUseCase,
 	listMembershipEvents *kb.ListMembershipEventsUseCase,
 	userDisplay *user.LookupUserDisplayUseCase,
+	listFavorites *kb.ListPageFavoritesUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:       listWorkspaces,
@@ -65,6 +67,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 		listMembersForAdmin:  listMembersForAdmin,
 		listMembershipEvents: listMembershipEvents,
 		userDisplay:          userDisplay,
+		listFavorites:        listFavorites,
 	}
 }
 
@@ -230,6 +233,49 @@ func (h *KnowledgeBaseWorkspaceHandler) ListMembers(c *gin.Context) {
 	out := make([]kbWorkspaceMemberResponse, 0, len(members))
 	for _, m := range members {
 		out = append(out, kbWorkspaceMemberResponse{PrincipalID: m.PrincipalID, UserID: m.UserID, Name: m.Name})
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// kbFavoritePageResponse は「お気に入り」1 件の返却形（段7）。
+type kbFavoritePageResponse struct {
+	PageID    string              `json:"pageId"`
+	Title     string              `json:"title"`
+	Icon      *kbPageIconResponse `json:"icon,omitempty"`
+	SpaceID   string              `json:"spaceId"`
+	SpaceName string              `json:"spaceName"`
+	CreatedAt string              `json:"createdAt"`
+}
+
+func toKbFavoritePageResponse(f domain.PageFavorite) kbFavoritePageResponse {
+	resp := kbFavoritePageResponse{
+		PageID:    f.PageID,
+		Title:     f.Title,
+		SpaceID:   f.SpaceID,
+		SpaceName: f.SpaceName,
+		CreatedAt: f.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+	}
+	if f.Icon != nil {
+		resp.Icon = &kbPageIconResponse{Type: string(f.Icon.Type), Value: f.Icon.Value}
+	}
+	return resp
+}
+
+// ListFavorites は自分がそのワークスペースで付けたお気に入りを新しい順に返す（段7）。
+// 所属していれば誰でも叩ける（自分の分しか返さないため admin の gate は不要）。
+func (h *KnowledgeBaseWorkspaceHandler) ListFavorites(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	favorites, err := h.listFavorites.Execute(c.Request.Context(), scope.workspaceID, scope.userID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	out := make([]kbFavoritePageResponse, 0, len(favorites))
+	for _, f := range favorites {
+		out = append(out, toKbFavoritePageResponse(f))
 	}
 	c.JSON(http.StatusOK, out)
 }

@@ -2260,3 +2260,60 @@ func (f *kbFakePageViews) ListRecentPageViewCandidates(_ context.Context, userID
 	}
 	return f.recentFor[userID], nil
 }
+
+// kbFakePageFavorites は repository.PageFavoriteRepository の fake（段7・お気に入り）。
+type kbFakePageFavorites struct {
+	// favorites は userID(文字列化) -> pageID -> created_at。
+	favorites map[string]map[string]time.Time
+	// listFor はワークスペース単位の一覧向けにテストが直接差し込む候補
+	// （本物の repository のような pages/spaces との JOIN は fake では組まない）。
+	listFor  map[string][]domain.PageFavorite
+	failWith error
+}
+
+var _ repository.PageFavoriteRepository = (*kbFakePageFavorites)(nil)
+
+func newKbFakePageFavorites() *kbFakePageFavorites {
+	return &kbFakePageFavorites{
+		favorites: map[string]map[string]time.Time{},
+		listFor:   map[string][]domain.PageFavorite{},
+	}
+}
+
+func (f *kbFakePageFavorites) Add(_ context.Context, _, pageID string, userID uint64) (bool, error) {
+	if f.failWith != nil {
+		return false, f.failWith
+	}
+	key := kbFakeViewUserKey(userID)
+	if f.favorites[key] == nil {
+		f.favorites[key] = map[string]time.Time{}
+	}
+	if _, exists := f.favorites[key][pageID]; exists {
+		return false, nil
+	}
+	f.favorites[key][pageID] = time.Now()
+	return true, nil
+}
+
+func (f *kbFakePageFavorites) Remove(_ context.Context, pageID string, userID uint64) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	delete(f.favorites[kbFakeViewUserKey(userID)], pageID)
+	return nil
+}
+
+func (f *kbFakePageFavorites) IsFavorite(_ context.Context, pageID string, userID uint64) (bool, error) {
+	if f.failWith != nil {
+		return false, f.failWith
+	}
+	_, ok := f.favorites[kbFakeViewUserKey(userID)][pageID]
+	return ok, nil
+}
+
+func (f *kbFakePageFavorites) ListFavorites(_ context.Context, workspaceID string, _ uint64) ([]domain.PageFavorite, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	return f.listFor[workspaceID], nil
+}

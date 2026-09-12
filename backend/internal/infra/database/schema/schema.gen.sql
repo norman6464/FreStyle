@@ -216,6 +216,18 @@ CREATE TABLE "public"."notifications" (
 );
 -- Create index "idx_notifications_user_id" to table: "notifications"
 CREATE INDEX "idx_notifications_user_id" ON "public"."notifications" ("user_id");
+-- Create "page_favorites" table
+CREATE TABLE "public"."page_favorites" (
+  "user_id" bigint NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("user_id", "page_id"),
+  CONSTRAINT "fk_page_favorites_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_favorites_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_page_favorites_user_created_at" to table: "page_favorites"
+CREATE INDEX "idx_page_favorites_user_created_at" ON "public"."page_favorites" ("user_id", "created_at");
 -- Create "principals" table
 CREATE TABLE "public"."principals" (
   "id" uuid NOT NULL,

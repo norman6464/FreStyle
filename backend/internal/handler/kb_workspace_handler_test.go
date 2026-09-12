@@ -653,6 +653,74 @@ func Test_ナレッジAPI_人の一覧は未認証なら401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// kbFavoritesPath はワークスペース内の自分のお気に入り一覧（段7）。
+const kbFavoritesPath = "/api/v2/kb/workspaces/{slug}/favorites"
+
+func kbListFavorites(t *testing.T, f kbFixture, slug string) (*httptest.ResponseRecorder, []kbFavoritePageResponse) {
+	t.Helper()
+	w := f.do(t, http.MethodGet, kbFill(kbFavoritesPath, slug, ""), "")
+	if w.Code != http.StatusOK {
+		return w, nil
+	}
+	var got []kbFavoritePageResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	return w, got
+}
+
+func Test_ナレッジAPI_お気に入り一覧は所属していれば誰でも叩ける(t *testing.T) {
+	f := newKbFixture(kbCanView, kbUserID)
+	f.favorites.listFor[kbWorkspaceID] = []domain.PageFavorite{
+		{PageID: kbRootPageID, Title: "root", SpaceID: kbSpaceID, SpaceName: "space"},
+	}
+
+	w, got := kbListFavorites(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, got, 1)
+	assert.Equal(t, kbRootPageID, got[0].PageID)
+}
+
+// hiddenPageID は実在するページ（kbDestPageID）で明示的に CanView を落としてある。存在しない
+// ID だと CheckPagePermissionUseCase 自体が「page not found」で continue し、可視判定の分岐を
+// 経由しないまま偶然テストが通ってしまうため、必ず実在するページを使う
+// （kb_me_handler_test.go の同種の注記と同じ理由）。
+//
+// 変異確認: ListPageFavoritesUseCase.Execute の `if !perm.CanView { continue }` を外すと、
+// 見えないはずの hiddenPageID がここに出てきてこのテストが落ちる。
+func Test_ナレッジAPI_お気に入り一覧は可視判定でふるわれる(t *testing.T) {
+	f := newKbFixture(kbCanView, kbUserID)
+	hiddenPageID := kbDestPageID
+	f.perms.setPagePermission(hiddenPageID, kbUserID, domain.PagePermission{})
+	f.favorites.listFor[kbWorkspaceID] = []domain.PageFavorite{
+		{PageID: kbRootPageID, Title: "root", SpaceID: kbSpaceID, SpaceName: "space"},
+		{PageID: hiddenPageID, Title: "hidden", SpaceID: kbSpaceID, SpaceName: "space"},
+	}
+
+	w, got := kbListFavorites(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, got, 1)
+	assert.Equal(t, kbRootPageID, got[0].PageID)
+}
+
+func Test_ナレッジAPI_お気に入り一覧は所属していないワークスペースでは404(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	unknown, _ := kbListFavorites(t, f, "no-such-workspace")
+	foreign, _ := kbListFavorites(t, f, kbOtherWorkspaceSlug)
+
+	assert.Equal(t, http.StatusNotFound, unknown.Code)
+	assert.Equal(t, unknown.Body.String(), foreign.Body.String(), "実在の有無を撃ち分けない")
+}
+
+func Test_ナレッジAPI_お気に入り一覧は未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+
+	w, _ := kbListFavorites(t, f, kbWorkspaceSlug)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
 // kbMembershipEventsPath は所属・権限の変更履歴（段 6・監査）。admin だけが読める。
 const kbMembershipEventsPath = "/api/v2/kb/workspaces/{slug}/membership-events"
 

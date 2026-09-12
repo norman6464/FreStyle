@@ -164,7 +164,7 @@ export default function KbSidebar({ workspaceSlug, spaceId, activePageId }: KbSi
   };
 
   return (
-    <nav aria-label="ナレッジ" className="flex h-full flex-col overflow-y-auto p-2">
+    <nav aria-label="ナレッジ" className="flex h-full flex-col overflow-y-auto overscroll-contain p-2">
       <KbWorkspaceSwitcher
         workspaces={workspaces}
         activeSlug={activeSlug}

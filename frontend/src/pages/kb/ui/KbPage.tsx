@@ -530,13 +530,15 @@ export default function KbPage() {
   );
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* サイドバーはバックログの一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
           一時表示 / ⌘\ で切替）。画面ごとに別の作りを持たない — 覚えることを増やさない。 */}
       <SecondaryPanel
         title="ナレッジ"
         peekable
         storageKey="frestyle.panel.note"
+        resizable
+        resizeStorageKey="frestyle.panel.note.width"
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
       >
@@ -547,7 +549,7 @@ export default function KbPage() {
         />
       </SecondaryPanel>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto overscroll-contain">
         {/* モバイルヘッダー: md 以上は SecondaryPanel 自身の一時表示機構（左端ホバー / ☰）が
             効くのでここには出さない。md 未満はこのボタンだけがサイドバーを開く唯一の手段。 */}
         <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">

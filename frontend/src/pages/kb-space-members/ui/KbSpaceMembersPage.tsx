@@ -64,8 +64,8 @@ export default function KbSpaceMembersPage() {
   }
 
   return (
-    <div className="flex h-full">
-      <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
+    <div className="flex h-full overflow-hidden">
+      <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" resizable resizeStorageKey="frestyle.panel.note.width" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
         <KbSidebar workspaceSlug={workspaceSlug} spaceId={space.id} />
       </SecondaryPanel>
 
@@ -78,7 +78,7 @@ export default function KbSpaceMembersPage() {
 
         <KbSpaceTabs space={space} active="members" />
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <MembersList workspaceSlug={workspaceSlug} spaceId={space.id} />
         </div>
       </main>

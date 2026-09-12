@@ -57,8 +57,8 @@ export default function KbSpaceOverviewPage() {
   }
 
   return (
-    <div className="flex h-full">
-      <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
+    <div className="flex h-full overflow-hidden">
+      <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" resizable resizeStorageKey="frestyle.panel.note.width" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
         <KbSidebar workspaceSlug={workspaceSlug} spaceId={space.id} />
       </SecondaryPanel>
 
@@ -71,7 +71,7 @@ export default function KbSpaceOverviewPage() {
 
         <KbSpaceTabs space={space} active="overview" />
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8">
           <p className="text-sm text-[var(--color-text-tertiary)]">
             このスペースでの自分の役割: {ROLE_LABEL[space.role] ?? space.role}
           </p>

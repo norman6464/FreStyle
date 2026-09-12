@@ -76,7 +76,11 @@ export default function TicketDetailPanel({
   const docValue = isRichDoc(editor.doc) ? editor.doc : emptyRichDoc();
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" tabIndex={0}>
+    // スクロールは器（SecondaryPanel の中身ラッパー）が持つ。ここに overflow-y-auto を
+    // 付けると「スクロール範囲ゼロの空の容器」になり、overscroll-contain と相まって
+    // ホイール操作を飲み込んで器までスクロールが届かなくなる（実測で確認）。
+    // flex-1 / min-h-0 も親が flex コンテナではないため効かない。素の中身として置く。
+    <div className="px-3 py-3" tabIndex={0}>
       <div className="mb-1.5 flex items-center gap-2">
         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-text-secondary)]">
           {type?.name ?? ''}
@@ -105,6 +109,19 @@ export default function TicketDetailPanel({
         <h6 className="mb-3 text-lg font-bold text-[var(--color-text-primary)]">{ticket.title}</h6>
       )}
 
+      <TicketSection title="本文" action={<SaveStatusIndicator status={editor.saveStatus} />}>
+        <Suspense fallback={<Loading />}>
+          <RichTextEditor
+            value={docValue}
+            editable={canEdit && !archived}
+            onChange={editor.changeDoc}
+            ariaLabel="チケットの本文"
+            placeholder="本文を書く"
+            className="rte-compact"
+          />
+        </Suspense>
+      </TicketSection>
+
       <TicketAttributePanel
         ticket={ticket}
         workspaceSlug={workspaceSlug}
@@ -131,18 +148,6 @@ export default function TicketDetailPanel({
 
       <TicketSection title="添付">
         <TicketAttachmentSection workspaceSlug={workspaceSlug} ticketId={ticket.id} canEdit={canEdit && !archived} />
-      </TicketSection>
-
-      <TicketSection title="本文" action={<SaveStatusIndicator status={editor.saveStatus} />}>
-        <Suspense fallback={<Loading />}>
-          <RichTextEditor
-            value={docValue}
-            editable={canEdit && !archived}
-            onChange={editor.changeDoc}
-            ariaLabel="チケットの本文"
-            placeholder="本文を書く"
-          />
-        </Suspense>
       </TicketSection>
 
       <TicketSection title="コメント">

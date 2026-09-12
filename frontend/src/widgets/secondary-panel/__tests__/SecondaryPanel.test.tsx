@@ -1,6 +1,18 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import SecondaryPanel from '../ui/SecondaryPanel';
+
+function createMockStorage(): Storage {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+    removeItem: vi.fn((key: string) => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
+    get length() { return Object.keys(store).length; },
+    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
+  };
+}
 
 describe('SecondaryPanel', () => {
   it('タイトルを表示する', () => {
@@ -115,18 +127,6 @@ describe('SecondaryPanel', () => {
 });
 
 describe('SecondaryPanel peekable（一時表示/固定表示）', () => {
-  function createMockStorage(): Storage {
-    let store: Record<string, string> = {};
-    return {
-      getItem: vi.fn((key: string) => store[key] ?? null),
-      setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
-      removeItem: vi.fn((key: string) => { delete store[key]; }),
-      clear: vi.fn(() => { store = {}; }),
-      get length() { return Object.keys(store).length; },
-      key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
-    };
-  }
-
   beforeEach(() => {
     vi.stubGlobal('localStorage', createMockStorage());
   });
@@ -206,5 +206,127 @@ describe('SecondaryPanel peekable（一時表示/固定表示）', () => {
     localStorage.setItem(KEY, JSON.stringify('collapsed'));
     renderPeekable();
     expect(screen.queryByRole('button', { name: 'サイドバーを閉じる' })).not.toBeInTheDocument();
+  });
+});
+
+describe('SecondaryPanel resizable（縦線をドラッグして横幅を変える）', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createMockStorage());
+    vi.stubGlobal('innerWidth', 1200);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function getHandleAndPanel() {
+    const handle = screen.getByRole('separator', { name: 'サイドバーの幅を変更する' });
+    return { handle, panel: handle.parentElement as HTMLElement };
+  }
+
+  it('resizable を指定しないとハンドルを出さない（既存画面への影響なし）', () => {
+    render(
+      <SecondaryPanel title="ナレッジ">
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+  });
+
+  it('resizable のとき、既定幅（288px）でハンドルを出す', () => {
+    render(
+      <SecondaryPanel title="ナレッジ" resizable>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { panel } = getHandleAndPanel();
+    expect(panel.style.width).toBe('288px');
+  });
+
+  it('defaultWidth を渡すとその幅で始まる', () => {
+    render(
+      <SecondaryPanel title="詳細" side="right" resizable defaultWidth={420}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { panel } = getHandleAndPanel();
+    expect(panel.style.width).toBe('420px');
+  });
+
+  it('左側パネルは右へドラッグすると広がる', () => {
+    render(
+      <SecondaryPanel title="ナレッジ" resizable>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { handle, panel } = getHandleAndPanel();
+    fireEvent.mouseDown(handle, { clientX: 300 });
+    fireEvent.mouseMove(document, { clientX: 350 });
+    expect(panel.style.width).toBe('338px');
+    fireEvent.mouseUp(document);
+  });
+
+  it('右側パネルは左へドラッグすると広がる（符号が逆）', () => {
+    render(
+      <SecondaryPanel title="詳細" side="right" resizable defaultWidth={420}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { handle, panel } = getHandleAndPanel();
+    fireEvent.mouseDown(handle, { clientX: 500 });
+    fireEvent.mouseMove(document, { clientX: 460 });
+    expect(panel.style.width).toBe('460px');
+    fireEvent.mouseUp(document);
+  });
+
+  it('画面幅の半分を超えては広がらない', () => {
+    // innerWidth=1200 → 上限 600px
+    render(
+      <SecondaryPanel title="ナレッジ" resizable>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { handle, panel } = getHandleAndPanel();
+    fireEvent.mouseDown(handle, { clientX: 0 });
+    fireEvent.mouseMove(document, { clientX: 900 });
+    expect(panel.style.width).toBe('600px');
+    fireEvent.mouseUp(document);
+  });
+
+  it('既定幅を下回っては狭まらない', () => {
+    render(
+      <SecondaryPanel title="ナレッジ" resizable>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { handle, panel } = getHandleAndPanel();
+    fireEvent.mouseDown(handle, { clientX: 300 });
+    fireEvent.mouseMove(document, { clientX: -500 });
+    expect(panel.style.width).toBe('288px');
+    fireEvent.mouseUp(document);
+  });
+
+  it('矢印キーでも幅を変えられる（→ で広がる）', () => {
+    render(
+      <SecondaryPanel title="ナレッジ" resizable>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { handle, panel } = getHandleAndPanel();
+    fireEvent.keyDown(handle, { key: 'ArrowRight' });
+    expect(panel.style.width).toBe('304px');
+  });
+
+  it('resizeStorageKey を渡すと、ドラッグ後の幅が localStorage に保存される', () => {
+    render(
+      <SecondaryPanel title="ナレッジ" resizable resizeStorageKey="test.panel.width">
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const { handle } = getHandleAndPanel();
+    fireEvent.mouseDown(handle, { clientX: 300 });
+    fireEvent.mouseMove(document, { clientX: 350 });
+    fireEvent.mouseUp(document);
+    expect(JSON.parse(localStorage.getItem('test.panel.width')!)).toBe(338);
   });
 });

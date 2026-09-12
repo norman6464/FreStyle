@@ -111,8 +111,16 @@ export default function KbBacklogPage() {
   }
 
   return (
-    <div className="flex h-full">
-      <SecondaryPanel title="バックログ" peekable storageKey="frestyle.panel.note" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
+    <div className="flex h-full overflow-hidden">
+      <SecondaryPanel
+        title="バックログ"
+        peekable
+        storageKey="frestyle.panel.note"
+        resizable
+        resizeStorageKey="frestyle.panel.note.width"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={closeMobilePanel}
+      >
         <KbSidebar workspaceSlug={workspaceSlug ?? undefined} spaceId={space?.id ?? ''} />
       </SecondaryPanel>
 
@@ -278,6 +286,9 @@ export default function KbBacklogPage() {
         <SecondaryPanel
           title="詳細"
           side="right"
+          resizable
+          resizeStorageKey="frestyle.panel.ticket-detail.width"
+          defaultWidth={420}
           mobileOpen={detailMobileOpen}
           onMobileClose={() => setDetailMobileOpen(false)}
           headerContent={

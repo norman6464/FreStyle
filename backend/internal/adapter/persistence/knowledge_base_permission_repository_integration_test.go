@@ -2210,3 +2210,139 @@ func TestListWorkspaceMembersForAdmin_Integration(t *testing.T) {
 		}
 	})
 }
+
+// TestListSpaceMembers_Integration はスペースメンバーの読み取り（段9）の継承規則を固定する:
+// 直接付与・グループ経由・スペース全員・ワークスペース全体からの継承、private スペースへの
+// 非到達、複数経路のうち最も強い役割（同点は direct 優先）、テナント分離、停止/退出の除外。
+func TestListSpaceMembers_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+	users := persistence.NewUserRepository(sqlDB)
+
+	byUserID := func(members []domain.SpaceMember) map[uint64]domain.SpaceMember {
+		out := map[uint64]domain.SpaceMember{}
+		for _, m := range members {
+			out[m.UserID] = m
+		}
+		return out
+	}
+
+	t.Run("直接付与はdirect", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		require.Contains(t, m, f.alice)
+		assert.Equal(t, domain.GrantRoleEditor, m[f.alice].Role)
+		assert.Equal(t, "direct", m[f.alice].Via)
+	})
+
+	t.Run("グループ経由はgroup", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		bobPrincipal := f.principalFor(ctx, t, f.bob)
+		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "開発")
+		require.NoError(t, err)
+		require.NoError(t, f.perm.AddGroupMember(ctx, f.ws, group.ID, bobPrincipal.ID))
+		f.grantSpace(ctx, t, f.spaceA, group.ID, domain.GrantRoleCommenter)
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		require.Contains(t, m, f.bob)
+		assert.Equal(t, domain.GrantRoleCommenter, m[f.bob].Role)
+		assert.Equal(t, "group", m[f.bob].Via)
+	})
+
+	t.Run("スペース全員はgroup", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.carol)
+		everyone := f.everyoneOf(ctx, t, f.spaceA)
+		f.grantSpace(ctx, t, f.spaceA, everyone.ID, domain.GrantRoleViewer)
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		require.Contains(t, m, f.carol)
+		assert.Equal(t, domain.GrantRoleViewer, m[f.carol].Role)
+		assert.Equal(t, "group", m[f.carol].Via)
+	})
+
+	t.Run("ワークスペース全体はworkspace_visibilityのスペースにだけ届く", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleEditor, f.alice)
+		require.NoError(t, err)
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		require.Contains(t, m, f.alice)
+		assert.Equal(t, domain.GrantRoleEditor, m[f.alice].Role)
+		assert.Equal(t, "workspace", m[f.alice].Via)
+
+		f.makePrivate(t, f.spaceB)
+		gotPrivate, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceB)
+		require.NoError(t, err)
+		assert.NotContains(t, byUserID(gotPrivate), f.alice,
+			"private スペースにはワークスペース全体の付与を届かせない")
+	})
+
+	// 変異確認: ListSpaceMembers（knowledge_base_permission_repository.go）の
+	// role.Rank() > cur.role.Rank() を「常に false」に壊すと、workspace 経由の viewer が
+	// 残ってこのテストが落ちる。
+	t.Run("複数経路のうち最も強い役割_同点はdirect優先", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleViewer, f.alice)
+		require.NoError(t, err)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleAdmin)
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		require.Contains(t, m, f.alice)
+		assert.Equal(t, domain.GrantRoleAdmin, m[f.alice].Role, "強い方（space の admin）を採る")
+		assert.Equal(t, "direct", m[f.alice].Via)
+	})
+
+	t.Run("別ワークスペースの人は混ざらない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+		// otherWS の bob にも同じ強さの付与をしておく（テナント越えで紛れ込まないことを見る）。
+		f.makeActiveMember(t, f.otherWS, f.bob)
+		bobOther, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.bob)
+		require.NoError(t, err)
+		_, err = f.perm.UpsertSpaceGrant(ctx, f.otherWS, f.otherSpc, bobOther.ID, domain.GrantRoleEditor)
+		require.NoError(t, err)
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		require.Contains(t, m, f.alice)
+		assert.NotContains(t, m, f.bob)
+	})
+
+	t.Run("停止中・退出済みは落ちる", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+		bob := f.principalFor(ctx, t, f.bob)
+		f.grantSpace(ctx, t, f.spaceA, bob.ID, domain.GrantRoleEditor)
+		carol := f.principalFor(ctx, t, f.carol)
+		f.grantSpace(ctx, t, f.spaceA, carol.ID, domain.GrantRoleEditor)
+
+		require.NoError(t, users.UpdateActive(ctx, f.bob, false))
+		require.NoError(t, f.perm.LeaveWorkspaceMembership(ctx, f.ws, f.carol, f.carol))
+
+		got, err := f.perm.ListSpaceMembers(ctx, f.ws, f.spaceA)
+		require.NoError(t, err)
+		m := byUserID(got)
+		assert.Contains(t, m, f.alice)
+		assert.NotContains(t, m, f.bob, "停止中は落ちる")
+		assert.NotContains(t, m, f.carol, "退出済みは落ちる")
+	})
+}

@@ -237,6 +237,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewListMembershipEventsUseCase(permissions),
 		user.NewLookupUserDisplayUseCase(users),
 		kb.NewListPageFavoritesUseCase(favorites, kb.NewCheckPagePermissionUseCase(permissions)),
+		kb.NewListSpaceMembersUseCase(permissions),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
@@ -337,6 +338,8 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/spaces",
 		middleware.RateLimitPerMinutePerUser(kbCreateSpacePerMinute, kbCreateSpaceBurst), wh.CreateSpace)
 	kbGroup.PATCH("/kb/workspaces/:workspaceSlug/spaces/:spaceId", wh.RenameSpace)
+	// スペースメンバーの読み取り（段9）。判定は CanView（RenameSpace と同じ形）。
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/members", wh.ListSpaceMembers)
 	// 検索は /pages/:pageId と衝突しないよう /search を独立させる。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/search", wh.SearchPages)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Tree)

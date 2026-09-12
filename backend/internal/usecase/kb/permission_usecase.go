@@ -856,6 +856,26 @@ func (u *ListWorkspaceMembersForAdminUseCase) Execute(ctx context.Context, works
 	return u.repo.ListWorkspaceMembersForAdmin(ctx, workspaceID)
 }
 
+// ListSpaceMembersUseCase はそのスペースに届いている権限を人に解決して返す（段 9）。
+// 可視判定（CanView）は handler 側が checkSpace で確かめてから呼ぶ（RenameSpace と同じ形）。
+type ListSpaceMembersUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListSpaceMembersUseCase(r repository.KnowledgeBasePermissionRepository) *ListSpaceMembersUseCase {
+	return &ListSpaceMembersUseCase{repo: r}
+}
+
+func (u *ListSpaceMembersUseCase) Execute(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if spaceID == "" {
+		return nil, errors.New("spaceID is required")
+	}
+	return u.repo.ListSpaceMembers(ctx, workspaceID, spaceID)
+}
+
 // ErrPrincipalKindMismatch は主体の種類が操作に合わないときに返す
 // （グループでないものをグループとして扱おうとした等）。
 var ErrPrincipalKindMismatch = errors.New("principal kind does not match the operation")

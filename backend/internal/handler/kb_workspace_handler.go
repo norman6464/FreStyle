@@ -34,6 +34,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	listMembershipEvents *kb.ListMembershipEventsUseCase
 	userDisplay          *user.LookupUserDisplayUseCase
 	listFavorites        *kb.ListPageFavoritesUseCase
+	listSpaceMembers     *kb.ListSpaceMembersUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -52,6 +53,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 	listMembershipEvents *kb.ListMembershipEventsUseCase,
 	userDisplay *user.LookupUserDisplayUseCase,
 	listFavorites *kb.ListPageFavoritesUseCase,
+	listSpaceMembers *kb.ListSpaceMembersUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:       listWorkspaces,
@@ -68,6 +70,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 		listMembershipEvents: listMembershipEvents,
 		userDisplay:          userDisplay,
 		listFavorites:        listFavorites,
+		listSpaceMembers:     listSpaceMembers,
 	}
 }
 
@@ -506,6 +509,54 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, toKbSpaceResponse(space))
+}
+
+// kbSpaceMemberResponse はスペースメンバー 1 人の返却形（段 9）。
+type kbSpaceMemberResponse struct {
+	UserID    uint64           `json:"userId"`
+	Name      string           `json:"name"`
+	AvatarURL string           `json:"avatarUrl"`
+	Role      domain.GrantRole `json:"role"`
+	Via       string           `json:"via"`
+}
+
+func toKbSpaceMemberResponse(m domain.SpaceMember) kbSpaceMemberResponse {
+	return kbSpaceMemberResponse{
+		UserID: m.UserID, Name: m.Name, AvatarURL: m.AvatarURL, Role: m.Role, Via: m.Via,
+	}
+}
+
+// ListSpaceMembers はそのスペースに届いている権限を人に解決して返す（段 9）。
+func (h *KnowledgeBaseWorkspaceHandler) ListSpaceMembers(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	spaceID := c.Param("spaceId")
+	perm, err := h.checkSpace.Execute(c.Request.Context(), kb.CheckSpacePermissionInput{
+		WorkspaceID: scope.workspaceID,
+		SpaceID:     spaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if !perm.CanView {
+		// 中身を見られない相手にはスペースの実在を教えない（RenameSpace と同じ畳み方）。
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+		return
+	}
+	members, err := h.listSpaceMembers.Execute(c.Request.Context(), scope.workspaceID, spaceID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	out := make([]kbSpaceMemberResponse, 0, len(members))
+	for _, m := range members {
+		out = append(out, toKbSpaceMemberResponse(m))
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 type kbRenameSpaceRequest struct {

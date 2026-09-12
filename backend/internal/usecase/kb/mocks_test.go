@@ -384,6 +384,12 @@ func (m *mockKBPermissionRepo) UpsertPageGrant(ctx context.Context, workspaceID,
 	return g, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListSpaceMembers(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	p, _ := args.Get(0).([]domain.SpaceMember)
+	return p, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) DeletePageGrant(ctx context.Context, workspaceID, pageID, principalID string) error {
 	args := m.Called(ctx, workspaceID, pageID, principalID)
 	return args.Error(0)

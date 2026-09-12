@@ -643,6 +643,12 @@ func (m *mockKBPermissionRepo) ListWorkspaceMembersForAdmin(ctx context.Context,
 	return p, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListSpaceMembers(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	p, _ := args.Get(0).([]domain.SpaceMember)
+	return p, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	g, _ := args.Get(0).([]domain.PageGrant)

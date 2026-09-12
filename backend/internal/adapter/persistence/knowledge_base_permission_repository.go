@@ -806,6 +806,74 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceMembersForAdmin(
 	return out, nil
 }
 
+// spaceMemberViaPriority は同じ人が同じ強さの役割を複数経路で得ているときに、どちらを
+// 「代表の経路」として見せるかの優先度（小さいほど優先）。もっとも具体的な理由を見せる。
+func spaceMemberViaPriority(source string) int {
+	switch source {
+	case "direct":
+		return 0
+	case "group":
+		return 1
+	case "workspace":
+		return 2
+	default:
+		return 3
+	}
+}
+
+func (r *knowledgeBasePermissionRepository) ListSpaceMembers(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error) {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	if !ok || !ok2 {
+		return []domain.SpaceMember{}, nil
+	}
+	rows, err := r.queries(ctx).ListSpaceMemberGrantFacts(ctx, sqlcgen.ListSpaceMemberGrantFactsParams{
+		WorkspaceID: wsID,
+		ID:          spID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// 同じ人（user_id）に複数の経路（行）が付くので、ここで「最も強い役割」に集約する。
+	// 同じ強さが複数経路にまたがる場合は spaceMemberViaPriority が最も具体的な経路を選ぶ。
+	// SQL 側では集約しない（ResolvePagePermissionFacts と同じく、合成は 1 箇所の Go 関数に
+	// 集める方針。domain.GrantRole.Rank の doc 参照）。
+	type acc struct {
+		name, avatarURL string
+		role            domain.GrantRole
+		source          string
+	}
+	byUser := map[int64]*acc{}
+	order := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		role := domain.GrantRole(row.Role)
+		cur, ok := byUser[row.UserID]
+		if !ok {
+			byUser[row.UserID] = &acc{name: row.Name, avatarURL: row.AvatarUrl, role: role, source: row.Source}
+			order = append(order, row.UserID)
+			continue
+		}
+		switch {
+		case role.Rank() > cur.role.Rank():
+			cur.role, cur.source = role, row.Source
+		case role.Rank() == cur.role.Rank() && spaceMemberViaPriority(row.Source) < spaceMemberViaPriority(cur.source):
+			cur.source = row.Source
+		}
+	}
+	out := make([]domain.SpaceMember, 0, len(order))
+	for _, uid := range order {
+		a := byUser[uid]
+		out = append(out, domain.SpaceMember{
+			UserID:    uint64(uid),
+			Name:      a.name,
+			AvatarURL: a.avatarURL,
+			Role:      a.role,
+			Via:       a.source,
+		})
+	}
+	return out, nil
+}
+
 func (r *knowledgeBasePermissionRepository) UpsertPageGrant(ctx context.Context, workspaceID, pageID, principalID string, role domain.GrantRole) (*domain.PageGrant, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)

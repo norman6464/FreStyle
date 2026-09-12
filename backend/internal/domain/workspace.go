@@ -68,6 +68,23 @@ type AdminWorkspaceMember struct {
 	Role *GrantRole `json:"role,omitempty"`
 }
 
+// SpaceMember はスペースに届いている権限を人に解決した 1 行（段 9）。同じ人が複数経路
+// （本人・所属グループ・スペース全員・ワークスペース全体）から役割を得ることがあり、
+// 採用するのは最も強い役割（GrantRole.Rank 参照。ここでも弱める規則は無い）。
+type SpaceMember struct {
+	UserID    uint64    `json:"userId"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatarUrl"`
+	Role      GrantRole `json:"role"`
+	// Via はその役割がどの経路で届いたか。
+	//   "direct"    本人への直接付与
+	//   "group"     所属グループ、またはスペース全員（space_all）経由
+	//   "workspace" ワークスペース全体の grant からの継承
+	// 同じ人が複数の経路で同じ強さの役割を得ている場合は direct > group > workspace の
+	// 優先度で選ぶ（最も具体的な理由を示すため）。
+	Via string `json:"via"`
+}
+
 // WorkspaceSlugMaxLen / WorkspaceNameMaxLen は workspaces の列幅（varchar(64) / varchar(200)）。
 // DB の CHECK / 列幅と同じ値を入口でも見て、桁あふれを 500 ではなく 400 で返せるようにする。
 const (

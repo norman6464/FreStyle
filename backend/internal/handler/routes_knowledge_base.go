@@ -67,6 +67,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewUserRepository(deps.db),
 		persistence.NewCommentRepository(deps.db),
 		persistence.NewPageVersionRepository(deps.db),
+		persistence.NewPageViewRepository(deps.db),
 		persistence.NewPageTemplateRepository(deps.db),
 		persistence.NewPageSuggestionRepository(deps.db),
 		persistence.NewTicketRepository(deps.db),
@@ -123,6 +124,7 @@ func registerKnowledgeBaseRoutesWith(
 	users repository.UserRepository,
 	comments repository.CommentRepository,
 	versions repository.PageVersionRepository,
+	views repository.PageViewRepository,
 	templates repository.PageTemplateRepository,
 	suggestions repository.PageSuggestionRepository,
 	tickets repository.TicketRepository,
@@ -159,6 +161,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewResolveCoverURLUseCase(kbImagePresigner),
 		kb.NewListPageBacklinksUseCase(permissions),
 		ticket.NewListTicketsReferencingPageUseCase(tickets),
+		kb.NewRecordPageViewUseCase(views),
 	)
 
 	// ページ全体へのコメント。認可は CommentHandler 内で
@@ -278,6 +281,11 @@ func registerKnowledgeBaseRoutesWith(
 		ratelimit.New(kbShareLinkVerifyPerMinute, kbShareLinkVerifyBurst),
 	)
 
+	// 自分の最近見たページ（段2）。ワークスペースをまたぐため slug の middleware は通さない。
+	meh := NewKnowledgeBaseMeHandler(
+		kb.NewListMyRecentPagesUseCase(views, kb.NewCheckPagePermissionUseCase(permissions)),
+	)
+
 	// 所属ワークスペースの一覧と作成だけは middleware.KnowledgeBaseWorkspace を通さない。
 	// あれは URL の slug から所属済みのワークスペースを確定させる middleware で、
 	// 「どの slug を開けるのか」を知る前・そもそもワークスペースを作る前には使えない。
@@ -286,6 +294,8 @@ func registerKnowledgeBaseRoutesWith(
 	// /p/{pageId} の解決。URL にテナントを持たないため slug の middleware は通せない
 	// （権限判定は handler の中で、解決した workspace に対して必ず行う）。
 	g.GET("/kb/pages/:pageId", h.ResolveByID)
+	// 自分の最近見たページ（段2）。同じ理由でワークスペース横断のまま g に直接登録する。
+	g.GET("/kb/me/recent-pages", meh.ListRecentPages)
 	// 作成は認証済みなら誰でも叩けて、slug はテナントをまたいで一意。
 	// 上限が無いと 1 人で短い slug を取り尽くせてしまい、取り返す手段が運用の手作業しか無い。
 	// 保有数の上限までは塞げないが、掴み取りの速度は他の作成系と同じ土俵に落とす。

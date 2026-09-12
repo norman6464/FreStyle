@@ -49,6 +49,7 @@ type kbFixture struct {
 	users       *kbFakeUsers
 	comments    *kbFakeComments
 	versions    *kbFakePageVersions
+	views       *kbFakePageViews
 	templates   *kbFakePageTemplates
 	suggestions *kbFakePageSuggestions
 	presigner   *kbFakeImagePresigner
@@ -96,12 +97,13 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	users := newKbFakeUsers()
 	comments := newKbFakeComments()
 	versions := newKbFakePageVersions(pages)
+	views := newKbFakePageViews()
 	templates := newKbFakePageTemplates()
 	suggestions := newKbFakePageSuggestions()
 	presigner := &kbFakeImagePresigner{}
 	tickets := newTicketFakeRepo()
 	registerKnowledgeBaseRoutesWith(
-		g, pages, perms, perms, provisioner, users, comments, versions, templates, suggestions, tickets, fakeTxManager{}, presigner,
+		g, pages, perms, perms, provisioner, users, comments, versions, views, templates, suggestions, tickets, fakeTxManager{}, presigner,
 	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
@@ -109,7 +111,7 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
 	return kbFixture{
 		pages: pages, perms: perms, provisioner: provisioner, users: users,
-		comments: comments, versions: versions, templates: templates, suggestions: suggestions,
+		comments: comments, versions: versions, views: views, templates: templates, suggestions: suggestions,
 		presigner: presigner, tickets: tickets, router: r,
 	}
 }
@@ -342,6 +344,9 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		http.MethodPost + " /api/v2/kb/invitations/:workspaceSlug/decline": true,
 		// /p/{pageId} の解決。Test_ナレッジAPI_IDだけでの解決 が直接叩く。
 		http.MethodGet + " /api/v2/kb/pages/:pageId": true,
+		// 自分の最近見たページ（段2）。認証だけで所属は問わない特殊な経路（ワークスペース
+		// 横断）なので表にせず、Test_ナレッジAPI_最近見たページ* が直接叩く。
+		http.MethodGet + " /api/v2/kb/me/recent-pages": true,
 		// ページの雛形 API。判定の軸がそれぞれ違う
 		// （一覧=所属のみ、保存・削除=ワークスペース全体のCanEdit、使用=既存のページ作成と
 		// 同じ分岐）ため表にせず個別に列挙する。page_template_handler_test.go の
@@ -1707,6 +1712,7 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewResolveCoverURLUseCase(&kbFakeImagePresigner{}),
 		kb.NewListPageBacklinksUseCase(perms),
 		ticket.NewListTicketsReferencingPageUseCase(newTicketFakeRepo()),
+		kb.NewRecordPageViewUseCase(newKbFakePageViews()),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -2129,6 +2135,22 @@ func Test_ナレッジAPI_IDだけでの解決(t *testing.T) {
 		f.pages.workspaces[kbWorkspaceSlug].IsActive = false
 		w := resolve(f, t, kbRootPageID)
 		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	// 段2: 開くたびに upsert されるので、同じ人が同じページを何度開いても viewCount は
+	// 増えない（延べ回数ではなく「見たことのある人数」）。
+	//
+	// 変異確認: RecordPageViewUseCase.Execute が RecordView を呼ばなくなると、
+	// この viewCount が 0 のまま止まりテストが落ちる。
+	t.Run("開くたびに閲覧を記録するが同じ人では増えない", func(t *testing.T) {
+		f := newKbFixture(kbCanView, kbUserID)
+		w1 := resolve(f, t, kbRootPageID)
+		require.Equal(t, http.StatusOK, w1.Code, w1.Body.String())
+		assert.Contains(t, w1.Body.String(), `"viewCount":1`)
+
+		w2 := resolve(f, t, kbRootPageID)
+		require.Equal(t, http.StatusOK, w2.Code, w2.Body.String())
+		assert.Contains(t, w2.Body.String(), `"viewCount":1`)
 	})
 }
 

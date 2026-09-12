@@ -173,6 +173,13 @@ type PageVersion struct {
 	CreatedAt    time.Time
 }
 
+type PageView struct {
+	UserID      int64
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	ViewedAt    time.Time
+}
+
 type Principal struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

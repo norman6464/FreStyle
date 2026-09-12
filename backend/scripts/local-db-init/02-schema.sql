@@ -506,6 +506,20 @@ CREATE TABLE "public"."page_ticket_links" (
 );
 -- Create index "idx_page_ticket_links_target_ticket_id" to table: "page_ticket_links"
 CREATE INDEX "idx_page_ticket_links_target_ticket_id" ON "public"."page_ticket_links" ("target_ticket_id");
+-- Create "page_views" table
+CREATE TABLE "public"."page_views" (
+  "user_id" bigint NOT NULL,
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "viewed_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("user_id", "page_id"),
+  CONSTRAINT "fk_page_views_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_views_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_page_views_page_id" to table: "page_views"
+CREATE INDEX "idx_page_views_page_id" ON "public"."page_views" ("page_id");
+-- Create index "idx_page_views_user_viewed_at" to table: "page_views"
+CREATE INDEX "idx_page_views_user_viewed_at" ON "public"."page_views" ("user_id", "viewed_at");
 -- Create "principal_members" table
 CREATE TABLE "public"."principal_members" (
   "workspace_id" uuid NOT NULL,

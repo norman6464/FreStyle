@@ -18,7 +18,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  // 11 テストなので複数 worker で安全に並列化できる（route モックはページ / コンテキスト
+  // 単位に閉じており、worker をまたいで共有する状態は無い）。CI 実測: workers 1 で 7.3s、
+  // 4 で 3.2〜4.1s。ジョブ全体(1〜1.5分)の大半は checkout / install / build の
+  // セットアップ時間で、テスト本体を増やしても短縮できるのはこの数秒だけ
+  // （ジョブを machine 単位で分割する shard 化は、この規模だとセットアップの重複コストが
+  // 上回り逆に遅くなるため見送っている）。
+  workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI
     ? [['html', { open: 'never' }], ['github']]
     : [['list']],

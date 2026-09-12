@@ -6,7 +6,14 @@
 - **バックエンド**: Go 1.x / Gin / sqlc（`backend/`）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6。データアクセスは **sqlc**（SQL から型付き Go を生成）
-- **本番 ECS は現状撤去済み**（2026-09-07 確認: cluster `frestyle-prod` は `status: INACTIVE`、service `frestyle-prod-svc` は `MISSING`。`cd-backend.yml` 自身のコメントも「本番の ECS は撤去済み」と明記し、`target` job が repository 変数 `BACKEND_DEPLOY_TARGET` 未設定で必ず deploy を止める設計になっている）。**開発はローカル環境（`docker compose up`）を前提に進める。** 現状は「確認すれば ECS デプロイできる」状態ではない — 復活させるには infra リポの Terraform（`ecs.tf`）で ECS を作り直し、`BACKEND_DEPLOY_TARGET` を設定する事前作業が要る。ECS を復活させるかどうかもユーザー判断。PR のマージ・本番 DB スキーマ適用（`schema-apply`）は ECS の状態と切り離して進めてよい
+- **本番はすべて GCP**（AWS からの移行は完了済み。ECS は使っていない）
+  - **バックエンド**: Cloud Run サービス `frestyle-prod-backend`（プロジェクト `frestyle-prod` / `asia-northeast1`）。イメージは Artifact Registry の `asia-northeast1-docker.pkg.dev/frestyle-prod/frestyle-prod-backend/fre-style`。公開先は https://api.frestyle.dev
+  - **フロントエンド**: Firebase Hosting（プロジェクト `frestyle-507912`。バックエンドとは**別プロジェクト**で表示名がどちらも「FreStyle」なので必ず ID で指定する）。公開先は https://frestyle.dev
+  - インフラ定義（Cloud Run / Artifact Registry / Firebase Hosting / WIF）は private リポ `frestyle-infrastructure` の Terraform が正。CD はイメージの差し替えと配信だけを担い、インフラ定義には触れない
+- **デプロイは手動トリガーのみ**。`cd-backend.yml` / `cd-frontend.yml` を `confirm` に `deploy` と入れて `workflow_dispatch` で起動する（main への push では動かない）。認証は GitHub OIDC + WIF で、長寿命のサービスアカウントキーは発行しない
+  - WIF の binding は `refs/heads/main` の実行に限定されている。**principalSet はリポジトリ名を大文字小文字まで含めて突き合わせる** — リポジトリを改名したら infra 側の binding も直すこと（追従し忘れると、認証は通るのに直後のサービスアカウントへのなりすましが `iam.serviceAccounts.getAccessToken` の 403 になり、backend・frontend とも全部止まる。実際に踏んだ）
+- **デプロイの順序は「本番 DB のスキーマ適用（`make schema-apply`）→ backend → frontend」**。スキーマが古いまま backend を出すと、存在しない列を引く問い合わせが本番で 500 になる（実際に踏んだ）。フロントが新しい API に依存するときも backend を先に出す。本番スキーマの現状は Supabase CLI（`supabase db query --linked`・読み取りのみ）で確かめる
+- 開発そのものはローカル環境（`docker compose up`）で進める
 ---
 
 ## 2. クリーンアーキテクチャ規約（最重要）

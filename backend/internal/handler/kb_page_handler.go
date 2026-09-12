@@ -55,6 +55,11 @@ type KnowledgeBasePageHandler struct {
 	addFavorite    *kb.AddPageFavoriteUseCase
 	removeFavorite *kb.RemovePageFavoriteUseCase
 	isFavorite     *kb.IsPageFavoriteUseCase
+	// 段13（公開範囲・ラベル）。
+	setVisibility *kb.SetPageVisibilityUseCase
+	addLabel      *kb.AddPageLabelUseCase
+	removeLabel   *kb.RemovePageLabelUseCase
+	listLabels    *kb.ListLabelsForPageUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -88,6 +93,10 @@ func NewKnowledgeBasePageHandler(
 	addFavorite *kb.AddPageFavoriteUseCase,
 	removeFavorite *kb.RemovePageFavoriteUseCase,
 	isFavorite *kb.IsPageFavoriteUseCase,
+	setVisibility *kb.SetPageVisibilityUseCase,
+	addLabel *kb.AddPageLabelUseCase,
+	removeLabel *kb.RemovePageLabelUseCase,
+	listLabels *kb.ListLabelsForPageUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:           check,
@@ -119,6 +128,10 @@ func NewKnowledgeBasePageHandler(
 		addFavorite:     addFavorite,
 		removeFavorite:  removeFavorite,
 		isFavorite:      isFavorite,
+		setVisibility:   setVisibility,
+		addLabel:        addLabel,
+		removeLabel:     removeLabel,
+		listLabels:      listLabels,
 	}
 }
 
@@ -158,6 +171,8 @@ type kbPageResponse struct {
 	// 名前が要る場面（解決 API・本文保存の応答）は lastEditedBy を別に持つ
 	// （一覧・木の応答まで毎回ユーザーを引くと N+1 になるため、ID だけをここに置く）。
 	LastEditedByUserID *uint64 `json:"lastEditedByUserId,omitempty" example:"42"`
+	// Visibility は公開範囲バッジの元（'public' | 'space' | 'private'）。
+	Visibility string `json:"visibility" example:"space"`
 }
 
 // kbPageIconResponse はページアイコンの返却形（domain.PageIcon と同じ形）。
@@ -177,6 +192,7 @@ func toKbPageResponse(p *domain.Page) kbPageResponse {
 		CreatedAt:          p.CreatedAt,
 		UpdatedAt:          p.UpdatedAt,
 		LastEditedByUserID: p.LastEditedByUserID,
+		Visibility:         string(p.Visibility),
 	}
 	if p.Icon != nil {
 		resp.Icon = &kbPageIconResponse{Type: string(p.Icon.Type), Value: p.Icon.Value}
@@ -235,6 +251,7 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, repository.ErrPageNotFound),
 		errors.Is(err, repository.ErrSpaceNotFound),
+		errors.Is(err, repository.ErrLabelNotFound),
 		errors.Is(err, repository.ErrWorkspaceNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
 	case errors.Is(err, kb.ErrPagePermissionDenied):
@@ -755,6 +772,84 @@ func (h *KnowledgeBasePageHandler) ClearIcon(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, toKbPageResponse(page))
+}
+
+// kbSetVisibilityRequest は公開範囲変更の入力。
+type kbSetVisibilityRequest struct {
+	Visibility string `json:"visibility" binding:"required" example:"private"`
+}
+
+// SetVisibility はページの公開範囲を変更する（編集権限が要る。SetIcon と同じ理由 —
+// 表示上の見た目・整理に関わる操作で、grants そのものを変える CanManage までは要らない）。
+func (h *KnowledgeBasePageHandler) SetVisibility(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	limitKnowledgeBaseBody(c)
+	var req kbSetVisibilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
+		return
+	}
+	visibility := domain.PageVisibility(req.Visibility)
+	if !domain.ValidPageVisibility(visibility) {
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_visibility"})
+		return
+	}
+	page, err := h.setVisibility.Execute(c.Request.Context(), kb.SetPageVisibilityInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		Visibility:  visibility,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toKbPageResponse(page))
+}
+
+// AddLabel はページにラベルを付ける（段13・編集権限が要る。ticket_label_handler.AddToTicket
+// と同じ理由）。
+func (h *KnowledgeBasePageHandler) AddLabel(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	if err := h.addLabel.Execute(c.Request.Context(), kb.AddPageLabelInput{
+		WorkspaceID: scope.workspaceID, PageID: pageID, LabelID: c.Param("labelId"),
+	}); err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// RemoveLabel はページからラベルを外す（段13・編集権限が要る）。
+func (h *KnowledgeBasePageHandler) RemoveLabel(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	if err := h.removeLabel.Execute(c.Request.Context(), kb.RemovePageLabelInput{
+		WorkspaceID: scope.workspaceID, PageID: pageID, LabelID: c.Param("labelId"),
+	}); err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // AddFavorite はページをお気に入りに付ける（段7・閲覧権限があれば誰でも）。冪等: 既に付いて
@@ -1309,6 +1404,10 @@ type kbResolvedPageResponse struct {
 	ViewCount int `json:"viewCount"`
 	// IsFavorite は自分がこのページをお気に入りに付けているか（段7・★ の初期状態）。
 	IsFavorite bool `json:"isFavorite"`
+	// Labels はこのページに付いたラベル（段13。ticket_labels と語彙を共有する page_labels）。
+	// kbPageResponse には持たせない（一覧・木の応答まで毎回引くと N+1 になるため。
+	// Cover / ViewCount / IsFavorite と同じ判断）。
+	Labels []domain.Label `json:"labels"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -1400,6 +1499,14 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	} else {
 		isFav = fav
 	}
+	// labels も同じく飾り情報。取得に失敗してもページは開く（空のまま出す）。
+	labels, labelsErr := h.listLabels.Execute(c.Request.Context(), loc.Workspace.ID, pageID)
+	if labelsErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: labels lookup failed", "err", labelsErr)
+	}
+	if labels == nil {
+		labels = []domain.Label{}
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug:    loc.Workspace.Slug,
 		WorkspaceName:    loc.Workspace.Name,
@@ -1415,5 +1522,6 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		Cover:            coverResp,
 		ViewCount:        viewCount,
 		IsFavorite:       isFav,
+		Labels:           labels,
 	})
 }

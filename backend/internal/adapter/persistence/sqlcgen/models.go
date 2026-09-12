@@ -96,6 +96,7 @@ type Page struct {
 	Icon               *json.RawMessage
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
+	Visibility         string
 }
 
 type PageFavorite struct {
@@ -112,6 +113,13 @@ type PageGrant struct {
 	Role        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type PageLabel struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	LabelID     uuid.UUID
+	CreatedAt   time.Time
 }
 
 type PageLink struct {

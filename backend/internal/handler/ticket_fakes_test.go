@@ -40,6 +40,10 @@ type ticketFakeRepo struct {
 	labels       map[string]*domain.Label
 	ticketLabels map[string][]string // ticketID -> labelID（追加順）
 	attachments  map[string]*domain.TicketAttachment
+
+	// 段13: ページへのラベル付け外し（labels の語彙を共有する page_labels 側。
+	// LabelRepository のページ版メソッドもこの同じ struct に実装する — ticketLabels と同じ判断）。
+	pageLabels map[string][]string // pageID -> labelID（追加順）
 }
 
 func newTicketFakeRepo() *ticketFakeRepo {
@@ -58,6 +62,7 @@ func newTicketFakeRepo() *ticketFakeRepo {
 		labels:           map[string]*domain.Label{},
 		ticketLabels:     map[string][]string{},
 		attachments:      map[string]*domain.TicketAttachment{},
+		pageLabels:       map[string][]string{},
 	}
 }
 
@@ -1054,6 +1059,58 @@ func (f *ticketFakeRepo) ListLabelsByTicketIDs(_ context.Context, workspaceID st
 		if len(labels) > 0 {
 			sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 			out[tID] = labels
+		}
+	}
+	return out, nil
+}
+
+func (f *ticketFakeRepo) AddPageLabel(_ context.Context, workspaceID, pageID, labelID string) error {
+	if _, ok := f.labels[labelID]; !ok {
+		return repository.ErrLabelNotFound
+	}
+	for _, id := range f.pageLabels[pageID] {
+		if id == labelID {
+			return nil // 冪等
+		}
+	}
+	f.pageLabels[pageID] = append(f.pageLabels[pageID], labelID)
+	return nil
+}
+
+func (f *ticketFakeRepo) RemovePageLabel(_ context.Context, workspaceID, pageID, labelID string) error {
+	kept := f.pageLabels[pageID][:0]
+	for _, id := range f.pageLabels[pageID] {
+		if id != labelID {
+			kept = append(kept, id)
+		}
+	}
+	f.pageLabels[pageID] = kept
+	return nil
+}
+
+func (f *ticketFakeRepo) ListLabelsByPage(_ context.Context, workspaceID, pageID string) ([]domain.Label, error) {
+	var out []domain.Label
+	for _, id := range f.pageLabels[pageID] {
+		if l, ok := f.labels[id]; ok {
+			out = append(out, *l)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (f *ticketFakeRepo) ListLabelsByPageIDs(_ context.Context, workspaceID string, pageIDs []string) (map[string][]domain.Label, error) {
+	out := map[string][]domain.Label{}
+	for _, pID := range pageIDs {
+		var labels []domain.Label
+		for _, id := range f.pageLabels[pID] {
+			if l, ok := f.labels[id]; ok {
+				labels = append(labels, *l)
+			}
+		}
+		if len(labels) > 0 {
+			sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
+			out[pID] = labels
 		}
 	}
 	return out, nil

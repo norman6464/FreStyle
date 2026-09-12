@@ -982,8 +982,10 @@ func (r *knowledgeBasePermissionRepository) pagePermissionFacts(
 		return nil, repository.ErrPageNotFound
 	}
 	return &domain.PagePermissionFacts{
-		Member: row.IsMember,
-		Role:   domain.GrantRoleByRank(int(row.GrantRank)),
+		Member:     row.IsMember,
+		Role:       domain.GrantRoleByRank(int(row.GrantRank)),
+		Visibility: domain.PageVisibility(row.PageVisibility),
+		IsOwner:    row.IsOwner,
 	}, nil
 }
 
@@ -1028,6 +1030,7 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 			Icon:               row.Icon,
 			Cover:              row.Cover,
 			LastEditedByUserID: row.LastEditedByUserID,
+			Visibility:         row.Visibility,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page:           page,
@@ -1082,6 +1085,7 @@ func (r *knowledgeBasePermissionRepository) SearchWorkspacePageViewFacts(ctx con
 			Icon:               row.Icon,
 			Cover:              row.Cover,
 			LastEditedByUserID: row.LastEditedByUserID,
+			Visibility:         row.Visibility,
 		})
 		out = append(out, repository.PageSearchViewFact{
 			PageWithViewFacts: repository.PageWithViewFacts{
@@ -1138,6 +1142,7 @@ func (r *knowledgeBasePermissionRepository) ListPageLinkSourcePageViewFacts(
 			Icon:               row.Icon,
 			Cover:              row.Cover,
 			LastEditedByUserID: row.LastEditedByUserID,
+			Visibility:         row.Visibility,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
@@ -1189,6 +1194,7 @@ func (r *knowledgeBasePermissionRepository) ListPageTicketLinkSourcePageViewFact
 			Icon:               row.Icon,
 			Cover:              row.Cover,
 			LastEditedByUserID: row.LastEditedByUserID,
+			Visibility:         row.Visibility,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
@@ -1248,6 +1254,7 @@ func (r *knowledgeBasePermissionRepository) ListWorkspacePageViewFactsByIDs(
 			Icon:               row.Icon,
 			Cover:              row.Cover,
 			LastEditedByUserID: row.LastEditedByUserID,
+			Visibility:         row.Visibility,
 		})
 		out = append(out, repository.PageWithViewFacts{
 			Page: page,
@@ -1684,7 +1691,7 @@ func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx c
 	rows, err := r.queries(ctx).ListSubtreePagePermissionFacts(ctx, sqlcgen.ListSubtreePagePermissionFactsParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
-		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+		UserID:      uid,
 	})
 	if err != nil {
 		return nil, err
@@ -1694,8 +1701,10 @@ func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx c
 		out = append(out, repository.PageWithPermissionFacts{
 			PageID: row.PageID.String(),
 			Facts: domain.PagePermissionFacts{
-				Member: row.IsMember,
-				Role:   domain.GrantRoleByRank(int(row.GrantRank)),
+				Member:     row.IsMember,
+				Role:       domain.GrantRoleByRank(int(row.GrantRank)),
+				Visibility: domain.PageVisibility(row.PageVisibility),
+				IsOwner:    row.IsOwner,
 			},
 		})
 	}

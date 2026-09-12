@@ -1021,6 +1021,42 @@ func (u *SetPageIconUseCase) Execute(ctx context.Context, in SetPageIconInput) (
 	return u.repo.UpdatePageIcon(ctx, in.WorkspaceID, in.PageID, in.Icon)
 }
 
+// ErrInvalidPageVisibility は保存を許さない visibility 値を渡したときに返す。
+var ErrInvalidPageVisibility = errors.New("invalid page visibility")
+
+// SetPageVisibilityUseCase はページの公開範囲を変更する。
+//
+// visibility そのものの意味（'private' が唯一の打ち消し例外であること）は
+// domain.ResolvePagePermission / domain.ResolvePageView が持ち、ここには写経しない
+// （このユースケースは値を検証して書き換えるだけ）。
+type SetPageVisibilityUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewSetPageVisibilityUseCase(r repository.KnowledgeBaseRepository) *SetPageVisibilityUseCase {
+	return &SetPageVisibilityUseCase{repo: r}
+}
+
+type SetPageVisibilityInput struct {
+	WorkspaceID string
+	PageID      string
+	Visibility  domain.PageVisibility
+}
+
+func (u *SetPageVisibilityUseCase) Execute(ctx context.Context, in SetPageVisibilityInput) (*domain.Page, error) {
+	if !domain.ValidPageVisibility(in.Visibility) {
+		return nil, ErrInvalidPageVisibility
+	}
+	page, err := u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
+	if err != nil {
+		return nil, err
+	}
+	if page.ArchivedAt != nil {
+		return nil, ErrPageArchived
+	}
+	return u.repo.UpdatePageVisibility(ctx, in.WorkspaceID, in.PageID, in.Visibility)
+}
+
 // kbImageKeyPrefix はページ 1 枚に閉じた画像 key の接頭辞（"kb/<workspaceId>/<pageId>/"）を返す。
 // アップロードで採番する key、カバー・ダウンロードで照合する key の両方がこの形に従う。
 func kbImageKeyPrefix(workspaceID, pageID string) string {
@@ -1484,7 +1520,7 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 		if row.Page.ArchivedAt != nil {
 			continue
 		}
-		if domain.ResolvePageView(row.Role) {
+		if domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == in.UserID) {
 			titles[row.Page.ID] = row.Page.Title
 		}
 	}
@@ -1976,7 +2012,7 @@ func (u *ListViewableAncestorsUseCase) Execute(ctx context.Context, in ListViewa
 	}
 	viewable := make(map[string]string, len(rows))
 	for _, row := range rows {
-		if domain.ResolvePageView(row.Role) {
+		if domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == in.UserID) {
 			viewable[row.Page.ID] = row.Page.Title
 		}
 	}

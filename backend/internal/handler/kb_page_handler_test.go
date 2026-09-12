@@ -31,6 +31,7 @@ const (
 	kbChildPageID        = "0198a000-0000-7000-8000-000000000004"
 	kbDestPageID         = "0198a000-0000-7000-8000-000000000005"
 	kbUserID             = uint64(42)
+	kbLabelID            = "0198a000-0000-7000-8000-000000000006"
 )
 
 const kbValidDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`
@@ -104,8 +105,12 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	suggestions := newKbFakePageSuggestions()
 	presigner := &kbFakeImagePresigner{}
 	tickets := newTicketFakeRepo()
+	// 段13: ラベル付け外しの endpoint（kbEndpoints）が使う実在のラベル。
+	tickets.labels[kbLabelID] = &domain.Label{
+		ID: kbLabelID, WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Name: "重要", Color: "#4a90d9",
+	}
 	registerKnowledgeBaseRoutesWith(
-		g, pages, perms, perms, provisioner, users, comments, versions, views, favorites, templates, suggestions, tickets, fakeTxManager{}, presigner,
+		g, pages, perms, perms, provisioner, users, comments, versions, views, favorites, templates, suggestions, tickets, fakeTxManager{}, presigner, tickets,
 	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
@@ -252,6 +257,22 @@ var kbEndpoints = []kbEndpoint{
 		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/cover",
 		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
 	},
+	{
+		name: "公開範囲設定", method: http.MethodPut,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/visibility",
+		body:       `{"visibility":"private"}`,
+		capability: domain.CapabilityEdit, okStatus: http.StatusOK,
+	},
+	{
+		name: "ラベルを付ける", method: http.MethodPut,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/labels/" + kbLabelID,
+		capability: domain.CapabilityEdit, okStatus: http.StatusNoContent,
+	},
+	{
+		name: "ラベルを外す", method: http.MethodDelete,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/labels/" + kbLabelID,
+		capability: domain.CapabilityEdit, okStatus: http.StatusNoContent,
+	},
 }
 
 // kbTreePath はツリー取得のパス（単一ページを名指ししないので kbEndpoints とは別扱い）。
@@ -296,6 +317,7 @@ func kbRoutePattern(p string) string {
 		"{thread}", ":threadId",
 		"{seq}", ":seq",
 		kbSpaceID, ":spaceId",
+		kbLabelID, ":labelId",
 	).Replace(p)
 }
 
@@ -1737,6 +1759,10 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewAddPageFavoriteUseCase(newKbFakePageFavorites()),
 		kb.NewRemovePageFavoriteUseCase(newKbFakePageFavorites()),
 		kb.NewIsPageFavoriteUseCase(newKbFakePageFavorites()),
+		kb.NewSetPageVisibilityUseCase(pages),
+		kb.NewAddPageLabelUseCase(newTicketFakeRepo(), pages),
+		kb.NewRemovePageLabelUseCase(newTicketFakeRepo()),
+		kb.NewListLabelsForPageUseCase(newTicketFakeRepo()),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

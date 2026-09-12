@@ -1,0 +1,102 @@
+-- name: ListSubtreePagePermissionFacts :many
+-- サブツリー（対象ページ自身 + 全子孫）の各ページについて、実効権限を決める「事実」を
+-- 1 回のクエリで集める。判定は domain.ResolvePagePermission が行う（ここには規則を書かない）。
+--
+-- 用途はアーカイブ / 復帰のように「1 枚を名指しして子孫ごと書き換える」操作の入口検査。
+-- 根 1 枚の編集権限だけで通すと、同じページを直接 rename すると 403 になるのに
+-- 祖先のアーカイブ経由なら書き換えられる、という経路依存の食い違いになる。
+--
+-- ページごとに ResolvePagePermissionFacts を投げない（N+1 にしない）。集めるのは
+-- ListSpacePageViewFacts と同じ形で、違いは対象の絞り方（スペース全体 → closure の
+-- サブツリー）だけ。
+--
+-- アーカイブ済みのページも外さない。操作の影響が及ぶ範囲はアーカイブ状態と関係なく
+-- サブツリー全体で、外すと「先に子だけアーカイブしておけば検査を迂回できる」経路ができる。
+--
+-- サブツリーは必ず 1 つのスペースに収まる（スペースをまたぐ移動はサブツリーの space_id を
+-- まとめて付け替える）ので、space_grants と space_all の主体は根のスペースで引けば足りる。
+--
+-- ページごとに値が変わるのは経路上のページ付与だけなので、closure を辿るのは
+-- page_grant_rank の 1 本で済む。呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
+--
+-- visibility / created_by_user_id はサブツリーの各ページで違い得るので（対象ページと同じ
+-- スペースの visibility とは別に）ページごとに引く。
+WITH spt_target AS (
+    -- visibility の意味は ResolvePagePermissionFacts の rpf_target と同じ。
+    SELECT spt_pg.space_id, spt_sp.visibility AS space_visibility
+    FROM pages spt_pg
+    JOIN spaces spt_sp ON spt_sp.workspace_id = spt_pg.workspace_id AND spt_sp.id = spt_pg.space_id
+    WHERE spt_pg.workspace_id = sqlc.arg(workspace_id) AND spt_pg.id = sqlc.arg(page_id)
+),
+spt_subtree AS (
+    -- closure なので自分自身（depth 0）も含む。
+    SELECT spt_pp1.page_id, spt_pg2.visibility AS page_visibility, spt_pg2.created_by_user_id
+    FROM page_paths spt_pp1
+    JOIN pages spt_pg2 ON spt_pg2.workspace_id = spt_pp1.workspace_id AND spt_pg2.id = spt_pp1.page_id
+    WHERE spt_pp1.workspace_id = sqlc.arg(workspace_id) AND spt_pp1.ancestor_id = sqlc.arg(page_id)
+),
+spt_me AS (
+    SELECT spt_pr.id
+    FROM principals spt_pr
+    WHERE spt_pr.workspace_id = sqlc.arg(workspace_id)
+      AND spt_pr.kind = 'user' AND spt_pr.user_id = sqlc.arg(user_id)
+),
+spt_mine AS (
+    SELECT id FROM spt_me
+    UNION
+    SELECT spt_pm.group_principal_id
+    FROM principal_members spt_pm
+    JOIN spt_me ON spt_me.id = spt_pm.member_principal_id
+    WHERE spt_pm.workspace_id = sqlc.arg(workspace_id)
+    UNION
+    SELECT spt_spall.id
+    FROM principals spt_spall
+    CROSS JOIN spt_target spt_t1
+    WHERE spt_spall.workspace_id = sqlc.arg(workspace_id)
+      AND spt_spall.kind = 'space_all' AND spt_spall.space_id = spt_t1.space_id
+      AND spt_t1.space_visibility = 'workspace'
+      AND EXISTS (SELECT 1 FROM spt_me)
+),
+spt_grants AS (
+    -- ワークスペースとスペースの既定はサブツリー全体で同じ値なので 1 行に畳んでから配る
+    -- （ページごとに引き直すと行数ぶんの集約になる）。意味と 0 の扱いは
+    -- ResolvePagePermissionFacts と同じ。
+    SELECT max(CASE spt_g."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS grant_rank
+    FROM (
+        SELECT spt_wg."role" FROM workspace_grants spt_wg CROSS JOIN spt_target spt_t2
+         WHERE spt_wg.workspace_id = sqlc.arg(workspace_id)
+           AND spt_t2.space_visibility = 'workspace'
+           AND spt_wg.principal_id IN (SELECT id FROM spt_mine)
+        UNION ALL
+        SELECT spt_sg."role" FROM space_grants spt_sg CROSS JOIN spt_target spt_t3
+         WHERE spt_sg.workspace_id = sqlc.arg(workspace_id) AND spt_sg.space_id = spt_t3.space_id
+           AND spt_sg.principal_id IN (SELECT id FROM spt_mine)
+    ) spt_g
+),
+-- ページ付与だけは畳めない。サブツリーの中でも「祖先のどこに張られているか」で
+-- ページごとに値が変わるため、page_id ごとに集めて下の SELECT へ LEFT JOIN する。
+-- 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
+spt_page_grant_rank AS (
+    SELECT spt_pp2.page_id,
+           max(CASE spt_pg3."role"
+                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
+                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
+    FROM page_paths spt_pp2
+    JOIN spt_subtree spt_st ON spt_st.page_id = spt_pp2.page_id
+    JOIN page_grants spt_pg3
+      ON spt_pg3.workspace_id = spt_pp2.workspace_id AND spt_pg3.page_id = spt_pp2.ancestor_id
+    WHERE spt_pp2.workspace_id = sqlc.arg(workspace_id)
+      AND spt_pg3.principal_id IN (SELECT id FROM spt_mine)
+    GROUP BY spt_pp2.page_id
+)
+SELECT
+    spt_final.page_id,
+    EXISTS (SELECT 1 FROM spt_me) AS is_member,
+    spt_final.page_visibility,
+    (spt_final.created_by_user_id = sqlc.arg(user_id)::bigint) AS is_owner,
+    GREATEST(COALESCE((SELECT spt_grants.grant_rank FROM spt_grants), 0), COALESCE(spt_pgr.rank, 0))::integer AS grant_rank
+FROM spt_subtree spt_final
+LEFT JOIN spt_page_grant_rank spt_pgr ON spt_pgr.page_id = spt_final.page_id
+ORDER BY spt_final.page_id;

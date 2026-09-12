@@ -38,6 +38,8 @@ type Page struct {
 	// LastEditedByUserID は最終編集者（users.id）。NULL は「作成後まだ誰も本文を
 	// 保存していない」。本文の保存経路（ReplacePageBlocksUseCase）だけが書く。
 	LastEditedByUserID *uint64 `json:"lastEditedByUserId,omitempty"`
+	// Visibility は公開範囲バッジの元。値は PageVisibility* が正。
+	Visibility PageVisibility `json:"visibility"`
 }
 
 // PageIconType はページアイコンの種類。いまのところ絵文字だけを許す

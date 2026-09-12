@@ -68,6 +68,7 @@ CREATE TABLE "public"."pages" (
   "icon" jsonb NULL,
   "cover" jsonb NULL,
   "last_edited_by_user_id" bigint NULL,
+  "visibility" character varying(16) NOT NULL DEFAULT 'space',
   PRIMARY KEY ("id"),
   CONSTRAINT "uq_pages_workspace_id" UNIQUE ("workspace_id", "id"),
   CONSTRAINT "uq_pages_workspace_space_id" UNIQUE ("workspace_id", "space_id", "id"),
@@ -78,7 +79,8 @@ CREATE TABLE "public"."pages" (
   CONSTRAINT "ck_pages_cover_object" CHECK ((cover IS NULL) OR ((jsonb_typeof(cover) = 'object'::text) AND (cover <> '{}'::jsonb))),
   CONSTRAINT "ck_pages_icon_object" CHECK ((icon IS NULL) OR ((jsonb_typeof(icon) = 'object'::text) AND (icon <> '{}'::jsonb))),
   CONSTRAINT "ck_pages_parent_not_self" CHECK ((parent_id IS NULL) OR (parent_id <> id)),
-  CONSTRAINT "ck_pages_position_not_empty" CHECK ("position" <> ''::text)
+  CONSTRAINT "ck_pages_position_not_empty" CHECK ("position" <> ''::text),
+  CONSTRAINT "ck_pages_visibility" CHECK ((visibility)::text = ANY (ARRAY[('public'::character varying)::text, ('space'::character varying)::text, ('private'::character varying)::text]))
 );
 -- Create index "idx_pages_archived_at" to table: "pages"
 CREATE INDEX "idx_pages_archived_at" ON "public"."pages" ("archived_at");
@@ -282,6 +284,18 @@ CREATE TABLE "public"."page_grants" (
 );
 -- Create index "idx_page_grants_principal" to table: "page_grants"
 CREATE INDEX "idx_page_grants_principal" ON "public"."page_grants" ("workspace_id", "principal_id");
+-- Create "page_labels" table
+CREATE TABLE "public"."page_labels" (
+  "workspace_id" uuid NOT NULL,
+  "page_id" uuid NOT NULL,
+  "label_id" uuid NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("page_id", "label_id"),
+  CONSTRAINT "fk_page_labels_label" FOREIGN KEY ("workspace_id", "label_id") REFERENCES "public"."labels" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE,
+  CONSTRAINT "fk_page_labels_page" FOREIGN KEY ("workspace_id", "page_id") REFERENCES "public"."pages" ("workspace_id", "id") ON UPDATE NO ACTION ON DELETE CASCADE
+);
+-- Create index "idx_page_labels_label" to table: "page_labels"
+CREATE INDEX "idx_page_labels_label" ON "public"."page_labels" ("label_id");
 -- Create "page_links" table
 CREATE TABLE "public"."page_links" (
   "source_block_id" uuid NOT NULL,

@@ -140,13 +140,16 @@ func (f kbPermFixture) grantSpace(ctx context.Context, t *testing.T, spaceID, pr
 
 // makePrivate はスペースを private にする。
 //
-// **これが「見せない」を表す唯一のやり方**。権限は 3 段の付与（ワークスペース / スペース /
-// ページ）を足し合わせ、届いた中で最も強い役割で決まるので、同じスペースの中で 1 枚だけ
-// 隠すことはできない。private のスペースにはワークスペース全体の付与とスペース全員宛ての
-// 付与が届かず、そのスペースを名指しした付与だけが届く。
+// 権限は 3 段の付与（ワークスペース / スペース / ページ）を足し合わせ、届いた中で最も強い
+// 役割で決まるので、grants の観点では同じスペースの中で 1 枚だけ隠すことはできない。
+// private のスペースにはワークスペース全体の付与とスペース全員宛ての付与が届かず、
+// そのスペースを名指しした付与だけが届く。
 //
-// 生の UPDATE を使うのは、visibility を変える repository の口がまだ無いため
-// （作成時に決める列で、テストだけがあとから倒したい）。
+// （段 13 追記）pages.visibility='private' は grants とは別軸の唯一の例外で、ページ 1 枚を
+// 作成者以外の全員から隠せる（TestPageVisibility_Integration 参照）。こちらは
+// UpdatePageVisibility を経由する正規の口を持つ — ここで生の UPDATE を使うのは、
+// スペースの visibility を変える repository の口がまだ無いため（作成時に決める列で、
+// テストだけがあとから倒したい）。
 func (f kbPermFixture) makePrivate(t *testing.T, spaceID string) {
 	t.Helper()
 	res, err := f.db.Exec(
@@ -1830,7 +1833,7 @@ func TestKnowledgeBaseViewFactsByIDs_Integration(t *testing.T) {
 		byID := map[string]bool{}
 		archivedAt := map[string]bool{}
 		for _, row := range rows {
-			byID[row.Page.ID] = domain.ResolvePageView(row.Role)
+			byID[row.Page.ID] = domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == f.alice)
 			archivedAt[row.Page.ID] = row.Page.ArchivedAt != nil
 		}
 		assert.True(t, byID[visible.ID], "付与が届くページは閲覧できる")

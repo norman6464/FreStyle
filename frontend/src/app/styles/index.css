@@ -259,6 +259,13 @@
      「白い塊」感を出さず、目立ちすぎない控えめなインタラクション表現にする。 */
   --color-nav-hover: #F5F5F4;
   --color-nav-active: #EAEAE9;
+  /* サイドバーの選択行（木の行・固定ナビ）用。brand ランプの既存値をそのまま割り当てる
+     （新しい hex は増やさない）。地は薄く、文字とけい線は主ボタンと同じ濃さで揃える。 */
+  --color-nav-selected: #dbeafe;
+  --color-nav-selected-text: #1e40af;
+  --color-nav-selected-rule: #2563eb;
+  /* ヘッダーの高さ。SecondaryPanel 側のオフセット（ホバー検知ゾーン・浮きパネル）もこれを基準にする。 */
+  --app-header-h: 56px;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   /* 読みやすさ（コントラスト比）は**白地だけで決めない**。小さな文字には 4.5:1 が要る。
@@ -392,26 +399,12 @@
 @layer components {
   /* 白文字に対して brand-500 は 3.7:1 で基準（4.5:1）に届かない。600 から始める（5.2:1）。 */
   /*
-   * ヘッダーの下の境界は線ではなく**ぼかし**で表す。
-   *
-   * Tailwind の `bg-[var(--color-nav)]/75` は効かない — 不透明度を混ぜるには色が
-   * rgb() の形で分解できる必要があり、CSS 変数の #FFFFFF はそのまま使われて
-   * クラス自体が生成されない（実際に生成物を見て空だった）。ここは素の CSS で書く。
-   *
-   * backdrop-filter を持たない環境では半透明にしない（下が透けたまま文字が重なると
-   * 読めなくなる）。その場合だけ細い線を引いて、境目が消えないようにする。
+   * ヘッダーは常時表示（本文の上に重ねない）にしたので、半透明 + ぼかしは不要になった。
+   * 不透明な地 + 1px の下罫だけで境界を表す（2026-09-12。旧: 重ね配置 + ぼかしの半透明）。
    */
   .app-header-surface {
     background-color: var(--color-nav);
     border-bottom: 1px solid var(--color-surface-3);
-  }
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .app-header-surface {
-      background-color: color-mix(in srgb, var(--color-nav) 75%, transparent);
-      -webkit-backdrop-filter: blur(12px);
-      backdrop-filter: blur(12px);
-      border-bottom: none;
-    }
   }
 
   /* 純白の body に埋もれないよう、輪郭が見える境界色 + 影で「押せる」感を出す。 */

@@ -1,18 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 
 import Header from './Header';
-import { HeaderVisibilityContext, useHeaderVisibilityState } from '../model/headerVisibility';
 import SkipLink from './SkipLink';
 import ScrollToTop from './ScrollToTop';
 import CommandPalette from './CommandPalette';
 
 export default function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const { pathname } = useLocation();
-  // ヘッダーの自動隠し（ナレッジ本文の下スクロール等）。ページ側が setHeaderHidden で切り替える。
-  const headerVisibility = useHeaderVisibilityState();
 
   // 認証必須ページ（AppShell 配下）はログイン前提なので検索インデックス対象外にする。
   useDocumentMeta({ robots: 'noindex, nofollow' });
@@ -29,46 +25,27 @@ export default function AppShell() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // ページ遷移時はヘッダーを必ず表示へ戻す（前ページの隠し状態を持ち越さない）。
-  const { setHeaderHidden } = headerVisibility;
-  useEffect(() => {
-    setHeaderHidden(false);
-  }, [pathname, setHeaderHidden]);
-
   return (
-    <HeaderVisibilityContext.Provider value={headerVisibility}>
     <div className="h-screen flex flex-col bg-surface overflow-hidden">
       <SkipLink targetId="main-content" />
 
-      {/* ヘッダーを本文の**上に重ねる**。並べる（縦に積む）と背後に何も無く、
-          半透明 + ぼかしの地が効かない。重ねたぶん本文の先頭に余白を入れて、
-          最初の行がヘッダーの裏に隠れないようにする。 */}
-      <div className="relative flex-1 min-h-0">
-        {/* headerHidden のときは上へスライドして隠れる（本文が全高になる）。 */}
-        <div
-          className={`absolute inset-x-0 top-0 z-40 transition-transform duration-200 ease-out ${
-            headerVisibility.headerHidden ? '-translate-y-full' : 'translate-y-0'
-          }`}
-        >
-          <Header />
-        </div>
+      {/* ヘッダーは常時表示。本文とは縦に並べる（重ねない）ので、
+          本文側に先頭の余白を入れる必要はない。 */}
+      <Header onOpenSearch={() => setCommandPaletteOpen(true)} />
 
-        {/* メインコンテンツ。h-16 はヘッダーの高さ。隠れているときは余白も畳む。 */}
-        {/*
-          tabIndex は 0。ここは縦に流れるスクロール領域なので、キーボードだけの人が
-          矢印キーで動かせるよう Tab で到達できる必要がある（-1 だと「本文へスキップ」から
-          飛んだときしか触れず、そのまま Tab を続けると本文を飛び越してしまう）。
-        */}
-        <main
-          id="main-content"
-          tabIndex={0}
-          className={`h-full overflow-auto outline-none transition-[padding-top] duration-200 ease-out ${
-            headerVisibility.headerHidden ? 'pt-0' : 'pt-16'
-          }`}
-        >
-          <Outlet />
-        </main>
-      </div>
+      {/*
+        tabIndex は 0。ここは縦に流れるスクロール領域なので、キーボードだけの人が
+        矢印キーで動かせるよう Tab で到達できる必要がある（-1 だと「本文へスキップ」から
+        飛んだときしか触れず、そのまま Tab を続けると本文を飛び越してしまう）。
+      */}
+      <main
+        id="main-content"
+        tabIndex={0}
+        className="flex-1 min-h-0 overflow-auto outline-none"
+      >
+        <Outlet />
+      </main>
+
       <ScrollToTop targetId="main-content" />
 
       <CommandPalette
@@ -76,6 +53,5 @@ export default function AppShell() {
         onClose={() => setCommandPaletteOpen(false)}
       />
     </div>
-    </HeaderVisibilityContext.Provider>
   );
 }

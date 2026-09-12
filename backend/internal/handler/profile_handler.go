@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
@@ -12,20 +13,25 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// ProfileHandler は GET / PUT /profile/:userId(or "me") を提供する。
-// 返却する domain.ProfileView は users.name と profiles を合成したもの。
+// ProfileHandler は GET / PUT /profile/:userId(or "me")、PUT /me/status、
+// GET /me/identities を提供する。返却する domain.ProfileView は users.name と
+// profiles を合成したもの。
 type ProfileHandler struct {
-	get    *profile.GetProfileUseCase
-	update *profile.UpdateProfileUseCase
-	users  repository.UserRepository
+	get            *profile.GetProfileUseCase
+	update         *profile.UpdateProfileUseCase
+	updateStatus   *profile.UpdateStatusUseCase
+	listIdentities *profile.ListMyIdentitiesUseCase
+	users          repository.UserRepository
 }
 
 func NewProfileHandler(
 	g *profile.GetProfileUseCase,
 	u *profile.UpdateProfileUseCase,
+	updateStatus *profile.UpdateStatusUseCase,
+	listIdentities *profile.ListMyIdentitiesUseCase,
 	users repository.UserRepository,
 ) *ProfileHandler {
-	return &ProfileHandler{get: g, update: u, users: users}
+	return &ProfileHandler{get: g, update: u, updateStatus: updateStatus, listIdentities: listIdentities, users: users}
 }
 
 var (
@@ -112,10 +118,10 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 		}
 	}
 	if _, err := h.update.Execute(c.Request.Context(), profile.UpdateProfileInput{
-		UserID:        uid,
-		Bio:           req.Bio,
-		AvatarURL:     avatarURL,
-		StatusMessage: req.Status,
+		UserID:     uid,
+		Bio:        req.Bio,
+		AvatarURL:  avatarURL,
+		StatusText: req.Status,
 	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -128,6 +134,73 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
+// updateStatusReq の各項目の上限は updateProfileReq と同じ理由（DB は text で無制限）。
+// Emoji は結合絵文字（ZWJ シーケンス等）が単一の絵文字でも複数バイトになり得るため、
+// 普通の一言テキストより広めに取る。
+type updateStatusReq struct {
+	Emoji     string     `json:"emoji"     binding:"omitempty,max=32"`
+	Text      string     `json:"text"      binding:"omitempty,max=200"`
+	ExpiresAt *time.Time `json:"expiresAt"` // nil/省略 = 無期限
+}
+
+// UpdateStatus は一言ステータス（絵文字・テキスト・失効時刻）だけを更新する（段 14。
+// PUT /me/status）。bio / avatarUrl には触れない（Update の専管。互いの担当を混ぜない）。
+func (h *ProfileHandler) UpdateStatus(c *gin.Context) {
+	uid, err := h.resolveUserID(c)
+	if err != nil {
+		writeProfileError(c, err)
+		return
+	}
+	var req updateStatusReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.updateStatus.Execute(c.Request.Context(), profile.UpdateStatusInput{
+		UserID:    uid,
+		Emoji:     req.Emoji,
+		Text:      req.Text,
+		ExpiresAt: req.ExpiresAt,
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	view, err := h.buildView(c, uid)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": "ステータスを更新しました"})
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+// profileIdentityResponse は認証方法 1 件の返却形（段 14。表示専用）。
+type profileIdentityResponse struct {
+	Provider  string    `json:"provider"`
+	Subject   string    `json:"subject"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// ListIdentities は本人の認証方法一覧を返す（段 14。GET /me/identities）。
+// resolveUserID が現在ユーザー以外の数値 userId を 403 にするので、他人の subject は
+// この経路では読めない（domain.UserIdentity の doc 参照）。
+func (h *ProfileHandler) ListIdentities(c *gin.Context) {
+	uid, err := h.resolveUserID(c)
+	if err != nil {
+		writeProfileError(c, err)
+		return
+	}
+	identities, err := h.listIdentities.Execute(c.Request.Context(), uid)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out := make([]profileIdentityResponse, 0, len(identities))
+	for _, id := range identities {
+		out = append(out, profileIdentityResponse{Provider: id.Provider, Subject: id.Subject, CreatedAt: id.CreatedAt})
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 // buildView は users.name と profiles を合成して ProfileView を返す（欠損時は空文字で埋める）。
 func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileView, error) {
 	p, err := h.get.Execute(c.Request.Context(), uid)
@@ -138,7 +211,9 @@ func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileV
 	if p != nil {
 		view.Bio = p.Bio
 		view.AvatarURL = p.AvatarURL
-		view.StatusMessage = p.StatusMessage
+		view.StatusText = p.StatusText
+		view.StatusEmoji = p.StatusEmoji
+		view.StatusExpiresAt = p.StatusExpiresAt
 		view.UpdatedAt = p.UpdatedAt
 	}
 	user, _ := h.users.FindByID(c.Request.Context(), uid)

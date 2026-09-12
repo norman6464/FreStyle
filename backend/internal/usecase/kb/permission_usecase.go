@@ -876,6 +876,26 @@ func (u *ListSpaceMembersUseCase) Execute(ctx context.Context, workspaceID, spac
 	return u.repo.ListSpaceMembers(ctx, workspaceID, spaceID)
 }
 
+// ListMySpacesUseCase は ListSpaceMembersUseCase の向きを逆にしたもの（段 14。
+// GET /me/spaces 用）。可視判定は要らない（自分自身の grants しか見ないため）。
+type ListMySpacesUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewListMySpacesUseCase(r repository.KnowledgeBasePermissionRepository) *ListMySpacesUseCase {
+	return &ListMySpacesUseCase{repo: r}
+}
+
+func (u *ListMySpacesUseCase) Execute(ctx context.Context, workspaceID string, userID uint64) ([]domain.MySpace, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if userID == 0 {
+		return nil, errors.New("userID is required")
+	}
+	return u.repo.ListMySpaces(ctx, workspaceID, userID)
+}
+
 // ErrPrincipalKindMismatch は主体の種類が操作に合わないときに返す
 // （グループでないものをグループとして扱おうとした等）。
 var ErrPrincipalKindMismatch = errors.New("principal kind does not match the operation")

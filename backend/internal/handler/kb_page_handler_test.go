@@ -379,6 +379,9 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		// スペースメンバーの読み取り（段9）。判定が CanView で kbEndpoints（ページ単位）とは
 		// 軸が違うので表にせず、Test_ナレッジAPI_スペースメンバーは* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbSpaceMembersPath): true,
+		// 自分がアクセスできるスペースの一覧（段14）。判定は所属のみ（自分自身の grants しか
+		// 見ないため）なので表にせず、Test_ナレッジAPI_自分のスペース一覧は* が直接叩く。
+		http.MethodGet + " " + kbRoutePattern(kbMySpacesPath): true,
 		// 所属・権限の変更履歴（段 6・監査）。判定が admin（CanManage）で他の GET と軸が違うので
 		// 表にせず、Test_ナレッジAPI_変更履歴は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembershipEventsPath): true,

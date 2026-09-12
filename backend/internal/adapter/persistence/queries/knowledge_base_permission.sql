@@ -201,7 +201,15 @@ WITH grantable AS (
                ELSE ''
            END AS name,
            CASE p.kind WHEN 'user' THEN COALESCE(pr.avatar_url, '') ELSE '' END AS avatar_url,
-           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_message, '') ELSE '' END AS status_message
+           -- 一言ステータスは絵文字・テキスト・失効時刻を事実のまま返し、結合と失効判定は
+           -- Go 側（domain.ComposeStatusDisplay）に集める（段 14。他のクエリでも同じ形）。
+           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_emoji, '') ELSE '' END AS status_emoji,
+           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_text, '') ELSE '' END AS status_text,
+           -- LEFT JOIN の条件が kind='user' 前提なので、kind が違えば pr 自体が NULL になり
+           -- CASE を書かなくても自然に NULL になる（avatar_url / status_emoji はテキストなので
+           -- COALESCE で空文字に寄せているが、timestamptz には「空」に相当する値が無いため
+           -- NULL のまま returns する）。
+           pr.status_expires_at AS status_expires_at
     FROM principals p
     LEFT JOIN users u
            ON p.kind = 'user' AND u.id = p.user_id
@@ -215,7 +223,7 @@ WITH grantable AS (
       AND p.kind <> 'share_link'
       AND (p.kind <> 'user' OR (u.status = 'active' AND wm.status = 'active'))
 )
-SELECT id, kind, name, avatar_url, status_message FROM grantable
+SELECT id, kind, name, avatar_url, status_emoji, status_text, status_expires_at FROM grantable
 ORDER BY kind, name, id;
 
 -- name: ListWorkspaceMembers :many
@@ -237,7 +245,9 @@ ORDER BY kind, name, id;
 -- 並びは表示名 → id。名前が空の行が混ざっても順序が決まるように id まで入れる。
 SELECT p.id AS principal_id, u.id AS user_id, u.name,
        COALESCE(pr.avatar_url, '') AS avatar_url,
-       COALESCE(pr.status_message, '') AS status_message
+       COALESCE(pr.status_emoji, '') AS status_emoji,
+       COALESCE(pr.status_text, '') AS status_text,
+       pr.status_expires_at AS status_expires_at
 FROM principals p
 JOIN users u ON u.id = p.user_id
 JOIN workspace_members wm ON wm.workspace_id = p.workspace_id AND wm.user_id = p.user_id
@@ -261,7 +271,9 @@ ORDER BY u.name, u.id;
 -- 見えている）」ことを表す — 実在しうる状態なので、あえて内部結合にしない。
 SELECT p.id AS principal_id, u.id AS user_id, u.name, u.status AS account_status,
        COALESCE(pr.avatar_url, '') AS avatar_url,
-       COALESCE(pr.status_message, '') AS status_message,
+       COALESCE(pr.status_emoji, '') AS status_emoji,
+       COALESCE(pr.status_text, '') AS status_text,
+       pr.status_expires_at AS status_expires_at,
        wg.role AS role
 FROM principals p
 JOIN users u ON u.id = p.user_id

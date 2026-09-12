@@ -63,3 +63,24 @@ func (r *userOidcIdentityRepository) EnsureIdentity(ctx context.Context, userID 
 	}
 	return nil
 }
+
+// ListByUserID は本人の認証方法一覧を返す（段 14）。
+func (r *userOidcIdentityRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.UserIdentity, error) {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return []domain.UserIdentity{}, nil // 存在し得ない user_id = 空扱い
+	}
+	rows, err := sqlcgen.New(r.dbtx(ctx)).ListOidcIdentitiesByUserID(ctx, id64)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.UserIdentity, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.UserIdentity{
+			Provider:  row.Provider,
+			Subject:   row.Subject,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return out, nil
+}

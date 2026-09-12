@@ -1936,7 +1936,7 @@ func TestKnowledgeBaseListWorkspaceMembers_Integration(t *testing.T) {
 		f := setupKBPermission(t, sqlDB)
 		alice := f.principalFor(ctx, t, f.alice)
 		_, err := f.db.Exec(
-			`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+			`INSERT INTO profiles (user_id, bio, avatar_url, status_text, updated_at)
 			 VALUES ($1, '', $2, $3, now())`,
 			f.alice, "https://example.test/alice.png", "会議中",
 		)
@@ -2347,5 +2347,96 @@ func TestListSpaceMembers_Integration(t *testing.T) {
 		assert.Contains(t, m, f.alice)
 		assert.NotContains(t, m, f.bob, "停止中は落ちる")
 		assert.NotContains(t, m, f.carol, "退出済みは落ちる")
+	})
+}
+
+// TestListMySpaces_Integration は ListSpaceMembers の向きを逆にしたもの（段 14。
+// GET /me/spaces 用。1 人→全スペース）を実 PostgreSQL で検証する。継承規則そのものは
+// TestListSpaceMembers_Integration と共有の SQL（space_reachable 相当）なので、ここでは
+// 向きを変えたことで壊れやすい観点（複数スペースへの展開・テナント分離・役割未設定は
+// 空）に絞る。
+func TestListMySpaces_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	ctx := context.Background()
+
+	byID := func(spaces []domain.MySpace) map[string]domain.MySpace {
+		out := map[string]domain.MySpace{}
+		for _, s := range spaces {
+			out[s.ID] = s
+		}
+		return out
+	}
+
+	t.Run("直接付与されたスペースだけが返る", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+
+		got, err := f.perm.ListMySpaces(ctx, f.ws, f.alice)
+		require.NoError(t, err)
+		m := byID(got)
+		require.Contains(t, m, f.spaceA)
+		assert.Equal(t, "aaa", m[f.spaceA].Name)
+		assert.Equal(t, domain.GrantRoleEditor, m[f.spaceA].Role)
+		assert.NotContains(t, m, f.spaceB, "役割を持たないスペースは返らない")
+	})
+
+	t.Run("ワークスペース全体の付与は複数スペースへ展開されるがprivateには届かない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleViewer, f.alice)
+		require.NoError(t, err)
+		f.makePrivate(t, f.spaceB)
+
+		got, err := f.perm.ListMySpaces(ctx, f.ws, f.alice)
+		require.NoError(t, err)
+		m := byID(got)
+		require.Contains(t, m, f.spaceA)
+		assert.Equal(t, domain.GrantRoleViewer, m[f.spaceA].Role)
+		assert.NotContains(t, m, f.spaceB, "private スペースにはワークスペース全体の付与を届かせない")
+	})
+
+	// 変異確認: knowledgeBasePermissionRepository.ListMySpaces の role.Rank() 比較を
+	// 「常に false」に壊すと、workspace 経由の viewer が残ってこのテストが落ちる。
+	t.Run("同じスペースへの複数経路は最も強い役割に集約する", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		_, err := f.perm.UpsertWorkspaceGrant(ctx, f.ws, alice.ID, domain.GrantRoleViewer, f.alice)
+		require.NoError(t, err)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleAdmin)
+
+		got, err := f.perm.ListMySpaces(ctx, f.ws, f.alice)
+		require.NoError(t, err)
+		m := byID(got)
+		require.Contains(t, m, f.spaceA)
+		assert.Equal(t, domain.GrantRoleAdmin, m[f.spaceA].Role, "強い方（space の admin）を採る")
+	})
+
+	t.Run("別ワークスペースのスペースは混ざらない", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		alice := f.principalFor(ctx, t, f.alice)
+		f.grantSpace(ctx, t, f.spaceA, alice.ID, domain.GrantRoleEditor)
+		// 別ワークスペースにも同じユーザーへ同じ強さの付与をしておく（テナント越えで
+		// 紛れ込まないことを見る）。
+		f.makeActiveMember(t, f.otherWS, f.alice)
+		aliceOther, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.alice)
+		require.NoError(t, err)
+		_, err = f.perm.UpsertSpaceGrant(ctx, f.otherWS, f.otherSpc, aliceOther.ID, domain.GrantRoleEditor)
+		require.NoError(t, err)
+
+		got, err := f.perm.ListMySpaces(ctx, f.ws, f.alice)
+		require.NoError(t, err)
+		m := byID(got)
+		require.Contains(t, m, f.spaceA)
+		assert.NotContains(t, m, f.otherSpc)
+	})
+
+	t.Run("役割を何も持たなければ空", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+
+		got, err := f.perm.ListMySpaces(ctx, f.ws, f.alice)
+		require.NoError(t, err)
+		assert.Empty(t, got)
 	})
 }

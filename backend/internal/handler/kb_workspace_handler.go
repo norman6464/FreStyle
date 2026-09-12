@@ -35,6 +35,7 @@ type KnowledgeBaseWorkspaceHandler struct {
 	userDisplay          *user.LookupUserDisplayUseCase
 	listFavorites        *kb.ListPageFavoritesUseCase
 	listSpaceMembers     *kb.ListSpaceMembersUseCase
+	listMySpaces         *kb.ListMySpacesUseCase
 }
 
 // NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
@@ -54,6 +55,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 	userDisplay *user.LookupUserDisplayUseCase,
 	listFavorites *kb.ListPageFavoritesUseCase,
 	listSpaceMembers *kb.ListSpaceMembersUseCase,
+	listMySpaces *kb.ListMySpacesUseCase,
 ) *KnowledgeBaseWorkspaceHandler {
 	return &KnowledgeBaseWorkspaceHandler{
 		listWorkspaces:       listWorkspaces,
@@ -71,6 +73,7 @@ func NewKnowledgeBaseWorkspaceHandler(
 		userDisplay:          userDisplay,
 		listFavorites:        listFavorites,
 		listSpaceMembers:     listSpaceMembers,
+		listMySpaces:         listMySpaces,
 	}
 }
 
@@ -555,6 +558,33 @@ func (h *KnowledgeBaseWorkspaceHandler) ListSpaceMembers(c *gin.Context) {
 	out := make([]kbSpaceMemberResponse, 0, len(members))
 	for _, m := range members {
 		out = append(out, toKbSpaceMemberResponse(m))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// kbMySpaceResponse は自分がアクセスできるスペース 1 件の返却形（段 14）。
+type kbMySpaceResponse struct {
+	ID   string           `json:"id"`
+	Name string           `json:"name"`
+	Role domain.GrantRole `json:"role"`
+}
+
+// ListMySpaces は ListSpaceMembers の向きを逆にしたもの（段 14。GET /me/spaces）。
+// 自分自身の grants しか見ないので checkSpace は要らない（kbScope のワークスペース所属
+// 確認だけで十分 — ListWorkspaceMembers と同じ判断）。
+func (h *KnowledgeBaseWorkspaceHandler) ListMySpaces(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	spaces, err := h.listMySpaces.Execute(c.Request.Context(), scope.workspaceID, scope.userID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	out := make([]kbMySpaceResponse, 0, len(spaces))
+	for _, s := range spaces {
+		out = append(out, kbMySpaceResponse{ID: s.ID, Name: s.Name, Role: s.Role})
 	}
 	c.JSON(http.StatusOK, out)
 }

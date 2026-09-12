@@ -244,6 +244,7 @@ func registerKnowledgeBaseRoutesWith(
 		user.NewLookupUserDisplayUseCase(users),
 		kb.NewListPageFavoritesUseCase(favorites, kb.NewCheckPagePermissionUseCase(permissions)),
 		kb.NewListSpaceMembersUseCase(permissions),
+		kb.NewListMySpacesUseCase(permissions),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
@@ -336,6 +337,9 @@ func registerKnowledgeBaseRoutesWith(
 	// ワークスペースの人の一覧。所属していれば誰でも叩ける（担当の表示名・発言での名指しに使う）。
 	// 権限を張る相手を選ぶ /pages/:pageId/principals とは別の口（あちらはページの管理権限が要る）。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/members", wh.ListMembers)
+	// 自分がアクセスできるスペースの一覧（段 14）。ListSpaceMembers の向きを逆にしたもの。
+	// 自分自身の grants しか見ないので checkSpace は要らない（ListMembers と同じ判断）。
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/me/spaces", wh.ListMySpaces)
 	// 所属・権限の変更履歴（段 6・監査）。admin だけが見られる（handler 内で CanManage を確認）。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/membership-events", wh.ListMembershipEvents)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/admin/members", wh.ListMembersForAdmin)

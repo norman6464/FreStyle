@@ -14,15 +14,22 @@ import (
 // registerProfileRoutes は profile 関連の REST エンドポイントを登録する。
 func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	profileRepo := persistence.NewProfileRepository(deps.db)
+	identityRepo := persistence.NewUserOidcIdentityRepository(deps.db)
 	profileHandler := NewProfileHandler(
 		profile.NewGetProfileUseCase(profileRepo),
 		profile.NewUpdateProfileUseCase(profileRepo),
+		profile.NewUpdateStatusUseCase(profileRepo),
+		profile.NewListMyIdentitiesUseCase(identityRepo),
 		deps.userRepo,
 	)
 	// :userId は数字 / "me" の両方を受ける。/update はフロント互換の別 path。
 	g.GET("/profile/:userId", profileHandler.Get)
 	g.PUT("/profile/:userId", profileHandler.Update)
 	g.PUT("/profile/:userId/update", profileHandler.Update) //apispec:allow フロント互換の別 path（正規は PUT /profile/:userId）
+	// 一言ステータス（絵文字・テキスト・失効時刻）だけの更新（段 14）。本人のみ。
+	g.PUT("/me/status", profileHandler.UpdateStatus)
+	// 認証方法の一覧（段 14。表示専用・本人のみ）。
+	g.GET("/me/identities", profileHandler.ListIdentities)
 
 	// Profile アイコン画像の presigned-url（リッチテキスト画像と同じバケットを profiles/ prefix で共有）。
 	profileImageHandler := NewProfileImageHandler(

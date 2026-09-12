@@ -111,10 +111,12 @@ func (r *userRepository) FindDisplayByID(ctx context.Context, id uint64) (*domai
 		return nil, err
 	}
 	return &domain.UserDisplay{
-		UserID:        uint64(row.ID),
-		Name:          row.Name,
-		AvatarURL:     row.AvatarUrl,
-		StatusMessage: row.StatusMessage,
+		UserID:    uint64(row.ID),
+		Name:      row.Name,
+		AvatarURL: row.AvatarUrl,
+		StatusMessage: domain.ComposeStatusDisplay(
+			row.StatusEmoji, row.StatusText, nullTimePtr(row.StatusExpiresAt), time.Now(),
+		),
 	}, nil
 }
 

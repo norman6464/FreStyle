@@ -429,10 +429,23 @@ table "profiles" {
     type    = text
     default = ""
   }
-  column "status_message" {
+  # 「一言ステータス」。もとは status_message という単一の自由文だったが、段 14 で
+  # 絵文字と失効時刻を持てるよう status_text に改名し、2 列を足した（本人以外への見え方は
+  # 「絵文字＋テキストを結合し、失効していれば空にする」— repository 層で解決する。
+  # 空文字はどちらも「未設定」を表す。null にしないのは既存の bio / avatar_url と同じ理由）。
+  column "status_text" {
     null    = false
     type    = text
     default = ""
+  }
+  column "status_emoji" {
+    null    = false
+    type    = text
+    default = ""
+  }
+  column "status_expires_at" {
+    null = true
+    type = timestamptz
   }
   column "updated_at" {
     null = false

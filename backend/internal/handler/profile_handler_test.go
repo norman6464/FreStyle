@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/frestyle/backend/internal/domain"
@@ -104,6 +105,22 @@ func (s *stubProfileRepo) Upsert(_ context.Context, p *domain.Profile) error {
 	return nil
 }
 
+func (s *stubProfileRepo) UpdateStatus(_ context.Context, userID uint64, emoji, text string, expiresAt *time.Time) (*domain.Profile, error) {
+	p := &domain.Profile{UserID: userID, StatusEmoji: emoji, StatusText: text, StatusExpiresAt: expiresAt}
+	s.saved = p
+	return p, nil
+}
+
+// stubIdentityRepo は UserOidcIdentityRepository の in-memory スタブ（このファイルの
+// テストでは認証方法一覧の中身までは検証しない）。
+type stubIdentityRepo struct{}
+
+func (stubIdentityRepo) EnsureIdentity(context.Context, uint64, string, string) error { return nil }
+
+func (stubIdentityRepo) ListByUserID(context.Context, uint64) ([]domain.UserIdentity, error) {
+	return nil, nil
+}
+
 // doProfileUpdate は PUT /profile/me を httptest で実行し recorder と stub を返す。
 func doProfileUpdate(t *testing.T, body string) (*httptest.ResponseRecorder, *stubProfileUserRepo, *stubProfileRepo) {
 	t.Helper()
@@ -112,6 +129,8 @@ func doProfileUpdate(t *testing.T, body string) (*httptest.ResponseRecorder, *st
 	h := NewProfileHandler(
 		profile.NewGetProfileUseCase(profiles),
 		profile.NewUpdateProfileUseCase(profiles),
+		profile.NewUpdateStatusUseCase(profiles),
+		profile.NewListMyIdentitiesUseCase(stubIdentityRepo{}),
 		users,
 	)
 	w := httptest.NewRecorder()
@@ -134,7 +153,7 @@ func Test_プロフィール更新_displayNameキーで氏名がUpdateNameに渡
 	if !users.updateCalled || users.updatedName != "河野拓真" {
 		t.Fatalf("UpdateName should be called with 河野拓真; called=%v name=%q", users.updateCalled, users.updatedName)
 	}
-	if profiles.saved == nil || profiles.saved.Bio != "自己紹介" || profiles.saved.StatusMessage != "勤務中" {
+	if profiles.saved == nil || profiles.saved.Bio != "自己紹介" || profiles.saved.StatusText != "勤務中" {
 		t.Fatalf("bio/status should be upserted together; got %+v", profiles.saved)
 	}
 }

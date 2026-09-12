@@ -217,11 +217,13 @@ type PrincipalMember struct {
 }
 
 type Profile struct {
-	UserID        int64
-	Bio           string
-	AvatarUrl     string
-	StatusMessage string
-	UpdatedAt     time.Time
+	UserID          int64
+	Bio             string
+	AvatarUrl       string
+	StatusText      string
+	StatusEmoji     string
+	StatusExpiresAt sql.NullTime
+	UpdatedAt       time.Time
 }
 
 type ShareLink struct {

@@ -244,6 +244,10 @@ type KnowledgeBasePermissionRepository interface {
 	// grant・所属グループ・スペース全員）を人に解決して返す（段 9）。同じ人に複数の経路が
 	// あれば最も強い役割で 1 行にまとめる（domain.SpaceMember.Via 参照）。
 	ListSpaceMembers(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error)
+	// ListMySpaces は ListSpaceMembers の向きを逆にしたもの（段 14。GET /me/spaces 用）:
+	// 「1 スペース→全員」ではなく「1 人→全スペース」。今のワークスペース内で自分が
+	// アクセスできるスペースを、最も強い役割で 1 行にまとめて返す。
+	ListMySpaces(ctx context.Context, workspaceID string, userID uint64) ([]domain.MySpace, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
 	//
 	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、

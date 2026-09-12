@@ -50,6 +50,16 @@ type UserDisplay struct {
 	Name   string `json:"name"`
 	// AvatarURL は profiles.avatar_url。設定していなければ空文字。
 	AvatarURL string `json:"avatarUrl"`
-	// StatusMessage は profiles.status_message（本人が自由に書ける一言。「会議中」等）。
+	// StatusMessage は profiles.status_emoji + status_text を結合した一言
+	// （domain.ComposeStatusDisplay 参照。失効していれば空文字）。
 	StatusMessage string `json:"status"`
+}
+
+// UserIdentity は本人の認証方法 1 件（段 14。プロフィール画面向け、自分にしか返さない）。
+// 現状は OIDC のみだが provider を持つのはログイン経路の追加ではなく表示のため
+// （user_oidc_identities.provider の doc 参照）。
+type UserIdentity struct {
+	Provider  string    `json:"provider"`
+	Subject   string    `json:"subject"`
+	CreatedAt time.Time `json:"createdAt"`
 }

@@ -49,6 +49,8 @@ type KnowledgeBasePageHandler struct {
 	// ticketBacklinks は段 5（階層の完成とノート連携の厚み）。usecase/kb は usecase/ticket を
 	// import しないが、handler 層は両方に依存してよい（routes_ticket.go の doc と同じ理由）。
 	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase
+	// recordView は段2（閲覧の記録）。ResolveByID が CanView を確かめた後に呼ぶ。
+	recordView *kb.RecordPageViewUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -78,6 +80,7 @@ func NewKnowledgeBasePageHandler(
 	resolveCover *kb.ResolveCoverURLUseCase,
 	backlinks *kb.ListPageBacklinksUseCase,
 	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase,
+	recordView *kb.RecordPageViewUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:           check,
@@ -105,6 +108,7 @@ func NewKnowledgeBasePageHandler(
 		resolveCover:    resolveCover,
 		backlinks:       backlinks,
 		ticketBacklinks: ticketBacklinks,
+		recordView:      recordView,
 	}
 }
 
@@ -1251,6 +1255,8 @@ type kbResolvedPageResponse struct {
 	// 既存コメントと同じ理由で、一覧・木の応答まで毎回 presign すると N+1 になるため。
 	// カバーの presign が要るのは 1 ページを開くこの経路だけに閉じる。
 	Cover *kbPageCoverResponse `json:"cover,omitempty"`
+	// ViewCount はこのページを見たことのある人数（段2・page_views の行数。延べ回数ではない）。
+	ViewCount int `json:"viewCount"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -1327,6 +1333,14 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	} else {
 		workspaceCanEdit = wsPerm.CanEdit
 	}
+	// 閲覧の記録も、ancestors・cover・workspaceCanEdit と同じく失敗してもページは開く
+	// （記録が壊れているだけのために本文自体を見せない理由にはならない）。
+	viewCount := 0
+	if vc, viewErr := h.recordView.Execute(c.Request.Context(), loc.Workspace.ID, pageID, uid); viewErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: page view record failed", "err", viewErr)
+	} else {
+		viewCount = vc
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug:    loc.Workspace.Slug,
 		WorkspaceName:    loc.Workspace.Name,
@@ -1340,5 +1354,6 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		LastEditedBy:     h.kbLastEditedByResponse(c.Request.Context(), out.Page.LastEditedByUserID),
 		LastEditedAt:     out.BuiltAt,
 		Cover:            coverResp,
+		ViewCount:        viewCount,
 	})
 }

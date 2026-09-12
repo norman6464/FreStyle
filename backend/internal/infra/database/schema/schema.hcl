@@ -937,6 +937,57 @@ table "page_paths" {
   }
 }
 
+# page_views: 人 × ページの「最後に見た日時」を 1 行だけ持つ（開くたびに upsert）。
+# 来訪のたびに行を積む・古い行を掃除する、という形は採らない — 行数が「人 × ページ」で
+# 頭打ちになり、掃除ジョブそのものが要らなくなる。閲覧数はこの表の行数（= 見たことのある
+# 人数。延べ回数ではない）、「最近見たページ」は viewed_at の新しい順で引く。
+table "page_views" {
+  schema = schema.public
+  column "user_id" {
+    null = false
+    type = bigint
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  column "viewed_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.user_id, column.page_id]
+  }
+  # 本人自身の閲覧記録なので持ち物（CASCADE。workspace_members と同じ方針 — 段 1 の
+  # 「持ち物は CASCADE・記録は RESTRICT」参照）。
+  foreign_key "fk_page_views_user" {
+    columns     = [column.user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # ページが消えれば閲覧記録も一緒に消えてよい（pages から見た派生データ）。
+  foreign_key "fk_page_views_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 閲覧数（= このページを見た人数）を数える経路。
+  index "idx_page_views_page_id" {
+    columns = [column.page_id]
+  }
+  # 「自分の最近見たページ」を viewed_at の新しい順に引く経路。
+  index "idx_page_views_user_viewed_at" {
+    columns = [column.user_id, column.viewed_at]
+  }
+}
+
 # page_snapshots: ページのブロック行を組み直した ProseMirror ドキュメント（読み取り用のキャッシュ）。
 # 表示のたびにブロック行を木に組み直すと 1 ページで数百行の取得と再帰的な組み立てが要るため、
 # 編集のたびに 1 つの jsonb へ焼き直して読み出しを 1 行の取得に落とす。

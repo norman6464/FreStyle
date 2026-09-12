@@ -2207,3 +2207,56 @@ func (f *kbFakePageSuggestions) Resolve(
 	out := *s
 	return &out, nil
 }
+
+// kbFakePageViews は repository.PageViewRepository の fake（段2・閲覧の記録）。
+type kbFakePageViews struct {
+	// views は userID(文字列化) -> pageID -> viewedAt。CountViews はこの行数を数える。
+	views map[string]map[string]time.Time
+	// recentFor は ListMyRecentPagesUseCase 向けの候補をテストが直接差し込む場所
+	// （本物の repository のような pages/spaces/workspaces との JOIN は fake では組まない）。
+	recentFor map[uint64][]domain.RecentPage
+	failWith  error
+}
+
+var _ repository.PageViewRepository = (*kbFakePageViews)(nil)
+
+func newKbFakePageViews() *kbFakePageViews {
+	return &kbFakePageViews{
+		views:     map[string]map[string]time.Time{},
+		recentFor: map[uint64][]domain.RecentPage{},
+	}
+}
+
+func kbFakeViewUserKey(userID uint64) string { return strconv.FormatUint(userID, 10) }
+
+func (f *kbFakePageViews) RecordView(_ context.Context, _ string, pageID string, userID uint64) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	key := kbFakeViewUserKey(userID)
+	if f.views[key] == nil {
+		f.views[key] = map[string]time.Time{}
+	}
+	f.views[key][pageID] = time.Now()
+	return nil
+}
+
+func (f *kbFakePageViews) CountViews(_ context.Context, pageID string) (int, error) {
+	if f.failWith != nil {
+		return 0, f.failWith
+	}
+	n := 0
+	for _, m := range f.views {
+		if _, ok := m[pageID]; ok {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *kbFakePageViews) ListRecentPageViewCandidates(_ context.Context, userID uint64) ([]domain.RecentPage, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	return f.recentFor[userID], nil
+}

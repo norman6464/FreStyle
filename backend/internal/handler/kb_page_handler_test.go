@@ -266,6 +266,8 @@ const (
 	kbSpacesPath = "/api/v2/kb/workspaces/{slug}/spaces"
 	// kbSpacePatchPath はスペースの表示名変更。判定はスペース単位（管理）。
 	kbSpacePatchPath = "/api/v2/kb/workspaces/{slug}/spaces/" + kbSpaceID
+	// kbSpaceMembersPath はスペースメンバーの読み取り（段9）。判定はスペース単位（CanView）。
+	kbSpaceMembersPath = "/api/v2/kb/workspaces/{slug}/spaces/" + kbSpaceID + "/members"
 	// kbSearchPath は題名検索。判定は所属 + 可視のふるい（結果に出るかどうか）。
 	kbSearchPath = "/api/v2/kb/workspaces/{slug}/search"
 	// kbWorkspacePath はワークスペースの削除。判定はワークスペース単位（管理）。
@@ -346,6 +348,9 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		// お気に入り一覧（段7）。判定は所属のみ（自分の分しか返さないため）なので表にせず、
 		// Test_ナレッジAPI_お気に入り一覧は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbFavoritesPath): true,
+		// スペースメンバーの読み取り（段9）。判定が CanView で kbEndpoints（ページ単位）とは
+		// 軸が違うので表にせず、Test_ナレッジAPI_スペースメンバーは* が直接叩く。
+		http.MethodGet + " " + kbRoutePattern(kbSpaceMembersPath): true,
 		// 所属・権限の変更履歴（段 6・監査）。判定が admin（CanManage）で他の GET と軸が違うので
 		// 表にせず、Test_ナレッジAPI_変更履歴は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembershipEventsPath): true,

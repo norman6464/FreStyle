@@ -240,6 +240,10 @@ type KnowledgeBasePermissionRepository interface {
 	// 違い、停止中のアカウントも含み（復帰の入口になるため）、現在のワークスペース全体の
 	// 役割も一緒に返す。
 	ListWorkspaceMembersForAdmin(ctx context.Context, workspaceID string) ([]domain.AdminWorkspaceMember, error)
+	// ListSpaceMembers はそのスペースに届いている権限（ワークスペース全体の grant・スペースの
+	// grant・所属グループ・スペース全員）を人に解決して返す（段 9）。同じ人に複数の経路が
+	// あれば最も強い役割で 1 行にまとめる（domain.SpaceMember.Via 参照）。
+	ListSpaceMembers(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error)
 	// ListPageGrants はそのページ自身に張られた grant の一覧を返す（継承分は含まない）。
 	//
 	// **これは「このページを見られる人の一覧」ではない。** 返るのはこの段で足した行だけで、

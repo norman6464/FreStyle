@@ -721,6 +721,66 @@ func Test_ナレッジAPI_お気に入り一覧は未認証なら401(t *testing.
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func kbListSpaceMembers(t *testing.T, f kbFixture, slug, spaceID string) (*httptest.ResponseRecorder, []kbSpaceMemberResponse) {
+	t.Helper()
+	path := "/api/v2/kb/workspaces/" + slug + "/spaces/" + spaceID + "/members"
+	w := f.do(t, http.MethodGet, path, "")
+	if w.Code != http.StatusOK {
+		return w, nil
+	}
+	var got []kbSpaceMemberResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	return w, got
+}
+
+// スペースメンバーの読み取り（段9）は判定がスペース単位の CanView。RenameSpace（管理）とは
+// 軸を分けているので、拒否の畳み方（見えない=404・見えるが役割の話は無い）も別に確かめる。
+func Test_ナレッジAPI_スペースメンバーは閲覧できれば誰でも読める(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleViewer)
+	f.perms.userNames[kbUserID] = "田中 太郎"
+
+	w, got := kbListSpaceMembers(t, f, kbWorkspaceSlug, kbSpaceID)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, got, 1)
+	assert.Equal(t, kbUserID, got[0].UserID)
+	assert.Equal(t, domain.GrantRoleViewer, got[0].Role)
+	assert.Equal(t, "direct", got[0].Via)
+}
+
+// 変異確認: knowledgeBasePermissionRepository.ListSpaceMembers の Rank 比較（role.Rank() >
+// cur.role.Rank()）を「常に採用しない」向きに壊すと、複数経路のうち弱い方が残ってこのテストが
+// 落ちる（ここでは fake 側の集約ロジックを固定するテスト。本物の集約は結合テストで確認する）。
+func Test_ナレッジAPI_スペースメンバーは複数経路のうち最も強い役割を返す(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// ワークスペース全体では viewer、スペース直接では admin。強い方（admin・direct）が残ること。
+	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleViewer)
+	f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleAdmin)
+	f.perms.userNames[kbUserID] = "鈴木 花子"
+
+	_, got := kbListSpaceMembers(t, f, kbWorkspaceSlug, kbSpaceID)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, domain.GrantRoleAdmin, got[0].Role)
+	assert.Equal(t, "direct", got[0].Via)
+}
+
+func Test_ナレッジAPI_スペースメンバーは役割の無い相手には実在するスペースも存在しないIDも同じ404(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	real, _ := kbListSpaceMembers(t, f, kbWorkspaceSlug, kbSpaceID)
+	missing, _ := kbListSpaceMembers(t, f, kbWorkspaceSlug, "00000000-0000-7000-8000-00000000dead")
+	require.Equal(t, http.StatusNotFound, real.Code)
+	require.Equal(t, http.StatusNotFound, missing.Code)
+	assert.Equal(t, missing.Body.String(), real.Body.String())
+}
+
+func Test_ナレッジAPI_スペースメンバーは未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+	w, _ := kbListSpaceMembers(t, f, kbWorkspaceSlug, kbSpaceID)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
 // kbMembershipEventsPath は所属・権限の変更履歴（段 6・監査）。admin だけが読める。
 const kbMembershipEventsPath = "/api/v2/kb/workspaces/{slug}/membership-events"
 

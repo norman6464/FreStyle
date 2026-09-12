@@ -2317,3 +2317,48 @@ func (f *kbFakePageFavorites) ListFavorites(_ context.Context, workspaceID strin
 	}
 	return f.listFor[workspaceID], nil
 }
+
+// ListSpaceMembers はそのスペースに届いている権限を人に解決する（段9）。rolesAt と同じ
+// 「space の scopeRole」＋「private でなければ workspace の scopeRole を継承」の規則を、
+// ワークスペース内の全ユーザー主体に対して展開する（rolesAt は 1 人分・こちらは全員分）。
+// 同じ強さなら space 直接（"direct"）を workspace 継承より優先する。
+func (f *kbFakePerms) ListSpaceMembers(_ context.Context, workspaceID, spaceID string) ([]domain.SpaceMember, error) {
+	type resolved struct {
+		name string
+		role domain.GrantRole
+		via  string
+	}
+	byUser := map[uint64]resolved{}
+	var order []uint64
+	for _, p := range f.principals {
+		if p.WorkspaceID != workspaceID || p.Kind != domain.PrincipalKindUser || p.UserID == nil {
+			continue
+		}
+		userID := *p.UserID
+		spaceRole, hasSpace := f.scopeRoles[kbScopeKey{scopeID: spaceID, userID: userID}]
+		wsRole, hasWs := f.scopeRoles[kbScopeKey{scopeID: workspaceID, userID: userID}]
+		if sp, ok := f.pages.spaces[spaceID]; ok && sp.Visibility == domain.SpaceVisibilityPrivate {
+			hasWs = false // private スペースにはワークスペース既定を届かせない（rolesAt と同じ規則）。
+		}
+		var best *resolved
+		if hasSpace {
+			best = &resolved{role: spaceRole, via: "direct"}
+		}
+		if hasWs && (best == nil || wsRole.Rank() > best.role.Rank()) {
+			best = &resolved{role: wsRole, via: "workspace"}
+		}
+		if best == nil {
+			continue
+		}
+		best.name = f.userNames[userID]
+		byUser[userID] = *best
+		order = append(order, userID)
+	}
+	sort.Slice(order, func(i, j int) bool { return order[i] < order[j] })
+	out := make([]domain.SpaceMember, 0, len(order))
+	for _, uid := range order {
+		r := byUser[uid]
+		out = append(out, domain.SpaceMember{UserID: uid, Name: r.name, Role: r.role, Via: r.via})
+	}
+	return out, nil
+}

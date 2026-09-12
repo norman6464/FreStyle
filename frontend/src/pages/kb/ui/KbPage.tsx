@@ -540,7 +540,11 @@ export default function KbPage() {
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
       >
-        <KbSidebar workspaceSlug={data?.workspaceSlug ?? navigationWorkspaceSlug} activePageId={pageId} />
+        <KbSidebar
+          workspaceSlug={data?.workspaceSlug ?? navigationWorkspaceSlug}
+          spaceId={data?.page.spaceId ?? ''}
+          activePageId={pageId}
+        />
       </SecondaryPanel>
 
       <main className="min-w-0 flex-1 overflow-y-auto">

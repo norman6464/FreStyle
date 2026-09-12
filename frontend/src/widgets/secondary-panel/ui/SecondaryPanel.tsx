@@ -103,7 +103,7 @@ function PeekablePanel({
 
   if (panel.mode === 'pinned') {
     return (
-      <div className="hidden md:flex w-72 bg-[var(--color-nav)] flex-col h-full flex-shrink-0">
+      <div className="hidden md:flex w-72 flex-col h-full flex-shrink-0 border-r border-surface-3 bg-surface-2">
         <PanelHeader
           title={title}
           badge={badge}
@@ -261,7 +261,7 @@ export default function SecondaryPanel({
           </button>
         </div>
       ) : (
-        <div className="hidden md:flex w-72 bg-[var(--color-nav)] flex-col h-full flex-shrink-0">
+        <div className="hidden md:flex w-72 flex-col h-full flex-shrink-0 border-r border-surface-3 bg-surface-2">
           <PanelHeader
             title={title}
             badge={badge}

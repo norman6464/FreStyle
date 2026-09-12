@@ -202,6 +202,26 @@ export const KB_API = {
   space: (workspaceSlug: string, spaceId: string) =>
     `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}`,
   /**
+   * GET — /api/v2/kb/workspaces/:slug/me/spaces（段 14）
+   *
+   * 自分がアクセスできるスペースの一覧（id・name・role）。spaces と違い役割も返す。
+   * サイドバーのスペース切替・入口解決に使う。
+   */
+  mySpaces: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/me/spaces`,
+  /**
+   * GET — /api/v2/kb/workspaces/:slug/spaces/:spaceId/members（段 9）
+   *
+   * そのスペースに届いている権限を人に解決して返す（読み取り専用。停止・招待などの
+   * admin 操作は無い — ワークスペース単位の members/adminMembers とは別物）。
+   */
+  spaceMembers: (workspaceSlug: string, spaceId: string) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/spaces/${encodeURIComponent(spaceId)}/members`,
+  /** GET(一覧) — /api/v2/kb/workspaces/:slug/favorites（段 7。自分のお気に入りページ） */
+  favorites: (workspaceSlug: string) => `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/favorites`,
+  /** PUT(追加) / DELETE(解除) — /api/v2/kb/workspaces/:slug/pages/:pageId/favorite */
+  favorite: (workspaceSlug: string, pageId: string) =>
+    `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/favorite`,
+  /**
    * GET — /api/v2/kb/workspaces/:slug/search?q=
    *
    * ワークスペース全体の題名検索。返るのは閲覧できる現役ページだけで、

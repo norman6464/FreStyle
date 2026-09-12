@@ -113,7 +113,7 @@ export default function KbBacklogPage() {
   return (
     <div className="flex h-full">
       <SecondaryPanel title="ナレッジ" peekable storageKey="frestyle.panel.note" mobileOpen={mobilePanelOpen} onMobileClose={closeMobilePanel}>
-        <KbSidebar workspaceSlug={workspaceSlug ?? undefined} />
+        <KbSidebar workspaceSlug={workspaceSlug ?? undefined} spaceId={space?.id ?? ''} />
       </SecondaryPanel>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">

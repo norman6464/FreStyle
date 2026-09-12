@@ -3,7 +3,7 @@
 FreStyle の開発に参加するための規約をまとめます。
 チーム全員が参照できるよう、このファイルはリポジトリにコミットしています。
 
-- バックエンド: Go / Gin / GORM（`backend/`）
+- バックエンド: Go / Gin / sqlc（`backend/`）
 - フロントエンド: React 19 / TypeScript / Vite / Tailwind（`frontend/`）
 - インフラ / CI の設計判断: 別リポ（IaC・非公開）の `docs/`
 
@@ -11,18 +11,7 @@ FreStyle の開発に参加するための規約をまとめます。
 
 ## 1. セットアップ
 
-```bash
-# バックエンド
-cd backend
-go mod download
-go run ./cmd/server        # DATABASE_URL 等は .env で設定
-
-# フロントエンド
-cd frontend
-corepack enable   # pnpm を用意する（入らない環境では npm i -g pnpm）
-pnpm install
-pnpm run dev
-```
+起動手順・ローカルログイン（Dex）・DB のやり直し方は [トップ README](./README.md#セットアップ) にまとめてある。ここでは重複させない（2 箇所に同じ手順を書くと片方だけ更新されてドリフトする — 実際に `frontend/.env` と `.env.example` の間で起きた）。
 
 DB 接続情報・環境変数は `.env`（gitignore 済）に置き、**絶対にコミットしない**。
 

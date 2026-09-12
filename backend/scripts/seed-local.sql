@@ -102,6 +102,17 @@ SELECT n_users, activity_days
 -- 依存の子から消す(FK が無くても順序は揃えておく)。
 BEGIN;
 
+-- ナレッジ(workspaces 配下)を先に消す。pages.created_by_user_id が users を指す
+-- RESTRICT 系の外部キー(fk_pages_created_by。段 1「users.id を指す列に外部キーを張る」で
+-- 追加)を持つため、users を先に消すと「まだ pages から参照されている」で 2 回目以降の
+-- 実行が失敗する(1 回目は pages が空なので気づけない)。workspaces を消せば配下
+-- (spaces / pages / blocks / page_paths / page_snapshots / principals / workspace_grants /
+-- space_grants / page_grants)が ON DELETE CASCADE で全部まとめて消える(schema.hcl 参照)。
+-- bulk データのように子テーブルから順に DELETE する必要は無い。3 つとも
+-- (個人ワークスペース + チーム共有ワークスペース 2 つ)ここでまとめて消す。
+DELETE FROM workspaces
+WHERE id IN (:'kb_workspace_id', :'kb_workspace_alpha_id', :'kb_workspace_support_id');
+
 DELETE FROM profiles
 WHERE user_id >= 1000000;
 
@@ -110,14 +121,6 @@ WHERE user_id >= 1000000;
 
 DELETE FROM users
 WHERE id >= 1000000;
-
--- ナレッジは workspaces を消せば配下(spaces / pages / blocks / page_paths / page_snapshots /
--- principals / workspace_grants / space_grants / page_grants)が ON DELETE CASCADE で
--- 全部まとめて消える(schema.hcl 参照)。bulk データのように子テーブルから順に
--- DELETE する必要は無い。3 つとも(個人ワークスペース + チーム共有ワークスペース 2 つ)
--- ここでまとめて消す。
-DELETE FROM workspaces
-WHERE id IN (:'kb_workspace_id', :'kb_workspace_alpha_id', :'kb_workspace_support_id');
 
 -- ---- users ----------------------------------------------------------------
 -- companies / roles テーブルは会社→ワークスペース移行のレガシー橋渡し撤去(#2413)で

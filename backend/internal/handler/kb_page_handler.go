@@ -46,20 +46,18 @@ type KnowledgeBasePageHandler struct {
 	setCover       *kb.SetPageCoverUseCase
 	resolveCover   *kb.ResolveCoverURLUseCase
 	backlinks      *kb.ListPageBacklinksUseCase
-	// ticketBacklinks は段 5（階層の完成とノート連携の厚み）。usecase/kb は usecase/ticket を
-	// import しないが、handler 層は両方に依存してよい（routes_ticket.go の doc と同じ理由）。
+	// ticketBacklinks: usecase/kb は usecase/ticket を import しないが、handler 層は
+	// 両方に依存してよい（routes_ticket.go の doc と同じ理由）。
 	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase
-	// recordView は段2（閲覧の記録）。ResolveByID が CanView を確かめた後に呼ぶ。
-	recordView *kb.RecordPageViewUseCase
-	// 段7（お気に入り）。
+	// recordView は ResolveByID が CanView を確かめた後に呼ぶ。
+	recordView     *kb.RecordPageViewUseCase
 	addFavorite    *kb.AddPageFavoriteUseCase
 	removeFavorite *kb.RemovePageFavoriteUseCase
 	isFavorite     *kb.IsPageFavoriteUseCase
-	// 段13（公開範囲・ラベル）。
-	setVisibility *kb.SetPageVisibilityUseCase
-	addLabel      *kb.AddPageLabelUseCase
-	removeLabel   *kb.RemovePageLabelUseCase
-	listLabels    *kb.ListLabelsForPageUseCase
+	setVisibility  *kb.SetPageVisibilityUseCase
+	addLabel       *kb.AddPageLabelUseCase
+	removeLabel    *kb.RemovePageLabelUseCase
+	listLabels     *kb.ListLabelsForPageUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -139,23 +137,11 @@ func NewKnowledgeBasePageHandler(
 // 全読み込みを防ぐ（本文は ProseMirror の JSON なので文書 API と同じ桁で足りる）。
 const maxKnowledgeBaseBodyBytes = (1 << 20) + (64 << 10) // 1 MiB + 64 KiB
 
-// kbPageResponse はページ 1 件の返却形。
-//
-// workspaceId は載せない。ワークスペースは URL の slug と現在のユーザーの所属から決まる
-// サーバ側の関心事で、クライアントが指定に使う値ではないため（内部 UUID を配って
-// 「次はこれを送ればいい」と誤解させない）。
-// position（並び順のキー）は**返さない**。
-//
-// 分数インデックスの整数部は末尾追加のたびに 1 ずつ増えるので、a0 と a3 が見えて a1 a2 が
-// 見えなければ、その間に 2 枚あることがそのまま読める。hasHiddenChildren を有無に落として
-// 枚数を伏せた意味が、この 1 項目で消える。
-//
-// 返さなくても困らない。並び順は backend が position 順に並べた配列として渡しており、
-// 移動 API（kbMovePageRequest）は parentId だけを受けて位置はサーバが決める。
-// クライアントがキーの値を必要とする経路が無い。
-//
-// 将来「A と B の間に入れる」が要るようになっても、渡すのは隣のページの **ID** にする。
-// 生のキーを往復させると、この漏れが戻ってくる。
+// kbPageResponse はページ 1 件の返却形。workspaceId は載せない（サーバ側の関心事で
+// クライアントが指定に使う値ではない）。position（並び順のキー）も返さない —
+// 分数インデックスの整数部は末尾追加のたびに 1 ずつ増えるため、a0 と a3 だけが見えても
+// 間に 2 枚あることが読め、hasHiddenChildren を有無に落として枚数を伏せた意味が消える。
+// 並び順は position 順の配列として渡し、移動 API は parentId と隣のページ ID だけで足りる。
 type kbPageResponse struct {
 	ID              string     `json:"id"              example:"0198a000-0000-7000-8000-000000000003"`
 	SpaceID         string     `json:"spaceId"         example:"0198a000-0000-7000-8000-000000000002"`
@@ -263,10 +249,8 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 	case errors.Is(err, kb.ErrPageCycle):
 		c.JSON(http.StatusConflict, errorResponse{Error: "page_cycle"})
 	case errors.Is(err, repository.ErrPageMoveVoidsSpaceGrant):
-		// 「今の権限設定のままでは移せない」という業務上の衝突であって、サーバの故障ではない。
-		// 既にアーカイブ済み・循環と同じ 409 に揃える（どれも「リクエスト自体は正しいが、
-		// 対象の現在の状態と両立しない」）。500 で返すと、クライアントは DB 障害と区別できず
-		// 再試行してよいものと誤解する（何度試しても同じ結果になる）。
+		// 業務上の衝突であってサーバの故障ではない。既にアーカイブ済み・循環と同じ 409 に揃える
+		// （500 だと DB 障害と区別できず再試行してよいと誤解される）。
 		c.JSON(http.StatusConflict, errorResponse{Error: "space_grant_voided"})
 	case errors.Is(err, repository.ErrBlockIDConflict):
 		c.JSON(http.StatusConflict, errorResponse{Error: "block_id_conflict"})
@@ -325,9 +309,7 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 	case errors.Is(err, domain.ErrPageSuggestionAlreadyResolved):
 		c.JSON(http.StatusConflict, errorResponse{Error: "suggestion_already_resolved"})
 	case errors.Is(err, domain.ErrPageSuggestionStale):
-		// ページが提案作成後に編集されている。採用すると後の編集を黙って巻き戻すことに
-		// なるため拒否する。409 にする理由は ErrPageMoveVoidsSpaceGrant と同じ
-		// （要求自体は正しいが、対象の現在の状態と両立しない。再試行しても直らない）。
+		// ページが提案作成後に編集されている。採用すると後の編集を黙って巻き戻すため拒否する。
 		c.JSON(http.StatusConflict, errorResponse{Error: "suggestion_stale"})
 	case errors.Is(err, kb.ErrTooManyOpenSuggestions):
 		c.JSON(http.StatusTooManyRequests, errorResponse{Error: "too_many_open_suggestions"})
@@ -398,12 +380,9 @@ func requirePagePermissionWith(
 }
 
 // requireSpacePermission はスペース 1 つの実効権限を確かめる。満たさなければレスポンスを
-// 書いて false を返す。
-//
-// **ページを名指しする経路でこれを使ってはいけない。** スペースの判定はページ付与
-// （page_grants）を見ておらず、祖先のページで足された役割を取りこぼす。
-// 使ってよいのは対象がまだ存在しない操作（スペース直下へのページ作成）だけで、
-// 親を持つ作成は requirePagePermission を通す。
+// 書いて false を返す。**ページを名指しする経路でこれを使ってはいけない**（page_grants を
+// 見ないため祖先のページで足された役割を取りこぼす）。使ってよいのは対象がまだ存在しない
+// 操作（スペース直下へのページ作成）だけで、親を持つ作成は requirePagePermission を通す。
 func (h *KnowledgeBasePageHandler) requireSpacePermission(
 	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
@@ -411,8 +390,7 @@ func (h *KnowledgeBasePageHandler) requireSpacePermission(
 }
 
 // requireSpacePermissionWith は requireSpacePermission の実体。KnowledgeBasePageHandler と
-// PageTemplateHandler の両方が「スペース直下への作成」と同じ判定（parentId 相当が無いときの
-// 入口）を使うために package レベルの関数へ切り出してある（requirePagePermissionWith と同じ理由）。
+// PageTemplateHandler が同じ判定を使うため package レベルの関数へ切り出してある。
 func requireSpacePermissionWith(
 	c *gin.Context, checkSpace *kb.CheckSpacePermissionUseCase, scope kbRequestScope, spaceID string, capability domain.Capability,
 ) bool {
@@ -441,20 +419,12 @@ func requireSpacePermissionWith(
 // requireSubtreeEditPermission はページと全子孫の編集権限を確かめる。満たさなければ
 // レスポンスを書いて false を返す。子孫ごと影響が及ぶ操作（アーカイブ / 復帰 / 移動）が通す。
 //
-// いまの権限モデルでは役割は木を下るほど弱くならないので、この検査が断ることは無い
-// （理由は CanEditPageSubtreeUseCase の doc）。事実を集めるクエリの回帰を捕まえる
-// 最後の網として残してある。部分的にアーカイブして逃げる手も採れない —
-// アーカイブ済みの親の下に現役の子が残るとツリーに現れない迷子ページになり、
-// 復帰の前提（親から順に戻す）も壊れる。
-// 全部できるか、何もしないかの二択なので、フェイルクローズ側に倒して断る。
-//
-// 引き換えに、断ること自体が「この下に触れないページがある」という粒度の粗い信号になる
-// （どのページかは分からない）。ページの実在を隠す規則との衝突は承知のうえで、
-// 見えないページを黙って書き換えられる方を重く見た。
-//
-// 問い合わせはページ数によらず 1 回（CanEditPageSubtreeUseCase がサブツリーの事実を
-// まとめて集め、domain.ResolvePagePermission に 1 ページずつ通す）。判定規則を
-// ここへ写経しないこと — 写せば「直接触ると 403 なのに経由すると通る」が復活する。
+// いまの権限モデルでは役割は木を下るほど弱くならないのでこの検査が断ることは無いが
+// （理由は CanEditPageSubtreeUseCase の doc）、クエリの回帰を捕まえる最後の網として残す。
+// 部分的にアーカイブして逃げる手も採れない（迷子ページや復帰前提の破綻を招く）ため
+// 全部できるか何もしないかの二択にし、フェイルクローズ側に倒す。断ること自体が
+// 「この下に触れないページがある」という粗い信号になるが、ページの実在を隠す規則との
+// 衝突は承知のうえで、見えないページを黙って書き換えられる方を重く見た。
 func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
 	c *gin.Context, scope kbRequestScope, pageID string,
 ) bool {
@@ -480,9 +450,8 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// archived=true でアーカイブ済みの一覧に切り替える。**別の口にしない**のは、
-	// 権限の見方が現役とまったく同じだから（違うのは対象の絞り込みだけ）。
-	// 口を分けると、片方だけ直して食い違う形をわざわざ作ることになる。
+	// archived=true でアーカイブ済みの一覧に切り替える。権限の見方は現役と同じ
+	// （違うのは絞り込みだけ）なので口は分けない。
 	archived := c.Query("archived") == "true"
 	// ページごとに権限を引くと N+1 になるので、一覧はまとめて 1 回で解決する。
 	viewable, err := h.listViewable.Execute(c.Request.Context(), kb.ListViewablePagesInput{
@@ -495,20 +464,12 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	// スペースの実在確認はしない。「無いスペース」と「中身が 1 件も見えないスペース」を
-	// 撃ち分けると、スペース ID の総当たりで実在が分かってしまうため、どちらも空配列にする。
-	//
-	// 見えない親の子は根へ昇格させない（PageTreeOrphanHidden）。昇格させると、隠した親の
-	// タイトルは伏せたまま「その下に何かがある」ことだけがツリーの形から漏れる。
-	// 孤児（親が一覧に無いページ）の扱いは、どちらの一覧かで変える。
-	//
-	// 現役では落とす。昇格させると「見えない親の下に何かがある」ことがツリーの形から漏れる。
-	//
-	// アーカイブ済みでは根へ昇格させる。**アーカイブの根は必ず孤児になる**（その親は
-	// 現役なので、この一覧には入らない）ため、落とすと 1 件も出なくなる。
-	// 昇格させても現役のような漏れは起きない — 昇格した行が「親が現役の根」なのか
-	// 「親もアーカイブ済みだが自分には見えない」のかは、応答から区別が付かない。
-	// 前者だけが復帰できるので、その違いは parentArchived という事実として返す。
+	// スペースの実在確認はしない（「無いスペース」と「中身が見えないスペース」を撃ち分けると
+	// ID の総当たりで実在が分かる）。孤児（親が一覧に無いページ）の扱いは一覧の種類で変える:
+	// 現役は根へ昇格させない（隠した親の下に何かがあることがツリーの形から漏れる）。
+	// アーカイブ済みは根へ昇格させる — アーカイブの根は必ず孤児になる（親は現役でこの一覧に
+	// 入らない）ため落とすと 1 件も出ない。「親が現役の根」か「親もアーカイブ済みで
+	// 見えない」かは区別が付かないが、復帰できるのは前者だけなので parentArchived として返す。
 	policy := kb.PageTreeOrphanHidden
 	if archived {
 		policy = kb.PageTreeOrphanAsRoot
@@ -520,12 +481,9 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 	})
 }
 
-// kbCreatePageRequest はページ作成の入力。
-//
-// parentId は任意。省略するとスペース直下（ルート）に作る。どちらで判断するかが変わる:
-// 親を指定したときは「その親ページの編集権限」、省略したときは「そのスペースの編集権限」。
-// ページ付与（page_grants）は経路の上から降りてくるので、親を持つ作成をスペースの
-// 判定で通してはいけない（親に足された役割を取りこぼして、書ける相手を断ってしまう）。
+// kbCreatePageRequest はページ作成の入力。parentId は任意（省略するとスペース直下）。
+// 判定は親の有無で変わる: 親を指定したときは親ページの編集権限、省略したときはスペースの
+// 編集権限（親を持つ作成をスペースの判定で通すと、親に足された役割を取りこぼす）。
 type kbCreatePageRequest struct {
 	// ParentID が空文字（未指定）ならスペース直下に作る。
 	ParentID string `json:"parentId,omitempty" example:"0198a000-0000-7000-8000-000000000003"`
@@ -545,10 +503,6 @@ func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 		return
 	}
 	spaceID := c.Param("spaceId")
-	// 判定の入口を親の有無で分ける。親があるならページの権限（祖先のページ付与まで見る）、
-	// 無いならスペースの権限（ページ付与を見ない段）。取り違えると、親に editor を
-	// 張られただけの相手がその下に書けない／スペースの editor がルートを作れない、
-	// のどちらかになる。
 	var parentID *string
 	if req.ParentID == "" {
 		if !h.requireSpacePermission(c, scope, spaceID, domain.CapabilityEdit) {
@@ -592,9 +546,8 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	// 本文中のページ参照の題名を、読み手にとっての「いまの題名」へ差し替えて出す
-	// （題名の正本は pages.title で、保存側は title を持たない）。解決の失敗は
-	// 本文の読み出しを止めない — 元の doc のまま返し、死んでいることだけ記録する。
+	// 本文中のページ参照の題名を「いまの題名」へ差し替える。解決の失敗は本文の読み出しを
+	// 止めない — 元の doc のまま返し、死んでいることだけ記録する。
 	doc, refErr := h.resolveRefs.Execute(c.Request.Context(), kb.ResolvePageRefTitlesInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
@@ -611,10 +564,6 @@ func (h *KnowledgeBasePageHandler) Get(c *gin.Context) {
 
 // Backlinks は、このページを参照している（page_links.target_page_id = このページ）
 // ページのうち、閲覧できるものだけを返す（逆リンク）。
-//
-// 対象ページ自体を見られない場合は他のページ名指し系エンドポイントと同じ 404
-// （requirePagePermission が実在も伏せて畳む）。応答は既存の kbPageResponse の配列
-// （新しいフィールドは不要 — 逆リンクは「見えるページの一覧」以上の情報を持たない）。
 func (h *KnowledgeBasePageHandler) Backlinks(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -642,12 +591,9 @@ func (h *KnowledgeBasePageHandler) Backlinks(c *gin.Context) {
 }
 
 // TicketBacklinks は、このページを本文の pageRef で参照しているチケット一覧を返す
-// （段 5・ticket_page_links の逆参照）。
-//
-// チケットには pages のような個票の権限が無く、実効権限はスペース単位（設計 Ⅳ-H）。
-// 候補は複数スペースにまたがりうるので、登場したスペースごとに 1 回だけ CanView を判定する
-// （チケット 1 件ごとに判定すると同じスペースを何度も引き直すことになる）。
-// 見えないスペースのチケットは行ごと出さない（Backlinks が見えないページを出さないのと同じ扱い）。
+// （ticket_page_links の逆参照）。チケットには pages のような個票の権限が無く、実効権限は
+// スペース単位。候補は複数スペースにまたがりうるので、登場したスペースごとに 1 回だけ
+// CanView を判定する（チケット 1 件ごとに判定すると同じスペースを何度も引き直す）。
 func (h *KnowledgeBasePageHandler) TicketBacklinks(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -1063,22 +1009,12 @@ func (h *KnowledgeBasePageHandler) ClearCover(c *gin.Context) {
 }
 
 // kbMovePageRequest はページ移動の入力。
-//
-// parentId が必須なのは作成と同じ理由。スペース直下へ移す操作は移動先スペースに対する
-// 権限で判断する必要があり、その口がまだ無い。
 type kbMovePageRequest struct {
-	// ParentID を省くと、いまと同じスペースの直下（ルート）へ移す。
-	//
-	// 省けるようにしたのはドラッグのため。入れ子になったページを最上段へ戻すのは
-	// 基本の操作で、これが無いと「入れることはできるが出せない」ドラッグになる。
-	// 判断はスペースの編集権限で行う（ページ付与が届かない段なので、そこが正しい単位）。
+	// ParentID を省くと、いまと同じスペースの直下（ルート）へ移す（ドラッグで最上段へ
+	// 戻す操作のため。判断はスペースの編集権限で行う）。
 	ParentID string `json:"parentId,omitempty" example:"0198a000-0000-7000-8000-000000000003"`
 	// AfterPageID / BeforePageID は移動先の兄弟の中でどこに置くかを、隣のページの ID で表す。
 	// どちらも空なら末尾。**両方を指定することはできない。**
-	//
-	// 並び順のキーそのものを受け取らないのは、そもそも返していないため
-	// （キーの整数部は兄弟の通し番号になるので、飛びから伏せた枚数が読める）。
-	// 「先頭に置く」は「最初の兄弟の手前（beforePageId）」として表す。
 	AfterPageID  string `json:"afterPageId,omitempty"  example:"0198a000-0000-7000-8000-000000000004"`
 	BeforePageID string `json:"beforePageId,omitempty" example:"0198a000-0000-7000-8000-000000000005"`
 }
@@ -1093,47 +1029,14 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
 		return
 	}
-	// 根の権限を先に見るのは応答を撃ち分けないため（閲覧できない根は 404 のまま）。
-	// そのうえで子孫まで確かめる。
-	//
-	// # なぜ移動でも子孫を見るのか
-	//
-	// 移動はサブツリーごと動く。動いた瞬間、**子孫それぞれの祖先の並びが変わる**。
-	// ページ付与（page_grants）は経路の上から降りてくるので、祖先が変われば子孫の
-	// 実効権限も変わる — 移動先の祖先に張られた付与が新たに届いたり、元の祖先から
-	// 届いていた付与が外れたりする。操作者はその子孫を見られないので、**自分が誰に何を
-	// 開いたのか分からないまま権限を書き換えることになる。**
-	// 権限を変える操作は必ず admin の gate（kb_permission_gate.go）を通すのに、
-	// 移動だけがその外側から同じ結果を作れてしまう、というのがこの穴の正体。
-	//
-	// # なぜアーカイブと同じ判定に揃えたのか（移動特有の事情を検討したうえで）
-	//
-	// 「全部できるか、何もしないか」の性質が移動でもそのまま成り立つ。移動は
-	// pages / page_paths / 子孫の space_id を repository の 1 トランザクションで
-	// まとめて付け替える操作で、**部分的な移動という中間状態が存在しない**
-	// （子孫を置き去りにすれば木が根から切れる）。アーカイブを閉じる側へ倒した論拠が
-	// そのまま使えるので、判定を分ける理由が無い。分ければ「アーカイブなら断られるのに
-	// 移動なら通る」という、経路で食い違う状態を自分から作ることになる。
-	//
-	// 移動はアーカイブより頻度が高い（ドラッグで動かせるようになれば特に）。これは
-	// 緩める理由ではなく締める理由になる — 穴を踏む回数がそのまま増えるため。
-	// 費用も同じで、増えるのはアーカイブと同一のクエリ 1 回だけ（実測: 5,000 ページの
-	// サブツリーで 3.0 ms、最悪ケースでも 174 ms）。
-	//
-	// 断ること自体が「この下に触れないページがある」という粒度の粗い信号になる点も
-	// アーカイブと同じで、同じ理由で許容する（どのページかまでは分からない）。
-	//
-	// # 断ったときに何も書き換わらないこと
-	//
-	// この検査は読み取りだけで、通らなければ**移動の usecase を呼ばずに return する**。
-	// parent_id / position / page_paths を触るのは repository.MovePage だけなので、
-	// ここで返した時点でどのテーブルにも書き込みは起きていない。
-	//
-	// # 同一スペース内の移動もここを通る
-	//
-	// repository.ErrPageMoveVoidsSpaceGrant が塞いでいるのはスペースをまたぐ
-	// 移動だけ（「スペース全員」宛てのページ付与が移動先で失効する場合）。同一スペース内で
-	// 親を付け替える移動には、子孫の権限を見る経路がこれ以外に無い。
+	// 根の権限を先に見て応答を撃ち分けず、そのうえで子孫まで確かめる（Archive と同じ形）。
+	// 移動はサブツリーごと動き、動いた瞬間に子孫それぞれの祖先の並びが変わる。ページ付与は
+	// 経路の上から降りてくるため、操作者が見られない子孫の実効権限を、admin の gate
+	// （kb_permission_gate.go）を経ずに書き換えられてしまう穴になる。移動も
+	// pages/page_paths/子孫の space_id を 1 トランザクションでまとめて付け替える
+	// 「全部かゼロか」の操作なので、Archive と判定を分ける理由が無い（実測コストは同一
+	// クエリ 1 回、5,000 ページのサブツリーで 3.0ms）。この検査は読み取りだけで、通らなければ
+	// usecase を呼ばずに return するため何も書き換わらない。
 	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
@@ -1143,14 +1046,9 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// 移動先も編集できなければならない。動かすページの権限だけで通すと、
-	// 自分が書けないサブツリーへページを差し込めてしまう。
-	//
-	// 親を指定したときは**その親ページ**の編集権限、省いたとき（スペース直下へ戻す）は
-	// **そのスペース**の編集権限で判断する。作成の入口と同じ分け方で、理由も同じ —
-	// ページ付与（page_grants）は経路の上から降りてくるので、親を持つ移動を
-	// スペースの判定で通すと、親に張られた付与を取りこぼして書ける相手を断ってしまう。
-	// 逆にスペース直下にはページ付与が届かないので、そこはスペースの権限が正しい単位。
+	// 移動先も編集できなければならない（動かすページの権限だけで通すと、自分が書けない
+	// サブツリーへ差し込めてしまう）。親を指定したときはその親ページ、省いたとき
+	// （スペース直下へ戻す）はそのスペースの編集権限で判断する（Create と同じ分け方）。
 	var newParentID *string
 	if req.ParentID != "" {
 		if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
@@ -1184,11 +1082,8 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 		anchor = req.BeforePageID
 		anchorBefore = true
 	}
-	// 隣に指定したページは**閲覧できなければならない**。
-	//
-	// 確かめずに通すと、「その ID が移動先の子か」を成功と 400 の差で言い当てられる
-	// （移動先を編集できれば誰でも叩ける）。閲覧できるページなら、そこに在ることは
-	// 既に分かっているので新しくは漏れない。閲覧できなければ他と同じ 404 に畳まれる。
+	// 隣に指定したページは閲覧できなければならない（確かめずに通すと「その ID が移動先の
+	// 子か」を成功と 400 の差で言い当てられる）。
 	if anchor != "" && !h.requirePagePermission(c, scope, anchor, domain.CapabilityView) {
 		return
 	}
@@ -1366,48 +1261,30 @@ func limitKnowledgeBaseBody(c *gin.Context) {
 }
 
 // kbResolvedPageResponse は /kb/pages/{pageId}（URL にテナントを持たない解決）の返却形。
-// workspaceSlug は以降の API 呼び出し（木・保存）に、workspaceName と ancestors は
-// パンくず（場所の表示）に、canEdit は編集 UI の、canManage は共有 UI の、canComment は
-// コメントの書き込み系 UI（作成・返信・解決/再開ボタン）の出し分けに使う。
-// ancestors は**読み手が閲覧できる祖先だけ**を根から順に持つ（木と同じ規則で穴があき得る）。
+// ancestors は読み手が閲覧できる祖先だけを根から順に持つ（木と同じ規則で穴があき得る）。
 type kbResolvedPageResponse struct {
 	WorkspaceSlug string          `json:"workspaceSlug" example:"w-3f2a9c"`
 	WorkspaceName string          `json:"workspaceName" example:"開発チーム"`
 	Page          kbPageResponse  `json:"page"`
 	Doc           json.RawMessage `json:"doc"`
 	CanEdit       bool            `json:"canEdit"`
-	// CanManage はそのページの権限を変えられるか（共有ボタンを出すかの判定に使う）。
-	// 届いている役割が admin かどうかだけで決まる。
+	// CanManage はそのページの権限を変えられるか（届いている役割が admin かどうかで決まる）。
 	CanManage bool `json:"canManage"`
-	// WorkspaceCanEdit はこのページではなく**ワークスペース全体**への書き込み資格
-	// （CheckWorkspacePermissionUseCase・PageTemplateHandler.requireWorkspaceCanEdit と同じ判定）。
-	// CanEdit はページ単位の実効権限（付与の合成）なので、ページ/スペース限定の編集権限しか
-	// 持たない人には true でも、ワークスペース全体への操作（雛形の作成・削除）はできない
-	// ことがある。雛形関連のボタンはこちらで出し分ける。
+	// WorkspaceCanEdit はページではなく**ワークスペース全体**への書き込み資格
+	// （雛形の作成・削除ボタンの出し分けに使う。ページ単位の CanEdit とは別軸）。
 	WorkspaceCanEdit bool `json:"workspaceCanEdit"`
-	// CanComment はコメントを作成・返信・解決/再開できるか（domain.PagePermission.CanComment
-	// と同じ規則。共有リンク経由では常に false）。一覧の閲覧自体は CanView だけで誰でもできる。
-	CanComment bool             `json:"canComment"`
-	Ancestors  []kb.AncestorRef `json:"ancestors"`
-	// LastEditedBy はまだ誰も本文を保存していなければ null。name は引けなければ空文字。
+	// CanComment はコメントを作成・返信・解決/再開できるか（共有リンク経由では常に false）。
+	CanComment   bool                 `json:"canComment"`
+	Ancestors    []kb.AncestorRef     `json:"ancestors"`
 	LastEditedBy *userDisplayResponse `json:"lastEditedBy,omitempty"`
-	// LastEditedAt は page_snapshots.built_at（本文保存と同じトランザクションの時刻）。
-	// pages.updated_at は改名・アイコン変更でも動くのでここには使わない。
+	// LastEditedAt は page_snapshots.built_at（pages.updated_at は改名等でも動くため使わない）。
 	LastEditedAt *time.Time `json:"lastEditedAt,omitempty"`
-	// Cover は解決済みのカバー（表示 URL 付き）。未設定・解決失敗のいずれも null。
-	//
-	// kbPageResponse（ツリー・一覧で使う型）には**持たせない** — LastEditedByUserID の
-	// 既存コメントと同じ理由で、一覧・木の応答まで毎回 presign すると N+1 になるため。
-	// カバーの presign が要るのは 1 ページを開くこの経路だけに閉じる。
-	Cover *kbPageCoverResponse `json:"cover,omitempty"`
-	// ViewCount はこのページを見たことのある人数（段2・page_views の行数。延べ回数ではない）。
-	ViewCount int `json:"viewCount"`
-	// IsFavorite は自分がこのページをお気に入りに付けているか（段7・★ の初期状態）。
-	IsFavorite bool `json:"isFavorite"`
-	// Labels はこのページに付いたラベル（段13。ticket_labels と語彙を共有する page_labels）。
-	// kbPageResponse には持たせない（一覧・木の応答まで毎回引くと N+1 になるため。
-	// Cover / ViewCount / IsFavorite と同じ判断）。
-	Labels []domain.Label `json:"labels"`
+	// Cover / ViewCount / IsFavorite / Labels は kbPageResponse（ツリー・一覧）には持たせない
+	// — 一覧・木の応答まで毎回引くと N+1 になるため、1 ページを開くこの経路だけに閉じる。
+	Cover      *kbPageCoverResponse `json:"cover,omitempty"`
+	ViewCount  int                  `json:"viewCount"`
+	IsFavorite bool                 `json:"isFavorite"`
+	Labels     []domain.Label       `json:"labels"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -1456,7 +1333,7 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	if refErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: page ref title resolve failed", "err", refErr)
 	}
-	// パンくず（閲覧できる祖先だけ）。失敗してもページは開く — 空のまま出し、記録だけ残す。
+	// 以下はすべて付随情報の取得: 失敗してもページ本体は開く（ゼロ値で出し、記録だけ残す）。
 	ancestors, ancErr := h.ancestors.Execute(c.Request.Context(), kb.ListViewableAncestorsInput{
 		WorkspaceID: loc.Workspace.ID,
 		UserID:      uid,
@@ -1466,15 +1343,11 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		slog.WarnContext(c.Request.Context(), "kb: ancestors resolve failed", "err", ancErr)
 		ancestors = []kb.AncestorRef{}
 	}
-	// カバーの presign も、ancestors / refs と同じく失敗してもページは開く
-	// （画像 1 枚出せないだけのために本文ごと見せない理由が無い）。空のまま出し、記録だけ残す。
 	coverResp, coverErr := h.resolveCoverResponse(c.Request.Context(), out.Page.Cover)
 	if coverErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: cover resolve failed", "err", coverErr)
 		coverResp = nil
 	}
-	// ワークスペース全体への CanEdit も、ancestors・cover と同じく失敗してもページは開く
-	// （雛形ボタンを一時的に隠すだけで、本文自体を見せない理由にはならない）。
 	workspaceCanEdit := false
 	if wsPerm, wsErr := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
 		WorkspaceID: loc.Workspace.ID,
@@ -1484,22 +1357,18 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	} else {
 		workspaceCanEdit = wsPerm.CanEdit
 	}
-	// 閲覧の記録も、ancestors・cover・workspaceCanEdit と同じく失敗してもページは開く
-	// （記録が壊れているだけのために本文自体を見せない理由にはならない）。
 	viewCount := 0
 	if vc, viewErr := h.recordView.Execute(c.Request.Context(), loc.Workspace.ID, pageID, uid); viewErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: page view record failed", "err", viewErr)
 	} else {
 		viewCount = vc
 	}
-	// isFavorite も同じく飾り情報。取得に失敗してもページは開く（false のまま出す）。
 	isFav := false
 	if fav, favErr := h.isFavorite.Execute(c.Request.Context(), pageID, uid); favErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: is favorite check failed", "err", favErr)
 	} else {
 		isFav = fav
 	}
-	// labels も同じく飾り情報。取得に失敗してもページは開く（空のまま出す）。
 	labels, labelsErr := h.listLabels.Execute(c.Request.Context(), loc.Workspace.ID, pageID)
 	if labelsErr != nil {
 		slog.WarnContext(c.Request.Context(), "kb: labels lookup failed", "err", labelsErr)

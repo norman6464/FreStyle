@@ -17,27 +17,11 @@ import (
 // knowledgeBasePermissionRepository は [repository.KnowledgeBasePermissionRepository] の実装。
 // ナレッジは GORM を通さない方針のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
 //
-// # ユーザー ID の境界（uint64 → bigint）について
-//
-// domain のユーザー ID は uint64、DB の principals.user_id / share_links.created_by_user_id は
-// bigint（＝ 符号付き 64bit・int64）。この境界を int64(userID) と素で書いてはいけない。
-// Go の変換はビット列をそのまま読み替えるだけなので、userID が math.MaxInt64 を超えると
-// 最上位ビットが符号ビットとして解釈され、値が負数へ巻き戻る
-// （例: 1<<63 = 9223372036854775808 → -9223372036854775808）。
-// 巻き戻った値は「たまたま別の行に一致し得る値」であって、元の入力とは無関係な行を指す。
-// この API はユーザー ID を URL のパスから uint64 として受ける（handler の kbUserIDParam は
-// strconv.ParseUint(..., 10, 64) なので 2^63 以上も通る）ため、利用者が指定した値が
-// そのままここへ届く。変換は必ず toInt64ID（ids.go）を通し、範囲外は下の規則で扱う。
-//
-// 範囲外（> math.MaxInt64）の userID が意味するもの: users.id は bigint なので、
-// その値を持つユーザーは**存在し得ない**。したがって扱いは読み書きで分かれる。
-//
-//   - 書き込み: エラーを返す。1 行も書けていないのに nil を返すと、呼び出し側が
-//     「作成・更新できた」と誤認する。
-//   - 読み取り（権限の判定・一覧）: 「該当なし」を返す。クエリを投げても 0 行になる入力なので、
-//     0 行のときとまったく同じ値を返すのが正しい。**必ず拒否側（deny）に倒す**こと。
-//     ここで「許可」側の値（役割あり・メンバーである・閲覧できる）を返すと、
-//     存在しないユーザー ID を名乗るだけで権限が湧く＝権限昇格になる。
+// ユーザー ID の境界（uint64 → bigint）に注意: domain の uint64 を int64(userID) と素で
+// 書くと、math.MaxInt64 を超える値は最上位ビットが符号ビットに化けて負数へ巻き戻り、
+// 元の入力とは無関係な行を指してしまう。変換は必ず toInt64ID（ids.go）を通し、範囲外の
+// userID（実在しえない）は書き込みならエラー、読み取り（権限判定・一覧）なら
+// **必ず拒否側（deny）に倒す**こと — 許可側の値を返すと権限昇格になる。
 type knowledgeBasePermissionRepository struct {
 	baseRepository
 }
@@ -350,11 +334,9 @@ func (r *knowledgeBasePermissionRepository) FindUserPrincipal(ctx context.Contex
 	return &p, nil
 }
 
-// DeletePrincipal は主体を 1 件消す。
-//
-// 主体を消すと、その主体に張られていた grant も FK の CASCADE で消える。つまりこれは
-// 「ワークスペースの admin を 1 人減らし得る操作」でもあるので、grant の取り消しと
-// まったく同じ検査を、同じトランザクションの中で通す（withLastAdminGuard の doc を参照）。
+// DeletePrincipal は主体を 1 件消す。grant も FK の CASCADE で消えるため、admin を
+// 減らし得る操作として grant の取り消しと同じ検査を同じトランザクションで通す
+// （withLastAdminGuard 参照）。
 func (r *knowledgeBasePermissionRepository) DeletePrincipal(ctx context.Context, workspaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
@@ -446,13 +428,9 @@ func (r *knowledgeBasePermissionRepository) AddGroupMember(ctx context.Context, 
 	})
 }
 
-// RemoveGroupMember はグループから 1 人外す。
-//
-// ここは 0 行削除を成功のままにする（not-found にしない）。求められているのは
-// 「その主体がこのグループに載っていない状態」であって、今回の呼び出しで実際に 1 行
-// 消えたかどうかではない。元から載っていない主体を外す要求は、その事後条件を既に
-// 満たしているので冪等に成功で良い。Update 系と違い、成功を返しても「保存したはずの値が
-// 保存されていない」という取り違えは起きない。
+// RemoveGroupMember はグループから 1 人外す。0 行削除も成功のままにする（not-found に
+// しない）— 求められているのは「載っていない状態」で、元から載っていなければ
+// その事後条件を既に満たしているので冪等に成功でよい。
 func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	gID, ok2 := kbParseID(groupPrincipalID)
@@ -468,12 +446,6 @@ func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Contex
 	return err
 }
 
-// UpsertWorkspaceGrant はワークスペース全体の既定の役割を 1 行に揃える。
-//
-// admin を**与える**向きは admin を減らさないので検査も行ロックも要らない（素で書く）。
-// admin から他の役割へ**落とす**向きは、行が消えないだけで「admin を外す」操作そのものなので、
-// 取り消し・メンバー削除とまったく同じ検査を同じトランザクションで通す。
-// GrantWorkspaceRoleIfAbsent は既定の役割を無いときだけ与える（詳細は port のコメント）。
 func (r *knowledgeBasePermissionRepository) GrantWorkspaceRoleIfAbsent(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
@@ -488,9 +460,8 @@ func (r *knowledgeBasePermissionRepository) GrantWorkspaceRoleIfAbsent(ctx conte
 }
 
 // recordWorkspaceRoleChange は、qtx の指す時点での役割を old として読んでから mutate を実行し、
-// principal が人（kind=user）なら membership_events へ 1 件記録する（段 6・監査。group /
-// space_all は特定の 1 人を追う membership_events の対象外）。old と new が同じ（実質変化なし）
-// なら何も記録しない。
+// principal が人（kind=user）なら membership_events へ 1 件記録する（group / space_all は
+// 特定の 1 人を追う membership_events の対象外）。old と new が同じなら何も記録しない。
 func recordWorkspaceRoleChange(
 	ctx context.Context, qtx *sqlcgen.Queries, workspaceID, principalID uuid.UUID, actorUserID int64,
 	newLabel *string, mutate func(qtx *sqlcgen.Queries) error,
@@ -535,6 +506,9 @@ func recordWorkspaceRoleChange(
 	)
 }
 
+// UpsertWorkspaceGrant はワークスペース全体の既定の役割を 1 行に揃える。admin を**与える**
+// 向きは検査も行ロックも要らないが、admin から他の役割へ**落とす**向きは「admin を外す」
+// 操作そのものなので、取り消し・メンバー削除と同じ検査を同じトランザクションで通す。
 func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(
 	ctx context.Context, workspaceID, principalID string, role domain.GrantRole, actorUserID uint64,
 ) (*domain.WorkspaceGrant, error) {
@@ -607,29 +581,14 @@ func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Con
 
 // withLastAdminGuard は「この主体から admin を外す」操作を 1 トランザクションで包み、
 // ユーザーの admin が 0 人になる場合は repository.ErrLastWorkspaceAdmin を返して
-// mutate を一度も呼ばない。
+// mutate を一度も呼ばない（0 人になると誰も復旧できなくなるため）。
 //
-// # なぜここまでするのか
-//
-// ワークスペースの admin が 0 人になると、そのワークスペースの権限を変えられる人は
-// API のどこにも居なくなる。ナレッジは「アプリの super_admin なら通る」という
-// 抜け道を意図的に持たないため、**元 admin を含めて誰も復旧できない**（DB を直接
-// 触るしかない）。逆に「最後の 1 人は自分を外せない」で詰まる場面は、先に別の誰かへ
-// admin を渡せば必ず解ける。取り返しがつかない側だけを禁じる。
-//
-// # なぜ検査を手前（usecase）に置くだけでは足りないのか
-//
-// 手前の CanRemoveWorkspaceAdminUseCase は読み取りだけで、そのあとの書き換えは別の
-// トランザクションになる。admin 2 人をほぼ同時に外す 2 本の要求は、両方ともその検査を
-// 通り抜けて両方とも成功し得る（実測: 2 本同時に流すと 60 回中 59 回 admin が 0 人になった）。
-//
-// # なぜ「検査を DELETE の EXISTS へ畳んで単一文にする」だけでは足りないのか
-//
-// PostgreSQL の既定は READ COMMITTED で、EXISTS の副問い合わせは行をロックしない。
-// 2 つのトランザクションが互いの admin 行を「まだ在る」と見たまま、それぞれ相手を
-// 消せてしまう。実測でもこの形は明示トランザクションを重ねると admin 0 人を再現した。
-// LockWorkspaceAdminGrantsForRemoval が FOR UPDATE で admin 行をロックし、そのロックを
-// 書き換えと同じトランザクションが握り続けることで初めて塞がる。
+// 手前の CanRemoveWorkspaceAdminUseCase の読み取り検査だけでは足りない: 書き換えは別
+// トランザクションになるため、admin 2 人をほぼ同時に外す要求は両方とも検査を通り抜けて
+// 両方成功し得る（実測: 60 回中 59 回 admin が 0 人になった）。検査を DELETE の EXISTS へ
+// 畳んで単一文にするだけでも足りない — PostgreSQL の既定 READ COMMITTED では EXISTS の
+// 副問い合わせが行をロックしないため。LockWorkspaceAdminGrantsForRemoval が FOR UPDATE で
+// admin 行をロックし、そのロックを書き換えと同じトランザクションが握り続けて初めて塞がる。
 func (r *knowledgeBasePermissionRepository) withLastAdminGuard(
 	ctx context.Context,
 	workspaceID, principalID uuid.UUID,

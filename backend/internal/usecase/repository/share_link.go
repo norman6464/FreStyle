@@ -8,14 +8,12 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/domain"
 )
 
-// ErrShareLinkNotFound は対象の共有リンクが存在しないときに返す。
-// トークンが違う場合もこれを返す（存在の有無自体を漏らさない）。
+// ErrShareLinkNotFound は対象の共有リンクが存在しない、またはトークンが違うときに返す
+// （存在の有無自体を漏らさない）。
 var ErrShareLinkNotFound = errors.New("share link not found")
 
-// ShareLinkWrite は共有リンクの発行に渡す値。
-//
-// ID と PrincipalID を持たないのは、どちらも採番が repository の責務のため
-// （主体の作成と共有リンクの作成は同じトランザクションで行う）。
+// ShareLinkWrite は共有リンクの発行に渡す値。ID と PrincipalID を持たないのは、
+// どちらも採番が repository の責務のため（主体と共有リンクの作成は同じトランザクションで行う）。
 type ShareLinkWrite struct {
 	WorkspaceID string
 	PageID      string
@@ -32,13 +30,10 @@ type ShareLinkWrite struct {
 }
 
 // ShareLinkRepository は共有リンク（share_links、および発行時に紐づく
-// kind='share_link' の principal）へのアクセスを提供する。
-//
-// KnowledgeBasePermissionRepository から分けているのは、他のどの grant/principal
-// 操作からも独立して呼ばれるため（IssueShareLinkUseCase 等、kb_share_link_usecase.go の
-// 4 つの usecase 以外の消費者を持たない）。Create の内部でだけ principal + share_link を
-// 1 トランザクションで作る（主体だけが残る／リンクだけが残る状態を作らない）が、
-// これは 1 メソッドに閉じたままの操作で、usecase 層で束ねる対象ではない。
+// kind='share_link' の principal）へのアクセスを提供する。KnowledgeBasePermissionRepository
+// から分けているのは、他のどの grant/principal 操作からも独立して呼ばれるため。
+// Create の内部でだけ principal + share_link を 1 トランザクションで作る
+// （主体だけ／リンクだけが残る状態を作らない）。
 type ShareLinkRepository interface {
 	// Create は共有リンクを発行する。kind='share_link' の主体の採番と作成も
 	// 同じトランザクションで行う。

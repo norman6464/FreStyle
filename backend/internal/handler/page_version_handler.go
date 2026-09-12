@@ -15,14 +15,11 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
-// PageVersionHandler はページ本文の版（page_versions・FRESTYLE-433 段 3）を受ける。
-// comment_handler.go の CommentHandler と同じ形 — requirePagePermissionWith を再利用し、
-// user.LookupUserDisplayUseCase を注入して著者を解決する（キャッシュは
-// user_display_response.go の userDisplayCache を共有）。
-//
-// バージョンは comment のような新しい権限軸（CanComment）を持たない。ページ本文そのものの
-// 履歴なので、認可は CapabilityView / CapabilityEdit の 2 値だけで足りる
-// （一覧・単体取得は閲覧できれば誰でも、作成・復元は編集できる人だけ）。
+// PageVersionHandler はページ本文の版（page_versions）を受ける。CommentHandler と同じ形——
+// requirePagePermissionWith を再利用し、user.LookupUserDisplayUseCase で著者を解決する。
+// バージョンは CanComment のような新しい権限軸を持たず、ページ本文そのものの履歴なので
+// 認可は CapabilityView / CapabilityEdit の 2 値だけで足りる（一覧・単体取得は閲覧できれば
+// 誰でも、作成・復元は編集できる人だけ）。
 type PageVersionHandler struct {
 	check       *kb.CheckPagePermissionUseCase
 	create      *kb.CreateExplicitPageVersionUseCase
@@ -32,7 +29,6 @@ type PageVersionHandler struct {
 	userDisplay *user.LookupUserDisplayUseCase
 }
 
-// NewPageVersionHandler は PageVersionHandler を組み立てる。
 func NewPageVersionHandler(
 	check *kb.CheckPagePermissionUseCase,
 	create *kb.CreateExplicitPageVersionUseCase,
@@ -82,8 +78,7 @@ func (h *PageVersionHandler) toDetailResponse(ctx context.Context, v domain.Page
 	}
 }
 
-// List はページの版一覧を返す（CapabilityView — 閲覧できれば誰でも読める。
-// ListThreads と同じ扱い。doc は含まない）。
+// List はページの版一覧を返す（CapabilityView — 閲覧できれば誰でも読める。doc は含まない）。
 func (h *PageVersionHandler) List(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -110,8 +105,7 @@ func (h *PageVersionHandler) List(c *gin.Context) {
 }
 
 // parsePageVersionSeq はパス変数 :seq を int64 としてパースする。パース失敗は
-// domain.ErrPageVersionNotFound と同じ扱い（404）にする — 数値ですらない seq を「そんな版は
-// 無い」と区別して見せる理由が無い（実在確認そのものを漏らさないため）。
+// domain.ErrPageVersionNotFound と同じ扱い（404）にする（実在確認を漏らさないため）。
 func parsePageVersionSeq(c *gin.Context) (int64, bool) {
 	seq, err := strconv.ParseInt(c.Param("seq"), 10, 64)
 	if err != nil {
@@ -166,8 +160,7 @@ func (h *PageVersionHandler) Create(c *gin.Context) {
 	}
 	limitKnowledgeBaseBody(c)
 	var req kbCreatePageVersionRequest
-	// body 無し（EOF。note を送らない呼び出し）は許容し、壊れた JSON だけ 400 で弾く
-	// （rich_text_image_handler.go の IssueUploadURL と同じ扱い）。
+	// body 無し（EOF、note を送らない呼び出し）は許容し、壊れた JSON だけ 400 で弾く。
 	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
@@ -186,9 +179,8 @@ func (h *PageVersionHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, h.toDetailResponse(c.Request.Context(), *v, cache))
 }
 
-// Restore は過去の版を今の本文として復元する（CapabilityEdit）。応答は
-// KnowledgeBasePageHandler.ReplaceContent（PUT .../content）と同じ形に揃える
-// （kbPageContentResponse / kbLastEditedByResponseWith を再利用）。
+// Restore は過去の版を今の本文として復元する（CapabilityEdit）。応答は ReplaceContent
+// （PUT .../content）と同じ形に揃える（kbPageContentResponse を再利用）。
 func (h *PageVersionHandler) Restore(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -212,8 +204,7 @@ func (h *PageVersionHandler) Restore(c *gin.Context) {
 		respondKnowledgeBaseErr(c, err)
 		return
 	}
-	// 復元した本人が最終編集者になる（RestorePageVersionUseCase が ReplacePageBlocksUseCase
-	// 経由で TouchPageLastEditedBy を呼んでいる）。
+	// 復元した本人が最終編集者になる。
 	editorID := scope.userID
 	builtAt := snap.BuiltAt
 	c.JSON(http.StatusOK, kbPageContentResponse{

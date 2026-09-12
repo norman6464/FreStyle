@@ -4,7 +4,7 @@ import "errors"
 
 // AcceptedImageContentTypes は画像アップロードで受け付ける Content-Type の許可リスト。
 // ここに無い型は ValidateImageUpload が ErrUnsupportedImageContentType で弾く
-// （FRESTYLE-9: 以前は contentType を検証せずそのまま S3 の PUT presign に焼き込んでいた）。
+// （以前は contentType を検証せずそのまま PUT presign に焼き込んでいた）。
 var AcceptedImageContentTypes = map[string]bool{
 	"image/png":  true,
 	"image/jpeg": true,

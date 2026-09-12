@@ -86,27 +86,11 @@ func (u *CreatePageUseCase) Execute(ctx context.Context, in CreatePageInput) (*d
 	if utf8.RuneCountInString(in.Title) > kbPageTitleMaxLen {
 		return nil, errors.New("title is too long")
 	}
-	// 親があるときは **スペースを引かない**。
-	//
-	// 引くと、応答の差から「URL に書いた spaceID のスペースが実在するか」が分かってしまう。
-	// 落ちる順序がそのまま応答になるため:
-	//
-	//	実在しない ID → FindSpace が ErrSpaceNotFound → 404 not_found
-	//	実在する別の ID → FindSpace は通り、親との不一致 → 400 parent_space_mismatch
-	//
-	// この差は、他の 3 経路が塞いでいるものを作成経路だけで開ける。スペース一覧は
-	// 閲覧できないスペースを 1 件も返さず、ツリー取得は未存在も不可視も同じ応答に揃え、
-	// handler の requireSpacePermission は両方 404 に畳んでいる。
-	//
-	// 親があるなら引く必要も無い。**親が在ることがスペースが在ることの証明**で、
-	// しかも handler が親の編集権限を先に確かめているので、呼び出し側は既にその親を
-	// 見えている（＝そのスペースの実在は本人にとって既知）。
-	// 残る仕事は「URL のスペースが親のスペースと同じか」の文字列比較だけで、
-	// 実在しない ID も別の実在する ID も同じ 400 に落ちる。
-	//
-	// 親が無いときは比較する相手がいないので、これまでどおり引いて確かめる。
-	// そちらは handler の requireSpacePermission が先に通っており、不在も無権限も
-	// 同じ 404 に畳まれているので差は生まれない。
+	// 親があるときは**スペースを引かない**。引くと FindSpace の 404/400 の出方の違いから
+	// 「URL の spaceID が実在するか」が漏れる（他 3 経路は塞いでいる existence oracle）。
+	// 親が在ること自体がスペースの実在の証明なので、あとは「親のスペースと URL のスペースが
+	// 一致するか」の文字列比較だけで済む（不在も別実在も同じ 400 に畳む）。親が無いときは
+	// 比較相手が無いので、これまでどおり引いて確かめる。
 	if in.ParentID == nil {
 		if _, err := u.repo.FindSpace(ctx, in.WorkspaceID, in.SpaceID); err != nil {
 			return nil, err
@@ -146,10 +130,8 @@ func (u *CreatePageUseCase) Execute(ctx context.Context, in CreatePageInput) (*d
 }
 
 // GetPageUseCase はページ 1 件とその本文（ProseMirror doc）を返す。
-// 本文は snapshot（読み取りキャッシュ）を優先し、無ければ blocks から組み立てる。
-// snapshot は本文書き換えと同一トランザクションで焼き直されるため常に blocks と同期しており、
-// 「新しい順」を判断する必要はない。blocks からの組み立ては未保存の新規ページ
-// （snapshot がまだ無い）へのフォールバック。
+// 本文は snapshot（本文書き換えと同一トランザクションで焼き直される読み取りキャッシュ）を
+// 優先し、無ければ（未保存の新規ページ）blocks から組み立てる。
 type GetPageUseCase struct {
 	repo repository.KnowledgeBaseRepository
 }
@@ -261,16 +243,9 @@ func (u *RenamePageUseCase) Execute(ctx context.Context, in RenamePageInput) (*d
 }
 
 // FindPageUseCase はページ 1 件のメタ情報だけを引く（本文は読まない）。
-//
-// GetPageUseCase と分けているのは、読む量と目的が違うため。あちらは snapshot か blocks から
-// ProseMirror doc を組み立てて返す「本文を画面に出すための口」で、こちらが要るのは
-// ページが属するスペースと現在の状態だけ。権限操作 API（ページ付与・共有リンク）の
-// 認可がこれを使う — ページに対する権限を変えてよいかは「そのページが属するスペースの
-// admin か」で決まるので、まずページからスペースを知る必要がある。
-//
-// 本文を読まないことには意味がある。この口は認可より前に呼ばれる（スペースが分からないと
-// 認可判定ができない）ため、通れば必ず中身が見えるのでは困る。返すのはメタ情報だけで、
-// 呼び出し側は認可に落ちた場合それすら応答に出さない。
+// 権限操作 API（ページ付与・共有リンク）の認可がこれを使う — 編集の可否は「そのページが
+// 属するスペースの admin か」で決まるため、まずスペースを知る必要がある。認可より前に
+// 呼ばれる口なので、本文まで読めてしまうと認可前に中身が見えてしまう。
 type FindPageUseCase struct {
 	repo repository.KnowledgeBaseRepository
 }
@@ -294,12 +269,9 @@ func (u *FindPageUseCase) Execute(ctx context.Context, in FindPageInput) (*domai
 	return u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
 }
 
-// ResolvePageLocationUseCase は URL の /p/{pageId} からページの居場所（ワークスペース）を
-// 特定する。URL にテナントを出さない（ユーザー決定 2026-08-28: URL は UUID だけ）ための口。
-//
-// これはテナント確定**前**に呼ばれる唯一のページ読みなので、ここでは何も判定しない。
-// 権限（見えるか・編集できるか）は handler が返した WorkspaceID で
-// CheckPagePermissionUseCase を通す。この usecase の答えを判定なしで応答に使わないこと。
+// ResolvePageLocationUseCase は URL の /p/{pageId}（テナントを出さない）からページの
+// 居場所（ワークスペース）を特定する。テナント確定前に呼ばれる唯一のページ読みなので
+// 権限判定はしない。呼び出し側は返った WorkspaceID で必ず CheckPagePermissionUseCase を通すこと。
 type ResolvePageLocationUseCase struct {
 	repo repository.KnowledgeBaseRepository
 }
@@ -325,9 +297,7 @@ func (u *ResolvePageLocationUseCase) Execute(ctx context.Context, pageID string)
 	if err != nil {
 		return nil, err
 	}
-	// 停止中のワークスペースは無いものとして扱う。slug の経路は解決の入口
-	// （ResolveWorkspaceUseCase）が同じ判定をしているが、この id の経路はそこを通らない。
-	// ここで見ないと、停止しても id さえ控えていれば読み続けられる。
+	// この id 経路は ResolveWorkspaceUseCase（slug 経路）を通らないため、停止判定をここでも行う。
 	if !ws.IsActive {
 		return nil, repository.ErrPageNotFound
 	}
@@ -362,25 +332,17 @@ var ErrPageDocInvalid = errors.New("invalid prosemirror doc")
 var ErrPageDocUnknownNodeType = errors.New("unknown block node type")
 
 // ProseMirror ドキュメントを解釈するときの入れ子と規模の上限。
-//
-// **段数の上限が本体。** 解釈は入れ子の各段で部分木の JSON を読み直す（json.RawMessage は
-// 中身を複製する）ため、要した記憶域は「入力の大きさ × 段数」で効く。段数に上限が無いと、
-// 本文の大きさの上限（1MiB 強）に収まる要求 1 本で数百 MB を確保させられ、数本並べるだけで
-// プロセスごと落とせる。段数を止めれば最悪でも「本文の上限 × 段数」の定数倍に収まる。
-//
-// 30 段は、エディタで作れる入れ子（引用の中の箇条書きの中の表の升目…）より十分に深い。
-// ノード総数のほうは、1 ページ = 1 万行というありえない規模で頭打ちにするための保険。
-// どちらも人が書いた文書が引っかかる水準ではない。
+// 解釈は各段で部分木の JSON を複製するため、無制限だと本文の大きさの上限（1MiB 強）に
+// 収まる 1 要求で記憶域を「入力 × 段数」まで膨らませられる（数本並べるだけで落とせる）。
+// 30 段はエディタで作れる入れ子より十分深く、ノード数上限は 1 万行規模の保険。
 const (
 	kbDocMaxDepth = 30
 	kbDocMaxNodes = 10000
 )
 
-// kbCodeBlockLanguages はコードブロックの language 属性に受け付ける値。画面の選択肢と
-// 同じ一覧（frontend の codeBlockLanguages.ts）を写したもの。ここに無い値は保存時に落とす。
-//
-// 落とす理由は見た目の話ではない。language は読み手の画面で class 属性に文字列として
-// 埋め込まれるため、空白を含む値を通すと任意の class を足せてしまう。
+// kbCodeBlockLanguages はコードブロックの language 属性に受け付ける値（frontend の
+// codeBlockLanguages.ts と同じ一覧）。language は読み手の画面で class 属性にそのまま
+// 埋め込まれるため、ここに無い値（任意の class を足せてしまう）は保存時に落とす。
 var kbCodeBlockLanguages = map[string]bool{
 	"plaintext": true, "sql": true, "typescript": true, "javascript": true, "go": true,
 	"python": true, "bash": true, "json": true, "yaml": true, "xml": true,
@@ -564,12 +526,9 @@ func parseBlockNode(raw json.RawMessage, depth int, budget *kbDocBudget) (*kbDoc
 // ダウンロード URL の発行時に key を突き合わせて行う）。
 const kbInlineImageKeyPrefix = "kb/"
 
-// normalizeBlockAttrs は種別ごとに attrs を検査する。m は id を除いたあとの属性で、
-// 直せるものはここで直し、直せないものは ErrPageDocInvalid にする。
-//
-// 画像だけ「落とさず断る」なのは、src を黙って消すと本人には何も起きていないように
-// 見えたまま画像が消えるため。一方コードブロックの language は見た目の手がかりでしか
-// ないので、知らない値なら外して既定（ハイライト無し）に落とすだけにする。
+// normalizeBlockAttrs は種別ごとに attrs を検査する（m は id を除いた属性）。画像の src は
+// 落とさず断る（黙って消すと本人に気づかれないまま画像が消える）。コードブロックの
+// language は見た目の手がかりでしかないので、知らない値は外して既定に落とすだけにする。
 func normalizeBlockAttrs(t domain.BlockType, m map[string]json.RawMessage) error {
 	switch t {
 	case domain.BlockTypeImage:
@@ -599,12 +558,10 @@ func normalizeBlockAttrs(t domain.BlockType, m map[string]json.RawMessage) error
 	return nil
 }
 
-// validateInlineNodes は葉ノードの content（インライン列）を検査する。
-//
-// 見るのは「要素が {"type": 文字列, …} の object か」だけで、中身の意味には踏み込まない。
-// null や数値を混ぜた content をそのまま保存できてしまうと、読み出して描く側は要素の
-// .type を読んだ瞬間に必ず落ちる（保存した本人ではなく、そのページを開いた全員が落ちる）。
-// marks も同じ理由で見る。入れ子の content には段数とノード数の上限をそのまま引き継ぐ。
+// validateInlineNodes は葉ノードの content（インライン列）を検査する。見るのは「要素が
+// {"type": 文字列, …} の object か」だけ。null や数値を混ぜたまま保存できると、描画側が
+// .type を読んだ瞬間に落ちる（保存者ではなく、そのページを開いた全員が落ちる）。marks も
+// 同じ理由で見る。入れ子の content には段数とノード数の上限を引き継ぐ。
 func validateInlineNodes(items []json.RawMessage, depth int, budget *kbDocBudget) error {
 	if len(items) == 0 {
 		return nil
@@ -653,15 +610,11 @@ func validateInlineNodes(items []json.RawMessage, depth int, budget *kbDocBudget
 // flattenPageDoc はブロック木を保存用の行（文書順・親が先）へ平坦化する。
 // 兄弟の position は fracindex の末尾追加で採番する（i 件目 = Between(直前, "")）。
 //
-// 同じ id が木の中に複数回現れたら、2 件目以降を新しい UUID へ採番し直す（n.ID を直接
-// 書き換える）。parseBlockNode は node 単体しか見ないため、attrs.id が有効な UUID なら
-// そのまま採用するだけで「木全体で一意か」までは検証しない。コピー＆ペーストや
-// ブロックの複製操作は ProseMirror の attrs をそのまま複製するため、id 込みで
-// 同じ値を持つ 2 つのノードが doc に混ざりうる。ここで再採番しないと、
-// ReplacePageBlocks の UPSERT が同じ id へ複数回書き込み、最後に処理したノードの内容
-// だけが残って前のノードの内容が無言で消える（エラーにならない）。n.ID をここで
-// 書き換えるのは、この後に呼ばれる renderPageDoc（snapshot 用）が同じ木を見るため、
-// 保存される行と snapshot の id を一致させるにはここで確定させる必要があるから。
+// コピー&ペーストやブロック複製は ProseMirror の attrs（id 込み）をそのまま複製するため、
+// 同じ id を持つノードが doc に混ざりうる。parseBlockNode は node 単体しか見ず一意性を
+// 検証しないため、ここで重複した id（2 件目以降）を新しい UUID に採番し直す。しないと
+// ReplacePageBlocks の UPSERT が同じ id へ複数回書き込み、最後の内容だけが残って前の内容が
+// 無言で消える。
 func flattenPageDoc(nodes []*kbDocNode) ([]repository.BlockWrite, error) {
 	out := make([]repository.BlockWrite, 0)
 	seen := make(map[string]struct{})
@@ -689,9 +642,7 @@ func flattenPageDoc(nodes []*kbDocNode) ([]repository.BlockWrite, error) {
 				Attrs:    n.Attrs,
 				Inline:   n.Inline,
 			})
-			// ループ変数 n のアドレスをそのまま使わないための退避（Go のループ変数の
-			// 使い回しでバグる典型パターン）。新しい変数へコピーしてからポインタを取る。
-			childParent := n.ID
+			childParent := n.ID // ループ変数 n のアドレスをそのまま取らないための退避
 			if err := walk(n.Children, &childParent); err != nil {
 				return err
 			}
@@ -757,10 +708,9 @@ func treeFromBlocks(blocks []domain.Block) ([]*kbDocNode, error) {
 }
 
 // renderPageDoc はブロック木から ProseMirror ドキュメント（正規形）を組み立てる。
-// 正規形: doc の content は空でも必ず配列で出す / id を除いた属性が空でも、id を含む attrs は
-// 必ず出す（renderBlockNode 参照）/ content は無ければ出さない。parsePageDoc → renderPageDoc
-// の往復は id を除けば正規形の入力に対して同値になる（id 無し入力のノードは呼び出しごとに
-// 新規採番されるため、attrs.id の値自体は往復で変わりうる。requireJSONEqIgnoringBlockIDs 参照）。
+// 正規形: content は空でも必ず配列で出す／attrs は id を含めて必ず出す（renderBlockNode
+// 参照）／content が無ければ出さない。parsePageDoc → renderPageDoc の往復は id を除けば
+// 同値になる（id 無し入力は呼び出しごとに新規採番されるため。requireJSONEqIgnoringBlockIDs 参照）。
 func renderPageDoc(nodes []*kbDocNode) (string, error) {
 	content, err := renderBlockNodes(nodes)
 	if err != nil {
@@ -795,9 +745,8 @@ func renderBlockNode(n *kbDocNode) (json.RawMessage, error) {
 		Content json.RawMessage `json:"content,omitempty"`
 	}{Type: string(n.Type)}
 
-	// n.Attrs をベースに id を必ず追加してから出す。id は保存時（parseBlockNode）に
-	// attrs から抜き出されて blocks.id という別列で管理されているため、書き戻すのは
-	// レンダリング側の責務。この結果、すべてのブロックノードは常に attrs を持つ。
+	// id は保存時に attrs から抜かれ blocks.id という別列で管理されるため、書き戻すのは
+	// レンダリング側の責務（この結果、すべてのブロックノードは常に attrs を持つ）。
 	m := map[string]json.RawMessage{}
 	if n.Attrs != "" && n.Attrs != "{}" {
 		if err := json.Unmarshal([]byte(n.Attrs), &m); err != nil {
@@ -851,15 +800,13 @@ const (
 	PageTreeOrphanHidden
 )
 
-// BuildPageTree は position 順に並んだページの平坦な一覧を木に組み立てる。
+// BuildPageTree は position 順に並んだページの平坦な一覧を木に組み立てる
+// （同じ親を持つページ同士の入力の並びは兄弟順としてそのまま保たれる）。
 //
-// 一覧が権限でふるいにかけられている場合、親が落ちたページを根に昇格させてはならない
+// 権限でふるいにかけた一覧の場合、親が落ちたページを根に昇格させてはならない
 // （PageTreeOrphanHidden）。昇格させると「見えないはずの親の下に何かがある」ことが
-// ツリーの形から読み取れてしまい、隠した親のタイトルは伏せたまま配下の存在だけが漏れる。
-// 見えない親の配下はツリーに現れず、直リンクで開いたときに個別の権限で判断される
-// （祖先を隠したら配下も一覧から消えるのは、この種のツールで一般的な振る舞いでもある）。
-//
-// 入力の並び（同じ親を持つページ同士の相対順）はそのまま兄弟順として保たれる。
+// ツリーの形から読み取れ、隠した親のタイトルは伏せたまま配下の存在だけが漏れる。
+// 見えない親の配下は直リンクで開いたときに個別の権限で判断される。
 func BuildPageTree(pages []domain.Page, policy PageTreeOrphanPolicy) []*PageTreeNode {
 	nodes := make(map[string]*PageTreeNode, len(pages))
 	for _, p := range pages {
@@ -885,15 +832,12 @@ func BuildPageTree(pages []domain.Page, policy PageTreeOrphanPolicy) []*PageTree
 }
 
 // ReplacePageBlocksUseCase はページ本文（ProseMirror doc）をブロック行に分解して
-// 全入れ替えし、snapshot を焼き直す。差分更新は将来の最適化で、まず全消し全入れで正しさを取る。
-//
-// 保存する snapshot は入力 doc そのものではなく、分解した木から組み立て直した正規形。
-// 入力に行スキーマへ写せない情報（未知フィールド等）が混ざっていても
-// 「snapshot は必ず blocks から再生成できる」という不変条件が崩れないようにするため。
-//
-// 本文の保存に続けて versionRepo.CreateVersionIfDue を同じトランザクションで呼ぶ
-// （FRESTYLE-433 段 3・版と履歴）。通常の自動保存は 10 分規則に従って間引かれ、
-// Input.ForceVersion が true のとき（「版を残す」・復元）だけ必ず 1 件切る。
+// 全入れ替えし、snapshot を焼き直す（差分更新は将来の最適化。まず全消し全入れで正しさを取る）。
+// 保存する snapshot は入力 doc そのものではなく分解した木から組み立て直した正規形にする —
+// 「snapshot は必ず blocks から再生成できる」という不変条件を、未知フィールド等を含む入力
+// でも崩さないため。本文の保存に続けて versionRepo.CreateVersionIfDue を同じトランザクションで
+// 呼ぶ（版と履歴）。通常の自動保存は 10 分規則で間引かれ、Input.ForceVersion が true のとき
+// （「版を残す」・復元）だけ必ず 1 件切る。
 type ReplacePageBlocksUseCase struct {
 	repo        repository.KnowledgeBaseRepository
 	txManager   repository.TxManager
@@ -914,9 +858,8 @@ type ReplacePageBlocksInput struct {
 	// EditorUserID は本文を保存した人（users.id）。0（未指定）は拒否する — 記録できない
 	// まま保存を許すと、誰が最後に書いたか分からないページができてしまう。
 	EditorUserID uint64
-	// ForceVersion は versionRepo.CreateVersionIfDue の 10 分規則を無視して必ず版を切らせる
-	// （FRESTYLE-433 段 3）。通常の自動保存はゼロ値 false のまま — 「版を残す」相当の明示操作と
-	// 復元だけが true を渡す。
+	// ForceVersion は versionRepo.CreateVersionIfDue の 10 分規則を無視して必ず版を切らせる。
+	// 通常の自動保存はゼロ値 false のまま — 「版を残す」相当の明示操作と復元だけが true を渡す。
 	ForceVersion bool
 	// VersionNote は切る版に添えるメモ（任意）。通常の自動保存はゼロ値 nil のまま。
 	// domain.ValidateVersionNote による検証は versionRepo 側（CreateExplicitPageVersionUseCase /
@@ -1024,11 +967,9 @@ func (u *SetPageIconUseCase) Execute(ctx context.Context, in SetPageIconInput) (
 // ErrInvalidPageVisibility は保存を許さない visibility 値を渡したときに返す。
 var ErrInvalidPageVisibility = errors.New("invalid page visibility")
 
-// SetPageVisibilityUseCase はページの公開範囲を変更する。
-//
+// SetPageVisibilityUseCase はページの公開範囲を変更する（値の検証と書き換えのみ）。
 // visibility そのものの意味（'private' が唯一の打ち消し例外であること）は
-// domain.ResolvePagePermission / domain.ResolvePageView が持ち、ここには写経しない
-// （このユースケースは値を検証して書き換えるだけ）。
+// domain.ResolvePagePermission / domain.ResolvePageView が持つ。
 type SetPageVisibilityUseCase struct {
 	repo repository.KnowledgeBaseRepository
 }
@@ -1065,8 +1006,8 @@ func kbImageKeyPrefix(workspaceID, pageID string) string {
 
 // IssuePageImageUploadURLUseCase はページに閉じた画像（本文・カバー共通）の PUT presigned URL を
 // 発行する。key は "kb/<workspaceId>/<pageId>/<epochNs>.bin" の形で採番する
-// （rich-text の rich-text/{userId}/{epochNs}.bin と同じ発想。ページを名指しする経路なので、
-// ページ ID を混ぜて後から「どのページ由来か」が分かる形にしてある）。
+// （rich-text の rich-text/{userId}/{epochNs}.bin と同じ発想でページ ID を混ぜ、
+// どのページ由来か後から分かるようにしてある）。
 type IssuePageImageUploadURLUseCase struct {
 	repo      repository.KnowledgeBaseRepository
 	presigner repository.KbImagePresigner
@@ -1139,14 +1080,12 @@ func (u *IssuePageImageDownloadURLUseCase) Execute(ctx context.Context, in Issue
 	if in.Key == "" {
 		return nil, ErrInvalidImageKey
 	}
-	// **通すのは自ページ由来の key だけ。** 画像はページに閉じた持ち物で、カバーと同じ扱いにする。
-	//
-	// 以前はここに「同じワークスペース内なら、その key が自分の本文に貼られていれば通す」
-	// というフォールバックがあった。これは自作自演で破れる: blocks.attrs は ProseMirror の
-	// attrs をそのまま持つ jsonb で、自分が編集できるページに他ページの key を書き込むだけで
-	// 「貼られている」を自分で作れてしまう。結果、そのページの閲覧権限を失ったあとでも
-	// 画像へ届き続けられた。判定していたのは「要求したページを読めるか」で、
-	// 「その画像の持ち主のページを読めるか」は一度も見ていなかった。
+	// **通すのは自ページ由来の key だけ**（画像はページに閉じた持ち物。カバーと同じ扱い）。
+	// 以前は「同じワークスペース内なら、その key が自分の本文に貼られていれば通す」という
+	// フォールバックがあった。これは自作自演で破れる: 自分が編集できるページの blocks.attrs
+	// （ProseMirror の attrs をそのまま持つ jsonb）に他ページの key を書き込むだけで
+	// 「貼られている」を自分で作れ、そのページの閲覧権限を失ったあとも画像へ届き続けられた
+	// （見ていたのは「要求元ページを読めるか」で「画像の持ち主のページを読めるか」ではなかった）。
 	if !strings.HasPrefix(in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
 		return nil, repository.ErrPageNotFound
 	}
@@ -1181,10 +1120,9 @@ func (u *SetPageCoverUseCase) Execute(ctx context.Context, in SetPageCoverInput)
 	var cover *domain.PageCover
 	if in.Key != nil {
 		// key の形の検証は repository を呼ぶ前に済ませる（SetPageIconUseCase と同じ理由）。
-		// カバーはそのページ自身へアップロードした画像だけを許す — ダウンロードにある
-		// 「同一ワークスペースならフォールバックで許可」を、カバーには持たせない
-		// （フォールバック無し）。カバーは「他ページからの貼り付け」という正当な利用シーンが
-		// 無く、キーの偽装を許す理由も無いため（ErrInvalidCoverKey の doc も参照）。
+		// カバーはそのページ自身へアップロードした画像だけを許す — ダウンロード側にある
+		// フォールバックはここには持たせない。カバーには「他ページからの貼り付け」という
+		// 正当な利用シーンが無く、キーの偽装を許す理由も無いため（ErrInvalidCoverKey 参照）。
 		if !strings.HasPrefix(*in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
 			return nil, ErrInvalidCoverKey
 		}
@@ -1264,10 +1202,8 @@ type MovePageInput struct {
 	AnchorBefore bool
 }
 
-// placementPosition は移動先での並び順のキーを決める。
-//
-// Anchor が空なら末尾に足す（これまでの挙動）。Anchor があれば、その兄弟の手前／直後に
-// 収まるキーを、隣り合う 2 つの中間値として計算する。**動く行は 1 つだけ**で、
+// placementPosition は移動先での並び順のキーを決める。Anchor が空なら末尾（これまでの
+// 挙動）、あれば隣り合う 2 つの中間値としてキーを計算する。**動く行は 1 つだけ**で、
 // 他の兄弟のキーは書き換えない（整数の連番なら以降を全部ずらすことになる）。
 func (u *MovePageUseCase) placementPosition(ctx context.Context, in MovePageInput, targetSpaceID string) (string, error) {
 	if in.Anchor == "" {
@@ -1457,11 +1393,11 @@ const kbTicketRefNodeType = "ticketRef"
 //
 // 差し替えるのは**読み手が閲覧できる現役ページ**の参照だけ。閲覧できない・存在しない・
 // アーカイブ済み・他ワークスペースの参照には題名を入れない（保存側が題名を持たない —
-// stripPageRefTitles を参照 — ので、表示は「ページ」の代替文字に落ちる）。
+// StripPageRefTitles 参照 — ので、表示は「ページ」の代替文字に落ちる）。
 //
-// 解決は本文を壊さない: 読めない doc は元のまま返す（題名は表示の飾りで、本文が
-// 開けることの方が重い）。事実の取得失敗も元の doc を返すが、error は呼び出し側へ
-// 返す — 解決が恒常的に死んでいることに気づけるよう、握り潰す判断は handler が行う。
+// 解決は本文を壊さない: 読めない doc・事実の取得失敗はどちらも元の doc を返す（題名は
+// 表示の飾りで、本文が開けることの方が重い）。ただし取得失敗の error は呼び出し側へ返し、
+// 握り潰す判断は handler に委ねる。
 type ResolvePageRefTitlesUseCase struct {
 	perms repository.KnowledgeBasePermissionRepository
 }
@@ -1489,11 +1425,10 @@ func (u *ResolvePageRefTitlesUseCase) Execute(ctx context.Context, in ResolvePag
 	if len(collector.ids) == 0 {
 		return in.Doc, nil
 	}
-	// 参照があるなら、まず保存されている title を全部剥がす。保存側も剥がしているが
-	// （StripPageRefTitles）、それは新しい保存にしか効かない — 剥がす前に保存された
-	// doc が残っていれば、閲覧権限を失った読み手へ古い題名がそのまま返ってしまう。
-	// 読み出し側でも剥がすことで、返る題名は必ず**この読み手の**可視判定を通った
-	// 現在の値だけになる（事実の取得に失敗しても、剥がした doc を返す）。
+	// 参照があるなら、まず保存されている title を全部剥がす。保存側（StripPageRefTitles）も
+	// 剥がすが、それは新しい保存にしか効かず、それ以前に保存された doc には古い題名が
+	// 残ったままになる。読み出し側でも剥がすことで、返る題名は必ず**この読み手の**
+	// 可視判定を通った現在の値だけになる。
 	stripped := stripPageRefTitlesNode(root)
 
 	render := func() (string, bool) {
@@ -1584,12 +1519,10 @@ func stripPageRefTitlesNode(node any) bool {
 }
 
 // kbTemplateExcludedNodeTypes は「雛形として保存」で本文の木から丸ごと取り除くノードの type 名。
-//
-// pageRef は特定の 1 ページへの固定参照であり、雛形が複数のページに展開されると
-// 展開後の全ページが同じ参照先を指してしまい意味をなさない。画像（domain.BlockTypeImage、
-// tiptap のノード名も "image"）はページ固有のオブジェクトストレージ key（kbImageKeyPrefix）に紐づいており、
-// 雛形経由で複製すると元ページの画像が消えたときに雛形からのコピーだけが宙に浮いた参照を
-// 残す（key の生存管理の仕組みが無い）。どちらも雛形の本文からは意図的に除外する。
+// pageRef は特定の 1 ページへの固定参照で、雛形が複数のページに展開されると全展開先が
+// 同じ参照先を指してしまい意味をなさない。画像（domain.BlockTypeImage）はページ固有の
+// オブジェクトストレージ key（kbImageKeyPrefix）に紐づき、雛形経由で複製すると元ページの
+// 画像が消えたときにコピー側だけ宙に浮いた参照が残る。どちらも意図的に除外する。
 var kbTemplateExcludedNodeTypes = map[string]bool{
 	kbPageRefNodeType:             true,
 	string(domain.BlockTypeImage): true,
@@ -1597,10 +1530,8 @@ var kbTemplateExcludedNodeTypes = map[string]bool{
 
 // stripPageRefAndImageNodesForTemplate は「雛形として保存」の直前に、本文の木から
 // pageRef ノードと画像ノードを丸ごと取り除く（StripPageRefTitles のように属性を null に
-// 落とすのではなく、ノードそのものを content 配列から除く）。除外する理由は
-// kbTemplateExcludedNodeTypes のコメント参照。
-//
-// 取り除いた結果、空になった段落等が残ってもよい（見た目が多少寂しくなる程度で実害はない）。
+// 落とすのではなく、ノードそのものを content 配列から除く。除外理由は
+// kbTemplateExcludedNodeTypes 参照）。取り除いた結果、空になった段落等が残ってもよい。
 func stripPageRefAndImageNodesForTemplate(doc string) (string, error) {
 	var root any
 	if err := json.Unmarshal([]byte(doc), &root); err != nil {
@@ -1677,12 +1608,9 @@ func stripNodeIDs(node any) {
 }
 
 // pageRefCollector は doc を歩いて pageRef の pageId を文書順・重複なしで集める。
-// 重複の判定は set（O(1)）で行い、天井（kbPageRefMaxResolve）に達したら**収集自体を
-// 打ち切る** — 線形走査の重複判定や収集後の切り詰めだと、参照を大量に並べた本文
-// 1 つで読み出しのたびに CPU を燃やせてしまう。
-//
-// 辿るのは content 配列だけ（ProseMirror のノードの子はそこにしか居ない）。
-// map の range で全キーを辿ると順序が実行ごとに変わり、天井を切る位置が不定になる。
+// 重複判定は set（O(1)）、天井（kbPageRefMaxResolve）に達したら**収集自体を打ち切る**
+// （線形走査や収集後の切り詰めだと、参照を大量に並べた本文で CPU を燃やせてしまう）。
+// 辿るのは content 配列だけ（map の range だと順序が実行ごとに変わり天井の位置が不定になる）。
 type pageRefCollector struct {
 	ids  []string
 	seen map[string]struct{}
@@ -1777,19 +1705,16 @@ type kbInlineTextNode struct {
 	} `json:"attrs"`
 }
 
-// extractPageBodyText は本文検索用のプレーンテキストを抽出する。
-// 各葉ブロックの inline 内の "text" 型ノードの .text を連結し、ブロックの境目は改行
-// （"\n"）で区切る。pageRef ノードは寄与しない — 参照先の題名は読み手ごとに解決される
-// 派生値（StripPageRefTitles / ResolvePageRefTitlesUseCase の doc 参照）で、保存する本文に
-// 含めると「閲覧できない読み手のページも、その題名を通じて検索でヒットする」抜け道になる。
+// extractPageBodyText は本文検索用のプレーンテキストを抽出する。各葉ブロックの inline 内の
+// "text" 型ノードの .text を連結し、ブロックの境目は改行（"\n"）で区切る。pageRef ノードは
+// 寄与しない — 参照先の題名は読み手ごとに解決される派生値（StripPageRefTitles /
+// ResolvePageRefTitlesUseCase 参照）で、保存本文に含めると「閲覧できない読み手のページも、
+// その題名を通じて検索でヒットする」抜け道になる。
 //
-// 木は parsePageDoc が返す kbDocNode（保存直前・正規化済みの木）を対象にする。
-// flattenPageDoc を呼んだ**後**の木を渡すこと（ReplacePageBlocksUseCase.Execute 参照 —
-// ここで見る n.ID が最終的に blocks.id として保存される値と一致している必要は無いが、
-// 呼び出し順は extractPageLinks と揃えてある）。
-//
-// 容器ノード（kbContainerBlockTypes）は子を辿るだけで自身は何も出さない。中身が空の
-// 葉ブロック（Inline が nil）はスキップする（空行のためだけに区切りを増やさない）。
+// 木は parsePageDoc が返す kbDocNode（保存直前・正規化済み）を対象にし、flattenPageDoc を
+// 呼んだ**後**の木を渡すこと（呼び出し順は extractPageLinks と揃えてある）。容器ノード
+// （kbContainerBlockTypes）は子を辿るだけで自身は何も出さない。中身が空の葉ブロック
+// （Inline が nil）はスキップする。
 func extractPageBodyText(nodes []*kbDocNode) string {
 	var buf strings.Builder
 	var walk func(nodes []*kbDocNode)
@@ -1844,22 +1769,17 @@ type pageLinkRef struct {
 }
 
 // extractPageLinks は本文中の pageRef ノードから (ブロック id, 参照先ページ id) の組を
-// 集める。pageRefCollector と同じ考え方（UUID の正規形へ寄せる・
-// kbPageRefMaxResolve=100 を参照先ページの**種類数**の天井にする — 1 ページから参照できる
-// リンク先の上限として妥当）だが、こちらは「どのブロックが参照しているか」を
-// page_links.source_block_id として残す必要があるため、pageRefCollector をそのまま
-// 使い回さず、kbDocNode の木を対象に書き直してある。
+// 集める。pageRefCollector と同じ考え方（kbPageRefMaxResolve=100 を参照先ページの
+// **種類数**の天井にする）だが、「どのブロックが参照しているか」を
+// page_links.source_block_id として残す必要があるため kbDocNode の木を対象に書き直してある。
 //
-// 天井に達した後も走査そのものは止めない（pageRefCollector は「新しい種類を 1 つも
-// 増やせなくなった時点で走査ごと打ち切る」が、ここでは「新しい**種類**の参照先はもう
-// 増やさない」だけに留める）。理由: 既に種類として数えた参照先への追加のリンク
-// （別のブロックからの再参照）まで取りこぼすと、逆リンクの一覧が保存するたびに
-// 部分的にしか更新されない不安定な挙動になる。天井は「参照先ページの種類数」を
-// 絞るためのもので、「そのページへの合計リンク本数」を絞るものではない。
+// 天井に達した後も走査そのものは止めない。既に種類として数えた参照先への追加のリンク
+// （別のブロックからの再参照）まで取りこぼすと、逆リンクの一覧が保存のたびに部分的にしか
+// 更新されない不安定な挙動になるため — 天井は「参照先ページの種類数」を絞るためのもので、
+// 「そのページへの合計リンク本数」を絞るものではない。
 //
 // 同じブロックが同じページを複数回参照する場合は、ここで 1 行に畳む（呼び出し側の
-// repository.ReplacePageBlocks / InsertPageLink の ON CONFLICT DO NOTHING でも畳まれるが、
-// 無駄な書き込みを事前に減らす）。
+// ON CONFLICT DO NOTHING でも畳まれるが、無駄な書き込みを事前に減らす）。
 func extractPageLinks(nodes []*kbDocNode) []pageLinkRef {
 	var links []pageLinkRef
 	seenTarget := map[string]struct{}{}
@@ -1972,14 +1892,13 @@ type AncestorRef struct {
 // ListViewableAncestorsUseCase はページの祖先のうち、読み手が閲覧できるものだけを
 // 根から順に返す（パンくず用）。
 //
-// 見えない祖先は**行ごと出さない**（題名どころか実在も知らせない）。木の応答が
-// 見えない親の配下を出さないのと同じ規則で、可視の判定も同じ事実
-// （ListWorkspacePageViewFactsByIDs + domain.ResolvePageView）を通す。
-// 結果、パンくずには穴があき得るが、それは木と同じ見え方 — パンくずだけ別の
-// 判定を持つと「木には出ないのに道筋には出る」穴になる。
+// 見えない祖先は**行ごと出さない**（題名どころか実在も知らせない）。木が見えない親の
+// 配下を出さないのと同じ規則で、可視の判定も同じ事実（ListWorkspacePageViewFactsByIDs +
+// domain.ResolvePageView）を通す — パンくずだけ別の判定を持つと「木には出ないのに
+// 道筋には出る」穴になるため。
 //
-// **アーカイブ済みの祖先は含める**（閲覧できる限り）。アーカイブ済みのページは
-// /p/{id} で開けるので、経路から抜くと「その段が無い」かのように場所を偽る。
+// **アーカイブ済みの祖先は含める**（閲覧できる限り）。/p/{id} で開けるページを経路から
+// 抜くと「その段が無い」かのように場所を偽ることになる。
 type ListViewableAncestorsUseCase struct {
 	pages repository.KnowledgeBaseRepository
 	perms repository.KnowledgeBasePermissionRepository

@@ -24,13 +24,10 @@ func (u *GetCurrentUserUseCase) Execute(ctx context.Context, subject string) (*d
 }
 
 // LookupUserDisplayUseCase はユーザー ID から、人を表示するのに要る最小限
-// （表示名・アイコン・状態メッセージ）を引く。
-//
-// チケットの作成者・変更履歴の実行者・発言の投稿者・ページの最終編集者、どの画面も
-// これを解決の単位にする（domain.UserDisplay の doc 参照）。kb / ticket / comment の
-// どの usecase サブパッケージからも import されない中立の置き場所として user に置く
-// （usecase サブパッケージ同士は import しない規約のため、handler 層が各パッケージの
-// usecase と並べてこれを直接保持する）。
+// （表示名・アイコン・状態メッセージ）を引く。チケットの作成者・変更履歴の実行者・
+// 発言の投稿者・ページの最終編集者、どの画面もこれを解決の単位にする。usecase サブパッケージ
+// 同士は import しない規約のため、kb / ticket / comment のどこからも import されない
+// 中立の置き場所として user に置く（handler 層が各パッケージの usecase と並べて直接保持する）。
 type LookupUserDisplayUseCase struct {
 	users repository.UserRepository
 }
@@ -39,9 +36,8 @@ func NewLookupUserDisplayUseCase(users repository.UserRepository) *LookupUserDis
 	return &LookupUserDisplayUseCase{users: users}
 }
 
-// Execute は表示情報を返す。見つからなければ (nil, nil)（「最終編集者」のような
-// 付随情報のために、本体の応答自体を失敗にはしない — handler の判断に委ねる）。
-// repository の失敗はそのまま伝える。
+// Execute は表示情報を返す。見つからなければ (nil, nil) —「最終編集者」のような付随情報の
+// ために本体の応答自体を失敗にはせず、判断は handler に委ねる。
 func (u *LookupUserDisplayUseCase) Execute(ctx context.Context, userID uint64) (*domain.UserDisplay, error) {
 	return u.users.FindDisplayByID(ctx, userID)
 }
@@ -51,11 +47,10 @@ type UpsertUserFromIDTokenInput struct {
 	Subject string
 	Email   string
 	Name    string
-	// EmailVerified は id_token の email_verified クレーム。false のときは Email を
-	// 「無い」ものとして扱う（同一性は Subject だけで決める）。発行者が未検証のメール
-	// アドレスでのサインアップを許す設定だと、検証していない相手が他人のアドレスを
-	// 名乗って先取りできてしまうため（そのアドレスは users.email の一意索引に載るので、
-	// 本当の持ち主が以後登録できなくなる）。
+	// EmailVerified は id_token の email_verified クレーム。false なら Email を「無い」ものとして
+	// 扱う（同一性は Subject だけで決める）。未検証のメールでのサインアップを許すと、検証して
+	// いない相手が他人のアドレスを先取りでき、それが users.email の一意索引に載って本当の
+	// 持ち主が以後登録できなくなるため。
 	EmailVerified bool
 }
 
@@ -66,7 +61,6 @@ type UpsertUserFromIDTokenUseCase struct {
 	txManager      repository.TxManager
 }
 
-// NewUpsertUserFromIDTokenUseCase はUpsertUserFromIDTokenUseCaseを生成する。
 func NewUpsertUserFromIDTokenUseCase(
 	users repository.UserRepository,
 	oidcIdentities repository.UserOidcIdentityRepository,
@@ -90,8 +84,7 @@ func (u *UpsertUserFromIDTokenUseCase) shouldBackfillName(
 }
 
 // Execute はユーザー情報を基にユーザーを作成・更新し、解決した user を返す。
-// 同じ email での同時サインアップ競合は nil, repository.ErrEmailTaken を返す
-// （呼び出し元が原因を区別できるよう別扱いにする）。
+// 同じ email での同時サインアップ競合は nil, repository.ErrEmailTaken を返す。
 func (u *UpsertUserFromIDTokenUseCase) Execute(
 	ctx context.Context,
 	in UpsertUserFromIDTokenInput,
@@ -105,13 +98,11 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		return nil, errors.New("id_token missing sub")
 	}
 
-	// email はここで 1 度だけ正規形へ畳み、以後の照会・比較・保存すべてでこの値を使う。
-	// 生の claim 値のまま保存すると、DB の一意索引・byte 一致検索（畳まない）と
-	// 同一性の定義がずれ、同じアドレスの行が複数作れてしまう。
-	//
-	// 検証していないアドレスは畳む前に「無い」ものとして扱う（UpsertUserFromIDTokenInput.
-	// EmailVerified の doc 参照）。同一性は Subject だけで決まるので、これで作成・照会の
-	// どちらも壊れない（uq_users_email_active は email が空文字の行を対象外にしている）。
+	// email はここで 1 度だけ正規形へ畳み、以後すべてこの値を使う。生の claim 値のまま保存すると
+	// DB の一意索引（畳まない byte 一致）と同一性の定義がずれ、同じアドレスの行が複数作れてしまう。
+	// 検証していないアドレスは畳む前に「無い」ものとして扱う（EmailVerified の doc 参照）。
+	// 同一性は Subject だけで決まるので作成・照会は壊れない（uq_users_email_active は
+	// email が空文字の行を対象外にしている）。
 	email := ""
 	if in.EmailVerified {
 		email = domain.NormalizeEmail(in.Email)
@@ -133,11 +124,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			}
 			existing.Name = oidcName
 		}
-		// 検証済みのアドレスを、それまで持っていなかった相手へ後から付ける。
-		// サインアップ時点では未検証で email を持てなかった相手が、後日
-		// （発行者側で）確認リンクを踏んでから改めてログインしてきた場合の経路。
-		// 既に別のアクティブユーザーがそのアドレスを使っていれば ErrEmailTaken が返るが、
-		// ログイン自体は成立させる（identity の自己修復と同じ非致命扱い）。
+		// 検証済みのアドレスを、それまで持っていなかった相手へ後から付ける（サインアップ時点で
+		// 未検証だった相手が、後日確認リンクを踏んでから再ログインしてきた経路）。既に別の
+		// アクティブユーザーがそのアドレスを使っていれば ErrEmailTaken だが、ログイン自体は
+		// 成立させる（非致命扱い）。
 		if email != "" && existing.Email == "" {
 			if err := u.users.UpdateEmail(ctx, existing.ID, email); err != nil {
 				if errors.Is(err, repository.ErrEmailTaken) {
@@ -149,9 +139,8 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 				existing.Email = email
 			}
 		}
-		// user_oidc_identities への冪等な保険。FindByOidcSubject は identity を突き合わせ条件に
-		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
-		// おく（失敗してもログイン自体は成立しているため致命扱いにしない）。
+		// user_oidc_identities への冪等な保険。この時点で通常は既に存在するが、念のため保証する
+		// （失敗してもログイン自体は成立しているため致命扱いにしない）。
 		if err := u.oidcIdentities.EnsureIdentity(ctx, existing.ID, domain.OidcProviderDefault, sub); err != nil {
 			slog.WarnContext(ctx, "ensure oidc identity failed (self-heal, non-fatal)", "userID", existing.ID, "err", err)
 		}
@@ -168,9 +157,8 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		Name:  name,
 	}
 
-	// users 行と OIDC identity は不可分に作る（正規化後は識別子を持たないユーザーは存在し得ない）。
-	// identity 側が競合などで失敗すればトランザクションごと巻き戻り、users 行だけが残る
-	// （＝ログイン不能な孤児）状態を作らない。
+	// users 行と OIDC identity は不可分に作る。identity 側が競合などで失敗すれば
+	// トランザクションごと巻き戻り、users 行だけが残る（ログイン不能な孤児）状態を作らない。
 	if err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
 		if err := u.users.Create(ctx, user); err != nil {
 			return err
@@ -178,29 +166,25 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		return u.oidcIdentities.EnsureIdentity(ctx, user.ID, domain.OidcProviderDefault, sub)
 	}); err != nil {
 		if errors.Is(err, repository.ErrEmailTaken) {
-			// 同じ email で同時にサインアップが競合した（同一人物の二重送信など）。
-			// 別の sub で先に確定しているだけなので、呼び出し元が区別できるよう
-			// ErrEmailTaken をそのまま返す。ログには生の subject / email を書かない
-			// （ログの保管先は DB より読める人が広いことがある）。
+			// 同じ email で同時にサインアップが競合し、別の sub で先に確定していた。
+			// 呼び出し元が区別できるよう ErrEmailTaken をそのまま返す。ログに生の
+			// subject / email は書かない（保管先が DB より読める人が広いことがある）。
 			slog.WarnContext(ctx, "signup rejected: email already taken by a concurrent signup")
 			return nil, repository.ErrEmailTaken
 		}
 		return nil, fmt.Errorf("create user with oidc identity: %w", err)
 	}
 
-	// 生の subject / email ではなく、確定した内部 user.ID だけを記録する
-	// （この関数の「既存ユーザー」側の各ログが既に同じ扱い）。
+	// 生の subject / email ではなく確定した内部 user.ID だけを記録する。
 	slog.InfoContext(ctx, "self signup: created a new user", "userID", user.ID)
 
 	return user, nil
 }
 
 // membershipRepository は repository.KnowledgeBasePermissionRepository のうち、この
-// ファイルの usecase（SetUserActiveUseCase / RetireSelfUseCase）が実際に使うメソッドだけを
-// 切り出したもの。呼び出し側（routes_*.go）は repository.KnowledgeBasePermissionRepository を
-// そのまま渡せる（Go の構造的部分型付けにより、上位互換のフル実装がこの小さい interface も
-// 自動的に満たす）。狙いはテスト容易性 — フル interface（50 以上のメソッド）を丸ごと
-// mock するのではなく、ここで使う 4 つだけを mock すればよくなる。
+// ファイルの usecase が実際に使う 4 メソッドだけを切り出したもの。呼び出し側はフル実装を
+// そのまま渡せる（Go の構造的部分型付け）。狙いはテスト容易性 — 50 以上あるフル interface を
+// 丸ごと mock せずに済む。
 type membershipRepository interface {
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
 	ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.MemberWorkspace, error)
@@ -212,29 +196,21 @@ type membershipRepository interface {
 }
 
 // ErrCannotSuspendSelf は自分自身を停止しようとしたときに返す。停止した瞬間に
-// middleware.CurrentUser が本人の以後のリクエストを弾く（IsActive）ため、自分で
-// 自分を復帰させる手段が無くなる（他に admin が居ない限り誰も戻せない）。
+// middleware.CurrentUser が以後のリクエストを弾くため、自分で自分を復帰させる手段が
+// 無くなる（他に admin が居ない限り誰も戻せない）。
 var ErrCannotSuspendSelf = errors.New("cannot suspend yourself")
 
 // ErrTargetNotWorkspaceMember は対象がそのワークスペースのメンバーでないときに返す。
-//
-// SetUserActiveUseCase の権限境界そのもの。users.status はワークスペースをまたぐ
-// グローバルな値だが、実行できるのは「対象が現に所属しているワークスペースの admin」
-// だけに絞る。ここを緩めて任意のユーザー ID を受け付けると、誰でも自分のワークスペースを
-// 作って admin になるだけで、無関係な他人のアカウントを停止できてしまう
-// （FRESTYLE-486 と同種の、対象の実在確認だけで境界を跨げる穴）。
+// users.status はワークスペースをまたぐグローバルな値だが、実行できるのは「対象が現に
+// 所属するワークスペースの admin」だけに絞る。ここを緩めて任意のユーザー ID を受け付けると、
+// 誰でも自分のワークスペースを作って admin になるだけで無関係な他人を停止できてしまう。
 var ErrTargetNotWorkspaceMember = errors.New("target user is not a member of this workspace")
 
-// SetUserActiveUseCase はユーザーアカウントを停止・復帰する（段 7）。
-//
-// users.status はワークスペースをまたぐグローバルな値なので、効果は対象の
-// 全ワークスペースでのログイン不可に及ぶ（middleware.CurrentUser の IsActive 判定）。
-// それでも実行を「対象が現に所属するワークスペースの admin」に限るのは、
-// ErrTargetNotWorkspaceMember の doc に書いた権限昇格を防ぐため — 呼び出し元
-// （handler）は WorkspaceID の admin であることを確認したうえでこれを呼ぶこと。
-//
-// kb / ticket / comment のどの usecase サブパッケージからも import されない中立の
-// 置き場所として user に置く（LookupUserDisplayUseCase と同じ理由）。
+// SetUserActiveUseCase はユーザーアカウントを停止・復帰する。
+// users.status はグローバルな値で、効果は対象の全ワークスペースでのログイン不可に及ぶ。
+// それでも実行を「対象が現に所属するワークスペースの admin」に限るのは
+// ErrTargetNotWorkspaceMember の権限昇格を防ぐため — 呼び出し元（handler）は WorkspaceID の
+// admin であることを確認したうえでこれを呼ぶこと。
 type SetUserActiveUseCase struct {
 	users     repository.UserRepository
 	perm      membershipRepository
@@ -249,9 +225,8 @@ func NewSetUserActiveUseCase(
 	return &SetUserActiveUseCase{users: users, perm: perm, txManager: txManager}
 }
 
-// SetUserActiveInput の WorkspaceID は、実行の起点になったワークスペース。
-// 「対象がそのワークスペースのメンバーか」の判定対象であり、監査記録（段 6）の
-// workspace_id にもなる。
+// SetUserActiveInput の WorkspaceID は実行の起点になったワークスペース。「対象がそのメンバーか」
+// の判定対象であり、監査記録の workspace_id にもなる。
 type SetUserActiveInput struct {
 	WorkspaceID  string
 	TargetUserID uint64
@@ -288,9 +263,8 @@ func (u *SetUserActiveUseCase) Execute(ctx context.Context, in SetUserActiveInpu
 		if err := u.users.UpdateActive(ctx, in.TargetUserID, in.Active); err != nil {
 			return err
 		}
-		// action は停止・復帰のどちらも MembershipEventSuspended を使う
-		// （domain.MembershipEventSuspended の doc 参照。role_changed が付与・剥奪の
-		// 両方を 1 つの action で表すのと同じ考え方 — old/new label が向きを表す）。
+		// action は停止・復帰のどちらも MembershipEventSuspended を使う（role_changed が
+		// 付与・剥奪の両方を 1 つの action で表すのと同じ考え方 — old/new label が向きを表す）。
 		return u.perm.RecordMembershipEvent(
 			ctx, in.WorkspaceID, in.TargetUserID, in.ActorUserID,
 			domain.MembershipEventSuspended, &oldLabel, &newLabel,
@@ -298,18 +272,15 @@ func (u *SetUserActiveUseCase) Execute(ctx context.Context, in SetUserActiveInpu
 	})
 }
 
-// RetireSelfUseCase は自分自身のアカウントを退会させる（段 7）。呼び出し元（handler）が
-// 「本人からの要求であること」を確認したうえで呼ぶ前提で、他人を退会させる口は無い。
+// RetireSelfUseCase は自分自身のアカウントを退会させる。呼び出し元（handler）が本人からの
+// 要求であることを確認したうえで呼ぶ前提で、他人を退会させる口は無い。
 //
-// 所属している全ワークスペースを退出（principal を消し、workspace_members を left に
-// し、それぞれ監査へ記録 — repository.LeaveWorkspaceMembership が行う）してから、
-// users.status を deactivated にする。1 つのトランザクションにまとめるのは、
-// 一部のワークスペースだけ退出して残りが宙に浮いた状態を作らないため。
+// 所属する全ワークスペースを退出（repository.LeaveWorkspaceMembership が principal 削除・
+// workspace_members を left・監査記録を行う）してから users.status を deactivated にする。
+// 1 トランザクションにまとめ、一部だけ退出して残りが宙に浮いた状態を作らない。
 //
-// いずれかのワークスペースで最後の admin なら、そのワークスペースだけ残して
-// 続けることはせず、退会そのものを repository.ErrLastWorkspaceAdmin で断る
-// （誰も権限を変えられないワークスペースを残さないため。先に admin を誰かへ渡してから
-// もう一度退会すればよい）。
+// いずれかで最後の admin なら退会自体を repository.ErrLastWorkspaceAdmin で断る（誰も権限を
+// 変えられないワークスペースを残さないため。先に admin を誰かへ渡してからもう一度退会すればよい）。
 type RetireSelfUseCase struct {
 	users     repository.UserRepository
 	perm      membershipRepository

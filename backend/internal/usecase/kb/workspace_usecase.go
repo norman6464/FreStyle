@@ -13,16 +13,12 @@ import (
 )
 
 // ResolveWorkspaceUseCase は URL の slug と現在のユーザーから、操作対象のワークスペースを決める。
-// ナレッジの HTTP 経路はすべてここを通ってテナントを確定させる
-// （クライアントが送った workspace_id をそのまま信じる経路を作らない）。
+// ナレッジの HTTP 経路はすべてここを通ってテナントを確定させる（workspace_id をクライアントの
+// 申告のまま信じない）。
 //
-// 所属していない slug も存在しない slug も、どちらも repository.ErrWorkspaceNotFound を返す。
-// 呼び出し側で 403 と 404 を撃ち分けられるようにすると、slug（短く推測しやすい文字列）を
-// 総当たりするだけでテナントの実在が分かってしまうため、区別自体をここで潰しておく。
-//
-// ワークスペースの停止判定はここに閉じている（段 2。旧 middleware.CurrentUser の
-// users.workspace_id ベースの判定は撤去済み）。1 人が複数のワークスペースに所属できる以上、
-// 「どのワークスペースの操作か」が定まるのはここが最初で、判定もここでしかできない。
+// 所属していない slug も存在しない slug も repository.ErrWorkspaceNotFound を返す。403 と 404 を
+// 撃ち分けると、slug（短く推測しやすい文字列）の総当たりでテナントの実在が漏れるため区別を潰す。
+// ワークスペースの停止判定もここに閉じる。
 type ResolveWorkspaceUseCase struct {
 	workspaces  repository.KnowledgeBaseRepository
 	permissions repository.KnowledgeBasePermissionRepository
@@ -36,9 +32,7 @@ func NewResolveWorkspaceUseCase(
 }
 
 type ResolveWorkspaceInput struct {
-	// Slug は URL に出るワークスペースの識別子。
-	Slug string
-	// UserID は現在ログインしているユーザー（users.id）。
+	Slug   string
 	UserID uint64
 }
 
@@ -53,16 +47,13 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 	if err != nil {
 		return nil, err
 	}
-	// 停止中のワークスペースは無いものとして扱う。ナレッジの全 HTTP 経路がこの解決を
-	// 通るため、ここで塞ぐ。存在を漏らさないよう、権限が無いときと同じ「見つからない」に畳む。
+	// 停止中のワークスペースは無いものとして扱う。存在を漏らさないよう、権限が無いときと
+	// 同じ「見つからない」に畳む。
 	if !ws.IsActive {
 		return nil, repository.ErrWorkspaceNotFound
 	}
-	// 所属の正本は principals（kind='user'）の行の有無。段 2 以降、この行は
-	// workspace_members が status='active' になった時点でしか作られない
-	// （招待→受諾のトランザクション、または自分でワークスペースを作った直後）。
-	// ここでは新たに所属を作らない — 「URL を知っているだけで入れる」自動参加は、
-	// 同意なく他人をワークスペースへ入れられる穴と同根なので廃止した。
+	// 所属の正本は principals（kind='user'）の行の有無。ここでは新たに所属を作らない —
+	// 「URL を知っているだけで入れる」自動参加は同意なき追加の穴と同根なので持たない。
 	member, err := u.permissions.IsWorkspaceMember(ctx, ws.ID, in.UserID)
 	if err != nil {
 		return nil, err
@@ -75,10 +66,9 @@ func (u *ResolveWorkspaceUseCase) Execute(ctx context.Context, in ResolveWorkspa
 
 // DeleteWorkspaceUseCase はワークスペースを配下ごと消す。
 //
-// 誰が消せるか（ワークスペースの admin か）の判定はここではなく handler が
-// CheckWorkspacePermissionUseCase で先に行う（認可は 1 か所・ほかの操作と同じ組み立て）。
-// 「会社のワークスペースは消さない」という規則だけは repository（さらに SQL）が持つ。
-// 認可と違って**誰であっても消してはいけない**ものなので、入口ではなく最も内側で守る。
+// 誰が消せるかの判定は handler が CheckWorkspacePermissionUseCase で先に行う（認可は 1 か所）。
+// 「会社のワークスペースは消さない」という規則だけは repository（SQL）が持つ —
+// 誰であっても消してはいけないものなので、入口ではなく最も内側で守る。
 type DeleteWorkspaceUseCase struct {
 	repo repository.KnowledgeBaseRepository
 }
@@ -112,15 +102,12 @@ var ErrInvalidName = errors.New("invalid name")
 
 // CreateWorkspaceUseCase はワークスペースを作り、作成者をその admin にする。
 //
-// 「作れるのは誰か」は認証済みのユーザー全員とする。新しく作るのは中身が空のテナントで、
-// 既存のどのワークスペースへのアクセスも増えない（権限は principals / grants で閉じており、
-// 別テナントの主体には届かない）。逆に既存のアプリ内ロール（company_admin 等）で
-// 絞る案は採らない。ナレッジの権限は「特権ロールなら通る」という抜け道を
-// 持たない設計で、作成だけをアプリ内ロールに結び付けると、権限の出どころが 2 系統になる。
+// 作れるのは認証済みユーザー全員。新規テナントは中身が空で既存のワークスペースへの
+// アクセスは増えないため、アプリ内ロール（company_admin 等）で絞る必要はない
+// （権限は principals / grants だけで閉じ、特権ロールで通る抜け道を持たない設計と一貫させる）。
 //
-// 作成者を admin にするのは repository（1 トランザクション）の責務。ここで
-// 「作ってから権限を張る」と 2 手に分けると、片方だけ成功したときに
-// 誰も入れないワークスペースが残る。
+// 作成者を admin にする処理は repository が 1 トランザクションで行う。「作ってから権限を
+// 張る」と 2 手に分けると、片方だけ成功して誰も入れないワークスペースが残りうる。
 type CreateWorkspaceUseCase struct {
 	provisioner repository.WorkspaceProvisioner
 }
@@ -131,10 +118,10 @@ func NewCreateWorkspaceUseCase(p repository.WorkspaceProvisioner) *CreateWorkspa
 
 type CreateWorkspaceInput struct {
 	// Slug は空でよい。空なら自動採番する — URL に使う名前は利用者に決めさせない
-	// （ユーザー決定 2026-08-28。人が付けた名前は衝突・改名の欲求・情報の漏れを生む）。
+	// （人が付けた名前は衝突・改名の欲求・情報の漏れを生む）。
 	Slug string
 	Name string
-	// OwnerUserID は作成者。この人が主体（kind='user'）になり admin の grant を受け取る。
+	// OwnerUserID は作成者。admin の grant を受け取る principal になる。
 	OwnerUserID uint64
 }
 
@@ -169,10 +156,7 @@ func (u *CreateWorkspaceUseCase) Execute(ctx context.Context, in CreateWorkspace
 }
 
 // CreateSpaceUseCase はワークスペース配下にスペースを作る。
-//
-// 誰が作れるか（ワークスペースの実効権限）の判定はここではなく handler が
-// CheckWorkspacePermissionUseCase で先に行う。ページ操作と同じ組み立て方に揃えている
-// （認可は 1 か所、この usecase は「作る」だけを担う）。
+// 誰が作れるかの判定は handler が CheckWorkspacePermissionUseCase で先に行う（認可は 1 か所）。
 type CreateSpaceUseCase struct {
 	repo repository.KnowledgeBaseRepository
 	// provisioner は private のスペース作成に使う（スペース + 作成者への grant を
@@ -193,8 +177,8 @@ type CreateSpaceInput struct {
 	Name string
 	// Visibility は空なら 'workspace'（今までどおりの共有スペース）。
 	Visibility domain.SpaceVisibility
-	// CreatorUserID は作成者。Visibility が 'private' のときに要る
-	//（作成者へ space_grant(admin) を張らないと、作った本人にも見えない）。
+	// CreatorUserID は作成者。private のときに要る（space_grant(admin) を張らないと
+	// 作った本人にも見えない）。
 	CreatorUserID uint64
 }
 
@@ -259,13 +243,8 @@ func (u *CreateSpaceUseCase) createOnce(ctx context.Context, in CreateSpaceInput
 }
 
 // RenameSpaceUseCase はスペースの表示名だけを変える。
-//
-// key は変えない。key は URL とスペース識別の一部で、変えると共有済みの場所が全部外れる。
-// 表示名は人が読むための欄なので自由に変えてよい — この非対称が、2 つを別の欄に
-// 分けている理由そのもの。
-//
-// 誰が変えられるか（スペースの実効権限）の判定は handler が CheckSpacePermissionUseCase で
-// 先に行う（CreateSpace と同じ分担）。
+// key は変えない — key は URL・識別の一部で、変えると共有済みの場所が全部外れる。
+// 誰が変えられるかの判定は handler が CheckSpacePermissionUseCase で先に行う。
 type RenameSpaceUseCase struct {
 	repo repository.KnowledgeBaseRepository
 }
@@ -297,16 +276,14 @@ func (u *RenameSpaceUseCase) Execute(ctx context.Context, in RenameSpaceInput) (
 	return u.repo.FindSpace(ctx, in.WorkspaceID, in.SpaceID)
 }
 
-// validDisplayName は表示名が空でなく列幅（文字数）に収まるかを返す。
-// 列は varchar(n) で「文字数」の上限なので、バイト数ではなくルーン数で数える。
+// validDisplayName は表示名が空でなく列幅（varchar(n)、バイト数でなくルーン数）に収まるかを返す。
 func validDisplayName(name string, maxLen int) bool {
 	return name != "" && utf8.RuneCountInString(name) <= maxLen
 }
 
-// generatedURLKey は slug / key の自動採番。UUID の先頭 12 桁（16 進）を使う。
-// 短い連番にしないのは、URL の識別子から作成順・総数が読めてしまうため。
-// 12 桁（48 ビット）なら 1 ワークスペースの規模で衝突は事実上起きず、
-// 万一衝突しても一意制約が 409 で止める（黙って上書きにはならない）。
+// generatedURLKey は slug / key の自動採番。UUID 先頭 12 桁（16進・48bit）を使う —
+// 短い連番だと URL の識別子から作成順・総数が読めてしまう。衝突は事実上起きず、
+// 万一起きても一意制約が 409 で止める。
 func generatedURLKey(prefix string) string {
 	id := uuid.New()
 	return prefix + "-" + hex.EncodeToString(id[:6])
@@ -314,7 +291,7 @@ func generatedURLKey(prefix string) string {
 
 // EnsurePersonalWorkspaceUseCase は、そのユーザーの個人ワークスペースが既にあれば返し、
 // 無ければ作って返す。一意性は DB（uq_workspaces_personal_owner）が守るので、作成が
-// repository.ErrPersonalWorkspaceAlreadyExists で競合したら引き直す（check-then-act はしない）。
+// repository.ErrPersonalWorkspaceAlreadyExists で競合したら引き直す（check-then-act ではない）。
 type EnsurePersonalWorkspaceUseCase struct {
 	workspaces  repository.KnowledgeBaseRepository
 	provisioner repository.WorkspaceProvisioner
@@ -328,8 +305,7 @@ func NewEnsurePersonalWorkspaceUseCase(
 
 type EnsurePersonalWorkspaceInput struct {
 	UserID uint64
-	// Name は新規作成のときだけ使う表示名（例: 利用者の氏名）。既に個人ワークスペースが
-	// あるときは無視する（作成後に利用者が改名しているかもしれない値を上書きしない）。
+	// Name は新規作成のときだけ使う表示名。既にあるときは無視する（利用者の改名を上書きしない）。
 	Name string
 }
 
@@ -340,7 +316,7 @@ func (u *EnsurePersonalWorkspaceUseCase) Execute(
 		return nil, errors.New("userID is required")
 	}
 
-	// 大半のログイン（初回サインアップ以外）はここで終わる — 1 回の SELECT。
+	// 大半のログインはここで終わる — 1 回の SELECT。
 	if ws, err := u.workspaces.FindPersonalWorkspaceByOwner(ctx, in.UserID); err == nil {
 		return ws, nil
 	} else if !errors.Is(err, repository.ErrWorkspaceNotFound) {
@@ -360,12 +336,12 @@ func (u *EnsurePersonalWorkspaceUseCase) Execute(
 		case err == nil:
 			return created, nil
 		case errors.Is(err, repository.ErrWorkspaceSlugTaken):
-			// 自動採番の衝突（48bit の乱数なので実際にはほぼ起きない）。引き直す。
+			// 自動採番の衝突（ほぼ起きない）。引き直す。
 			slug = generatedURLKey("w")
 			continue
 		case errors.Is(err, repository.ErrPersonalWorkspaceAlreadyExists):
-			// この判定からこの INSERT までの間に、別のリクエスト（二重送信・同時実行）が
-			// 先に作り終えていた。失敗として扱わず、その 1 つを引いて返す。
+			// この判定から INSERT までの間に別のリクエストが先に作り終えていた。
+			// 失敗として扱わず、その 1 つを引いて返す。
 			ws, findErr := u.workspaces.FindPersonalWorkspaceByOwner(ctx, in.UserID)
 			if findErr != nil {
 				return nil, fmt.Errorf("find personal workspace after race: %w", findErr)
@@ -379,7 +355,7 @@ func (u *EnsurePersonalWorkspaceUseCase) Execute(
 
 // InviteWorkspaceMemberUseCase はユーザーをワークスペースへ招待する。
 // 実際の所属（principal・権限）は招待された本人が受諾するまで発生しない
-// （AcceptWorkspaceInvitationUseCase 参照。段 2 — 同意なく他人を追加できる穴の修正）。
+// （AcceptWorkspaceInvitationUseCase 参照）。
 type InviteWorkspaceMemberUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -433,8 +409,8 @@ func (u *AcceptWorkspaceInvitationUseCase) Execute(ctx context.Context, in Accep
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
 	}
-	// 招待の受諾はまだ非メンバーの本人が呼ぶので、middleware.KnowledgeBaseWorkspace
-	// （所属済みしか通さない）は使えない。slug の解決はここで直接行う。
+	// 受諾はまだ非メンバーの本人が呼ぶので、所属済みしか通さない middleware は使えず、
+	// slug の解決はここで直接行う。
 	ws, err := u.workspaces.FindWorkspaceBySlug(ctx, in.WorkspaceSlug)
 	if err != nil {
 		return nil, err

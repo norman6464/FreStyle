@@ -15,18 +15,14 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// knowledgeBaseRepository は [repository.KnowledgeBaseRepository] の実装。
-// ナレッジは GORM を通さない方針（スキーマの正本は infra/database/schema/schema.hcl。
-// knowledge_base.sql は sqlc へ渡すクエリの置き場で、スキーマそのものではない）
-// のため、クエリはすべて sqlc 生成コード + 素の *sql.DB で書く。
-// 複数テーブルにまたがる書き込み（ページ作成・移動・本文置き換え）は runInTx が
-// 自前のトランザクションで閉じるが、ctx に既に外側の TxManager.DoInTx が開いた
-// トランザクションがあればそちらへ相乗りする（usecase に *sql.Tx を漏らさない点は変わらない）。
+// knowledgeBaseRepository は [repository.KnowledgeBaseRepository] の実装。ナレッジはスキーマ正本が
+// schema.hcl で GORM を通さない方針のため、sqlc 生成コード + 素の *sql.DB で書く。複数テーブルに
+// またがる書き込みは runInTx が自前のトランザクションで閉じるが、外側の TxManager.DoInTx が
+// 既にトランザクションを開いていればそちらへ相乗りする。
 type knowledgeBaseRepository struct {
 	baseRepository
 }
 
-// NewKnowledgeBaseRepository はナレッジの repository を組み立てる。
 func NewKnowledgeBaseRepository(db *sql.DB) repository.KnowledgeBaseRepository {
 	return &knowledgeBaseRepository{baseRepository{db: db}}
 }
@@ -82,16 +78,13 @@ const (
 	sqlStateForeignKeyViolation = "23503"
 )
 
-// isUniqueViolation は一意制約違反（重複）かを返す。
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == sqlStateUniqueViolation
 }
 
-// uniqueViolationConstraint は一意制約違反のとき、違反した制約名を返す。
-// 1 つの INSERT が複数の一意制約を持ちうる場合、名前を見ないとどの制約が競合したか
-// 区別できず、意味の違うエラー（本当に重複 / 別の要求が既に作っていた等）を
-// 取り違えて返してしまう。
+// uniqueViolationConstraint は一意制約違反のとき、違反した制約名を返す。1 つの INSERT が
+// 複数の一意制約を持ちうる場合、名前を見ないとどの制約が競合したか区別できない。
 func uniqueViolationConstraint(err error) (string, bool) {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != sqlStateUniqueViolation {
@@ -100,15 +93,13 @@ func uniqueViolationConstraint(err error) (string, bool) {
 	return pgErr.ConstraintName, true
 }
 
-// isForeignKeyViolation は外部キー違反（参照先が無い）かを返す。
 func isForeignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == sqlStateForeignKeyViolation
 }
 
-// foreignKeyViolationConstraint は外部キー違反のとき、違反した制約名を返す。
-// 1 つの INSERT が複数の外部キーを持ちうる場合、名前を見ないとどの参照が無いのか
-// 区別できない（uniqueViolationConstraint と同じ理由）。
+// foreignKeyViolationConstraint は外部キー違反の制約名を返す（uniqueViolationConstraint と
+// 同じ理由: 複数 FK を持つ INSERT では名前を見ないとどの参照が無いのか区別できない）。
 func foreignKeyViolationConstraint(err error) (string, bool) {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != sqlStateForeignKeyViolation {
@@ -223,9 +214,8 @@ func toDomainPageSnapshot(row sqlcgen.PageSnapshot) domain.PageSnapshot {
 
 // DeleteWorkspace はワークスペースを配下ごと消す。
 //
-// 0 行だったときに「無かった」と「人が居るから消さなかった」を撃ち分ける必要がある。
-// SQL 側は人が居るものを WHERE で弾くだけなのでどちらも 0 行になる。ここで実在を引き直し、
-// 在るのに消えなかった＝人が居ると判定する（守りは SQL 側にあり、ここは理由付けだけ）。
+// 0 行は「無かった」と「人が居て消さなかった」のどちらもあり得る（SQL は人が居る行を
+// WHERE で弾くだけ）。実在を引き直し、在るのに消えなかった場合だけ ErrWorkspaceHasMembers とする。
 func (r *knowledgeBaseRepository) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	id, ok := kbParseID(workspaceID)
 	if !ok {
@@ -422,15 +412,11 @@ func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain
 		Visibility:  string(visibility),
 	})
 	if err != nil {
-		// key の重複（uq_spaces_workspace_key）は入口の検証では防げない
-		// （検査してから INSERT するまでの間に別の要求が同じ key を取り得る）。
-		// 一意制約を唯一の判定にして、業務上の衝突として返す。
+		// key の重複は検査後の INSERT までの間に起き得る TOCTOU なので、一意制約を唯一の判定にする。
 		if isUniqueViolation(err) {
 			return repository.ErrSpaceKeyTaken
 		}
-		// ワークスペースが実在しなければ FK 違反になる。存在しないテナントへの
-		// 作成要求なので「無い」に翻訳する（FK 違反を 500 で返すと、
-		// クライアントは再試行してよいものと誤解する）。
+		// ワークスペースが実在しなければ FK 違反。500 ではなく「無い」に翻訳する。
 		if isForeignKeyViolation(err) {
 			return repository.ErrWorkspaceNotFound
 		}
@@ -504,16 +490,16 @@ func (r *knowledgeBaseRepository) SiblingPositionsAround(
 	spID, ok2 := kbParseID(spaceID)
 	parent, ok3 := kbNullID(parentID)
 	anchorID, ok4 := kbParseID(anchorPageID)
-	// movingPageID が空なら「除くものが無い」。どのページの ID とも一致しない値を渡して、
-	// 除外の条件をそのまま無効化する（条件を組み替えて分岐を増やさない）。
+	// movingPageID が空なら「除くものが無い」。どのページの ID とも一致しない値を渡して
+	// 除外条件を無効化する。
 	movingID := uuid.Nil
 	ok5 := true
 	if movingPageID != "" {
 		movingID, ok5 = kbParseID(movingPageID)
 	}
 	if !ok || !ok2 || !ok3 || !ok4 || !ok5 {
-		// UUID ですらない値はどの兄弟にも一致しない。**エラーにはしない**
-		// （見つからなかったときと同じ扱い。撃ち分けると応答の作られ方が変わる）。
+		// UUID ですらない値はどの兄弟にも一致しない。見つからなかったときと同じ扱いにする
+		// （エラーにはしない）。
 		return false, "", "", "", nil
 	}
 	row, err := r.queries(ctx).SiblingPositionsAround(ctx, sqlcgen.SiblingPositionsAroundParams{
@@ -591,11 +577,9 @@ func (r *knowledgeBaseRepository) CreatePage(ctx context.Context, page *domain.P
 	if !ok || !ok2 || !ok3 {
 		return repository.ErrPageNotFound
 	}
-	// pages.created_by_user_id は bigint（int64）で、domain のユーザー ID は uint64。
-	// int64(page.CreatedByUserID) と素で書くと math.MaxInt64 を超える値が負数へ巻き戻り、
-	// 作成者とは無関係な id が作成者として記録される。範囲外の id を持つユーザーは
-	// 存在し得ないので、書き込みに入る前にエラーで止める
-	// （nil を返すとページを作れたと誤認され、呼び出し側が page.ID を読みに行く）。
+	// pages.created_by_user_id は bigint。素の int64(page.CreatedByUserID) は math.MaxInt64 超で
+	// 負数へ巻き戻り、無関係な id を作成者として記録し得るため、範囲外なら書き込み前にエラーで
+	// 止める（nil を返すと作成できたと誤認される）。
 	createdBy, ok4 := toInt64ID(page.CreatedByUserID)
 	if !ok4 {
 		return outOfRangeIDError("created_by_user_id", page.CreatedByUserID)
@@ -782,9 +766,8 @@ func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pag
 				return repository.ErrPageNotFound
 			}
 		} else {
-			// 「そのスペースの全員」宛ての付与はスペースをまたぐと評価されなくなり、行は
-			// 権限設定画面に見えているのに効かない状態になる。同じトランザクションで
-			// 調べて拒否する（先に調べても、移動までのあいだに張られた行を取りこぼす）。
+			// 「そのスペースの全員」宛ての付与はスペースをまたぐと評価されなくなる（画面には
+			// 見えているのに効かない状態になる）。移動と同じトランザクションで調べて拒否する。
 			voids, err := qtx.SubtreeHasForeignSpaceAllGrant(ctx, sqlcgen.SubtreeHasForeignSpaceAllGrantParams{
 				WorkspaceID: wsID,
 				PageID:      pgID,
@@ -833,16 +816,11 @@ func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pag
 }
 
 // ArchivePageSubtree は根とその子孫をまとめてアーカイブする。
-// 1 行も畳めなかった場合は repository.ErrPageNotFound を返す（handler が 404 にマップ）。
 //
-// 0 行更新を成功にしてはいけない理由:
-//
-//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで件数を捨てて nil を返すと
-//	handler は 204 を返し、ツリーから消えたはずのページがそのまま残る。
-//	この文は根も含めて畳むので、成功したなら必ず 1 行以上（= 根の分）に当たる。
-//	0 行は「そのページがワークスペースに無い」ことしか意味しない。
-//	呼び出し側（ArchivePageUseCase）は FindPage で存在を先に確かめているので、
-//	ここに落ちるのは「確認とアーカイブのあいだにページが消えた」競合のときだけ。
+// UPDATE は 0 行一致でも成功するため、件数を捨てると消えたはずのページが残ったまま
+// 204 を返してしまう。根も含めて畳む文なので、成功なら必ず 1 行以上に当たる — 0 行は
+// 「ワークスペースに無い」ことしか意味しない（呼び出し側は事前に FindPage 済みなので、
+// ここに落ちるのは確認後にページが消えた競合のときだけ）。
 func (r *knowledgeBaseRepository) ArchivePageSubtree(ctx context.Context, workspaceID, pageID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
@@ -869,12 +847,9 @@ func (r *knowledgeBaseRepository) UnarchivePageSubtree(ctx context.Context, work
 	}
 
 	return r.runInTx(ctx, func(qtx *sqlcgen.Queries) error {
-		// 現役の兄弟と position が衝突する場合は、まだアーカイブ済み（部分 UNIQUE の対象外）の
-		// うちに根の position を振り直してから現役へ戻す。
-		//
-		// ここも件数を見る。振り直しが 0 行なら根のページが無いということで、そのまま
-		// UnarchivePageSubtree へ進むと「元の position のまま復帰させようとして UNIQUE で落ちる」か
-		// 「何も起きないまま成功を返す」かのどちらかになり、どちらも原因が分からない形で表に出る。
+		// 現役の兄弟と position が衝突する場合は、まだアーカイブ済み（部分 UNIQUE 対象外）のうちに
+		// 根の position を振り直してから現役へ戻す。振り直しが 0 行なら根のページが無いということ
+		// で、そのまま進めると UNIQUE 違反か原因不明の無反応成功になるため、ここで打ち切る。
 		if newRootPosition != nil {
 			n, err := qtx.SetPagePosition(ctx, sqlcgen.SetPagePositionParams{
 				WorkspaceID: wsID,
@@ -924,12 +899,9 @@ func (r *knowledgeBaseRepository) ListBlocksByPage(ctx context.Context, workspac
 
 // ReplacePageBlocks は本文を差分 UPSERT で書き換える（全消し全入れではない）。
 //
-// 将来 comment_threads.block_id が blocks.id を ON DELETE SET NULL で参照する予定があり、
-// 「ブロックの中身を編集して保存し直しても、そのブロックに付いたコメントの紐付けは外れない」
-// ことが要る。PostgreSQL の ON DELETE SET NULL は DELETE 文が実行された瞬間に発火するため、
-// 全消し全入れを続ける限り保存のたびに全コメントの紐付けが外れてしまう。そのため、
-// 消えた id だけ DELETE し、生き残る id は UPDATE で中身を書き換え（行そのものは同一なので
-// FK は外れない）、新しい id だけ INSERT する。
+// comment_threads.block_id は将来 blocks.id を ON DELETE SET NULL で参照する予定で、保存の
+// たびに全消し全入れすると DELETE の瞬間に全コメントの紐付けが外れてしまう。そのため消えた
+// id だけ DELETE し、生き残る id は UPDATE（行は同一なので FK は保たれる）、新規だけ INSERT する。
 func (r *knowledgeBaseRepository) ReplacePageBlocks(
 	ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc, title, body string,
 	pageLinks []repository.PageLinkWrite, pageTicketLinks []repository.PageTicketLinkWrite,
@@ -947,7 +919,7 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			return err
 		}
 
-		// 1. 各 BlockWrite.ID を検証する。usecase 側（flattenPageDoc）が必ず有効な UUID を
+		// 各 BlockWrite.ID を検証する。usecase 側（flattenPageDoc）が必ず有効な UUID を
 		// 埋めている前提なので、parse 失敗はバグの証拠としてそのままエラーを返す。
 		incomingIDs := make([]uuid.UUID, len(blocks))
 		for i, b := range blocks {
@@ -958,7 +930,6 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			incomingIDs[i] = id
 		}
 
-		// 2. このページの既存 id 集合を取得する。
 		existingRows, err := qtx.ListPageBlockIDs(ctx, sqlcgen.ListPageBlockIDsParams{WorkspaceID: wsID, PageID: pgID})
 		if err != nil {
 			return err
@@ -972,8 +943,8 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			incoming[id] = true
 		}
 
-		// 3. incoming のうち existing に無いもの＝newIDs。他ページの行を乗っ取ろうとして
-		// いないかを確認し、1 件でも見つかれば保存ごと拒否する。
+		// incoming のうち existing に無いもの＝newIDs。他ページの行を乗っ取ろうとしていないかを
+		// 確認し、1 件でも見つかれば保存ごと拒否する。
 		newIDs := make([]uuid.UUID, 0, len(incoming))
 		for id := range incoming {
 			if !existing[id] {
@@ -994,8 +965,8 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			}
 		}
 
-		// 4. existing にあって incoming に無いもの＝toDelete。ページから消えた行を削除する
-		// （comment_threads.block_id の ON DELETE SET NULL がここで初めて意図通りに発火する）。
+		// existing にあって incoming に無いもの＝toDelete。ページから消えた行を削除する
+		// （comment_threads.block_id の ON DELETE SET NULL がここで発火する）。
 		toDelete := make([]uuid.UUID, 0, len(existing))
 		for id := range existing {
 			if !incoming[id] {
@@ -1016,9 +987,9 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			}
 		}
 
-		// 5. existing と incoming の両方にあるもの＝kept。position を一時値へ退避してから
-		// 本来値を書く（flattenPageDoc が毎回振り直す position が、まだ古い position を
-		// 持つ別の生存行と衝突するのを避けるため。ParkBlockPositions のコメント参照）。
+		// kept（existing かつ incoming）は position を一時値へ退避してから本来値を書く
+		// （flattenPageDoc が振り直す position が、まだ古い position の別の生存行と衝突するのを
+		// 避けるため。ParkBlockPositions のコメント参照）。
 		kept := make([]uuid.UUID, 0, len(existing))
 		for id := range existing {
 			if incoming[id] {
@@ -1039,14 +1010,9 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			}
 		}
 
-		// 6. 入力の順序のまま（= flattenPageDoc が親を先に出す文書順のまま）1 件ずつ UPSERT する。
-		// 新規ブロックが新規の親を参照するケースでは、親が先に UPSERT 済みでないと
-		// fk_blocks_parent に落ちるため、この順序を変えてはいけない。
-		//
-		// ParentID の dangling 参照（flattenPageDoc の出力が壊れている場合）は Go 側で
-		// 事前検証しない。fk_blocks_parent の FK 制約が INSERT 時点で自然に拒否するので、
-		// そちらに任せる（ParentIndex 特有のパニック回避のための事前チェックは、
-		// ID ベースの新実装では不要）。
+		// 入力の順序（flattenPageDoc が親を先に出す文書順）のまま 1 件ずつ UPSERT する。新規の親を
+		// 参照する新規ブロックは親が先に UPSERT 済みでないと fk_blocks_parent に落ちるため、この
+		// 順序を変えてはいけない。ParentID の dangling 参照は事前検証せず、FK 違反に任せる。
 		for i, b := range blocks {
 			var parent uuid.NullUUID
 			if b.ParentID != nil {
@@ -1075,17 +1041,14 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 				return err
 			}
 			if rows == 0 {
-				// 事前の ListExistingBlockIDsAmong は行をロックしない。別ページ/別
-				// ワークスペースの保存が同じ id を先に INSERT すると（事前検証をすり抜けた
-				// レース）、UpsertBlock の WHERE が偽になり 0 行のまま何も書かれない。
-				// :exec のままだとこれを検知できず、snapshot だけ更新されて保存が成功
-				// したことになってしまう（CodeRabbit 指摘）。ここで検知して同じ
-				// ErrBlockIDConflict に倒す。
+				// 事前の ListExistingBlockIDsAmong は行をロックしない。別ページ/別ワークスペースの
+				// 保存が同じ id を先に INSERT するレースが起きると、UpsertBlock の WHERE が偽になり
+				// 0 行のまま何も書かれない。:exec のままでは検知できず保存成功と誤認するため、
+				// ここで検知して ErrBlockIDConflict に倒す。
 				return repository.ErrBlockIDConflict
 			}
 		}
 
-		// 7. snapshot を焼き直す。
 		if err := qtx.UpsertPageSnapshot(ctx, sqlcgen.UpsertPageSnapshotParams{
 			PageID: pgID,
 			Doc:    json.RawMessage(snapshotDoc),
@@ -1093,8 +1056,8 @@ func (r *knowledgeBaseRepository) ReplacePageBlocks(
 			return err
 		}
 
-		// 8. page_search / page_links を同期する。書き込みの中核ロジックは
-		// RebuildPageSearchAndLinks と共有する（writePageSearchAndLinks の doc 参照）。
+		// page_search / page_links の同期。中核ロジックは writePageSearchAndLinks を
+		// RebuildPageSearchAndLinks と共有する。
 		return writePageSearchAndLinks(ctx, qtx, wsID, pgID, title, body, pageLinks, pageTicketLinks)
 	})
 }

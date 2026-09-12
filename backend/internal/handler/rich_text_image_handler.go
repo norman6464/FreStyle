@@ -22,7 +22,7 @@ func NewRichTextImageHandler(i *richtextimage.IssueRichTextImageUploadURLUseCase
 // issueUploadURLReq は body 受け取り。userId は受け取らず middleware の current user を使う（IDOR 対策）。
 type issueUploadURLReq struct {
 	ContentType string `json:"contentType"`
-	// Size はバイト数（FRESTYLE-9: サイズ上限の検証に使う）。省略時は 0 になり、
+	// Size はバイト数（サイズ上限の検証に使う）。省略時は 0 になり、
 	// domain.ValidateImageUpload が「0 以下は拒否」で弾く。
 	Size int64 `json:"size"`
 }

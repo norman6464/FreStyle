@@ -17,35 +17,28 @@ import (
 // 共有リンクを開けないときの理由。どれも「開けない」だが、利用者に返す案内が変わるため分ける
 // （期限切れなら再発行を頼む、パスワード違いなら入れ直す）。
 var (
-	// ErrShareLinkRevoked は失効させたリンクを使ったときに返す。
-	ErrShareLinkRevoked = errors.New("share link has been revoked")
-	// ErrShareLinkExpired は期限を過ぎたリンクを使ったときに返す。
-	ErrShareLinkExpired = errors.New("share link has expired")
-	// ErrShareLinkPasswordRequired はパスワード付きリンクにパスワード無しで来たときに返す。
+	ErrShareLinkRevoked          = errors.New("share link has been revoked")
+	ErrShareLinkExpired          = errors.New("share link has expired")
 	ErrShareLinkPasswordRequired = errors.New("share link requires a password")
-	// ErrShareLinkPasswordMismatch はパスワードが違うときに返す。
 	ErrShareLinkPasswordMismatch = errors.New("share link password does not match")
-	// ErrShareLinkPageOutOfScope はリンクの対象ページでも その子孫でもないページを
-	// そのリンクで開こうとしたときに返す。
+	// ErrShareLinkPageOutOfScope はリンクの対象ページでもその子孫でもないページを開こうとしたときに返す。
 	ErrShareLinkPageOutOfScope = errors.New("page is not covered by this share link")
 )
 
-// shareLinkTokenBytes は共有 URL に載せるトークンの乱数バイト数。
-// 32 バイト（256 bit）あれば総当たりは現実的でなく、ハッシュを SHA-256 にできる
-// （遅いハッシュで守らなければならないのは、人が選ぶ短い値＝パスワードの方）。
+// shareLinkTokenBytes は共有 URL に載せるトークンの乱数バイト数。32 バイト（256bit）あれば
+// 総当たりは現実的でなく、ハッシュを SHA-256 にできる（遅いハッシュが要るのは人が選ぶ
+// 短い値＝パスワードの方）。
 const shareLinkTokenBytes = 32
 
-// hashShareLinkToken はトークン文字列を SHA-256 で 32 バイトへ縮める。
-// 平文を DB に置かないため、保存も照合もこの値で行う。
+// hashShareLinkToken はトークンを SHA-256 で縮める。平文を DB に置かないため保存も照合もこの値で行う。
 func hashShareLinkToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
 }
 
 // IssueShareLinkUseCase はページの公開 URL を発行する。
-//
-// 戻り値の Token は**このときだけ**返る平文（DB にはハッシュしか残らない）。
-// 呼び出し側は URL を組み立てて利用者に渡し、以後は保持しないこと。
+// 戻り値の Token はこのときだけ返る平文（DB にはハッシュしか残らない）。呼び出し側は
+// URL を組み立てて利用者に渡し、以後は保持しないこと。
 type IssueShareLinkUseCase struct {
 	repo repository.ShareLinkRepository
 }
@@ -62,16 +55,15 @@ type IssueShareLinkInput struct {
 	// Password が空でなければパスワード付きにする。
 	Password string
 	// ExpiresAt が nil なら無期限。
-	ExpiresAt *time.Time
-	// CreatedByUserID は発行者。
+	ExpiresAt       *time.Time
 	CreatedByUserID uint64
 }
 
 // IssueShareLinkOutput は発行したリンクと、その 1 回だけ返る平文トークンの組。
 type IssueShareLinkOutput struct {
 	Link *domain.ShareLink
-	// Token は URL に載せる平文トークン。DB には SHA-256 だけが残るため、
-	// この値を失うとリンクは二度と取り出せない（再発行になる）。
+	// Token は URL に載せる平文トークン。DB には SHA-256 だけが残るため、失うと
+	// リンクは二度と取り出せない（再発行になる）。
 	Token string
 }
 
@@ -160,9 +152,7 @@ func NewVerifyShareLinkUseCase(r repository.ShareLinkRepository) *VerifyShareLin
 }
 
 type VerifyShareLinkInput struct {
-	// Token は URL に載っていた平文トークン。
-	Token string
-	// Password はパスワード付きリンクのときに要る。
+	Token    string
 	Password string
 }
 
@@ -193,11 +183,9 @@ func (u *VerifyShareLinkUseCase) Execute(ctx context.Context, in VerifyShareLink
 
 // CheckShareLinkPermissionUseCase は検証済みの共有リンクで、あるページを閲覧 / 編集できるかを答える。
 //
-// できることはリンク自身の Capability だけで決まる。リンクの来訪者はワークスペースに
-// 所属しないので、付与の 3 段はそもそも届かない。
-//
-// **共有リンクは広げる方向にしか働かない。** ログインしていない相手へ「見せる」を足すだけで、
-// すでに見えている人から取り上げることはない。
+// できることはリンク自身の Capability だけで決まる（リンクの来訪者はワークスペースに
+// 所属しないため、付与の 3 段は届かない）。共有リンクは広げる方向にしか働かない —
+// ログインしていない相手へ「見せる」を足すだけで、既に見えている人から取り上げはしない。
 //
 // 対象ページはリンクのページ自身かその子孫でなければならない。リンクを持っているだけで
 // スペース内の別のページを開けてしまわないよう、ここで必ず確かめる。
@@ -215,8 +203,7 @@ func NewCheckShareLinkPermissionUseCase(
 
 type CheckShareLinkPermissionInput struct {
 	// Link は VerifyShareLinkUseCase が返した検証済みのリンク。
-	Link *domain.ShareLink
-	// PageID は開こうとしているページ。
+	Link   *domain.ShareLink
 	PageID string
 }
 
@@ -244,15 +231,12 @@ func (u *CheckShareLinkPermissionUseCase) Execute(ctx context.Context, in CheckS
 	return &perm, nil
 }
 
-// ListPageShareLinksUseCase はページに発行済みの共有リンクを返す（失効済みも含む）。
+// ListPageShareLinksUseCase はページに発行済みの共有リンクを返す（失効済みも含む — 止めた
+// 確認と、いつ誰が止めたかを追えるようにするため）。トークンは発行時の 1 回しか返らない
+// （DB には SHA-256 しか残らない）ため、生きているリンクを知る手段はこれしか無い。
 //
-// 発行しっぱなしを防ぐための口。トークンは発行時の 1 回しか返らず（DB には SHA-256 しか
-// 残らない）、あとから「今どのリンクが生きているか」を知る手段がこれしか無い。
-// 失効済みも返すのは、止めたことの確認と、いつ誰が止めたかを追えるようにするため。
-//
-// 返す domain.ShareLink の TokenHash / PasswordHash は json:"-" で API へ出ない。
-// handler 側も平文トークンを持っていない（保存していない）ので、この一覧から
-// リンクを開く手がかりは出ない。
+// 返す domain.ShareLink の TokenHash / PasswordHash は json:"-" で API へ出ず、
+// この一覧からリンクを開く手がかりは出ない。
 type ListPageShareLinksUseCase struct {
 	repo repository.ShareLinkRepository
 }

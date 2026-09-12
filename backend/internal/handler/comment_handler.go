@@ -27,7 +27,6 @@ type CommentHandler struct {
 	userDisplay  *user.LookupUserDisplayUseCase
 }
 
-// NewCommentHandler は CommentHandler を組み立てる。
 func NewCommentHandler(
 	check *kb.CheckPagePermissionUseCase,
 	createThread *comment.CreateCommentThreadUseCase,
@@ -48,21 +47,16 @@ func NewCommentHandler(
 	}
 }
 
-// requireCommentPermission はコメント操作の実効権限を確かめる（CanComment）。
-// 満たさなければレスポンスを書いて false を返す。
-//
-// requirePagePermission（kb_page_handler.go）と同じ形だが、判定するのが
-// domain.Capability ではなく domain.PagePermission.CanComment という別軸のフィールドなので、
-// 別関数にする（Capability は view/edit の 2 値にしか対応しておらず、そのまま流用できない）。
+// requireCommentPermission はコメント操作の実効権限を確かめる（CanComment）。満たさなければ
+// レスポンスを書いて false を返す。requirePagePermission と同じ形だが、判定するのが
+// domain.Capability（view/edit の 2 値）ではなく別軸の CanComment なので別関数にしてある。
 func (h *CommentHandler) requireCommentPermission(c *gin.Context, scope kbRequestScope, pageID string) bool {
 	return requireCommentPermissionWith(c, h.check, scope, pageID)
 }
 
 // requireCommentPermissionWith は requireCommentPermission の実体。CommentHandler と
-// PageSuggestionHandler の両方が同じ判定（CanComment）を使うために package レベルの関数へ
-// 切り出してある（requirePagePermissionWith / requireSpacePermissionWith と同じ理由 —
-// CanComment の判定はどちらの handler でも同じで、書き直すとどちらか片方だけ直し忘れて
-// 食い違う危険がある）。
+// PageSuggestionHandler が同じ CanComment 判定を共有するための package 関数
+// （requirePagePermissionWith と同じ理由 — 個別に書くと片方だけ直し忘れて食い違う）。
 func requireCommentPermissionWith(c *gin.Context, check *kb.CheckPagePermissionUseCase, scope kbRequestScope, pageID string) bool {
 	perm, err := check.Execute(c.Request.Context(), kb.CheckPagePermissionInput{
 		WorkspaceID: scope.workspaceID,
@@ -79,7 +73,7 @@ func requireCommentPermissionWith(c *gin.Context, check *kb.CheckPagePermissionU
 		return false
 	}
 	if !perm.CanComment {
-		// ここに来る相手は閲覧できる = 実在を既に知っているので、403 で理由を返してよい。
+		// 閲覧できる = 実在を既に知っているので、403 で理由を返してよい。
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return false
 	}
@@ -241,9 +235,8 @@ type kbCommentThreadsResponse struct {
 	Threads []commentThreadResponse `json:"threads"`
 }
 
-// ListThreads はページのコメントスレッド一覧を、それぞれの発言付きで返す
-// （CanView だけで許可する — viewer でも既存のコメントは読める。書ける・解決できるのは
-// commenter 以上だけ、という区別）。
+// ListThreads はページのコメントスレッド一覧を、それぞれの発言付きで返す（CanView だけで
+// 許可 — viewer でも既存のコメントは読める。書ける・解決できるのは commenter 以上だけ）。
 func (h *CommentHandler) ListThreads(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

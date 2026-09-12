@@ -14,11 +14,10 @@ import (
 )
 
 // PageSuggestionHandler は commenter が保存した提案（page_suggestions）を受ける。
-// page_template_handler.go / page_version_handler.go と同じ形（kbRequestScope・
-// respondKnowledgeBaseErr・requirePagePermissionWith / requireCommentPermissionWith の再利用）。
+// page_template_handler.go / page_version_handler.go と同じ形。
 //
-// 認可の方針: 作成は CanComment（requireCommentPermissionWith — comment_handler.go と同じ判定）、
-// 一覧の閲覧は CanView（コメント一覧が誰でも見られるのと同じ考え方）、採用・却下は CanEdit。
+// 認可: 作成は CanComment（comment_handler.go と同じ判定）、一覧の閲覧は CanView
+// （コメント一覧が誰でも見られるのと同じ考え方）、採用・却下は CanEdit。
 type PageSuggestionHandler struct {
 	check       *kb.CheckPagePermissionUseCase
 	create      *kb.CreateSuggestionUseCase
@@ -29,7 +28,6 @@ type PageSuggestionHandler struct {
 	userDisplay *user.LookupUserDisplayUseCase
 }
 
-// NewPageSuggestionHandler は PageSuggestionHandler を組み立てる。
 func NewPageSuggestionHandler(
 	check *kb.CheckPagePermissionUseCase,
 	create *kb.CreateSuggestionUseCase,
@@ -55,15 +53,12 @@ type kbPageSuggestionResponse struct {
 	CreatedAt  time.Time            `json:"createdAt"`
 	ResolvedAt *time.Time           `json:"resolvedAt,omitempty"`
 	ResolvedBy *userDisplayResponse `json:"resolvedBy,omitempty"`
-	// BaseDoc は BaseSeq が指す版の本文（差分表示用の付随情報）。BaseSeq が nil、または
-	// その版が既に引けない場合は省略する（診断情報でしかないので、それだけで提案自体の
-	// 応答を止めない）。
+	// BaseDoc は BaseSeq が指す版の本文（差分表示用の付随情報）。引けない場合は省略する
+	// （診断情報でしかないので、それだけで提案自体の応答を止めない）。
 	BaseDoc json.RawMessage `json:"baseDoc,omitempty"`
 }
 
-// toResponse は domain.PageSuggestion を応答形へ変換する。scope.workspaceID を BaseDoc の
-// GetPageVersionUseCase 呼び出しに使う（提案自体は WorkspaceID を持つが、呼び出し元が
-// 既に検証済みの scope をそのまま使う方が、handler 内の他の変換と作法が揃う）。
+// toResponse は domain.PageSuggestion を応答形へ変換する。
 func (h *PageSuggestionHandler) toResponse(
 	ctx context.Context, scope kbRequestScope, s domain.PageSuggestion, cache userDisplayCache,
 ) kbPageSuggestionResponse {
@@ -129,8 +124,8 @@ func (h *PageSuggestionHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, h.toResponse(c.Request.Context(), scope, *out, cache))
 }
 
-// ListOpen はページの open な提案一覧を返す（CanView だけで許可する — コメント一覧が
-// 誰でも見られるのと同じ考え方。書ける・採用できるのは commenter / editor 以上、という区別）。
+// ListOpen はページの open な提案一覧を返す（CanView だけで許可 — 書ける・採用できるのは
+// commenter / editor 以上、という区別）。
 func (h *PageSuggestionHandler) ListOpen(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -148,7 +143,7 @@ func (h *PageSuggestionHandler) ListOpen(c *gin.Context) {
 		return
 	}
 	cache := userDisplayCache{}
-	// 0 件でも [] を返す（PageTemplateHandler.List と同じ理由 — null だとフロントの .map が落ちる）。
+	// 0 件でも [] を返す（null だとフロントの .map が落ちる）。
 	items := make([]kbPageSuggestionResponse, 0, len(out))
 	for _, s := range out {
 		items = append(items, h.toResponse(c.Request.Context(), scope, s, cache))

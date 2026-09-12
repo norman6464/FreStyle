@@ -16,7 +16,7 @@ import (
 //
 // メンバー追加（KnowledgeBaseMemberHandler.InviteMember）は workspace_members に
 // invited の行を作るだけで、principal・権限はこの handler の Accept を本人が呼ぶまで
-// 発生しない（段 2。FRESTYLE-486 の修正）。まだ所属していない状態で叩くエンドポイントなので
+// 発生しない。まだ所属していない状態で叩くエンドポイントなので
 // middleware.KnowledgeBaseWorkspace（所属済みしか通さない）を通さない
 // （KnowledgeBaseWorkspaceHandler.List / Create と同じ位置付け）。
 type KnowledgeBaseInvitationHandler struct {

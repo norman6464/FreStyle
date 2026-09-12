@@ -16,47 +16,28 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
-// 共有リンクの検証と、メンバー追加に掛ける上限の数値。
-//
-// 共有リンク: リンク 1 本あたり 1 分 10 回（短期は 5 回まで）。パスワードを打ち間違える
-// 人の邪魔にはならず、総当たりの速度は 1 分 10 通りまで落ちる。鍵がリンクなので、
-// この上限は要求元をいくら分散させても効く。同じリンクを持っている人どうしは
-// 上限を共有するが、そもそもリンクを渡された者どうしなので実害は無い。
-//
-// メンバー追加: ユーザー 1 人あたり 1 分 30 回（短期は 10 回まで）。実運用の一括追加が
-// 詰まらない程度に取りつつ、ユーザー ID 空間の走査は 1 分 30 件まで落ちる。
+// 共有リンクの検証・メンバー追加・ワークスペース/スペース作成・本文解釈系エンドポイントに
+// 掛けるレート上限。共有リンクの検証は総当たりの速度を、ワークスペース作成はユーザーを鍵に
+// slug の先取り連打を、本文解釈系（保存・提案・雛形作成）は 0.8 秒ごとの自動保存が詰まらない
+// 水準を保ちつつ抑える。
 const (
 	kbShareLinkVerifyPerMinute = 10
 	kbShareLinkVerifyBurst     = 5
 	kbAddMemberPerMinute       = 30
 	kbAddMemberBurst           = 10
-	// ワークスペース作成: ユーザー 1 人あたり 1 分 10 回（短期は 5 回まで）。IP ではなく
-	// ユーザーを鍵にする — 未認証では叩けない経路なので JWT 由来のユーザー ID が
-	// 必ず決まっており、これは詐称できない（IP は RealClientIP で詐称は防げても、
-	// 同じ NAT の裏にいる無関係な相手を巻き添えにし得る。ここは 1 人の利用者が
-	// 自動化で slug を先取りし続ける状況だけを抑えたいので、鍵は本人に絞れる）。
 	kbCreateWorkspacePerMinute = 10
 	kbCreateWorkspaceBurst     = 5
-	// スペース作成はプライベートの導入でメンバー全員に開いた書き込みの口。
-	// 人が手で作る回数としては十分に余裕があり、連打での作り散らかしだけを抑える。
-	kbCreateSpacePerMinute = 20
-	kbCreateSpaceBurst     = 10
-	// 本文の JSON を解釈する 3 つの口（本文の保存・提案の作成・雛形からの作成）。
-	// 1 本の要求で確保する記憶域は入力の上限と入れ子の段数で頭打ちにしてあるが、
-	// 速さの側にも壁を置く。本文の保存は打っている最中に 0.8 秒ごとの自動保存が
-	// 走るので、人が書き続けても詰まらない水準（1 分 120 回）に取る。
-	// 提案と雛形からの作成は都度の操作なので、もっと絞ってよい。
-	kbReplaceContentPerMinute = 120
-	kbReplaceContentBurst     = 30
-	kbParseDocPerMinute       = 30
-	kbParseDocBurst           = 10
+	kbCreateSpacePerMinute     = 20
+	kbCreateSpaceBurst         = 10
+	kbReplaceContentPerMinute  = 120
+	kbReplaceContentBurst      = 30
+	kbParseDocPerMinute        = 30
+	kbParseDocBurst            = 10
 )
 
 // registerKnowledgeBaseRoutes はナレッジのページ操作と権限操作のエンドポイントを登録する。
-//
 // ワークスペースは URL の slug から middleware が解決するので、ルートはすべて
-// /kb/workspaces/:workspaceSlug 以下に置き、その middleware を通す group に登録する
-// （通し忘れたルートはテナント未確定のまま handler に入るため、group をここ 1 箇所に閉じる）。
+// /kb/workspaces/:workspaceSlug 以下に置き、その middleware を通す group に登録する。
 func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	registerKnowledgeBaseRoutesWith(
 		g,
@@ -79,15 +60,9 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 }
 
 // newKbImagePresignerOrFallback は IMAGES_BUCKET 未設定なら stub にフォールバックする
-// （bucket が最初から無い = 明示的にローカル開発用と分かる状態なので安全。rich-text 画像・
-// profile 画像と同じバケットを kb/ prefix で共有する）。
-//
-// bucket が設定されているのに infraGCS.NewPresigner が失敗する場合は fallback しない。
-// この場合は「本物の Cloud Storage を使うつもりだった」ことが bucket 名の
-// 存在から明らかなので、黙って stub（未署名 URL）へ倒すと IssueImageUploadURL が 200 を
-// 返し続け、クライアントは成功と誤認したままアップロード PUT だけが失敗する。config.Load の
-// OIDC 必須化（「起動時に止める。通す側に倒すと誰も気づかない」）と同じ考え方で、ここも
-// 起動を失敗させる。
+// （明示的にローカル開発用と分かる状態なので安全）。bucket が設定されているのに
+// infraGCS.NewPresigner が失敗する場合は fallback せず起動を失敗させる — 黙って stub
+// （未署名 URL）へ倒すと、クライアントは成功と誤認したままアップロード PUT だけが失敗する。
 func newKbImagePresignerOrFallback(deps *routeDeps) repository.KbImagePresigner {
 	bucket := deps.cfg.Images.Bucket
 	if bucket == "" {
@@ -432,11 +407,10 @@ func registerKnowledgeBaseRoutesWith(
 	// 権限を張る相手（principals）の出し入れ。
 	// メンバー招待だけは回数に上限を置く。この口は users.id をそのまま受け取るため、
 	// 招待の成否（204 と 404 の差）でユーザーの実在は分かる（列挙そのものは完全には
-	// 塞げていない）。ただし段 2 より前と違い、招待しただけでは principal も権限も
-	// 一切発生しない（本人が /kb/invitations/:workspaceSlug/accept を呼ぶまで所属しない。
-	// FRESTYLE-486 の主眼だった「同意なく他人を追加できる」問題はこちらで塞いでいる）。
-	// 鍵はログイン中のユーザー（検証済み JWT 由来なので付け替えられない。IP は XFF で
-	// 付け替えられるため鍵に使わない）。
+	// 塞げていない）。ただし招待しただけでは principal も権限も一切発生しない
+	// （本人が /kb/invitations/:workspaceSlug/accept を呼ぶまで所属しない — 「同意なく
+	// 他人を追加できる」問題はこちらで塞いでいる）。鍵はログイン中のユーザー（検証済み
+	// JWT 由来なので付け替えられない。IP は XFF で付け替えられるため鍵に使わない）。
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/members/:userId",
 		middleware.RateLimitPerMinutePerUser(kbAddMemberPerMinute, kbAddMemberBurst), mh.InviteMember)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/members/:userId", mh.RemoveMember)

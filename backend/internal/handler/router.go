@@ -12,11 +12,9 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/repository"
 )
 
-// defaultRequestBodyBytes は全ルート共通の本文上限（middleware.MaxRequestBody）。
-// ナレッジページ本文 API の上限（maxKnowledgeBaseBodyBytes）をそのまま使う —
-// この API 群の中で最も大きな正当な本文がこれなので、他のどのハンドラにとっても
-// 十分に緩い上限になる。個別に厳しい上限が要るハンドラは自分で重ねて呼べる
-// （middleware.MaxRequestBody の doc 参照）。
+// defaultRequestBodyBytes は全ルート共通の本文上限。ナレッジページ本文 API の上限
+// （maxKnowledgeBaseBodyBytes）をそのまま使う — この API 群で最も大きな正当な本文なので、
+// 他のどのハンドラにとっても十分に緩い。個別に厳しい上限が要るハンドラは自分で重ねて呼べる。
 const defaultRequestBodyBytes = maxKnowledgeBaseBodyBytes
 
 // routeDeps はドメインごとの register*Routes 関数に渡す共通依存。
@@ -24,24 +22,19 @@ type routeDeps struct {
 	db       *sql.DB
 	cfg      *config.Config
 	userRepo repository.UserRepository
-	// verifier は access_token / id_token の署名とクレームを検証する。
-	// handler も使う（id_token を署名未検証で読まないため）。
+	// verifier は access_token / id_token の署名とクレームを検証する（handler も使う）。
 	verifier *oidc.Verifier
 }
 
-// NewRouter は API ルーティングを組み立てる。
-//
-// verifier は呼び出し側（cmd/server）が組み立てて渡す。ここで組み立てて
-// エラーを飲み込むと、設定が足りない状態のまま起動してしまう。
+// NewRouter は API ルーティングを組み立てる。verifier は呼び出し側（cmd/server）が組み立てて
+// 渡す — ここで組み立ててエラーを飲み込むと、設定が足りない状態のまま起動してしまう。
 func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
-	// 本文サイズの上限。認証の有無に関わらず全ルートへ効かせるので、ログ・CORS より前、
-	// 一番手前に置く（本文を読む前に切れるようにする）。
+	// 本文サイズの上限。ログ・CORS より前、一番手前に置く（本文を読む前に切れるようにする）。
 	r.Use(middleware.MaxRequestBody(defaultRequestBodyBytes))
-	// 構造化アクセスログ(slog/JSON)。request_id 採番 + status 別レベルで出力する。
-	// ヘルスチェック (ALB が 30 秒間隔で叩く /api/v2/health) と root の access log は出さない。
-	// 大量の health ログが CloudWatch の取り込み課金を押し上げるのを防ぐ。
+	// 構造化アクセスログ。ヘルスチェックと root は出さない（大量の health ログで
+	// ログ取り込み課金が膨らむのを防ぐ）。
 	r.Use(middleware.RequestLogger("/api/v2/health", "/"))
 	r.Use(middleware.CORS())
 
@@ -59,8 +52,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	v2 := r.Group("/api/v2")
 
 	registerHealthRoutes(v2, deps)
-	// 共有リンクの検証だけは未認証。リンクを受け取った相手はログインしていない
-	// （認可はトークンとパスワードそのものが担う）。
+	// 共有リンクの検証だけは未認証（認可はトークンとパスワードそのものが担う）。
 	registerKnowledgeBasePublicRoutes(v2, deps)
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
@@ -78,15 +70,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 	return r
 }
 
-// buildJWTVerify は JWTAuth に渡す access_token 検証関数を組み立てる。
-//
-// **分岐は無い。** 検証器は 1 つで、設定が足りなければ config.Load が起動を止める。
-//
-// 以前はここに「JWKS が無く APP_ENV が local なら署名検証をしない」経路と、
-// ローカル専用のパスワードログインが発行するトークンを受ける経路があった。
-// どちらも発行者を通さずに手元を動かすためのもので、その必要が無くなった今は
-// 用が無い。逃げ道を残すと、設定を書き忘れた環境が「認証が効いているように
-// 見えて実は素通し」という一番気づけない壊れ方をする。
+// buildJWTVerify は JWTAuth に渡す access_token 検証関数を組み立てる。分岐は無い —
+// 検証器は 1 つで、設定が足りなければ config.Load が起動を止める。以前は「JWKS が無く
+// APP_ENV が local なら署名検証をしない」経路等、発行者を通さず手元を動かすための逃げ道が
+// あったが撤去した。残すと、設定を書き忘れた環境が「認証が効いているように見えて実は
+// 素通し」という一番気づけない壊れ方をする。
 func buildJWTVerify(v *oidc.Verifier) middleware.VerifyFunc {
 	return v.Verify
 }

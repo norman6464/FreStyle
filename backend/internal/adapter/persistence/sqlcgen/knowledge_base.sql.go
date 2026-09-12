@@ -78,9 +78,9 @@ type BlockExistsInPageParams struct {
 }
 
 // 与えた block_id が、本当にその workspace/page のブロックとして実在するかを 1 件返す。
-// 錨付きコメント（FRESTYLE-432 段 3）が comment_threads.block_id へ書き込む前に呼ぶ。
+// 錨付きコメントが comment_threads.block_id へ書き込む前に呼ぶ。
 //
-// block_id は blocks.id への単独 FK（PR1 参照）で page_id を含まない。そのため、
+// block_id は blocks.id への単独 FK で page_id を含まない。そのため、
 // 「id が実在する」だけを確認しても、他ページ・他テナントのブロック id をそのまま
 // 錨として渡されると通ってしまう。ListExistingBlockIDsAmong → ErrBlockIDConflict と
 // 同じ種類の懸念（id 単独では所有者を保証できない）で、ここでは workspace_id / page_id

@@ -1,12 +1,12 @@
 //go:build integration
 
-// Package testsupport は結合テスト（-tags=integration）用のヘルパを提供する。
-// 本物の PostgreSQL（docker-compose.integration.yml）に接続し、スキーマ初期化と
-// テスト間のクリーンアップを行う。単体テストのビルドには含まれない（build tag で隔離）。
+// Package testsupport は結合テスト（-tags=integration）用のヘルパを提供する。本物の
+// PostgreSQL（docker-compose.integration.yml）に接続し、スキーマ初期化とテスト間の
+// クリーンアップを行う。単体テストのビルドには含まれない（build tag で隔離）。
 //
-// 命名規約: 結合テストの関数名には "Integration" を含めること。
-// CI / make test-integration は `go test -tags=integration -run Integration ./...` で
-// 結合テストだけを選別して回す（env 依存の単体テストを巻き込まないため）。
+// 結合テストの関数名には "Integration" を含めること。CI / make test-integration は
+// `go test -tags=integration -run Integration ./...` でそれだけを選別して回す
+// （env 依存の単体テストを巻き込まないため）。
 package testsupport
 
 import (
@@ -22,20 +22,20 @@ import (
 // defaultTestDSN は TEST_DATABASE_URL 未設定時の既定接続先（docker-compose.integration.yml と一致）。
 const defaultTestDSN = "postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable"
 
-// integrationLockKey は結合テストを直列化する advisory lock のキー。
-// 他の advisory lock（usecase/repository の bootstrapSuperAdminLockKey 等）とは別の値にする。
+// integrationLockKey は結合テストを直列化する advisory lock のキー。他の advisory lock
+// （usecase/repository の bootstrapSuperAdminLockKey 等）とは別の値にする。
 const integrationLockKey int64 = 907_353_401
 
 // OpenTestDB は結合テスト用 DB に接続し、起動時と同じ明示 DDL でスキーマを構築して
-// 接続プール（*sql.DB）を返す。repository は sqlc 生成コード（*sql.DB）で実装されているので、
+// 接続プール（*sql.DB）を返す。repository は sqlc 生成コード（*sql.DB）で実装されているので
 // テストが受け取るのも同じ *sql.DB にする。
 //
-// 返すのは初期化に使った接続プールそのもの。別に接続を開くと advisory lock による直列化も
-// TRUNCATE も別セッションになり、テストが自分で用意したデータを repository 側から見られなくなる。
+// 返すのは初期化に使った接続プールそのもの——別に接続を開くと advisory lock も TRUNCATE も
+// 別セッションになり、テストが用意したデータを repository 側から見られなくなる。
 //
-// TEST_DATABASE_URL が空 かつ 既定 DSN にも繋がらない場合は t.Skip する
-// （ローカルで docker を上げずに `-tags=integration` を流しても落ちないように）。
-// TEST_DATABASE_URL が設定されている場合は skip せず t.Fatal で落とす（unreachableDB を参照）。
+// TEST_DATABASE_URL が空かつ既定 DSN にも繋がらなければ t.Skip（docker を上げずに
+// `-tags=integration` を流しても落ちないように）。設定されているのに繋がらない場合は
+// skip せず t.Fatal で落とす（unreachableDB を参照）。
 func OpenTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	return openTestDB(t, false)
@@ -43,25 +43,23 @@ func OpenTestDB(t *testing.T) *sql.DB {
 
 // OpenTestDBSimpleProtocol は simple query protocol を強制した接続で OpenTestDB と同じ初期化を行う。
 //
-// 本番は Supabase transaction pooler 経由で simple protocol になり、pgx がパラメータを
-// クライアント側で SQL リテラルへ埋め込む（Go の型がそのまま SQL の構文を決める）。
-// extended protocol（ローカル / CI の既定）はパラメータの OID で型が伝わるため、
-// []byte と json.RawMessage の取り違えのような欠陥がローカルでは緑のまま本番でだけ落ちる。
-// その系統の回帰テストはこちらの接続で書く。
+// 本番は Supabase transaction pooler 経由で simple protocol になり、pgx がパラメータをクライアント側で
+// SQL リテラルへ埋め込む（Go の型がそのまま SQL の構文を決める）。extended protocol（ローカル / CI の
+// 既定）はパラメータの OID で型が伝わるため、[]byte と json.RawMessage の取り違えのような欠陥が
+// ローカルでは緑のまま本番でだけ落ちる。その系統の回帰テストはこちらの接続で書く。
 func OpenTestDBSimpleProtocol(t *testing.T) *sql.DB {
 	t.Helper()
 	return openTestDB(t, true)
 }
 
-// openTestDB はスキーマ初期化までを済ませた接続プールを返す。
 func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	t.Helper()
 
 	dsn, dsnExplicit := resolveTestDSN(os.Getenv("TEST_DATABASE_URL"))
 
-	// 安全弁: 接続先が Supabase / 本番 pooler の場合は接続前に必ず落とす。
-	// 結合テストは TruncateAll（TRUNCATE ... CASCADE）でテーブルを破壊するため、
-	// 誤って TEST_DATABASE_URL に本番 DATABASE_URL を入れた事故で本番データを消さないようにする。
+	// 安全弁: 接続先が Supabase / 本番 pooler なら接続前に必ず落とす。結合テストは
+	// TruncateAll（TRUNCATE ... CASCADE）でテーブルを破壊するため、誤って
+	// TEST_DATABASE_URL に本番 DATABASE_URL を入れた事故で本番データを消さないようにする。
 	if looksLikeSupabase(dsn) {
 		t.Fatal("結合テストの接続先が Supabase / 本番 pooler を指しています。" +
 			"TEST_DATABASE_URL を解除し、ローカルの postgres-integration-test（make test-integration）を使ってください。")
@@ -71,12 +69,11 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	if err != nil {
 		unreachableDB(t, dsnExplicit, "結合テスト用 PostgreSQL に接続できません", err)
 	}
-	// 接続プールはテスト関数ごとに開かれる。閉じないと MaxIdleConns 分の接続が
-	// テストの数だけ積み上がり、PostgreSQL の max_connections を超えた時点で
-	// 以降のテストが接続できなくなる。
+	// 接続プールはテスト関数ごとに開かれる。閉じないと MaxIdleConns 分の接続がテストの数だけ
+	// 積み上がり、max_connections を超えた時点で以降のテストが接続できなくなる。
 	//
 	// serializeIntegration の Cleanup より先に登録する。t.Cleanup は LIFO なので
-	// 「advisory lock を解放して pin した接続をプールへ返す」→「プールを閉じる」の順になる。
+	// 「advisory lock を解放して接続をプールへ返す」→「プールを閉じる」の順になる。
 	t.Cleanup(func() {
 		//nolint:errcheck // テスト終了時のプール解放。閉じられなくても報告する先がない
 		_ = sqlDB.Close()
@@ -96,19 +93,19 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 }
 
 // baselineTestUserCount は ensureBaselineTestUsers が用意する users.id の範囲（1..N）。
-// users.id への記録・持ち物 FK（RESTRICT/CASCADE。段 1）を足す前は、結合テストの多くが
-// 「1」「2」のような固定値をそのまま users.id として使っていた（FK が無かったので実在確認
-// されなかった）。1 件ずつ実ユーザー作成に書き直す代わりに、その固定値が実在の行になるよう
-// 小さい連番のユーザーをあらかじめ用意しておく。
+// users.id への FK（RESTRICT/CASCADE。段 1）を足す前は、結合テストの多くが「1」「2」のような
+// 固定値をそのまま users.id として使っていた（FK が無く実在確認されなかった）。1 件ずつ
+// 実ユーザー作成に書き直す代わりに、その固定値が実在の行になるよう小さい連番のユーザーを
+// あらかじめ用意しておく。
 const baselineTestUserCount = 100
 
 // ensureBaselineTestUsers は users.id 1..baselineTestUserCount を実在の行にする（冪等）。
 // users は結合テスト間で共有し TRUNCATE しない表なので、最初の 1 回だけ実際に INSERT され、
-// 以降の呼び出しは ON CONFLICT DO NOTHING で何もしない。
+// 以降は ON CONFLICT DO NOTHING で何もしない。
 //
-// bigserial の採番シーケンスを進めないまま id を明示指定するため、直後に setval で
-// 現在の MAX(id) へ合わせ直す。合わせないと、id を指定しない素の INSERT（例:
-// UserRepository.Create の通常経路）が id=1 から採番し直そうとして衝突する。
+// bigserial のシーケンスを進めないまま id を明示指定するため、直後に setval で現在の
+// MAX(id) へ合わせ直す（合わせないと、id 指定なしの素の INSERT が id=1 から採番し直そうとして
+// 衝突する）。
 func ensureBaselineTestUsers(ctx context.Context, db *sql.DB) error {
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO users (id, email, name, created_at, updated_at)
@@ -124,14 +121,13 @@ func ensureBaselineTestUsers(ctx context.Context, db *sql.DB) error {
 
 // serializeIntegration は結合テストをテスト関数の単位で直列化する。
 //
-// 結合テストは 1 台の PostgreSQL を共有し、TruncateAll でテーブルを TRUNCATE CASCADE しながら
-// 使う。go test はパッケージを並列に走らせるので、結合テストを持つパッケージが 2 つ以上になると
-// 互いの行を消し合い、テストの成否が実行順に左右される（デッドロックにもなる）。
-// 接続時に session 単位の advisory lock を取り、テスト終了時に解放することで、
-// パッケージをまたいでも同時に走るのは 1 テスト関数だけになる。
+// 結合テストは 1 台の PostgreSQL を共有し TruncateAll で TRUNCATE CASCADE しながら使うため、
+// go test がパッケージを並列に走らせると互いの行を消し合い、成否が実行順に左右される
+// （デッドロックにもなる）。接続時に session 単位の advisory lock を取り、テスト終了時に
+// 解放することで、パッケージをまたいでも同時に走るのは 1 テスト関数だけになる。
 //
-// ロックは pool 内の 1 本の接続に固定して取る（pool 任せだと解放が別の接続で走り、
-// ロックが残ったままになる）。テストが途中で落ちても、接続が閉じれば PostgreSQL 側で解放される。
+// ロックは pool 内の 1 本の接続に固定して取る（pool 任せだと解放が別の接続で走りロックが
+// 残る）。テストが途中で落ちても、接続が閉じれば PostgreSQL 側で解放される。
 func serializeIntegration(t *testing.T, sqlDB *sql.DB) {
 	t.Helper()
 	ctx := t.Context()
@@ -161,12 +157,10 @@ func resolveTestDSN(env string) (dsn string, explicit bool) {
 
 // unreachableDB は結合テスト用 DB に到達できないときの打ち切り方を決める。
 //
-// TEST_DATABASE_URL が設定されている＝DB を用意した上で回している（CI もこれ）。
-// この状況で接続できないのは環境の異常なので skip せず失敗させる。skip にすると
-// 接続枯渇のような障害がパッケージの exit 0 に紛れ、`-v` を付けない CI ログでは
-// テストが実行されなくなったことに誰も気付けない。
-//
-// 未設定のときは DB を用意していないローカル実行なので、従来どおり skip して
+// TEST_DATABASE_URL が設定されている＝DB を用意した上で回している（CI もこれ）。この状況で
+// 接続できないのは環境の異常なので skip せず失敗させる。skip にすると接続枯渇のような障害が
+// パッケージの exit 0 に紛れ、`-v` を付けない CI ログではテストが実行されなくなったことに
+// 誰も気付けない。未設定のときは DB を用意していないローカル実行なので、従来どおり skip して
 // `go test -tags=integration ./...` が落ちないようにする。
 func unreachableDB(t *testing.T, dsnExplicit bool, msg string, err error) {
 	t.Helper()
@@ -185,13 +179,12 @@ func looksLikeSupabase(dsn string) bool {
 // TruncateAll はテーブルを TRUNCATE して連番をリセットする。テスト間の独立性確保用。
 // 列挙したテーブルは結合テストが触る範囲に限定する（必要に応じて足す）。
 //
-// TRUNCATE の直後に必ず ensureBaselineTestUsers で小さい連番のベースラインユーザーを
-// 作り直す。tables に "users" を直接挙げていなくても、"workspaces" のような users が
-// FK（fk_users_workspace）で参照する表を CASCADE で TRUNCATE すると users も道連れに
-// 空になる。他の結合テストが users.id への FK（段 1）の相手として固定値（1 等）を
-// そのまま使っているため、経路によらずここで復元しないと以後のテストが軒並み
-// "user not found" で落ちる。ベースラインの ID 自体はどのテストも検証しないので安全
-// （FindByID 等はすべて直前に作った行の ID をそのまま使い、固定値を仮定しない）。
+// TRUNCATE の直後に必ず ensureBaselineTestUsers で小さい連番のベースラインユーザーを作り直す。
+// tables に "users" が無くても、"workspaces" のような users を FK（fk_users_workspace）で
+// 参照する表を CASCADE で TRUNCATE すると users も道連れに空になる。他の結合テストが
+// users.id への FK（段 1）の相手として固定値（1 等）をそのまま使っているため、経路によらず
+// ここで復元しないと以後のテストが軒並み "user not found" で落ちる。ベースラインの ID 自体は
+// どのテストも検証しないので安全（FindByID 等は直前に作った行の ID を使い、固定値を仮定しない）。
 func TruncateAll(t *testing.T, db *sql.DB, tables ...string) {
 	t.Helper()
 	for _, table := range tables {

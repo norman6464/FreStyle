@@ -19,14 +19,13 @@ type commentRepository struct {
 	baseRepository
 }
 
-// NewCommentRepository はコメントの repository を組み立てる。
 func NewCommentRepository(db *sql.DB) repository.CommentRepository {
 	return &commentRepository{baseRepository{db: db}}
 }
 
 // queries は ctx に乗っているトランザクション（あれば）に束縛した sqlc の Queries を作る。
-// CreateCommentThreadUseCase が txManager.DoInTx の中で CreateCommentThread →
-// CreateComment を呼ぶとき、両方がここ経由で同じトランザクションへ乗る。
+// CreateCommentThreadUseCase が txManager.DoInTx の中で CreateCommentThread → CreateComment
+// を呼ぶとき、両方がここ経由で同じトランザクションへ乗る。
 func (r *commentRepository) queries(ctx context.Context) *sqlcgen.Queries {
 	return sqlcgen.New(r.dbtx(ctx))
 }
@@ -89,17 +88,16 @@ func (r *commentRepository) CreateCommentThread(
 	if !ok3 {
 		return nil, outOfRangeIDError("created_by_user_id", createdByUserID)
 	}
-	// anchor.BlockID は blocks.id への単独 FK（page_id を含まない）なので、ここでは
-	// 文字列を uuid へ変換するだけ。実際にそのページへ属するかは呼び出し元の usecase が
-	// BlockExistsInPage で先に確認済みという前提（PR1 の ErrBlockIDConflict と同じ役割分担）。
+	// anchor.BlockID は blocks.id への単独 FK（page_id を含まない）なので、ここでは文字列を
+	// uuid へ変換するだけ。実際にそのページへ属するかは呼び出し元の usecase が
+	// BlockExistsInPage で先に確認済みという前提。
 	blockID, ok4 := kbNullID(anchor.BlockID)
 	if !ok4 {
 		return nil, repository.ErrCommentThreadNotFound
 	}
-	// comment_threads.anchor_from/anchor_to は DB 上 int（32bit）。domain.ValidateCommentAnchor
-	// は 0 以上・from<to しか見ておらず int32 の範囲は見ていないので、素朴に int32(v) すると
-	// 範囲外の値が符号ごと丸め込まれて別の値のまま保存されてしまう（ORM 移行で踏んだ
-	// 「縮小キャストの無言失敗」と同種の罠）。ここで範囲を確認し、収まらなければ諦める。
+	// comment_threads.anchor_from/anchor_to は DB 上 int（32bit）。domain 側の検証は範囲外を
+	// 見ていないため、素朴に int32(v) すると値が符号ごと丸め込まれて別の値のまま保存され得る
+	// （縮小キャストの無言失敗）。ここで範囲を確認し、収まらなければ諦める。
 	anchorFrom, ok5 := nullInt32(anchor.AnchorFrom)
 	anchorTo, ok6 := nullInt32(anchor.AnchorTo)
 	if !ok5 || !ok6 {
@@ -121,15 +119,14 @@ func (r *commentRepository) CreateCommentThread(
 	})
 	if err != nil {
 		if constraint, ok := foreignKeyViolationConstraint(err); ok {
-			// created_by_user_id への FK（段 1）は「作成者が居ない」であって錨の不正では
-			// ないので、他の FK とは分けて返す。
+			// created_by_user_id への FK は「作成者が居ない」であって錨の不正ではないので、
+			// 他の FK とは分けて返す。
 			if constraint == "fk_comment_threads_created_by" {
 				return nil, repository.ErrUserNotFound
 			}
-			// usecase 側の BlockExistsInPage チェックと、この INSERT の間にブロックが削除される
-			// レースが理論上ありうる（TOCTOU・CodeRabbit 指摘）。block_id は blocks.id への
-			// 単独 FK なので、そのときはここで外部キー違反になる。生の DB エラーを 500 として
-			// 漏らさず、他の錨不正と同じ 400 invalid_comment_anchor へ翻訳する。
+			// usecase 側の BlockExistsInPage チェックとこの INSERT の間にブロックが削除される
+			// TOCTOU レースが理論上ありうる。block_id は blocks.id への単独 FK なので、その
+			// ときは外部キー違反になる。500 として漏らさず、他の錨不正と同じ 400 に翻訳する。
 			return nil, domain.ErrInvalidCommentAnchor
 		}
 		return nil, err

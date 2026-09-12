@@ -24,17 +24,14 @@ func NewUserRepository(db *sql.DB) repository.UserRepository {
 	return &userRepository{baseRepository{db: db}}
 }
 
-// queries は ctx に乗っているトランザクション（あれば）に束縛した sqlc の Queries を作る。
 func (r *userRepository) queries(ctx context.Context) *sqlcgen.Queries {
 	return sqlcgen.New(r.dbtx(ctx))
 }
 
-// toDomainUser は sqlc 生成モデル（users 全列）→ domain への詰め替え。
-// GetUserByID / GetUserByOidcSubject は返す列が users の全列と一致するため、
-// sqlc は専用の Row 型を作らずテーブルの生成モデル（sqlcgen.User）をそのまま返す。
-//
-// id 系は DB が bigint(int64) で domain が uint64。値は採番シーケンス由来で常に非負・int64 範囲内のため
-// 変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
+// toDomainUser は sqlc 生成モデル（users 全列）→ domain への詰め替え。GetUserByID /
+// GetUserByOidcSubject は列が users 全列と一致するため sqlc がテーブルの生成モデルをそのまま
+// 返す。id は DB が bigint(int64) で domain が uint64 だが、採番シーケンス由来で常に非負・
+// int64 範囲内のため変換は安全（gosec G115 は persistence の id 境界として除外設定済み）。
 func toDomainUser(row sqlcgen.User) *domain.User {
 	u := &domain.User{
 		ID:        uint64(row.ID),
@@ -193,10 +190,8 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 }
 
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
-// 内部では domain.UserStatus の active/suspended を切り替える（deactivated への遷移は
-// SoftDelete が担う。deleted_at と同時に立てる必要があり、ck_users_status_deleted_at が
-// このメソッド経由の deactivated 指定そのものを許さない）。
-// 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。
+// active/suspended だけを切り替える — deactivated への遷移は deleted_at と同時に立てる必要があり
+// SoftDelete が担う（ck_users_status_deleted_at がこのメソッド経由の指定を許さない）。
 func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active bool) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
@@ -217,13 +212,11 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 	return nil
 }
 
-// SoftDelete はユーザーを退会させる（status を deactivated にし、deleted_at = now() を立てる）。
-// 以後 FindByOidcSubject 等で除外され、認証時にも弾かれる。既に退会済み / 存在しない場合は
-// domain.ErrNotFound を返す。OIDC identity も削除して subject の占有を解く（同じ OIDC
-// アカウントの再招待を可能にする。ここで消し損ねても起動時バックフィルの掃除が自己修復する）。
-//
-// 2 文を 1 トランザクションにまとめないのは、無効化を必ず残すため。identity の掃除が失敗した
-// ときに巻き戻すと、消したはずの利用者が有効なまま戻ってしまう（掃除漏れはバックフィルが直す）。
+// SoftDelete はユーザーを退会させる（status を deactivated、deleted_at = now()）。以後
+// FindByOidcSubject 等で除外される。OIDC identity も削除して subject の占有を解き、同じ
+// アカウントの再招待を可能にする。2 文を 1 トランザクションにまとめないのは無効化を必ず
+// 残すため — identity 削除の失敗で巻き戻すと、消したはずの利用者が有効なまま戻ってしまう
+// （掃除漏れは起動時バックフィルが自己修復する）。
 func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {

@@ -52,7 +52,7 @@ func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	}
 	uid, err := strconv.ParseUint(param, 10, 64)
 	if err != nil {
-		//nolint:nilerr // 数字以外の userId は current user にフォールバックする設計（err は握り潰さず意図的に無視）
+		//nolint:nilerr // 数字以外の userId は current user にフォールバックする設計（意図的に無視）
 		return cur, nil
 	}
 	if uid == 0 || uid != cur {
@@ -76,10 +76,8 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
-// 各項目の上限は、本文サイズの全体上限（middleware.MaxRequestBody）とは別に、
-// 1 項目だけが極端に大きい値で DB へ届くのを入口で弾くためのもの
-// （DB の列自体は text で無制限。ここで切らないと、表示側が想定しない長さの値に
-// 対処し続けることになる）。
+// 各項目の上限は本文サイズの全体上限とは別に、1 項目だけ極端に大きい値が DB へ届くのを
+// 入口で弾くためのもの（DB の列自体は text で無制限）。
 type updateProfileReq struct {
 	Name      string `json:"displayName" binding:"omitempty,max=200"`
 	Bio       string `json:"bio"         binding:"omitempty,max=2000"`
@@ -107,8 +105,8 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 	}
 	if name != "" {
 		if err := h.users.UpdateName(c.Request.Context(), uid, name); err != nil {
-			// 1 行も更新できなかった（= リクエスト中に user 行が消えた）。以前は 0 件でも
-			// 成功扱いで 200 を返しており、氏名が保存されていないのに保存済みに見えていた。
+			// 1 行も更新できなかった（リクエスト中に user 行が消えた）。保存されていないのに
+			// 保存済みに見せないよう、0 件更新は成功扱いにしない。
 			if errors.Is(err, domain.ErrNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 				return
@@ -134,8 +132,7 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
-// updateStatusReq の各項目の上限は updateProfileReq と同じ理由（DB は text で無制限）。
-// Emoji は結合絵文字（ZWJ シーケンス等）が単一の絵文字でも複数バイトになり得るため、
+// Emoji の上限は結合絵文字（ZWJ シーケンス等）が単一の絵文字でも複数バイトになり得るため、
 // 普通の一言テキストより広めに取る。
 type updateStatusReq struct {
 	Emoji     string     `json:"emoji"     binding:"omitempty,max=32"`
@@ -143,8 +140,8 @@ type updateStatusReq struct {
 	ExpiresAt *time.Time `json:"expiresAt"` // nil/省略 = 無期限
 }
 
-// UpdateStatus は一言ステータス（絵文字・テキスト・失効時刻）だけを更新する（段 14。
-// PUT /me/status）。bio / avatarUrl には触れない（Update の専管。互いの担当を混ぜない）。
+// UpdateStatus は一言ステータス（絵文字・テキスト・失効時刻）だけを更新する（PUT /me/status）。
+// bio / avatarUrl には触れない（Update の専管）。
 func (h *ProfileHandler) UpdateStatus(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {
@@ -173,16 +170,15 @@ func (h *ProfileHandler) UpdateStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
-// profileIdentityResponse は認証方法 1 件の返却形（段 14。表示専用）。
+// profileIdentityResponse は認証方法 1 件の返却形（表示専用）。
 type profileIdentityResponse struct {
 	Provider  string    `json:"provider"`
 	Subject   string    `json:"subject"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// ListIdentities は本人の認証方法一覧を返す（段 14。GET /me/identities）。
-// resolveUserID が現在ユーザー以外の数値 userId を 403 にするので、他人の subject は
-// この経路では読めない（domain.UserIdentity の doc 参照）。
+// ListIdentities は本人の認証方法一覧を返す（GET /me/identities）。resolveUserID が現在
+// ユーザー以外の数値 userId を 403 にするので、他人の subject はこの経路では読めない。
 func (h *ProfileHandler) ListIdentities(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {

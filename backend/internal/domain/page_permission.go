@@ -2,72 +2,50 @@ package domain
 
 // PagePermissionFacts は 1 ページの実効権限を決めるのに必要な事実の集合。
 // repository が 1 回のクエリで集め、ResolvePagePermission が組み合わせて答えを出す。
+// 事実の収集（SQL）と規則の適用（この型のメソッド）を分けるのは、優先規則を DB に写経させないため。
 //
-// 事実の収集（SQL）と規則の適用（この型のメソッド）を分けているのは、
-// 優先規則を DB に写経させないため。ページ一覧のように 1 回のクエリで多数のページを
-// 扱う経路でも、SQL が返すのは事実だけで、規則は同じ 1 つの関数を通る。
+// 打ち消す層は持たない（唯一の例外: ページの visibility='private'）。権限は 3 段の付与
+// （workspace / space / page）を足し合わせ、届いた中で最も強い役割で決まる。下の段が上の段を
+// 弱めることはなく、「親は共有、この子だけ隠す」は書けない（狭めたいなら private のスペースへ
+// 置く）。打ち消しを許すと「なぜこの人に見える／見えないのか」が経路をさかのぼらないと
+// 答えられなくなる。
 //
-// # 打ち消す層は持たない（唯一の例外: ページの visibility='private'）
-//
-// 権限は 3 段の付与（workspace / space / page）を足し合わせ、届いた中で最も強い役割で
-// 決まる。下の段が上の段を弱めることはなく、「親は共有、この子だけ隠す」は書けない。
-// 狭めたい内容は private のスペースへ置く。
-//
-// この形にしているのは、打ち消しを許すと「なぜこの人に見える／見えないのか」が
-// 経路をさかのぼらないと答えられなくなるため。同じ設計を採った製品は、後から
-// 経路のどの段で許され拒まれたかを一覧する専用の検査機能を用意する羽目になっている。
-//
-// ページ単位の Visibility=private だけは、意図してこの原則の外に置いた唯一の例外
-// （段 13）。「作成者以外には一切見せない」という個人の下書き向けの要求で、grants を
-// 増やす方向の話ではないため、この 1 つに限って明示的に打ち消す（下記
-// ResolvePagePermission の先頭の早期リターンを参照）。共有ボタンで他人に page_grants を
-// 足しても、visibility を 'private' のままにしている限り効かない — 「見せたいなら
-// private を外す」という 1 つの分かりやすい操作で解ける設計にしてある。
+// ページ単位の Visibility=private だけは意図した唯一の例外（段 13）。「作成者以外には一切
+// 見せない」という個人の下書き向けの要求で、grants を増やす方向の話ではないため、この 1 つに
+// 限って明示的に打ち消す（ResolvePagePermission 冒頭の早期リターン）。共有ボタンで他人に
+// page_grants を足しても、visibility が private のままなら効かない。
 type PagePermissionFacts struct {
-	// Member はそのユーザーがワークスペースのメンバーか（kind='user' の Principal があるか）。
-	// 所属は principals が唯一の表現で、専用のメンバーシップ表は持たない。
-	// 共有リンク経由（ログインしていない来訪者）では false。
+	// Member はそのユーザーがワークスペースのメンバーか。所属は principals が唯一の表現で、
+	// 専用のメンバーシップ表は持たない。共有リンク経由（未ログイン）では false。
 	Member bool
-	// Role は届いた中で最も強い役割。ワークスペース / スペース / ページの 3 段の grant と、
-	// 複数の主体（自分 / 所属グループ / スペース全員）から得た役割のうち最も強いものが入る
-	// （GrantRole.Rank 参照）。grant が 1 つも無ければ nil。
-	//
-	// 「grant が無い」を GrantRole("") のような値で表さずポインタにしているのは、
-	// 未設定と最弱の役割を型で区別するため。
+	// Role は届いた中で最も強い役割（workspace / space / page の 3 段 × 複数主体のうち最強、
+	// GrantRole.Rank 参照）。grant が無ければ nil。ポインタにしているのは「grant 無し」と
+	// 最弱の役割を型で区別するため。
 	Role *GrantRole
-	// ShareLinkCapability は共有リンク経由のアクセスのときだけ非 nil で、そのリンクの既定。
-	// Role とは同時に使わない（呼び出し側がどちらの主体として解決するかを決める）。
-	//
-	// 共有リンクは広げる方向にしか働かない。ログインしていない相手へ「見せる」を足すだけで、
-	// すでに見えている人から取り上げることはない。
+	// ShareLinkCapability は共有リンク経由のときだけ非 nil。Role とは同時に使わない。
+	// 共有リンクは広げる方向にしか働かない（未ログインの相手へ「見せる」を足すだけ）。
 	ShareLinkCapability *Capability
-	// Visibility はそのページの公開範囲。ゼロ値（""）は PageVisibilitySpace と同じに扱う
-	// （既存の呼び出し側・テストが明示的にこの値を組み立てなくても今までどおり動くように）。
-	//
-	// 'private' のときだけ IsOwner を見る特別扱いをする（下記コメント参照）。
+	// Visibility はページの公開範囲。ゼロ値（""）は PageVisibilitySpace 扱い。
+	// 'private' のときだけ IsOwner を見る。
 	Visibility PageVisibility
-	// IsOwner はこの facts を解決した相手がそのページの作成者かどうか。共有リンク経由の
-	// 来訪者では常に false（ログインしていないので作成者と同一だと判定しようがない）。
+	// IsOwner はこの facts を解決した相手がページの作成者か。共有リンク経由では常に false。
 	IsOwner bool
 }
 
 // PagePermission は 1 ページに対する実効権限。
 type PagePermission struct {
-	// CanView はページを閲覧できるか。
 	CanView bool `json:"canView"`
-	// CanEdit はページを編集できるか。CanView が false のとき必ず false。
+	// CanEdit は CanView が false のとき必ず false。
 	CanEdit bool `json:"canEdit"`
 	// CanManage はそのページの権限（grant / 共有リンク）を変えられるか。
 	CanManage bool `json:"canManage"`
-	// CanComment はコメントできるか（閲覧できて役割が commenter 以上。
-	// 共有リンク経由では常に false）。
+	// CanComment は閲覧できて役割が commenter 以上のとき true。共有リンク経由では常に false。
 	CanComment bool `json:"canComment"`
 }
 
 // defaultAllows は届いた既定が指定のケイパビリティを許すかを返す。
 func (f PagePermissionFacts) defaultAllows(c Capability) bool {
-	// 共有リンク経由は grant を持たない（ログインしていない相手なので所属が無い）。
-	// リンク自身が持つケイパビリティが既定になる。
+	// 共有リンク経由は grant を持たない。リンク自身のケイパビリティが既定になる。
 	if f.ShareLinkCapability != nil {
 		if c == CapabilityEdit {
 			return *f.ShareLinkCapability == CapabilityEdit
@@ -89,17 +67,14 @@ func roleAllows(role *GrantRole, c Capability) bool {
 }
 
 // pageViewableGivenVisibility は visibility='private' の早期リターンを ResolvePageView /
-// ResolvePagePermission の両方で写経しないための共有ヘルパー。
-// 'private' でなければ常に true（'public'・'space'・ゼロ値のいずれも閲覧可否には効かない）。
+// ResolvePagePermission で共有するヘルパー。private でなければ常に true。
 func pageViewableGivenVisibility(visibility PageVisibility, isOwner bool) bool {
 	return visibility != PageVisibilityPrivate || isOwner
 }
 
-// ResolvePageView は集めた事実から閲覧できるかを決める。
-// ページ一覧のように閲覧の列しか集めない経路が使う。
-//
-// visibility が 'private' で isOwner が false なら、role がどれだけ強くても false を返す
-// （ResolvePagePermission 冒頭の早期リターンと同じ、唯一の打ち消し例外）。
+// ResolvePageView は集めた事実から閲覧できるかを決める。ページ一覧のように閲覧の可否だけを
+// 集める経路が使う。private かつ非オーナーなら role の強さに関わらず false
+// （ResolvePagePermission と同じ、唯一の打ち消し例外）。
 func ResolvePageView(role *GrantRole, visibility PageVisibility, isOwner bool) bool {
 	if !pageViewableGivenVisibility(visibility, isOwner) {
 		return false
@@ -110,46 +85,31 @@ func ResolvePageView(role *GrantRole, visibility PageVisibility, isOwner bool) b
 // ResolvePagePermission は集めた事実から 1 ページの実効権限を決める。
 // ナレッジの権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
 func ResolvePagePermission(f PagePermissionFacts) PagePermission {
-	// visibility='private' は唯一の打ち消し例外（型の docstring 参照）。作成者本人でなければ
-	// grants・共有リンクのどちらであっても何も許さない。他のどの判定より先に閉じる —
-	// 下のケイパビリティごとの判定（canManage 等）は defaultAllows/canView を経由しない
-	// 独自の道を持つものもあり、後から AND するのでは足りない場所が出るため。
+	// visibility='private' は唯一の打ち消し例外（型の doc 参照）。作成者本人でなければ
+	// grants・共有リンクどちらでも何も許さない。他の判定より先に閉じる — 下のケイパビリティ
+	// ごとの判定は defaultAllows/canView を経由しない独自の道もあり、後から AND するのでは
+	// 足りない場所が出るため。
 	if !pageViewableGivenVisibility(f.Visibility, f.IsOwner) {
 		return PagePermission{}
 	}
-	// 所属していない相手には何もさせない。
-	//
-	// いまは事実を集める側（SQL）が主体を辿るので、所属していなければ役割も届かない。
-	// それでもここで閉じるのは、**規則の側で閉じておかないと集め方を変えたときに開く**ため。
-	// 「所属している人にだけ効く」はこの型が持つ約束で、集め方の性質に頼らない
-	// （ResolveMaterialPermission が同じ理由で同じことをしている）。
-	//
-	// 共有リンクの来訪者はログインしていないので Member は false だが、そちらは
-	// 所属ではなくリンク自身のケイパビリティで決まる。だから Member を見るのは
-	// 「リンク経由ではないとき」に限る。
+	// 所属していない相手には何もさせない。事実を集める側（SQL）が主体を辿るため所属していなければ
+	// 役割も届かないはずだが、規則の側でも閉じておく — 集め方を変えたときにここが開かないため。
+	// 共有リンクの来訪者は未ログインで Member=false だが、そちらは所属ではなくリンク自身の
+	// ケイパビリティで決まるので、Member を見るのは「リンク経由でないとき」に限る。
 	if f.ShareLinkCapability == nil && !f.Member {
 		return PagePermission{}
 	}
 	canView := f.defaultAllows(CapabilityView)
-	// 編集は閲覧を含む。閲覧できないページを編集できる状態は、UI でも監査でも説明できない。
-	// いまの役割の並び（GrantRole.Rank）では編集できる者は必ず閲覧もできるので、この
-	// 掛け合わせで結果が変わることはない。役割を増やしたときに崩れないよう残してある。
+	// 編集は閲覧を含む。いまの役割の並び（GrantRole.Rank）では崩れないが、役割を増やしたときの
+	// 安全のため残す。
 	canEdit := canView && f.defaultAllows(CapabilityEdit)
-	// 権限そのものを変えられるのは、届いている役割が admin のときだけ。
-	//
-	// **共有リンク経由では必ず false にする。** 来訪者はログインしていないので、ここが
-	// true になると「URL を知っているだけの人が、誰に何を見せるかを決められる」ことになる。
-	//
-	// 「リンクの主体には役割が届かないはず」に頼ってはいけない。付与の口は主体の実在しか
-	// 確かめず種類を見ないので、リンクの主体へ admin を張ることが API から実際にできる
-	// （リンクの主体 ID は一覧の応答に載っている）。閲覧と編集はリンク自身のケイパビリティで
-	// 頭打ちになるが、管理だけは defaultAllows を通らないのでそこだけ抜けていた。
+	// 権限そのものを変えられるのは役割が admin のときだけ。**共有リンク経由では必ず false。**
+	// 付与の口は主体の種類を見ずに実在しか確かめないため、リンクの主体へ admin を張ることが
+	// API から実際にでき（リンクの主体 ID は一覧の応答に載る）、defaultAllows を通らないこの
+	// 判定だけが抜け穴になっていた。
 	canManage := f.ShareLinkCapability == nil && f.Role != nil && f.Role.CanManage()
-	// コメントも管理と同じく defaultAllows（Capability ベース）を通らない別軸の判定。
-	// **共有リンク経由では必ず false にする。** 共有リンクの来訪者は最初はコメント不可という
-	// 設計（domain.Capability に 'comment' を持たせていない理由と同じ）。
-	// canView と組み合わせるのは canEdit と同じ防御的な書き方の踏襲
-	// （いまの役割の並びでは commenter 以上は必ず view も持つので、結果は変わらない）。
+	// コメントも defaultAllows を通らない別軸の判定。**共有リンク経由では必ず false**
+	// （共有リンクの来訪者はコメント不可という設計。domain.Capability に 'comment' が無い理由と同じ）。
 	canComment := canView && f.ShareLinkCapability == nil && f.Role != nil && f.Role.CanComment()
 	return PagePermission{CanView: canView, CanEdit: canEdit, CanManage: canManage, CanComment: canComment}
 }

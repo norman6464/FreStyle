@@ -15,7 +15,6 @@ import (
 )
 
 // KnowledgeBaseWorkspaceHandler はナレッジのワークスペース / スペースの操作を受ける。
-//
 // ページ操作（KnowledgeBasePageHandler）と分けているのは、テナントの確定の仕方が違うため。
 // 一覧と作成は URL に slug を持たず middleware.KnowledgeBaseWorkspace を通れない
 // （通したら「まだ所属していない・まだ存在しない」ワークスペースを扱えない）。
@@ -38,7 +37,6 @@ type KnowledgeBaseWorkspaceHandler struct {
 	listMySpaces         *kb.ListMySpacesUseCase
 }
 
-// NewKnowledgeBaseWorkspaceHandler は KnowledgeBaseWorkspaceHandler を組み立てる。
 func NewKnowledgeBaseWorkspaceHandler(
 	listWorkspaces *kb.ListMemberWorkspacesUseCase,
 	createWorkspace *kb.CreateWorkspaceUseCase,
@@ -165,35 +163,19 @@ func (h *KnowledgeBaseWorkspaceHandler) Create(c *gin.Context) {
 }
 
 // ListSpaces はワークスペース配下のスペースのうち、自分が閲覧できるものだけを返す。
+// スペース ID を知る唯一の口（ページの木を取る API が spaceId を要求するため）。
 //
-// スペース ID を知る唯一の口。ページの木を取る API（GET .../spaces/{spaceId}/pages）が
-// spaceId を要求するので、これが無いとスペースを作った本人以外は木にたどり着けない。
-//
-// # 権限のふるい（この口が守っているもの）
-//
-// 返すのは「そのスペースの中身を既定で閲覧できる」相手にだけ。スペースは権限を分けるための
-// 入れ物なので、key と name が並ぶだけでも中で何が進んでいるかが伝わってしまう。
-// ふるいは usecase（domain.ResolveScopePermission）が掛け、handler は結果を並べるだけ。
-//
-// # 存在オラクルを作らない
-//
-// 権限の無いワークスペースと存在しないワークスペースは、どちらも middleware が 404 に
-// 畳んでいる（middleware.KnowledgeBaseWorkspace）。ここに到達した時点で呼び出し元は
-// 必ずそのワークスペースのメンバーなので、あとは「見えるスペースだけを並べる」で足りる。
-// 1 件も見えなくても 404 にはしない（空配列）。スペースの実在を撃ち分けないのは
-// ページの木（Tree）と同じ扱い。
-//
-// # ページは含めない
-//
-// サイドバーはスペースごとに木を取るので、この一覧はスペースだけでよい。ページまで
-// 抱き合わせると、開いていないスペースの中身まで毎回引くことになる。
+// 返すのは既定で閲覧できる相手にだけ（key/name だけでも中の様子が伝わるため、ふるいは
+// usecase の domain.ResolveScopePermission が掛ける）。ここに到達した時点で middleware が
+// 非メンバーを弾いているので、1 件も見えなくても 404 にはせず空配列で返す（存在オラクルを
+// 作らない。ページの木と同じ扱い）。ページ自体は含めない — サイドバーはスペースごとに木を
+// 取るので、開いていないスペースの中身まで毎回引かせない。
 func (h *KnowledgeBaseWorkspaceHandler) ListSpaces(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
 		return
 	}
-	// スペースごとに権限を引くと N+1 になるので、一覧はまとめて 1 回で解決する
-	// （ページの木を返す Tree と同じ作り）。
+	// スペースごとに権限を引くと N+1 になるので、まとめて 1 回で解決する。
 	spaces, err := h.listSpaces.Execute(c.Request.Context(), kb.ListViewableSpacesInput{
 		WorkspaceID: scope.workspaceID,
 		UserID:      scope.userID,
@@ -221,11 +203,9 @@ type kbWorkspaceMemberResponse struct {
 	Name string `json:"name" example:"田中 太郎"`
 }
 
-// ListMembers はワークスペースに属する人を表示名つきで返す。
-//
-// 所属していれば誰でも叩ける。担当の名前を出すことと発言で人を名指すことは、
-// 権限を変えられない人にも要るため（権限を張る相手を選ぶ ListGrantablePrincipals とは
-// 別の口にしてある。あちらはページの管理権限を要求する）。
+// ListMembers はワークスペースに属する人を表示名つきで返す。所属していれば誰でも叩ける
+// （担当の名指し・発言の名指しは権限を変えられない人にも要る。権限を張る相手を選ぶ
+// ListGrantablePrincipals とは別の口 — あちらはページの管理権限を要求する）。
 func (h *KnowledgeBaseWorkspaceHandler) ListMembers(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -317,9 +297,8 @@ func toKbAdminWorkspaceMemberResponse(m domain.AdminWorkspaceMember) kbAdminWork
 	return out
 }
 
-// ListMembersForAdmin はメンバー管理画面（段 7）向けの一覧を返す。ListMembers と違い、
-// 呼べるのは admin だけ（停止・役割変更・削除の対象を選ぶ画面そのものが管理操作のため。
-// ListMembershipEvents と同じ CanManage の判定）。
+// ListMembersForAdmin はメンバー管理画面（段 7）向けの一覧を返す。ListMembers と違い呼べるのは
+// admin だけ（停止・役割変更・削除の対象を選ぶ画面そのものが管理操作のため）。
 func (h *KnowledgeBaseWorkspaceHandler) ListMembersForAdmin(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -349,10 +328,9 @@ func (h *KnowledgeBaseWorkspaceHandler) ListMembersForAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-// kbMembershipEventResponse は所属・権限の変更履歴 1 件の返却形（段 6・監査）。
-// Target / Actor は段 5 で統一した人の表示（id・表示名・アイコン・状態メッセージ）で返す —
-// 履歴は退会・停止した後の人も指すので、現在のアカウント状態で絞り込まない
-// LookupUserDisplayUseCase を使う（domain.UserDisplay の doc 参照）。
+// kbMembershipEventResponse は所属・権限の変更履歴 1 件の返却形（段 6・監査）。Target / Actor
+// は履歴が退会・停止後の人も指すため、現在のアカウント状態で絞り込まない LookupUserDisplayUseCase
+// で解決する（domain.UserDisplay の doc 参照）。
 type kbMembershipEventResponse struct {
 	ID        string              `json:"id"`
 	Target    userDisplayResponse `json:"target"`
@@ -363,9 +341,8 @@ type kbMembershipEventResponse struct {
 	CreatedAt time.Time           `json:"createdAt"`
 }
 
-// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。
-// admin だけが見られる — 「なぜこの人が admin なのか」を確かめる操作自体が管理操作のため
-// （Delete と同じ CanManage の判定）。
+// ListMembershipEvents は所属・権限の変更履歴を新しい順で返す（段 6・監査）。admin だけが
+// 見られる — 「なぜこの人が admin なのか」を確かめる操作自体が管理操作のため。
 func (h *KnowledgeBaseWorkspaceHandler) ListMembershipEvents(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -404,24 +381,15 @@ func (h *KnowledgeBaseWorkspaceHandler) ListMembershipEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-// Delete はワークスペースを配下ごと消す（戻せない）。
+// Delete はワークスペースを配下ごと消す（戻せない）。呼べるのはそのワークスペースの admin
+// だけ（所属済みは middleware 確認済みなので 403 で理由を返してよい）。
 //
-// # 誰が消せるか
+// 会社のワークスペースは admin であっても消せない — 判定を入口ではなく repository（SQL の
+// WHERE）に持たせ、最も内側で守る。全員のナレッジが入る入れ物で、消しても起動時のバック
+// フィルが作り直すため中身だけ空になったワークスペースが残ってしまう。
 //
-// そのワークスペースの admin だけ。所属は middleware が確かめており、ここに来る相手は
-// 必ずメンバーなので、admin でなければ 403 で理由を返してよい（実在は既に知っている）。
-//
-// # 会社のワークスペースは誰にも消せない
-//
-// 判定は repository（さらに SQL の WHERE）が持つ。認可と違って**誰であっても消しては
-// いけない**ものなので、入口ではなく最も内側で守る。会社のワークスペースには全員の
-// ナレッジが入るうえ、消しても起動時のバックフィルが作り直すため、中身だけが消えた
-// 空のワークスペースが残る。
-//
-// # 消えるもの
-//
-// 配下のスペース・ページ・本文・所属・権限・共有リンクがすべて消える（FK の CASCADE）。
-// ユーザー（users）は消えない — ナレッジの片付けで人を消さない。
+// 配下のスペース・ページ・本文・所属・権限・共有リンクは FK の CASCADE ですべて消えるが、
+// users は消えない（ナレッジの片付けで人を消さない）。
 func (h *KnowledgeBaseWorkspaceHandler) Delete(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {
@@ -470,20 +438,16 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// **プライベートでは key を人に決めさせない（必ず自動採番）。**
-	// key はワークスペース内で一意で、チームとプライベートで同じ名前空間を共有する。
-	// 明示指定を許すと、メンバーが任意の key で作成を試して「409 が返るか」だけで
-	// 一覧にも木にも出ないはずの他人のプライベートスペースの実在を言い当てられる
-	// （作成という書き込みの口が、伏せた実在を読む口になる）。あわせて、意味のある
-	// key（"eng" など）を先に取られて admin がチームスペースを作れなくなる占有も防ぐ。
-	// 自動採番の key は衝突しても usecase が引き直すので、409 自体が表に出ない。
+	// プライベートでは key を必ず自動採番し、人に決めさせない。key はチームとプライベートで
+	// 名前空間を共有するため、明示指定を許すと任意の key を試して「409 が返るか」だけで
+	// 一覧にも木にも出ない他人のプライベートスペースの実在を言い当てられる（作成という
+	// 書き込みの口が実在オラクルになる）。意味のある key の先取りによる占有も防げる。
 	if req.Visibility == string(domain.SpaceVisibilityPrivate) && req.Key != "" {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	// 作れる範囲は非対称: チームスペース（workspace）は全員に見える入れ物が増えるので
-	// admin だけ。プライベートは自分の区画が増えるだけ（他人の見えるものは変わらない）
-	// なので、メンバーなら誰でも作れる。所属は middleware が確かめ済み。
+	// 作れる範囲は非対称: チームスペースは全員に見える入れ物が増えるので admin だけ、
+	// プライベートは自分の区画が増えるだけなのでメンバーなら誰でも作れる。
 	if req.Visibility != string(domain.SpaceVisibilityPrivate) {
 		perm, err := h.checkWorkspace.Execute(c.Request.Context(), kb.CheckWorkspacePermissionInput{
 			WorkspaceID: scope.workspaceID,
@@ -494,8 +458,6 @@ func (h *KnowledgeBaseWorkspaceHandler) CreateSpace(c *gin.Context) {
 			return
 		}
 		if !perm.CanManage {
-			// ここに来る相手はワークスペースのメンバー（middleware が確かめている）なので、
-			// 実在は既に知っている。403 で理由を返してよい。
 			c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
 			return
 		}
@@ -637,11 +599,8 @@ func (h *KnowledgeBaseWorkspaceHandler) RenameSpace(c *gin.Context) {
 	c.JSON(http.StatusOK, toKbSpaceResponse(space))
 }
 
-// kbSearchPageResponse は検索結果 1 件の返却形。kbPageResponse に「どこにヒットしたか」
-// を足したもの（本文検索）。
-//
-// kbPageResponse を埋め込むのは、ページとしての形（id / title / icon …）は既存のツリー・
-// 一覧の応答と完全に同じにするため。フロントは検索結果もページ一覧と同じ描画に流用できる。
+// kbSearchPageResponse は検索結果 1 件の返却形。kbPageResponse を埋め込み「どこにヒットしたか」
+// を足す — ページとしての形を既存のツリー・一覧と完全に同じにし、フロントが描画を流用できるようにする。
 type kbSearchPageResponse struct {
 	kbPageResponse
 	// MatchField はヒットした場所（"title" | "body"）。
@@ -676,8 +635,7 @@ func (h *KnowledgeBaseWorkspaceHandler) SearchPages(c *gin.Context) {
 		return
 	}
 	q := strings.TrimSpace(c.Query("q"))
-	// 空は「全件」ではなく誤りとして返す。空で全件を返すと、この口が
-	// 「見えるページの全数を数える口」になってしまう（見せてよいのは一致した分だけ）。
+	// 空は「全件」ではなく誤りとして返す。全件を返すと、見えるページの全数を数える口になる。
 	if q == "" || utf8.RuneCountInString(q) > 100 {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_query"})
 		return

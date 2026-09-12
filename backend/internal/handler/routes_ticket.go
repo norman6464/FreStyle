@@ -14,22 +14,19 @@ import (
 	"github.com/norman6464/frestyle/backend/internal/usecase/user"
 )
 
-// チケットへの発言作成に掛ける上限。@mention は件数を打ち切ってあるが（comment_doc.go の
-// maxTicketCommentMentions）、通知作成そのものは要求のたびに走るので、連投そのものの速さも
-// 別に頭打ちにする。人が打つ速さとしては十分に余裕を見つつ（kbAddMemberPerMinute と同じ桁）、
-// 自動化した連投は抑える。
+// チケットへの発言作成に掛ける上限。@mention は件数を打ち切ってあるが（maxTicketCommentMentions）、
+// 通知作成は要求のたびに走るので連投の速さも別に頭打ちにする。人が打つ速さには十分余裕を
+// 持たせつつ自動化した連投は抑える。
 const (
 	ticketCreateCommentPerMinute = 30
 	ticketCreateCommentBurst     = 10
 )
 
-// registerTicketRoutes はチケット（設計 Ⅵ・段 1: 骨格）のエンドポイントを登録する。
-//
-// チケットは既存の spaces に属する（設計 Ⅱ）ので、URL は kb と同じ
-// /kb/workspaces/:workspaceSlug 以下に置き、同じ middleware.KnowledgeBaseWorkspace を通す
-// （registerKnowledgeBaseRoutesWith の doc と同じ理由 — group をここ 1 箇所に閉じる）。
-// kb 側の routes_knowledge_base.go には触れず、別ファイルとして独立させてある
-// （usecase/ticket は usecase/kb を import しない境界だが、handler 層は両方に依存してよい）。
+// registerTicketRoutes はチケットのエンドポイントを登録する。チケットは既存の spaces に
+// 属するので、URL は kb と同じ /kb/workspaces/:workspaceSlug 以下に置き、同じ
+// middleware.KnowledgeBaseWorkspace を通す。kb 側の routes_knowledge_base.go には触れず
+// 別ファイルとして独立させてある（usecase/ticket は usecase/kb を import しない境界だが、
+// handler 層は両方に依存してよい）。
 func registerTicketRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	registerTicketRoutesWith(
 		g,
@@ -46,10 +43,9 @@ func registerTicketRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 }
 
-// newTicketAttachmentPresignerOrFallback は newKbImagePresignerOrFallback と同じ判断
-// （routes_knowledge_base.go 参照）— IMAGES_BUCKET 未設定なら stub、設定済みで初期化に
-// 失敗すれば起動を止める。添付は kb ページ画像・rich-text 画像と同じバケットを
-// tickets/ prefix で共有する（新しいバケットを増やさない。段 4 着手時の判断）。
+// newTicketAttachmentPresignerOrFallback は newKbImagePresignerOrFallback と同じ判断——
+// IMAGES_BUCKET 未設定なら stub、設定済みで初期化に失敗すれば起動を止める。添付は kb ページ
+// 画像・rich-text 画像と同じバケットを tickets/ prefix で共有する（新しいバケットを増やさない）。
 func newTicketAttachmentPresignerOrFallback(deps *routeDeps) repository.TicketAttachmentPresigner {
 	bucket := deps.cfg.Images.Bucket
 	if bucket == "" {
@@ -64,7 +60,7 @@ func newTicketAttachmentPresignerOrFallback(deps *routeDeps) repository.TicketAt
 }
 
 // registerTicketRoutesWith は repository を受け取ってルートと middleware を組み立てる
-// （本番の wiring とテストが同じ 1 箇所を通る。registerKnowledgeBaseRoutesWith と同じ理由）。
+// （本番の wiring とテストが同じ 1 箇所を通るようにするため）。
 func registerTicketRoutesWith(
 	g *gin.RouterGroup,
 	tickets repository.TicketRepository,
@@ -158,8 +154,7 @@ func registerTicketRoutesWith(
 		ticket.NewDeleteTicketAttachmentUseCase(attachments),
 	)
 
-	// slug 無しの解決だけは middleware.KnowledgeBaseWorkspace を通さない
-	// （URL にワークスペースが無いので slug から確定できない。handler が ID から
+	// slug 無しの解決だけは middleware.KnowledgeBaseWorkspace を通さない（handler が ID から
 	// ワークスペースを解決し、その場で権限判定を通す。kb の /kb/pages/:pageId と同じ）。
 	g.GET("/kb/tickets/:ticketId", h.ResolveByID)
 
@@ -170,10 +165,9 @@ func registerTicketRoutesWith(
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets/enable", h.Enable)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets", h.List)
 	tkGroup.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/tickets", h.Create)
-	// 表示キー（例 FRESTYLE-12）からの解決。キーはスペースの key を含んでいる
-	// （domain.ParseTicketKey が最後のハイフンで割る）ので、URL 側にスペースを取らない。
-	// /tickets/:ticketId と衝突しないよう /tickets/by-key/:key に独立させる
-	// （ticketId は UUID、key はハイフン入りの自由文字列）。
+	// 表示キー（例 FRESTYLE-12）からの解決。キーはスペースの key を含む（domain.ParseTicketKey
+	// が最後のハイフンで割る）ので URL 側にスペースを取らない。/tickets/:ticketId と衝突しない
+	// よう /tickets/by-key/:key に独立させる。
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/by-key/:key", h.ResolveByKey)
 	tkGroup.GET("/kb/workspaces/:workspaceSlug/tickets/:ticketId", h.Get)
 	// 直下の子の一覧（孫は含まない）。

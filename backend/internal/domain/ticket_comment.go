@@ -8,9 +8,9 @@ import (
 // TicketStatusTransition は状態が変わった記録 1 件（段 3・設計 Ⅵ）。
 //
 // 汎用の TicketChangeItem（field="status"）とは役割が違う — あちらは人が読む変更履歴
-// （旧値・新値を ID と表示文字列の両方で持つ）、こちらは「いつどの状態にいたか」を
-// 集計で引くための専用ログ（当時の表示名は持たず、常に FK を辿る）。
-// ChangeTicketStatusUseCase が状態変更のたびに両方へ書く。
+// （旧値・新値を ID と表示文字列の両方で持つ）、こちらは「いつどの状態にいたか」を集計で引くための
+// 専用ログ（当時の表示名は持たず、常に FK を辿る）。ChangeTicketStatusUseCase が状態変更の
+// たびに両方へ書く。
 type TicketStatusTransition struct {
 	ID              string    `json:"id"`
 	TicketID        string    `json:"ticketId"`
@@ -32,8 +32,8 @@ type TicketComment struct {
 	ParentCommentID *string `json:"parentCommentId,omitempty"`
 	AuthorUserID    uint64  `json:"-"`
 	Body            string  `json:"-"`
-	// EditedAt は編集済みなら値を持つ（未編集は nil）。以前の本文そのものは
-	// TicketCommentEdit に別途積む（この構造体は最新の本文だけを運ぶ）。
+	// EditedAt は編集済みなら値を持つ（未編集は nil）。以前の本文そのものは TicketCommentEdit に
+	// 別途積む（この構造体は最新の本文だけを運ぶ）。
 	EditedAt  *time.Time `json:"editedAt,omitempty"`
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
@@ -66,9 +66,9 @@ const TicketCommentReactionMaxEmojiBytes = 32
 // ErrInvalidTicketCommentReactionEmoji は emoji が空・上限超過のときに返す。
 var ErrInvalidTicketCommentReactionEmoji = errors.New("invalid ticket comment reaction emoji")
 
-// ValidTicketCommentReactionEmoji は emoji が保存してよい形かを返す
-// （空でない・DB の上限バイト数以内）。1 grapheme かどうかは見ない
-// （kb ページアイコンの絵文字検証と同じ判断 — 見た目はピッカーが担う）。
+// ValidTicketCommentReactionEmoji は emoji が保存してよい形かを返す（空でない・DB の上限バイト数
+// 以内）。1 grapheme かどうかは見ない（kb ページアイコンの絵文字検証と同じ判断 — 見た目は
+// ピッカーが担う）。
 func ValidTicketCommentReactionEmoji(emoji string) bool {
 	return emoji != "" && len(emoji) <= TicketCommentReactionMaxEmojiBytes
 }

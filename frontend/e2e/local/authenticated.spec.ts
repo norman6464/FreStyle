@@ -118,10 +118,19 @@ test.describe('ナレッジ作成導線（POST モック）', () => {
 });
 
 test.describe('スペース追加導線（POST モック）', () => {
-  test('スペースが既にあっても「スペースを追加」から名前だけで作れる', async ({ page }) => {
+  test('スペース切替の一覧から名前だけで新しいスペースを作れる', async ({ page }) => {
     await mockAuthenticated(page);
 
+    const EXISTING_ID = '11111111-1111-1111-1111-111111111111';
+    const CREATED_ID = '22222222-2222-2222-2222-222222222222';
+    const EXISTING = { id: EXISTING_ID, key: 's-1a2b3c', name: 'バックエンド定例', createdAt: '2026-01-01T00:00:00Z' };
+    const CREATED = { id: CREATED_ID, key: 's-9d8c7b', name: '営業定例', createdAt: '2026-01-01T00:00:00Z' };
+
     let postBody: unknown = null;
+    // 作成後は一覧にも増える（作ったスペースへ移った先が「見つかりません」にならないよう、
+    // 実際の順序どおり POST → 再取得で増えている状態を再現する）。
+    let created = false;
+
     await page.route('**/api/v2/kb/workspaces', (route) =>
       route.fulfill({
         status: 200,
@@ -131,47 +140,55 @@ test.describe('スペース追加導線（POST モック）', () => {
         ]),
       }),
     );
+
+    // 段14: サイドバーは「今いる 1 スペース」だけを出す。切替と作成はこの自分のスペース
+    // 一覧（/me/spaces）から辿るので、経路を通すにはこちらのモックが要る。
+    await page.route('**/api/v2/kb/workspaces/w-3f2a9c/me/spaces', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          created
+            ? [{ ...EXISTING, role: 'admin' }, { ...CREATED, role: 'admin' }]
+            : [{ ...EXISTING, role: 'admin' }],
+        ),
+      }),
+    );
+
     await page.route('**/api/v2/kb/workspaces/w-3f2a9c/spaces', (route) => {
       if (route.request().method() === 'POST') {
         postBody = route.request().postDataJSON();
+        created = true;
         return route.fulfill({
           status: 201,
           contentType: 'application/json',
-          body: JSON.stringify({
-            id: '22222222-2222-2222-2222-222222222222',
-            key: 's-9d8c7b',
-            name: '営業定例',
-            createdAt: '2026-01-01T00:00:00Z',
-          }),
+          body: JSON.stringify(CREATED),
         });
       }
-      // GET 一覧: 既存 1 件（0 件のときの常設フォームではなく、追加入口の経路を通す）。
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            id: '11111111-1111-1111-1111-111111111111',
-            key: 's-1a2b3c',
-            name: 'バックエンド定例',
-            createdAt: '2026-01-01T00:00:00Z',
-          },
-        ]),
+        body: JSON.stringify(created ? [EXISTING, CREATED] : [EXISTING]),
       });
     });
 
-    await page.goto('/kb');
-    // 見出し・行の＋・⋯ が同名を含むので exact で見出しだけを掴む。
-    await expect(page.getByRole('button', { name: 'バックエンド定例', exact: true })).toBeVisible();
+    // サイドバーはモバイル用とデスクトップ用の 2 つが DOM に居るので、見えている方だけを掴む。
+    const visible = page.locator(':visible');
 
-    // 「プライベートスペースを追加」も部分一致で当たるので厳密一致にする。
-    await page.getByRole('button', { name: 'スペースを追加', exact: true }).click();
-    await page.getByLabel('スペースの名前').fill('営業定例');
-    await page.getByRole('button', { name: 'スペースを作る' }).click();
+    await page.goto(`/kb/spaces/${EXISTING_ID}`);
+    // 今いるスペースの名前が出る（段14 で見出しはボタンではなくただの表示になった）。
+    await expect(page.getByText('バックエンド定例').and(visible).first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'スペースを切り替える' }).and(visible).first().click();
+    // 「プライベートスペースを作成」も部分一致で当たるので厳密一致にする。
+    await page.getByRole('button', { name: 'スペースを作成', exact: true }).and(visible).first().click();
+    await page.getByLabel('スペースの名前').and(visible).first().fill('営業定例');
+    await page.getByRole('button', { name: 'スペースを作る' }).and(visible).first().click();
 
     // key は送らない（サーバーが自動採番）。
     await expect.poll(() => postBody).toEqual({ name: '営業定例' });
-    // 作ったスペースが見出しとして現れる。
-    await expect(page.getByRole('button', { name: '営業定例', exact: true })).toBeVisible();
+    // 作成に成功したら、そのスペースへ移る。
+    await expect(page).toHaveURL(new RegExp(`/kb/spaces/${CREATED_ID}$`));
+    await expect(page.getByText('営業定例').and(visible).first()).toBeVisible();
   });
 });

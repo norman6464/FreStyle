@@ -444,6 +444,19 @@ func (f *kbFakePages) UpdatePageCover(_ context.Context, workspaceID, pageID str
 	return copyPage(p), nil
 }
 
+func (f *kbFakePages) UpdatePageVisibility(_ context.Context, workspaceID, pageID string, visibility domain.PageVisibility) (*domain.Page, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	p, ok := f.pages[pageID]
+	// 本番の UpdatePageVisibility と同じく archived_at IS NULL も見る（アーカイブ済みは 0 行 = ErrPageNotFound）。
+	if !ok || p.WorkspaceID != workspaceID || p.ArchivedAt != nil {
+		return nil, repository.ErrPageNotFound
+	}
+	p.Visibility = visibility
+	return copyPage(p), nil
+}
+
 func (f *kbFakePages) TouchPageLastEditedBy(_ context.Context, workspaceID, pageID string, userID uint64) error {
 	if f.failWith != nil {
 		return f.failWith

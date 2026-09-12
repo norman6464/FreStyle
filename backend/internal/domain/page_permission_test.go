@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/norman6464/frestyle/backend/internal/domain"
@@ -164,8 +165,73 @@ func Test_実効権限_一覧の閲覧判定は1ページ解決とつねに一�
 	}
 	for _, r := range roles {
 		want := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true, Role: r}).CanView
-		assert.Equal(t, want, domain.ResolvePageView(r), "役割 %v", r)
+		assert.Equal(t, want, domain.ResolvePageView(r, domain.PageVisibilitySpace, false), "役割 %v", r)
 	}
+}
+
+// visibility='private' は、作成者以外には役割がどれだけ強くても一切見せない
+// （grants の「打ち消す層は持たない」原則の唯一の例外。段 13）。
+// 一覧（ResolvePageView）と 1 ページ解決（ResolvePagePermission）の両方で固定する
+// — 片方だけ直すと「開けるのに一覧には出ない／一覧に出るのに開けない」というずれになる。
+func Test_ページ権限_visibilityがprivateなら作成者以外には一切見せない(t *testing.T) {
+	roles := []*domain.GrantRole{
+		nil,
+		role(domain.GrantRoleViewer),
+		role(domain.GrantRoleCommenter),
+		role(domain.GrantRoleEditor),
+		role(domain.GrantRoleAdmin),
+	}
+	for _, r := range roles {
+		t.Run(fmt.Sprintf("role=%v", r), func(t *testing.T) {
+			// 作成者本人でなければ、admin 相当の役割が届いていても何も許さない。
+			got := domain.ResolvePagePermission(domain.PagePermissionFacts{
+				Member: true, Role: r, Visibility: domain.PageVisibilityPrivate, IsOwner: false,
+			})
+			assert.False(t, got.CanView, "作成者以外なのに閲覧できる")
+			assert.False(t, got.CanEdit, "作成者以外なのに編集できる")
+			assert.False(t, got.CanManage, "作成者以外なのに権限を変えられる")
+			assert.False(t, got.CanComment, "作成者以外なのにコメントできる")
+			assert.False(t, domain.ResolvePageView(r, domain.PageVisibilityPrivate, false),
+				"一覧側でも作成者以外なのに閲覧できる")
+
+			// 作成者本人には、届いている役割どおりに見える（private であること自体は
+			// 本人の閲覧を妨げない）。
+			ownerGot := domain.ResolvePagePermission(domain.PagePermissionFacts{
+				Member: true, Role: r, Visibility: domain.PageVisibilityPrivate, IsOwner: true,
+			})
+			want := domain.ResolvePagePermission(domain.PagePermissionFacts{
+				Member: true, Role: r, Visibility: domain.PageVisibilitySpace, IsOwner: true,
+			})
+			assert.Equal(t, want, ownerGot, "作成者本人には private であること自体は影響しないはず")
+			assert.Equal(t, want.CanView, domain.ResolvePageView(r, domain.PageVisibilityPrivate, true))
+		})
+	}
+
+	// 共有リンク経由（役割を持たず、ログインしていないので IsOwner は常に false）でも
+	// private なページには一切入れない。共有リンクが「広げる方向にしか働かない」という
+	// 既存の性質を private が上書きすることを固定する。
+	t.Run("共有リンク経由でも作成者以外には見せない", func(t *testing.T) {
+		editCap := domain.CapabilityEdit
+		got := domain.ResolvePagePermission(domain.PagePermissionFacts{
+			ShareLinkCapability: &editCap, Visibility: domain.PageVisibilityPrivate, IsOwner: false,
+		})
+		assert.False(t, got.CanView, "共有リンク経由なのに private なページが見える")
+	})
+
+	// 'public' / 'space' / ゼロ値は、閲覧可否に何の影響も与えない（表示上の区別でしかない）。
+	t.Run("private以外は閲覧可否を一切変えない", func(t *testing.T) {
+		for _, v := range []domain.PageVisibility{
+			domain.PageVisibilityPublic, domain.PageVisibilitySpace, domain.PageVisibility(""),
+		} {
+			base := domain.ResolvePagePermission(domain.PagePermissionFacts{
+				Member: true, Role: role(domain.GrantRoleViewer),
+			})
+			got := domain.ResolvePagePermission(domain.PagePermissionFacts{
+				Member: true, Role: role(domain.GrantRoleViewer), Visibility: v, IsOwner: false,
+			})
+			assert.Equal(t, base, got, "visibility=%q が閲覧可否を変えてしまっている", v)
+		}
+	})
 }
 
 // 経路に付与を足しても役割は弱くならない、という合成規則の性質を固定する。
@@ -268,6 +334,14 @@ func Test_権限モデルの値の検証(t *testing.T) {
 		assert.True(t, c.Valid(), string(c))
 	}
 	assert.False(t, domain.Capability("comment").Valid())
+
+	for _, v := range []domain.PageVisibility{
+		domain.PageVisibilityPublic, domain.PageVisibilitySpace, domain.PageVisibilityPrivate,
+	} {
+		assert.True(t, domain.ValidPageVisibility(v), string(v))
+	}
+	assert.False(t, domain.ValidPageVisibility(domain.PageVisibility("unknown")))
+	assert.False(t, domain.ValidPageVisibility(domain.PageVisibility("")))
 }
 
 func Test_ページ権限_管理は役割だけで決まる(t *testing.T) {

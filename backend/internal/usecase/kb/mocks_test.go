@@ -189,6 +189,12 @@ func (m *mockKnowledgeBaseRepo) UpdatePageCover(ctx context.Context, workspaceID
 	return p, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) UpdatePageVisibility(ctx context.Context, workspaceID, pageID string, visibility domain.PageVisibility) (*domain.Page, error) {
+	args := m.Called(ctx, workspaceID, pageID, visibility)
+	p, _ := args.Get(0).(*domain.Page)
+	return p, args.Error(1)
+}
+
 func (m *mockKnowledgeBaseRepo) TouchPageLastEditedBy(ctx context.Context, workspaceID, pageID string, userID uint64) error {
 	return m.Called(ctx, workspaceID, pageID, userID).Error(0)
 }
@@ -666,4 +672,74 @@ func (m *mockPageSuggestionRepo) Resolve(
 	args := m.Called(ctx, workspaceID, pageID, suggestionID, status, resolverUserID, resolvedAt)
 	s, _ := args.Get(0).(*domain.PageSuggestion)
 	return s, args.Error(1)
+}
+
+// mockLabelRepo は repository.LabelRepository の testify/mock 実装（段13。ページへの
+// ラベル付け外しのテストに使う。チケット側のメソッドは呼ばれない前提でスタブのみ用意する）。
+type mockLabelRepo struct{ mock.Mock }
+
+var _ repository.LabelRepository = (*mockLabelRepo)(nil)
+
+func (m *mockLabelRepo) CreateLabel(ctx context.Context, l *domain.Label) error {
+	return m.Called(ctx, l).Error(0)
+}
+
+func (m *mockLabelRepo) FindLabel(ctx context.Context, workspaceID, labelID string) (*domain.Label, error) {
+	args := m.Called(ctx, workspaceID, labelID)
+	l, _ := args.Get(0).(*domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) ListLabels(ctx context.Context, workspaceID, spaceID string) ([]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	l, _ := args.Get(0).([]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) UpdateLabel(ctx context.Context, l *domain.Label) error {
+	return m.Called(ctx, l).Error(0)
+}
+
+func (m *mockLabelRepo) DeleteLabel(ctx context.Context, workspaceID, spaceID, labelID string) error {
+	return m.Called(ctx, workspaceID, spaceID, labelID).Error(0)
+}
+
+func (m *mockLabelRepo) AddTicketLabel(ctx context.Context, workspaceID, ticketID, labelID string) error {
+	return m.Called(ctx, workspaceID, ticketID, labelID).Error(0)
+}
+
+func (m *mockLabelRepo) RemoveTicketLabel(ctx context.Context, workspaceID, ticketID, labelID string) error {
+	return m.Called(ctx, workspaceID, ticketID, labelID).Error(0)
+}
+
+func (m *mockLabelRepo) ListLabelsByTicket(ctx context.Context, workspaceID, ticketID string) ([]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, ticketID)
+	l, _ := args.Get(0).([]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) ListLabelsByTicketIDs(ctx context.Context, workspaceID string, ticketIDs []string) (map[string][]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, ticketIDs)
+	l, _ := args.Get(0).(map[string][]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) AddPageLabel(ctx context.Context, workspaceID, pageID, labelID string) error {
+	return m.Called(ctx, workspaceID, pageID, labelID).Error(0)
+}
+
+func (m *mockLabelRepo) RemovePageLabel(ctx context.Context, workspaceID, pageID, labelID string) error {
+	return m.Called(ctx, workspaceID, pageID, labelID).Error(0)
+}
+
+func (m *mockLabelRepo) ListLabelsByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	l, _ := args.Get(0).([]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) ListLabelsByPageIDs(ctx context.Context, workspaceID string, pageIDs []string) (map[string][]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, pageIDs)
+	l, _ := args.Get(0).(map[string][]domain.Label)
+	return l, args.Error(1)
 }

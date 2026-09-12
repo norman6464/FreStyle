@@ -219,3 +219,84 @@ func (r *labelRepository) ListLabelsByTicketIDs(ctx context.Context, workspaceID
 	}
 	return out, nil
 }
+
+func (r *labelRepository) AddPageLabel(ctx context.Context, workspaceID, pageID, labelID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	pID, ok2 := kbParseID(pageID)
+	lID, ok3 := kbParseID(labelID)
+	if !ok || !ok2 || !ok3 {
+		return repository.ErrLabelNotFound
+	}
+	_, err := r.queries(ctx).AddPageLabel(ctx, sqlcgen.AddPageLabelParams{
+		WorkspaceID: wsID, PageID: pID, LabelID: lID,
+	})
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return repository.ErrLabelNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *labelRepository) RemovePageLabel(ctx context.Context, workspaceID, pageID, labelID string) error {
+	wsID, ok := kbParseID(workspaceID)
+	pID, ok2 := kbParseID(pageID)
+	lID, ok3 := kbParseID(labelID)
+	if !ok || !ok2 || !ok3 {
+		return repository.ErrLabelNotFound
+	}
+	// 付いていないラベルを外そうとしても 0 行で成功扱い（冪等。RemoveTicketLabel と同じ）。
+	_, err := r.queries(ctx).RemovePageLabel(ctx, sqlcgen.RemovePageLabelParams{
+		WorkspaceID: wsID, PageID: pID, LabelID: lID,
+	})
+	return err
+}
+
+func (r *labelRepository) ListLabelsByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Label, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return nil, nil
+	}
+	rows, err := r.queries(ctx).ListLabelsByPage(ctx, sqlcgen.ListLabelsByPageParams{WorkspaceID: wsID, PageID: pID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Label, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainLabel(row))
+	}
+	return out, nil
+}
+
+func (r *labelRepository) ListLabelsByPageIDs(ctx context.Context, workspaceID string, pageIDs []string) (map[string][]domain.Label, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok || len(pageIDs) == 0 {
+		return nil, nil
+	}
+	idsJSON, err := json.Marshal(pageIDs)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries(ctx).ListLabelsByPageIDs(ctx, sqlcgen.ListLabelsByPageIDsParams{
+		WorkspaceID: wsID, PageIds: idsJSON,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]domain.Label, len(pageIDs))
+	for _, row := range rows {
+		pID := row.PageID.String()
+		out[pID] = append(out[pID], domain.Label{
+			ID:          row.ID.String(),
+			WorkspaceID: row.WorkspaceID.String(),
+			SpaceID:     row.SpaceID.String(),
+			Name:        row.Name,
+			Color:       row.Color,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return out, nil
+}

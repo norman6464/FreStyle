@@ -74,6 +74,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewTicketRepository(deps.db),
 		persistence.NewTxManager(deps.db),
 		newKbImagePresignerOrFallback(deps),
+		persistence.NewLabelRepository(deps.db),
 	)
 }
 
@@ -132,6 +133,7 @@ func registerKnowledgeBaseRoutesWith(
 	tickets repository.TicketRepository,
 	txManager repository.TxManager,
 	kbImagePresigner repository.KbImagePresigner,
+	labels repository.LabelRepository,
 ) {
 	// ReplacePageBlocksUseCase は本文保存の成功直後に versionRepo.CreateVersionIfDue を同じ
 	// トランザクションで呼ぶので、PageVersionHandler と同じ 1 つの
@@ -167,6 +169,10 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewAddPageFavoriteUseCase(favorites),
 		kb.NewRemovePageFavoriteUseCase(favorites),
 		kb.NewIsPageFavoriteUseCase(favorites),
+		kb.NewSetPageVisibilityUseCase(pages),
+		kb.NewAddPageLabelUseCase(labels, pages),
+		kb.NewRemovePageLabelUseCase(labels),
+		kb.NewListLabelsForPageUseCase(labels),
 	)
 
 	// ページ全体へのコメント。認可は CommentHandler 内で
@@ -354,6 +360,10 @@ func registerKnowledgeBaseRoutesWith(
 		middleware.RateLimitPerMinutePerUser(kbReplaceContentPerMinute, kbReplaceContentBurst), h.ReplaceContent)
 	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.SetIcon)
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/icon", h.ClearIcon)
+	// 公開範囲・ラベル（段13）。
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/visibility", h.SetVisibility)
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/labels/:labelId", h.AddLabel)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/labels/:labelId", h.RemoveLabel)
 	// ページに閉じた画像の読み取り経路。
 	kbGroup.POST("/kb/workspaces/:workspaceSlug/pages/:pageId/images/upload-url", h.IssueImageUploadURL)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/images/download-url", h.IssueImageDownloadURL)

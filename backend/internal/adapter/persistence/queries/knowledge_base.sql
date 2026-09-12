@@ -228,6 +228,14 @@ SET cover = sqlc.narg(cover), updated_at = now()
 WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id) AND archived_at IS NULL
 RETURNING *;
 
+-- name: UpdatePageVisibility :one
+-- 公開範囲の変更。RETURNING で更新後の行を返す。値の妥当性（domain.ValidPageVisibility）は
+-- usecase 側が保証する。archived_at IS NULL は UpdatePageCover と同じ理由で最初から入れる。
+UPDATE pages
+SET visibility = sqlc.arg(visibility), updated_at = now()
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id) AND archived_at IS NULL
+RETURNING *;
+
 -- name: TouchPageLastEditedBy :execrows
 -- 最終編集者の記録。呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより
 -- **先に**これを呼ぶ。UPDATE が pages の対象行を排他ロックするため、同じページへの

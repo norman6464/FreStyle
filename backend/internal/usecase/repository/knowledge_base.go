@@ -199,6 +199,11 @@ type KnowledgeBaseRepository interface {
 	// UpdatePageIcon 側の同じ穴は本メソッドのスコープ外なので直さない）。
 	// 入力の妥当性（key の形）は呼び出し側（usecase）が保証済みという前提で、ここでは検証しない。
 	UpdatePageCover(ctx context.Context, workspaceID, pageID string, cover *domain.PageCover) (*domain.Page, error)
+	// UpdatePageVisibility は公開範囲を変更し、更新後の行を返す。対象が無ければ ErrPageNotFound。
+	// archived_at IS NULL を WHERE に含める（UpdatePageCover と同じ理由）。
+	// 入力の妥当性（domain.ValidPageVisibility）は呼び出し側（usecase）が保証済みという前提で、
+	// ここでは検証しない。
+	UpdatePageVisibility(ctx context.Context, workspaceID, pageID string, visibility domain.PageVisibility) (*domain.Page, error)
 	// TouchPageLastEditedBy は最終編集者を記録する。対象が無ければ ErrPageNotFound。
 	//
 	// 呼び出し側（ReplacePageBlocksUseCase）は本文の全消し全入れより**先に**これを呼ぶ。

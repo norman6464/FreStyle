@@ -212,7 +212,7 @@ func TestPageGrant_スペース全員宛ての付与が全経路で一致する_
 	rows, err := f.perm.ListWorkspacePageViewFactsByIDs(ctx, f.ws, f.alice, []string{page})
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "ID 指定でも 1 行返る")
-	assert.True(t, domain.ResolvePageView(rows[0].Role), "ID 指定でも見える")
+	assert.True(t, domain.ResolvePageView(rows[0].Role, rows[0].Page.Visibility, rows[0].Page.CreatedByUserID == f.alice), "ID 指定でも見える")
 }
 
 func containsPageID(pages []domain.Page, id string) bool {
@@ -731,10 +731,14 @@ func TestPageGrant_木を下るほど役割は弱くならない_Integration(t *
 			require.NoError(t, err)
 			listed := map[string]domain.PagePermission{}
 			for _, row := range rows {
+				isOwner := row.Page.CreatedByUserID == f.alice
 				listed[row.Page.ID] = domain.ResolvePagePermission(
-					domain.PagePermissionFacts{Member: true, Role: row.Role},
+					domain.PagePermissionFacts{
+						Member: true, Role: row.Role,
+						Visibility: row.Page.Visibility, IsOwner: isOwner,
+					},
 				)
-				assert.Equal(t, domain.ResolvePageView(row.Role), listed[row.Page.ID].CanView,
+				assert.Equal(t, domain.ResolvePageView(row.Role, row.Page.Visibility, isOwner), listed[row.Page.ID].CanView,
 					"一覧の閲覧判定と 1 ページ解決の閲覧が食い違う")
 			}
 			for i, d := range depth {

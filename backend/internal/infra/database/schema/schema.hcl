@@ -657,6 +657,16 @@ table "pages" {
     null = true
     type = bigint
   }
+  # visibility はバイラインの公開範囲バッジの元。'public' と 'space' はいまの閲覧可否
+  # （grants の解決）を一切変えない — 表示だけが違う。'private' だけが唯一の例外で、
+  # 作成者以外は既存の付与（grants・共有リンク含む）を問わず一切見せない
+  # （domain.PagePermissionFacts.IsOwner・domain.ResolvePageView 参照。この列が
+  # 「打ち消す層を持たない」という grants の原則の外にある、意図した唯一の例外）。
+  column "visibility" {
+    null    = false
+    type    = character_varying(16)
+    default = "space"
+  }
   primary_key {
     columns = [column.id]
   }
@@ -753,6 +763,9 @@ table "pages" {
   }
   check "ck_pages_cover_object" {
     expr = "(cover IS NULL) OR (jsonb_typeof(cover) = 'object'::text AND cover <> '{}'::jsonb)"
+  }
+  check "ck_pages_visibility" {
+    expr = "(visibility)::text = ANY (ARRAY[('public'::character varying)::text, ('space'::character varying)::text, ('private'::character varying)::text])"
   }
 }
 
@@ -3427,6 +3440,51 @@ table "ticket_labels" {
     on_delete   = CASCADE
   }
   index "idx_ticket_labels_label" {
+    columns = [column.label_id]
+  }
+}
+
+# page_labels: ページとラベルの多対多。ticket_labels と同じ形（付け外しは冪等・
+# 複合主キーが重複を吸収する）。labels 表そのものはチケット由来だが語彙は共有する
+# （ページ専用の labels は作らない）。ticket_labels と同じく、ラベルの所属スペースが
+# ページの所属スペースと一致するかは DB の FK では強制しない（fk_page_labels_label は
+# workspace_id 単位の一致だけを見る）— 一致の検証は usecase 側（AddPageLabelUseCase）が
+# ticket 側の AddTicketLabelUseCase と同じ形で行う。
+table "page_labels" {
+  schema = schema.public
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  column "label_id" {
+    null = false
+    type = uuid
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.page_id, column.label_id]
+  }
+  foreign_key "fk_page_labels_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  foreign_key "fk_page_labels_label" {
+    columns     = [column.workspace_id, column.label_id]
+    ref_columns = [table.labels.column.workspace_id, table.labels.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  index "idx_page_labels_label" {
     columns = [column.label_id]
   }
 }

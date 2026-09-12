@@ -775,6 +775,28 @@ func (m *mockLabelRepo) ListLabelsByTicketIDs(ctx context.Context, workspaceID s
 	return l, args.Error(1)
 }
 
+func (m *mockLabelRepo) AddPageLabel(ctx context.Context, workspaceID, pageID, labelID string) error {
+	args := m.Called(ctx, workspaceID, pageID, labelID)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) RemovePageLabel(ctx context.Context, workspaceID, pageID, labelID string) error {
+	args := m.Called(ctx, workspaceID, pageID, labelID)
+	return args.Error(0)
+}
+
+func (m *mockLabelRepo) ListLabelsByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	l, _ := args.Get(0).([]domain.Label)
+	return l, args.Error(1)
+}
+
+func (m *mockLabelRepo) ListLabelsByPageIDs(ctx context.Context, workspaceID string, pageIDs []string) (map[string][]domain.Label, error) {
+	args := m.Called(ctx, workspaceID, pageIDs)
+	l, _ := args.Get(0).(map[string][]domain.Label)
+	return l, args.Error(1)
+}
+
 // mockTicketAttachmentRepo は repository.TicketAttachmentRepository の testify/mock 実装（段 4）。
 type mockTicketAttachmentRepo struct{ mock.Mock }
 

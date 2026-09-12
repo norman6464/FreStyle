@@ -7,7 +7,7 @@ package domain
 // 優先規則を DB に写経させないため。ページ一覧のように 1 回のクエリで多数のページを
 // 扱う経路でも、SQL が返すのは事実だけで、規則は同じ 1 つの関数を通る。
 //
-// # 打ち消す層は持たない
+// # 打ち消す層は持たない（唯一の例外: ページの visibility='private'）
 //
 // 権限は 3 段の付与（workspace / space / page）を足し合わせ、届いた中で最も強い役割で
 // 決まる。下の段が上の段を弱めることはなく、「親は共有、この子だけ隠す」は書けない。
@@ -16,6 +16,13 @@ package domain
 // この形にしているのは、打ち消しを許すと「なぜこの人に見える／見えないのか」が
 // 経路をさかのぼらないと答えられなくなるため。同じ設計を採った製品は、後から
 // 経路のどの段で許され拒まれたかを一覧する専用の検査機能を用意する羽目になっている。
+//
+// ページ単位の Visibility=private だけは、意図してこの原則の外に置いた唯一の例外
+// （段 13）。「作成者以外には一切見せない」という個人の下書き向けの要求で、grants を
+// 増やす方向の話ではないため、この 1 つに限って明示的に打ち消す（下記
+// ResolvePagePermission の先頭の早期リターンを参照）。共有ボタンで他人に page_grants を
+// 足しても、visibility を 'private' のままにしている限り効かない — 「見せたいなら
+// private を外す」という 1 つの分かりやすい操作で解ける設計にしてある。
 type PagePermissionFacts struct {
 	// Member はそのユーザーがワークスペースのメンバーか（kind='user' の Principal があるか）。
 	// 所属は principals が唯一の表現で、専用のメンバーシップ表は持たない。
@@ -34,6 +41,14 @@ type PagePermissionFacts struct {
 	// 共有リンクは広げる方向にしか働かない。ログインしていない相手へ「見せる」を足すだけで、
 	// すでに見えている人から取り上げることはない。
 	ShareLinkCapability *Capability
+	// Visibility はそのページの公開範囲。ゼロ値（""）は PageVisibilitySpace と同じに扱う
+	// （既存の呼び出し側・テストが明示的にこの値を組み立てなくても今までどおり動くように）。
+	//
+	// 'private' のときだけ IsOwner を見る特別扱いをする（下記コメント参照）。
+	Visibility PageVisibility
+	// IsOwner はこの facts を解決した相手がそのページの作成者かどうか。共有リンク経由の
+	// 来訪者では常に false（ログインしていないので作成者と同一だと判定しようがない）。
+	IsOwner bool
 }
 
 // PagePermission は 1 ページに対する実効権限。
@@ -73,15 +88,35 @@ func roleAllows(role *GrantRole, c Capability) bool {
 	return role.CanView()
 }
 
+// pageViewableGivenVisibility は visibility='private' の早期リターンを ResolvePageView /
+// ResolvePagePermission の両方で写経しないための共有ヘルパー。
+// 'private' でなければ常に true（'public'・'space'・ゼロ値のいずれも閲覧可否には効かない）。
+func pageViewableGivenVisibility(visibility PageVisibility, isOwner bool) bool {
+	return visibility != PageVisibilityPrivate || isOwner
+}
+
 // ResolvePageView は集めた事実から閲覧できるかを決める。
 // ページ一覧のように閲覧の列しか集めない経路が使う。
-func ResolvePageView(role *GrantRole) bool {
+//
+// visibility が 'private' で isOwner が false なら、role がどれだけ強くても false を返す
+// （ResolvePagePermission 冒頭の早期リターンと同じ、唯一の打ち消し例外）。
+func ResolvePageView(role *GrantRole, visibility PageVisibility, isOwner bool) bool {
+	if !pageViewableGivenVisibility(visibility, isOwner) {
+		return false
+	}
 	return roleAllows(role, CapabilityView)
 }
 
 // ResolvePagePermission は集めた事実から 1 ページの実効権限を決める。
 // ナレッジの権限規則はこの関数だけが持ち、呼び出し側（usecase / handler / SQL）へは写さない。
 func ResolvePagePermission(f PagePermissionFacts) PagePermission {
+	// visibility='private' は唯一の打ち消し例外（型の docstring 参照）。作成者本人でなければ
+	// grants・共有リンクのどちらであっても何も許さない。他のどの判定より先に閉じる —
+	// 下のケイパビリティごとの判定（canManage 等）は defaultAllows/canView を経由しない
+	// 独自の道を持つものもあり、後から AND するのでは足りない場所が出るため。
+	if !pageViewableGivenVisibility(f.Visibility, f.IsOwner) {
+		return PagePermission{}
+	}
 	// 所属していない相手には何もさせない。
 	//
 	// いまは事実を集める側（SQL）が主体を辿るので、所属していなければ役割も届かない。

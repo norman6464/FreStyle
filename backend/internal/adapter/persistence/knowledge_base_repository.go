@@ -160,6 +160,7 @@ func toDomainPage(row sqlcgen.Page) domain.Page {
 		CreatedByUserID: uint64(row.CreatedByUserID),
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
+		Visibility:      domain.PageVisibility(row.Visibility),
 	}
 	if row.ParentID.Valid {
 		id := row.ParentID.UUID.String()
@@ -703,6 +704,25 @@ func (r *knowledgeBaseRepository) UpdatePageCover(ctx context.Context, workspace
 		raw = &msg
 	}
 	row, err := r.queries(ctx).UpdatePageCover(ctx, sqlcgen.UpdatePageCoverParams{Cover: raw, WorkspaceID: wsID, ID: pgID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrPageNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	p := toDomainPage(row)
+	return &p, nil
+}
+
+func (r *knowledgeBaseRepository) UpdatePageVisibility(ctx context.Context, workspaceID, pageID string, visibility domain.PageVisibility) (*domain.Page, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return nil, repository.ErrPageNotFound
+	}
+	row, err := r.queries(ctx).UpdatePageVisibility(ctx, sqlcgen.UpdatePageVisibilityParams{
+		Visibility: string(visibility), WorkspaceID: wsID, ID: pgID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrPageNotFound
 	}

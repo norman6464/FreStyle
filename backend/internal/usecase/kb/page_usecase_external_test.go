@@ -612,6 +612,50 @@ func Test_ページアイコン_不正な値は保存せず拒否(t *testing.T) 
 	repo.AssertNotCalled(t, "UpdatePageIcon", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
+// Test_公開範囲_設定した値がそのまま保存される は SetPageVisibilityUseCase が
+// repository へ渡す値をそのまま固定する（SetPageIconUseCase の対応するテストと同じ形）。
+func Test_公開範囲_設定した値がそのまま保存される(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)
+	updated := kbActivePage(kbPage, kbSpace, nil)
+	updated.Visibility = domain.PageVisibilityPrivate
+	repo.On("UpdatePageVisibility", mock.Anything, kbWS, kbPage, domain.PageVisibilityPrivate).Return(updated, nil)
+	uc := kb.NewSetPageVisibilityUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), kb.SetPageVisibilityInput{
+		WorkspaceID: kbWS, PageID: kbPage, Visibility: domain.PageVisibilityPrivate,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domain.PageVisibilityPrivate, got.Visibility)
+	repo.AssertExpectations(t)
+}
+
+func Test_公開範囲_アーカイブ済みは拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbArchivedPage(kbPage, kbSpace, nil), nil)
+	uc := kb.NewSetPageVisibilityUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageVisibilityInput{
+		WorkspaceID: kbWS, PageID: kbPage, Visibility: domain.PageVisibilityPrivate,
+	})
+	require.ErrorIs(t, err, kb.ErrPageArchived)
+}
+
+// Test_公開範囲_不正な値は保存せず拒否 は、値の検証が repository を呼ぶ**前**に
+// 効いていることを固定する（FindPage すら呼ばれない — SetPageIconUseCase の
+// 対応するテストと同じ形）。
+func Test_公開範囲_不正な値は保存せず拒否(t *testing.T) {
+	repo := &mockKnowledgeBaseRepo{}
+	uc := kb.NewSetPageVisibilityUseCase(repo)
+
+	_, err := uc.Execute(context.Background(), kb.SetPageVisibilityInput{
+		WorkspaceID: kbWS, PageID: kbPage, Visibility: domain.PageVisibility("unknown"),
+	})
+	require.ErrorIs(t, err, kb.ErrInvalidPageVisibility)
+	repo.AssertNotCalled(t, "FindPage", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "UpdatePageVisibility", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 func Test_ページ移動_自分自身の下には移せない(t *testing.T) {
 	repo := &mockKnowledgeBaseRepo{}
 	repo.On("FindPage", mock.Anything, kbWS, kbPage).Return(kbActivePage(kbPage, kbSpace, nil), nil)

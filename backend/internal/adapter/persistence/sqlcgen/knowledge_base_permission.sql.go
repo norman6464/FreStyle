@@ -659,7 +659,7 @@ space_allp AS (
       AND EXISTS (SELECT 1 FROM me)
 ),
 cand AS (
-    SELECT DISTINCT src.id, src.workspace_id, src.space_id, src.parent_id, src.position, src.title, src.created_by_user_id, src.archived_at, src.created_at, src.updated_at, src.icon, src.cover, src.last_edited_by_user_id
+    SELECT DISTINCT src.id, src.workspace_id, src.space_id, src.parent_id, src.position, src.title, src.created_by_user_id, src.archived_at, src.created_at, src.updated_at, src.icon, src.cover, src.last_edited_by_user_id, src.visibility
     FROM page_links pl
     JOIN blocks blk ON blk.id = pl.source_block_id
     JOIN pages src ON src.workspace_id = blk.workspace_id AND src.id = blk.page_id
@@ -700,7 +700,7 @@ pgrank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id, cnd.visibility,
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
@@ -733,6 +733,7 @@ type ListPageLinkSourcePageViewFactsRow struct {
 	Icon               *json.RawMessage
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
+	Visibility         string
 	GrantRank          int32
 }
 
@@ -783,6 +784,7 @@ func (q *Queries) ListPageLinkSourcePageViewFacts(ctx context.Context, arg ListP
 			&i.Icon,
 			&i.Cover,
 			&i.LastEditedByUserID,
+			&i.Visibility,
 			&i.GrantRank,
 		); err != nil {
 			return nil, err
@@ -873,7 +875,7 @@ space_allp AS (
       AND EXISTS (SELECT 1 FROM me)
 ),
 cand AS (
-    SELECT DISTINCT src.id, src.workspace_id, src.space_id, src.parent_id, src.position, src.title, src.created_by_user_id, src.archived_at, src.created_at, src.updated_at, src.icon, src.cover, src.last_edited_by_user_id
+    SELECT DISTINCT src.id, src.workspace_id, src.space_id, src.parent_id, src.position, src.title, src.created_by_user_id, src.archived_at, src.created_at, src.updated_at, src.icon, src.cover, src.last_edited_by_user_id, src.visibility
     FROM page_ticket_links ptl
     JOIN blocks blk ON blk.id = ptl.source_block_id
     JOIN pages src ON src.workspace_id = blk.workspace_id AND src.id = blk.page_id
@@ -914,7 +916,7 @@ pgrank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id, cnd.visibility,
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
@@ -947,6 +949,7 @@ type ListPageTicketLinkSourcePageViewFactsRow struct {
 	Icon               *json.RawMessage
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
+	Visibility         string
 	GrantRank          int32
 }
 
@@ -984,6 +987,7 @@ func (q *Queries) ListPageTicketLinkSourcePageViewFacts(ctx context.Context, arg
 			&i.Icon,
 			&i.Cover,
 			&i.LastEditedByUserID,
+			&i.Visibility,
 			&i.GrantRank,
 		); err != nil {
 			return nil, err
@@ -1084,7 +1088,7 @@ page_grant_rank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    p.id, p.workspace_id, p.space_id, p.parent_id, p.position, p.title, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at, p.icon, p.cover, p.last_edited_by_user_id,
+    p.id, p.workspace_id, p.space_id, p.parent_id, p.position, p.title, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at, p.icon, p.cover, p.last_edited_by_user_id, p.visibility,
     -- 既定の役割の強さ。意味と 0 の扱いは ResolvePagePermissionFacts と同じ。
     -- 所属（is_member）は返さない。役割が 1 つも無ければ強さ 0 で「何もできない」に
     -- なるため閲覧の判定には要らず、使われない事実を返すと編集可否にも答えられる顔をする。
@@ -1140,6 +1144,7 @@ type ListSpacePageViewFactsRow struct {
 	Icon               *json.RawMessage
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
+	Visibility         string
 	GrantRank          int32
 	ParentArchived     bool
 }
@@ -1192,6 +1197,7 @@ func (q *Queries) ListSpacePageViewFacts(ctx context.Context, arg ListSpacePageV
 			&i.Icon,
 			&i.Cover,
 			&i.LastEditedByUserID,
+			&i.Visibility,
 			&i.GrantRank,
 			&i.ParentArchived,
 		); err != nil {
@@ -1284,139 +1290,6 @@ func (q *Queries) ListSpaceScopeGrantRoles(ctx context.Context, arg ListSpaceSco
 			return nil, err
 		}
 		items = append(items, role)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSubtreePagePermissionFacts = `-- name: ListSubtreePagePermissionFacts :many
-WITH target AS (
-    -- visibility の意味は ResolvePagePermissionFacts の target と同じ。
-    SELECT p.space_id, s.visibility AS space_visibility
-    FROM pages p
-    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
-    WHERE p.workspace_id = $1 AND p.id = $2
-),
-subtree AS (
-    -- closure なので自分自身（depth 0）も含む。
-    SELECT pp.page_id
-    FROM page_paths pp
-    WHERE pp.workspace_id = $1 AND pp.ancestor_id = $2
-),
-me AS (
-    SELECT p.id
-    FROM principals p
-    WHERE p.workspace_id = $1
-      AND p.kind = 'user' AND p.user_id = $3
-),
-mine AS (
-    SELECT id FROM me
-    UNION
-    SELECT pm.group_principal_id
-    FROM principal_members pm
-    JOIN me ON me.id = pm.member_principal_id
-    WHERE pm.workspace_id = $1
-    UNION
-    SELECT sp.id
-    FROM principals sp
-    CROSS JOIN target t
-    WHERE sp.workspace_id = $1
-      AND sp.kind = 'space_all' AND sp.space_id = t.space_id
-      AND t.space_visibility = 'workspace'
-      AND EXISTS (SELECT 1 FROM me)
-),
-grants AS (
-    -- ワークスペースとスペースの既定はサブツリー全体で同じ値なので 1 行に畳んでから配る
-    -- （ページごとに引き直すと行数ぶんの集約になる）。意味と 0 の扱いは
-    -- ResolvePagePermissionFacts と同じ。
-    SELECT max(CASE g."role"
-                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
-                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS grant_rank
-    FROM (
-        SELECT wg."role" FROM workspace_grants wg CROSS JOIN target t
-         WHERE wg.workspace_id = $1
-           AND t.space_visibility = 'workspace'
-           AND wg.principal_id IN (SELECT id FROM mine)
-        UNION ALL
-        SELECT sg."role" FROM space_grants sg CROSS JOIN target t
-         WHERE sg.workspace_id = $1 AND sg.space_id = t.space_id
-           AND sg.principal_id IN (SELECT id FROM mine)
-    ) g
-),
-page_grant_rank AS (
-    SELECT pp.page_id,
-           max(CASE pg."role"
-                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
-                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
-    FROM page_paths pp
-    JOIN subtree st ON st.page_id = pp.page_id
-    JOIN page_grants pg
-      ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
-    WHERE pp.workspace_id = $1
-      AND pg.principal_id IN (SELECT id FROM mine)
-    GROUP BY pp.page_id
-)
-SELECT
-    s.page_id,
-    EXISTS (SELECT 1 FROM me) AS is_member,
-    GREATEST(COALESCE((SELECT grants.grant_rank FROM grants), 0), COALESCE(pgr.rank, 0))::integer AS grant_rank
-FROM subtree s
-LEFT JOIN page_grant_rank pgr ON pgr.page_id = s.page_id
-ORDER BY s.page_id
-`
-
-type ListSubtreePagePermissionFactsParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	UserID      sql.NullInt64
-}
-
-type ListSubtreePagePermissionFactsRow struct {
-	PageID    uuid.UUID
-	IsMember  bool
-	GrantRank int32
-}
-
-// サブツリー（対象ページ自身 + 全子孫）の各ページについて、実効権限を決める「事実」を
-// 1 回のクエリで集める。判定は domain.ResolvePagePermission が行う（ここには規則を書かない）。
-//
-// 用途はアーカイブ / 復帰のように「1 枚を名指しして子孫ごと書き換える」操作の入口検査。
-// 根 1 枚の編集権限だけで通すと、同じページを直接 rename すると 403 になるのに
-// 祖先のアーカイブ経由なら書き換えられる、という経路依存の食い違いになる。
-//
-// ページごとに ResolvePagePermissionFacts を投げない（N+1 にしない）。集めるのは
-// ListSpacePageViewFacts と同じ形で、違いは対象の絞り方（スペース全体 → closure の
-// サブツリー）だけ。
-//
-// アーカイブ済みのページも外さない。操作の影響が及ぶ範囲はアーカイブ状態と関係なく
-// サブツリー全体で、外すと「先に子だけアーカイブしておけば検査を迂回できる」経路ができる。
-//
-// サブツリーは必ず 1 つのスペースに収まる（スペースをまたぐ移動はサブツリーの space_id を
-// まとめて付け替える）ので、space_grants と space_all の主体は根のスペースで引けば足りる。
-//
-// ページごとに値が変わるのは経路上のページ付与だけなので、closure を辿るのは
-// page_grant_rank の 1 本で済む。呼ぶのはアーカイブ / 復帰の 1 回だけで、閲覧経路には足さない。
-// ページ付与だけは畳めない。サブツリーの中でも「祖先のどこに張られているか」で
-// ページごとに値が変わるため、page_id ごとに集めて下の SELECT へ LEFT JOIN する。
-// 「最も近い段」は見ない — 付与に降格は無く、近い付与が遠い付与を弱めることはないため。
-func (q *Queries) ListSubtreePagePermissionFacts(ctx context.Context, arg ListSubtreePagePermissionFactsParams) ([]ListSubtreePagePermissionFactsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSubtreePagePermissionFacts, arg.WorkspaceID, arg.PageID, arg.UserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListSubtreePagePermissionFactsRow{}
-	for rows.Next() {
-		var i ListSubtreePagePermissionFactsRow
-		if err := rows.Scan(&i.PageID, &i.IsMember, &i.GrantRank); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1671,7 +1544,7 @@ space_allp AS (
       AND EXISTS (SELECT 1 FROM me)
 ),
 cand AS (
-    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at, pg.icon, pg.cover, pg.last_edited_by_user_id
+    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at, pg.icon, pg.cover, pg.last_edited_by_user_id, pg.visibility
     FROM pages pg
     WHERE pg.workspace_id = $1
       AND pg.id IN (
@@ -1713,7 +1586,7 @@ pgrank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id, cnd.visibility,
     GREATEST(
       CASE WHEN spvis.visibility = 'workspace' THEN (SELECT v FROM wsrank) ELSE 0 END,
       COALESCE(sr.v, 0),
@@ -1746,6 +1619,7 @@ type ListWorkspacePageViewFactsByIDsRow struct {
 	Icon               *json.RawMessage
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
+	Visibility         string
 	GrantRank          int32
 }
 
@@ -1791,6 +1665,7 @@ func (q *Queries) ListWorkspacePageViewFactsByIDs(ctx context.Context, arg ListW
 			&i.Icon,
 			&i.Cover,
 			&i.LastEditedByUserID,
+			&i.Visibility,
 			&i.GrantRank,
 		); err != nil {
 			return nil, err
@@ -2044,125 +1919,6 @@ func (q *Queries) LockWorkspaceAdminGrantsForRemoval(ctx context.Context, arg Lo
 	return i, err
 }
 
-const resolvePagePermissionFacts = `-- name: ResolvePagePermissionFacts :one
-WITH target AS (
-    -- スペースの visibility も一緒に引く。'private' のスペースには
-    -- ワークスペース全体の grant と space_all（そのスペースの全員）を届かせない
-    -- （届かせ方の規則は domain のまま。ここで変えるのは「事実の集め方」だけ）。
-    SELECT p.space_id, s.visibility AS space_visibility
-    FROM pages p
-    JOIN spaces s ON s.workspace_id = p.workspace_id AND s.id = p.space_id
-    WHERE p.workspace_id = $1 AND p.id = $2
-),
-me AS (
-    SELECT p.id, p.kind
-    FROM principals p
-    WHERE p.workspace_id = $1
-      AND (
-            (p.kind = 'user' AND p.user_id = $3::bigint)
-         OR (p.kind = 'share_link' AND p.id = $4::uuid)
-      )
-),
-mine AS (
-    SELECT id FROM me
-    UNION
-    SELECT pm.group_principal_id
-    FROM principal_members pm
-    JOIN me ON me.id = pm.member_principal_id
-    WHERE pm.workspace_id = $1
-    UNION
-    SELECT sp.id
-    FROM principals sp
-    CROSS JOIN target t
-    WHERE sp.workspace_id = $1
-      AND sp.kind = 'space_all'
-      AND sp.space_id = t.space_id
-      AND t.space_visibility = 'workspace'
-      AND EXISTS (SELECT 1 FROM me WHERE me.kind = 'user')
-),
-page_grant_rank AS (
-    SELECT max(CASE pg."role"
-                 WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
-                 WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) AS rank
-    FROM page_paths pp
-    JOIN page_grants pg
-      ON pg.workspace_id = pp.workspace_id AND pg.page_id = pp.ancestor_id
-    WHERE pp.workspace_id = $1 AND pp.page_id = $2
-      AND pg.principal_id IN (SELECT id FROM mine)
-)
-SELECT
-    EXISTS (SELECT 1 FROM target) AS page_exists,
-    EXISTS (SELECT 1 FROM me WHERE me.kind = 'user') AS is_member,
-    -- 3 段の grant を合わせ、最も強い役割の強さを返す。
-    -- 弱い方を採るとスペースに viewer を張るだけでワークスペース管理者を締め出せてしまう。
-    --
-    -- 役割そのもの（text）ではなく強さ（整数）を返すのは、役割が 1 つも無いときに
-    -- NULL ではなく 0 で返すため。sqlc はスカラ副問い合わせの NULL 可能性を推論できず
-    -- string 型を生成してしまい、grant が無い行の Scan がそこで落ちる。
-    -- 0 は「grant が無い」を表し、persistence が domain.GrantRoleByRank で nil に直す
-    -- （この値がそのまま上の層へ出ることはない）。
-    -- CASE の並びは domain.GrantRole.Rank と一対一に対応させること。
-    GREATEST(COALESCE((
-        SELECT max(CASE g."role"
-                     WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
-                     WHEN 'commenter' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END)
-        FROM (
-            SELECT wg."role" FROM workspace_grants wg CROSS JOIN target t
-             WHERE wg.workspace_id = $1
-               AND t.space_visibility = 'workspace'
-               AND wg.principal_id IN (SELECT id FROM mine)
-            UNION ALL
-            SELECT sg."role" FROM space_grants sg CROSS JOIN target t
-             WHERE sg.workspace_id = $1 AND sg.space_id = t.space_id
-               AND sg.principal_id IN (SELECT id FROM mine)
-        ) g
-    ), 0), COALESCE((SELECT rank FROM page_grant_rank), 0))::integer AS grant_rank
-`
-
-type ResolvePagePermissionFactsParams struct {
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	UserID      sql.NullInt64
-	PrincipalID uuid.NullUUID
-}
-
-type ResolvePagePermissionFactsRow struct {
-	PageExists bool
-	IsMember   bool
-	GrantRank  int32
-}
-
-// 1 ページの実効権限を決めるのに必要な「事実」を 1 回のクエリで集める。
-// 判定そのものは domain.ResolvePagePermission が行う（ここには規則を書かない）。
-//
-// user_id / principal_id はどちらか一方だけを渡す。前者はログイン済みユーザーとして、
-// 後者は共有リンクの来訪者（kind='share_link'）として解決する。
-//
-// CTE の役割:
-//
-//	target … 対象ページの所属スペース（space_grants を引くのに要る）
-//	me     … 自分自身の主体
-//	mine   … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
-//	         グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
-//	         スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
-//
-// **打ち消す層は無い。** 権限は 3 段の付与を足し合わせ、届いた中で最も強い役割で決まる。
-// 下の段が上の段を弱めることはないので、経路をさかのぼって拾うのは「最も強い役割」だけでよく、
-// どの段にあったかを覚えておく必要がない（最近段の depth も要らない）。
-// 経路上のページ付与（自分自身と祖先）のうち最も強いもの。祖先に editor を張れば
-// 子孫の既定が editor 以上になる、という降り方は grant の他の 2 段と同じ。
-func (q *Queries) ResolvePagePermissionFacts(ctx context.Context, arg ResolvePagePermissionFactsParams) (ResolvePagePermissionFactsRow, error) {
-	row := q.db.QueryRowContext(ctx, resolvePagePermissionFacts,
-		arg.WorkspaceID,
-		arg.PageID,
-		arg.UserID,
-		arg.PrincipalID,
-	)
-	var i ResolvePagePermissionFactsRow
-	err := row.Scan(&i.PageExists, &i.IsMember, &i.GrantRank)
-	return i, err
-}
-
 const revokeShareLink = `-- name: RevokeShareLink :execrows
 UPDATE share_links
 SET revoked_at = now(), updated_at = now()
@@ -2212,7 +1968,7 @@ space_allp AS (
       AND EXISTS (SELECT 1 FROM me)
 ),
 cand AS (
-    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at, pg.icon, pg.cover, pg.last_edited_by_user_id
+    SELECT pg.id, pg.workspace_id, pg.space_id, pg.parent_id, pg.position, pg.title, pg.created_by_user_id, pg.archived_at, pg.created_at, pg.updated_at, pg.icon, pg.cover, pg.last_edited_by_user_id, pg.visibility
     FROM pages pg
     WHERE pg.workspace_id = $1
       AND pg.archived_at IS NULL
@@ -2259,7 +2015,7 @@ pgrank AS (
     GROUP BY pp.page_id
 )
 SELECT
-    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id,
+    cnd.id, cnd.workspace_id, cnd.space_id, cnd.parent_id, cnd.position, cnd.title, cnd.created_by_user_id, cnd.archived_at, cnd.created_at, cnd.updated_at, cnd.icon, cnd.cover, cnd.last_edited_by_user_id, cnd.visibility,
     -- ワークスペース全体の強さ（wsrank）は visibility='workspace' のスペースの行にだけ効かせる。
     -- private のスペースはスペース単位の強さ（sgrank）だけで決まる。
     GREATEST(
@@ -2299,6 +2055,7 @@ type SearchWorkspacePageViewFactsRow struct {
 	Icon               *json.RawMessage
 	Cover              *json.RawMessage
 	LastEditedByUserID sql.NullInt64
+	Visibility         string
 	GrantRank          int32
 	Body               string
 }
@@ -2371,6 +2128,7 @@ func (q *Queries) SearchWorkspacePageViewFacts(ctx context.Context, arg SearchWo
 			&i.Icon,
 			&i.Cover,
 			&i.LastEditedByUserID,
+			&i.Visibility,
 			&i.GrantRank,
 			&i.Body,
 		); err != nil {

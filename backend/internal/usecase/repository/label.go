@@ -37,4 +37,12 @@ type LabelRepository interface {
 	// （N+1 を避ける。ticket_id -> ラベル一覧 の対応表で返す。1 件も無いチケットは
 	// 対応表に現れない — 呼び出し側は空スライスとみなす）。
 	ListLabelsByTicketIDs(ctx context.Context, workspaceID string, ticketIDs []string) (map[string][]domain.Label, error)
+
+	// AddPageLabel / RemovePageLabel / ListLabelsByPage / ListLabelsByPageIDs は
+	// AddTicketLabel 系のページ版（段 13）。labels の語彙をチケットと共有する
+	// （ページ専用の labels テーブルは持たない）。
+	AddPageLabel(ctx context.Context, workspaceID, pageID, labelID string) error
+	RemovePageLabel(ctx context.Context, workspaceID, pageID, labelID string) error
+	ListLabelsByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Label, error)
+	ListLabelsByPageIDs(ctx context.Context, workspaceID string, pageIDs []string) (map[string][]domain.Label, error)
 }

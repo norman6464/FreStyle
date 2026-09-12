@@ -165,7 +165,7 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 	viewable := make(map[string]bool, len(rows))
 	parentArchived := make(map[string]bool)
 	for _, row := range rows {
-		if domain.ResolvePageView(row.Role) {
+		if domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == in.UserID) {
 			viewable[row.Page.ID] = true
 			pages = append(pages, row.Page)
 			if row.ParentArchived {
@@ -368,7 +368,7 @@ func (u *SearchViewablePagesUseCase) Execute(ctx context.Context, in SearchViewa
 	// 確保だけ大きくする余地を入力に持たせない。
 	results := make([]SearchViewablePageResult, 0, len(rows))
 	for _, row := range rows {
-		if !domain.ResolvePageView(row.Role) {
+		if !domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == in.UserID) {
 			continue
 		}
 		results = append(results, buildSearchViewablePageResult(row, query))
@@ -488,7 +488,7 @@ func (u *ListPageBacklinksUseCase) Execute(ctx context.Context, in ListPageBackl
 	}
 	pages := make([]domain.Page, 0, len(rows))
 	for _, row := range rows {
-		if !domain.ResolvePageView(row.Role) {
+		if !domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == in.UserID) {
 			continue
 		}
 		pages = append(pages, row.Page)
@@ -539,7 +539,7 @@ func (u *ListPagesReferencingTicketUseCase) Execute(ctx context.Context, in List
 	}
 	pages := make([]domain.Page, 0, len(rows))
 	for _, row := range rows {
-		if !domain.ResolvePageView(row.Role) {
+		if !domain.ResolvePageView(row.Role, row.Page.Visibility, row.Page.CreatedByUserID == in.UserID) {
 			continue
 		}
 		pages = append(pages, row.Page)

@@ -531,7 +531,7 @@ export default function KbPage() {
 
   return (
     <div className="flex h-full">
-      {/* サイドバーはコースの章一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
+      {/* サイドバーはバックログの一覧と同じ機構で出し入れする（« で隠す / 左端ホバーで
           一時表示 / ⌘\ で切替）。画面ごとに別の作りを持たない — 覚えることを増やさない。 */}
       <SecondaryPanel
         title="ナレッジ"

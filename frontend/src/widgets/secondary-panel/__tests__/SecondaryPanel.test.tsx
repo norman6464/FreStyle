@@ -85,6 +85,21 @@ describe('SecondaryPanel', () => {
     expect(mobilePanel?.className).toContain('border-r');
   });
 
+  it.each([
+    ['left（既定）', undefined],
+    ['right', 'right' as const],
+  ])('デスクトップの通常表示は本文との境目が見えるよう左右とも線を持つ（side=%s）', (_label, side) => {
+    const { container } = render(
+      <SecondaryPanel title="ナレッジ" side={side}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    // 呼び出し側の DOM 順（本文の左右どちらに置くか）だけで境目側が決まるよう、
+    // side による分岐を持たず常に両側へ線を引く（左右どちらに置いても境目が見える）。
+    const panel = container.querySelector('div.w-72.hidden.md\\:flex');
+    expect(panel?.className).toContain('border-x');
+  });
+
   it('折りたたみ中は「開く」ボタンを出し、折りたたみボタンは出さない', () => {
     const onToggle = vi.fn();
     render(
@@ -136,6 +151,13 @@ describe('SecondaryPanel peekable（一時表示/固定表示）', () => {
     expect(screen.getByRole('button', { name: 'サイドバーを閉じる' })).toBeInTheDocument();
   });
 
+  it('最初から固定表示のとき（再訪・再読み込み）は入場アニメーションを付けない', () => {
+    const { container } = renderPeekable();
+    const panel = screen.getByRole('button', { name: 'サイドバーを閉じる' }).closest('div.w-72');
+    expect(panel?.className).not.toContain('animate-panel-pin');
+    expect(container.querySelector('.animate-panel-pin')).toBeNull();
+  });
+
   it('« で一時表示モードになり、☰（固定表示する）が出て localStorage に保存される', () => {
     renderPeekable();
     fireEvent.click(screen.getByRole('button', { name: 'サイドバーを閉じる' }));
@@ -151,15 +173,33 @@ describe('SecondaryPanel peekable（一時表示/固定表示）', () => {
     expect(JSON.parse(localStorage.getItem(KEY)!)).toBe('pinned');
   });
 
-  it('一時表示モードでは ☰ ホバーでオーバーレイが浮く（中身が pointer-events を持つ）', () => {
+  it('一時表示から固定表示へ切り替えた瞬間だけ、入場アニメーションを付ける', () => {
+    localStorage.setItem(KEY, JSON.stringify('collapsed'));
+    renderPeekable();
+    fireEvent.click(screen.getAllByRole('button', { name: 'サイドバーを固定表示する' })[0]);
+    const panel = screen.getByRole('button', { name: 'サイドバーを閉じる' }).closest('div.w-72');
+    expect(panel?.className).toContain('animate-panel-pin');
+  });
+
+  it('一時表示モードでは左端ホバーでオーバーレイが浮く（中身が pointer-events を持つ）', () => {
     localStorage.setItem(KEY, JSON.stringify('collapsed'));
     const { container } = renderPeekable();
-    const hamburger = screen.getAllByRole('button', { name: 'サイドバーを固定表示する' })[0];
-    fireEvent.mouseEnter(hamburger);
+    // 固定表示に戻すボタン（旧☰）はヘッダー側（widgets/app-shell/ui/Header.tsx）に
+    // 移設済みで、ここ（本文側）に残るのは左端の透明なホバー検知ゾーンだけ。
+    const edgeZone = container.querySelector('[aria-hidden="true"].w-2');
+    expect(edgeZone).not.toBeNull();
+    fireEvent.mouseEnter(edgeZone!);
     // オーバーレイ（translate-x-0）に切り替わる。
     const overlay = container.querySelector('.rounded-r-xl');
     expect(overlay?.className).toContain('translate-x-0');
     expect(overlay?.className).not.toContain('pointer-events-none');
+  });
+
+  it('固定表示に戻すハンバーガーは本文側に常時表示しない（ヘッダーへ移設済み）', () => {
+    localStorage.setItem(KEY, JSON.stringify('collapsed'));
+    renderPeekable();
+    // 残るのはオーバーレイ内部の ☰（一時表示中のみ意味を持つ）だけ。常時見える入口は無い。
+    expect(screen.getAllByRole('button', { name: 'サイドバーを固定表示する' })).toHaveLength(1);
   });
 
   it('保存済みモード（collapsed）で初期化される', () => {

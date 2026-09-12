@@ -38,8 +38,8 @@ type Story = StoryObj<typeof meta>;
 const notification = (over: Partial<Notification> = {}): Notification => ({
   id: 1,
   type: 'sample_type',
-  title: '演習の採点が終わりました',
-  body: '「スライスに要素を足す」は 4 件のテストケースすべてに通りました。',
+  title: 'コメントに返信がありました',
+  body: '「設計メモ」のコメントに返信が付きました。',
   isRead: false,
   createdAt: '2026-09-06T09:41:00Z',
   ...over,
@@ -50,7 +50,7 @@ export const 未読: Story = {
   args: { notification: notification() },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('演習の採点が終わりました')).toBeVisible();
+    await expect(canvas.getByText('コメントに返信がありました')).toBeVisible();
     await expect(canvas.getByRole('button', { name: '既読にする' })).toBeVisible();
   },
 };
@@ -86,7 +86,7 @@ export const 種別がそのまま出る: Story = {
 export const 長い本文: Story = {
   args: {
     notification: notification({
-      body: '「スライスに要素を足す」は 4 件のテストケースすべてに通りました。次は「マップを数える」に進めます。解説には、append が新しいスライスを返す理由も書いてあります。',
+      body: '「設計メモ」に長いコメントが付きました。プロジェクトの背景から、決まった仕様、まだ決まっていない点まで、一通りの経緯がまとめて書かれています。',
     }),
   },
 };
@@ -95,7 +95,7 @@ export const 長い本文: Story = {
 export const 本文が空: Story = {
   args: { notification: notification({ body: '' }) },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText('演習の採点が終わりました')).toBeVisible();
+    await expect(within(canvasElement).getByText('コメントに返信がありました')).toBeVisible();
   },
 };
 

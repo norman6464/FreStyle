@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AcademicCapIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
+import { ChartBarIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { expect, within } from 'storybook/test';
 import { withRouter } from '../../../../.storybook/decorators';
 import FeatureCard from './FeatureCard';
@@ -31,28 +31,28 @@ type Story = StoryObj<typeof meta>;
 /** カードを 2 枚入れたところ。 */
 export const 既定: Story = {
   args: {
-    title: '学習',
+    title: 'ツール',
     children: (
       <>
         <FeatureCard
-          to="/code-editor"
-          icon={CodeBracketIcon}
-          title="演習"
-          description="手を動かしながら学びます。"
-          color="brand"
+          to="/kb"
+          icon={DocumentTextIcon}
+          title="ナレッジ"
+          description="学習メモを書き留め、いつでも振り返れます。"
+          color="taupe"
         />
         <FeatureCard
-          to="/kb"
-          icon={AcademicCapIcon}
-          title="ナレッジ"
-          description="チームで共有する文書です。"
+          to="/kb/backlog"
+          icon={ChartBarIcon}
+          title="バックログ"
+          description="チームのチケットを一覧で追えます。"
           color="emerald"
         />
       </>
     ),
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole('heading', { name: '学習' })).toBeVisible();
+    await expect(within(canvasElement).getByRole('heading', { name: 'ツール' })).toBeVisible();
   },
 };
 
@@ -63,9 +63,9 @@ export const 一枚だけ: Story = {
     children: (
       <FeatureCard
         to="/kb"
-        icon={AcademicCapIcon}
+        icon={DocumentTextIcon}
         title="ナレッジ"
-        description="チームで共有する文書です。"
+        description="学習メモを書き留め、いつでも振り返れます。"
         color="taupe"
       />
     ),

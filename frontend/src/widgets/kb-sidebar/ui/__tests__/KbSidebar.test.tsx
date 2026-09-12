@@ -483,7 +483,7 @@ describe('KbSidebar', () => {
     });
 
     it('作成に失敗したら知らせを出す', async () => {
-      // 轍: コース削除も教材の保存も「失敗したのに成功の表示」だった。
+      // 轍: 他の操作でも「失敗したのに成功の表示」を出してしまったことがある。
       hoisted.createPage.mockRejectedValueOnce(new Error('boom'));
       renderSidebar();
       await screen.findByText('設計メモ');

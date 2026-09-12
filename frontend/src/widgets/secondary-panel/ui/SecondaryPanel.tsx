@@ -1,7 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   XMarkIcon,
-  Bars3Icon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
@@ -101,9 +100,26 @@ function PeekablePanel({
 }) {
   const panel = usePanelMode(storageKey);
 
+  // 一時表示 → 固定表示への切り替え「だけ」を検知する。保存済みの初期状態が最初から
+  // pinned のとき（通常の再訪・再読み込み）はここを通らないので、毎回の表示では
+  // アニメーションしない — 切り替えた瞬間だけ滑り込ませたい。
+  const prevModeRef = useRef(panel.mode);
+  const [justPinned, setJustPinned] = useState(false);
+  useEffect(() => {
+    if (prevModeRef.current !== 'pinned' && panel.mode === 'pinned') {
+      setJustPinned(true);
+      const timer = setTimeout(() => setJustPinned(false), 250);
+      prevModeRef.current = panel.mode;
+      return () => clearTimeout(timer);
+    }
+    prevModeRef.current = panel.mode;
+  }, [panel.mode]);
+
   if (panel.mode === 'pinned') {
     return (
-      <div className="hidden md:flex w-72 flex-col h-full flex-shrink-0 border-r border-surface-3 bg-surface-2">
+      <div
+        className={`hidden md:flex w-72 border-r border-surface-3 bg-[var(--color-nav)] flex-col h-full flex-shrink-0 ${justPinned ? 'animate-panel-pin' : ''}`}
+      >
         <PanelHeader
           title={title}
           badge={badge}
@@ -126,7 +142,8 @@ function PeekablePanel({
     );
   }
 
-  // 一時表示モード: レイアウト上は何も占有しない。左端ホバーゾーン＋☰＋オーバーレイを出す。
+  // 一時表示モード: レイアウト上は何も占有しない。左端ホバーゾーン＋オーバーレイを出す。
+  // 固定表示に戻すボタンはヘッダー左端（FreStyle ロゴの左）に出す（widgets/app-shell/ui/Header.tsx）。
   return (
     <>
       {/* 左端のホバー検知ゾーン。ヘッダー直下から下まで。 */}
@@ -137,25 +154,6 @@ function PeekablePanel({
         onMouseEnter={panel.openPeek}
         onMouseLeave={panel.closePeek}
       />
-
-      {/* ☰ は幅 40px の透明ガター（背景・枠なし）に置き、本文をその分だけ右に寄せる。
-          浮かせる（fixed）とページ側の見出しやボタンに重なるため、レイアウトで場所を確保する。 */}
-      <div
-        onMouseEnter={panel.openPeek}
-        onMouseLeave={panel.closePeek}
-        className="hidden md:flex w-10 flex-shrink-0 flex-col items-center pt-3 h-full"
-      >
-        <span className={`relative group/ptip inline-flex transition-opacity ${panel.isPeeking ? 'opacity-0' : 'opacity-100'}`}>
-          <button
-            onClick={panel.pin}
-            aria-label="サイドバーを固定表示する"
-            className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            <Bars3Icon className="w-5 h-5" />
-          </button>
-          <PanelTooltip label="サイドバーを固定表示する" />
-        </span>
-      </div>
 
       {/* 一時表示のオーバーレイパネル（本文は動かさない）。 */}
       <div
@@ -250,7 +248,7 @@ export default function SecondaryPanel({
         </PeekablePanel>
       ) : collapsible && collapsed ? (
         // 折りたたみ中: 細い帯に「開く」ボタンだけ出す。本文が全幅に広がる。
-        <div className="hidden md:flex w-10 bg-[var(--color-nav)] flex-col items-center pt-3 h-full flex-shrink-0">
+        <div className="hidden md:flex w-10 border-x border-surface-3 bg-[var(--color-nav)] flex-col items-center pt-3 h-full flex-shrink-0">
           <button
             onClick={onToggleCollapsed}
             title="パネルを開く"
@@ -261,7 +259,7 @@ export default function SecondaryPanel({
           </button>
         </div>
       ) : (
-        <div className="hidden md:flex w-72 flex-col h-full flex-shrink-0 border-r border-surface-3 bg-surface-2">
+        <div className="hidden md:flex w-72 border-x border-surface-3 bg-[var(--color-nav)] flex-col h-full flex-shrink-0">
           <PanelHeader
             title={title}
             badge={badge}

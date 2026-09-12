@@ -5,17 +5,29 @@ import {
   BellIcon,
   Bars3Icon,
   MagnifyingGlassIcon,
+  ViewColumnsIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
 import { useSidebar } from '../model/useSidebar';
+import { usePanelMode } from '@/shared/lib/hooks/usePanelMode';
 import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
 
 // ナビ項目・アクティブ判定は model/navigation に一元化してある
 // （サイドバー・モバイルメニューと共用の正典）。ここでは描画だけを行う。
 import { MAIN_NAV_ITEMS, navActive } from '../model/navigation';
+
+// ナレッジのサイドバー（frestyle.panel.note）を実際に描画しているページだけを対象にする。
+// /kb/tickets/:id・/kb/:workspaceSlug/members・旧 URL のページ写し替えにはサイドバーが
+// 無いため、それらは除く（/kb・/kb/:pageId のようにセグメントがちょうど 1 つの経路だけ通す）。
+function hasKbSidebar(pathname: string): boolean {
+  if (pathname === '/kb/backlog' || pathname.startsWith('/kb/backlog/')) return true;
+  if (pathname === '/kb/spaces' || pathname.startsWith('/kb/spaces/')) return true;
+  if (pathname === '/kb') return true;
+  return /^\/kb\/[^/]+$/.test(pathname);
+}
 
 interface HeaderProps {
   /** 中央の検索ボタン押下時に呼ぶ。AppShell が持つ既存の ⌘K パレットを開くだけで、
@@ -34,6 +46,11 @@ interface HeaderProps {
 export default function Header({ onOpenSearch }: HeaderProps) {
   const location = useLocation();
   const { handleLogout, loggingOut } = useSidebar();
+  // ⌘\ の切替はサイドバー本体（PeekablePanel）側が既に持っているので、ここでは二重に
+  // 登録しない（shortcut: false）。mode・toggle・openPeek/closePeek をここでも使う
+  // （usePanelMode は同じ storageKey を使う別インスタンス同士でこれらを同期する）。
+  const notePanel = usePanelMode('frestyle.panel.note', { shortcut: false });
+  const showNotePanelToggle = hasKbSidebar(location.pathname);
 
   const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null; email: string } | null>(null);
   const [unread, setUnread] = useState(0);
@@ -71,6 +88,33 @@ export default function Header({ onOpenSearch }: HeaderProps) {
       {loggingOut && <Loading fullscreen message="ログアウト中..." />}
       {/* 常時表示・不透明。本文とは縦に並ぶだけで重ねないので、半透明やぼかしは不要。 */}
       <header className="app-header-surface flex-shrink-0 h-14 flex items-center gap-2 px-3">
+        {/* サイドバーの固定表示 / 一時表示を切り替えるボタン。ナレッジのサイドバーが
+            あるページでは固定・一時どちらでも常時表示し、状態に応じてアイコンを
+            変える（固定中: ⬜|⬜ で「列（サイドバー）が今出ている、押すと閉じる」、
+            一時表示中: ☰ で「押すと固定表示する」）。✕ や «（ChevronDoubleLeft、
+            サイドバー内部の «と同じ見た目）は使わず、Bars3 ↔ ViewColumns の対で
+            今の状態と押すとどちらに変わるかが分かるようにする。
+            デスクトップのみ（一時表示/固定表示の機構自体がデスクトップ専用のため）。
+            一時表示中はポインタを乗せた瞬間に本文側のオーバーレイが浮く
+            （旧・本文側の ☰ と同じ挙動。固定中は見た目に影響しない）。 */}
+        {showNotePanelToggle && (
+          <button
+            type="button"
+            onClick={notePanel.toggle}
+            onMouseEnter={notePanel.openPeek}
+            onMouseLeave={notePanel.closePeek}
+            title={notePanel.mode === 'pinned' ? 'サイドバーを閉じる' : 'サイドバーを固定表示する'}
+            aria-label={notePanel.mode === 'pinned' ? 'サイドバーを閉じる' : 'サイドバーを固定表示する'}
+            className="hidden md:inline-flex p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+          >
+            {notePanel.mode === 'pinned' ? (
+              <ViewColumnsIcon className="w-5 h-5" />
+            ) : (
+              <Bars3Icon className="w-5 h-5" />
+            )}
+          </button>
+        )}
+
         {/* ロゴは favicon と同じ画像（favicon.svg = 三角の飛翔マーク）に揃える。 */}
         <Link to="/" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
           <img src="/favicon.svg" alt="" aria-hidden="true" className="w-7 h-7 flex-shrink-0" />
@@ -93,7 +137,7 @@ export default function Header({ onOpenSearch }: HeaderProps) {
           <button
             type="button"
             onClick={onOpenSearch}
-            className="flex items-center gap-2 w-64 px-3 py-1.5 rounded-md border border-surface-3 bg-surface text-sm text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] transition-colors"
+            className="flex items-center gap-2 w-80 px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-sm text-[var(--color-text-tertiary)] hover:bg-surface-3 transition-colors"
           >
             <MagnifyingGlassIcon className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">検索</span>

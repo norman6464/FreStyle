@@ -52,7 +52,6 @@ const KbSpaceMembersPage = lazyWithReload(
   'KbSpaceMembersPage',
 );
 const NotificationPage = lazyWithReload(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationPage })), 'NotificationPage');
-const HelpPage = lazyWithReload(() => import('@/pages/help').then((m) => ({ default: m.HelpPage })), 'HelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
 const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
@@ -146,7 +145,6 @@ export default function App() {
         <Route path="/kb/spaces/:spaceId/favorites" element={<KbSpaceFavoritesPage />} />
         <Route path="/kb/spaces/:spaceId/members" element={<KbSpaceMembersPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
-        <Route path="/help" element={<HelpPage />} />
       </Route>
 
       {/* どのルートにも一致しない URL の受け皿。

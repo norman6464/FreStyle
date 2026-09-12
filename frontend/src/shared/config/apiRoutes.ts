@@ -48,31 +48,6 @@ export const IMAGES = {
   uploadUrl: `${API_V2}/rich-text/images/upload-url`,
 } as const;
 
-export const RANKING = `${API_V2}/ranking` as const;
-
-/** 練習モード（シナリオ / セッション / ブックマーク / 共有セッション） */
-export const PRACTICE = {
-  scenarios: `${API_V2}/practice/scenarios`,
-  scenario: (scenarioId: number | string) => `${API_V2}/practice/scenarios/${encodeURIComponent(scenarioId)}`,
-  sessions: `${API_V2}/practice/sessions`,
-} as const;
-
-export const SHARED_SESSIONS = {
-  list: `${API_V2}/shared-sessions`,
-  byId: (sessionId: number | string) => `${API_V2}/shared-sessions/${encodeURIComponent(sessionId)}`,
-} as const;
-
-/** 会話テンプレート / お気に入りフレーズ */
-export const TEMPLATES = {
-  list: `${API_V2}/templates`,
-  byId: (id: number | string) => `${API_V2}/templates/${encodeURIComponent(id)}`,
-} as const;
-
-export const FAVORITE_PHRASES = {
-  list: `${API_V2}/favorite-phrases`,
-  byId: (id: number | string) => `${API_V2}/favorite-phrases/${encodeURIComponent(id)}`,
-} as const;
-
 /** 通知 */
 export const NOTIFICATIONS = {
   list: `${API_V2}/notifications`,
@@ -82,15 +57,7 @@ export const NOTIFICATIONS = {
   readAll: `${API_V2}/notifications/read-all`,
 } as const;
 
-/** 設定（リマインダー・週次チャレンジ） */
-export const REMINDER = `${API_V2}/reminder` as const;
-
-export const WEEKLY_CHALLENGE = {
-  current: `${API_V2}/weekly-challenge`,
-  progress: `${API_V2}/weekly-challenge/progress`,
-} as const;
-
-/** 管理者ダッシュボード（会社 / 招待 / シナリオ） */
+/** 管理者ダッシュボード（会社 / 招待） */
 export const ADMIN = {
   members: `${API_V2}/admin/members`,
   /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
@@ -99,8 +66,6 @@ export const ADMIN = {
   member: (userId: number | string) => `${API_V2}/admin/members/${encodeURIComponent(userId)}`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${encodeURIComponent(id)}`,
-  scenarios: `${API_V2}/admin/scenarios`,
-  scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${encodeURIComponent(id)}`,
 } as const;
 
 /** 招待マジックリンク受諾フロー（認証不要） */

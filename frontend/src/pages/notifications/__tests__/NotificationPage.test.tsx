@@ -50,8 +50,8 @@ describe('NotificationPage', () => {
   it('通知一覧が表示される', () => {
     mockedUseNotification.mockReturnValue({
       notifications: [
-        { id: 1, type: 'sample_type', title: '演習の採点が終わりました', body: '「スライスに要素を足す」は 4 件すべてに通りました。', isRead: false, createdAt: '2026-08-02T10:00:00Z' },
-        { id: 2, type: 'sample_type', title: '演習の採点が終わりました', body: '「マップを数える」は 1 件が通りませんでした。', isRead: true, createdAt: '2026-08-01T10:00:00Z' },
+        { id: 1, type: 'sample_type', title: 'コメントに返信がありました', body: '「設計メモ」のコメントに返信が付きました。', isRead: false, createdAt: '2026-08-02T10:00:00Z' },
+        { id: 2, type: 'sample_type', title: 'コメントに返信がありました', body: '「議事録」のコメントに返信が付きました。', isRead: true, createdAt: '2026-08-01T10:00:00Z' },
       ],
       unreadCount: 1,
       loading: false,
@@ -63,15 +63,15 @@ describe('NotificationPage', () => {
 
     render(<NotificationPage />);
     // 同じタイトルが 2 件並ぶため、区別のつく本文で検証する。
-    expect(screen.getByText('「スライスに要素を足す」は 4 件すべてに通りました。')).toBeInTheDocument();
-    expect(screen.getByText('「マップを数える」は 1 件が通りませんでした。')).toBeInTheDocument();
+    expect(screen.getByText('「設計メモ」のコメントに返信が付きました。')).toBeInTheDocument();
+    expect(screen.getByText('「議事録」のコメントに返信が付きました。')).toBeInTheDocument();
     expect(screen.getByText('1件の未読')).toBeInTheDocument();
   });
 
   it('未読がある場合「すべて既読にする」ボタンが表示される', () => {
     mockedUseNotification.mockReturnValue({
       notifications: [
-        { id: 1, type: 'sample_type', title: '演習の採点が終わりました', body: 'テスト', isRead: false, createdAt: '2026-08-02T10:00:00Z' },
+        { id: 1, type: 'sample_type', title: 'コメントに返信がありました', body: 'テスト', isRead: false, createdAt: '2026-08-02T10:00:00Z' },
       ],
       unreadCount: 1,
       loading: false,
@@ -90,7 +90,7 @@ describe('NotificationPage', () => {
   it('未読が0件の場合「すべて既読にする」ボタンが非表示', () => {
     mockedUseNotification.mockReturnValue({
       notifications: [
-        { id: 1, type: 'sample_type', title: '演習の採点が終わりました', body: 'テスト', isRead: true, createdAt: '2026-08-02T10:00:00Z' },
+        { id: 1, type: 'sample_type', title: 'コメントに返信がありました', body: 'テスト', isRead: true, createdAt: '2026-08-02T10:00:00Z' },
       ],
       unreadCount: 0,
       loading: false,
@@ -154,8 +154,8 @@ describe('NotificationPage', () => {
             {
               id: 1,
               type: 'sample_type',
-              title: '演習の採点が終わりました',
-              body: '「スライスに要素を足す」は 4 件すべてに通りました。',
+              title: 'コメントに返信がありました',
+              body: '「設計メモ」のコメントに返信が付きました。',
               isRead: false,
               createdAt: '2026-08-02T10:00:00Z',
             },
@@ -167,8 +167,8 @@ describe('NotificationPage', () => {
 
       // エラーの帯と一緒に、取得済みの通知も見えていること。
       expect(screen.getByRole('alert')).toBeInTheDocument();
-      expect(screen.getByText('演習の採点が終わりました')).toBeInTheDocument();
-      expect(screen.getByText('「スライスに要素を足す」は 4 件すべてに通りました。')).toBeInTheDocument();
+      expect(screen.getByText('コメントに返信がありました')).toBeInTheDocument();
+      expect(screen.getByText('「設計メモ」のコメントに返信が付きました。')).toBeInTheDocument();
       expect(screen.queryByText('通知はありません')).not.toBeInTheDocument();
     });
   });

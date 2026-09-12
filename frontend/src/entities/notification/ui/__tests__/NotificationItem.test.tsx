@@ -17,8 +17,8 @@ function makeNotification(overrides: Partial<Notification> = {}): Notification {
   return {
     id: 1,
     type: 'sample_type',
-    title: '演習の採点が終わりました',
-    body: '「スライスに要素を足す」は 4 件のテストケースすべてに通りました。',
+    title: 'コメントに返信がありました',
+    body: '「設計メモ」のコメントに返信が付きました。',
     isRead: false,
     createdAt: '2026-08-02T10:00:00Z',
     ...overrides,
@@ -36,14 +36,14 @@ describe('NotificationItem', () => {
     renderItem();
 
     expect(
-      screen.getByText('「スライスに要素を足す」は 4 件のテストケースすべてに通りました。'),
+      screen.getByText('「設計メモ」のコメントに返信が付きました。'),
     ).toBeInTheDocument();
   });
 
   it('タイトルを表示する', () => {
     renderItem();
 
-    expect(screen.getByText('演習の採点が終わりました')).toBeInTheDocument();
+    expect(screen.getByText('コメントに返信がありました')).toBeInTheDocument();
   });
 
   /*
@@ -60,7 +60,7 @@ describe('NotificationItem', () => {
   it('本文が空でもタイトルは表示する', () => {
     renderItem({ body: '' });
 
-    expect(screen.getByText('演習の採点が終わりました')).toBeInTheDocument();
+    expect(screen.getByText('コメントに返信がありました')).toBeInTheDocument();
   });
 
   describe('既読の操作', () => {

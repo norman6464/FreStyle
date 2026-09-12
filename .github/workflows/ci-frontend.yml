@@ -133,6 +133,10 @@ jobs:
       # blob report を vitest-coverage ジョブへ渡す（ジョブごとに runner が別なので
       # artifact 経由でしかやり取りできない。shard ごとにファイル名が自動的に
       # 分かれる: .vitest-reports/blob-<shard>-3.json）。
+      #
+      # include-hidden-files が既定 false のままだと、ドット始まりの .vitest-reports/
+      # 配下がアップロード対象の glob から丸ごと除外され、「blob report は書き出されて
+      # いるのに artifact には 0 ファイル」という気づきにくい失敗になる(実際に踏んだ)。
       - name: Upload blob report
         uses: actions/upload-artifact@v7
         with:
@@ -140,6 +144,7 @@ jobs:
           path: frontend/.vitest-reports/
           if-no-files-found: error
           retention-days: 1
+          include-hidden-files: true
 
   # Storybook の story をブラウザ(headless Chromium)で実行する。2 shard に分割する。
   # カバレッジは測らない(story のレンダリング分が unit の分母に混ざるとゲートが

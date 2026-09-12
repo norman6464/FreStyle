@@ -26,7 +26,9 @@ WHERE u.id = $1 AND u.status <> 'deactivated';
 -- ListGrantablePrincipals / ListWorkspaceMembers が別に持つ。
 SELECT u.id, u.name,
        COALESCE(p.avatar_url, '') AS avatar_url,
-       COALESCE(p.status_message, '') AS status_message
+       COALESCE(p.status_emoji, '') AS status_emoji,
+       COALESCE(p.status_text, '') AS status_text,
+       p.status_expires_at AS status_expires_at
 FROM users u
 LEFT JOIN profiles p ON p.user_id = u.id
 WHERE u.id = $1;

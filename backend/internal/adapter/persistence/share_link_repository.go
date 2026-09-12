@@ -88,6 +88,15 @@ func nullTime(t *time.Time) sql.NullTime {
 	return sql.NullTime{Time: *t, Valid: true}
 }
 
+// nullTimePtr は nullTime の逆変換（sql.NullTime → *time.Time）。
+func nullTimePtr(t sql.NullTime) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	tt := t.Time
+	return &tt
+}
+
 func (r *shareLinkRepository) Create(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
 	wsID, ok := kbParseID(in.WorkspaceID)
 	pgID, ok2 := kbParseID(in.PageID)

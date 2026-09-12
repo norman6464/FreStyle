@@ -68,6 +68,10 @@ func (fakeOidcIdentityRepo) EnsureIdentity(context.Context, uint64, string, stri
 	return nil
 }
 
+func (fakeOidcIdentityRepo) ListByUserID(context.Context, uint64) ([]domain.UserIdentity, error) {
+	return nil, nil
+}
+
 func (r *fakeUserRepo) UpdateName(_ context.Context, id uint64, name string) error {
 	r.updateNameID, r.updateNameVal = id, name
 	return nil

@@ -7,9 +7,139 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const listMySpaceGrantFacts = `-- name: ListMySpaceGrantFacts :many
+WITH me AS (
+  SELECT pr2.id AS principal_id FROM principals pr2
+  WHERE pr2.workspace_id = $1 AND pr2.kind = 'user' AND pr2.user_id = $2
+),
+mine AS (
+  SELECT principal_id AS mine_id FROM me
+  UNION
+  SELECT pm.group_principal_id AS mine_id
+  FROM principal_members pm
+  JOIN me ON pm.workspace_id = $1 AND pm.member_principal_id = me.principal_id
+),
+space_all_reachable AS (
+  -- そのスペースが visibility='workspace' のときだけ、そのスペースの space_all 主体も
+  -- 自分の到達可能集合に加わる（スペースごとに主体 id が違うので per-space に展開する）。
+  SELECT s.id AS space_id, sp.id AS mine_id
+  FROM spaces s
+  JOIN principals sp ON sp.workspace_id = $1 AND sp.kind = 'space_all' AND sp.space_id = s.id
+  WHERE s.workspace_id = $1 AND s.visibility = 'workspace'
+),
+space_role_facts AS (
+  SELECT s.id AS space_id, wg.role AS role, 'workspace'::text AS source
+  FROM spaces s
+  JOIN workspace_grants wg ON wg.workspace_id = $1
+  JOIN mine ON mine.mine_id = wg.principal_id
+  WHERE s.workspace_id = $1 AND s.visibility = 'workspace'
+  UNION ALL
+  SELECT sar.space_id AS space_id, wg2.role AS role, 'workspace'::text AS source
+  FROM space_all_reachable sar
+  JOIN workspace_grants wg2 ON wg2.workspace_id = $1 AND wg2.principal_id = sar.mine_id
+  UNION ALL
+  SELECT sg.space_id AS space_id, sg.role AS role,
+    CASE WHEN sg.principal_id IN (SELECT principal_id FROM me) THEN 'direct' ELSE 'group' END AS source
+  FROM space_grants sg
+  JOIN mine ON mine.mine_id = sg.principal_id
+  WHERE sg.workspace_id = $1
+  UNION ALL
+  SELECT sar2.space_id AS space_id, sg2.role AS role, 'group'::text AS source
+  FROM space_all_reachable sar2
+  JOIN space_grants sg2 ON sg2.workspace_id = $1 AND sg2.space_id = sar2.space_id
+    AND sg2.principal_id = sar2.mine_id
+)
+SELECT
+  f.space_id AS space_id,
+  s.name AS name,
+  f.role AS role
+FROM space_role_facts f
+JOIN spaces s ON s.id = f.space_id AND s.workspace_id = $1
+ORDER BY s.name, s.id
+`
+
+type ListMySpaceGrantFactsParams struct {
+	WorkspaceID uuid.UUID
+	UserID      sql.NullInt64
+}
+
+type ListMySpaceGrantFactsRow struct {
+	SpaceID uuid.UUID
+	Name    string
+	Role    string
+}
+
+// 自分（1 人）がこのワークスペース内でアクセスできるスペースを、経路をたたまず事実のまま
+// 返す（段 14。GET /me/spaces 用）。ListSpaceMemberGrantFacts と向きが逆（あちらは
+// 「1 スペース→全員」、こちらは「1 人→全スペース」）なだけで、継承規則（本人の主体／
+// 所属グループの主体／そのスペースが visibility='workspace' のときだけ加わる space_all の
+// 主体）は同じ。集約（最も強い役割を選ぶ）は Go 側（ListMySpaces repository メソッド）が行う。
+func (q *Queries) ListMySpaceGrantFacts(ctx context.Context, arg ListMySpaceGrantFactsParams) ([]ListMySpaceGrantFactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMySpaceGrantFacts, arg.WorkspaceID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMySpaceGrantFactsRow{}
+	for rows.Next() {
+		var i ListMySpaceGrantFactsRow
+		if err := rows.Scan(&i.SpaceID, &i.Name, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOidcIdentitiesByUserID = `-- name: ListOidcIdentitiesByUserID :many
+SELECT provider, subject, created_at
+FROM user_oidc_identities
+WHERE user_id = $1
+ORDER BY created_at, provider
+`
+
+type ListOidcIdentitiesByUserIDRow struct {
+	Provider  string
+	Subject   string
+	CreatedAt time.Time
+}
+
+// 認証方法の表示専用（段 14）。ログイン経路の追加ではない。subject は本人にしか
+// 返さない呼び出し元前提（handler 側で /me 経路にだけ配線する）。
+func (q *Queries) ListOidcIdentitiesByUserID(ctx context.Context, userID int64) ([]ListOidcIdentitiesByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOidcIdentitiesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOidcIdentitiesByUserIDRow{}
+	for rows.Next() {
+		var i ListOidcIdentitiesByUserIDRow
+		if err := rows.Scan(&i.Provider, &i.Subject, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const listSpaceMemberGrantFacts = `-- name: ListSpaceMemberGrantFacts :many
 WITH target_space AS (

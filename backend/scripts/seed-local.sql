@@ -192,11 +192,11 @@ SELECT
   now()
 FROM (SELECT 'seed-sub-admin'::text AS u) AS dex_local_subject;
 
-INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+INSERT INTO profiles (user_id, bio, avatar_url, status_text, updated_at)
 SELECT 1000000 + i, 'シード用の自己紹介文です。', '', '学習中', now()
 FROM generate_series(1, :n_users) AS i;
 
-INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+INSERT INTO profiles (user_id, bio, avatar_url, status_text, updated_at)
 VALUES (1000000, 'シード運営管理者です。', '', '運用中', now());
 
 -- ---- ナレッジ(workspace/space/page/block) ------------------------------------

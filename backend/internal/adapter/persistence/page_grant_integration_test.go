@@ -590,7 +590,7 @@ func TestGrantablePrincipals_停止退会は共有候補から外れアイコン
 
 	alice := f.principalFor(ctx, t, f.alice)
 	_, err := sqlDB.Exec(
-		`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+		`INSERT INTO profiles (user_id, bio, avatar_url, status_text, updated_at)
 		 VALUES ($1, '', $2, $3, now())`,
 		f.alice, "https://example.test/alice.png", "会議中",
 	)

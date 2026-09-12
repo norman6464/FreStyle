@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/frestyle/backend/internal/domain"
@@ -30,13 +31,7 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 	if err != nil {
 		return nil, err
 	}
-	return &domain.Profile{
-		UserID:        uint64(row.UserID),
-		Bio:           row.Bio,
-		AvatarURL:     row.AvatarUrl,
-		StatusMessage: row.StatusMessage,
-		UpdatedAt:     row.UpdatedAt,
-	}, nil
+	return toDomainProfile(row), nil
 }
 
 func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error {
@@ -46,14 +41,47 @@ func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error
 		return outOfRangeIDError("user_id", p.UserID)
 	}
 	updatedAt, err := sqlcgen.New(r.dbtx(ctx)).UpsertProfile(ctx, sqlcgen.UpsertProfileParams{
-		UserID:        uid,
-		Bio:           p.Bio,
-		AvatarUrl:     p.AvatarURL,
-		StatusMessage: p.StatusMessage,
+		UserID:     uid,
+		Bio:        p.Bio,
+		AvatarUrl:  p.AvatarURL,
+		StatusText: p.StatusText,
 	})
 	if err != nil {
 		return err
 	}
 	p.UpdatedAt = updatedAt
 	return nil
+}
+
+func (r *profileRepository) UpdateStatus(ctx context.Context, userID uint64, emoji, text string, expiresAt *time.Time) (*domain.Profile, error) {
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return nil, outOfRangeIDError("user_id", userID)
+	}
+	row, err := sqlcgen.New(r.dbtx(ctx)).UpsertProfileStatus(ctx, sqlcgen.UpsertProfileStatusParams{
+		UserID:          uid,
+		StatusEmoji:     emoji,
+		StatusText:      text,
+		StatusExpiresAt: nullTime(expiresAt),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainProfile(row), nil
+}
+
+func toDomainProfile(row sqlcgen.Profile) *domain.Profile {
+	p := &domain.Profile{
+		UserID:     uint64(row.UserID),
+		Bio:        row.Bio,
+		AvatarURL:  row.AvatarUrl,
+		StatusText: row.StatusText,
+		UpdatedAt:  row.UpdatedAt,
+	}
+	if row.StatusExpiresAt.Valid {
+		t := row.StatusExpiresAt.Time
+		p.StatusExpiresAt = &t
+	}
+	p.StatusEmoji, p.StatusText = domain.ClearExpiredStatus(row.StatusEmoji, row.StatusText, p.StatusExpiresAt, time.Now())
+	return p
 }

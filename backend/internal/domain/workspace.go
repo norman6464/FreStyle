@@ -85,6 +85,15 @@ type SpaceMember struct {
 	Via string `json:"via"`
 }
 
+// MySpace は自分がこのワークスペース内でアクセスできるスペース 1 件（段 14。
+// GET /me/spaces 用）。SpaceMember の向きを逆にしたもの — 1 人が複数スペースから
+// 得る役割を、スペースごとに最も強い役割へ集約する（SpaceMember と同じ Rank 規則）。
+type MySpace struct {
+	ID   string    `json:"id"`
+	Name string    `json:"name"`
+	Role GrantRole `json:"role"`
+}
+
 // WorkspaceSlugMaxLen / WorkspaceNameMaxLen は workspaces の列幅（varchar(64) / varchar(200)）。
 // DB の CHECK / 列幅と同じ値を入口でも見て、桁あふれを 500 ではなく 400 で返せるようにする。
 const (

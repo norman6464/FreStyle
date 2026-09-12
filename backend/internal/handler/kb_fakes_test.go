@@ -2375,3 +2375,35 @@ func (f *kbFakePerms) ListSpaceMembers(_ context.Context, workspaceID, spaceID s
 	}
 	return out, nil
 }
+
+// ListMySpaces は ListSpaceMembers の向きを逆にしたもの（段14。1 人→全スペース）。
+// 同じ「space の scopeRole」＋「private でなければ workspace の scopeRole を継承」の
+// 規則を、そのワークスペースの全スペースに対して展開する。
+func (f *kbFakePerms) ListMySpaces(_ context.Context, workspaceID string, userID uint64) ([]domain.MySpace, error) {
+	wsRole, hasWs := f.scopeRoles[kbScopeKey{scopeID: workspaceID, userID: userID}]
+	var spaceIDs []string
+	for id, sp := range f.pages.spaces {
+		if sp.WorkspaceID == workspaceID {
+			spaceIDs = append(spaceIDs, id)
+		}
+	}
+	sort.Strings(spaceIDs)
+	out := make([]domain.MySpace, 0, len(spaceIDs))
+	for _, spaceID := range spaceIDs {
+		sp := f.pages.spaces[spaceID]
+		spaceRole, hasSpace := f.scopeRoles[kbScopeKey{scopeID: spaceID, userID: userID}]
+		wsReaches := hasWs && sp.Visibility != domain.SpaceVisibilityPrivate
+		var best *domain.GrantRole
+		if hasSpace {
+			best = &spaceRole
+		}
+		if wsReaches && (best == nil || wsRole.Rank() > best.Rank()) {
+			best = &wsRole
+		}
+		if best == nil {
+			continue
+		}
+		out = append(out, domain.MySpace{ID: spaceID, Name: sp.Name, Role: *best})
+	}
+	return out, nil
+}

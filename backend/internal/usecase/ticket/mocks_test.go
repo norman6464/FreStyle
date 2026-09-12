@@ -649,6 +649,12 @@ func (m *mockKBPermissionRepo) ListSpaceMembers(ctx context.Context, workspaceID
 	return p, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListMySpaces(ctx context.Context, workspaceID string, userID uint64) ([]domain.MySpace, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	p, _ := args.Get(0).([]domain.MySpace)
+	return p, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) ListPageGrants(ctx context.Context, workspaceID, pageID string) ([]domain.PageGrant, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	g, _ := args.Get(0).([]domain.PageGrant)

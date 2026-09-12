@@ -781,6 +781,91 @@ func Test_ナレッジAPI_スペースメンバーは未認証なら401(t *testi
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// kbMySpacesPath は自分がアクセスできるスペースの一覧（段14）。ListSpaceMembers の向きを
+// 逆にしたもの（1 スペース→全員 ではなく 1 人→全スペース）。
+const kbMySpacesPath = "/api/v2/kb/workspaces/{slug}/me/spaces"
+
+func kbListMySpaces(t *testing.T, f kbFixture, slug string) (*httptest.ResponseRecorder, []kbMySpaceResponse) {
+	t.Helper()
+	w := f.do(t, http.MethodGet, kbFill(kbMySpacesPath, slug, ""), "")
+	if w.Code != http.StatusOK {
+		return w, nil
+	}
+	var got []kbMySpaceResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	return w, got
+}
+
+// 自分のスペース一覧（段14）は判定がワークスペース所属のみ（ListMembers と同じ軸）。
+// 中身のふるいは grants の集約そのものなので、ListSpaceMembers と対になる観点で確かめる。
+func Test_ナレッジAPI_自分のスペース一覧は直接付与された役割を返す(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleViewer)
+
+	w, got := kbListMySpaces(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, got, 1)
+	assert.Equal(t, kbSpaceID, got[0].ID)
+	assert.Equal(t, domain.GrantRoleViewer, got[0].Role)
+}
+
+func Test_ナレッジAPI_自分のスペース一覧は役割の無いスペースを含まない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// scopeRole を何も張らない = ワークスペースにもスペースにも役割が無い。
+
+	w, got := kbListMySpaces(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Empty(t, got)
+	assert.JSONEq(t, `[]`, w.Body.String(), "null を返すとフロントの .map が落ちる")
+}
+
+func Test_ナレッジAPI_自分のスペース一覧は直接付与がワークスペース全体からの継承より優先する(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// ワークスペース全体では viewer、スペース直接では admin。強い方（admin）が残ること。
+	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleViewer)
+	f.perms.setScopeRole(kbSpaceID, kbUserID, domain.GrantRoleAdmin)
+
+	w, got := kbListMySpaces(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, got, 1)
+	assert.Equal(t, domain.GrantRoleAdmin, got[0].Role)
+}
+
+// 変異確認: knowledgeBasePermissionRepository.ListMySpaces の visibility 判定
+// （sp.Visibility != domain.SpaceVisibilityPrivate）を外すと、private スペースにも
+// ワークスペース全体の役割が継承されてしまい、このテストが落ちる。
+func Test_ナレッジAPI_自分のスペース一覧はprivateスペースにワークスペース全体の役割を継承しない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.setScopeRole(kbWorkspaceID, kbUserID, domain.GrantRoleEditor)
+	f.pages.spaces[kbSpaceID].Visibility = domain.SpaceVisibilityPrivate
+
+	w, got := kbListMySpaces(t, f, kbWorkspaceSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Empty(t, got)
+}
+
+func Test_ナレッジAPI_自分のスペース一覧は所属していないワークスペースでは404(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	unknown, _ := kbListMySpaces(t, f, "no-such-workspace")
+	foreign, _ := kbListMySpaces(t, f, kbOtherWorkspaceSlug)
+
+	assert.Equal(t, http.StatusNotFound, unknown.Code)
+	assert.Equal(t, unknown.Body.String(), foreign.Body.String(), "実在の有無を撃ち分けない")
+}
+
+func Test_ナレッジAPI_自分のスペース一覧は未認証なら401(t *testing.T) {
+	f := newKbFixture(kbCanEdit, 0)
+
+	w, _ := kbListMySpaces(t, f, kbWorkspaceSlug)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
 // kbMembershipEventsPath は所属・権限の変更履歴（段 6・監査）。admin だけが読める。
 const kbMembershipEventsPath = "/api/v2/kb/workspaces/{slug}/membership-events"
 

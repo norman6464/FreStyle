@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/norman6464/frestyle/backend/internal/domain"
 )
@@ -22,6 +23,14 @@ func (s *stubProfileRepo) Upsert(_ context.Context, p *domain.Profile) error {
 	}
 	s.p = p
 	return nil
+}
+
+func (s *stubProfileRepo) UpdateStatus(_ context.Context, userID uint64, emoji, text string, expiresAt *time.Time) (*domain.Profile, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.p = &domain.Profile{UserID: userID, StatusEmoji: emoji, StatusText: text, StatusExpiresAt: expiresAt}
+	return s.p, nil
 }
 
 func Test_プロフィール取得_ユーザーIDが必須(t *testing.T) {
@@ -58,15 +67,67 @@ func Test_プロフィール更新_永続化する(t *testing.T) {
 	}
 }
 
-// Contract フェーズ: StatusMessage の入力が status_message へ書かれること(status 列は廃止)。
-func Test_プロフィール更新_status_messageに書き込む(t *testing.T) {
+// StatusText の入力が status_text へ書かれること。
+func Test_プロフィール更新_status_textに書き込む(t *testing.T) {
 	repo := &stubProfileRepo{}
 	uc := NewUpdateProfileUseCase(repo)
-	if _, err := uc.Execute(context.Background(), UpdateProfileInput{UserID: 1, StatusMessage: "元気です"}); err != nil {
+	if _, err := uc.Execute(context.Background(), UpdateProfileInput{UserID: 1, StatusText: "元気です"}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if repo.p.StatusMessage != "元気です" {
-		t.Fatalf("status_message 未書き込み: %q", repo.p.StatusMessage)
+	if repo.p.StatusText != "元気です" {
+		t.Fatalf("status_text 未書き込み: %q", repo.p.StatusText)
+	}
+}
+
+func Test_ステータス更新_ユーザーIDが必須(t *testing.T) {
+	uc := NewUpdateStatusUseCase(&stubProfileRepo{})
+	if _, err := uc.Execute(context.Background(), UpdateStatusInput{}); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func Test_ステータス更新_絵文字テキスト失効時刻を渡す(t *testing.T) {
+	repo := &stubProfileRepo{}
+	uc := NewUpdateStatusUseCase(repo)
+	expires := time.Now().Add(time.Hour)
+	got, err := uc.Execute(context.Background(), UpdateStatusInput{UserID: 1, Emoji: "🎉", Text: "休暇中", ExpiresAt: &expires})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got.StatusEmoji != "🎉" || got.StatusText != "休暇中" || got.StatusExpiresAt == nil || !got.StatusExpiresAt.Equal(expires) {
+		t.Fatalf("unexpected profile: %+v", got)
+	}
+}
+
+type stubIdentityRepo struct {
+	identities []domain.UserIdentity
+	err        error
+}
+
+func (s *stubIdentityRepo) EnsureIdentity(context.Context, uint64, string, string) error {
+	return nil
+}
+
+func (s *stubIdentityRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.UserIdentity, error) {
+	return s.identities, s.err
+}
+
+func Test_認証方法一覧_ユーザーIDが必須(t *testing.T) {
+	uc := NewListMyIdentitiesUseCase(&stubIdentityRepo{})
+	if _, err := uc.Execute(context.Background(), 0); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func Test_認証方法一覧_repositoryの結果をそのまま返す(t *testing.T) {
+	want := []domain.UserIdentity{{Provider: "oidc", Subject: "sub-1", CreatedAt: time.Now()}}
+	uc := NewListMyIdentitiesUseCase(&stubIdentityRepo{identities: want})
+	got, err := uc.Execute(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got) != 1 || got[0].Provider != "oidc" || got[0].Subject != "sub-1" {
+		t.Fatalf("unexpected identities: %+v", got)
 	}
 }
 

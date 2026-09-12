@@ -565,7 +565,9 @@ CREATE TABLE "public"."profiles" (
   "user_id" bigint NOT NULL,
   "bio" text NOT NULL DEFAULT '',
   "avatar_url" text NOT NULL DEFAULT '',
-  "status_message" text NOT NULL DEFAULT '',
+  "status_text" text NOT NULL DEFAULT '',
+  "status_emoji" text NOT NULL DEFAULT '',
+  "status_expires_at" timestamptz NULL,
   "updated_at" timestamptz NOT NULL,
   PRIMARY KEY ("user_id"),
   CONSTRAINT "fk_profiles_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE

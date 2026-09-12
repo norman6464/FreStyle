@@ -178,6 +178,10 @@ func (s *upsertOidcIdentitySpy) EnsureIdentity(
 	return s.err
 }
 
+func (s *upsertOidcIdentitySpy) ListByUserID(context.Context, uint64) ([]domain.UserIdentity, error) {
+	return nil, nil
+}
+
 // newUpsertUserUseCase はテスト用の依存（oidc spy は既定・txManager は no-op fake）で
 // UpsertUserFromIDTokenUseCase を組み立てる。
 func newUpsertUserUseCase(users *upsertUserRepoSpy) (*UpsertUserFromIDTokenUseCase, *upsertOidcIdentitySpy) {

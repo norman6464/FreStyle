@@ -96,7 +96,7 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, u))
 		_, err := sqlDB.ExecContext(
 			ctx,
-			`INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)
+			`INSERT INTO profiles (user_id, bio, avatar_url, status_text, updated_at)
 			 VALUES ($1, '', $2, $3, now())`,
 			u.ID, "https://example.test/gone.png", "退会済み",
 		)
@@ -124,4 +124,33 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, display, "実在しない id は (nil, nil)")
 	})
+}
+
+// TestUserOidcIdentityRepository_ListByUserID_Integration は認証方法一覧（段 14。表示専用）を
+// 実 Postgres で検証する。他人の identity が混ざらないこと・未作成は空配列で返ることを見る。
+func TestUserOidcIdentityRepository_ListByUserID_Integration(t *testing.T) {
+	sqlDB := testsupport.OpenTestDB(t)
+	users := persistence.NewUserRepository(sqlDB)
+	oidcRepo := persistence.NewUserOidcIdentityRepository(sqlDB)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
+
+	alice := &domain.User{Email: "alice@example.com", Name: "alice"}
+	require.NoError(t, users.Create(ctx, alice))
+	bob := &domain.User{Email: "bob@example.com", Name: "bob"}
+	require.NoError(t, users.Create(ctx, bob))
+
+	require.NoError(t, oidcRepo.EnsureIdentity(ctx, alice.ID, domain.OidcProviderDefault, "alice-sub"))
+	require.NoError(t, oidcRepo.EnsureIdentity(ctx, bob.ID, domain.OidcProviderDefault, "bob-sub"))
+
+	got, err := oidcRepo.ListByUserID(ctx, alice.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1, "他人の identity は混ざらない")
+	require.Equal(t, domain.OidcProviderDefault, got[0].Provider)
+	require.Equal(t, "alice-sub", got[0].Subject)
+	require.False(t, got[0].CreatedAt.IsZero())
+
+	empty, err := oidcRepo.ListByUserID(ctx, 999999)
+	require.NoError(t, err)
+	require.Empty(t, empty, "identity を持たない user は空配列")
 }

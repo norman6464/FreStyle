@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/norman6464/frestyle/backend/internal/adapter/persistence/sqlcgen"
@@ -744,11 +745,13 @@ func (r *knowledgeBasePermissionRepository) ListGrantablePrincipals(ctx context.
 	out := make([]domain.GrantablePrincipal, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, domain.GrantablePrincipal{
-			ID:            row.ID.String(),
-			Kind:          domain.PrincipalKind(row.Kind),
-			Name:          row.Name,
-			AvatarURL:     row.AvatarUrl,
-			StatusMessage: row.StatusMessage,
+			ID:        row.ID.String(),
+			Kind:      domain.PrincipalKind(row.Kind),
+			Name:      row.Name,
+			AvatarURL: row.AvatarUrl,
+			StatusMessage: domain.ComposeStatusDisplay(
+				row.StatusEmoji, row.StatusText, nullTimePtr(row.StatusExpiresAt), time.Now(),
+			),
 		})
 	}
 	return out, nil
@@ -766,11 +769,13 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceMembers(ctx context.Con
 	out := make([]domain.WorkspaceMember, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, domain.WorkspaceMember{
-			PrincipalID:   row.PrincipalID.String(),
-			UserID:        uint64(row.UserID),
-			Name:          row.Name,
-			AvatarURL:     row.AvatarUrl,
-			StatusMessage: row.StatusMessage,
+			PrincipalID: row.PrincipalID.String(),
+			UserID:      uint64(row.UserID),
+			Name:        row.Name,
+			AvatarURL:   row.AvatarUrl,
+			StatusMessage: domain.ComposeStatusDisplay(
+				row.StatusEmoji, row.StatusText, nullTimePtr(row.StatusExpiresAt), time.Now(),
+			),
 		})
 	}
 	return out, nil
@@ -795,7 +800,9 @@ func (r *knowledgeBasePermissionRepository) ListWorkspaceMembersForAdmin(
 			Name:          row.Name,
 			AccountStatus: domain.UserStatus(row.AccountStatus),
 			AvatarURL:     row.AvatarUrl,
-			StatusMessage: row.StatusMessage,
+			StatusMessage: domain.ComposeStatusDisplay(
+				row.StatusEmoji, row.StatusText, nullTimePtr(row.StatusExpiresAt), time.Now(),
+			),
 		}
 		if row.Role.Valid {
 			role := domain.GrantRole(row.Role.String)
@@ -870,6 +877,48 @@ func (r *knowledgeBasePermissionRepository) ListSpaceMembers(ctx context.Context
 			Role:      a.role,
 			Via:       a.source,
 		})
+	}
+	return out, nil
+}
+
+// ListMySpaces は ListSpaceMembers の向きを逆にしたもの（段 14。GET /me/spaces 用）。
+func (r *knowledgeBasePermissionRepository) ListMySpaces(ctx context.Context, workspaceID string, userID uint64) ([]domain.MySpace, error) {
+	wsID, ok := kbParseID(workspaceID)
+	uid, ok2 := toInt64ID(userID)
+	if !ok || !ok2 {
+		return []domain.MySpace{}, nil
+	}
+	rows, err := r.queries(ctx).ListMySpaceGrantFacts(ctx, sqlcgen.ListMySpaceGrantFactsParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: uid, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	// 同じスペースに複数の経路（行）が付くので、ここで「最も強い役割」に集約する
+	// （ListSpaceMembers と同じ方針。domain.GrantRole.Rank の doc 参照）。
+	type acc struct {
+		name string
+		role domain.GrantRole
+	}
+	bySpace := map[uuid.UUID]*acc{}
+	order := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		role := domain.GrantRole(row.Role)
+		cur, ok := bySpace[row.SpaceID]
+		if !ok {
+			bySpace[row.SpaceID] = &acc{name: row.Name, role: role}
+			order = append(order, row.SpaceID)
+			continue
+		}
+		if role.Rank() > cur.role.Rank() {
+			cur.role = role
+		}
+	}
+	out := make([]domain.MySpace, 0, len(order))
+	for _, sid := range order {
+		a := bySpace[sid]
+		out = append(out, domain.MySpace{ID: sid.String(), Name: a.name, Role: a.role})
 	}
 	return out, nil
 }

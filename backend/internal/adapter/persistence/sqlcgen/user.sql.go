@@ -103,17 +103,21 @@ func (q *Queries) GetUserByOidcSubject(ctx context.Context, subject string) (Use
 const getUserDisplayByID = `-- name: GetUserDisplayByID :one
 SELECT u.id, u.name,
        COALESCE(p.avatar_url, '') AS avatar_url,
-       COALESCE(p.status_message, '') AS status_message
+       COALESCE(p.status_emoji, '') AS status_emoji,
+       COALESCE(p.status_text, '') AS status_text,
+       p.status_expires_at AS status_expires_at
 FROM users u
 LEFT JOIN profiles p ON p.user_id = u.id
 WHERE u.id = $1
 `
 
 type GetUserDisplayByIDRow struct {
-	ID            int64
-	Name          string
-	AvatarUrl     string
-	StatusMessage string
+	ID              int64
+	Name            string
+	AvatarUrl       string
+	StatusEmoji     string
+	StatusText      string
+	StatusExpiresAt sql.NullTime
 }
 
 // 人を表示するのに要る最小限（表示名・アイコン・状態メッセージ）を 1 件返す。
@@ -133,7 +137,9 @@ func (q *Queries) GetUserDisplayByID(ctx context.Context, id int64) (GetUserDisp
 		&i.ID,
 		&i.Name,
 		&i.AvatarUrl,
-		&i.StatusMessage,
+		&i.StatusEmoji,
+		&i.StatusText,
+		&i.StatusExpiresAt,
 	)
 	return i, err
 }

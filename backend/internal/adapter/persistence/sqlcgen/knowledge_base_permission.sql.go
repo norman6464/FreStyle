@@ -440,7 +440,15 @@ WITH grantable AS (
                ELSE ''
            END AS name,
            CASE p.kind WHEN 'user' THEN COALESCE(pr.avatar_url, '') ELSE '' END AS avatar_url,
-           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_message, '') ELSE '' END AS status_message
+           -- 一言ステータスは絵文字・テキスト・失効時刻を事実のまま返し、結合と失効判定は
+           -- Go 側（domain.ComposeStatusDisplay）に集める（段 14。他のクエリでも同じ形）。
+           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_emoji, '') ELSE '' END AS status_emoji,
+           CASE p.kind WHEN 'user' THEN COALESCE(pr.status_text, '') ELSE '' END AS status_text,
+           -- LEFT JOIN の条件が kind='user' 前提なので、kind が違えば pr 自体が NULL になり
+           -- CASE を書かなくても自然に NULL になる（avatar_url / status_emoji はテキストなので
+           -- COALESCE で空文字に寄せているが、timestamptz には「空」に相当する値が無いため
+           -- NULL のまま returns する）。
+           pr.status_expires_at AS status_expires_at
     FROM principals p
     LEFT JOIN users u
            ON p.kind = 'user' AND u.id = p.user_id
@@ -454,16 +462,18 @@ WITH grantable AS (
       AND p.kind <> 'share_link'
       AND (p.kind <> 'user' OR (u.status = 'active' AND wm.status = 'active'))
 )
-SELECT id, kind, name, avatar_url, status_message FROM grantable
+SELECT id, kind, name, avatar_url, status_emoji, status_text, status_expires_at FROM grantable
 ORDER BY kind, name, id
 `
 
 type ListGrantablePrincipalsRow struct {
-	ID            uuid.UUID
-	Kind          string
-	Name          string
-	AvatarUrl     string
-	StatusMessage string
+	ID              uuid.UUID
+	Kind            string
+	Name            string
+	AvatarUrl       string
+	StatusEmoji     string
+	StatusText      string
+	StatusExpiresAt sql.NullTime
 }
 
 // 権限を張れる相手の一覧（画面の相手選びに使う）。
@@ -504,7 +514,9 @@ func (q *Queries) ListGrantablePrincipals(ctx context.Context, workspaceID uuid.
 			&i.Kind,
 			&i.Name,
 			&i.AvatarUrl,
-			&i.StatusMessage,
+			&i.StatusEmoji,
+			&i.StatusText,
+			&i.StatusExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1386,7 +1398,9 @@ func (q *Queries) ListWorkspaceMemberUserIDsAmong(ctx context.Context, arg ListW
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
 SELECT p.id AS principal_id, u.id AS user_id, u.name,
        COALESCE(pr.avatar_url, '') AS avatar_url,
-       COALESCE(pr.status_message, '') AS status_message
+       COALESCE(pr.status_emoji, '') AS status_emoji,
+       COALESCE(pr.status_text, '') AS status_text,
+       pr.status_expires_at AS status_expires_at
 FROM principals p
 JOIN users u ON u.id = p.user_id
 JOIN workspace_members wm ON wm.workspace_id = p.workspace_id AND wm.user_id = p.user_id
@@ -1399,11 +1413,13 @@ ORDER BY u.name, u.id
 `
 
 type ListWorkspaceMembersRow struct {
-	PrincipalID   uuid.UUID
-	UserID        int64
-	Name          string
-	AvatarUrl     string
-	StatusMessage string
+	PrincipalID     uuid.UUID
+	UserID          int64
+	Name            string
+	AvatarUrl       string
+	StatusEmoji     string
+	StatusText      string
+	StatusExpiresAt sql.NullTime
 }
 
 // ワークスペースに属する人の一覧（担当の表示名・アイコンと、発言での名指しの候補に使う）。
@@ -1436,7 +1452,9 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID uuid.UUI
 			&i.UserID,
 			&i.Name,
 			&i.AvatarUrl,
-			&i.StatusMessage,
+			&i.StatusEmoji,
+			&i.StatusText,
+			&i.StatusExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1454,7 +1472,9 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID uuid.UUI
 const listWorkspaceMembersForAdmin = `-- name: ListWorkspaceMembersForAdmin :many
 SELECT p.id AS principal_id, u.id AS user_id, u.name, u.status AS account_status,
        COALESCE(pr.avatar_url, '') AS avatar_url,
-       COALESCE(pr.status_message, '') AS status_message,
+       COALESCE(pr.status_emoji, '') AS status_emoji,
+       COALESCE(pr.status_text, '') AS status_text,
+       pr.status_expires_at AS status_expires_at,
        wg.role AS role
 FROM principals p
 JOIN users u ON u.id = p.user_id
@@ -1468,13 +1488,15 @@ ORDER BY u.name, u.id
 `
 
 type ListWorkspaceMembersForAdminRow struct {
-	PrincipalID   uuid.UUID
-	UserID        int64
-	Name          string
-	AccountStatus string
-	AvatarUrl     string
-	StatusMessage string
-	Role          sql.NullString
+	PrincipalID     uuid.UUID
+	UserID          int64
+	Name            string
+	AccountStatus   string
+	AvatarUrl       string
+	StatusEmoji     string
+	StatusText      string
+	StatusExpiresAt sql.NullTime
+	Role            sql.NullString
 }
 
 // メンバー管理画面（段 7）向け。ListWorkspaceMembers と違い、停止中のアカウント
@@ -1502,7 +1524,9 @@ func (q *Queries) ListWorkspaceMembersForAdmin(ctx context.Context, workspaceID 
 			&i.Name,
 			&i.AccountStatus,
 			&i.AvatarUrl,
-			&i.StatusMessage,
+			&i.StatusEmoji,
+			&i.StatusText,
+			&i.StatusExpiresAt,
 			&i.Role,
 		); err != nil {
 			return nil, err

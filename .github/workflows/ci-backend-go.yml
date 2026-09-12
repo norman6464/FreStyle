@@ -167,8 +167,24 @@ jobs:
   # repository(adapter/persistence) 層の結合テストを、本物の PostgreSQL に対して回す。
   # docker-compose.integration.yml で postgres-integration-test を起動し、
   # -tags=integration のテストだけを実行する（単体ジョブとは独立）。
+  #
+  # 2 shard に分けて並列化する。結合テストを持つ 5 パッケージのうち
+  # internal/adapter/persistence 1 つだけが実測 112s と突出して重く、残り 4 つ
+  # （internal/handler・internal/infra/database・internal/testsupport・internal/usecase/user）
+  # を合わせても実測 94s 程度なので、「persistence だけ」と「それ以外全部」の 2 分割が
+  # 一番割に合う（3 分割以上にしても支配的な persistence 単独の時間は縮まらず、
+  # docker compose のイメージ pull・コンテナ起動という shard ごとに重複するオーバーヘッドが
+  # 増えるだけで損をする）。
+  #
+  # 「それ以外」を固定のパッケージ列挙にせず go list で動的に求めているのは、
+  # 将来 persistence 以外の新しいパッケージに結合テストが増えたとき、shard 一覧の
+  # 更新を忘れて CI から静かに漏れる事故を防ぐため（追加分は自動的に shard 2 に入る）。
   integration:
     name: integration tests (postgres)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -186,6 +202,7 @@ jobs:
 
       # 本物の PostgreSQL を起動し healthcheck が通るまで待つ（--wait）。
       # Docker Hub の pull は runner 上で transient に timeout することがあるためリトライする。
+      # shard ごとに別 runner（別 VM）なので、同じポートを使っても衝突しない。
       - name: Start PostgreSQL (docker compose)
         run: |
           for i in 1 2 3; do
@@ -199,27 +216,44 @@ jobs:
       # 単体テストは test ジョブで実行済みで、TEST_DATABASE_URL を env に持つこのジョブで
       # 再実行すると env 依存の単体テストが誤検知し得るため。
       #
+      # shard 1 = internal/adapter/persistence 単独。shard 2 = それ以外全部
+      # （go list ./... から persistence を除いた残りを xargs で go test の引数に渡す。
+      # シェル変数へ一度代入して展開すると、パッケージ一覧が改行区切りである一方
+      # word-splitting が効かない実行環境があり得るため、xargs に直接流して確実に
+      # 1 パッケージ 1 引数へ分解する）。
+      #
       # カバレッジも取る。repository(internal/adapter/persistence) のクエリは実 DB を叩いて
       # 初めて通るので、この計測がないと「結合テストで毎回検証しているコードが 0%」として
-      # 総カバレッジに乗ってしまう。合算と floor 判定は coverage ジョブが行う。
+      # 総カバレッジに乗ってしまう。合算と floor 判定は coverage ジョブが行う
+      # （shard ごとのプロファイルはファイル名を分け、coverage ジョブで両方まとめて合算する）。
       #
       # -covermode=atomic は test ジョブ（-race のため atomic）と mode を揃えるため。
       # 既定は set で、mode の違うプロファイル同士は連結できない。
       # -race は従来どおり付けない。ここは実 DB 相手の I/O 待ちが主で、並行コードの
       # データ競合検査は test ジョブが担っているため。
-      - name: Run integration tests (-tags=integration)
+      - name: Run integration tests (-tags=integration, shard ${{ matrix.shard }})
         env:
           TEST_DATABASE_URL: postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable
-        run: go test -tags=integration -run Integration -covermode=atomic -coverprofile=coverage-integration.out ./...
+        run: |
+          if [ "${{ matrix.shard }}" = "1" ]; then
+            go test -tags=integration -run Integration -covermode=atomic \
+              -coverprofile=coverage-integration-1.out ./internal/adapter/persistence
+          else
+            go list ./... | grep -v '/internal/adapter/persistence$' | xargs go test \
+              -tags=integration -run Integration -covermode=atomic \
+              -coverprofile=coverage-integration-2.out
+          fi
 
       # 結合側のプロファイルを coverage ジョブへ渡す。ジョブごとに runner（ファイルシステム）が
       # 別なので、ジョブをまたぐファイルの受け渡しは artifact 経由でしかできない。
+      # shard ごとにファイル名・artifact 名を分けないと、2 つの shard が同じ名前の
+      # artifact を同時に upload しようとして衝突する。
       - name: Upload integration coverage profile
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-integration
+          name: coverage-integration-${{ matrix.shard }}
           # path はジョブの working-directory ではなくワークスペース起点で解決される。
-          path: backend/coverage-integration.out
+          path: backend/coverage-integration-${{ matrix.shard }}.out
           if-no-files-found: error
           retention-days: 7
 
@@ -283,7 +317,7 @@ jobs:
       - name: go mod download
         run: go mod download
 
-      # 2 本のプロファイルを backend/ 直下へ取り出す（後続の go tool cover が
+      # プロファイルを backend/ 直下へ取り出す（後続の go tool cover が
       # モジュール内から相対解決できる場所に置く）。
       - name: Download unit coverage profile
         uses: actions/download-artifact@v7
@@ -291,11 +325,15 @@ jobs:
           name: coverage-unit
           path: backend
 
-      - name: Download integration coverage profile
+      # integration は 2 shard 分（coverage-integration-1 / coverage-integration-2）ある。
+      # ファイル名がそれぞれ違うので merge-multiple で同じディレクトリへまとめて出しても
+      # 衝突しない。
+      - name: Download integration coverage profiles (2 shards)
         uses: actions/download-artifact@v7
         with:
-          name: coverage-integration
+          pattern: coverage-integration-*
           path: backend
+          merge-multiple: true
 
       # 合算した総カバレッジを PR の Checks サマリに出し、floor を下回ったら fail させる。
       #
@@ -315,20 +353,27 @@ jobs:
           COVERAGE_MIN: '66'
         run: |
           # mode が食い違うプロファイルは連結できない（go tool cover が読めない、
-          # あるいは実行回数の意味がずれる）。どちらかの -covermode 指定が消えたら
+          # あるいは実行回数の意味がずれる）。どれかの -covermode 指定が消えたら
           # 黙って壊れるのではなく、ここで理由付きで落とす。
-          for f in coverage-unit.out coverage-integration.out; do
+          for f in coverage-unit.out coverage-integration-1.out coverage-integration-2.out; do
             if ! head -1 "$f" | grep -qx 'mode: atomic'; then
-              echo "::error::${f} の 1 行目が 'mode: atomic' ではありません（両ジョブの -covermode=atomic を確認してください）: $(head -1 "$f")"
+              echo "::error::${f} の 1 行目が 'mode: atomic' ではありません（各ジョブの -covermode=atomic を確認してください）: $(head -1 "$f")"
               exit 1
             fi
           done
 
-          # mode 行を 1 本だけ書き、残りは両方のプロファイルをそのまま連結する。
-          # 同じブロックが 2 回現れても go tool cover 側で実行回数が合算される。
+          # 結合テスト 2 shard 分をまず 1 本に合算する(表示用。集計対象自体は
+          # 下の coverage-merged.out がまとめて持つ)。
           {
             echo 'mode: atomic'
-            grep -h -v '^mode:' coverage-unit.out coverage-integration.out
+            grep -h -v '^mode:' coverage-integration-1.out coverage-integration-2.out
+          } > coverage-integration.out
+
+          # mode 行を 1 本だけ書き、残りは全プロファイルをそのまま連結する。
+          # 同じブロックが複数回現れても go tool cover 側で実行回数が合算される。
+          {
+            echo 'mode: atomic'
+            grep -h -v '^mode:' coverage-unit.out coverage-integration-1.out coverage-integration-2.out
           } > coverage-merged.out
 
           unit=$(go tool cover -func=coverage-unit.out | tail -1 | awk '{print $3}')
@@ -341,7 +386,7 @@ jobs:
             echo "| 計測 | カバレッジ |"
             echo "| --- | --- |"
             echo "| 単体のみ (race) | ${unit} |"
-            echo "| 結合のみ (postgres) | ${integration} |"
+            echo "| 結合のみ (postgres・2 shard 合算) | ${integration} |"
             echo "| **合算（判定対象）** | **${total}** |"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "unit: ${unit} / integration: ${integration} / merged: ${total} (min ${COVERAGE_MIN}%)"

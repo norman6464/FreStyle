@@ -70,17 +70,25 @@ describe('addConnectSrc', () => {
 
 describe('devCsp', () => {
   it('開発サーバ限定のプラグインを返す', () => {
-    const plugin = devCsp('http://localhost:8080/api');
+    const plugin = devCsp(['http://localhost:8080/api']);
 
     expect(plugin.apply).toBe('serve');
     expect(plugin.transformIndexHtml(HTML)).toContain('http://localhost:8080;');
   });
 
-  it('未設定なら HTML を変えない', () => {
-    expect(devCsp('').transformIndexHtml(HTML)).toBe(HTML);
+  it('複数の URL をまとめて足せる(API と ローカル OIDC 発行者 Dex など)', () => {
+    const plugin = devCsp(['http://localhost:8080/api', 'http://localhost:5556/dex/token']);
+
+    expect(plugin.transformIndexHtml(HTML)).toContain(
+      'http://localhost:8080 http://localhost:5556;',
+    );
+  });
+
+  it('未設定な要素があっても HTML を変えない分は変えない', () => {
+    expect(devCsp(['']).transformIndexHtml(HTML)).toBe(HTML);
   });
 
   it('不正な値は設定読み込み時に落とす', () => {
-    expect(() => devCsp('ftp://example.com')).toThrow(/http \/ https のみ/);
+    expect(() => devCsp(['ftp://example.com'])).toThrow(/http \/ https のみ/);
   });
 });

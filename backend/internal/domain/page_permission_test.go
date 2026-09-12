@@ -334,6 +334,14 @@ func Test_権限モデルの値の検証(t *testing.T) {
 		assert.True(t, c.Valid(), string(c))
 	}
 	assert.False(t, domain.Capability("comment").Valid())
+
+	for _, v := range []domain.PageVisibility{
+		domain.PageVisibilityPublic, domain.PageVisibilitySpace, domain.PageVisibilityPrivate,
+	} {
+		assert.True(t, domain.ValidPageVisibility(v), string(v))
+	}
+	assert.False(t, domain.ValidPageVisibility(domain.PageVisibility("unknown")))
+	assert.False(t, domain.ValidPageVisibility(domain.PageVisibility("")))
 }
 
 func Test_ページ権限_管理は役割だけで決まる(t *testing.T) {

@@ -32,6 +32,7 @@ const (
 	kbDestPageID         = "0198a000-0000-7000-8000-000000000005"
 	kbUserID             = uint64(42)
 	kbLabelID            = "0198a000-0000-7000-8000-000000000006"
+	kbOtherSpaceLabelID  = "0198a000-0000-7000-8000-000000000007"
 )
 
 const kbValidDoc = `{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"本文"}]}]}`
@@ -108,6 +109,11 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	// 段13: ラベル付け外しの endpoint（kbEndpoints）が使う実在のラベル。
 	tickets.labels[kbLabelID] = &domain.Label{
 		ID: kbLabelID, WorkspaceID: kbWorkspaceID, SpaceID: kbSpaceID, Name: "重要", Color: "#4a90d9",
+	}
+	// ページと違うスペースのラベル（Test_ナレッジAPI_入力の検証 の 404 ケース用）。
+	tickets.labels[kbOtherSpaceLabelID] = &domain.Label{
+		ID: kbOtherSpaceLabelID, WorkspaceID: kbWorkspaceID, SpaceID: "0198a000-0000-7000-8000-0000000000fe",
+		Name: "他スペース", Color: "#888888",
 	}
 	registerKnowledgeBaseRoutesWith(
 		g, pages, perms, perms, provisioner, users, comments, versions, views, favorites, templates, suggestions, tickets, fakeTxManager{}, presigner, tickets,
@@ -1163,6 +1169,25 @@ func Test_ナレッジAPI_入力の検証(t *testing.T) {
 			body:      `{"type":"file","key":"kb/` + kbWorkspaceID + `/` + kbRootPageID + `/x.bin"}`,
 			status:    http.StatusBadRequest,
 			errorCode: "invalid_cover_key",
+		},
+		{
+			name: "公開範囲設定でvisibilityが欠落していればinvalid_request", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/visibility",
+			body:      `{}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_request",
+		},
+		{
+			name: "公開範囲設定でvisibilityが未知の値ならinvalid_visibility", method: http.MethodPut,
+			path:      "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/visibility",
+			body:      `{"visibility":"secret"}`,
+			status:    http.StatusBadRequest,
+			errorCode: "invalid_visibility",
+		},
+		{
+			name: "ラベル付けで違うスペースのラベルは404", method: http.MethodPut,
+			path:   "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/pages/" + kbChildPageID + "/labels/" + kbOtherSpaceLabelID,
+			status: http.StatusNotFound,
 		},
 	}
 	for _, tc := range cases {

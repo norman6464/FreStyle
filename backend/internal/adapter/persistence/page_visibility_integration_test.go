@@ -144,4 +144,21 @@ func TestPageVisibility_Integration(t *testing.T) {
 		afterPublic := f.permFor(ctx, t, page.ID, f.bob)
 		assert.Equal(t, base, afterPublic, "'public' への変更で閲覧可否が変わってしまっている")
 	})
+
+	t.Run("存在しないページ・アーカイブ済みページはErrPageNotFound", func(t *testing.T) {
+		f := setupKBPermission(t, sqlDB)
+		f.principalFor(ctx, t, f.alice)
+
+		_, err := f.pages.UpdatePageVisibility(ctx, f.ws, "0198a000-0000-7000-8000-0000000000ff", domain.PageVisibilityPrivate)
+		require.ErrorIs(t, err, repository.ErrPageNotFound, "存在しないページ")
+
+		page, err := f.pageUC.create.Execute(ctx, kb.CreatePageInput{
+			WorkspaceID: f.ws, SpaceID: f.spaceA, Title: "アーカイブ予定", CreatedByUserID: f.alice,
+		})
+		require.NoError(t, err)
+		require.NoError(t, f.pages.ArchivePageSubtree(ctx, f.ws, page.ID))
+
+		_, err = f.pages.UpdatePageVisibility(ctx, f.ws, page.ID, domain.PageVisibilityPrivate)
+		require.ErrorIs(t, err, repository.ErrPageNotFound, "アーカイブ済みページ")
+	})
 }

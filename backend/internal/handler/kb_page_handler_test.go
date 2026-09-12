@@ -50,6 +50,7 @@ type kbFixture struct {
 	comments    *kbFakeComments
 	versions    *kbFakePageVersions
 	views       *kbFakePageViews
+	favorites   *kbFakePageFavorites
 	templates   *kbFakePageTemplates
 	suggestions *kbFakePageSuggestions
 	presigner   *kbFakeImagePresigner
@@ -98,12 +99,13 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	comments := newKbFakeComments()
 	versions := newKbFakePageVersions(pages)
 	views := newKbFakePageViews()
+	favorites := newKbFakePageFavorites()
 	templates := newKbFakePageTemplates()
 	suggestions := newKbFakePageSuggestions()
 	presigner := &kbFakeImagePresigner{}
 	tickets := newTicketFakeRepo()
 	registerKnowledgeBaseRoutesWith(
-		g, pages, perms, perms, provisioner, users, comments, versions, views, templates, suggestions, tickets, fakeTxManager{}, presigner,
+		g, pages, perms, perms, provisioner, users, comments, versions, views, favorites, templates, suggestions, tickets, fakeTxManager{}, presigner,
 	)
 	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
 	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
@@ -111,7 +113,8 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms, perms)
 	return kbFixture{
 		pages: pages, perms: perms, provisioner: provisioner, users: users,
-		comments: comments, versions: versions, views: views, templates: templates, suggestions: suggestions,
+		comments: comments, versions: versions, views: views, favorites: favorites,
+		templates: templates, suggestions: suggestions,
 		presigner: presigner, tickets: tickets, router: r,
 	}
 }
@@ -168,6 +171,16 @@ var kbEndpoints = []kbEndpoint{
 		name: "チケットからの逆参照", method: http.MethodGet,
 		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/ticket-backlinks",
 		capability: domain.CapabilityView, okStatus: http.StatusOK,
+	},
+	{
+		name: "お気に入りに付ける", method: http.MethodPut,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/favorite",
+		capability: domain.CapabilityView, okStatus: http.StatusCreated,
+	},
+	{
+		name: "お気に入りから外す", method: http.MethodDelete,
+		path:       "/api/v2/kb/workspaces/{slug}/pages/{page}/favorite",
+		capability: domain.CapabilityView, okStatus: http.StatusNoContent,
 	},
 	{
 		name: "ページ削除", method: http.MethodDelete,
@@ -330,6 +343,9 @@ func Test_ナレッジAPI_登録済みルートは全て認可テストの対象
 		// ワークスペースの人の一覧。判定は所属のみ（役割を見ない）ので表にせず、
 		// Test_ナレッジAPI_人の一覧は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembersPath): true,
+		// お気に入り一覧（段7）。判定は所属のみ（自分の分しか返さないため）なので表にせず、
+		// Test_ナレッジAPI_お気に入り一覧は* が直接叩く。
+		http.MethodGet + " " + kbRoutePattern(kbFavoritesPath): true,
 		// 所属・権限の変更履歴（段 6・監査）。判定が admin（CanManage）で他の GET と軸が違うので
 		// 表にせず、Test_ナレッジAPI_変更履歴は* が直接叩く。
 		http.MethodGet + " " + kbRoutePattern(kbMembershipEventsPath): true,
@@ -1713,6 +1729,9 @@ func Test_ナレッジAPI_middlewareを通らないルートは成功しない(t
 		kb.NewListPageBacklinksUseCase(perms),
 		ticket.NewListTicketsReferencingPageUseCase(newTicketFakeRepo()),
 		kb.NewRecordPageViewUseCase(newKbFakePageViews()),
+		kb.NewAddPageFavoriteUseCase(newKbFakePageFavorites()),
+		kb.NewRemovePageFavoriteUseCase(newKbFakePageFavorites()),
+		kb.NewIsPageFavoriteUseCase(newKbFakePageFavorites()),
 	)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -2151,6 +2170,21 @@ func Test_ナレッジAPI_IDだけでの解決(t *testing.T) {
 		w2 := resolve(f, t, kbRootPageID)
 		require.Equal(t, http.StatusOK, w2.Code, w2.Body.String())
 		assert.Contains(t, w2.Body.String(), `"viewCount":1`)
+	})
+
+	// 段7: isFavorite は付ける/外すの実際の状態を映す。
+	t.Run("isFavoriteはお気に入りの状態を映す", func(t *testing.T) {
+		f := newKbFixture(kbCanView, kbUserID)
+		before := resolve(f, t, kbRootPageID)
+		require.Equal(t, http.StatusOK, before.Code, before.Body.String())
+		assert.Contains(t, before.Body.String(), `"isFavorite":false`)
+
+		put := f.do(t, http.MethodPut, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/favorite", "")
+		require.Equal(t, http.StatusCreated, put.Code, put.Body.String())
+
+		after := resolve(f, t, kbRootPageID)
+		require.Equal(t, http.StatusOK, after.Code, after.Body.String())
+		assert.Contains(t, after.Body.String(), `"isFavorite":true`)
 	})
 }
 

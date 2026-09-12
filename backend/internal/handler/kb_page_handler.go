@@ -51,6 +51,10 @@ type KnowledgeBasePageHandler struct {
 	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase
 	// recordView は段2（閲覧の記録）。ResolveByID が CanView を確かめた後に呼ぶ。
 	recordView *kb.RecordPageViewUseCase
+	// 段7（お気に入り）。
+	addFavorite    *kb.AddPageFavoriteUseCase
+	removeFavorite *kb.RemovePageFavoriteUseCase
+	isFavorite     *kb.IsPageFavoriteUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
@@ -81,6 +85,9 @@ func NewKnowledgeBasePageHandler(
 	backlinks *kb.ListPageBacklinksUseCase,
 	ticketBacklinks *ticket.ListTicketsReferencingPageUseCase,
 	recordView *kb.RecordPageViewUseCase,
+	addFavorite *kb.AddPageFavoriteUseCase,
+	removeFavorite *kb.RemovePageFavoriteUseCase,
+	isFavorite *kb.IsPageFavoriteUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:           check,
@@ -109,6 +116,9 @@ func NewKnowledgeBasePageHandler(
 		backlinks:       backlinks,
 		ticketBacklinks: ticketBacklinks,
 		recordView:      recordView,
+		addFavorite:     addFavorite,
+		removeFavorite:  removeFavorite,
+		isFavorite:      isFavorite,
 	}
 }
 
@@ -747,6 +757,46 @@ func (h *KnowledgeBasePageHandler) ClearIcon(c *gin.Context) {
 	c.JSON(http.StatusOK, toKbPageResponse(page))
 }
 
+// AddFavorite はページをお気に入りに付ける（段7・閲覧権限があれば誰でも）。冪等: 既に付いて
+// いれば 204、今回新しく付けば 201。
+func (h *KnowledgeBasePageHandler) AddFavorite(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityView) {
+		return
+	}
+	created, err := h.addFavorite.Execute(c.Request.Context(), scope.workspaceID, pageID, scope.userID)
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	if created {
+		c.Status(http.StatusCreated)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// RemoveFavorite はお気に入りから外す（冪等・204）。
+func (h *KnowledgeBasePageHandler) RemoveFavorite(c *gin.Context) {
+	scope, ok := kbScope(c)
+	if !ok {
+		return
+	}
+	pageID := c.Param("pageId")
+	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityView) {
+		return
+	}
+	if err := h.removeFavorite.Execute(c.Request.Context(), pageID, scope.userID); err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // kbIssueImageUploadURLRequest はページ画像アップロード URL 発行の入力。
 type kbIssueImageUploadURLRequest struct {
 	ContentType string `json:"contentType" binding:"required"`
@@ -1257,6 +1307,8 @@ type kbResolvedPageResponse struct {
 	Cover *kbPageCoverResponse `json:"cover,omitempty"`
 	// ViewCount はこのページを見たことのある人数（段2・page_views の行数。延べ回数ではない）。
 	ViewCount int `json:"viewCount"`
+	// IsFavorite は自分がこのページをお気に入りに付けているか（段7・★ の初期状態）。
+	IsFavorite bool `json:"isFavorite"`
 }
 
 // ResolveByID は /p/{pageId} の URL からページを開く（URL にワークスペースを出さないための口）。
@@ -1341,6 +1393,13 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 	} else {
 		viewCount = vc
 	}
+	// isFavorite も同じく飾り情報。取得に失敗してもページは開く（false のまま出す）。
+	isFav := false
+	if fav, favErr := h.isFavorite.Execute(c.Request.Context(), pageID, uid); favErr != nil {
+		slog.WarnContext(c.Request.Context(), "kb: is favorite check failed", "err", favErr)
+	} else {
+		isFav = fav
+	}
 	c.JSON(http.StatusOK, kbResolvedPageResponse{
 		WorkspaceSlug:    loc.Workspace.Slug,
 		WorkspaceName:    loc.Workspace.Name,
@@ -1355,5 +1414,6 @@ func (h *KnowledgeBasePageHandler) ResolveByID(c *gin.Context) {
 		LastEditedAt:     out.BuiltAt,
 		Cover:            coverResp,
 		ViewCount:        viewCount,
+		IsFavorite:       isFav,
 	})
 }

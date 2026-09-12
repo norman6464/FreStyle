@@ -988,6 +988,50 @@ table "page_views" {
   }
 }
 
+# page_favorites: 人がページに付ける「お気に入り」。付けた・外したは本人の明示操作なので、
+# page_views と違い upsert ではなく素直な行の追加・削除で表す。
+table "page_favorites" {
+  schema = schema.public
+  column "user_id" {
+    null = false
+    type = bigint
+  }
+  column "workspace_id" {
+    null = false
+    type = uuid
+  }
+  column "page_id" {
+    null = false
+    type = uuid
+  }
+  column "created_at" {
+    null    = false
+    type    = timestamptz
+    default = sql("now()")
+  }
+  primary_key {
+    columns = [column.user_id, column.page_id]
+  }
+  # 本人自身のお気に入りなので持ち物（CASCADE。page_views と同じ方針）。
+  foreign_key "fk_page_favorites_user" {
+    columns     = [column.user_id]
+    ref_columns = [table.users.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # ページが消えればお気に入りも一緒に消えてよい（テナント越えの page_id 指定も防ぐ）。
+  foreign_key "fk_page_favorites_page" {
+    columns     = [column.workspace_id, column.page_id]
+    ref_columns = [table.pages.column.workspace_id, table.pages.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+  # 「自分のお気に入り一覧」を付けた順の新しい順に引く経路。
+  index "idx_page_favorites_user_created_at" {
+    columns = [column.user_id, column.created_at]
+  }
+}
+
 # page_snapshots: ページのブロック行を組み直した ProseMirror ドキュメント（読み取り用のキャッシュ）。
 # 表示のたびにブロック行を木に組み直すと 1 ページで数百行の取得と再帰的な組み立てが要るため、
 # 編集のたびに 1 つの jsonb へ焼き直して読み出しを 1 行の取得に落とす。

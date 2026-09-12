@@ -35,7 +35,7 @@ var kbTables = []string{
 	// 持つため、blocks・pages を TRUNCATE ... CASCADE すれば自動的に一緒に空になるが、
 	// page_snapshots と同じく明示しておく（この表の作法に揃える）。
 	"blocks", "page_paths", "page_snapshots", "page_search", "page_links", "page_ticket_links",
-	"page_views",
+	"page_views", "page_favorites",
 	"pages", "spaces", "workspaces",
 }
 
@@ -507,6 +507,8 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		seedPermissionRows(t, db, ws, space, page)
 		// insertPage の created_by_user_id と同じ固定値（baseline のテストユーザー）を使う。
 		_, err := db.Exec(`INSERT INTO page_views (user_id, workspace_id, page_id) VALUES (1, $1, $2)`, ws, page)
+		require.NoError(t, err)
+		_, err = db.Exec(`INSERT INTO page_favorites (user_id, workspace_id, page_id) VALUES (1, $1, $2)`, ws, page)
 		require.NoError(t, err)
 		for _, table := range kbTables {
 			require.NotZerof(t, countRows(t, db, table), "%s に検証用の行が入っていること", table)

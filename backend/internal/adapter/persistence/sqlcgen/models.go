@@ -98,6 +98,13 @@ type Page struct {
 	LastEditedByUserID sql.NullInt64
 }
 
+type PageFavorite struct {
+	UserID      int64
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	CreatedAt   time.Time
+}
+
 type PageGrant struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID

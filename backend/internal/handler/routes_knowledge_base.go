@@ -68,6 +68,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		persistence.NewCommentRepository(deps.db),
 		persistence.NewPageVersionRepository(deps.db),
 		persistence.NewPageViewRepository(deps.db),
+		persistence.NewPageFavoriteRepository(deps.db),
 		persistence.NewPageTemplateRepository(deps.db),
 		persistence.NewPageSuggestionRepository(deps.db),
 		persistence.NewTicketRepository(deps.db),
@@ -125,6 +126,7 @@ func registerKnowledgeBaseRoutesWith(
 	comments repository.CommentRepository,
 	versions repository.PageVersionRepository,
 	views repository.PageViewRepository,
+	favorites repository.PageFavoriteRepository,
 	templates repository.PageTemplateRepository,
 	suggestions repository.PageSuggestionRepository,
 	tickets repository.TicketRepository,
@@ -162,6 +164,9 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewListPageBacklinksUseCase(permissions),
 		ticket.NewListTicketsReferencingPageUseCase(tickets),
 		kb.NewRecordPageViewUseCase(views),
+		kb.NewAddPageFavoriteUseCase(favorites),
+		kb.NewRemovePageFavoriteUseCase(favorites),
+		kb.NewIsPageFavoriteUseCase(favorites),
 	)
 
 	// ページ全体へのコメント。認可は CommentHandler 内で
@@ -231,6 +236,7 @@ func registerKnowledgeBaseRoutesWith(
 		kb.NewListWorkspaceMembersForAdminUseCase(permissions),
 		kb.NewListMembershipEventsUseCase(permissions),
 		user.NewLookupUserDisplayUseCase(users),
+		kb.NewListPageFavoritesUseCase(favorites, kb.NewCheckPagePermissionUseCase(permissions)),
 	)
 
 	// 権限操作 API の認可判定はこの 1 つの gate を共有する。
@@ -352,6 +358,10 @@ func registerKnowledgeBaseRoutesWith(
 	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/cover", h.ClearCover)
 	// 逆リンク: このページを参照しているページの一覧。
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/backlinks", h.Backlinks)
+	// お気に入り（段7）。閲覧権限があれば誰でも自分の分を付け外しできる。
+	kbGroup.PUT("/kb/workspaces/:workspaceSlug/pages/:pageId/favorite", h.AddFavorite)
+	kbGroup.DELETE("/kb/workspaces/:workspaceSlug/pages/:pageId/favorite", h.RemoveFavorite)
+	kbGroup.GET("/kb/workspaces/:workspaceSlug/favorites", wh.ListFavorites)
 	kbGroup.GET("/kb/workspaces/:workspaceSlug/pages/:pageId/ticket-backlinks", h.TicketBacklinks)
 
 	// ページ全体へのコメント。一覧は CanView だけで許可し、

@@ -3,10 +3,11 @@ import { expect, within } from 'storybook/test';
 import KbPageMeta from './KbPageMeta';
 
 /**
- * 題名の下に出す「最終編集」の一行。
+ * 題名の下に出すバイライン。
  *
  * lastEditedBy / lastEditedAt が無ければ何も出さない（旧応答・未保存のページの
- * どちらも該当し得るので、無いことを匂わせる空欄は置かない）。
+ * どちらも該当し得るので、無いことを匂わせる空欄は置かない）。それ以外
+ * （公開範囲バッジ・ラベル・閲覧数・読了時間）はどれも省略可で、無い部分だけ出さない。
  */
 const meta = {
   title: 'pages/kb/KbPageMeta',
@@ -42,5 +43,65 @@ export const 最終編集が無い: Story = {
   args: { lastEditedBy: null, lastEditedAt: null },
   play: async ({ canvasElement }) => {
     await expect(canvasElement).toBeEmptyDOMElement();
+  },
+};
+
+/** 公開範囲バッジ（段 13）。既定値は 'space' で、指定が無くてもこの見え方になる。 */
+export const 公開範囲_全体公開: Story = {
+  args: { visibility: 'public' },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('全体公開')).toBeVisible();
+  },
+};
+
+export const 公開範囲_スペース既定: Story = {
+  args: {},
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('スペース')).toBeVisible();
+  },
+};
+
+/** 'private' は作成者以外に一切見せない特別な状態なので、他と違う目立ち方にする。 */
+export const 公開範囲_非公開: Story = {
+  args: { visibility: 'private' },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('非公開')).toBeVisible();
+  },
+};
+
+/** ラベル（段 8）。チケットと同じ labelPaint で塗り分ける。 */
+export const ラベルあり: Story = {
+  args: {
+    labels: [
+      { id: 'l-1', spaceId: 's-1', name: 'ガイドライン', color: '#1d4ed8', createdAt: '', updatedAt: '' },
+      { id: 'l-2', spaceId: 's-1', name: '要更新', color: '#dbeafe', createdAt: '', updatedAt: '' },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('ガイドライン')).toBeVisible();
+    await expect(within(canvasElement).getByText('要更新')).toBeVisible();
+  },
+};
+
+/** ラベルが無ければチップ自体を出さない（バッジ・統計だけが残る）。 */
+export const ラベルなし: Story = {
+  args: { labels: [] },
+};
+
+/** 閲覧数・読了時間（段 2）。段 2 が未マージ（値が渡らない）ならこの行自体を出さない。 */
+export const 閲覧数と読了時間: Story = {
+  args: { viewCount: 128, readMinutes: 4 },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('閲覧 128')).toBeVisible();
+    await expect(within(canvasElement).getByText('読了 4 分')).toBeVisible();
+  },
+};
+
+/** 段 2 が未マージのとき（viewCount/readMinutes が渡らない）。閲覧・読了は出ない。 */
+export const 閲覧数と読了時間が無い: Story = {
+  args: {},
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/閲覧/)).toBeNull();
+    await expect(within(canvasElement).queryByText(/読了/)).toBeNull();
   },
 };

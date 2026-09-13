@@ -80,10 +80,8 @@ export const EMBEDS = {
 } as const;
 
 /**
- * ナレッジ（workspaces → spaces → pages の木）。
- *
- * 旧リッチ文書（/api/v2/documents）の後継。あちらは所有者スコープの平らな一覧だったが、
- * 退役済み（移送なしで撤去）。こちらは付与（grant）だけで解決する木（打ち消す層は持たない）。
+ * ナレッジ（workspaces → spaces → pages の木）。付与（grant）だけで解決する木
+ * （打ち消す層は持たない）。
  *
  * ワークスペースは URL の slug で指す（内部 UUID は外に出さない）。slug から所属を確定する
  * middleware を backend 側の group が通しているので、slug を含まないパスは一覧と作成だけ。
@@ -296,8 +294,6 @@ export const KB_API = {
   rejectPageSuggestion: (workspaceSlug: string, pageId: string, suggestionId: string) =>
     `${API_V2}/kb/workspaces/${encodeURIComponent(workspaceSlug)}/pages/${encodeURIComponent(pageId)}/suggestions/${encodeURIComponent(suggestionId)}/reject`,
 } as const;
-
-// WebSocket は SSE への置換で廃止 (PR-D, 2026-05-07)。
 
 /**
  * チケット・バックログ（既存の spaces に属する。routes_ticket.go 参照）。

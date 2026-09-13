@@ -54,8 +54,6 @@ services:
         required: false
     environment:
       DATABASE_URL: postgres://${LOCAL_DB_USER:-frestyle}:${LOCAL_DB_PASSWORD:-frestyle}@db:5432/${LOCAL_DB_NAME:-frestyle}?sslmode=disable
-      MAIL_SMTP_HOST: mail
-      MAIL_SMTP_PORT: '1025'
       APP_ENV: ${APP_ENV:-local}
       # ===== 認証(Bearer の ID トークン検証) =====
       # 発行者はローカルの Dex(上の idp サービス)。config.Load() は 3 つとも揃わないと

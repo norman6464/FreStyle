@@ -20,7 +20,7 @@ type NotificationRepository interface {
 	CountUnread(ctx context.Context, userID uint64) (int64, error)
 }
 
-// SnsPublisher は通知 push 用（実装は AWS SDK 連携で別 PR）。
-type SnsPublisher interface {
+// PushPublisher は通知 push 用（実装は別 PR）。
+type PushPublisher interface {
 	Publish(ctx context.Context, userID uint64, title, body string) error
 }

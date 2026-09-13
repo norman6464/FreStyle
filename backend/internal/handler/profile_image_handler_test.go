@@ -76,7 +76,7 @@ func Test_プロフィール画像ハンドラ_アップロードURL発行(t *te
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("壊れたJSONは400_以前は握り潰して既定値で処理を続けていた", func(t *testing.T) {
+	t.Run("壊れたJSONは400", func(t *testing.T) {
 		w, c := userIDCtx(`{not json`, 7, "me")
 		newProfileImageHandler(fakeProfileImagePresigner{url: &domain.ProfileImageUploadURL{}}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {

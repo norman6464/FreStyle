@@ -27,9 +27,9 @@ export interface KbSidebarProps {
  * KbSidebar はナレッジの「場所を示す面」。
  *
  * 上から ワークスペースの切替 → 今いるスペースの顔（KbSpaceFace） → ページの木 →
- * バックログへの導線。段14でスペース単位（1 つの spaceId だけ）に組み替えた
- * — 以前は所属ワークスペースの全スペースを並べていたが、他のスペースへの移動は
- * KbSpaceFace 内の一時的な切替（W3 でヘッダーへ正式に移すまでの繋ぎ）が担う。
+ * バックログへの導線。常に 1 つの spaceId（今いるスペース）だけを表示する。
+ * 他のスペースへの移動は KbSpaceFace 内の一時的な切替が担う
+ * （W3 でヘッダーへ正式に移すまでの繋ぎ）。
  */
 export default function KbSidebar({ workspaceSlug, spaceId, activePageId }: KbSidebarProps) {
   const navigate = useNavigate();

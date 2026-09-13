@@ -48,15 +48,12 @@ infra リポの Terraform が管理する。
 >
 > | Secret / 認証情報 | 失効手順 |
 > |---|---|
-> | AWS IAM ロール `frestyle-prod-github-actions-role` | `cd-backend.yml` の Cloud Run 化（本ファイル）で参照されなくなった。IAM ロール自体を AWS 側で削除するか、infra リポの Terraform で削除を検討 |
 > | `IAC_REPO_TOKEN` | PAT を revoke → GitHub Secrets からも削除 |
-> | `CLOUDFRONT_DISTRIBUTION_ID` | `cd-frontend.yml` の Firebase Hosting 化で参照されなくなった。CloudFront ディストリビューション自体を infra リポの Terraform で削除 → GitHub Secrets からも削除。AWS IAM ロール `frestyle-prod-github-actions-frontend-role`（GitHub Secret ではないが同様に未参照）も infra リポ側で削除を検討 |
 >
 > 失効まで終えたら、この表から下の「廃止済み」へ移す。
 >
 > **廃止済み Secrets**（認証情報ではない / 参照されない）:
-> `AWS_ECR_API_SERVER_REPOSITORY`（ECR リポジトリ名。`cd-backend.yml` の Cloud Run 化で不要になった）、
-> `IAC_REPO`、および旧認証基盤の CFn parameter-overrides 用に使っていた `*_CLIENT_ID` 系の secrets
+> `IAC_REPO`、および旧認証基盤の parameter-overrides 用に使っていた `*_CLIENT_ID` 系の secrets
 > （Cloud Run の env / secrets は infra リポの Terraform が持つ）。GitHub Secrets 側に残っていても参照されない。
 
 ### Secrets 一覧確認
@@ -69,7 +66,7 @@ gh secret list -R norman6464/frestyle
 
 ### 1. CI と CD を分離
 - 旧: `back-deploy.yml` / `front-deploy.yml` が `push to main` で test → build → deploy を一気に実行
-- 新: CI（テスト・検証）と CD（デプロイ）を別ファイルに分離。**CD は GCP リソースを触る**（旧 cd-backend は AWS リソースを触っていたが Cloud Run 化で GCP に統一）ため、明示的なトリガーでのみ動かす
+- 新: CI（テスト・検証）と CD（デプロイ）を別ファイルに分離。**CD は GCP リソースを触る**ため、明示的なトリガーでのみ動かす
 
 ### 2. 通常 push では CD は動かない
 - main にマージしただけではデプロイされない

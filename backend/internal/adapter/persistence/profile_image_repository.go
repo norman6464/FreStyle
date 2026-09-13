@@ -29,8 +29,8 @@ func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, con
 		return nil, fmt.Errorf("userID is required")
 	}
 	// Content-Type とサイズの検証は presign より前に済ませる（rich_text_image_repository.go
-	// と同じ形。以前はここが素通しで、任意の Content-Type・上限の無い PUT presigned URL を
-	// いくらでも発行できた）。
+	// と同じ形。検証を飛ばすと、任意の Content-Type・上限の無い PUT presigned URL を
+	// いくらでも発行できてしまう）。
 	if err := domain.ValidateImageUpload(contentType, size); err != nil {
 		return nil, err
 	}

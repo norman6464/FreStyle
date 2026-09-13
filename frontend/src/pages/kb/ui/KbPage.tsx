@@ -6,6 +6,7 @@ import {
   RichTextEditor,
   emptyRichDoc,
   isRichDoc,
+  extractPlainText,
   type EditorCommand,
   type CommentAnchor,
   type CommentBadgeCounts,
@@ -13,6 +14,7 @@ import {
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
+import Button from '@/shared/ui/Button';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
 import { getApiError } from '@/shared/lib/classifyApiError';
@@ -48,6 +50,9 @@ import { useKbPageVersions } from '../model/useKbPageVersions';
 import { useKbBacklinks } from '../model/useKbBacklinks';
 import { useKbSuggestionDraft } from '../model/useKbSuggestionDraft';
 import { useKbPageSuggestions } from '../model/useKbPageSuggestions';
+
+/** バイラインの読了時間の見積りに使う速さ（600 字/分・端数切り上げ）。API は無く手元で計算する。 */
+const READING_CHARS_PER_MINUTE = 600;
 
 /**
  * KbPage はナレッジの画面（左にサイドバー、右に本文）。
@@ -85,7 +90,7 @@ export default function KbPage() {
 
   // 本文保存が block_id_conflict で失敗したら再読み込みを促す。0（未発生）はスキップする
   // （マウント時の初期値で誤発火しないため）。再送しても直らない失敗なので、
-  // 「未保存」の表示だけでは原因が伝わらず利用者が気づけない（CodeRabbit 指摘）。
+  // 「未保存」の表示だけでは原因が伝わらず利用者が気づけない。
   const prevContentConflictCount = useRef(contentConflictCount);
   useEffect(() => {
     if (contentConflictCount === prevContentConflictCount.current) return;
@@ -163,7 +168,7 @@ export default function KbPage() {
    * までに別ページへ移っていたら、そのページの key を新しいページの cover API へ送ることに
    * なってしまう（key の接頭辞が食い違い backend には invalid_cover_key で拒否されるだけだが、
    * 移動先のページに無関係な失敗トーストが出て、元のページの変更も失われる）。
-   * currentPageRef と食い違っていたら黙って結果を捨てる（CodeRabbit 指摘）。
+   * currentPageRef と食い違っていたら黙って結果を捨てる。
    */
   const handleChangeCover = useCallback(
     async (file: File | null) => {
@@ -380,6 +385,13 @@ export default function KbPage() {
   // 「このページを参照しているページ」（逆リンク）。折りたたみの開閉には依存せず、
   // ページを開いたら常に取得する（見出しの件数表示に使うため — useKbComments と同じ考え方）。
   const backlinks = useKbBacklinks(data?.workspaceSlug, data?.page.id);
+  // 読了時間は本文の文字数から見積もる（段2の viewCount と違い、backend の応答には無い —
+  // 決定済みの計算式を手元で適用するだけ）。空の本文では出さない（0 分は意味を持たない）。
+  const readMinutes = useMemo(() => {
+    if (!isRichDoc(data?.doc)) return null;
+    const charCount = extractPlainText(data.doc).length;
+    return charCount > 0 ? Math.max(1, Math.ceil(charCount / READING_CHARS_PER_MINUTE)) : null;
+  }, [data?.doc]);
 
   // 「この版に戻す」の確認ダイアログ。KbRowActions の削除確認と同じ形 —
   // 確定した瞬間に閉じ、実行(失敗時の知らせ)は非同期のまま進める。
@@ -411,7 +423,7 @@ export default function KbPage() {
     try {
       // 進行中/保留中の自動保存を先に片づけてから復元する。待たずに復元だけ叩くと、
       // 先に飛んでいた自動保存の応答が復元の後に着地して、復元した内容を打鍵済みの
-      // 内容で上書きしてしまう競合がある（CodeRabbit 指摘・実バグ）。
+      // 内容で上書きしてしまう競合が実際にある。
       await waitForPendingSaveToSettle(targetPageId);
       const result = await versions.restoreVersion(seq);
       applyRestoredContent(targetPageId, result);
@@ -561,7 +573,7 @@ export default function KbPage() {
             <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
           </button>
         </div>
-        <div className="mx-auto w-full max-w-3xl px-6 py-10">
+        <div className="mx-auto w-full max-w-[900px] px-6 py-10">
           {/* pageId 無し(素の /kb)は resolveEntryPageId が続きを決めている間だけ通る道で、
               ほとんどの場合は決まり次第 /kb/{id} へ移ってしまう。ここに残るのは、
               1 枚もページが見つからなかった(ワークスペースが空)ときだけ。 */}
@@ -636,8 +648,9 @@ export default function KbPage() {
                 見えない祖先は応答に含まれず、穴があいたまま出す（木と同じ見え方。
                 フロントで埋めると、サーバーが伏せた実在を推測で喋ることになる）。
               */}
-              <div className="mb-2 flex items-start justify-between gap-3">
-              <nav aria-label="ページの場所" className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-[var(--color-text-muted)]">
+              {/* パンくずの行と操作ボタンの行は別の行にする（幅が狭いときにパンくずが
+                  折り返しても、操作ボタンの並びが崩れないようにするため）。 */}
+              <nav aria-label="ページの場所" className="mb-2 flex min-w-0 flex-wrap items-center gap-1 text-xs text-[var(--color-text-muted)]">
                 <span className="truncate">{data.workspaceName ?? data.workspaceSlug}</span>
                 {/* ?? [] はデプロイ順の防御 — 旧バックエンドの応答（ancestors なし）でも落とさない */}
                 {(data.ancestors ?? []).map((ancestor) => (
@@ -659,7 +672,7 @@ export default function KbPage() {
                   </span>
                 </span>
               </nav>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="mb-2 flex items-center justify-end gap-2">
                 {/* コメントは canComment に関わらず誰でも開ける（読むだけの人にも見せる）。 */}
                 <button
                   type="button"
@@ -735,14 +748,15 @@ export default function KbPage() {
                 */}
                 {data.canManage && (
                   <div className="relative">
-                    <button
+                    <Button
                       type="button"
+                      variant="primary"
+                      size="sm"
                       onClick={() => setShareOpen((open) => !open)}
                       aria-expanded={shareOpen}
-                      className="rounded border border-surface-3 px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-surface-2"
                     >
                       共有
-                    </button>
+                    </Button>
                     {shareOpen && (
                       <div className="absolute right-0 top-full z-20 mt-1">
                         <SharePanel
@@ -762,7 +776,6 @@ export default function KbPage() {
                     )}
                   </div>
                 )}
-              </div>
               </div>
               {/* カバー画像の追加・変更・外す操作。読むだけの人には何も出さない（部品側の約束）。 */}
               <KbPageCoverButton cover={data.cover} canEdit={data.canEdit} onChange={handleChangeCover} />
@@ -784,7 +797,14 @@ export default function KbPage() {
                   onEnter={() => setBodyFocusSignal((prev) => prev + 1)}
                 />
               </div>
-              <KbPageMeta lastEditedBy={data.lastEditedBy} lastEditedAt={data.lastEditedAt} />
+              <KbPageMeta
+                lastEditedBy={data.lastEditedBy}
+                lastEditedAt={data.lastEditedAt}
+                visibility={data.page.visibility}
+                labels={data.labels}
+                viewCount={data.viewCount}
+                readMinutes={readMinutes}
+              />
               {suggestionDraft.open ? (
                 // ドラフトモード中。value/onChange は useKbPageDoc の自動保存とは完全に
                 // 別系統のローカルなドラフト state（useKbSuggestionDraft）へ繋ぐ —

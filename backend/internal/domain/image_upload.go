@@ -3,8 +3,7 @@ package domain
 import "errors"
 
 // AcceptedImageContentTypes は画像アップロードで受け付ける Content-Type の許可リスト。
-// ここに無い型は ValidateImageUpload が ErrUnsupportedImageContentType で弾く
-// （以前は contentType を検証せずそのまま PUT presign に焼き込んでいた）。
+// ここに無い型は ValidateImageUpload が ErrUnsupportedImageContentType で弾く。
 var AcceptedImageContentTypes = map[string]bool{
 	"image/png":  true,
 	"image/jpeg": true,

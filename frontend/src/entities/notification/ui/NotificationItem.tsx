@@ -7,12 +7,10 @@ import type { Notification } from '../model/types';
  *
  * **いまは空。** backend の domain.Notification は Type が自由文字列で、通知を作る
  * usecase が 1 つも無い（repository に Create / CreateMany はあるが呼び出し元が無い）。
- * かつて並べていた company_application も、会社管理の撤去と一緒に backend から消えた。
  *
  * ここに「これから来そうな種別」を先回りで書かないこと。この対応表は過去 2 回、
- * 実在しない種別（NEW_MESSAGE 等 5 種類 → company_application）で埋まっており、
- * どちらも実際に届く通知にラベルが当たらないまま残った。**作られるようになってから、
- * 実在を確かめた種別だけを足す。**
+ * 実在しない種別で埋まっており、どちらも実際に届く通知にラベルが当たらないまま残った。
+ * **作られるようになってから、実在を確かめた種別だけを足す。**
  *
  * 空のあいだは、下のフォールバックで種別文字列がそのまま出る。
  *

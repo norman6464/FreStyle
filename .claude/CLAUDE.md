@@ -6,7 +6,7 @@
 - **バックエンド**: Go 1.x / Gin / sqlc（`backend/`）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6。データアクセスは **sqlc**（SQL から型付き Go を生成）
-- **本番はすべて GCP**（AWS からの移行は完了済み。ECS は使っていない）
+- **本番はすべて GCP**（ECS は使っていない）
   - **バックエンド**: Cloud Run サービス `frestyle-prod-backend`（プロジェクト `frestyle-prod` / `asia-northeast1`）。イメージは Artifact Registry の `asia-northeast1-docker.pkg.dev/frestyle-prod/frestyle-prod-backend/fre-style`。公開先は https://api.frestyle.dev
   - **フロントエンド**: Firebase Hosting（プロジェクト `frestyle-507912`。バックエンドとは**別プロジェクト**で表示名がどちらも「FreStyle」なので必ず ID で指定する）。公開先は https://frestyle.dev
   - インフラ定義（Cloud Run / Artifact Registry / Firebase Hosting / WIF）は private リポ `frestyle-infrastructure` の Terraform が正。CD はイメージの差し替えと配信だけを担い、インフラ定義には触れない

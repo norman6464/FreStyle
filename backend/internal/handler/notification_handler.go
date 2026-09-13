@@ -51,8 +51,8 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	}
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err := h.markRead.Execute(c.Request.Context(), uid, id); err != nil {
-		// 1 行も更新できなかった。以前は 204 を返しており、既読化できていないのに
-		// 呼び出し側は成功と判断していた。他人の通知と存在しない id は同じ応答に畳む。
+		// 1 行も更新できなかった。他人の通知と存在しない id は同じ応答に畳む
+		// （実在を教えない。204 を返すと既読化できていないのに呼び出し側が成功と誤判定する）。
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 			return

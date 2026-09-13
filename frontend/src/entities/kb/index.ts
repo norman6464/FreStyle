@@ -23,6 +23,7 @@ export type {
   KbIcon,
   KbEditorRef,
   KbPage,
+  KbLabel,
   KbSearchResult,
   KbPageTreeNode,
   KbPageTree,

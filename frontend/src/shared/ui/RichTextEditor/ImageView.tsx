@@ -53,8 +53,8 @@ export default function ImageView({ node, extension }: NodeViewProps) {
   // ReactNodeViewRenderer は NodeView の React コンポーネントを維持したまま、node の
   // 属性が変わると新しい node を渡すだけで再マウントしない（Tiptap の仕様）。そのため
   // src が別の画像に変わっても、依存配列が空だとここが 1 回しか走らず、古い画像の
-  // 解決結果・読み込み中/失敗の表示が新しい画像にそのまま残ってしまう
-  // （CodeRabbit 指摘）。safeSrc・shouldResolve・resolveImageSrc の変更を deps に含める。
+  // 解決結果・読み込み中/失敗の表示が新しい画像にそのまま残ってしまう。
+  // safeSrc・shouldResolve・resolveImageSrc の変更を deps に含める。
   useEffect(() => {
     retriedRef.current = false;
     if (safeSrc === null) {

@@ -71,10 +71,9 @@ func NewRouter(db *sql.DB, cfg *config.Config, verifier *oidc.Verifier) *gin.Eng
 }
 
 // buildJWTVerify は JWTAuth に渡す access_token 検証関数を組み立てる。分岐は無い —
-// 検証器は 1 つで、設定が足りなければ config.Load が起動を止める。以前は「JWKS が無く
-// APP_ENV が local なら署名検証をしない」経路等、発行者を通さず手元を動かすための逃げ道が
-// あったが撤去した。残すと、設定を書き忘れた環境が「認証が効いているように見えて実は
-// 素通し」という一番気づけない壊れ方をする。
+// 検証器は 1 つで、設定が足りなければ config.Load が起動を止める。発行者を通さない逃げ道は
+// 作らない。残すと、設定を書き忘れた環境が「認証が効いているように見えて実は素通し」という
+// 一番気づけない壊れ方をする。
 func buildJWTVerify(v *oidc.Verifier) middleware.VerifyFunc {
 	return v.Verify
 }

@@ -6,13 +6,11 @@ import { test, expect } from '@playwright/test';
  * - 公開 SPA がレンダリングできる
  * - 配信のセキュリティヘッダーが正しく載っている
  *
- * 宛先は frestyle.dev（Firebase Hosting）。AWS 時代のドメインは DNS ごと畳んだので、
- * 向け先を変えるまでこの spec は名前解決の失敗で赤いままだった。
+ * 宛先は frestyle.dev（Firebase Hosting）。
  *
  * ヘッダーの検査は「配信の設定が生きているか」を見る。Firebase Hosting が自前で
- * 付けるのは HSTS だけで、残りは firebase.json の headers が配る。旧 CloudFront が
- * 配っていた分がその移行で落ちていても、**配信物そのものは 200 で返るので気づけない**。
- * ここが唯一それを捕まえる場所。
+ * 付けるのは HSTS だけで、残りは firebase.json の headers が配る。この設定を書き換えて
+ * 何か落ちても、**配信物そのものは 200 で返るので気づけない**。ここが唯一それを捕まえる場所。
  *
  * 認証付きの導線は e2e/local/ 側で、API をモックして確かめている。
  */

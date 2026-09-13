@@ -71,7 +71,7 @@ export interface RichTextEditorProps {
    * コメントできる立場か（domain.PagePermission.CanComment）。editable とは別軸 —
    * 編集権限は無いがコメントだけできる立場（GrantRoleCommenter）が実在するため、
    * editable=false でもこれが true ならバブルメニューを出し「コメント」ボタンだけ使える
-   * ようにする（書式ボタン・リンクは editable=false のままなら出さない — CodeRabbit 指摘）。
+   * ようにする（書式ボタン・リンクは editable=false のままなら出さない）。
    */
   canComment?: boolean;
   /**
@@ -158,9 +158,8 @@ function stableDocString(node: unknown): string {
  * onUpdate の重複判定と同じ id 除外比較を外部同期にも使うと、可視本文が同じで
  * block id だけが異なる別ページへ移動したときに「変更なし」と誤判定し、setContent が
  * 呼ばれず前ページの block id を保ったまま新しいページの文脈で編集を続けてしまう。
- * 保存すると他ページの block id を送ることになり block_id_conflict（409）を招く
- * （CodeRabbit 指摘）。id の生成タイミング差を吸収する必要が無い外部同期では、
- * id を含めた完全な値で比較してよい。
+ * 保存すると他ページの block id を送ることになり block_id_conflict（409）を招く。
+ * id の生成タイミング差を吸収する必要が無い外部同期では、id を含めた完全な値で比較してよい。
  */
 function fullDocString(node: unknown): string {
   return stableValueString(node, false) ?? '{}';

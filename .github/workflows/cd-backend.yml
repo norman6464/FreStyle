@@ -43,8 +43,7 @@ env:
   GCP_SERVICE_ACCOUNT: frestyle-prod-github-deploy@frestyle-prod.iam.gserviceaccount.com
   GCP_PROJECT_ID: frestyle-prod
   GCP_REGION: asia-northeast1
-  # Cloud Run サービスのコンテナは fre-style の 1 本のみ（code-runner サイドカーは
-  # FRESTYLE-449 で削除済み）。
+  # Cloud Run サービスのコンテナは fre-style の 1 本のみ。
   IMAGE_REPO: asia-northeast1-docker.pkg.dev/frestyle-prod/frestyle-prod-backend/fre-style
   CLOUD_RUN_SERVICE: frestyle-prod-backend
 

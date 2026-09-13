@@ -121,12 +121,10 @@ sql:
         # nil スライスは encoding/json で null になり、handler がそのまま返すと
         # フロントの .map / .filter / for-of が TypeError で落ちる。データがまだ無い
         # 新規ユーザー・新規コース・未提出の演習など「使い始めの動線」を直撃する。
-        # 実際に staging で観測され、そのあと機械化された経緯がある。
         #
         # これは sqlc 生成物側の保証であり、手書きの repository が独自に nil を
-        # 返す書き方（早期 return 等）まではここでは検査しない。以前は cmd/slicelint が
-        # CI でそちら側も検査していたが撤去した。手書き側で nil を返さないことは
-        # レビューで担保する。
+        # 返す書き方（早期 return 等）まではここでは検査しない。手書き側で nil を
+        # 返さないことはレビューで担保する。
         emit_empty_slices: true
         emit_json_tags: false
         emit_interface: false

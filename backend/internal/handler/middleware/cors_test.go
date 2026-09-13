@@ -17,7 +17,7 @@ func Test_許可オリジン判定(t *testing.T) {
 		{"https://frestyle-dev.web.app", true},
 		{"https://frestyle-dev.firebaseapp.com", true},
 		{"http://localhost:5173", true},
-		// AWS 時代の配信元は撤去済みで実在しない。許可リストに入っていないことを固定する。
+		// 旧配信元（実在しない）。許可リストに入っていないことを固定する。
 		{"https://dcd3m6lwt0z8u.cloudfront.net", false},
 		{"http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com", false},
 		{"https://normanblog.com", false},

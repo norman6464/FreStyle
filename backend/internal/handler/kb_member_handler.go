@@ -96,10 +96,10 @@ func kbUserIDParam(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
-// InviteMember はユーザーをワークスペースへ招待する（冪等）。以前は users.id を受け取り
-// その場で principal と editor 権限を作っていたため、相手の同意なく追加でき、かつ成功/404
-// の差でユーザーの実在が分かった。今は workspace_members に invited の行を作るだけで、
-// principal・権限は本人が招待を受諾する（AcceptInvitation、kb_invitation_handler.go）まで発生しない。
+// InviteMember はユーザーをワークスペースへ招待する（冪等）。workspace_members に invited
+// の行を作るだけで、principal・権限は本人が招待を受諾する（AcceptInvitation、
+// kb_invitation_handler.go）まで発生しない — 相手の同意なく追加させない・成功/404 の差で
+// ユーザーの実在を教えないため。
 func (h *KnowledgeBaseMemberHandler) InviteMember(c *gin.Context) {
 	scope, ok := kbScope(c)
 	if !ok {

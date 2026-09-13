@@ -16,9 +16,8 @@ permissions:
 
 jobs:
   # 型チェック・lint・ビルド検証。shard に分けても速くならない固定コストの検査群
-  # なので 1 ジョブのままにする（以前は Vitest と同じジョブに同居していたが、
-  # Vitest 側を shard 化するにあたり shard の数だけ重複して払うコストにしないため
-  # ここだけ切り出した）。
+  # なので 1 ジョブのままにする（Vitest の各 shard と同居させると、shard の数だけ
+  # 重複して払うコストになるため、ここだけ切り出している）。
   lint-and-build:
     name: Lint / typecheck / build
     runs-on: ubuntu-latest
@@ -192,8 +191,7 @@ jobs:
         run: pnpm exec vitest run --project=storybook --shard=${{ matrix.shard }}/2
 
   # vitest-unit の 3 shard 分の blob report をマージし、カバレッジ閾値ゲートを
-  # 1 回だけ行う。この repo の必須チェックはここが担う(以前の「Vitest + Build」の
-  # カバレッジゲートに相当)。
+  # 1 回だけ行う。この repo の必須チェックはここが担う。
   vitest-coverage:
     name: Vitest coverage gate (merged)
     runs-on: ubuntu-latest

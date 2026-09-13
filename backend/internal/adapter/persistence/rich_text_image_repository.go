@@ -28,8 +28,8 @@ func (p *richTextImagePresigner) Generate(ctx context.Context, userID uint64, co
 	if userID == 0 {
 		return nil, fmt.Errorf("userID is required")
 	}
-	// Content-Type とサイズの検証は presign より前に済ませる（以前はここが素通しで、
-	// 上限の無い PUT presigned URL をいくらでも発行できた）。
+	// Content-Type とサイズの検証は presign より前に済ませる（検証を飛ばすと、
+	// 上限の無い PUT presigned URL をいくらでも発行できてしまうため）。
 	if err := domain.ValidateImageUpload(contentType, size); err != nil {
 		return nil, err
 	}

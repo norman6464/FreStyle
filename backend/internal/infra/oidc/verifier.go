@@ -63,10 +63,10 @@ var (
 
 // Config は Verifier に必要な設定。**どれも空にできない。**
 //
-// 以前は issuer を JWKS の URL から文字列で削って作っていた。
-// `<issuer>/.well-known/jwks.json` 形式への推測依存で、別形式（例: `<issuer>/oauth/v2/keys`）の
-// 発行者だと issuer が JWKS URL のまま残り iss 照合が必ず外れる —— 症状は「全ユーザー 401」、
-// 原因は設定にも見えない、という壊れ方をした。
+// Issuer は JWKS の URL から推測せず、独立した設定値として持つ。
+// `<issuer>/.well-known/jwks.json` 形式だと決め打って推測すると、別形式（例:
+// `<issuer>/oauth/v2/keys`）の発行者では issuer が JWKS URL のまま残り iss 照合が必ず外れる
+// —— 症状は「全ユーザー 401」、原因は設定にも見えない、という壊れ方をする。
 type Config struct {
 	// Issuer は iss クレームと完全一致していなければならない値。
 	Issuer string

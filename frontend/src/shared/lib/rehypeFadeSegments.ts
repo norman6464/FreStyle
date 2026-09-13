@@ -1,7 +1,6 @@
 /**
  * rehypeFadeSegments — ストリーミング中の Markdown 本文を「句読点チャンク単位でフェードイン」
- * させる rehype プラグイン(Gemini 実物仕様の再現。以前は語単位で分割していたが、後に
- * 句読点単位へ変更した)。
+ * させる rehype プラグイン(Gemini 実物仕様の再現)。
  *
  * Gemini web の実装(配信バンドルで確認)は、本文を句読点 regex で sub-sentence チャンクに分割して
  * span 化し、1 チャンクずつ opacity 0→1 (400ms / ease-out / 1 回) でフェードインさせる。

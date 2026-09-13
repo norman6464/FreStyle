@@ -1081,11 +1081,12 @@ func (u *IssuePageImageDownloadURLUseCase) Execute(ctx context.Context, in Issue
 		return nil, ErrInvalidImageKey
 	}
 	// **通すのは自ページ由来の key だけ**（画像はページに閉じた持ち物。カバーと同じ扱い）。
-	// 以前は「同じワークスペース内なら、その key が自分の本文に貼られていれば通す」という
-	// フォールバックがあった。これは自作自演で破れる: 自分が編集できるページの blocks.attrs
+	// 「同じワークスペース内なら、その key が自分の本文に貼られていれば通す」という
+	// フォールバックはしない。これは自作自演で破れる: 自分が編集できるページの blocks.attrs
 	// （ProseMirror の attrs をそのまま持つ jsonb）に他ページの key を書き込むだけで
-	// 「貼られている」を自分で作れ、そのページの閲覧権限を失ったあとも画像へ届き続けられた
-	// （見ていたのは「要求元ページを読めるか」で「画像の持ち主のページを読めるか」ではなかった）。
+	// 「貼られている」を自分で作れてしまい、そのページの閲覧権限を失ったあとも画像へ届き
+	// 続けられる（「要求元ページを読めるか」ではなく「画像の持ち主のページを読めるか」を
+	// 見なければならない）。
 	if !strings.HasPrefix(in.Key, kbImageKeyPrefix(in.WorkspaceID, in.PageID)) {
 		return nil, repository.ErrPageNotFound
 	}

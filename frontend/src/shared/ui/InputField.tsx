@@ -11,10 +11,9 @@ interface InputFieldProps {
   /**
    * onChange は `(e: ChangeEvent<HTMLInputElement>) => void` を厳密に要求する。
    *
-   * 旧コードは `ChangeEvent | { target: {name, value} }` の union を許していたが、
-   * 関数パラメータの contravariance により呼び出し側の narrow handler が代入不能になる
-   * TS2322 を 9 ページで起こしていた。handleClear 側で synthetic event を組み立てて
-   * 型を満たすことで解消する。
+   * `ChangeEvent | { target: {name, value} }` の union にはしない — 関数パラメータの
+   * contravariance により、呼び出し側の narrow な handler が代入不能になる TS2322 を
+   * 多くの呼び出し元で起こす。handleClear 側で synthetic event を組み立てて型を満たす。
    */
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;

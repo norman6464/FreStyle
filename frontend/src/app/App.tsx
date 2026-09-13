@@ -106,7 +106,7 @@ export default function App() {
           </AuthInitializer>
         }
       >
-        {/* ホーム。公開ランディングを廃止したので "/" がそのままログイン後の入口になる。 */}
+        {/* ホーム（ログイン後の入口）。 */}
         <Route path="/" element={<MenuPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
@@ -118,9 +118,9 @@ export default function App() {
         */}
         <Route path="/kb" element={<KbPage />} />
         <Route path="/kb/:pageId" element={<KbPage />} />
-        {/* 旧 URL の受け皿。ワークスペース単体（/kb/:workspaceSlug）の古いブックマークは、
-            新しい /kb/:pageId と同じ形なので区別できず廃止した。ページ付きの旧 URL
-            （/kb/:slug/pages/:pageId）だけ引き続き写す。 */}
+        {/* 旧 URL の受け皿。ワークスペース単体（/kb/:workspaceSlug）の形は新しい
+            /kb/:pageId と区別できないため対応しない。ページ付きの旧 URL
+            （/kb/:slug/pages/:pageId）だけこの受け皿で写す。 */}
         <Route path="/kb/:workspaceSlug/pages/:pageId" element={<LegacyKbPageRedirect />} />
         {/*
           バックログ（チケット）。既存の spaces に属するので kb と同じテナント非公開の作りを

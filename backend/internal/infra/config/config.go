@@ -28,32 +28,14 @@ type Config struct {
 
 	OIDC   OIDCConfig
 	Images ImagesConfig
-	SES    SESConfig
-	SMTP   SMTPConfig
 }
 
 // ImagesConfig は profile / リッチテキスト画像 / KB ページ画像 upload の presign 発行に必要な
-// 設定。バケットは Cloud Storage（internal/infra/gcs.Presigner）。リージョンは持たない
-// —— GCS のバケット名はプロジェクト内で一意なグローバル名前空間で、クライアント側の呼び出しに
-// リージョン指定は要らない（AWS S3 の Region とは異なる）。
+// 設定。バケットは Cloud Storage（internal/infra/gcs.Presigner）。GCS のバケット名は
+// プロジェクト内で一意なグローバル名前空間なので、クライアント側の呼び出しにリージョン
+// 指定は要らない。
 type ImagesConfig struct {
 	Bucket string
-}
-
-// SESConfig は招待マジックリンクメール送信用の SES v2 設定。FromAddress は SES で検証済の
-// 送信元。未設定（空文字）のときは送信スキップ → token をログに残してフォールバック。
-type SESConfig struct {
-	Region      string
-	FromAddress string
-}
-
-// SMTPConfig は SES を使わない環境（staging）向けのメール送信設定。Host が設定されていれば
-// SES より優先して SMTP で送信する（staging の box 上メールキャッチャー宛。認証・TLS なしの
-// 内部ネットワーク前提）。
-type SMTPConfig struct {
-	Host        string
-	Port        string
-	FromAddress string
 }
 
 // OIDCConfig は Bearer の ID トークンを検証するために要る設定。
@@ -98,27 +80,15 @@ func Load() (*Config, error) {
 		Images: ImagesConfig{
 			Bucket: os.Getenv("IMAGES_BUCKET"),
 		},
-		// SESConfig.Region は SES を実際に呼び出すコードが無いため（招待メール送信は
-		// toC 化で無くなった）、AWS_REGION には連鎖させず固定の既定値にする。
-		SES: SESConfig{
-			Region:      getEnvOrDefault("SES_REGION", "ap-northeast-1"),
-			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
-		},
-		SMTP: SMTPConfig{
-			Host:        os.Getenv("MAIL_SMTP_HOST"),
-			Port:        getEnvOrDefault("MAIL_SMTP_PORT", "1025"),
-			FromAddress: os.Getenv("MAIL_FROM_ADDRESS"),
-		},
 	}
 	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
 		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}
 
 	// 認証設定は揃っているか揃っていないかのどちらかにする。**足りないまま起動しない。**
-	// 以前は「JWKS が無く APP_ENV が local なら署名検証をしない」という逃げ道があった。
-	// APP_ENV は未設定でも既定値 local に解決されるため、環境変数を注入し忘れた環境が
-	// そのまま「署名を検証しない本番」になり得た。通す側に倒すと誰も気づけないので、
-	// 起動時に止める側に倒す。
+	// 発行者を通さない逃げ道は作らない — APP_ENV は未設定でも既定値 local に解決されるため、
+	// そのような逃げ道があると環境変数を注入し忘れた環境がそのまま「署名を検証しない本番」に
+	// なり得る。通す側に倒すと誰も気づけないので、起動時に止める側に倒す。
 	if !cfg.OIDC.Configured() {
 		return nil, fmt.Errorf(
 			"OIDC の設定が足りません（OIDC_ISSUER / OIDC_JWKS_URI / OIDC_AUDIENCES は必須）: "+

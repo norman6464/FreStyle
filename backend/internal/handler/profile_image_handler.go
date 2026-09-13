@@ -71,7 +71,7 @@ func (h *ProfileImageHandler) IssueUploadURL(c *gin.Context) {
 	}
 	var req issueProfileImageReq
 	// body 無し（EOF）は許容するが、不正 JSON は 400 で弾く
-	// （以前はここが全エラーを握り潰し、壊れた JSON でも既定値のまま処理を続けていた）。
+	// （壊れた JSON を握り潰して既定値のまま処理を続けさせないため）。
 	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

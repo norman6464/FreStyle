@@ -339,3 +339,51 @@ export const 最終編集が出る: Story = {
     ).toBeVisible();
   },
 };
+
+/**
+ * バイラインに公開範囲バッジ・ラベル・閲覧数が出る（段13・段2の応答を消費する）。
+ * 読了時間は本文の文字数から手元で見積もる（backend の応答には無い）。
+ */
+export const バイラインに公開範囲とラベルと閲覧数が出る: Story = {
+  decorators: [
+    routerWithParam('/kb/:pageId', '/kb/p-1'),
+    withApi(
+      api({
+        '/kb/pages/p-1': resolved({
+          lastEditedBy: { userId: 1, name: '田中 太郎' },
+          lastEditedAt: '2026-09-01T10:00:00',
+          page: { ...page, visibility: 'private' },
+          labels: [{ id: 'l-1', spaceId: 's-1', name: 'ガイドライン', color: '#1d4ed8', createdAt: '', updatedAt: '' }],
+          viewCount: 42,
+        }),
+      }),
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText('非公開')).toBeVisible();
+    await expect(canvas.getByText('ガイドライン')).toBeVisible();
+    await expect(canvas.getByText('閲覧 42')).toBeVisible();
+    await expect(canvas.getByText(/読了 \d+ 分/)).toBeVisible();
+  },
+};
+
+/**
+ * 本文の幅は 900px 相当。パンくず（ページの場所）と操作ボタンは別の行に分かれ、
+ * 「共有」は塗りの主ボタンになる。
+ */
+export const 幅とパンくずと共有ボタン: Story = {
+  decorators: [routerWithParam('/kb/:pageId', '/kb/p-1'), withApi(api())],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const article = await canvas.findByRole('article');
+    await expect(article.parentElement).toHaveClass('max-w-[900px]');
+
+    const share = canvas.getByRole('button', { name: '共有' });
+    await expect(share).toHaveClass('bg-brand-600');
+
+    // パンくずの行に操作ボタンは同居しない（別の行）。
+    const nav = canvas.getByRole('navigation', { name: 'ページの場所' });
+    await expect(within(nav).queryByRole('button', { name: '共有' })).toBeNull();
+  },
+};

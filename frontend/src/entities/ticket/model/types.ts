@@ -45,7 +45,7 @@ export type TicketChangeField =
  * ラベル（スペースごとに定義し、チケットへ付け外しする）。
  *
  * color は `#rrggbb` の小文字 7 桁で、利用者が自由に決める。読みやすさの担保は
- * 画面側の仕事になる（lib/labelTextColor.ts）。
+ * 画面側の仕事になる（shared/lib/labelPaint.ts）。
  */
 export interface Label {
   id: string;

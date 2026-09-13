@@ -68,6 +68,12 @@ export interface KbPage {
   /** 未設定は null（明示的に外した）と undefined（旧応答）の両方であり得る。 */
   icon?: KbIcon | null;
   lastEditedByUserId?: number;
+  /**
+   * 公開範囲バッジの元（段 13）。'public' | 'space'（既定） | 'private'。
+   * backend は常に返すが、旧応答（デプロイ順）を踏まえ optional にしておく — 無ければ
+   * 既定の 'space' として扱う。
+   */
+  visibility?: 'public' | 'space' | 'private';
 }
 
 /**
@@ -189,6 +195,29 @@ export interface KbResolvedPage {
    * false でもコメントパネル自体（読むこと）は誰でも見られる。書き込み系の UI だけを隠す。
    */
   canComment: boolean;
+  /**
+   * ページに付いたラベル（段 8。チケットの labels をスペース単位で共有する）。
+   * 0 件でも配列（旧応答（デプロイ順）だけ undefined になり得る）。
+   */
+  labels?: KbLabel[];
+  /**
+   * このページを見たことのある人数（段 2。延べ回数ではない）。
+   * 旧応答（デプロイ順）では undefined。
+   */
+  viewCount?: number;
+}
+
+/**
+ * ページに付いたラベル 1 件（段 8）。チケットの `labels`（`entities/ticket` の `Label`）と
+ * 同じ表（スペースごとに定義）を参照する — ページ専用の別テーブルは無い。
+ */
+export interface KbLabel {
+  id: string;
+  spaceId: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** パンくず 1 段分（ページ ID と現在の題名）。 */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { labelPaint } from '../labelTextColor';
+import { labelPaint } from '../labelPaint';
 
 describe('labelPaint', () => {
   it('暗い色は地に敷いて白文字にする', () => {

@@ -5,8 +5,7 @@ import { expect, within } from 'storybook/test';
  * ヘッダーの地（app-header-surface）の見え方。
  *
  * ヘッダーは常時表示で、本文とは縦に並ぶ（重ねない）。不透明な地 + 1px の下罫だけで
- * 境界を表す（2026-09-12。以前は本文に重ねて半透明 + ぼかしにしていたが、常時表示化に
- * 伴い重ねる理由が無くなったのでやめた）。
+ * 境界を表す。
  */
 const meta = {
   title: 'widgets/app-shell/HeaderSurface',

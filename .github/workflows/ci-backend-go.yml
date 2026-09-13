@@ -77,10 +77,8 @@ jobs:
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
       # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。
       # ブロッキングなセキュリティ検査は golangci-lint の gosec（依存の脆弱性は trivy）が担う。
-      # 以前あった、コードの意味解析による横断的なデータフロー検出（関数・ファイルをまたいだ
-      # taint tracking）を行う SAST ジョブは、private リポジトリ化に伴い追加費用が必要になり
-      # 撤去した（2026-09-09。gosec は同一関数内のパターン検出が中心で、その種の横断解析は
-      # 現状カバーできていない）。
+      # 関数・ファイルをまたいだ taint tracking のような横断的なデータフロー検出は
+      # 現状カバーできていない（gosec は同一関数内のパターン検出が中心）。
       - name: govulncheck (advisory)
         continue-on-error: true
         run: |

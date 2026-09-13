@@ -438,8 +438,8 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND page_id = sqlc.arg(page_id)
 -- この事前 SELECT は行をロックしない。別ページ/別ワークスペースの保存が同じ id を先に INSERT すると
 -- （事前検証をすり抜けたレース）、DO UPDATE の WHERE が偽になり blocks 行は作成も更新もされない。
 -- :execrows で影響行数を返し、呼び出し元が 0 行を検出して ErrBlockIDConflict を返せるようにする
--- （:exec のままだと 0 行が握り潰され、snapshot だけ更新されて保存が成功したことになってしまう —
--- CodeRabbit 指摘）。DO UPDATE の WHERE で workspace_id / page_id を絞るのは
+-- （:exec のままだと 0 行が握り潰され、snapshot だけ更新されて保存が成功したことになってしまう）。
+-- DO UPDATE の WHERE で workspace_id / page_id を絞るのは
 -- queries_static_check_test.go の Test_upsertの衝突キーに所有者列が入っていること が求める多層防御
 -- （事前検証にバグがあっても、衝突した行が別ワークスペース・別ページのものなら UPDATE 自体が
 -- 素通りで失敗する。page_id まで絞るのは、ブロックの所有者が実質「同じワークスペースの同じページ」

@@ -70,7 +70,7 @@ export default function FormatMenuBar({
   /**
    * 書式ボタン（太字等）・リンクを出すか。false でも「コメント」ボタンは
    * onRequestComment があれば出す — 編集権限は無くコメントだけできる立場
-   * （domain.GrantRoleCommenter）が実在するため、書式操作とコメント可否は別軸 — CodeRabbit 指摘。
+   * （domain.GrantRoleCommenter）が実在するため、書式操作とコメント可否は別軸。
    */
   editable: boolean;
   /** 選択範囲からコメントを作りたいときに呼ばれる。渡さなければ「コメント」ボタンを出さない。 */

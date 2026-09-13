@@ -90,7 +90,7 @@ export default function KbPage() {
 
   // 本文保存が block_id_conflict で失敗したら再読み込みを促す。0（未発生）はスキップする
   // （マウント時の初期値で誤発火しないため）。再送しても直らない失敗なので、
-  // 「未保存」の表示だけでは原因が伝わらず利用者が気づけない（CodeRabbit 指摘）。
+  // 「未保存」の表示だけでは原因が伝わらず利用者が気づけない。
   const prevContentConflictCount = useRef(contentConflictCount);
   useEffect(() => {
     if (contentConflictCount === prevContentConflictCount.current) return;
@@ -168,7 +168,7 @@ export default function KbPage() {
    * までに別ページへ移っていたら、そのページの key を新しいページの cover API へ送ることに
    * なってしまう（key の接頭辞が食い違い backend には invalid_cover_key で拒否されるだけだが、
    * 移動先のページに無関係な失敗トーストが出て、元のページの変更も失われる）。
-   * currentPageRef と食い違っていたら黙って結果を捨てる（CodeRabbit 指摘）。
+   * currentPageRef と食い違っていたら黙って結果を捨てる。
    */
   const handleChangeCover = useCallback(
     async (file: File | null) => {
@@ -423,7 +423,7 @@ export default function KbPage() {
     try {
       // 進行中/保留中の自動保存を先に片づけてから復元する。待たずに復元だけ叩くと、
       // 先に飛んでいた自動保存の応答が復元の後に着地して、復元した内容を打鍵済みの
-      // 内容で上書きしてしまう競合がある（CodeRabbit 指摘・実バグ）。
+      // 内容で上書きしてしまう競合が実際にある。
       await waitForPendingSaveToSettle(targetPageId);
       const result = await versions.restoreVersion(seq);
       applyRestoredContent(targetPageId, result);

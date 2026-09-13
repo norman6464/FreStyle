@@ -118,7 +118,7 @@ export function useKbPageDoc(pageId: string | undefined) {
    * 版の復元（handleRestoreVersion）の直前に呼ぶ。復元は API 呼び出しの経路が自動保存
    * （flushSave / PUT .../content）とは別（POST .../versions/:seq/restore）なので、
    * 待たずに復元だけ叩くと、先に飛んでいた自動保存の応答が復元の**後**に着地して、
-   * 復元した古い内容を打鍵済みの内容で上書きしてしまう競合があった（CodeRabbit 指摘・実バグ）。
+   * 復元した古い内容を打鍵済みの内容で上書きしてしまう競合が実際にある。
    *
    * 復元は今の内容を明示的に置き換える操作なので、まだ送っていない保留（デバウンス待ち）は
    * ここで捨てる（flush はしない）。既に PUT が飛んでいる分だけ、その完了を待つ。

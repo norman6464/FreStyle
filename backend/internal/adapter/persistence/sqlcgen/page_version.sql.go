@@ -162,9 +162,9 @@ type ListPageVersionsParams struct {
 	PageID      uuid.UUID
 }
 
-// 版一覧。seq 降順・上限 5000 件（defensive な LIMIT。ページネーションは今回作らない —
-// CodeRabbit指摘だが、design ticketにも無い範囲であり、doc を含まない軽量な行なので
-// 一旦この上限で様子を見る判断とした）。30日保持 × 10分規則の理論上の最大件数
+// 版一覧。seq 降順・上限 5000 件（defensive な LIMIT。ページネーションは今回作らない
+// —— design ticket にも無い範囲であり、doc を含まない軽量な行なので一旦この上限で
+// 様子を見る判断とした）。30日保持 × 10分規則の理論上の最大件数
 // （24h/10min × 30日 = 4320）に余裕を持たせた値。これを超える書き込み頻度が実際に
 // 観測されたらページネーションを足す — repository.PageVersionRepository の
 // ListVersions のコメント参照。

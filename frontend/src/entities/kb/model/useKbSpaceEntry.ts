@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KbMySpace } from './types';
 import { resolveEntryKbSpaceId, resolveKbSpace } from './resolveKbSpace';
+import { setCurrentKbSpace } from './currentKbSpaceContext';
 
 export interface KbSpaceEntryState {
   workspaceSlug: string | null;
@@ -59,6 +60,7 @@ export function useKbSpaceEntry(spaceId: string | undefined, onResolvedEntrySpac
           loading: false,
           error: null,
         });
+        setCurrentKbSpace({ workspaceSlug: resolved.workspaceSlug, spaceId: resolved.space.id });
       })
       .catch(() => {
         if (active.current !== key) return;

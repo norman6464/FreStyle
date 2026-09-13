@@ -251,7 +251,6 @@ export default function KbSidebar({ workspaceSlug, spaceId, activePageId }: KbSi
               navigate(`/kb/${page.id}`);
             }}
             onRenameSpace={(name) => renameSpace(space.id, name)}
-            onCreateSpace={createSpace}
           />
 
           {!archivedMode && (

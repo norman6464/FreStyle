@@ -10,14 +10,16 @@ import {
 } from '@heroicons/react/24/outline';
 import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
+import HeaderSpacesNav from './HeaderSpacesNav';
+import HeaderRecentPagesNav from './HeaderRecentPagesNav';
+import HeaderCreateButton from './HeaderCreateButton';
 import { useSidebar } from '../model/useSidebar';
 import { usePanelMode } from '@/shared/lib/hooks/usePanelMode';
 import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
 
-// ナビ項目・アクティブ判定は model/navigation に一元化してある
-// （サイドバー・モバイルメニューと共用の正典）。ここでは描画だけを行う。
-import { MAIN_NAV_ITEMS, navActive } from '../model/navigation';
+// ナビ項目・アクティブ判定は model/navigation に一元化してある。ここでは描画だけを行う。
+import { MAIN_NAV_ITEMS, isKbPath, navActive } from '../model/navigation';
 
 // ナレッジのサイドバー（frestyle.panel.note）を実際に描画しているページだけを対象にする。
 // /kb/tickets/:id・/kb/:workspaceSlug/members・旧 URL のページ写し替えにはサイドバーが
@@ -38,8 +40,9 @@ interface HeaderProps {
 /**
  * Header — 上部固定のテキスト横並びナビ。常時表示（本文には重ねない・自動的には隠れない）。
  *
- * 左: ロゴ ／ 中央左: テキストナビ（アイコンなし） ／ 中央: 検索ボタン ／
- * 右: 通知ベル + ユーザーメニュー。モバイルではハンバーガーで縦メニューを開く。
+ * 左: ロゴ ／ 中央左: テキストナビ（ホーム／スペース ▾／最近見たページ ▾） ／
+ * 中央: 検索ボタン ／ 右: 作成（今いるスペースが分かるときだけ）+ 通知ベル + ユーザーメニュー。
+ * モバイルではハンバーガーで縦メニューを開く。
  *
  * ワークスペース切替は置かない（`KbSidebar` 先頭に既にあり、二重にしない）。
  */
@@ -121,13 +124,17 @@ export default function Header({ onOpenSearch }: HeaderProps) {
           <span className="hidden sm:block text-sm font-semibold text-[var(--color-text-primary)]">FreStyle</span>
         </Link>
 
-        {/* デスクトップ: テキスト横並びナビ */}
+        {/* デスクトップ: テキスト横並びナビ。スペース・最近見たページはドロップダウンを
+            持つため MAIN_NAV_ITEMS ではなく専用コンポーネントで描画する
+            （widgets/app-shell/model/navigation.ts 参照）。 */}
         <nav className="hidden md:flex items-center gap-1" aria-label="メインナビゲーション">
           {MAIN_NAV_ITEMS.map((item) => (
             <Link key={item.id} to={item.to} className={navLinkClass(navActive(item, location.pathname))}>
               {item.label}
             </Link>
           ))}
+          <HeaderSpacesNav className={navLinkClass(isKbPath(location.pathname))} />
+          <HeaderRecentPagesNav className={navLinkClass(false)} />
         </nav>
 
         {/* 中央の検索ボタン。flex-1 の帯の中で justify-center することで、左（ロゴ＋ナビ）・
@@ -147,6 +154,11 @@ export default function Header({ onOpenSearch }: HeaderProps) {
 
         {/* 右側 utilities。モバイルでは中央帯が隠れて自動の余白が無くなるので ml-auto で右へ寄せる。 */}
         <div className="ml-auto flex items-center gap-1">
+          {/* 「作成」は今いるスペースが分かるときだけ出す（ナレッジ以外の画面では非表示）。
+              デスクトップのみ（モバイルはハンバーガーメニュー側に置かない — 段3の対象外）。 */}
+          <div className="hidden md:block">
+            <HeaderCreateButton className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-50" />
+          </div>
           {/* モバイル: 検索は虫眼鏡アイコンのボタンに畳む。 */}
           <button
             type="button"
@@ -202,6 +214,8 @@ export default function Header({ onOpenSearch }: HeaderProps) {
                 {item.label}
               </Link>
             ))}
+            <HeaderSpacesNav className={`block ${navLinkClass(isKbPath(location.pathname))}`} block />
+            <HeaderRecentPagesNav className={`block ${navLinkClass(false)}`} block />
             <div className="my-1 border-t border-surface-3" />
             <Link to="/settings" className={`block ${navLinkClass(location.pathname === '/settings')}`}>
               設定
